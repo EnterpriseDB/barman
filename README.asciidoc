@@ -1,0 +1,14 @@
+= BaRman
+
+Backup and Recovery Manager for PostgreSQL
+
+== About
+
+BaRman is 2ndQuadrant's Physical Backup and Recovery Manager.
+
+== Authors
+
+2ndQuadrant website: http://www.2ndquadrant.it
+
+* Marco Nenciarini <marco.nenciarini@2ndquadrant.it>
+* Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it>

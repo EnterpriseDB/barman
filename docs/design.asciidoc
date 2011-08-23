@@ -1,0 +1,185 @@
+= BaRman
+
+Backup and Recovery Manager for PostgreSQL
+
+== Goals
+
+barman long term goals are:
+
+* Uses a simple ini configuration file
+* Execute backups from a remote server
+* Uses SSH for remote operations
+* Uses Rsync over SSH for file synchronisation and transfers
+* Execute full backups
+* Execute backups for multiple PostgreSQL servers in a cluster
+* Copies files locally and manage base backups and WAL files encapsulating them per server
+* Allows to check server's status
+* Stores status information on disk (no need for concurrency and databases)
+* Manage retention policy of backups and WAL files for every single PostgreSQL server
+* Allows for S3 support
+* Allows for file compression
+* Perform in-place production restore (using the same paths) given a transaction ID or a time
+* Execute incremental backups
+* Perform sandbox restore given a directory, a local port, a transaction ID or a time
+* Allows for file encryption
+* Allows for chain backups
+* Allows for customisation of file operations (default: rsync)
+
+== Use cases
+
+Typical use cases of barman are:
+
+* general case (no specific server):
+
+** check SSH connections
+** list available servers
+** cron execution (maintenance)
+
+* on a specific server:
+
+** check SSH connection
+** list server's backups, their ID, their status (running/incomplete/complete/obsolete) and their information (size, start time, ...)
+** show a single backup information, given a server and an ID
+** launches a full backup in background
+** terminate a running backup
+** delete a backup
+** restore a single backup on the specified target
+** show the status of the live server
+
+== Configuration file
+
+Example config file:
+
+----
+[barman]
+; Main directory
+barman_home = '/srv/barman'
+
+; Default compression level: none, bzip2, gz
+compression_filter = 'gzip -c -9'
+decompression_filter = 'gzip -c -d'
+
+; Log location
+log = log/barman.log
+
+; Default retention policy
+retention_policy = 'redundancy 2'
+
+; Default WAL retention policy
+wal_retention_policy = 'base' ; same as retention policy
+
+[main]
+
+active = true
+;active = false ; skips the section
+
+description = 'Main PostgreSQL Database'
+
+; SSH options
+ssh_command = 'ssh -c arcfour -p 22 postgres@pg01'
+
+; PostgreSQL connection information (DSN)
+conninfo = 'host=pg01 user=postgres port=5432'
+
+; Backup directory
+;backup_directory = 'main'   ; by default inside /srv/barman/main
+;backup_directory = '/mybackups/main' ; override default settings
+
+; Base backups directory
+; basebackups_directory = 'base' ; by default inside /srv/barman/main/base
+; basebackups_directory = '/mybasebackups/main' ; override default settings
+
+; WAL directory
+; wals_directory = 'wals' ; by default inside /srv/barman/main/wals
+; wals_directory = '/mywals/main' ; override default settings
+
+; Incoming WAL directory
+; incoming_wals_directory = 'incoming' ; by default inside /srv/barman/main/incoming
+; incoming_wals_directory = '/mywals/incoming/main' ; override default settings
+
+; Lock file
+; lock_file = 'main.lock' ; by default inside /srv/barman/main/main.lock
+; lock_file = '/var/lock/barman/main.lock' ; override default settings
+
+; Specific compression level (if different from default)
+compression_filter = 'bzip2 -c -9'
+decompression_filter = 'bzip2 -c -d'
+
+; Main retention policy
+retention_policy = 'redundancy 3'
+;retention_policy = 'recovery window of 30 days'
+
+; WAL retention policy
+wal_retention_policy = 'base' ; same as retention policy
+;wal_retention_policy = 'recovery window of 14 days'
+
+
+[web]
+
+active = true
+description = 'Web applications database'
+
+; SSH options
+ssh_command = 'ssh -I ~/.ssh/web01_rsa -c arcfour -p 22 postgres@web01'
+
+; PostgreSQL connection information (DSN)
+conninfo = 'host=web01 user=postgres port=5432'
+----
+
+== Synopsys
+
+
+*TO BE FINISHED*
+
+Example --help output:
+
+----
+barman - Backup and Replication Manager for PostgreSQL
+
+Usage:
+
+  barman [OPTIONS] command
+
+Options:
+
+  --server SERVER  specifies the server name for the command
+  -s=SERVER
+
+  --backup ID      specifies the backup ID
+  -b=ID
+
+  -c CONF_FILE     uses a configuration file (default: /etc/barman.conf)
+
+  --target-time    target time (for recovery)
+
+  --target-xid     target xid (for recovery)
+
+  --exclusive      set target xid to be non inclusive (for recovery)
+
+  --cron           run in cron mode (for maintenance)
+
+  --help           show this helps, then exit
+  --version        output version information, then exit
+
+
+General commands:
+
+  list             list available servers, with useful information
+
+
+Server commands:
+
+  backup           perform a full backup for the given server
+  list             list available backups for the given server
+  status           shows live information and status of the PostgreSQL server
+  delete_obsolete  delete obsolete backups and WAL (according to retention policy)
+  recover          recover a server at a given time or xid
+
+
+Backup commands:
+
+  show             show a single backup information
+  terminate        terminate a running backup
+  delete           delete a backup
+  recover          recover a backup
+----
