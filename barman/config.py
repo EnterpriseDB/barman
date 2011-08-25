@@ -1,4 +1,5 @@
 import os
+import re
 from ConfigParser import ConfigParser, NoOptionError
 
 class Server(object):
@@ -47,7 +48,7 @@ class Config(object):
             else:
                 self._config.read(os.path.expanduser(file))
         else:
-            self._config.read([os.path.expanduser(filename) for filename in Config.CONFIG_FILES])
+            self._config.read([os.path.expanduser(filename) for filename in self.CONFIG_FILES])
         self._servers = None
 
 
@@ -55,10 +56,14 @@ class Config(object):
         if not self._config.has_section(section):
             return None
         try:
-            return self._config.get(section, option, False, defaults)
+            value = self._config.get(section, option, False, defaults)
+            if value != None:
+                value = self._QUOTERE.sub(lambda m: m.group(2), value)
+            return value
         except NoOptionError:
             return None
 
+    _QUOTERE = re.compile(r"""^(["'])(.*)\1$""")
 
     def set(self, section, option):
         self._config.set(section, option)

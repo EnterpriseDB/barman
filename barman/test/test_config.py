@@ -45,7 +45,8 @@ log = %(barman_home)s/log/barman.log
 compression_filter = bzip2 -c -9
 decompression_filter = bzip2 -c -d
 [main]
-ssh_command = ssh -c arcfour -p 22 postgres@pg01
+description =  " Text with quotes " 
+ssh_command = ssh -c "arcfour" -p 22 postgres@pg01
 conninfo = host=pg01 user=postgres port=5432
 """
 
@@ -53,8 +54,8 @@ MINIMAL_CONFIG_MAIN = {
     'barman_home': '/srv/barman',
     'name': 'main',
     'active': 'true',
-    'description': None,
-    'ssh_command': 'ssh -c arcfour -p 22 postgres@pg01',
+    'description': ' Text with quotes ',
+    'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01',
     'conninfo': 'host=pg01 user=postgres port=5432',
     'backup_directory': '/srv/barman/main',
     'basebackups_directory': '/srv/barman/main/base',
@@ -75,11 +76,19 @@ class Test(unittest.TestCase):
         dbs = c.server_names()
         self.assertEqual(set(dbs), set(['main', 'web']))
 
-    def test_minimal(self):
+    def test_quotes(self):
+        fp = StringIO(MINIMAL_CONFIG)
+        c = Config(fp)
+        main = c.get_server('main')
+        self.assertEqual(main.description, ' Text with quotes ')
+        self.assertEqual(main.ssh_command, 'ssh -c "arcfour" -p 22 postgres@pg01')
+
+    def test_interpolation(self):
         fp = StringIO(MINIMAL_CONFIG)
         c = Config(fp)
         main = c.get_server('main')
         self.assertEqual(main.__dict__, MINIMAL_CONFIG_MAIN)
+
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
