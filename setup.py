@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# setup.py - setuptools packaging
+# barman - Backup and Recovery Manager for PostgreSQL
 #
 # Copyright (C) 2011  Devise.IT S.r.l. <info@2ndquadrant.it>
 #
