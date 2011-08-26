@@ -19,15 +19,21 @@
 
 """Backup and Recovery Manager for PostgreSQL
 
-BaRman is a tool to backup and recovery PostgreSQL clusters. 
+BaRman is a tool to backup and recovery PostgreSQL clusters.
 """
 
 BARMAN_VERSION = '0.1.0'
 
+import sys
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
+
+REQUIRES = ['psycopg2', 'argh']
+
+if sys.version_info < (2 , 7):
+        REQUIRES.append('argparse')
 
 setup(
     name='barman',
@@ -39,5 +45,5 @@ setup(
     license='GPL-3.0',
     description=__doc__.split("\n")[0],
     long_description="\n".join(__doc__.split("\n")[2:]),
-    install_requires=['psycopg2', ],
+    install_requires=REQUIRES,
 )
