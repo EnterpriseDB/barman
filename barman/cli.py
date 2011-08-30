@@ -19,6 +19,7 @@
 import os
 from argh import ArghParser, alias, arg
 import barman.config
+from barman.server import Server
 
 def list(args):
     "list available servers, with useful information"
@@ -123,6 +124,7 @@ def main():
             server_backup,
             server_list,
             server_status,
+            server_check,
             server_delete_obsolete,
             server_recover,
         ],
