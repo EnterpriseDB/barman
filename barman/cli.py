@@ -22,7 +22,9 @@ import barman.config
 
 def list(args):
     "list available servers, with useful information"
-    pass
+    servers = barman.__config__.servers()
+    for server in servers:
+        yield server.name
 
 def cron(args):
     "run maintenance tasks"
