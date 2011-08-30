@@ -175,3 +175,13 @@ You can now simulate pgbench activity with:
     pgbench -iv -h /tmp -p $PGPORT -U postgres
 
 EOF
+
+cat <<EOF > $HOME/.barman.conf
+[barman]
+barman_home = $TEST_DIR
+log = %(barman_home)s/log/barman.log
+[test-$MAJOR_RELEASE]
+description = Test server with PostgreSQL $MAJOR_RELEASE.$MICRO_RELEASE
+ssh_command = ssh localhost
+conninfo = host=/tmp port=$PGPORT user=postgres dbname=postgres
+EOF
