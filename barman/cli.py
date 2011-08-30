@@ -31,35 +31,35 @@ def cron(args):
     pass
 
 SERVER_DESCRIPTION = """
-all server commands require a server-name argument
+all server commands require a server_name argument
 """
 
 @alias('backup')
-@arg('server-name', help='specifies the server name for the command')
+@arg('server_name', help='specifies the server name for the command')
 def server_backup(args):
     'perform a full backup for the given server'
     pass
 
 @alias('list')
-@arg('server-name', help='specifies the server name for the command')
+@arg('server_name', help='specifies the server name for the command')
 def server_list(args):
     'list available backups for the given server'
     pass
 
 @alias('status')
-@arg('server-name', help='specifies the server name for the command')
+@arg('server_name', help='specifies the server name for the command')
 def server_status(args):
     'shows live information and status of the PostgreSQL server'
     pass
 
 @alias('delete_obsolete')
-@arg('server-name', help='specifies the server name for the command')
+@arg('server_name', help='specifies the server name for the command')
 def server_delete_obsolete(args):
     'delete obsolete backups and WAL (according to retention policy)'
     pass
 
 @alias('recover')
-@arg('server-name', help='specifies the server name for the command')
+@arg('server_name', help='specifies the server name for the command')
 @arg('--target-time', help='target time')
 @arg('--target-xid', help='target xid')
 @arg('--exclusive', help='set target xid to be non inclusive')
@@ -67,29 +67,37 @@ def server_recover(args):
     'recover a server at a given time or xid'
     pass
 
+@alias('check')
+@arg('server_name', help='specifies the server name for the command')
+def server_check(args):
+    'check if SSH settings work properly for the specified server'
+    config = barman.__config__.get_server(args.server_name)
+    server = Server(config)
+    return server.check()
+
 BACKUP_DESCRIPTION = """
-all backup commands accept require a backup-id argument
+all backup commands accept require a backup_id argument
 """
 
 @alias('show')
-@arg('backup-id', help='specifies the backup ID')
+@arg('backup_id', help='specifies the backup ID')
 def backup_show(args):
     'show a single backup information'
     pass
 
 @alias('terminate')
-@arg('backup-id', help='specifies the backup ID')
+@arg('backup_id', help='specifies the backup ID')
 def backup_terminate(backup):
     'terminate a running backup'
     pass
 
 @alias('delete')
-@arg('backup-id', help='specifies the backup ID')
+@arg('backup_id', help='specifies the backup ID')
 def backup_delete(backup):
     'delete a backup'
     pass
 
-@arg('backup-id', help='specifies the backup ID')
+@arg('backup_id', help='specifies the backup ID')
 @alias('recover')
 def backup_recover(backup):
     'recover a backup'
