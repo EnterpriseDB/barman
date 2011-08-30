@@ -16,16 +16,33 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import psycopg2
 from barman.command_wrappers import Command
 
 class Server(object):
     def __init__(self, config):
         self.config = config
 
-    def check(self):
+    def check_ssh(self):
         cmd = Command("%s -o BatchMode=yes -o StrictHostKeyChecking=no true" % (self.config.ssh_command), shell=True)
         ret = cmd()
         if ret == 0:
-            yield "%s: OK" % (self.config.name)
+            return "\tssh: OK"
         else:
-            yield "%s: FAILED (return code: %s)" % (self.config.name, ret)
+            return "\tssh: FAILED (return code: %s)" % (ret)
+
+    def check_postgres(self):
+        try:
+            conn = psycopg2.connect(self.config.conninfo)
+            cur = conn.cursor()
+            cur.execute("SELECT version()")
+            version = cur.fetchone()
+        except Exception, e:
+            return "\tpgsql: FAILED (%s)" % (e.pgcode)
+        return "\tpgsql: OK (version: %s)" % (version)
+
+    def check(self):
+        yield "Server %s:" % (self.config.name)
+        if self.config.description: yield "\tdescription: %s" % (self.config.description)
+        yield self.check_ssh()
+        yield self.check_postgres()

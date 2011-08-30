@@ -71,7 +71,7 @@ def server_recover(args):
 @alias('check')
 @arg('server_name', help='specifies the server name for the command (all to check all available servers)')
 def server_check(args):
-    'check if SSH settings work properly for the specified server'
+    'check if connection settings work properly for the specified server'
     config = barman.__config__.get_server(args.server_name)
     if not config:
         if args.server_name == 'all':
