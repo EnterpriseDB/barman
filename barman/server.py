@@ -16,9 +16,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from barman.command_wrappers import Command
+
 class Server(object):
     def __init__(self, config):
         self.config = config
 
     def check(self):
-        yield "%(name)s: TODO" % self.config.__dict__  # TODO: implement this
+        cmd = Command("%s -o BatchMode=yes -o StrictHostKeyChecking=no true" % (self.config.ssh_command), shell=True)
+        ret = cmd()
+        if ret == 0:
+            yield "%s: OK" % (self.config.name)
+        else:
+            yield "%s: FAILED (return code: %s)" % (self.config.name, ret)

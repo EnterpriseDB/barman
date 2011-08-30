@@ -69,12 +69,21 @@ def server_recover(args):
     yield "TODO" # TODO: implement this
 
 @alias('check')
-@arg('server_name', help='specifies the server name for the command')
+@arg('server_name', help='specifies the server name for the command (all to check all available servers)')
 def server_check(args):
     'check if SSH settings work properly for the specified server'
     config = barman.__config__.get_server(args.server_name)
-    server = Server(config)
-    return server.check()
+    if not config:
+        if args.server_name == 'all':
+            servers = [Server(conf) for conf in barman.__config__.servers()]
+        else:
+            yield "Unknown server %r" % (args.server_name)
+            return
+    else:
+        servers = [Server(config)]
+    for server in servers:
+        for line in server.check():
+            yield line
 
 BACKUP_DESCRIPTION = """
 all backup commands accept require a backup_id argument
