@@ -102,6 +102,7 @@ def backup_recover(backup):
 
 def main():
     p = ArghParser()
+    p.add_argument('-v', '--version', action='version', version=barman.__version__)
     p.add_commands([list, cron])
     p.add_commands(
         [

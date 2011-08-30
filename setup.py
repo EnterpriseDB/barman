@@ -22,8 +22,6 @@
 BaRman is a tool to backup and recovery PostgreSQL clusters.
 """
 
-BARMAN_VERSION = '0.1.0'
-
 import sys
 try:
     from setuptools import setup
@@ -35,9 +33,12 @@ REQUIRES = ['psycopg2', 'argh']
 if sys.version_info < (2 , 7):
         REQUIRES.append('argparse')
 
+barman = {}
+execfile('barman/version.py', barman)
+
 setup(
     name='barman',
-    version=BARMAN_VERSION,
+    version=barman['__version__'],
     author='Devise.IT S.r.l.',
     author_email='info@2ndquadrant.it',
     packages=['barman', 'barman.test', ],
