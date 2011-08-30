@@ -21,11 +21,15 @@ from argh import ArghParser, alias, arg
 import barman.config
 from barman.server import Server
 
+@arg('--minimal', help='machine readable output', action='store_true')
 def list(args):
     "list available servers, with useful information"
     servers = barman.__config__.servers()
     for server in servers:
-        yield server.name
+        if server.description and not args.minimal:
+            yield "%s - %s" % (server.name, server.description)
+        else:
+            yield server.name
 
 def cron(args):
     "run maintenance tasks"
