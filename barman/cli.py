@@ -29,7 +29,7 @@ def list(args):
 
 def cron(args):
     "run maintenance tasks"
-    pass
+    yield "TODO" # TODO: implement this
 
 SERVER_DESCRIPTION = """
 all server commands require a server_name argument
@@ -39,25 +39,25 @@ all server commands require a server_name argument
 @arg('server_name', help='specifies the server name for the command')
 def server_backup(args):
     'perform a full backup for the given server'
-    pass
+    yield "TODO" # TODO: implement this
 
 @alias('list')
 @arg('server_name', help='specifies the server name for the command')
 def server_list(args):
     'list available backups for the given server'
-    pass
+    yield "TODO" # TODO: implement this
 
 @alias('status')
 @arg('server_name', help='specifies the server name for the command')
 def server_status(args):
     'shows live information and status of the PostgreSQL server'
-    pass
+    yield "TODO" # TODO: implement this
 
 @alias('delete_obsolete')
 @arg('server_name', help='specifies the server name for the command')
 def server_delete_obsolete(args):
     'delete obsolete backups and WAL (according to retention policy)'
-    pass
+    yield "TODO" # TODO: implement this
 
 @alias('recover')
 @arg('server_name', help='specifies the server name for the command')
@@ -66,7 +66,7 @@ def server_delete_obsolete(args):
 @arg('--exclusive', help='set target xid to be non inclusive')
 def server_recover(args):
     'recover a server at a given time or xid'
-    pass
+    yield "TODO" # TODO: implement this
 
 @alias('check')
 @arg('server_name', help='specifies the server name for the command')
@@ -84,25 +84,25 @@ all backup commands accept require a backup_id argument
 @arg('backup_id', help='specifies the backup ID')
 def backup_show(args):
     'show a single backup information'
-    pass
+    yield "TODO" # TODO: implement this
 
 @alias('terminate')
 @arg('backup_id', help='specifies the backup ID')
 def backup_terminate(backup):
     'terminate a running backup'
-    pass
+    yield "TODO" # TODO: implement this
 
 @alias('delete')
 @arg('backup_id', help='specifies the backup ID')
 def backup_delete(backup):
     'delete a backup'
-    pass
+    yield "TODO" # TODO: implement this
 
 @arg('backup_id', help='specifies the backup ID')
 @alias('recover')
 def backup_recover(backup):
     'recover a backup'
-    pass
+    yield "TODO" # TODO: implement this
 
 def load_config(args):
     if hasattr(args, 'config'):

@@ -21,4 +21,4 @@ class Server(object):
         self.config = config
 
     def check(self):
-        yield "%(name)s: TODO" % self.config.__dict__
+        yield "%(name)s: TODO" % self.config.__dict__  # TODO: implement this
