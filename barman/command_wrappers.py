@@ -44,10 +44,21 @@ class Command(object):
 
         cmd = [self.cmd] + self.args + list(args)
         if self.debug:
-            print >> sys.stderr, "RUN: %r" (cmd)
+            print >> sys.stderr, "RUN: %r" % (cmd)
         if self.shell:
             cmd = ' '.join(cmd)
         ret = subprocess.call(cmd, shell=self.shell, env=self.env, preexec_fn=restore_sigpipe)
         if self.debug:
-            print >> sys.stderr, "RET: %s" (ret)
+            print >> sys.stderr, "RET: %s" % (ret)
         return ret
+
+class Rsync(Command):
+    def __init__(self, rsync='rsync', args=[], ssh='ssh', ssh_options=None, debug=False):
+        ssh_cmd = [ssh] + ssh_options
+        options = ['-e', ' '.join(ssh_cmd)] + args
+        Command.__init__(self, rsync, options, debug=debug)
+
+class RsyncPgData(Rsync):
+    def __init__(self, rsync='rsync', args=[], ssh='ssh', ssh_options=None, debug=False):
+        options = ['-rLpt', '--exclude=/pg_xlog/*', '--exclude=/pg_log/*', '--exclude=/postmaster.pid'] + args
+        Rsync.__init__(self, rsync, options, ssh, ssh_options, debug)
