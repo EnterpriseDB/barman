@@ -43,6 +43,10 @@ all server commands require a server_name argument
 @arg('server_name', help='specifies the server name for the command')
 def server_backup(args):
     'perform a full backup for the given server'
+    server = get_server(args)
+    if server == None:
+        yield "Unknown server '%s'" % (args.server_name)
+        return
     yield "TODO" # TODO: implement this
 
 @alias('list')
@@ -73,19 +77,15 @@ def server_recover(args):
     yield "TODO" # TODO: implement this
 
 @alias('check')
-@arg('server_name', help='specifies the server name for the command (all to check all available servers)')
+@arg('server_name', nargs='+', help="specifies the server names to check ('all' will check all available servers)")
 def server_check(args):
     'check if connection settings work properly for the specified server'
-    config = barman.__config__.get_server(args.server_name)
-    if not config:
-        if args.server_name == 'all':
-            servers = [Server(conf) for conf in barman.__config__.servers()]
-        else:
-            yield "Unknown server %r" % (args.server_name)
-            return
-    else:
-        servers = [Server(config)]
-    for server in servers:
+    servers = get_server_list(args)
+
+    for name, server in servers.items():
+        if server == None:
+            yield "Unknown server '%s'" % (name)
+            continue
         for line in server.check():
             yield line
 
@@ -126,6 +126,26 @@ def load_config(args):
         except KeyError:
             file = None
         barman.__config__ = barman.config.Config(file)
+
+
+def get_server(args):
+    config = barman.__config__.get_server(args.server_name)
+    if not config:
+            return None
+    return Server(config)
+
+def get_server_list(args):
+    if args.server_name[0] == 'all':
+        return dict((conf.name, Server(conf)) for conf in barman.__config__.servers())
+    else:
+        server_dict = {}
+        for server in args.server_name:
+            conf = barman.__config__.get_server(server)
+            if conf == None:
+                server_dict[server] = None
+            else:
+                server_dict[server] = Server(conf)
+        return server_dict
 
 def main():
     p = ArghParser()
