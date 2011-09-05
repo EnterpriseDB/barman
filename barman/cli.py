@@ -47,7 +47,8 @@ def server_backup(args):
     if server == None:
         yield "Unknown server '%s'" % (args.server_name)
         return
-    yield "TODO" # TODO: implement this
+    for line in server.backup():
+        yield line
 
 @alias('list')
 @arg('server_name', help='specifies the server name for the command')
