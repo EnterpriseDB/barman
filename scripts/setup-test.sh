@@ -33,7 +33,7 @@
 # ssh-copy-id ~/.ssh/id_rsa.pub localhost
 
 # Test directory (main)
-BARMANTEST_DIR=${BARMANTEST_DIR:-/tmp/barman-tests}
+TEST_DIR=${BARMANTEST_DIR:-/tmp/barman-tests}
 
 SEARCH_PATH=(
     /usr/lib/postgresql/{9.1,9.0,8.4}/bin
@@ -101,23 +101,17 @@ fi
 # 3 - Setup barman tests directory
 ######################################################
 
-if [ ! -d $BARMANTEST_DIR ]
-then
-	mkdir -p $BARMANTEST_DIR
-fi
-
-TEST_DIR=$BARMANTEST_DIR/$MAJOR_RELEASE
 if [ -d $TEST_DIR ]
 then
 	echo "Directory $TEST_DIR already exists. Cannot continue"
 	exit -1
 fi
 
-DR_DIR=$TEST_DIR/backup-node
+MASTER_DIR=$TEST_DIR/$MAJOR_RELEASE/master-node
+PGDATA=$MASTER_DIR/data
+DR_DIR=$TEST_DIR/test-$MAJOR_RELEASE
 ARCHIVE_DIR=$DR_DIR/wals
 BASEBACKUP_DIR=$DR_DIR/base
-MASTER_DIR=$TEST_DIR/master-node
-PGDATA=$MASTER_DIR/data
 
 mkdir -p $PGDATA
 mkdir -p $ARCHIVE_DIR
@@ -165,6 +159,10 @@ barman test server with PostgreSQL $MAJOR_RELEASE.$MICRO_RELEASE installed
 You can now connect as follows:
 
     psql -h /tmp -p $PGPORT -U postgres
+
+or you can set your environment with:
+
+    export PGHOST=/tmp PGPORT=$PGPORT PGUSER=postgres
 
 Remember to stop the server after testing:
 

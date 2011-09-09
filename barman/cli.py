@@ -54,7 +54,12 @@ def server_backup(args):
 @arg('server_name', help='specifies the server name for the command')
 def server_list(args):
     'list available backups for the given server'
-    yield "TODO" # TODO: implement this
+    server = get_server(args)
+    if server == None:
+        yield "Unknown server '%s'" % (args.server_name)
+        return
+    for line in server.list():
+        yield line
 
 @alias('status')
 @arg('server_name', help='specifies the server name for the command')
@@ -72,10 +77,33 @@ def server_delete_obsolete(args):
 @arg('server_name', help='specifies the server name for the command')
 @arg('--target-time', help='target time')
 @arg('--target-xid', help='target xid')
-@arg('--exclusive', help='set target xid to be non inclusive')
+@arg('--exclusive', help='set target xid to be non inclusive', action="store_true")
+@arg('--tablespace', help='tablespace relocation rule', metavar='NAME:LOCATION', action='append')
+@arg('backup_id', help='specifies the backup ID to recover')
+@arg('destination_directory', help="""
+the directory where the new server is created.
+If prefixed with "username@server:" it refers to a remote server
+with the same syntax accepted by rsync""")
 def server_recover(args):
     'recover a server at a given time or xid'
-    yield "TODO" # TODO: implement this
+    server = get_server(args)
+    if server == None:
+        yield "Unknown server '%s'" % (args.server_name)
+        return
+    tablespaces = {}
+    if args.tablespace:
+        for rule in args.tablespace:
+            try:
+                tablespaces.update([rule.split(':', 1)])
+            except:
+                yield "Invalid tablespace relocation rule %s" % rule
+    for line in server.recover(args.backup_id,
+                               args.destination_directory,
+                               tablespaces=tablespaces,
+                               target_time=args.target_time,
+                               target_xid=args.target_xid,
+                               exclusive=args.exclusive):
+        yield line
 
 @alias('check')
 @arg('server_name', nargs='+', help="specifies the server names to check ('all' will check all available servers)")

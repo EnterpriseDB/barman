@@ -20,6 +20,8 @@ import psycopg2
 from barman.command_wrappers import Command, RsyncPgData
 import os
 import datetime
+import traceback
+from barman.backup import Backup
 
 class Server(object):
     def __init__(self, config):
@@ -67,70 +69,120 @@ class Server(object):
 
     def backup(self):
 
-        self._read_pgsql_info()
-
         backup_stamp = datetime.datetime.now()
 
         backup_base = os.path.join(self.config.basebackups_directory, backup_stamp.strftime('%Y%m%dT%H%M%S'))
 
         backup_info = os.path.join(backup_base, 'backup.info')
 
+        current_action = None
+        info = None
         try:
+            current_action = "creating destination directory (%s)" % backup_base
             os.makedirs(backup_base)
-            info = open(backup_info, 'w')
+            current_action = "opening backup info file (%s)" % backup_info
             print >> info, "server=%s" % self.config.name
-            print >> info, "version=%s" % self.server_version
+            info = open(backup_info, 'w')
 
-            yield "Starging backup for server %s in %s" % (self.config.name, backup_base)
+            yield "Starting backup for server %s in %s" % (self.config.name, backup_base)
 
+            current_action = "connecting to database (%s)" % self.config.conninfo
             conn = psycopg2.connect(self.config.conninfo)
             cur = conn.cursor()
+            print >> info, "version=%s" % conn.server_version
 
+            current_action = "detecting data directory"
             cur.execute('SHOW data_directory')
             data_directory = cur.fetchone()
-            yield "Data directory: %s" % (data_directory)
             print >> info, "pgdata=%s" % data_directory
 
+            current_action = "detecting tablespaces"
             cur.execute("SELECT spcname, oid, spclocation FROM pg_tablespace WHERE spclocation != ''")
             tablespaces = cur.fetchall();
             if len(tablespaces) > 0:
-                yield "Additional tablespaces detected:"
                 print >> info, "tablespaces=%r" % tablespaces
                 for oid, name, location in tablespaces:
                     yield "\t%s, %s, %s" % (oid, name, location)
 
+            current_action = "issuing pg_start_backup command"
+            cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_start_backup(%s) as xlog_loc', ('BaRman backup',))
+            start_xlog, start_file_name, start_file_offset = cur.fetchone()
+            yield "Backup begin at xlog location: %s (%s, %08X)" % (start_xlog, start_file_name, start_file_offset)
+            print >> info, "timeline=%d" % int(start_file_name[0:8])
+            print >> info, "begin_time=%s" % backup_stamp
+            print >> info, "begin_xlog=%s" % start_xlog
+            print >> info, "begin_wal=%s" % start_file_name
+            print >> info, "begin_offset=%s" % start_file_offset
+
+
+            current_action = "copying files"
             try:
-                cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_start_backup(%s) as xlog_loc', ('BaRman backup',))
-                start_xlog, start_file_name, start_file_offset = cur.fetchone()
-                yield "Start location: %s (%s, %s)" % (start_xlog, start_file_name, start_file_offset)
-                print >> info, "timeline=%d" % int(start_file_name[0:8])
-                print >> info, "begin_time=%s" % backup_stamp
-                print >> info, "begin_xlog=%s" % start_xlog
-                print >> info, "begin_wal=%s" % start_file_name
-
                 rsync = RsyncPgData(ssh=self.ssh_command, ssh_options=self.ssh_options)
-
                 retval = rsync(':%s/' % data_directory, os.path.join(backup_base, 'pgdata'))
-                if retval in (0, 24):
-                    yield "Transfer completed"
-                else:
-                    yield "ERROR: data transfer failure"
+                if retval not in (0, 24):
+                    raise Exception("ERROR: data transfer failure")
+            except:
+                pass
+            else:
+                current_action = "issuing pg_stop_backup command"
             finally:
                 cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_stop_backup() as xlog_loc')
                 stop_xlog, stop_file_name, stop_file_offset = cur.fetchone()
-                yield "Stop location: %s (%s, %s)" % (stop_xlog, stop_file_name, stop_file_offset)
                 print >> info, "end_time=%s" % datetime.datetime.now()
                 print >> info, "end_xlog=%s" % stop_xlog
                 print >> info, "end_wal=%s" % stop_file_name
+                print >> info, "end_offset=%s" % stop_file_offset
 
-            yield "Writing backup info: %s" % backup_info
             print >> info, "status=DONE"
 
         except:
-            yield "Backlup failed"
-            print >> info, "status=FAILED"
-            raise
+            traceback.print_exc()
+            if info:
+                print >> info, "status=FAILED\nerror=failure %s" % current_action
+            yield "Backup failed %s" % current_action
         else:
-            yield "Backlup completed"
+            yield "Backup end at xlog location: %s (%s, %08X)" % (stop_xlog, stop_file_name, stop_file_offset)
+            yield "Backup completed"
         finally:
-            info.close()
+            if info:
+                info.close()
+
+    def list(self):
+        from glob import glob
+        for file in glob("%s/*/backup.info" % self.config.basebackups_directory):
+            backup = Backup(file)
+            if backup.status == 'DONE':
+                yield "%s - %s - %s" % (self.config.name, backup.backup_id, backup.begin_time)
+
+    def recover(self, backup_id, dest, tablespaces=[], target_time=None, target_xid=None, exclusive=False):
+        backup_base = os.path.join(self.config.basebackups_directory, backup_id)
+        backup_info_file = os.path.join(backup_base, "backup.info")
+        backup = Backup(backup_info_file)
+        yield "Starting restore for server %s using backup %s " % (self.config.name, backup_id)
+        yield "Destination directory: %s" % dest
+        if backup.tablespaces:
+            tblspc_dir = os.path.join(dest, 'pg_tblspc')
+            if not os.path.exists(tblspc_dir):
+                os.makedirs(tblspc_dir)
+            for name, oid, location in backup.tablespaces:
+                if name in tablespaces:
+                    location = tablespaces[name]
+                tblspc_file = os.path.join(tblspc_dir, str(oid))
+                if os.path.exists(tblspc_file):
+                    os.unlink(tblspc_file)
+                os.symlink(location, tblspc_file)
+                yield "\t%s, %s, %s" % (oid, name, location)
+        yield "Copying the base backup."
+        rsync = RsyncPgData(ssh=self.ssh_command, ssh_options=self.ssh_options)
+        retval = rsync('%s/' % os.path.join(backup_base, 'pgdata'), dest)
+        if retval != 0:
+            raise Exception("ERROR: data transfer failure")
+        # Copy wal segments
+        yield "Copying required wal segments."
+        wal_dest = os.path.join(dest, 'pg_xlog')
+        if not os.path.exists(wal_dest):
+            os.makedirs(wal_dest)
+        rsync.from_file_list(backup.get_required_wal_segments(), "%s/" % self.config.wals_directory, wal_dest)
+        yield "TODO: generate recovery.conf" # TODO: generate recovery.conf
+        yield "Restore done"
+        return

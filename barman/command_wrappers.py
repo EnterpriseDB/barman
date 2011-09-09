@@ -37,28 +37,52 @@ class Command(object):
         else:
             self.env = None
 
+    def _cmd_quote(self, cmd, args):
+        if len(args) > 0:
+            cmd = "%s '%s'" % (cmd, "' '".join(args))
+        return cmd
+
     def __call__(self, *args):
         def restore_sigpipe():
             "restore default signal handler (http://bugs.python.org/issue1652)"
             signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
-        cmd = [self.cmd] + self.args + list(args)
+        args = self.args + list(args)
+        if self.shell:
+            cmd = self._cmd_quote(self.cmd, args)
+        else:
+            cmd = [self.cmd] + args
         if self.debug:
             print >> sys.stderr, "RUN: %r" % (cmd)
-        if self.shell:
-            cmd = ' '.join(cmd)
         ret = subprocess.call(cmd, shell=self.shell, env=self.env, preexec_fn=restore_sigpipe)
         if self.debug:
             print >> sys.stderr, "RET: %s" % (ret)
         return ret
 
 class Rsync(Command):
-    def __init__(self, rsync='rsync', args=[], ssh='ssh', ssh_options=None, debug=False):
-        ssh_cmd = [ssh] + ssh_options
-        options = ['-e', ' '.join(ssh_cmd)] + args
+    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, debug=False):
+        if ssh:
+            options = ['-e', self._cmd_quote(ssh, ssh_options)] + args
+        else:
+            options = args
         Command.__init__(self, rsync, options, debug=debug)
 
+    def from_file_list(self, filelist, src, dst):
+        def restore_sigpipe():
+            "restore default signal handler (http://bugs.python.org/issue1652)"
+            signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+        cmd = [self.cmd] + self.args + ['--files-from=-', src, dst]
+        if self.debug:
+            print >> sys.stderr, "RUN: %r" % (cmd)
+        pipe = subprocess.Popen(cmd, preexec_fn=restore_sigpipe, stdin=subprocess.PIPE)
+        pipe.communicate('\n'.join(filelist))
+        ret = pipe.wait()
+        if self.debug:
+            print >> sys.stderr, "RET: %s" % (ret)
+        return ret
+
 class RsyncPgData(Rsync):
-    def __init__(self, rsync='rsync', args=[], ssh='ssh', ssh_options=None, debug=False):
-        options = ['-rLpt', '--exclude=/pg_xlog/*', '--exclude=/pg_log/*', '--exclude=/postmaster.pid'] + args
+    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, debug=False):
+        options = ['-rLKpts', '--delete', '--inplace', '--exclude=/pg_xlog/*', '--exclude=/pg_log/*', '--exclude=/postmaster.pid'] + args
         Rsync.__init__(self, rsync, options, ssh, ssh_options, debug)
