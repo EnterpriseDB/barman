@@ -171,6 +171,10 @@ class Server(object):
                 tblspc_file = os.path.join(tblspc_dir, str(oid))
                 if os.path.exists(tblspc_file):
                     os.unlink(tblspc_file)
+                if not os.path.isdir(location):
+                    os.unlink(location)
+                if not os.path.exists(location):
+                    os.makedirs(location)
                 os.symlink(location, tblspc_file)
                 yield "\t%s, %s, %s" % (oid, name, location)
         yield "Copying the base backup."
