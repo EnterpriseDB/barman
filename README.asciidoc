@@ -13,9 +13,10 @@ TODO: Decide backup architecture. Plan your backup policy and workflow.
 === System requirements
 
 TODO:
-* Python 2.4 or higher
+* Python 2.4 or higher (recommended: with setuptool or distribute modules)
 * PsycoPG 2
 * PostgreSQL >= 8.4
+* rsync >= 3.0.4
 
 === Installation
 
