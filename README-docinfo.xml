@@ -1,0 +1,38 @@
+
+<seriesvolnums>2ndQuadrant</seriesvolnums>
+
+<authorgroup>
+
+	<author>
+		<firstname>Gabriele</firstname>
+		<surname>Bartolini</surname>
+	</author>
+	<author>
+		<firstname>Marco</firstname>
+		<surname>Nenciarini</surname>
+	</author>
+
+</authorgroup>
+
+<copyright>
+
+	<year>2011</year>
+	<holder>
+		2ndQuadrant Italia (<ulink url="http://www.2ndQuadrant.it/" />)
+	</holder>
+
+</copyright>
+
+<date>15 September 2011</date>
+
+<legalnotice>
+
+	<simpara>
+	Copyright &#169; 2011, 2ndQuadrant Italia. All rights reserved.
+	</simpara>
+
+	<simpara>
+	The PostgreSQL elephant logo "Slonik" &#174; is a registered trademark of the PostgreSQL Global Development Group.
+	</simpara>
+
+</legalnotice>

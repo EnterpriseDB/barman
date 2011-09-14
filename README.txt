@@ -4,7 +4,23 @@ Backup and Recovery Manager for PostgreSQL
 
 == Introduction
 
-BaRman is 2ndQuadrant's Physical Backup and Recovery Manager.
+In a perfect world, there would not be the need for a backup.
+However, the unexpected is always upon us. And it is important,
+especially in business environments, to be prepared for when the "unexpected" happens.
+In a database scenario, the "unexpected" could be any of the following:
+
+* data corruption
+* system failure, including hardware failures
+* human errors
+
+In these cases, any ICT manager or DBA should be able to repair from
+the incident and recover in the shortest time possible.
+We normally refer to this discipline as *Disaster recovery*.
+
+2ndQuadrant has always paid attention through his founder's contribution to
+disaster recovery, by heavily contributing to PostgreSQL Point-In-Time-Recovery.
+In 2011, in order to simplify the management of PostgreSQL backups,
+2ndQuadrant started the development of *BaRMan*, physical Backup and Recovery Manager.
 
 == Before you start
 
