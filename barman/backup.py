@@ -63,8 +63,8 @@ class Backup(object):
         return "%08X%08X%08X" % (tli, log, seg)
 
     def get_required_wal_segments(self):
-        begin_tli, begin_log, begin_seg = [int(x) for x in self.WAL_re.match(self.begin_wal).groups()]
-        end_tli, end_log, end_seg = [int(x) for x in self.WAL_re.match(self.end_wal).groups()]
+        begin_tli, begin_log, begin_seg = [int(x, 16) for x in self.WAL_re.match(self.begin_wal).groups()]
+        end_tli, end_log, end_seg = [int(x, 16) for x in self.WAL_re.match(self.end_wal).groups()]
         assert begin_tli == end_tli
 
         cur_log, cur_seg = begin_log, begin_seg
