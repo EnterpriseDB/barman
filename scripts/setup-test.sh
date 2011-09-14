@@ -39,6 +39,7 @@ SEARCH_PATH=(
     /usr/lib/postgresql/{9.1,9.0,8.4}/bin
     /usr/pgsql-{9.1,9.0,8.4}/bin
     /Library/PostgreSQL/{9.1,9.0,8.4}/bin
+    /opt/local/lib/postgresql{91,90,84}/bin
 )
 
 ######################################################
