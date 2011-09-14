@@ -151,8 +151,9 @@ class Server(object):
         from glob import glob
         for file in glob("%s/*/backup.info" % self.config.basebackups_directory):
             backup = Backup(file)
+            tablespaces = [("%s:%s" % (name, location))for name, _, location in backup.tablespaces]
             if backup.status == 'DONE':
-                yield "%s - %s - %s" % (self.config.name, backup.backup_id, backup.begin_time)
+                yield "%s - %s - %s (tablespaces: %s)" % (self.config.name, backup.backup_id, backup.begin_time, ', '.join(tablespaces))
 
     def recover(self, backup_id, dest, tablespaces=[], target_time=None, target_xid=None, exclusive=False):
         backup_base = os.path.join(self.config.basebackups_directory, backup_id)
