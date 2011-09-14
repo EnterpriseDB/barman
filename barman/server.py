@@ -122,7 +122,7 @@ class Server(object):
                 if retval not in (0, 24):
                     raise Exception("ERROR: data transfer failure")
             except:
-                pass
+                raise
             else:
                 current_action = "issuing pg_stop_backup command"
             finally:
