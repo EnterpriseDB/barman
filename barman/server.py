@@ -188,6 +188,14 @@ class Server(object):
         if not os.path.exists(wal_dest):
             os.makedirs(wal_dest)
         rsync.from_file_list(backup.get_required_wal_segments(), "%s/" % self.config.wals_directory, wal_dest)
-        yield "TODO: generate recovery.conf" # TODO: generate recovery.conf
+        if target_time or target_xid:
+            yield "Generating recovery.conf"
+            recovery = open(os.path.join(dest, 'recovery.conf'))
+            print >> recovery, "restore_command = 'cp %s/%%f %%p'" % self.config.wals_directory
+            if target_time:
+                print >> recovery, "recovery_target_time = '%s'" % target_time
+            if target_xid:
+                print >> recovery, "recovery_target_xid = '%s'" % target_xid
+                if exclusive:
+                    print >> recovery, "recovery_target_inclusive = '%s'" % (not exclusive)
         yield "Restore done"
-        return
