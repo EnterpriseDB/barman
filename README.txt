@@ -45,14 +45,21 @@ systems only.
 
 The first step is to decide the architecture of your backup. In a simple scenario, you have
 one *PostgreSQL instance* (server) running on a host. You want your data continuously backed up
-on another server, called the *backup server*.
+to another server, called the *backup server*.
+
 BaRMan allows you to launch PostgreSQL backups directly from the backup server, using SSH
-connections.
-Another key feature of BaRMan is that it allows you to centralise your backups in case
+connections. Another key feature of BaRMan is that it allows you to centralise your backups in case
 you have more than one PostgreSQL servers to manage.
-During this guide, we will assume that you have one PostgreSQL instance on an host
-and one backup server on another host. It is important to note that for disaster recovery,
-these two servers should not share any physical resources but the network. You can use
+
+During this guide, we will assume that:
+
+* you have one PostgreSQL instance on an host (called +pg+ for the sake of simplicity)
+* one backup server on another host (called +backup+)
+* communication between the two servers via SSH is enabled
+* the PostgreSQL server can be reached from the backup server as +postgres+ user (or another _superuser_)
+
+It is important to note that, for disaster recovery,
+these two servers should not share any physical resource but the network. You can use
 BaRMan in geographical redundancy scenarios for better disaster recovery outcomes.
 
 TODO: Plan your backup policy and workflow (with version 0.3).
@@ -60,33 +67,55 @@ TODO: Plan your backup policy and workflow (with version 0.3).
 === System requirements
 
 TODO:
+
 * Linux/Unix (what about Windows?)
 * Python 2.4 or higher (recommended: with setuptool or distribute modules)
 * PsycoPG 2
 * PostgreSQL >= 8.4
 * rsync >= 3.0.4
 
-=== Installation
+== Installation
 
-=== Using the sources
+Create a system user called +barman+ on the +backup+ server.
+As +barman+ user, download the sources, uncompress them and then type:
 
-As @postgres@ user:
-
-./setup.py install --user
-
-=== On Debian/Ubuntu
-
-TODO
-
-=== On RedHat/CentOS/SL
-
-TODO
+[source,bash]
+----
+$ ./setup.py install --user
+----
 
 == Getting started
 
 === Pre-Requisites
 
-TODO: SSH Key exchange and WAL archiving
+==== SSH connection
+
+You need SSH communication between your +barman+ user and the +postgres+ user
+on the +pg+ server.
+Generate an SSH key with an empty password and append your public key
+in the +authorized_keys+ file of the +postgres+ user on the +pg+ server.
+
+You should now be able to perform this operation as +barman+ from the +backup+ server:
+
+[source,bash]
+----
+$ ssh postgres@pg
+----
+
+==== PostgreSQL connection
+
+You then need to make sure that connection to PostgreSQL as superuser (+postgres+)
+is granted. You can setup your favourite client authentication method between
+the ones PostgreSQL offers you. More information can be found here: http://www.postgresql.org/docs/current/static/client-authentication.html
+
+[source,bash]
+----
+$ psql -c 'SELECT version()' -U postgres -h pg
+----
+
+==== Continuous WAL archiving
+
+TODO
 
 === Basic configuration
 
@@ -120,11 +149,19 @@ The following sections will thoroughly describe the available commands, section 
 
 === General commands
 
+TODO
+
 === Server commands
+
+TODO
 
 === Backup commands
 
+TODO
+
 == Advanced configuration
+
+TODO
 
 == Support and sponsor opportunities
 
