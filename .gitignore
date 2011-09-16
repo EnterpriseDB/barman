@@ -16,3 +16,5 @@
 /dist
 /build
 /barman.egg-info
+
+.DS_Store
