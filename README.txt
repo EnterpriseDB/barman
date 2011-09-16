@@ -84,6 +84,15 @@ As +barman+ user, download the sources, uncompress them and then type:
 $ ./setup.py install --user
 ----
 
+This will install +barman+ in your user directory. For system wide installation
+you can type:
+
+[source,bash]
+----
+$ ./setup.py build
+$ sudo ./setup.py install
+----
+
 == Getting started
 
 === Pre-Requisites
