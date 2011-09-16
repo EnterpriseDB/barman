@@ -17,18 +17,50 @@ In these cases, any ICT manager or DBA should be able to repair from
 the incident and recover in the shortest time possible.
 We normally refer to this discipline as *Disaster recovery*.
 
-2ndQuadrant has always paid attention through his founder's contribution to
-disaster recovery, by heavily contributing to PostgreSQL Point-In-Time-Recovery.
-In 2011, in order to simplify the management of PostgreSQL backups,
-2ndQuadrant started the development of *BaRMan*, physical Backup and Recovery Manager.
+This guide assumes you are familiar with theoretical disaster recovery concepts
+and you have a grasp of PostgreSQL fundamentals in terms of physical backup and
+disaster recovery. If not, we encourage you to read the PostgreSQL documentation
+or any of the recommended books on PostgreSQL.
+
+Professional training on this topic is another effective
+way of learning these concepts. There are many courses available all year round all over the world,
+delivered by many PostgreSQL companies, including our company, 2ndQuadrant.
+
+For now, it is important to know that any PostgreSQL physical backup will be made up of:
+
+* a base backup
+* one or more WAL files (usually collected through continuous archiving)
+
+PostgreSQL offers the core primitives in order to allow DBAs to setup a really robust
+Disaster Recovery environment. However, it is not that easy to manage multiple backups,
+from one or more PostgreSQL servers. Restore is another topic that any PostgreSQL DBA
+would love to see more automated and user friendly. Other commercial vendor have this
+kind of applications.
+
+With these goals in mind, 2ndQuadrant started the development of BaRMan, which stands for
+"Backup and Recovery Manager" for PostgreSQL. Currently BaRMan works on Linux and Unix
+systems only.
 
 == Before you start
 
-TODO: Decide backup architecture. Plan your backup policy and workflow.
+The first step is to decide the architecture of your backup. In a simple scenario, you have
+one *PostgreSQL instance* (server) running on a host. You want your data continuously backed up
+on another server, called the *backup server*.
+BaRMan allows you to launch PostgreSQL backups directly from the backup server, using SSH
+connections.
+Another key feature of BaRMan is that it allows you to centralise your backups in case
+you have more than one PostgreSQL servers to manage.
+During this guide, we will assume that you have one PostgreSQL instance on an host
+and one backup server on another host. It is important to note that for disaster recovery,
+these two servers should not share any physical resources but the network. You can use
+BaRMan in geographical redundancy scenarios for better disaster recovery outcomes.
+
+TODO: Plan your backup policy and workflow (with version 0.3).
 
 === System requirements
 
 TODO:
+* Linux/Unix (what about Windows?)
 * Python 2.4 or higher (recommended: with setuptool or distribute modules)
 * PsycoPG 2
 * PostgreSQL >= 8.4
@@ -38,7 +70,9 @@ TODO:
 
 === Using the sources
 
-TODO
+As @postgres@ user:
+
+./setup.py install --user
 
 === On Debian/Ubuntu
 
@@ -50,7 +84,15 @@ TODO
 
 == Getting started
 
+=== Pre-Requisites
+
+TODO: SSH Key exchange and WAL archiving
+
 === Basic configuration
+
+TODO
+
+=== Listing the servers
 
 TODO
 
