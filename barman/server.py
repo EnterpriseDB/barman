@@ -67,6 +67,12 @@ class Server(object):
         yield self.check_ssh()
         yield self.check_postgres()
 
+    def show(self):
+        yield "Server %s:" % (self.config.name)
+        for key in self.config.KEYS:
+            if hasattr(self.config, key):
+                yield "\t%s: %s" % (key, getattr(self.config, key))
+
     def backup(self):
 
         backup_stamp = datetime.datetime.now()

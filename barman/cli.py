@@ -105,10 +105,24 @@ def server_recover(args):
                                exclusive=args.exclusive):
         yield line
 
+@alias('show')
+@arg('server_name', nargs='+', help="specifies the server names to show ('all' will show all available servers)")
+def server_show(args):
+    'show all configuration parameters for the specified servers'
+    servers = get_server_list(args)
+
+    for name, server in servers.items():
+        if server == None:
+            yield "Unknown server '%s'" % (name)
+            continue
+        for line in server.show():
+            yield line
+        yield ''
+
 @alias('check')
 @arg('server_name', nargs='+', help="specifies the server names to check ('all' will check all available servers)")
 def server_check(args):
-    'check if connection settings work properly for the specified server'
+    'check if connection settings work properly for the specified servers'
     servers = get_server_list(args)
 
     for name, server in servers.items():
@@ -117,6 +131,7 @@ def server_check(args):
             continue
         for line in server.check():
             yield line
+        yield ''
 
 BACKUP_DESCRIPTION = """
 all backup commands accept require a backup_id argument
@@ -183,6 +198,7 @@ def main():
     p.add_commands([list, cron])
     p.add_commands(
         [
+            server_show,
             server_backup,
             server_list,
             server_status,
