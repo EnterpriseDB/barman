@@ -22,6 +22,7 @@ import os
 import datetime
 import traceback
 from barman.backup import Backup
+import errno
 
 class Server(object):
     def __init__(self, config):
@@ -61,11 +62,25 @@ class Server(object):
         else:
             return "\tpgsql: FAILED"
 
+    def check_directories(self):
+        error = None
+        try:
+            for key in self.config.KEYS:
+                if key.endswith('_directory') and hasattr(self.config, key) and not os.path.isdir(getattr(self.config, key)):
+                    os.makedirs(getattr(self.config, key))
+        except OSError, e:
+                error = e.strerror
+        if not error:
+            return "\tdirectories: OK"
+        else:
+            return "\tdirectories: FAILED (%s)" % (error)
+
     def check(self):
         yield "Server %s:" % (self.config.name)
         if self.config.description: yield "\tdescription: %s" % (self.config.description)
         yield self.check_ssh()
         yield self.check_postgres()
+        yield self.check_directories()
 
     def show(self):
         yield "Server %s:" % (self.config.name)
