@@ -77,21 +77,24 @@ TODO:
 == Installation
 
 Create a system user called +barman+ on the +backup+ server.
-As +barman+ user, download the sources, uncompress them and then type:
+As +barman+ user, download the sources and uncompress them.
+For system wide installation you can type:
 
 [source,bash]
 ----
-$ ./setup.py install --user
+barman@backup$ ./setup.py build
+barman@backup$ sudo ./setup.py install
 ----
 
-This will install +barman+ in your user directory. For system wide installation
-you can type:
+For local installation, type:
 
 [source,bash]
 ----
-$ ./setup.py build
-$ sudo ./setup.py install
+barman@backup$ ./setup.py install --user
 ----
+
+This will install +barman+ in your user directory (make sure to properly
+set your PATH environment variable).
 
 == Getting started
 
@@ -108,8 +111,18 @@ You should now be able to perform this operation as +barman+ from the +backup+ s
 
 [source,bash]
 ----
-$ ssh postgres@pg
+barman@backup$ ssh postgres@pg
 ----
+
+Now perform the same operation in order to allow the +postgres+ user to connect
+to +backup+ as +barman+ user.
+
+[source,bash]
+----
+postgres@pg$ ssh barman@backup
+----
+
+For further information, refer to SSH documentation.
 
 ==== PostgreSQL connection
 
@@ -122,21 +135,102 @@ the ones PostgreSQL offers you. More information can be found here: http://www.p
 $ psql -c 'SELECT version()' -U postgres -h pg
 ----
 
-==== Continuous WAL archiving
+==== Backup directory
 
-TODO
+You need to have a main backup directory for storing all your backups done with +barman+.
+Even though +barman+ allows you to define different folders for every server you want to
+back up and for every type of resource (backup or WALs for instance), we suggest that you
+use the default rules and stick with the conventions that BaRMan chooses for you.
+
+You will see the configuration file allows you to define a +barman_home+ variable, which is
+the directory where BaRMan will store all your backups by default.
+The home directory for BaRMan is +/srv/barman+.
+
+[source,bash]
+----
+barman@backup$ sudo mkdir /srv/barman
+barman@backup$ sudo chown barman:barman /srv/barman
+----
+
+[IMPORTANT]
+We assume you have enough space and already thought about redundancy and safety of your disks.
 
 === Basic configuration
 
-TODO
+In the +docs+ directory you will find a minimal configuration file. Use that as a base and copy it
+as +/etc/barman.conf+ in your system (for a local installation you can save it as +~/.barman.conf+).
+
+The configuration file uses a standard INI format and it is split in:
+
+* a section for general configuration (identified by the +barman+ label)
+* a section for any PostgreSQL server to be backed up (identified by the server label, e.g. +main+ or +pg+)
+
+[source,python]
+----
+include::docs/barman.conf[]
+----
+
+You can now test the configuration of BaRMan by executing:
+
+[source,bash]
+----
+barman@backup$ barman server show main
+barman@backup$ barman server check main
+----
+
+Write down the +wals_directory+ as you will need it to setup continuous WAL archiving.
+
+==== Continuous WAL archiving
+
+Edit the +postgresql.conf+ file of the PostgreSQL instance on the +pg+ database and
+activate the archive mode:
+
+[source,bash]
+----
+archive_mode = on
+archive_command = 'rsync %p barman@backup:${wals_directory}/%f'
+----
+
+Make sure you change the +${wals_directory}+ placeholder with the value returned by the
++barman server show main+ command above.
+
+Restart the PostgreSQL server.
+
+In order to test that continuous archiving is on and properly working, you need to check both
+the PostgreSQL server footnote:[For more information, refer to the PostgreSQL guide] and the +backup+
+server (in particular that the WAL files are collected in the destination directory).
+
 
 === Listing the servers
 
-TODO
+[source,bash]
+----
+barman@backup$ barman list
+----
 
 === Executing a full backup
 
-TODO
+[source,bash]
+----
+barman@backup$ barman server main backup
+----
+
+=== Viewing the list of backups for a server
+
+[source,bash]
+----
+barman@backup$ barman server main list
+----
+
+which returns something similar to:
+
+[source,bash]
+----
+master - 20110919T172439 - 2011-09-19 17:24:39.769161
+----
+
+Where +20110919T172439+ is the ID of the backup and 
++2011-09-19 17:24:39.769161+ is the start time of the operation.
 
 === Restoring a whole server
 
