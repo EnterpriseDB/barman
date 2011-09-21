@@ -242,7 +242,22 @@ Where +20110919T172439+ is the ID of the backup and
 
 === Restoring a whole server
 
-TODO
+The command to recover a whole server is:
+
+[source,bash]
+----
+barman@backup$ barman server recover main 20110920T185953 /path/to/recover/directory
+----
+
+Where +20110920T185953+ is the ID of the backup to restore.
+With this command, +/path/to/recover/directory+ will contain a complete Data directory ready to be started as a PostgreSQL database cluster.
+
+You can retrieve a list of backup IDs for a specific server with:
+
+[source,bash]
+----
+barman server list srvpgsql
+----
 
 === Restoring to a point in time
 
