@@ -55,7 +55,7 @@ During this guide, we will assume that:
 
 * you have one PostgreSQL instance on an host (called +pg+ for the sake of simplicity)
 * one backup server on another host (called +backup+)
-* communication between the two servers via SSH is enabled
+* communication between the two servers via SSH is enabled FIXME consiglierei di non farlo come root
 * the PostgreSQL server can be reached from the backup server as +postgres+ user (or another _superuser_)
 
 It is important to note that, for disaster recovery,
@@ -69,21 +69,26 @@ TODO: Plan your backup policy and workflow (with version 0.3).
 TODO:
 
 * Linux/Unix (what about Windows?)
-* Python 2.4 or higher (recommended: with setuptool or distribute modules)
+* Python 2.6 or higher (recommended: with distribute module)
+* The Python development package (this varies between distributions)
 * PsycoPG 2
 * PostgreSQL >= 8.4
 * rsync >= 3.0.4
+
+[IMPORTANT]
+PostgreSQL versions on both servers should be exactly the same.
 
 == Installation
 
 Create a system user called +barman+ on the +backup+ server.
 As +barman+ user, download the sources and uncompress them.
+
 For system wide installation you can type:
 
 [source,bash]
 ----
 barman@backup$ ./setup.py build
-barman@backup$ sudo ./setup.py install
+barman@backup# ./setup.py install # run this command with root privileges
 ----
 
 For local installation, type:
@@ -92,6 +97,9 @@ For local installation, type:
 ----
 barman@backup$ ./setup.py install --user
 ----
+
+[IMPORTANT]
+The +--user+ option works only with +python-distribute+
 
 This will install +barman+ in your user directory (make sure to properly
 set your PATH environment variable).
@@ -127,7 +135,7 @@ For further information, refer to SSH documentation.
 ==== PostgreSQL connection
 
 You then need to make sure that connection to PostgreSQL as superuser (+postgres+)
-is granted. You can setup your favourite client authentication method between
+is granted from the backup server. You can setup your favourite client authentication method between
 the ones PostgreSQL offers you. More information can be found here: http://www.postgresql.org/docs/current/static/client-authentication.html
 
 [source,bash]
@@ -142,7 +150,7 @@ Even though +barman+ allows you to define different folders for every server you
 back up and for every type of resource (backup or WALs for instance), we suggest that you
 use the default rules and stick with the conventions that BaRMan chooses for you.
 
-You will see the configuration file allows you to define a +barman_home+ variable, which is
+You will see the configuration file (as explained below) allows you to define a +barman_home+ variable, which is
 the directory where BaRMan will store all your backups by default.
 The home directory for BaRMan is +/srv/barman+.
 
@@ -212,14 +220,14 @@ barman@backup$ barman list
 
 [source,bash]
 ----
-barman@backup$ barman server main backup
+barman@backup$ barman server backup main
 ----
 
 === Viewing the list of backups for a server
 
 [source,bash]
 ----
-barman@backup$ barman server main list
+barman@backup$ barman server list main
 ----
 
 which returns something similar to:
