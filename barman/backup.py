@@ -44,13 +44,14 @@ class Backup(object):
     XLOG_SEG_PER_FILE = 0xffffffff / XLOG_SEG_SIZE
     XLOG_FILE_SIZE = XLOG_SEG_SIZE * XLOG_SEG_PER_FILE
 
-    def __init__(self, file=None, backup_id=None):
+    def __init__(self, server, file=None):
         """
         Constructor
         """
         # Initialises the attributes for the object based on the predefined keys
         self.__dict__.update(dict.fromkeys(self.KEYS))
-        self.backup_id = backup_id
+        self.server = server
+        self.backup_id = None
         if file:
             # Looks for a backup.info file
             if hasattr(file, 'read'): # We have been given a file-like object
@@ -59,8 +60,8 @@ class Backup(object):
             else: # Just a file name
                 filename = os.path.abspath(file)
                 info = open(file, 'r').readlines()
-            if not backup_id: # Detect the backup ID from the name of the parent dir
-                self.backup_id = os.path.basename(os.path.dirname(filename))
+            # Detect the backup ID from the name of the parent dir
+            self.backup_id = os.path.basename(os.path.dirname(filename))
             # Parses the backup.info file
             for line in info:
                 try:
@@ -110,6 +111,8 @@ class Backup(object):
         yield "Backup %s:" % (self.backup_id)
         if self.status == 'DONE':
             try:
+                previous_backup = self.server.get_previous_backup(self.backup_id)
+                next_backup = self.server.get_next_backup(self.backup_id)
                 yield "  Server Name       : %s" % self.server_name
                 yield "  PostgreSQL Version: %s" % self.version
                 yield "  PGDATA directory  : %s" % self.pgdata
@@ -117,10 +120,9 @@ class Backup(object):
                     yield "  Tablespaces:"
                     for name, _, location in self.tablespaces:
                         yield "    %s: %s" % (name, location)
-                yield ''
+                yield ""
                 yield "  Base backup information:"
                 yield "    Disk usage      : TODO"
-                yield "    Current?        : TODO" # Is this the current base backup?
                 yield "    Timeline        : %s" % self.timeline
                 yield "    Begin WAL       : %s" % self.begin_wal
                 yield "    End WAL         : %s" % self.end_wal
@@ -135,6 +137,16 @@ class Backup(object):
                 yield "    No of files     : TODO"
                 yield "    Disk usage      : TODO"
                 yield "    Last available  : TODO"
+                yield ""
+                yield "  Catalog information:"
+                if previous_backup:
+                    yield "    Previous Backup : %s" % previous_backup.backup_id
+                else:
+                    yield "    Previous Backup : - (this is the oldest base backup)"
+                if next_backup:
+                    yield "    Next Backup     : %s" % next_backup.backup_id
+                else:
+                    yield "    Next Backup     : - (this is the latest base backup)"
 
             except:
                 pass
