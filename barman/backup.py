@@ -118,7 +118,9 @@ class Backup(object):
                     for name, _, location in self.tablespaces:
                         yield "    %s: %s" % (name, location)
                 yield ''
-                yield '  Base backup information:'
+                yield "  Base backup information:"
+                yield "    Disk usage      : TODO"
+                yield "    Current?        : TODO" # Is this the current base backup?
                 yield "    Timeline        : %s" % self.timeline
                 yield "    Begin WAL       : %s" % self.begin_wal
                 yield "    End WAL         : %s" % self.end_wal
@@ -128,6 +130,12 @@ class Backup(object):
                 yield "    End Offset      : %s" % self.end_offset
                 yield "    Begin XLOG      : %s" % self.begin_xlog
                 yield "    End XLOG        : %s" % self.end_xlog
+                yield ""
+                yield "  WAL information:"
+                yield "    No of files     : TODO"
+                yield "    Disk usage      : TODO"
+                yield "    Last available  : TODO"
+
             except:
                 pass
         else:
