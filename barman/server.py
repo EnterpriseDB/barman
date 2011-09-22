@@ -39,7 +39,7 @@ class Server(object):
 
     def _read_pgsql_info(self):
         """
-        Check PostgreSQL connection and retrieve version information
+        Checks PostgreSQL connection and retrieve version information
         """
         conn_is_mine = self.conn == None
         try:
@@ -55,6 +55,9 @@ class Server(object):
             return True
 
     def check_ssh(self):
+        """
+        Checks SSH connection
+        """
         cmd = Command(self.ssh_command, self.ssh_options)
         ret = cmd("true")
         if ret == 0:
@@ -63,12 +66,18 @@ class Server(object):
             return "\tssh: FAILED (return code: %s)" % (ret)
 
     def check_postgres(self):
+        """
+        Checks PostgreSQL connection
+        """
         if self._read_pgsql_info():
             return "\tpgsql: OK (version: %s)" % (self.server_txt_version)
         else:
             return "\tpgsql: FAILED"
 
     def check_directories(self):
+        """
+        Checks backup directories and creates them if they do not exist
+        """
         error = None
         try:
             for key in self.config.KEYS:
@@ -82,6 +91,11 @@ class Server(object):
             return "\tdirectories: FAILED (%s)" % (error)
 
     def check(self):
+        """
+        Implements the 'server check' command and makes sure SSH and PostgreSQL
+        connections work properly. It checks also that backup directories exist
+        (and if not, it creates them).
+        """
         yield "Server %s:" % (self.config.name)
         if self.config.description: yield "\tdescription: %s" % (self.config.description)
         yield self.check_ssh()
@@ -89,12 +103,18 @@ class Server(object):
         yield self.check_directories()
 
     def show(self):
+        """
+        Shows the server configuration
+        """
         yield "Server %s:" % (self.config.name)
         for key in self.config.KEYS:
             if hasattr(self.config, key):
                 yield "\t%s: %s" % (key, getattr(self.config, key))
 
     def backup(self):
+        """
+        Performs a backup for the server
+        """
 
         backup_stamp = datetime.datetime.now()
 
@@ -175,6 +195,9 @@ class Server(object):
                 info.close()
 
     def list(self):
+        """
+        Lists all the available backups for the server
+        """
         from glob import glob
         for file in glob("%s/*/backup.info" % self.config.basebackups_directory):
             backup = Backup(file)
@@ -187,6 +210,9 @@ class Server(object):
                 yield "%s - %s - %s" % (self.config.name, backup.backup_id, backup.begin_time)
 
     def recover(self, backup_id, dest, tablespaces=[], target_time=None, target_xid=None, exclusive=False):
+        """
+        Performs a recovery of a backup
+        """
         backup_base = os.path.join(self.config.basebackups_directory, backup_id)
         backup_info_file = os.path.join(backup_base, "backup.info")
         backup = Backup(backup_info_file)
