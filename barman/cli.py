@@ -149,7 +149,7 @@ def backup_show(args):
         return
     # Retrieves the backup info file
     backup_info_file = server.get_backup_info_file(args.backup_id)
-    backup = Backup(backup_info_file)
+    backup = Backup(server, backup_info_file)
     for line in backup.show():
         yield line
     yield ''
