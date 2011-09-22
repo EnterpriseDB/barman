@@ -28,7 +28,7 @@ class Backup(object):
     KEYS = [ 'version', 'pgdata', 'tablespaces', 'timeline',
              'begin_time', 'begin_xlog', 'begin_wal', 'begin_offset',
              'end_time', 'end_xlog', 'end_wal', 'end_offset',
-             'status',
+             'status', 'server_name'
     ]
     """
     Attributes of the backup.info file
@@ -67,7 +67,7 @@ class Backup(object):
                     key, value = line.rstrip().split('=')
                 except:
                     raise Exception('invalid line in backup file: %s' % line)
-                if key not in Backup.KEYS:
+                if key not in self.KEYS:
                     raise Exception('invalid key in backup file: %s' % key)
                 if key == 'tablespaces': # Treat the tablespaces as a literal Python list of tuples
                     self.__dict__[key] = ast.literal_eval(value)
@@ -102,3 +102,33 @@ class Backup(object):
             if cur_seg >= self.XLOG_SEG_PER_FILE:
                 cur_seg = 0
                 cur_log += 1
+                
+    def show(self):
+        """
+        Show backup information
+        """
+        yield "Backup %s:" % (self.backup_id)
+        if self.status == 'DONE':
+            try:
+                yield "  Server Name       : %s" % self.server_name
+                yield "  PostgreSQL Version: %s" % self.version
+                yield "  PGDATA directory  : %s" % self.pgdata
+                if self.tablespaces:
+                    yield "  Tablespaces:"
+                    for name, _, location in self.tablespaces:
+                        yield "    %s: %s" % (name, location)
+                yield ''
+                yield '  Base backup information:'
+                yield "    Timeline        : %s" % self.timeline
+                yield "    Begin WAL       : %s" % self.begin_wal
+                yield "    End WAL         : %s" % self.end_wal
+                yield "    Begin time      : %s" % self.begin_time
+                yield "    End time        : %s" % self.end_time
+                yield "    Begin Offset    : %s" % self.begin_offset
+                yield "    End Offset      : %s" % self.end_offset
+                yield "    Begin XLOG      : %s" % self.begin_xlog
+                yield "    End XLOG        : %s" % self.end_xlog
+            except:
+                pass
+        else:
+            yield "\tUnavailable"

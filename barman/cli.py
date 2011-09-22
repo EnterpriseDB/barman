@@ -20,6 +20,7 @@ import os
 from argh import ArghParser, alias, arg
 import barman.config
 from barman.server import Server
+from barman.backup import Backup
 
 @arg('--minimal', help='machine readable output', action='store_true')
 def list(args):
@@ -138,11 +139,21 @@ all backup commands accept require a backup_id argument
 """
 
 @alias('show')
+@arg('server_name', help='specifies the server name for the command')
 @arg('backup_id', help='specifies the backup ID')
 def backup_show(args):
     'show a single backup information'
-    yield "TODO" # TODO: implement this
-
+    server = get_server(args)
+    if server == None:
+        yield "Unknown server '%s'" % (args.server_name)
+        return
+    # Retrieves the backup info file
+    backup_info_file = server.get_backup_info_file(args.backup_id)
+    backup = Backup(backup_info_file)
+    for line in backup.show():
+        yield line
+    yield ''
+    
 @alias('terminate')
 @arg('backup_id', help='specifies the backup ID')
 def backup_terminate(backup):
