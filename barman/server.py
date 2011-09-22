@@ -128,8 +128,8 @@ class Server(object):
             current_action = "creating destination directory (%s)" % backup_base
             os.makedirs(backup_base)
             current_action = "opening backup info file (%s)" % backup_info
-            print >> info, "server=%s" % self.config.name
             info = open(backup_info, 'w')
+            print >> info, "server_name=%s" % self.config.name
 
             yield "Starting backup for server %s in %s" % (self.config.name, backup_base)
 
@@ -209,12 +209,24 @@ class Server(object):
             else:
                 yield "%s - %s - %s" % (self.config.name, backup.backup_id, backup.begin_time)
 
+    def get_backup_directory(self, backup_id):
+        """
+        Get the name of the directory for the given backup
+        """
+        return os.path.join(self.config.basebackups_directory, backup_id)
+    
+    def get_backup_info_file(self, backup_id):
+        """
+        Get the name of information file for the given backup
+        """
+        return os.path.join(self.get_backup_directory(backup_id), "backup.info")
+    
     def recover(self, backup_id, dest, tablespaces=[], target_time=None, target_xid=None, exclusive=False):
         """
         Performs a recovery of a backup
         """
-        backup_base = os.path.join(self.config.basebackups_directory, backup_id)
-        backup_info_file = os.path.join(backup_base, "backup.info")
+        backup_base = self.get_backup_directory(backup_id)
+        backup_info_file = self.get_backup_info_file(backup_id)
         backup = Backup(backup_info_file)
         yield "Starting restore for server %s using backup %s " % (self.config.name, backup_id)
         yield "Destination directory: %s" % dest
