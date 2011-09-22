@@ -36,6 +36,7 @@ class Server(object):
         self.ssh_options = config.ssh_command.split()
         self.ssh_command = self.ssh_options.pop(0)
         self.ssh_options.extend("-o BatchMode=yes -o StrictHostKeyChecking=no".split())
+        self.available_backups = None
 
     def _read_pgsql_info(self):
         """
@@ -194,15 +195,25 @@ class Server(object):
             if info:
                 info.close()
 
+    def get_available_backups(self):
+        """
+        Get a list of available backups
+        """
+        if not self.available_backups:
+            self.available_backups = {}
+            from glob import glob
+            for file in glob("%s/*/backup.info" % self.config.basebackups_directory):
+                backup = Backup(self, file)
+                if backup.status != 'DONE':
+                    continue
+                self.available_backups[backup.backup_id] = backup
+        return self.available_backups
+        
     def list(self):
         """
         Lists all the available backups for the server
         """
-        from glob import glob
-        for file in glob("%s/*/backup.info" % self.config.basebackups_directory):
-            backup = Backup(file)
-            if backup.status != 'DONE':
-                continue
+        for id, backup in self.get_available_backups().items():
             if backup.tablespaces:
                 tablespaces = [("%s:%s" % (name, location))for name, _, location in backup.tablespaces]
                 yield "%s - %s - %s (tablespaces: %s)" % (self.config.name, backup.backup_id, backup.begin_time, ', '.join(tablespaces))
@@ -220,14 +231,42 @@ class Server(object):
         Get the name of information file for the given backup
         """
         return os.path.join(self.get_backup_directory(backup_id), "backup.info")
-    
+
+    def get_previous_backup(self, backup_id):
+        """
+        Get the previous backup (if any) in the catalog
+        """
+        ids = sorted(self.get_available_backups().keys())
+        try:
+            current = ids.index(backup_id)
+            if current > 0:
+                return self.available_backups[ids[current - 1]]
+            else:
+                return None
+        except ValueError:
+            raise Exception('Could not find backup directory')
+        
+    def get_next_backup(self, backup_id):
+        """
+        Get the next backup (if any) in the catalog
+        """
+        ids = sorted(self.get_available_backups().keys())
+        try:
+            current = ids.index(backup_id)
+            if current >= 0 and current < (len(ids) - 1):
+                return self.available_backups[ids[current + 1]]
+            else:
+                return None
+        except ValueError:
+            raise Exception('Could not find backup directory')
+
     def recover(self, backup_id, dest, tablespaces=[], target_time=None, target_xid=None, exclusive=False):
         """
         Performs a recovery of a backup
         """
         backup_base = self.get_backup_directory(backup_id)
         backup_info_file = self.get_backup_info_file(backup_id)
-        backup = Backup(backup_info_file)
+        backup = Backup(self, backup_info_file)
         yield "Starting restore for server %s using backup %s " % (self.config.name, backup_id)
         yield "Destination directory: %s" % dest
         if backup.tablespaces:
