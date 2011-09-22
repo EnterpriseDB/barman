@@ -25,6 +25,9 @@ from barman.backup import Backup
 import errno
 
 class Server(object):
+    """
+    PostgreSQL server for backup
+    """
     def __init__(self, config):
         self.config = config
         self.conn = None
@@ -35,13 +38,16 @@ class Server(object):
         self.ssh_options.extend("-o BatchMode=yes -o StrictHostKeyChecking=no".split())
 
     def _read_pgsql_info(self):
+        """
+        Check PostgreSQL connection and retrieve version information
+        """
         conn_is_mine = self.conn == None
         try:
             if conn_is_mine: self.conn = psycopg2.connect(self.config.conninfo)
             self.server_version = self.conn.server_version
             cur = self.conn.cursor()
             cur.execute("SELECT version()")
-            self.server_txt_version = cur.fetchone()
+            self.server_txt_version = cur.fetchone()[0].split()[1]
             if conn_is_mine: self.conn.close()
         except Exception:
             return False
