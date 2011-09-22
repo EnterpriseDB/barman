@@ -70,7 +70,7 @@ TODO:
 
 * Linux/Unix (what about Windows?)
 * Python 2.6 or higher (recommended: with distribute module)
-* The Python development package (this varies between distributions)
+* The Python development package (the name varies between distributions)
 * PsycoPG 2
 * PostgreSQL >= 8.4
 * rsync >= 3.0.4
@@ -140,7 +140,7 @@ the ones PostgreSQL offers you. More information can be found here: http://www.p
 
 [source,bash]
 ----
-$ psql -c 'SELECT version()' -U postgres -h pg
+barman@backup$ psql -c 'SELECT version()' -U postgres -h pg
 ----
 
 ==== Backup directory
@@ -237,7 +237,7 @@ which returns something similar to:
 master - 20110919T172439 - 2011-09-19 17:24:39.769161
 ----
 
-Where +20110919T172439+ is the ID of the backup and 
+Where +20110919T172439+ is the ID of the backup and
 +2011-09-19 17:24:39.769161+ is the start time of the operation.
 
 === Restoring a whole server
@@ -250,7 +250,17 @@ barman@backup$ barman server recover main 20110920T185953 /path/to/recover/direc
 ----
 
 Where +20110920T185953+ is the ID of the backup to restore.
-With this command, +/path/to/recover/directory+ will contain a complete Data directory ready to be started as a PostgreSQL database cluster.
+When this command finish succesfully, +/path/to/recover/directory+ contains a complete data directory ready to be started as a PostgreSQL database cluster.
+
+An example command to start the server is:
+
+[source,bash]
+----
+barman@backup$ pg_ctl -D /path/to/recover/directory start
+----
+
+[IMPORTANT]
+If you run this command as user +barman+, it will become the database superuser.
 
 You can retrieve a list of backup IDs for a specific server with:
 
