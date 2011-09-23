@@ -28,7 +28,7 @@ class Backup(object):
     KEYS = [ 'version', 'pgdata', 'tablespaces', 'timeline',
              'begin_time', 'begin_xlog', 'begin_wal', 'begin_offset',
              'end_time', 'end_xlog', 'end_wal', 'end_offset',
-             'status', 'server_name'
+             'status', 'server_name', 'error'
     ]
     """
     Attributes of the backup.info file
