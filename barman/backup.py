@@ -80,7 +80,7 @@ class Backup(object):
         Retrieve the timeline, log ID and segment ID from the name of the WAL segment
         """
         return [int(x, 16) for x in self.WAL_re.match(name).groups()]
-    
+
     def _segment_name(self, tli, log, seg):
         """
         Build the WAL segment name based on timeline, log ID and segment ID
@@ -103,7 +103,7 @@ class Backup(object):
             if cur_seg >= self.XLOG_SEG_PER_FILE:
                 cur_seg = 0
                 cur_log += 1
-                
+
     def show(self):
         """
         Show backup information

@@ -155,7 +155,7 @@ def backup_show(args):
     for line in backup.show():
         yield line
     yield ''
-    
+
 @alias('terminate')
 @arg('backup_id', help='specifies the backup ID')
 def backup_terminate(backup):

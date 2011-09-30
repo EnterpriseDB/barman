@@ -225,7 +225,7 @@ class Server(object):
         Get the name of the directory for the given backup
         """
         return os.path.join(self.config.basebackups_directory, backup_id)
-    
+
     def get_backup_info_file(self, backup_id):
         """
         Get the name of information file for the given backup
@@ -245,7 +245,7 @@ class Server(object):
                 return None
         except ValueError:
             raise Exception('Could not find backup directory')
-        
+
     def get_next_backup(self, backup_id):
         """
         Get the next backup (if any) in the catalog

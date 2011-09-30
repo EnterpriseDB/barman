@@ -57,7 +57,7 @@ log = %(barman_home)s/log/barman.log
 compression_filter = bzip2 -c -9
 decompression_filter = bzip2 -c -d
 [main]
-description =  " Text with quotes " 
+description = " Text with quotes "
 ssh_command = ssh -c "arcfour" -p 22 postgres@pg01
 conninfo = host=pg01 user=postgres port=5432
 """
