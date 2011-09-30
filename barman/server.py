@@ -202,14 +202,14 @@ class Server(object):
         if not self.available_backups:
             self.available_backups = {}
             from glob import glob
-            for file in glob("%s/*/backup.info" % self.config.basebackups_directory):
-                backup = Backup(self, file)
+            for filename in glob("%s/*/backup.info" % self.config.basebackups_directory):
+                backup = Backup(self, filename)
                 if backup.status != 'DONE':
                     continue
                 self.available_backups[backup.backup_id] = backup
         return self.available_backups
-        
-    def list(self):
+
+    def list_backups(self):
         """
         Lists all the available backups for the server
         """

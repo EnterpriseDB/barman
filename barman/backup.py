@@ -44,7 +44,7 @@ class Backup(object):
     XLOG_SEG_PER_FILE = 0xffffffff / XLOG_SEG_SIZE
     XLOG_FILE_SIZE = XLOG_SEG_SIZE * XLOG_SEG_PER_FILE
 
-    def __init__(self, server, file=None):
+    def __init__(self, server, info_file=None):
         """
         Constructor
         """
@@ -52,14 +52,14 @@ class Backup(object):
         self.__dict__.update(dict.fromkeys(self.KEYS))
         self.server = server
         self.backup_id = None
-        if file:
+        if info_file:
             # Looks for a backup.info file
-            if hasattr(file, 'read'): # We have been given a file-like object
-                info = file
-                filename = os.path.abspath(file.name)
+            if hasattr(info_file, 'read'): # We have been given a file-like object
+                info = info_file
+                filename = os.path.abspath(info_file.name)
             else: # Just a file name
-                filename = os.path.abspath(file)
-                info = open(file, 'r').readlines()
+                filename = os.path.abspath(info_file)
+                info = open(info_file, 'r').readlines()
             # Detect the backup ID from the name of the parent dir
             self.backup_id = os.path.basename(os.path.dirname(filename))
             # Parses the backup.info file

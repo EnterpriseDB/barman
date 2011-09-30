@@ -22,8 +22,9 @@ import barman.config
 from barman.server import Server
 from barman.backup import Backup
 
+@alias('list')
 @arg('--minimal', help='machine readable output', action='store_true')
-def list(args):
+def global_list(args):
     "list available servers, with useful information"
     servers = barman.__config__.servers()
     for server in servers:
@@ -32,7 +33,8 @@ def list(args):
         else:
             yield server.name
 
-def cron(args):
+@alias('cron')
+def global_cron(args):
     "run maintenance tasks"
     yield "TODO" # TODO: implement this
 
@@ -59,7 +61,7 @@ def server_list(args):
     if server == None:
         yield "Unknown server '%s'" % (args.server_name)
         return
-    for line in server.list():
+    for line in server.list_backups():
         yield line
 
 @alias('status')
@@ -177,10 +179,10 @@ def load_config(args):
         barman.__config__ = barman.config.Config(args.config)
     else:
         try:
-            file = os.environ['BARMAN_CONFIG_FILE']
+            filename = os.environ['BARMAN_CONFIG_FILE']
         except KeyError:
-            file = None
-        barman.__config__ = barman.config.Config(file)
+            filename = None
+        barman.__config__ = barman.config.Config(filename)
 
 
 def get_server(args):
@@ -206,7 +208,7 @@ def main():
     p = ArghParser()
     p.add_argument('-v', '--version', action='version', version=barman.__version__)
     p.add_argument('-c', '--config', help='uses a configuration file (defaults: $HOME/.barman.conf, /etc/barman.conf)')
-    p.add_commands([list, cron])
+    p.add_commands([global_list, global_cron])
     p.add_commands(
         [
             server_show,

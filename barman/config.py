@@ -58,13 +58,13 @@ class Config(object):
 
     CONFIG_FILES = ['~/.barman.conf', '/etc/barman.conf']
 
-    def __init__(self, file=None):
+    def __init__(self, filename=None):
         self._config = ConfigParser()
-        if file:
-            if hasattr(file, 'read'):
-                self._config.readfp(file)
+        if filename:
+            if hasattr(filename, 'read'):
+                self._config.readfp(filename)
             else:
-                self._config.read(os.path.expanduser(file))
+                self._config.read(os.path.expanduser(filename))
         else:
             self._config.read([os.path.expanduser(filename) for filename in self.CONFIG_FILES])
         self._servers = None
@@ -82,10 +82,6 @@ class Config(object):
             return None
 
     _QUOTERE = re.compile(r"""^(["'])(.*)\1$""")
-
-    def set(self, section, option):
-        self._config.set(section, option)
-
 
     def _populate_servers(self):
         if self._servers != None:
