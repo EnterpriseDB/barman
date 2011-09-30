@@ -22,7 +22,6 @@ import os
 import datetime
 import traceback
 from barman.backup import Backup
-import errno
 
 class Server(object):
     """
@@ -213,7 +212,7 @@ class Server(object):
         """
         Lists all the available backups for the server
         """
-        for id, backup in self.get_available_backups().items():
+        for _, backup in self.get_available_backups().items():
             if backup.tablespaces:
                 tablespaces = [("%s:%s" % (name, location))for name, _, location in backup.tablespaces]
                 yield "%s - %s - %s (tablespaces: %s)" % (self.config.name, backup.backup_id, backup.begin_time, ', '.join(tablespaces))
