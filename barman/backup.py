@@ -18,7 +18,7 @@
 
 import ast
 import os
-import re
+from barman import xlog
 
 class Backup(object):
     """
@@ -33,16 +33,6 @@ class Backup(object):
     """
     Attributes of the backup.info file
     """
-
-    WAL_re = re.compile(r'([\dA-Fa-f]{8})([\dA-Fa-f]{8})([\dA-Fa-f]{8})')
-    """
-    WAL file segment name parser (regular expression)
-    """
-
-    # Taken from xlog_internal.h from PostgreSQL sources
-    XLOG_SEG_SIZE = 1 << 24
-    XLOG_SEG_PER_FILE = 0xffffffff / XLOG_SEG_SIZE
-    XLOG_FILE_SIZE = XLOG_SEG_SIZE * XLOG_SEG_PER_FILE
 
     def __init__(self, server, info_file=None):
         """
@@ -75,34 +65,12 @@ class Backup(object):
                 else:
                     self.__dict__[key] = value
 
-    def _decode_segment_name(self, name):
-        """
-        Retrieve the timeline, log ID and segment ID from the name of the WAL segment
-        """
-        return [int(x, 16) for x in self.WAL_re.match(name).groups()]
-
-    def _segment_name(self, tli, log, seg):
-        """
-        Build the WAL segment name based on timeline, log ID and segment ID
-        """
-        return "%08X%08X%08X" % (tli, log, seg)
-
     def get_required_wal_segments(self):
         """
         Get the list of required WAL segments for the current backup
         """
-        begin_tli, begin_log, begin_seg = self._decode_segment_name(self.begin_wal)
-        end_tli, end_log, end_seg = self._decode_segment_name(self.end_wal)
-        assert begin_tli == end_tli # Check for timeline equality
-
-        # Start from the first WAL and sequentially enumerates the segments to the end
-        cur_log, cur_seg = begin_log, begin_seg
-        while cur_log < end_log or cur_seg <= end_seg:
-            yield self._segment_name(begin_tli, cur_log, cur_seg)
-            cur_seg += 1
-            if cur_seg >= self.XLOG_SEG_PER_FILE:
-                cur_seg = 0
-                cur_log += 1
+        for filename in xlog.enumerate_segments(self.begin_wal, self.end_wal):
+            yield filename
 
     def show(self):
         """
