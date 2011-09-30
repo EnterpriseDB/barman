@@ -243,7 +243,7 @@ class Server(object):
             else:
                 return None
         except ValueError:
-            raise Exception('Could not find backup directory')
+            raise Exception('Could not find backup_id %s' % backup_id)
 
     def get_next_backup(self, backup_id):
         """
@@ -257,7 +257,7 @@ class Server(object):
             else:
                 return None
         except ValueError:
-            raise Exception('Could not find backup directory')
+            raise Exception('Could not find backup_id %s' % backup_id)
 
     def recover(self, backup_id, dest, tablespaces=[], target_time=None, target_xid=None, exclusive=False):
         """
