@@ -18,7 +18,7 @@
 
 import re
 
-_xlog_re = re.compile(r'([\dA-Fa-f]{8})([\dA-Fa-f]{8})([\dA-Fa-f]{8})')
+_xlog_re = re.compile(r'^([\dA-Fa-f]{8})([\dA-Fa-f]{8})([\dA-Fa-f]{8})$')
 """
 xlog file segment name parser (regular expression)
 """
@@ -28,11 +28,17 @@ XLOG_SEG_SIZE = 1 << 24
 XLOG_SEG_PER_FILE = 0xffffffff / XLOG_SEG_SIZE
 XLOG_FILE_SIZE = XLOG_SEG_SIZE * XLOG_SEG_PER_FILE
 
+class BadXlogSegmentName(Exception):
+    pass
+
 def decode_segment_name(name):
     """
     Retrieve the timeline, log ID and segment ID from the name of a xlog segment
     """
-    return [int(x, 16) for x in _xlog_re.match(name).groups()]
+    match = _xlog_re.match(name)
+    if not match:
+        raise BadXlogSegmentName
+    return [int(x, 16) for x in match.groups()]
 
 def encode_segment_name(tli, log, seg):
     """

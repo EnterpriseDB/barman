@@ -8,7 +8,6 @@ from barman import xlog
 
 class Test(unittest.TestCase):
 
-
     def testEncodeSegmentName(self):
         self.assertEqual(xlog.encode_segment_name(0, 0, 0), '000000000000000000000000')
         self.assertEqual(xlog.encode_segment_name(1, 1, 1), '000000010000000100000001')
@@ -26,6 +25,9 @@ class Test(unittest.TestCase):
         self.assertEqual(xlog.decode_segment_name('000000000000000200000001'), [0, 2, 1])
         self.assertEqual(xlog.decode_segment_name('000000010000000000000002'), [1, 0, 2])
         self.assertEqual(xlog.decode_segment_name('000000020000000100000000'), [2, 1, 0])
+        self.assertRaises(xlog.BadXlogSegmentName, xlog.decode_segment_name, '00000000000000000000000')
+        self.assertRaises(xlog.BadXlogSegmentName, xlog.decode_segment_name, '0000000000000000000000000')
+        self.assertRaises(xlog.BadXlogSegmentName, xlog.decode_segment_name, '000000000000X00000000000')
 
     def testEnumerateSegments(self):
         self.assertEqual(
