@@ -82,7 +82,7 @@ MINIMAL_CONFIG_MAIN = {
 
 class Test(unittest.TestCase):
 
-    def test_database_list(self):
+    def test_server_list(self):
         fp = StringIO(TEST_CONFIG)
         c = Config(fp)
         dbs = c.server_names()
