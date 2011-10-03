@@ -37,7 +37,7 @@ def decode_segment_name(name):
     """
     match = _xlog_re.match(name)
     if not match:
-        raise BadXlogSegmentName
+        raise BadXlogSegmentName, "invalid xlog segmant name '%s'" % name
     return [int(x, 16) for x in match.groups()]
 
 def encode_segment_name(tli, log, seg):
