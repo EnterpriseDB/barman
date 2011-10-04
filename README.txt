@@ -1,4 +1,4 @@
-= BaRman
+= BaRMan
 
 Backup and Recovery Manager for PostgreSQL
 
