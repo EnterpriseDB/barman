@@ -20,6 +20,9 @@ import sys
 import signal
 import subprocess
 import os
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class Command(object):
     """

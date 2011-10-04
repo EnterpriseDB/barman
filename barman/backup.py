@@ -19,6 +19,9 @@
 import ast
 import os
 from barman import xlog
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class Backup(object):
     """

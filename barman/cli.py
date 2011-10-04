@@ -21,6 +21,9 @@ from argh import ArghParser, alias, arg
 import barman.config
 from barman.server import Server
 from barman.backup import Backup
+import logging
+
+_logger = logging.getLogger(__name__)
 
 @alias('list')
 @arg('--minimal', help='machine readable output', action='store_true')
