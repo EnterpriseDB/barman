@@ -69,7 +69,12 @@ class Config(object):
             else:
                 self._config.read(os.path.expanduser(filename))
         else:
-            self._config.read([os.path.expanduser(filename) for filename in self.CONFIG_FILES])
+            for path in self.CONFIG_FILES:
+                full_path = os.path.expanduser(path)
+                if os.path.exists(full_path) and full_path in self._config.read(full_path):
+                    filename = full_path
+                    break
+        self.config_file = filename
         self._servers = None
         self._parse_global_config()
 

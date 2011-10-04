@@ -190,14 +190,15 @@ _output_stream = stream_wrapper(sys.stdout)
 
 def global_config(args):
     if hasattr(args, 'config'):
-        barman.__config__ = barman.config.Config(args.config)
+        filename = args.config
     else:
         try:
             filename = os.environ['BARMAN_CONFIG_FILE']
         except KeyError:
             filename = None
-        barman.__config__ = barman.config.Config(filename)
-
+    barman.__config__ = barman.config.Config(filename)
+    _logger.debug('Initialized BaRMan version %s (config: %s)',
+                 barman.__version__, barman.__config__.config_file)
     if hasattr(args, 'quiet') and args.quiet:
         _logger.debug("Replacing output stream ")
         global _output_stream
