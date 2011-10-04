@@ -22,6 +22,7 @@ import barman.config
 from barman.server import Server
 from barman.backup import Backup
 import logging
+import sys
 
 _logger = logging.getLogger(__name__)
 
@@ -177,7 +178,17 @@ def backup_recover(backup):
     'recover a backup'
     yield "TODO" # TODO: implement this
 
-def load_config(args):
+class stream_wrapper(object):
+    def __init__(self, stream):
+        self.stream = stream
+    def set_stream(self, stream):
+        self.stream = stream
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
+
+_output_stream = stream_wrapper(sys.stdout)
+
+def global_config(args):
     if hasattr(args, 'config'):
         barman.__config__ = barman.config.Config(args.config)
     else:
@@ -187,6 +198,10 @@ def load_config(args):
             filename = None
         barman.__config__ = barman.config.Config(filename)
 
+    if hasattr(args, 'quiet') and args.quiet:
+        _logger.debug("Replacing output stream ")
+        global _output_stream
+        _output_stream.set_stream(open(os.devnull, 'w'))
 
 def get_server(args):
     config = barman.__config__.get_server(args.server_name)
@@ -207,10 +222,22 @@ def get_server_list(args):
                 server_dict[server] = Server(conf)
         return server_dict
 
+class silenceable_stream_wrapper(object):
+    def __init__(self, output):
+        self.output = output
+    def silence(self):
+        self.output = None
+    def write(self, *args, **kwargs):
+        if self.output:
+            self.output.write(*args, **kwargs)
+
+output_stream = silenceable_stream_wrapper(sys.stdout)
+
 def main():
     p = ArghParser()
     p.add_argument('-v', '--version', action='version', version=barman.__version__)
     p.add_argument('-c', '--config', help='uses a configuration file (defaults: $HOME/.barman.conf, /etc/barman.conf)')
+    p.add_argument('-q', '--quiet', help='be quiet', action='store_true')
     p.add_commands([global_list, global_cron])
     p.add_commands(
         [
@@ -237,7 +264,7 @@ def main():
         title='commands acting on a backup',
         description=BACKUP_DESCRIPTION,
     )
-    p.dispatch(pre_call=load_config)
+    p.dispatch(pre_call=global_config, output_file=_output_stream)
 
 if __name__ == '__main__':
     main()
