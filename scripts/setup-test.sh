@@ -178,7 +178,7 @@ EOF
 cat <<EOF > $HOME/.barman.conf
 [barman]
 barman_home = $TEST_DIR
-log = %(barman_home)s/log/barman.log
+log_file = %(barman_home)s/log/barman.log
 [test-$MAJOR_RELEASE]
 description = Test server with PostgreSQL $MAJOR_RELEASE.$MICRO_RELEASE
 ssh_command = ssh localhost

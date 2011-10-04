@@ -19,6 +19,9 @@
 import os
 import re
 from ConfigParser import ConfigParser, NoOptionError
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class Server(object):
 
@@ -68,6 +71,7 @@ class Config(object):
         else:
             self._config.read([os.path.expanduser(filename) for filename in self.CONFIG_FILES])
         self._servers = None
+        self._parse_global_config()
 
 
     def get(self, section, option, defaults={}):
@@ -82,6 +86,31 @@ class Config(object):
             return None
 
     _QUOTERE = re.compile(r"""^(["'])(.*)\1$""")
+
+    def _parse_global_config(self):
+        self.barman_home = self.get('barman', 'barman_home')
+        log_file = self.get('barman', 'log_file')
+        if log_file:
+            log_file = os.path.abspath(log_file)
+            logdir = os.path.dirname(log_file)
+            if not os.path.isdir(logdir):
+                os.makedirs(logdir)
+            handler = logging.FileHandler(log_file)
+        else:
+            handler = logging.StreamHandler()
+        fmt = self.get('barman', 'log_format') or "%(asctime)s %(name)s %(levelname)s: %(message)s"
+        formatter = logging.Formatter(fmt)
+        handler.setFormatter(formatter)
+        logging.root.addHandler(handler)
+        level = self.get('barman', 'log_level') or 'INFO'
+        if level.isdigit():
+            level_int = int(level)
+        else:
+            level_int = logging.getLevelName(level)
+        if type(level_int) == int:
+            logging.root.setLevel(level_int)
+        else:
+            _logger.warn('unknown log_level in config file: %s', level)
 
     def _populate_servers(self):
         if self._servers != None:

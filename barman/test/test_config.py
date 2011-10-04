@@ -26,7 +26,8 @@ TEST_CONFIG = """
 barman_home = /srv/barman
 compression_filter = gzip -c -9
 decompression_filter = gzip -c -d
-log = log/barman.log
+log_file = /srv/barman/log/barman.log
+log_level = INFO
 retention_policy = redundancy 2
 wal_retention_policy = base
 [main]
