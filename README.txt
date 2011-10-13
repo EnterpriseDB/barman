@@ -167,7 +167,6 @@ The configuration file uses a standard INI format and it is split in:
 * a section for general configuration (identified by the +barman+ label)
 * a section for any PostgreSQL server to be backed up (identified by the server label, e.g. +main+ or +pg+)
 
-[source,python]
 ----
 include::docs/barman.conf[]
 ----
