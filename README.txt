@@ -85,7 +85,6 @@ As +barman+ user, download the sources and uncompress them.
 
 For system wide installation you can type:
 
-[source,bash]
 ----
 barman@backup$ ./setup.py build
 barman@backup# ./setup.py install # run this command with root privileges
@@ -93,7 +92,6 @@ barman@backup# ./setup.py install # run this command with root privileges
 
 For local installation, type:
 
-[source,bash]
 ----
 barman@backup$ ./setup.py install --user
 ----
@@ -117,7 +115,6 @@ in the +authorized_keys+ file of the +postgres+ user on the +pg+ server.
 
 You should now be able to perform this operation as +barman+ from the +backup+ server:
 
-[source,bash]
 ----
 barman@backup$ ssh postgres@pg
 ----
@@ -125,7 +122,6 @@ barman@backup$ ssh postgres@pg
 Now perform the same operation in order to allow the +postgres+ user to connect
 to +backup+ as +barman+ user.
 
-[source,bash]
 ----
 postgres@pg$ ssh barman@backup
 ----
@@ -138,7 +134,6 @@ You then need to make sure that connection to PostgreSQL as superuser (+postgres
 is granted from the backup server. You can setup your favourite client authentication method between
 the ones PostgreSQL offers you. More information can be found here: http://www.postgresql.org/docs/current/static/client-authentication.html
 
-[source,bash]
 ----
 barman@backup$ psql -c 'SELECT version()' -U postgres -h pg
 ----
@@ -154,7 +149,6 @@ You will see the configuration file (as explained below) allows you to define a 
 the directory where BaRMan will store all your backups by default.
 The home directory for BaRMan is +/srv/barman+.
 
-[source,bash]
 ----
 barman@backup$ sudo mkdir /srv/barman
 barman@backup$ sudo chown barman:barman /srv/barman
@@ -180,7 +174,6 @@ include::docs/barman.conf[]
 
 You can now test the configuration of BaRMan by executing:
 
-[source,bash]
 ----
 barman@backup$ barman server show main
 barman@backup$ barman server check main
@@ -193,7 +186,6 @@ Write down the +wals_directory+ as you will need it to setup continuous WAL arch
 Edit the +postgresql.conf+ file of the PostgreSQL instance on the +pg+ database and
 activate the archive mode:
 
-[source,bash]
 ----
 archive_mode = on
 archive_command = 'rsync %p barman@backup:${wals_directory}/%f'
@@ -211,28 +203,24 @@ server (in particular that the WAL files are collected in the destination direct
 
 === Listing the servers
 
-[source,bash]
 ----
 barman@backup$ barman list
 ----
 
 === Executing a full backup
 
-[source,bash]
 ----
 barman@backup$ barman server backup main
 ----
 
 === Viewing the list of backups for a server
 
-[source,bash]
 ----
 barman@backup$ barman server list main
 ----
 
 which returns something similar to:
 
-[source,bash]
 ----
 master - 20110919T172439 - 2011-09-19 17:24:39.769161
 ----
@@ -244,7 +232,6 @@ Where +20110919T172439+ is the ID of the backup and
 
 The command to recover a whole server is:
 
-[source,bash]
 ----
 barman@backup$ barman server recover main 20110920T185953 /path/to/recover/directory
 ----
@@ -254,7 +241,6 @@ When this command finish succesfully, +/path/to/recover/directory+ contains a co
 
 An example command to start the server is:
 
-[source,bash]
 ----
 barman@backup$ pg_ctl -D /path/to/recover/directory start
 ----
@@ -264,7 +250,6 @@ If you run this command as user +barman+, it will become the database superuser.
 
 You can retrieve a list of backup IDs for a specific server with:
 
-[source,bash]
 ----
 barman server list srvpgsql
 ----
