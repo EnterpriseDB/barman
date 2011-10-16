@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from barman import xlog
+from barman import xlog, _pretty_size
 from barman.lockfile import lockfile
 from barman.backup import Backup
 from barman.command_wrappers import Command, RsyncPgData, Compressor, \
@@ -310,12 +310,16 @@ class Server(object):
         """
         Lists all the available backups for the server
         """
-        for _, backup in self.get_available_backups().items():
+        for backup in self.get_available_backups().values():
+            _, backup_wal_size, _, wal_until_next_size, _ = self.get_wal_info(backup)
+            backup_size = _pretty_size(backup.size or 0 + backup_wal_size)
+            wal_size = _pretty_size(wal_until_next_size)
+            end_time = backup.end_time.ctime()
             if backup.tablespaces:
                 tablespaces = [("%s:%s" % (name, location))for name, _, location in backup.tablespaces]
-                yield "%s - %s - %s (tablespaces: %s)" % (self.config.name, backup.backup_id, backup.begin_time, ', '.join(tablespaces))
+                yield "%s %s - %s - Size: %s - WAL Size: %s (tablespaces: %s)" % (self.config.name, backup.backup_id, end_time, backup_size, wal_size, ', '.join(tablespaces))
             else:
-                yield "%s - %s - %s" % (self.config.name, backup.backup_id, backup.begin_time)
+                yield "%s %s - %s - Size: %s - WAL Size: %s" % (self.config.name, backup.backup_id, end_time, backup_size, wal_size)
 
     def get_backup_directory(self, backup_id):
         """
