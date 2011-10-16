@@ -16,12 +16,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 from argh import ArghParser, alias, arg
-import barman.config
-from barman.server import Server
 from barman.backup import Backup
+from barman.lockfile import lockfile
+from barman.server import Server
+import barman.config
 import logging
+import os
 import sys
 
 _logger = logging.getLogger(__name__)
@@ -40,7 +41,18 @@ def global_list(args):
 @alias('cron')
 def global_cron(args):
     "run maintenance tasks"
-    yield "TODO" # TODO: implement this
+    lock = lockfile(os.path.join(barman.__config__.barman_home, '.cron.lock'))
+    try:
+        lock.acquire()
+    except:
+        yield "ERROR: Another cron is running"
+        raise SystemExit, 1
+    else:
+        servers = [ Server(conf) for conf in barman.__config__.servers()]
+        for server in servers:
+            for lines in server.cron(verbose=True):
+                yield lines
+
 
 SERVER_DESCRIPTION = """
 all server commands require a server_name argument

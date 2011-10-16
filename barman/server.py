@@ -16,17 +16,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import psycopg2
-from barman.command_wrappers import Command, RsyncPgData
-import os
-import datetime
-import traceback
+from barman import xlog
+from barman.lockfile import lockfile
 from barman.backup import Backup
+from barman.command_wrappers import Command, RsyncPgData
+from glob import glob
+import datetime
 import logging
+import os
+import psycopg2
+import traceback
 
 _logger = logging.getLogger(__name__)
 
 class Server(object):
+
+    XLOG_DB = "xlog.db"
+
     """
     PostgreSQL server for backup
     """
@@ -203,7 +209,6 @@ class Server(object):
         """
         if not self.available_backups:
             self.available_backups = {}
-            from glob import glob
             for filename in glob("%s/*/backup.info" % self.config.basebackups_directory):
                 backup = Backup(self, filename)
                 if backup.status != 'DONE':
@@ -309,3 +314,36 @@ class Server(object):
                 if exclusive:
                     print >> recovery, "recovery_target_inclusive = '%s'" % (not exclusive)
         yield "Restore done"
+
+    def cron(self, verbose=True):
+        found = False
+        if verbose:
+            yield "Processing xlog segments for %s" % self.config.name
+        available_backups = self.get_available_backups()
+        for filename in sorted(glob(os.path.join(self.config.incoming_wals_directory, '*'))):
+            if not found and not verbose:
+                yield "Processing xlog segments for %s" % self.config.name
+            found = True
+            if not len(available_backups):
+                msg = "WARNING: no base backup available. Trashing file %s" % os.path.basename(filename)
+                yield "\t%s" % msg
+                _logger.warning(msg)
+                os.unlink(filename)
+                continue
+            basename = os.path.basename(filename)
+            destdir = os.path.join(self.config.wals_directory, xlog.hash_dir(basename))
+            destfile = os.path.join(destdir, basename)
+            time = os.stat(filename).st_mtime
+            if not os.path.isdir(destdir):
+                os.makedirs(destdir)
+            os.rename(filename, destfile)
+            size = os.stat(destfile).st_size
+            xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
+            xlogdb_lock = xlogdb + ".lock"
+            with lockfile(xlogdb_lock, wait=True):
+                with open(xlogdb, 'a') as f:
+                    f.write("%s\t%s\t%s\n" % (basename, size, time))
+            _logger.info('Processed file %s', filename)
+            yield "\t%s" % os.path.basename(filename)
+        if not found and verbose:
+            yield "\tno file found"
