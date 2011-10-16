@@ -92,7 +92,11 @@ class Rsync(Command):
 
 class RsyncPgData(Rsync):
     def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, debug=False):
-        options = ['-rLKpts', '--delete', '--inplace', '--exclude=/pg_xlog/*', '--exclude=/pg_log/*', '--exclude=/postmaster.pid'] + args
+        options = ['-rLKpts', '--delete-excluded', '--inplace',
+                   '--exclude=/pg_xlog/*',
+                   '--exclude=/pg_log/*',
+                   '--exclude=/postmaster.pid'
+                   ] + args
         Rsync.__init__(self, rsync, options, ssh, ssh_options, debug)
 
 class Compressor(Command):
