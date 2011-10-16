@@ -172,13 +172,6 @@ def backup_show(args):
     backup = Backup(server, backup_info_file)
     for line in backup.show():
         yield line
-    yield ''
-
-@alias('terminate')
-@arg('backup_id', help='specifies the backup ID')
-def backup_terminate(backup):
-    'terminate a running backup'
-    yield "TODO" # TODO: implement this
 
 @alias('delete')
 @arg('backup_id', help='specifies the backup ID')
@@ -260,7 +253,6 @@ def main():
     p.add_commands(
         [
             backup_show,
-            backup_terminate,
             backup_delete,
             backup_recover
         ],

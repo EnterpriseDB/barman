@@ -41,7 +41,6 @@ Typical use cases of barman are:
 ** list server's backups, their ID, their status (running/incomplete/complete/obsolete) and their information (size, start time, ...)
 ** show a single backup information, given a server and an ID
 ** launches a full backup in background
-** terminate a running backup
 ** delete a backup
 ** restore a single backup on the specified target
 ** show the status of the live server
