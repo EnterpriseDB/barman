@@ -94,6 +94,7 @@ def server_delete_obsolete(args):
 
 @alias('recover')
 @arg('server_name', help='specifies the server name for the command')
+@arg('--target-tli', help='target timeline', type=int)
 @arg('--target-time', help='target time')
 @arg('--target-xid', help='target xid')
 @arg('--exclusive', help='set target xid to be non inclusive', action="store_true")
@@ -119,6 +120,7 @@ def server_recover(args):
     for line in server.recover(args.backup_id,
                                args.destination_directory,
                                tablespaces=tablespaces,
+                               target_tli=args.target_tli,
                                target_time=args.target_time,
                                target_xid=args.target_xid,
                                exclusive=args.exclusive):
