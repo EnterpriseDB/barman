@@ -175,10 +175,17 @@ You can now simulate pgbench activity with:
 
 EOF
 
-cat <<EOF > $HOME/.barman.conf
-[barman]
-barman_home = $TEST_DIR
-log_file = %(barman_home)s/log/barman.log
+if [ -e "$HOME/.barman.conf.global" ]; then
+	cat "$HOME/.barman.conf.global" > "$HOME/.barman.conf"
+else
+	cat <<-EOF > "$HOME/.barman.conf"
+	[barman]
+	barman_home = $TEST_DIR
+	log_file = %(barman_home)s/log/barman.log
+	log_level = DEBUG
+	EOF
+fi
+cat <<EOF >> "$HOME/.barman.conf"
 [test-$MAJOR_RELEASE]
 description = Test server with PostgreSQL $MAJOR_RELEASE.$MICRO_RELEASE
 ssh_command = ssh localhost
