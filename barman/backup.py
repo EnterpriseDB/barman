@@ -83,8 +83,7 @@ class Backup(object):
         """
         Get the list of required WAL segments for the current backup
         """
-        for filename in xlog.enumerate_segments(self.begin_wal, self.end_wal):
-            yield filename
+        return xlog.enumerate_segments(self.begin_wal, self.end_wal)
 
     def show(self):
         """
