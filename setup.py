@@ -28,7 +28,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-REQUIRES = ['psycopg2', 'argh']
+REQUIRES = ['psycopg2', 'argh', 'python-dateutil < 2.0' ]
 
 if sys.version_info < (2 , 7):
         REQUIRES.append('argparse')

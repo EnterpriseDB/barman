@@ -72,6 +72,7 @@ TODO:
 * Python 2.6 or higher (recommended: with distribute module)
 * The Python development package (the name varies between distributions)
 * PsycoPG 2
+* python-dateutil < 2.0 (as 2.0 version only supports python3)
 * PostgreSQL >= 8.4
 * rsync >= 3.0.4
 
