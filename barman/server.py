@@ -367,6 +367,13 @@ class Server(object):
                 print >> recovery, "recovery_target_xid = '%s'" % target_xid
                 if exclusive:
                     print >> recovery, "recovery_target_inclusive = '%s'" % (not exclusive)
+        else:
+            # avoid shipping of just recovered pg_xlog files
+            status_dir = os.path.join(wal_dest, 'archive_status')
+            os.makedirs(status_dir) # no need to check, it must not exist
+            for filename in required_xlog_files:
+                with file(os.path.join(status_dir, "%s.done" % filename), 'a') as f:
+                    f.write('')
         yield "Restore done"
 
     def cron(self, verbose=True):
