@@ -19,7 +19,8 @@
 from barman import xlog
 from barman.lockfile import lockfile
 from barman.backup import Backup
-from barman.command_wrappers import Command, RsyncPgData
+from barman.command_wrappers import Command, RsyncPgData, Compressor, \
+    Decompressor
 from glob import glob
 import datetime
 import logging
@@ -317,6 +318,9 @@ class Server(object):
 
     def cron(self, verbose=True):
         found = False
+        compressor = None
+        if self.config.compression_filter:
+            compressor = Compressor(self.config.compression_filter, remove_origin=True)
         if verbose:
             yield "Processing xlog segments for %s" % self.config.name
         available_backups = self.get_available_backups()
@@ -336,7 +340,10 @@ class Server(object):
             time = os.stat(filename).st_mtime
             if not os.path.isdir(destdir):
                 os.makedirs(destdir)
-            os.rename(filename, destfile)
+            if compressor:
+                compressor(filename, destfile)
+            else:
+                os.rename(filename, destfile)
             size = os.stat(destfile).st_size
             xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
             xlogdb_lock = xlogdb + ".lock"

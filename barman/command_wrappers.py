@@ -56,10 +56,12 @@ class Command(object):
         else:
             cmd = [self.cmd] + args
         if self.debug:
-            print >> sys.stderr, "RUN: %r" % (cmd)
+            print >> sys.stderr, "__call__: %r" % (cmd)
+        _logger.debug("__call__: %r", cmd)
         ret = subprocess.call(cmd, shell=self.shell, env=self.env, preexec_fn=restore_sigpipe)
         if self.debug:
-            print >> sys.stderr, "RET: %s" % (ret)
+            print >> sys.stderr, "__call__ return code: %s" % (ret)
+        _logger.debug("__call__ return code: %s", ret)
         return ret
 
 class Rsync(Command):
@@ -78,14 +80,37 @@ class Rsync(Command):
         cmd = [self.cmd] + self.args + ['--files-from=-', src, dst]
         if self.debug:
             print >> sys.stderr, "RUN: %r" % (cmd)
+        _logger.debug("RUN: %r", cmd)
         pipe = subprocess.Popen(cmd, preexec_fn=restore_sigpipe, stdin=subprocess.PIPE)
         pipe.communicate('\n'.join(filelist))
+        _logger.debug("FILELIST: %r", filelist)
         ret = pipe.wait()
         if self.debug:
             print >> sys.stderr, "RET: %s" % (ret)
+        _logger.debug("RUN: %s", ret)
         return ret
 
 class RsyncPgData(Rsync):
     def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, debug=False):
         options = ['-rLKpts', '--delete', '--inplace', '--exclude=/pg_xlog/*', '--exclude=/pg_log/*', '--exclude=/postmaster.pid'] + args
         Rsync.__init__(self, rsync, options, ssh, ssh_options, debug)
+
+class Compressor(Command):
+    def __init__(self, compression_filter, remove_origin=False, debug=False):
+        self.compression_filter = compression_filter
+        self.remove_origin = remove_origin
+        if remove_origin:
+            template = "compress(){ %s > $2 < $1 && rm -f $1;}; compress"
+        else:
+            template = "compress(){ %s > $2 < $1;}; compress"
+        Command.__init__(self, template % compression_filter, shell=True, debug=debug)
+
+class Decompressor(Command):
+    def __init__(self, decompression_filter, remove_origin=False, debug=False):
+        self.compression_filter = decompression_filter
+        self.remove_origin = remove_origin
+        if remove_origin:
+            template = "decompress(){ %s > $2 < $1 && rm -f $1;}; decompress"
+        else:
+            template = "decompress(){ %s > $2 < $1;}; decompress"
+        Command.__init__(self, template % decompression_filter, shell=True, debug=debug)
