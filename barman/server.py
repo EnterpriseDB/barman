@@ -29,6 +29,7 @@ import os
 import psycopg2
 import time
 import traceback
+from contextlib import contextmanager
 
 _logger = logging.getLogger(__name__)
 
@@ -53,14 +54,11 @@ class Server(object):
         """
         Checks PostgreSQL connection and retrieve version information
         """
-        conn_is_mine = self.conn == None
         try:
-            if conn_is_mine: self.conn = psycopg2.connect(self.config.conninfo)
-            self.server_version = self.conn.server_version
-            cur = self.conn.cursor()
-            cur.execute("SELECT version()")
-            self.server_txt_version = cur.fetchone()[0].split()[1]
-            if conn_is_mine: self.conn.close()
+            with self.pg_connect() as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT version()")
+                self.server_txt_version = cur.fetchone()[0].split()[1]
         except Exception:
             return False
         else:
@@ -123,6 +121,26 @@ class Server(object):
             if hasattr(self.config, key):
                 yield "\t%s: %s" % (key, getattr(self.config, key))
 
+    @contextmanager
+    def pg_connect(self):
+        myconn = self.conn == None
+        if myconn:
+            self.conn = psycopg2.connect(self.config.conninfo)
+            self.server_version = self.conn.server_version
+        try:
+            yield self.conn
+        finally:
+            if myconn: self.conn.close()
+
+    def get_pg_setting(self, name):
+        with self.pg_connect() as conn:
+            try:
+                cur = conn.cursor()
+                cur.execute('SHOW "%s"' % name.replace('"', '""'))
+                return cur.fetchone()[0]
+            except:
+                return None
+
     def backup(self):
         """
         Performs a backup for the server
@@ -146,53 +164,54 @@ class Server(object):
             yield "Starting backup for server %s in %s" % (self.config.name, backup_base)
 
             current_action = "connecting to database (%s)" % self.config.conninfo
-            conn = psycopg2.connect(self.config.conninfo)
-            cur = conn.cursor()
-            print >> info, "version=%s" % conn.server_version
+            with self.pg_connect() as conn:
+                cur = conn.cursor()
+                print >> info, "version=%s" % conn.server_version
 
-            current_action = "detecting data directory"
-            cur.execute('SHOW data_directory')
-            data_directory = cur.fetchone()
-            print >> info, "pgdata=%s" % data_directory
+                current_action = "detecting data directory"
+                data_directory = self.get_pg_setting('data_directory')
+                print >> info, "pgdata=%s" % data_directory
 
-            current_action = "detecting tablespaces"
-            cur.execute("SELECT spcname, oid, spclocation FROM pg_tablespace WHERE spclocation != ''")
-            tablespaces = cur.fetchall();
-            if len(tablespaces) > 0:
-                print >> info, "tablespaces=%r" % tablespaces
-                for oid, name, location in tablespaces:
-                    yield "\t%s, %s, %s" % (oid, name, location)
+                current_action = "detecting tablespaces"
+                cur.execute("SELECT spcname, oid, spclocation FROM pg_tablespace WHERE spclocation != ''")
+                tablespaces = cur.fetchall();
+                if len(tablespaces) > 0:
+                    print >> info, "tablespaces=%r" % tablespaces
+                    for oid, name, location in tablespaces:
+                        yield "\t%s, %s, %s" % (oid, name, location)
 
-            current_action = "issuing pg_start_backup command"
-            cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_start_backup(%s) as xlog_loc', ('BaRman backup',))
-            start_xlog, start_file_name, start_file_offset = cur.fetchone()
-            yield "Backup begin at xlog location: %s (%s, %08X)" % (start_xlog, start_file_name, start_file_offset)
-            print >> info, "timeline=%d" % int(start_file_name[0:8])
-            print >> info, "begin_time=%s" % backup_stamp
-            print >> info, "begin_xlog=%s" % start_xlog
-            print >> info, "begin_wal=%s" % start_file_name
-            print >> info, "begin_offset=%s" % start_file_offset
+                current_action = "issuing pg_start_backup command"
+                cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_start_backup(%s) as xlog_loc', ('BaRMan backup',))
+                start_xlog, start_file_name, start_file_offset = cur.fetchone()
+                yield "Backup begin at xlog location: %s (%s, %08X)" % (start_xlog, start_file_name, start_file_offset)
+                print >> info, "timeline=%d" % int(start_file_name[0:8])
+                print >> info, "begin_time=%s" % backup_stamp
+                print >> info, "begin_xlog=%s" % start_xlog
+                print >> info, "begin_wal=%s" % start_file_name
+                print >> info, "begin_offset=%s" % start_file_offset
 
 
-            current_action = "copying files"
-            try:
-                rsync = RsyncPgData(ssh=self.ssh_command, ssh_options=self.ssh_options)
-                retval = rsync(':%s/' % data_directory, os.path.join(backup_base, 'pgdata'))
-                if retval not in (0, 24):
-                    raise Exception("ERROR: data transfer failure")
-            except:
-                raise
-            else:
-                current_action = "issuing pg_stop_backup command"
-            finally:
-                cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_stop_backup() as xlog_loc')
-                stop_xlog, stop_file_name, stop_file_offset = cur.fetchone()
-                print >> info, "end_time=%s" % datetime.datetime.now()
-                print >> info, "end_xlog=%s" % stop_xlog
-                print >> info, "end_wal=%s" % stop_file_name
-                print >> info, "end_offset=%s" % stop_file_offset
+                current_action = "copying files"
+                backup_dest = os.path.join(backup_base, 'pgdata')
+                try:
+                    rsync = RsyncPgData(ssh=self.ssh_command, ssh_options=self.ssh_options)
+                    retval = rsync(':%s/' % data_directory, backup_dest)
+                    if retval not in (0, 24):
+                        raise Exception("ERROR: data transfer failure")
+                    current_action = "calculating backup size"
+                except:
+                    raise
+                else:
+                    current_action = "issuing pg_stop_backup command"
+                finally:
+                    cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_stop_backup() as xlog_loc')
+                    stop_xlog, stop_file_name, stop_file_offset = cur.fetchone()
+                    print >> info, "end_time=%s" % datetime.datetime.now()
+                    print >> info, "end_xlog=%s" % stop_xlog
+                    print >> info, "end_wal=%s" % stop_file_name
+                    print >> info, "end_offset=%s" % stop_file_offset
 
-            print >> info, "status=DONE"
+                print >> info, "status=DONE"
 
         except:
             traceback.print_exc()
