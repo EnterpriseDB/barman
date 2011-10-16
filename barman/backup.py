@@ -20,6 +20,7 @@ import ast
 import os
 from barman import xlog
 import logging
+import dateutil.parser
 
 _logger = logging.getLogger(__name__)
 
@@ -35,6 +36,15 @@ class Backup(object):
     ]
     """
     Attributes of the backup.info file
+    """
+
+    TYPES = {'tablespaces':ast.literal_eval, # Treat the tablespaces as a literal Python list of tuples
+             'timeline':int, # Timeline is an integer
+             'begin_time':dateutil.parser.parse,
+             'end_time':dateutil.parser.parse,
+    }
+    """
+    Conversion from string
     """
 
     def __init__(self, server, info_file=None):
@@ -63,8 +73,8 @@ class Backup(object):
                     raise Exception('invalid line in backup file: %s' % line)
                 if key not in self.KEYS:
                     raise Exception('invalid key in backup file: %s' % key)
-                if key == 'tablespaces': # Treat the tablespaces as a literal Python list of tuples
-                    self.__dict__[key] = ast.literal_eval(value)
+                if key in self.TYPES:
+                    self.__dict__[key] = self.TYPES[key](value)
                 else:
                     self.__dict__[key] = value
 
