@@ -237,17 +237,6 @@ def get_server_list(args):
                 server_dict[server] = Server(conf)
         return server_dict
 
-class silenceable_stream_wrapper(object):
-    def __init__(self, output):
-        self.output = output
-    def silence(self):
-        self.output = None
-    def write(self, *args, **kwargs):
-        if self.output:
-            self.output.write(*args, **kwargs)
-
-output_stream = silenceable_stream_wrapper(sys.stdout)
-
 def main():
     p = ArghParser()
     p.add_argument('-v', '--version', action='version', version=barman.__version__)
