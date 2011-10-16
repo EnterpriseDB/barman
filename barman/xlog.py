@@ -18,7 +18,7 @@
 
 import re
 
-_xlog_re = re.compile(r'^([\dA-Fa-f]{8})([\dA-Fa-f]{8})([\dA-Fa-f]{8})$')
+_xlog_re = re.compile(r'^([\dA-Fa-f]{8})(?:([\dA-Fa-f]{8})([\dA-Fa-f]{8})(?:\.[\dA-Fa-f]{8}\.backup)?|\.history)$')
 """
 xlog file segment name parser (regular expression)
 """
@@ -31,6 +31,12 @@ XLOG_FILE_SIZE = XLOG_SEG_SIZE * XLOG_SEG_PER_FILE
 class BadXlogSegmentName(Exception):
     pass
 
+def is_history_file(name):
+    return type(name) == str and name.endswith('.history')
+
+def is_backlup_file(name):
+    return type(name) == str and name.endswith('.backup')
+
 def decode_segment_name(name):
     """
     Retrieve the timeline, log ID and segment ID from the name of a xlog segment
@@ -38,7 +44,7 @@ def decode_segment_name(name):
     match = _xlog_re.match(name)
     if not match:
         raise BadXlogSegmentName, "invalid xlog segmant name '%s'" % name
-    return [int(x, 16) for x in match.groups()]
+    return [int(x, 16) if x else None for x in match.groups()]
 
 def encode_segment_name(tli, log, seg):
     """
@@ -46,13 +52,19 @@ def encode_segment_name(tli, log, seg):
     """
     return "%08X%08X%08X" % (tli, log, seg)
 
+def encode_history_file_name(tli):
+    """
+    Build the history file name based on timeline
+    """
+    return "%08X.history" % (tli)
+
 def enumerate_segments(begin, end):
     """
     Get the list of xlog segments from begin to end (included)
     """
     begin_tli, begin_log, begin_seg = decode_segment_name(begin)
     end_tli, end_log, end_seg = decode_segment_name(end)
-    assert begin_tli == end_tli # Check for timeline equality
+    assert begin_tli == end_tli, "Begin segment (%s) and end segment (%s) must have the same timeline part" % (begin, end) # this method don't support timeline changes
 
     # Start from the first xlog and sequentially enumerates the segments to the end
     cur_log, cur_seg = begin_log, begin_seg

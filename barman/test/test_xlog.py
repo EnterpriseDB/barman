@@ -28,6 +28,8 @@ class Test(unittest.TestCase):
         self.assertRaises(xlog.BadXlogSegmentName, xlog.decode_segment_name, '00000000000000000000000')
         self.assertRaises(xlog.BadXlogSegmentName, xlog.decode_segment_name, '0000000000000000000000000')
         self.assertRaises(xlog.BadXlogSegmentName, xlog.decode_segment_name, '000000000000X00000000000')
+        self.assertEqual(xlog.decode_segment_name('00000001000000000000000A.00000020.backup'), [1, 0, 10])
+        self.assertEqual(xlog.decode_segment_name('00000001.history'), [1, None, None])
 
     def testEnumerateSegments(self):
         self.assertEqual(
@@ -41,6 +43,18 @@ class Test(unittest.TestCase):
             tuple(xlog.enumerate_segments('0000000100000001000000FD', '0000000100000001000000FF')),
             ('0000000100000001000000FD',
              '0000000100000001000000FE'))
+
+    def testHashDir(self):
+        self.assertEqual(xlog.hash_dir('000000000000000200000001'), '0000000000000002')
+        self.assertEqual(xlog.hash_dir('000000010000000000000002'), '0000000100000000')
+        self.assertEqual(xlog.hash_dir('000000020000000100000000'), '0000000200000001')
+        self.assertEqual(xlog.hash_dir('00000001.history'), '')
+        self.assertEqual(xlog.hash_dir('00000002.history'), '')
+        self.assertEqual(xlog.hash_dir('00000001000000000000000A.00000020.backup'), '0000000100000000')
+        self.assertEqual(xlog.hash_dir('00000002000000050000000A.00000020.backup'), '0000000200000005')
+        self.assertRaises(xlog.BadXlogSegmentName, xlog.hash_dir, '00000000000000000000000')
+        self.assertRaises(xlog.BadXlogSegmentName, xlog.hash_dir, '0000000000000000000000000')
+        self.assertRaises(xlog.BadXlogSegmentName, xlog.hash_dir, '000000000000X00000000000')
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
