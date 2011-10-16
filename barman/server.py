@@ -30,6 +30,7 @@ import psycopg2
 import time
 import traceback
 from contextlib import contextmanager
+import itertools
 
 _logger = logging.getLogger(__name__)
 
@@ -50,20 +51,6 @@ class Server(object):
         self.ssh_options.extend("-o BatchMode=yes -o StrictHostKeyChecking=no".split())
         self.available_backups = None
 
-    def _read_pgsql_info(self):
-        """
-        Checks PostgreSQL connection and retrieve version information
-        """
-        try:
-            with self.pg_connect() as conn:
-                cur = conn.cursor()
-                cur.execute("SELECT version()")
-                self.server_txt_version = cur.fetchone()[0].split()[1]
-        except Exception:
-            return False
-        else:
-            return True
-
     def check_ssh(self):
         """
         Checks SSH connection
@@ -71,18 +58,28 @@ class Server(object):
         cmd = Command(self.ssh_command, self.ssh_options)
         ret = cmd("true")
         if ret == 0:
-            return "\tssh: OK"
+            yield "\tssh: OK"
         else:
-            return "\tssh: FAILED (return code: %s)" % (ret)
+            yield "\tssh: FAILED (return code: %s)" % (ret)
 
     def check_postgres(self):
         """
         Checks PostgreSQL connection
         """
-        if self._read_pgsql_info():
-            return "\tpgsql: OK (version: %s)" % (self.server_txt_version)
+        remote_status = self.get_remote_status()
+        if remote_status['server_txt_version']:
+            yield "\tpgsql: OK (version: %s)" % (remote_status['server_txt_version'])
         else:
-            return "\tpgsql: FAILED"
+            yield "\tpgsql: FAILED"
+            return
+        if remote_status['archive_mode'] == 'on':
+            yield "\tarchive_mode: OK (fully enabled)"
+        else:
+            yield "\tarchive_mode: FAILED (please set it to 'on')"
+        if remote_status['archive_command']:
+            yield "\tarchive_command: OK"
+        else:
+            yield "\tarchive_command: FAILED (please set it accordingly to documentation)"
 
     def check_directories(self):
         """
@@ -96,9 +93,9 @@ class Server(object):
         except OSError, e:
                 error = e.strerror
         if not error:
-            return "\tdirectories: OK"
+            yield "\tdirectories: OK"
         else:
-            return "\tdirectories: FAILED (%s)" % (error)
+            yield "\tdirectories: FAILED (%s)" % (error)
 
     def check(self):
         """
@@ -106,20 +103,50 @@ class Server(object):
         connections work properly. It checks also that backup directories exist
         (and if not, it creates them).
         """
-        yield "Server %s:" % (self.config.name)
-        if self.config.description: yield "\tdescription: %s" % (self.config.description)
-        yield self.check_ssh()
-        yield self.check_postgres()
-        yield self.check_directories()
+        status = [("Server %s:" % (self.config.name),)]
+        if self.config.description: status.append(("\tdescription: %s" % (self.config.description),))
+        status.append(self.check_ssh())
+        status.append(self.check_postgres())
+        status.append(self.check_directories())
+        return itertools.chain.from_iterable(status)
+
+    def get_remote_status(self):
+        pg_settings = ('archive_mode', 'archive_command', 'data_directory')
+        result = {}
+        with self.pg_connect() as conn:
+            for name in pg_settings:
+                result[name] = self.get_pg_setting(name)
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT version()")
+                result['server_txt_version'] = cur.fetchone()[0].split()[1]
+            except:
+                result['server_txt_version'] = None
+        cmd = Command(self.ssh_command, self.ssh_options)
+        result['last_shipped_wal'] = None
+        if result['data_directory'] and result['archive_command']:
+            archive_dir = os.path.join(result['data_directory'], 'pg_xlog', 'archive_status')
+            out = cmd.getoutput(None, 'ls', '-t', archive_dir)[0]
+            for line in out.splitlines():
+                if line.endswith('.done'):
+                    name = line[:-5]
+                    if not xlog.is_backlup_file(name) and not xlog.is_history_file(name):
+                        result['last_shipped_wal'] = line[:-5]
+        return result
 
     def show(self):
         """
         Shows the server configuration
         """
+        for line in self.cron():
+            yield line
         yield "Server %s:" % (self.config.name)
         for key in self.config.KEYS:
             if hasattr(self.config, key):
                 yield "\t%s: %s" % (key, getattr(self.config, key))
+        remote_status = self.get_remote_status()
+        for key in remote_status:
+            yield "\t%s: %s" % (key, remote_status[key])
 
     @contextmanager
     def pg_connect(self):
