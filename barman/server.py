@@ -226,6 +226,12 @@ class Server(object):
                     if retval not in (0, 24):
                         raise Exception("ERROR: data transfer failure")
                     current_action = "calculating backup size"
+                    backup_size = 0
+                    for dirpath, _, filenames in os.walk(backup_dest):
+                        for f in filenames:
+                            fp = os.path.join(dirpath, f)
+                            backup_size += os.path.getsize(fp)
+                    print >> info, "size=%s" % backup_size
                 except:
                     raise
                 else:

@@ -31,7 +31,7 @@ class Backup(object):
 
     KEYS = [ 'version', 'pgdata', 'tablespaces', 'timeline',
              'begin_time', 'begin_xlog', 'begin_wal', 'begin_offset',
-             'end_time', 'end_xlog', 'end_wal', 'end_offset',
+             'size', 'end_time', 'end_xlog', 'end_wal', 'end_offset',
              'status', 'server_name', 'error'
     ]
     """
@@ -42,6 +42,7 @@ class Backup(object):
              'timeline':int, # Timeline is an integer
              'begin_time':dateutil.parser.parse,
              'end_time':dateutil.parser.parse,
+             'size':int,
     }
     """
     Conversion from string
