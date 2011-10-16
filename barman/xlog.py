@@ -62,3 +62,13 @@ def enumerate_segments(begin, end):
         if cur_seg >= XLOG_SEG_PER_FILE:
             cur_seg = 0
             cur_log += 1
+
+def hash_dir(name):
+    """
+    Get the directory where the xlog segment will be stored
+    """
+    _, log, _ = decode_segment_name(name)
+    if log != None:
+        return name[0:16]
+    else:
+        return ''
