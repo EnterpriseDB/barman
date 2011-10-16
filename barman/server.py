@@ -31,6 +31,7 @@ import time
 import traceback
 from contextlib import contextmanager
 import itertools
+import shutil
 
 _logger = logging.getLogger(__name__)
 
@@ -167,6 +168,40 @@ class Server(object):
                 return cur.fetchone()[0]
             except:
                 return None
+
+    def delete_backup(self, backup):
+        yield "Deleting backup %s for server %s" % (backup.backup_id, self.config.name)
+        previous_backup = self.get_previous_backup(backup.backup_id)
+        next_backup = self.get_next_backup(backup.backup_id)
+        # remove the backup
+        backup_dir = os.path.join(self.config.basebackups_directory, backup.backup_id)
+        shutil.rmtree(backup_dir)
+        if not previous_backup: # backup is the first one
+            yield "Delete associated WAL segments:"
+            remove_until = None
+            if next_backup:
+                remove_until = next.begin_wal
+            xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
+            xlogdb_new = xlogdb + ".new"
+            xlogdb_lock = xlogdb + ".lock"
+            with lockfile(xlogdb_lock, wait=True):
+                with open(xlogdb, 'r') as fxlogdb:
+                    with open(xlogdb_new, 'w') as fxlogdb_new:
+                        for line in fxlogdb:
+                            name, _, _ = line.split()
+                            if remove_until and name >= remove_until:
+                                fxlogdb_new.write(line)
+                                continue
+                            else:
+                                yield "\t%s" % name
+                                hashdir = os.path.join(self.config.wals_directory, xlog.hash_dir(name))
+                                os.unlink(os.path.join(hashdir, name))
+                                try:
+                                    os.removedirs(hashdir)
+                                except:
+                                    pass
+                os.rename(xlogdb_new, xlogdb)
+        yield "Done"
 
     def backup(self):
         """

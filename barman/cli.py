@@ -174,14 +174,24 @@ def backup_show(args):
         yield line
 
 @alias('delete')
+@arg('server_name', help='specifies the server name for the command')
 @arg('backup_id', help='specifies the backup ID')
-def backup_delete(backup):
+def backup_delete(args):
     'delete a backup'
-    yield "TODO" # TODO: implement this
+    server = get_server(args)
+    if server == None:
+        yield "Unknown server '%s'" % (args.server_name)
+        return
+    # Retrieves the backup info file
+    backup_info_file = server.get_backup_info_file(args.backup_id)
+    backup = Backup(server, backup_info_file)
+    for line in server.delete_backup(backup):
+        yield line
+
 
 @arg('backup_id', help='specifies the backup ID')
 @alias('recover')
-def backup_recover(backup):
+def backup_recover(args):
     'recover a backup'
     yield "TODO" # TODO: implement this
 
