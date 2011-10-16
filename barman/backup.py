@@ -18,7 +18,7 @@
 
 import ast
 import os
-from barman import xlog
+from barman import xlog, _pretty_size
 import logging
 import dateutil.parser
 
@@ -95,6 +95,7 @@ class Backup(object):
             try:
                 previous_backup = self.server.get_previous_backup(self.backup_id)
                 next_backup = self.server.get_next_backup(self.backup_id)
+                wal_num, wal_size, wal_until_next_num, wal_until_next_size, wal_last = self.server.get_wal_info(self)
                 yield "  Server Name       : %s" % self.server_name
                 yield "  PostgreSQL Version: %s" % self.version
                 yield "  PGDATA directory  : %s" % self.pgdata
@@ -104,10 +105,11 @@ class Backup(object):
                         yield "    %s: %s" % (name, location)
                 yield ""
                 yield "  Base backup information:"
-                yield "    Disk usage      : TODO"
+                yield "    Disk usage      : %s" % _pretty_size(self.size + wal_size)
                 yield "    Timeline        : %s" % self.timeline
                 yield "    Begin WAL       : %s" % self.begin_wal
                 yield "    End WAL         : %s" % self.end_wal
+                yield "    WAL number      : %s" % wal_num
                 yield "    Begin time      : %s" % self.begin_time
                 yield "    End time        : %s" % self.end_time
                 yield "    Begin Offset    : %s" % self.begin_offset
@@ -116,9 +118,9 @@ class Backup(object):
                 yield "    End XLOG        : %s" % self.end_xlog
                 yield ""
                 yield "  WAL information:"
-                yield "    No of files     : TODO"
-                yield "    Disk usage      : TODO"
-                yield "    Last available  : TODO"
+                yield "    No of files     : %s" % wal_until_next_num
+                yield "    Disk usage      : %s" % _pretty_size(wal_until_next_size)
+                yield "    Last available  : %s" % wal_last
                 yield ""
                 yield "  Catalog information:"
                 if previous_backup:

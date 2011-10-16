@@ -19,3 +19,14 @@
 from version import __version__
 
 __config__ = None
+
+def _pretty_size(size, unit=1024):
+    SUFFIXES = ["B"] + [i + {1000: "B", 1024: "iB"}[unit] for i in "KMGTPEZY"]
+    for suffix in SUFFIXES:
+        if size < unit or suffix == SUFFIXES[-1]:
+            if suffix == SUFFIXES[0]:
+                return "%d %s" % (size, suffix)
+            else:
+                return "%.1f %s" % (size, suffix)
+        else:
+            size /= unit

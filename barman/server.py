@@ -345,6 +345,40 @@ class Server(object):
                 if xlog.is_history_file(name):
                     yield name
 
+    def get_wal_info(self, backup):
+        begin = backup.begin_wal
+        end = backup.end_wal
+        next_end = None
+        if self.get_next_backup(backup.backup_id):
+            next_end = self.get_next_backup(backup.backup_id).end_wal
+        backup_tli, _, _ = xlog.decode_segment_name(begin)
+
+        # counters
+        wal_num = 0
+        wal_size = 0
+        wal_until_next_num = 0
+        wal_until_next_size = 0
+        wal_last = None
+
+        with open(os.path.join(self.config.wals_directory, self.XLOG_DB), 'r') as xlog_db:
+            for line in xlog_db:
+                name, size, _ = line.split()
+                if name < begin: continue
+                tli, _, _ = xlog.decode_segment_name(name)
+                if tli > backup_tli: continue
+                if xlog.is_backlup_file(name): continue
+                if next_end and name > next_end:
+                    break
+                # count
+                if name <= end:
+                    wal_num += 1
+                    wal_size += int(size)
+                else:
+                    wal_until_next_num += 1
+                    wal_until_next_size += int(size)
+                wal_last = name
+        return wal_num, wal_size, wal_until_next_num, wal_until_next_size, wal_last
+
     def recover(self, backup_id, dest, tablespaces=[], target_tli=None, target_time=None, target_xid=None, exclusive=False):
         """
         Performs a recovery of a backup
