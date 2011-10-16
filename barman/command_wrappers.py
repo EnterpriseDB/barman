@@ -24,15 +24,19 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+class CommandFailedException(Exception):
+    pass
+
 class Command(object):
     """
     Simple wrapper for a shell command
     """
 
-    def __init__(self, cmd, args=[], env_append=None, shell=False, debug=False):
+    def __init__(self, cmd, args=[], env_append=None, shell=False, check=False, debug=False):
         self.cmd = cmd
         self.args = args
         self.shell = shell
+        self.check = check
         self.debug = debug
         if env_append:
             self.env = os.environ.copy()
@@ -62,7 +66,28 @@ class Command(object):
         if self.debug:
             print >> sys.stderr, "__call__ return code: %s" % (ret)
         _logger.debug("__call__ return code: %s", ret)
+        if self.check and ret != 0:
+            raise CommandFailedException, ret
         return ret
+
+    def getoutput(self, stdin=None, *args):
+        args = self.args + list(args)
+        if self.shell:
+            cmd = self._cmd_quote(self.cmd, args)
+        else:
+            cmd = [self.cmd] + args
+        if self.debug:
+            print >> sys.stderr, "getoutput: %r" % (cmd)
+        _logger.debug("getoutput: %r", cmd)
+        pipe = subprocess.Popen(cmd, shell=self.shell, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = pipe.communicate(stdin)
+        ret = pipe.returncode
+        if self.debug:
+            print >> sys.stderr, "getoutput return code: %s" % (ret)
+        _logger.debug("getoutput return code: %s", ret)
+        if self.check and ret != 0:
+            raise CommandFailedException, (ret , out, err)
+        return out, err
 
 class Rsync(Command):
     def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, debug=False):
