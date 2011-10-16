@@ -23,9 +23,11 @@ from barman.command_wrappers import Command, RsyncPgData, Compressor, \
     Decompressor
 from glob import glob
 import datetime
+import dateutil.parser
 import logging
 import os
 import psycopg2
+import time
 import traceback
 
 _logger = logging.getLogger(__name__)
@@ -268,10 +270,30 @@ class Server(object):
         except ValueError:
             raise Exception('Could not find backup_id %s' % backup_id)
 
+    def get_required_xlog_files(self, backup, target_time=None, target_xid=None):
+        begin = backup.begin_wal
+        end = backup.end_wal
+        with open(os.path.join(self.config.wals_directory, self.XLOG_DB), 'r') as xlog_db:
+            for line in xlog_db:
+                name, _, stamp = line.split()
+                if name < begin: continue
+                yield name
+                if name > end:
+                    end = name
+                    if target_time and target_time < float(stamp):
+                        break
+            # return all the remaining history files
+            for line in xlog_db:
+                name, _, stamp = line.split()
+                if xlog.is_history_file(name):
+                    yield name
+
     def recover(self, backup_id, dest, tablespaces=[], target_time=None, target_xid=None, exclusive=False):
         """
         Performs a recovery of a backup
         """
+        for line in self.cron():
+            yield line
         backup_base = self.get_backup_directory(backup_id)
         backup_info_file = self.get_backup_info_file(backup_id)
         backup = Backup(self, backup_info_file)
@@ -300,14 +322,38 @@ class Server(object):
             raise Exception("ERROR: data transfer failure")
         # Copy wal segments
         yield "Copying required wal segments."
-        wal_dest = os.path.join(dest, 'pg_xlog')
+        if target_time or target_xid:
+            wal_dest = os.path.join(dest, 'barman_xlog')
+        else:
+            wal_dest = os.path.join(dest, 'pg_xlog')
         if not os.path.exists(wal_dest):
             os.makedirs(wal_dest)
-        rsync.from_file_list(backup.get_required_wal_segments(), "%s/" % self.config.wals_directory, wal_dest)
+        xlogs = {}
+        target_epoch = None
+        if target_time:
+            target_datetime = dateutil.parser.parse(target_time)
+            target_epoch = time.mktime(target_datetime.timetuple()) + (target_datetime.microsecond / 1000000.)
+        required_xlog_files = tuple(self.get_required_xlog_files(backup, target_epoch, target_xid))
+        for filename in required_xlog_files:
+            hashdir = xlog.hash_dir(filename)
+            if hashdir not in xlogs:
+                xlogs[hashdir] = []
+            xlogs[hashdir].append(filename)
+        decompressor = None
+        if self.config.decompression_filter:
+            decompressor = Decompressor(self.config.decompression_filter)
+        for prefix in xlogs:
+            source_dir = os.path.join(self.config.wals_directory, prefix)
+            if decompressor:
+                for segment in xlogs[prefix]:
+                    decompressor(os.path.join(source_dir, segment), os.path.join(wal_dest, segment))
+            else:
+                rsync.from_file_list(xlogs[prefix], "%s/" % os.path.join(self.config.wals_directory, prefix), wal_dest)
         if target_time or target_xid:
             yield "Generating recovery.conf"
-            recovery = open(os.path.join(dest, 'recovery.conf'))
-            print >> recovery, "restore_command = 'cp %s/%%f %%p'" % self.config.wals_directory
+            recovery = open(os.path.join(dest, 'recovery.conf'), 'w')
+            print >> recovery, "restore_command = 'cp barman_xlog/%f %p'"
+            print >> recovery, "recovery_end_command = 'rm -fr barman_xlog'"
             if target_time:
                 print >> recovery, "recovery_target_time = '%s'" % target_time
             if target_xid:
