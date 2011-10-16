@@ -321,7 +321,7 @@ class Server(object):
                 os.symlink(location, tblspc_file)
                 yield "\t%s, %s, %s" % (oid, name, location)
         yield "Copying the base backup."
-        rsync = RsyncPgData(ssh=self.ssh_command, ssh_options=self.ssh_options)
+        rsync = RsyncPgData()
         retval = rsync('%s/' % os.path.join(backup_base, 'pgdata'), dest)
         if retval != 0:
             raise Exception("ERROR: data transfer failure")
