@@ -1,0 +1,259 @@
+2011-10-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Added a script to generate the Changelog and sign the release tag
+
+2011-10-16  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add disk size information to 'server list' command
+
+	Implement 'backup delete' command
+
+	Remove the 'backup terminate' command.
+	It is useless, because we don't do asynchronous backups
+
+	Fix get_required_wal_segments implementation
+	There is no need to iterate through the xlog.enumerate_segments's result,
+	which is an iterator itself.
+
+	Display backup/wal size information in 'backup show'
+
+	Calculate and store the backup on-disk size
+
+	Support type conversion for any backup descriptor field
+
+	Add Command.getoutput() method.
+	Also add the check parameter to the constructor.
+	If True it will raise a CommandFailedException exception when return code will differ from zero
+
+	Add more information to show and check command
+
+	Refactor PostgreSQL connection handling in server module
+
+	Create and populate the pg_xlog/archive_status directory at the end of the recover
+
+	Don't use remote server info during the recover.
+	At the moment, "recover" is a local operation.
+	In the future we could make it temote with a specific option.
+
+	Removed existing filed from pg_xlog directory during recover
+
+	Remove old,unused and not-working code about quiet execution
+
+	Add python-dateutil < 2.0 to project dependencies
+
+	Add support to recover to a specific timeline
+
+	Fix recovery to read the files produced by cron
+
+	Add support for global template ($HOME/.barman.conf.global) in setup-test.sh
+
+	Add compression to support to cron command
+
+	Add support for history and backup file to xlog module
+
+	Add global cron command
+
+	Add hash_dir method to xlog module
+
+	Implement lockfile class to support file locking
+
+2011-10-13  Carlo Ascani  <carlo.ascani@2ndquadrant.it>
+
+	Remove source,python in configuration file include
+
+	Remove source,bash asciidoc tag from documentation
+
+2011-10-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fixed project name
+
+2011-10-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Log initialization phase
+
+	Add --quiet global option
+
+	Add logger to all modules
+
+	Parse and use logging configuration
+
+2011-10-03  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Rename test_database_list to test_server_list in test_config.py
+
+	Added descriptive message to BadXlogSegmentName exception in xlog.decode_segment_name()
+
+2011-09-30  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add test for malformed xlog segment file name
+
+	Factor-out the xlog related function from the backup class
+	Also add proper testing to xlog module and fix a nasty bug which
+	run and endless loop if a backup is made across a xlog switch
+	(e.g, ..01000000FE -> ..0200000000)
+
+	Fix error message for get_previous_backup and get_next_backup in server class
+
+	Remove unused variables and imports
+
+	Remove spurious spaces at end of lines from the whole project
+
+	Fix warnings from python-2.7 (reserver identifier assignment)
+
+2011-09-23  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add 'error' key (when status is FAILED)
+
+	Uses the new Backup class constructor (passes the Server object reference)
+
+	Adds catalog information
+	Functions that help retrieving catalog information have been added, such as 'get_available_backups' which returns a dictionary of valid backup objects (backup ID is the key). Added functions that, given a backup ID, get the previous and next backup in the server catalog. Added the new constructor of the the Backup class.
+
+	Changes the constructor by adding a reference to the server object and adds catalog information in the show command
+	The backup_id parameter has been removed from the constructor (never used). A new mandatory parameter has been added and it is a reference to the server object (to which the backup belongs). This allows to perform queries in the server catalog like previous or next base backup. This is the first step in order to allow WAL file size calculations.
+
+2011-09-22  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Prepared TODO information for show command (#1364)
+
+	Add backup show command
+
+	Add functions for file and directory detection and fix server_name in backup.info
+
+	Document methods in the Server class
+
+	Merge branch 'master' of git+ssh://git.2ndquadrant.it/git/barman
+
+	Shortened PostgreSQL version
+
+	Started version 0.2.0
+
+2011-09-22  Carlo Ascani  <carlo.ratm@gmail.com>
+
+	Added part about recovering the whole cluster
+
+2011-09-21  Carlo Ascani  <carlo.ratm@gmail.com>
+
+	added the part Recover a whole cluster
+
+2011-09-21  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added PDF file
+
+2011-09-21  Carlo Ascani  <carlo.ratm@gmail.com>
+
+	improve README.txt
+	Proofreaded and executed on a test host.
+
+2011-09-19  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Written first draft of user documentation
+
+	Added distribution of configuration file and bash completion
+
+	Added minimal configuration file
+
+2011-09-19  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add directory creation during server check operation
+
+	Add the 'server show' command that dumps the configuration parameters for a server (or all servers)
+
+2011-09-16  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improved documentation
+
+	Added .DS_Store files
+
+	Tested installation
+
+	Written intro
+
+2011-09-14  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added intro
+
+	Add comments to backup.py and small improvements
+	Added documentation and comments.
+	Added an exception when parsing backup.info malformed lines.
+
+2011-09-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Really fail backup if rsync raises any error. (bugfix)
+
+2011-09-14  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Check for tablespaces existence when listing backups (bugfix)
+
+	Added MacPorts paths
+
+	Notes on requirements
+
+2011-09-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Create recovery.conf if required
+
+	Create tablespace destination directory if it doesnt exists or is a file.
+
+	Add tablespaces to "server list" output
+
+	Fix fix base conversion in wal segment filename decode
+
+2011-09-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	temp
+
+2011-09-06  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Created structure of the documentation
+
+2011-09-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add a rough (but working) server backup command implementation
+
+	Add support for rsync to command_wrappers.py
+
+	Factor get_server and get_server_list out from server_check function
+	I've done it in order to reuse with all the server subcommands
+
+2011-08-30  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add server description to list command
+
+	Add postgresql connection check to "server check" command
+
+	Add generation of ~/.barman.conf to setup-test.sh script
+
+	Implement server check
+
+	add some output to unimplemented commands. Add also a proper TODO comment
+
+	First skeleton of server.check command
+
+	Rename backup-id and server-name cli arguments to make easy retrieving them
+
+	Minimal list command
+
+	Move configuration handling in pre_call hook
+
+	Support --version argument and move version definition in barman/version.py
+
+2011-08-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add command line parsing
+
+	Add copyright notice to every source file
+
+2011-08-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support quotes around values in the configuration file
+
+2011-08-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Initial structure and config parsing
+
+2011-08-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add script to setup a test environment
