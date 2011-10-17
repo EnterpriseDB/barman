@@ -55,8 +55,8 @@ MINIMAL_CONFIG = """
 [barman]
 barman_home = /srv/barman
 log = %(barman_home)s/log/barman.log
-compression_filter = bzip2 -c -9
-decompression_filter = bzip2 -c -d
+compression_filter = None
+decompression_filter = None
 [main]
 description = " Text with quotes "
 ssh_command = ssh -c "arcfour" -p 22 postgres@pg01
@@ -75,8 +75,8 @@ MINIMAL_CONFIG_MAIN = {
     'wals_directory': '/srv/barman/main/wals',
     'incoming_wals_directory': '/srv/barman/main/incoming',
     'lock_file': '/srv/barman/main/main.lock',
-    'compression_filter': 'bzip2 -c -9',
-    'decompression_filter': 'bzip2 -c -d',
+    'compression_filter': None,
+    'decompression_filter': None,
     'retention_policy': None,
     'wal_retention_policy': None,
 }
@@ -97,6 +97,7 @@ class Test(unittest.TestCase):
         self.assertEqual(main.ssh_command, 'ssh -c "arcfour" -p 22 postgres@pg01')
 
     def test_interpolation(self):
+        self.maxDiff = None
         fp = StringIO(MINIMAL_CONFIG)
         c = Config(fp)
         main = c.get_server('main')

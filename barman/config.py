@@ -85,6 +85,8 @@ class Config(object):
             return None
         try:
             value = self._config.get(section, option, False, defaults)
+            if value == 'None':
+                value = None
             if value != None:
                 value = self._QUOTERE.sub(lambda m: m.group(2), value)
             return value
