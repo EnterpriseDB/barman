@@ -20,6 +20,7 @@ import os
 import re
 from ConfigParser import ConfigParser, NoOptionError
 import logging
+import sys
 
 _logger = logging.getLogger(__name__)
 
@@ -95,18 +96,23 @@ class Config(object):
     def _parse_global_config(self):
         self.barman_home = self.get('barman', 'barman_home')
         log_file = self.get('barman', 'log_file')
+        handler = logging.StreamHandler(stream=sys.stderr)
+        warn = None
         if log_file:
             log_file = os.path.abspath(log_file)
             logdir = os.path.dirname(log_file)
-            if not os.path.isdir(logdir):
-                os.makedirs(logdir)
-            handler = logging.FileHandler(log_file)
-        else:
-            handler = logging.StreamHandler()
+            try:
+                if not os.path.isdir(logdir):
+                    os.makedirs(logdir)
+                handler = logging.FileHandler(log_file)
+            except:
+                # fallback to standard error
+                warn = "Failed opening the requested log file. Using standard error instead."
         fmt = self.get('barman', 'log_format') or "%(asctime)s %(name)s %(levelname)s: %(message)s"
         formatter = logging.Formatter(fmt)
         handler.setFormatter(formatter)
         logging.root.addHandler(handler)
+        if warn: _logger.warn(warn) # this will be always displayed because the default level is WARNING
         level = self.get('barman', 'log_level') or 'INFO'
         if level.isdigit():
             level_int = int(level)
