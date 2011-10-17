@@ -138,7 +138,7 @@ cat >> $PGDATA/postgresql.conf <<EOF
 port=$PGPORT
 unix_socket_directory='/tmp'	#workaround for Debian/Ubuntu defaults
 archive_mode=on
-archive_command='rsync -z %p localhost:$ARCHIVE_DIR/%f'
+archive_command='rsync -a %p localhost:$ARCHIVE_DIR/%f'
 EOF
 
 if [ "${MAJOR_RELEASE/./}" -ge 90 ]

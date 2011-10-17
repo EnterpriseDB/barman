@@ -505,7 +505,7 @@ class Server(object):
         found = False
         compressor = None
         if self.config.compression_filter:
-            compressor = Compressor(self.config.compression_filter, remove_origin=True)
+            compressor = Compressor(self.config.compression_filter, remove_origin=False)
         if verbose:
             yield "Processing xlog segments for %s" % self.config.name
         available_backups = self.get_available_backups()
@@ -527,6 +527,8 @@ class Server(object):
                 os.makedirs(destdir)
             if compressor:
                 compressor(filename, destfile)
+                shutil.copystat(filename, destfile)
+                os.unlink(filename)
             else:
                 os.rename(filename, destfile)
             size = os.stat(destfile).st_size

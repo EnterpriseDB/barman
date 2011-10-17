@@ -186,7 +186,7 @@ activate the archive mode:
 
 ----
 archive_mode = on
-archive_command = 'rsync %p barman@backup:${incoming_wals_directory}/%f'
+archive_command = 'rsync -a %p barman@backup:${incoming_wals_directory}/%f'
 ----
 
 Make sure you change the +${incoming_wals_directory}+ placeholder with the value returned by the
