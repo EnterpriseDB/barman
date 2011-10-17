@@ -81,6 +81,10 @@ class Server(object):
             yield "\tarchive_command: OK"
         else:
             yield "\tarchive_command: FAILED (please set it accordingly to documentation)"
+        if remote_status['last_shipped_wal']:
+            yield "\tarchive_status: last shipped WAL segment %s" % remote_status['last_shipped_wal']
+        else:
+            yield "\tarchive_status: No WAL segment shipped yet"
 
     def check_directories(self):
         """
