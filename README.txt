@@ -55,7 +55,7 @@ During this guide, we will assume that:
 
 * you have one PostgreSQL instance on an host (called +pg+ for the sake of simplicity)
 * one backup server on another host (called +backup+)
-* communication between the two servers via SSH is enabled FIXME consiglierei di non farlo come root
+* communication between the two servers via SSH is enabled
 * the PostgreSQL server can be reached from the backup server as +postgres+ user (or another _superuser_)
 
 It is important to note that, for disaster recovery,
@@ -65,8 +65,6 @@ BaRMan in geographical redundancy scenarios for better disaster recovery outcome
 TODO: Plan your backup policy and workflow (with version 0.3).
 
 === System requirements
-
-TODO:
 
 * Linux/Unix (what about Windows?)
 * Python 2.6 or higher (recommended: with distribute module)
@@ -179,7 +177,7 @@ barman@backup$ barman server show main
 barman@backup$ barman server check main
 ----
 
-Write down the +wals_directory+ as you will need it to setup continuous WAL archiving.
+Write down the +incoming_wals_directory+ (printed by the +barman server show main+ command) as you will need it to setup continuous WAL archiving.
 
 ==== Continuous WAL archiving
 
@@ -188,10 +186,10 @@ activate the archive mode:
 
 ----
 archive_mode = on
-archive_command = 'rsync %p barman@backup:${wals_directory}/%f'
+archive_command = 'rsync %p barman@backup:${incoming_wals_directory}/%f'
 ----
 
-Make sure you change the +${wals_directory}+ placeholder with the value returned by the
+Make sure you change the +${incoming_wals_directory}+ placeholder with the value returned by the
 +barman server show main+ command above.
 
 Restart the PostgreSQL server.
@@ -222,11 +220,13 @@ barman@backup$ barman server list main
 which returns something similar to:
 
 ----
-master - 20110919T172439 - 2011-09-19 17:24:39.769161
+master - 20110919T172439 - Mon Oct 17 12:53:19 2011 - Size: 21.0 MiB - WAL Size: 0 B
 ----
 
 Where +20110919T172439+ is the ID of the backup and
-+2011-09-19 17:24:39.769161+ is the start time of the operation.
++Mon Oct 17 12:53:19 2011+ is the start time of the operation,
++Size+ is the size of the base backup and
++WAL Size+ is the size of WAL files archived.
 
 === Restoring a whole server
 
@@ -270,15 +270,54 @@ The following sections will thoroughly describe the available commands, section 
 
 === General commands
 
-TODO
+* Display a list of server configured for backup:
+
+----
+barman list
+----
 
 === Server commands
 
-TODO
+* Show  all configuration parameters for the specified server
+
+----
+barman server show <server_name>
+----
+
+* Perform a full backup for the given server
+
+----
+barman server backup <server_name>
+----
+
+* Display available backups for the given server
+
+----
+barman server list <server_name>
+----
+
+* Check if connection settings work properly for the specified server
+
+----
+barman server check <server_name>
+----
 
 === Backup commands
 
-TODO
+[NOTE]
+Remember: a backup id can be retrieved with +server list main+
+
+* Show information for a specific backup
+
+----
+barman backup show <server_name> <backup_id>
+----
+
+* Delete a backup
+
+----
+barman backup delete <server_name> <backup_id>
+----
 
 == Advanced configuration
 
