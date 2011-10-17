@@ -41,17 +41,16 @@ def global_list(args):
 @alias('cron')
 def global_cron(args):
     "run maintenance tasks"
-    lock = lockfile(os.path.join(barman.__config__.barman_home, '.cron.lock'))
-    try:
-        lock.acquire()
-    except:
-        yield "ERROR: Another cron is running"
-        raise SystemExit, 1
-    else:
-        servers = [ Server(conf) for conf in barman.__config__.servers()]
-        for server in servers:
-            for lines in server.cron(verbose=True):
-                yield lines
+    filename = os.path.join(barman.__config__.barman_home, '.cron.lock')
+    with lockfile(filename) as locked:
+        if not locked:
+            yield "ERROR: Another cron is running"
+            raise SystemExit, 1
+        else:
+            servers = [ Server(conf) for conf in barman.__config__.servers()]
+            for server in servers:
+                for lines in server.cron(verbose=True):
+                    yield lines
 
 
 SERVER_DESCRIPTION = """
