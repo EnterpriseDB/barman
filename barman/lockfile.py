@@ -29,7 +29,7 @@ class lockfile(object):
     
     It supports the Context Manager interface, allowing the use in with statements.
     
-        whith lockfile('file.lock') as locked:
+        with lockfile('file.lock') as locked:
             if not locked:
                 print "failed"
             else:
@@ -38,7 +38,7 @@ class lockfile(object):
     You can also use exceptions on failures
     
         try:
-            whith lockfile('file.lock', True):
+            with lockfile('file.lock', True):
                 <do someting>
         except LockfileBusyException, e, file:
             print "failed to lock %s" % file
@@ -62,7 +62,7 @@ class lockfile(object):
         try:
             fd = os.open(self.filename, os.O_TRUNC | os.O_CREAT | os.O_RDWR, 0600)
             flags = fcntl.LOCK_EX
-            if not wait or (wait == None and self.wait): flags |= fcntl.LOCK_NB
+            if not wait or (wait == None and not self.wait): flags |= fcntl.LOCK_NB
             fcntl.flock (fd, flags)
             os.write(fd, "%s\n" % os.getpid())
             self.fd = fd
@@ -95,6 +95,8 @@ class lockfile(object):
         Avoid stale lock files.
         """
         self.release()
+
+    ### Contextmanager interface 
 
     def __enter__(self):
         return self.acquire()
