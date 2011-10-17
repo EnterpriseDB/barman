@@ -135,7 +135,7 @@ class Server(object):
             for line in out.splitlines():
                 if line.endswith('.done'):
                     name = line[:-5]
-                    if not xlog.is_backlup_file(name) and not xlog.is_history_file(name):
+                    if xlog.is_wal_file(name):
                         result['last_shipped_wal'] = line[:-5]
         return result
 
@@ -407,7 +407,7 @@ class Server(object):
                 if name < begin: continue
                 tli, _, _ = xlog.decode_segment_name(name)
                 if tli > backup_tli: continue
-                if xlog.is_backlup_file(name): continue
+                if not xlog.is_wal_file(name): continue
                 if next_end and name > next_end:
                     break
                 # count

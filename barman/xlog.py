@@ -34,8 +34,11 @@ class BadXlogSegmentName(Exception):
 def is_history_file(name):
     return type(name) == str and name.endswith('.history')
 
-def is_backlup_file(name):
+def is_backup_file(name):
     return type(name) == str and name.endswith('.backup')
+
+def is_wal_file(name):
+    return not is_backup_file(name) and not is_history_file(name)
 
 def decode_segment_name(name):
     """
