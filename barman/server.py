@@ -143,8 +143,6 @@ class Server(object):
         """
         Shows the server configuration
         """
-        for line in self.cron():
-            yield line
         yield "Server %s:" % (self.config.name)
         for key in self.config.KEYS:
             if hasattr(self.config, key):
