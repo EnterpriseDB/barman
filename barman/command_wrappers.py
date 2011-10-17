@@ -132,7 +132,7 @@ class Compressor(Command):
             template = "compress(){ %s > $2 < $1 && rm -f $1;}; compress"
         else:
             template = "compress(){ %s > $2 < $1;}; compress"
-        Command.__init__(self, template % compression_filter, shell=True, debug=debug)
+        Command.__init__(self, template % compression_filter, shell=True, check=True, debug=debug)
 
 class Decompressor(Command):
     def __init__(self, decompression_filter, remove_origin=False, debug=False):
@@ -142,4 +142,4 @@ class Decompressor(Command):
             template = "decompress(){ %s > $2 < $1 && rm -f $1;}; decompress"
         else:
             template = "decompress(){ %s > $2 < $1;}; decompress"
-        Command.__init__(self, template % decompression_filter, shell=True, debug=debug)
+        Command.__init__(self, template % decompression_filter, shell=True, check=True, debug=debug)
