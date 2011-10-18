@@ -59,6 +59,7 @@ class lockfile(object):
         lock is held by someone else.
         '''
         if self.fd: return True
+        fd = None
         try:
             fd = os.open(self.filename, os.O_TRUNC | os.O_CREAT | os.O_RDWR, 0600)
             flags = fcntl.LOCK_EX
