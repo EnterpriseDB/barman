@@ -183,26 +183,23 @@ class Server(object):
             remove_until = None
             if next_backup:
                 remove_until = next.begin_wal
-            xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
-            xlogdb_new = xlogdb + ".new"
-            xlogdb_lock = xlogdb + ".lock"
-            with lockfile(xlogdb_lock, wait=True):
-                with open(xlogdb, 'r') as fxlogdb:
-                    with open(xlogdb_new, 'w') as fxlogdb_new:
-                        for line in fxlogdb:
-                            name, _, _ = line.split()
-                            if remove_until and name >= remove_until:
-                                fxlogdb_new.write(line)
-                                continue
-                            else:
-                                yield "\t%s" % name
-                                hashdir = os.path.join(self.config.wals_directory, xlog.hash_dir(name))
-                                os.unlink(os.path.join(hashdir, name))
-                                try:
-                                    os.removedirs(hashdir)
-                                except:
-                                    pass
-                os.rename(xlogdb_new, xlogdb)
+            with self.xlogdb() as fxlogdb:
+                xlogdb_new = fxlogdb.name + ".new"
+                with open(xlogdb_new, 'w') as fxlogdb_new:
+                    for line in fxlogdb:
+                        name, _, _ = self.xlogdb_parse_line(line)
+                        if remove_until and name >= remove_until:
+                            fxlogdb_new.write(line)
+                            continue
+                        else:
+                            yield "\t%s" % name
+                            hashdir = os.path.join(self.config.wals_directory, xlog.hash_dir(name))
+                            os.unlink(os.path.join(hashdir, name))
+                            try:
+                                os.removedirs(hashdir)
+                            except:
+                                pass
+                os.rename(xlogdb_new, fxlogdb.name)
         yield "Done"
 
     def backup(self):
@@ -369,20 +366,20 @@ class Server(object):
         # If timeline isn't specified, assume it is the same timeline of the backup  
         if not target_tli:
             target_tli, _, _ = xlog.decode_segment_name(end)
-        with open(os.path.join(self.config.wals_directory, self.XLOG_DB), 'r') as xlog_db:
-            for line in xlog_db:
-                name, _, stamp = line.split()
+        with self.xlogdb() as fxlogdb:
+            for line in fxlogdb:
+                name, _, stamp = self.xlogdb_parse_line(line)
                 if name < begin: continue
                 tli, _, _ = xlog.decode_segment_name(name)
                 if tli > target_tli: continue
                 yield name
                 if name > end:
                     end = name
-                    if target_time and target_time < float(stamp):
+                    if target_time and target_time < stamp:
                         break
             # return all the remaining history files
-            for line in xlog_db:
-                name, _, stamp = line.split()
+            for line in fxlogdb:
+                name, _, stamp = self.xlogdb_parse_line(line)
                 if xlog.is_history_file(name):
                     yield name
 
@@ -401,9 +398,9 @@ class Server(object):
         wal_until_next_size = 0
         wal_last = None
 
-        with open(os.path.join(self.config.wals_directory, self.XLOG_DB), 'r') as xlog_db:
-            for line in xlog_db:
-                name, size, _ = line.split()
+        with self.xlogdb() as fxlogdb:
+            for line in fxlogdb:
+                name, size, _ = self.xlogdb_parse_line(line)
                 if name < begin: continue
                 tli, _, _ = xlog.decode_segment_name(name)
                 if tli > backup_tli: continue
@@ -413,10 +410,10 @@ class Server(object):
                 # count
                 if name <= end:
                     wal_num += 1
-                    wal_size += int(size)
+                    wal_size += size
                 else:
                     wal_until_next_num += 1
-                    wal_until_next_size += int(size)
+                    wal_until_next_size += size
                 wal_last = name
         return wal_num, wal_size, wal_until_next_num, wal_until_next_size, wal_last
 
@@ -534,12 +531,30 @@ class Server(object):
             else:
                 os.rename(filename, destfile)
             size = os.stat(destfile).st_size
-            xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
-            xlogdb_lock = xlogdb + ".lock"
-            with lockfile(xlogdb_lock, wait=True):
-                with open(xlogdb, 'a') as f:
-                    f.write("%s\t%s\t%s\n" % (basename, size, time))
+            with self.xlogdb('a') as fxlogdb:
+                fxlogdb.write("%s\t%s\t%s\n" % (basename, size, time))
             _logger.info('Processed file %s', filename)
             yield "\t%s" % os.path.basename(filename)
         if not found and verbose:
             yield "\tno file found"
+
+    @contextmanager
+    def xlogdb(self, mode='r'):
+        if not os.path.exists(self.config.wals_directory):
+            os.makedirs(self.config.wals_directory)
+        xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
+        # If the file doesn't exist and it is required to read it,
+        # we open it in a+ mode, to be sure it will be created
+        if not os.path.exists(xlogdb) and mode.startswith('r'):
+            if '+' not in mode:
+                mode = "a%s+" % mode[1:]
+            else:
+                mode = "a%s" % mode[1:]
+        xlogdb_lock = xlogdb + ".lock"
+        with lockfile(xlogdb_lock, wait=True):
+            with open(xlogdb, mode) as f:
+                yield f
+
+    def xlogdb_parse_line(self, line):
+        name, size, stamp = line.split()
+        return name, int(size), float(stamp)
