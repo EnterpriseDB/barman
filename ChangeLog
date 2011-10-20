@@ -1,4 +1,51 @@
+2011-10-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2011-10-20  Carlo Ascani  <carlo.ascani@2ndquadrant.it>
+
+	Update PDF documentation
+
+	Add information about barman cron
+
+2011-10-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix lockfile module (undeclared variable if the open fail)
+
+	Factor xlogdb cache access.
+	The cache file is created if missing even if we are trying to read it.
+
+	Closes: #1377
+
 2011-10-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Ignore history files in 'backup show' command
+
+	Removed useless cron call in 'server show' command
+
+	Add last shipped WAL segment information to 'server check' command
+
+	Preserve file stats during cron operations.
+	Also change the documentation to suggest the '-a' flag to rsync
+	invocation in the archive_command. It is needed to have the right
+	timestamp in the xlog.db cache file.
+
+	Modify Compressor and Decompressor command to raise an exception when fail
+
+	Fix lockfile handling in 'cron' command
+
+	Fix lockfile.acquire method
+	Inverted condition in wait parameter handling
+
+2011-10-17  Carlo Ascani  <carlo.ascani@2ndquadrant.it>
+
+	Updated documentation to suit version 0.2.0
+
+2011-10-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Handle a literal 'None' value as None in config file
+
+	Avoid exceptions due to wrong log_file setting during the configuration parsing.
 
 	Update the ChangeLog file
 
