@@ -276,6 +276,15 @@ The following sections will thoroughly describe the available commands, section 
 barman list
 ----
 
+* Performs maintenance operations, like compressing WAL files and moving them from the +Incoming+ directory to the right one
+
+----
+barman cron
+----
+
+[NOTE]
+This command should be executed in a _cron script_. In next version of BaRMan, it will manage the retetion policy feature.
+
 === Server commands
 
 * Show  all configuration parameters for the specified server
