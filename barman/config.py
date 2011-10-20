@@ -20,7 +20,6 @@ import os
 import re
 from ConfigParser import ConfigParser, NoOptionError
 import logging
-import sys
 
 _logger = logging.getLogger(__name__)
 
@@ -98,7 +97,7 @@ class Config(object):
     def _parse_global_config(self):
         self.barman_home = self.get('barman', 'barman_home')
         log_file = self.get('barman', 'log_file')
-        handler = logging.StreamHandler(stream=sys.stderr)
+        handler = logging.StreamHandler()
         warn = None
         if log_file:
             log_file = os.path.abspath(log_file)
