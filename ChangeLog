@@ -1,4 +1,12 @@
+2011-10-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Bump version to 0.2.1
+
 2011-10-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make barman.class module working with python2.6
 
 	Update the ChangeLog file
 
