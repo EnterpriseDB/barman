@@ -27,9 +27,9 @@ import sys
 
 _logger = logging.getLogger(__name__)
 
-@alias('list')
+@alias('list-server')
 @arg('--minimal', help='machine readable output', action='store_true')
-def global_list(args):
+def list_server(args):
     "list available servers, with useful information"
     servers = barman.__config__.servers()
     for server in servers:
@@ -38,8 +38,7 @@ def global_list(args):
         else:
             yield server.name
 
-@alias('cron')
-def global_cron(args):
+def cron(args):
     "run maintenance tasks"
     filename = os.path.join(barman.__config__.barman_home, '.cron.lock')
     with lockfile(filename) as locked:
@@ -52,14 +51,8 @@ def global_cron(args):
                 for lines in server.cron(verbose=True):
                     yield lines
 
-
-SERVER_DESCRIPTION = """
-all server commands require a server_name argument
-"""
-
-@alias('backup')
 @arg('server_name', help='specifies the server name for the command')
-def server_backup(args):
+def backup(args):
     'perform a full backup for the given server'
     server = get_server(args)
     if server == None:
@@ -68,9 +61,10 @@ def server_backup(args):
     for line in server.backup():
         yield line
 
-@alias('list')
+@alias('list-backup')
 @arg('server_name', help='specifies the server name for the command')
-def server_list(args):
+@arg('--minimal', help='machine readable output', action='store_true')
+def list_backup(args):
     'list available backups for the given server'
     server = get_server(args)
     if server == None:
@@ -79,19 +73,11 @@ def server_list(args):
     for line in server.list_backups():
         yield line
 
-@alias('status')
 @arg('server_name', help='specifies the server name for the command')
-def server_status(args):
+def status(args):
     'shows live information and status of the PostgreSQL server'
     yield "TODO" # TODO: implement this
 
-@alias('delete_obsolete')
-@arg('server_name', help='specifies the server name for the command')
-def server_delete_obsolete(args):
-    'delete obsolete backups and WAL (according to retention policy)'
-    yield "TODO" # TODO: implement this
-
-@alias('recover')
 @arg('server_name', help='specifies the server name for the command')
 @arg('--target-tli', help='target timeline', type=int)
 @arg('--target-time', help='target time')
@@ -103,7 +89,7 @@ def server_delete_obsolete(args):
 the directory where the new server is created.
 If prefixed with "username@server:" it refers to a remote server
 with the same syntax accepted by rsync""")
-def server_recover(args):
+def recover(args):
     'recover a server at a given time or xid'
     server = get_server(args)
     if server == None:
@@ -125,9 +111,9 @@ def server_recover(args):
                                exclusive=args.exclusive):
         yield line
 
-@alias('show')
+@alias('show-server')
 @arg('server_name', nargs='+', help="specifies the server names to show ('all' will show all available servers)")
-def server_show(args):
+def show_server(args):
     'show all configuration parameters for the specified servers'
     servers = get_server_list(args)
 
@@ -139,9 +125,8 @@ def server_show(args):
             yield line
         yield ''
 
-@alias('check')
 @arg('server_name', nargs='+', help="specifies the server names to check ('all' will check all available servers)")
-def server_check(args):
+def check(args):
     'check if connection settings work properly for the specified servers'
     servers = get_server_list(args)
 
@@ -153,14 +138,10 @@ def server_check(args):
             yield line
         yield ''
 
-BACKUP_DESCRIPTION = """
-all backup commands accept require a backup_id argument
-"""
-
-@alias('show')
+@alias('show-backup')
 @arg('server_name', help='specifies the server name for the command')
 @arg('backup_id', help='specifies the backup ID')
-def backup_show(args):
+def show_backup(args):
     'show a single backup information'
     server = get_server(args)
     if server == None:
@@ -172,10 +153,9 @@ def backup_show(args):
     for line in backup.show():
         yield line
 
-@alias('delete')
 @arg('server_name', help='specifies the server name for the command')
 @arg('backup_id', help='specifies the backup ID')
-def backup_delete(args):
+def delete(args):
     'delete a backup'
     server = get_server(args)
     if server == None:
@@ -186,13 +166,6 @@ def backup_delete(args):
     backup = Backup(server, backup_info_file)
     for line in server.delete_backup(backup):
         yield line
-
-
-@arg('backup_id', help='specifies the backup ID')
-@alias('recover')
-def backup_recover(args):
-    'recover a backup'
-    yield "TODO" # TODO: implement this
 
 class stream_wrapper(object):
     def __init__(self, stream):
@@ -244,30 +217,19 @@ def main():
     p.add_argument('-v', '--version', action='version', version=barman.__version__)
     p.add_argument('-c', '--config', help='uses a configuration file (defaults: $HOME/.barman.conf, /etc/barman.conf)')
     p.add_argument('-q', '--quiet', help='be quiet', action='store_true')
-    p.add_commands([global_list, global_cron])
     p.add_commands(
         [
-            server_show,
-            server_backup,
-            server_list,
-            server_status,
-            server_check,
-            server_delete_obsolete,
-            server_recover,
-        ],
-        namespace='server',
-        title='commands acting on a server',
-        description=SERVER_DESCRIPTION,
-    )
-    p.add_commands(
-        [
-            backup_show,
-            backup_delete,
-            backup_recover
-        ],
-        namespace='backup',
-        title='commands acting on a backup',
-        description=BACKUP_DESCRIPTION,
+            cron,
+            list_server,
+            show_server,
+            status,
+            check,
+            backup,
+            list_backup,
+            show_backup,
+            recover,
+            delete,
+        ]
     )
     p.dispatch(pre_call=global_config, output_file=_output_stream)
 
