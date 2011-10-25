@@ -173,8 +173,8 @@ include::docs/barman.conf[]
 You can now test the configuration of BaRMan by executing:
 
 ----
-barman@backup$ barman server show main
-barman@backup$ barman server check main
+barman@backup$ barman show-server main
+barman@backup$ barman check main
 ----
 
 Write down the +incoming_wals_directory+ (printed by the +barman server show main+ command) as you will need it to setup continuous WAL archiving.
@@ -202,19 +202,19 @@ server (in particular that the WAL files are collected in the destination direct
 === Listing the servers
 
 ----
-barman@backup$ barman list
+barman@backup$ barman list-server
 ----
 
 === Executing a full backup
 
 ----
-barman@backup$ barman server backup main
+barman@backup$ barman backup main
 ----
 
 === Viewing the list of backups for a server
 
 ----
-barman@backup$ barman server list main
+barman@backup$ barman list-backup main
 ----
 
 which returns something similar to:
@@ -233,7 +233,7 @@ Where +20110919T172439+ is the ID of the backup and
 The command to recover a whole server is:
 
 ----
-barman@backup$ barman server recover main 20110920T185953 /path/to/recover/directory
+barman@backup$ barman recover main 20110920T185953 /path/to/recover/directory
 ----
 
 Where +20110920T185953+ is the ID of the backup to restore.
@@ -251,7 +251,7 @@ If you run this command as user +barman+, it will become the database superuser.
 You can retrieve a list of backup IDs for a specific server with:
 
 ----
-barman server list srvpgsql
+barman@backup$ barman list-backup srvpgsql
 ----
 
 === Restoring to a point in time
@@ -273,7 +273,7 @@ The following sections will thoroughly describe the available commands, section 
 * Display a list of server configured for backup:
 
 ----
-barman list
+barman list-server
 ----
 
 * Performs maintenance operations, like compressing WAL files and moving them from the +Incoming+ directory to the right one
@@ -290,25 +290,25 @@ This command should be executed in a _cron script_. In next version of BaRMan, i
 * Show  all configuration parameters for the specified server
 
 ----
-barman server show <server_name>
+barman show-server <server_name>
 ----
 
 * Perform a full backup for the given server
 
 ----
-barman server backup <server_name>
+barman backup <server_name>
 ----
 
 * Display available backups for the given server
 
 ----
-barman server list <server_name>
+barman list-backup <server_name>
 ----
 
 * Check if connection settings work properly for the specified server
 
 ----
-barman server check <server_name>
+barman check <server_name>
 ----
 
 === Backup commands
@@ -319,13 +319,13 @@ Remember: a backup id can be retrieved with +server list main+
 * Show information for a specific backup
 
 ----
-barman backup show <server_name> <backup_id>
+barman show-backup <server_name> <backup_id>
 ----
 
 * Delete a backup
 
 ----
-barman backup delete <server_name> <backup_id>
+barman delete <server_name> <backup_id>
 ----
 
 == Advanced configuration
