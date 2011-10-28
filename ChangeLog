@@ -1,4 +1,16 @@
+2011-10-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Bump version to 0.3.0 due the interface change
+
+2011-10-25  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	A few minimal changes for the new command interface
+
 2011-10-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Reworked command line interface to be easier to understand.
 
 	Update the ChangeLog file
 
