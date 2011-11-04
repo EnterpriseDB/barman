@@ -1,0 +1,244 @@
+'\" t
+.\"     Title: barman
+.\"    Author: [see the "AUTHOR" section]
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 11/04/2011
+.\"    Manual: \ \&
+.\"    Source: \ \&
+.\"  Language: English
+.\"
+.TH "BARMAN" "1" "11/04/2011" "\ \&" "\ \&"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+barman \- backup and recovery manager for PostgreSQL
+.SH "SYNOPSIS"
+.sp
+\fBbarman\fR [\fIOPTIONS\fR] {COMMAND}
+.SH "DESCRIPTION"
+.sp
+barman(1) is an utility written in Python to help you manage backup and recovery of PostgreSQL clusters
+.SH "OPTIONS"
+.PP
+\fB\-v, \-\-version\fR
+.RS 4
+Show program version number and exit\&.
+.RE
+.PP
+\fB\-q, \-\-quiet\fR
+.RS 4
+Do not output anything\&. Useful for cron scripts\&.
+.RE
+.PP
+\fB\-h, \-\-help\fR
+.RS 4
+Show a help message and exit\&.
+.RE
+.PP
+\fB\-c CONFIG, \-\-config CONFIG\fR
+.RS 4
+Use the specified configuration file\&.
+.RE
+.SH "WHERE COMMAND CAN BE:"
+.PP
+\fBcron\fR
+.RS 4
+This command does maintenance tasks, such as move incoming wal files to the right directory
+.RE
+.PP
+\fBlist\-server\fR
+.RS 4
+Show all server configured for backup, and their description\&.
+.RE
+.PP
+\fBshow\-server SERVERNAME\fR
+.RS 4
+Show information about
+SERVERNAME, including
+conninfo,
+backup_directory,
+wals_directory
+and many more\&. Specify
+ALL
+as SERVERNAME will show information about all servers present in BaRMan configuration file\&.
+.RE
+.PP
+\fBstatus SERVERNAME\fR
+.RS 4
+This command is not implemented yet\&.
+.RE
+.PP
+\fBcheck SERVERNAME\fR
+.RS 4
+Show diagnostic information about
+SERVERNAME, checking ssh connection, PostgreSQL version and configuration and backup directories\&. Specify
+ALL
+as SERVERNAME will show diagnostic information about all servers present in BaRMan configuration file\&.
+.RE
+.PP
+\fBbackup SERVERNAME\fR
+.RS 4
+Perform a backup of SERVERNAME following configuration parameters specified in BaRMan configuration file\&.
+.RE
+.PP
+\fBlist\-backup SERVERNAME\fR
+.RS 4
+Show all backups of SERVERNAME\&. This command is useful to retrieve a backup ID\&.
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+For example:
+servername 20111104T102647 \- Fri Nov  4 10:26:48 2011 \- Size: 17\&.0 MiB \- WAL Size: 100 B
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+Here 20111104T102647 is the backup ID\&.
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.PP
+\fBshow\-backup SERVERNAME BACKUPID\fR
+.RS 4
+Show a lot of information about a single backup, you must specify the server name and the backup ID\&.
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+Here is an example:
+Backup 20111104T102647:
+  Server Name       : test\-9\&.1
+  PostgreSQL Version: 90101
+  PGDATA directory  : /tmp/barman\-tests/9\&.1/master\-node/data
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+Base backup information:
+  Disk usage      : 17\&.0 MiB
+  Timeline        : 1
+  Begin WAL       : 000000010000000000000002
+  End WAL         : 000000010000000000000002
+  WAL number      : 0
+  Begin time      : 2011\-11\-04 10:26:47\&.357260
+  End time        : 2011\-11\-04 10:26:48\&.888903
+  Begin Offset    : 32
+  End Offset      : 160
+  Begin XLOG      : 0/2000020
+  End XLOG        : 0/20000A0
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+WAL information:
+  No of files     : 0
+  Disk usage      : 0 B
+  Last available  : None
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+Catalog information:
+  Previous Backup : \- (this is the oldest base backup)
+  Next Backup     : \- (this is the latest base backup)
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.PP
+\fBrecover SERVERNAME BACKUPID DESTINATIONDIRECTORY\fR
+.RS 4
+Recover a backup in a given directory\&.
+.RE
+.SH "OPTIONS"
+.PP
+\fB\-\-target\-tli TARGET_TLI\fR
+.RS 4
+Recover the specified timeline\&.
+.RE
+.PP
+\fB\-\-target\-time TARGET_TIME\fR
+.RS 4
+Recover to the specified time\&.
+.RE
+.PP
+\fB\-\-exclusive\fR
+.RS 4
+Set target xid to be non inclusive\&.
+.RE
+.PP
+\fB\-\-tablespace NAME:LOCATION\fR
+.RS 4
+Specify tablespace relocation rule\&.
+.RE
+.PP
+\fBdelete SERVERNAME BACKUPID\fR
+.RS 4
+Delete the specified backup\&.
+.RE
+.SH "EXIT STATUS"
+.PP
+\fB0\fR
+.RS 4
+Success
+.RE
+.PP
+\fB2\fR
+.RS 4
+Failure
+.RE
+.SH "BUGS"
+.sp
+Are you kidding us?
+.SH "AUTHOR"
+.sp
+AsciiDoc was originally written by Marco Nenciarini <marco\&.nenciarini@2ndquadrant\&.it>\&.
+.SH "RESOURCES"
+.sp
+Main web site: http://www\&.pgbarman\&.org
+.SH "COPYING"
+.sp
+Copyright (C) 2011 2ndQuadrant Italy\&. Free use of this software is granted under the terms of the GNU General Public License (GPL)\&.

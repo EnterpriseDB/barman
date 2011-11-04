@@ -1,0 +1,157 @@
+////
+//
+// Generate with:
+//    a2x -d manpage -f manpage barman.1.txt
+//
+////
+
+BARMAN(1)
+===========
+:doctype: manpage
+
+
+NAME
+----
+barman - backup and recovery manager for PostgreSQL
+
+
+SYNOPSIS
+--------
+*barman* ['OPTIONS'] \{COMMAND}
+
+
+DESCRIPTION
+-----------
+barman(1) is an utility written in Python to help you manage
+backup and recovery of PostgreSQL clusters
+
+
+OPTIONS
+-------
+*-v, --version*::
+    Show program version number and exit.
+
+*-q, --quiet*::
+    Do not output anything. Useful for cron scripts.
+
+*-h, --help*::
+    Show a help message and exit.
+
+*-c CONFIG, --config CONFIG*::
+    Use the specified configuration file.
+
+
+Where *COMMAND* can be:
+-----------------------
+
+Important: every command has an help option
+
+*cron*::
+    This command does maintenance tasks, such as move incoming wal files to the right directory
+
+*list-server*::
+    Show all server configured for backup, and their description.
+
+*show-server SERVERNAME*::
+    Show information about +SERVERNAME+, including +conninfo+, +backup_directory+, +wals_directory+ and many more.
+    Specify +ALL+ as SERVERNAME will show information about all servers present in BaRMan configuration file.
+
+*status SERVERNAME*::
+    This command is not implemented yet.
+
+*check SERVERNAME*::
+    Show diagnostic information about +SERVERNAME+, checking ssh connection, PostgreSQL version and configuration and backup directories.
+    Specify +ALL+ as SERVERNAME will show diagnostic information about all servers present in BaRMan configuration file.
+
+*backup SERVERNAME*::
+    Perform a backup of SERVERNAME following configuration parameters specified in BaRMan configuration file.
+
+*list-backup SERVERNAME*::
+    Show all backups of SERVERNAME. This command is useful to retrieve a backup ID.
+
+    For example:
+    servername 20111104T102647 - Fri Nov  4 10:26:48 2011 - Size: 17.0 MiB - WAL Size: 100 B
+
+    Here 20111104T102647 is the backup ID.
+
+*show-backup SERVERNAME BACKUPID*::
+    Show a lot of information about a single backup, you must specify the server name and the backup ID.
+
+    Here is an example:
+    Backup 20111104T102647:
+      Server Name       : test-9.1
+      PostgreSQL Version: 90101
+      PGDATA directory  : /tmp/barman-tests/9.1/master-node/data
+
+    Base backup information:
+      Disk usage      : 17.0 MiB
+      Timeline        : 1
+      Begin WAL       : 000000010000000000000002
+      End WAL         : 000000010000000000000002
+      WAL number      : 0
+      Begin time      : 2011-11-04 10:26:47.357260
+      End time        : 2011-11-04 10:26:48.888903
+      Begin Offset    : 32
+      End Offset      : 160
+      Begin XLOG      : 0/2000020
+      End XLOG        : 0/20000A0
+
+    WAL information:
+      No of files     : 0
+      Disk usage      : 0 B
+      Last available  : None
+
+    Catalog information:
+      Previous Backup : - (this is the oldest base backup)
+      Next Backup     : - (this is the latest base backup)
+
+*recover SERVERNAME BACKUPID DESTINATIONDIRECTORY*::
+    Recover a backup in a given directory.
+
+    OPTIONS
+    -------
+
+    *--target-tli TARGET_TLI*::
+        Recover the specified timeline.
+
+    *--target-time TARGET_TIME*::
+        Recover to the specified time.
+
+    *--exclusive*::
+        Set target xid to be non inclusive.
+
+    *--tablespace NAME:LOCATION*::
+        Specify tablespace relocation rule.
+
+*delete SERVERNAME BACKUPID*::
+    Delete the specified backup.
+
+EXIT STATUS
+-----------
+*0*::
+    Success
+
+*2*::
+    Failure
+
+
+BUGS
+----
+Are you kidding us?
+
+
+AUTHOR
+------
+AsciiDoc was originally written by Marco Nenciarini <marco.nenciarini@2ndquadrant.it>.
+
+
+RESOURCES
+---------
+Main web site: <http://www.pgbarman.org>
+
+
+COPYING
+-------
+Copyright \(C) 2011 2ndQuadrant Italy. Free use of this software is
+granted under the terms of the GNU General Public License (GPL).
+

@@ -1,0 +1,115 @@
+////
+//
+// Generate with:
+//    a2x -d manpage -f manpage barman.5.txt
+//
+////
+
+BARMAN(5)
+===========
+:doctype: manpage
+
+
+NAME
+----
+barman - backup and recovery manager for PostgreSQL
+
+
+CONFIGURATION FILE LOCATIONS
+----------------------------
+
+BaRMan configuration file default locations are:
+    $HOME/.barman.conf
+    /etc/barman.conf
+
+CONFIGURATION FILE SYNTAX
+-------------------------
+
+BaRMan configuration file is a plain +ini+ file.
+There is a general section called +[barman]+ and a section +[servername]+ for each server you want to backup.
+Rows starting with +;+ are comments.
+
+PARAMETERS
+----------
+
+*active*::
+    Ignored.
+
+*description*::
+    A human readable description of a server.
+
+*ssh_command*::
+    The command used by BaRMan to login via ssh to the Postgres server.
+
+*conninfo*::
+    The DSN string used by BaRMan to connect to the Postgres server.
+
+*basebackups_directory*::
+    The directory where base backups will be placed.
+
+*wals_directory*::
+    The directory which contains WAL files.
+
+*incoming_wals_directory*::
+    The directory where WAL files are archived into.
+
+*lock_file*::
+    Lockfile for a backup in progress.
+
+*compression_filter*::
+    The compression algorithm used for WAL files.
+
+*decompression_filter*::
+    The decompression algorithm  used for WAL files, obviosly this have to match with the compression one.
+
+*retention_policy*::
+    The policy for the retention of old backups. This is not implemented yet.
+
+*wal_retention_policy*::
+    The policy for the retention of old WAL files. This is not implemented yet.
+
+
+EXAMPLE
+-------
+
+Here is an example configuration file:
+
+----
+[barman]
+; Main directory
+barman_home = /srv/barman
+
+; Log location
+log_file = %(barman_home)s/log/barman.log
+
+; Default compression level: none, bzip2, gz
+compression_filter = None
+decompression_filter = None
+
+; 'main' PostgreSQL Server configuration
+[main]
+; Human readble description
+description =  "Main PostgreSQL Database"
+
+; SSH options
+ssh_command = ssh postgres@pg
+
+; PostgreSQL connection information (DSN)
+conninfo = host=pg user=postgres
+----
+
+AUTHOR
+------
+AsciiDoc was originally written by Marco Nenciarini <marco.nenciarini@2ndquadrant.it>.
+
+
+RESOURCES
+---------
+Main web site: <http://www.pgbarman.org>
+
+
+COPYING
+-------
+Copyright \(C) 2011 2ndQuadrant Italy. Free use of this software is
+granted under the terms of the GNU General Public License (GPL).
+
