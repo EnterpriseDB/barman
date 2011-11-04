@@ -1,4 +1,5 @@
 #!/bin/sh
+# Copyright (C) 2011  Devise.IT S.r.l. <info@2ndquadrant.it>
 set -e
 
 BASE="$(dirname $(cd $(dirname "$0"); pwd))"

@@ -347,4 +347,4 @@ You can sponsor the development of new features of Barman and PostgreSQL which w
 
 == License
 
-Barman is the property of 2ndQuadrant and its code is distributed under GNU General Public License 3.
+Barman is the property of 2ndQuadrant Italia and its code is distributed under GNU General Public License 3.
