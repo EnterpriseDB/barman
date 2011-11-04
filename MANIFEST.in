@@ -1,5 +1,5 @@
 recursive-include barman *.py
 recursive-include docs *.asciidoc *.conf
 recursive-include scripts *.bash_completion
-include LICENSE README.asciidoc README.pdf
-include ChangeLog README.txt LICENSE PKG-INFO MANIFEST.in MANIFEST setup.py 
+include LICENSE README.pdf docs/barman.1 docs/barman.5
+include ChangeLog LICENSE PKG-INFO MANIFEST.in MANIFEST setup.py 
