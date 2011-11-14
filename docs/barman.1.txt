@@ -12,7 +12,7 @@ BARMAN(1)
 
 NAME
 ----
-barman - backup and recovery manager for PostgreSQL
+barman - Backup and Recovery Manager for PostgreSQL
 
 
 SYNOPSIS
@@ -22,8 +22,9 @@ SYNOPSIS
 
 DESCRIPTION
 -----------
-barman(1) is an utility written in Python to help you manage
-backup and recovery of PostgreSQL clusters
+barman(1) is a disaster recovery utility for PostgreSQL clusters
+written in Python, that helps you with backup and recovery operations
+of your database servers.
 
 
 OPTIONS
