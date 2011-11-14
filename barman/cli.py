@@ -73,10 +73,19 @@ def list_backup(args):
     for line in server.list_backups():
         yield line
 
-@arg('server_name', help='specifies the server name for the command')
+@arg('server_name', nargs='+', help='specifies the server name for the command')
 def status(args):
     'shows live information and status of the PostgreSQL server'
-    yield "TODO" # TODO: implement this
+    servers = get_server_list(args)
+
+    for name, server in servers.items():
+        if server == None:
+            yield "Unknown server '%s'" % (name)
+            continue
+        for line in server.status():
+            yield line
+        yield ''
+
 
 @arg('server_name', help='specifies the server name for the command')
 @arg('--target-tli', help='target timeline', type=int)

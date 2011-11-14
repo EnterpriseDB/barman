@@ -69,22 +69,18 @@ class Server(object):
         """
         remote_status = self.get_remote_status()
         if remote_status['server_txt_version']:
-            yield "\tpgsql: OK (version: %s)" % (remote_status['server_txt_version'])
+            yield "\tPostgreSQL: OK"
         else:
-            yield "\tpgsql: FAILED"
+            yield "\tPostgreSQL: FAILED"
             return
         if remote_status['archive_mode'] == 'on':
-            yield "\tarchive_mode: OK (fully enabled)"
+            yield "\tarchive_mode: OK"
         else:
             yield "\tarchive_mode: FAILED (please set it to 'on')"
         if remote_status['archive_command']:
             yield "\tarchive_command: OK"
         else:
             yield "\tarchive_command: FAILED (please set it accordingly to documentation)"
-        if remote_status['last_shipped_wal']:
-            yield "\tarchive_status: last shipped WAL segment %s" % remote_status['last_shipped_wal']
-        else:
-            yield "\tarchive_status: No WAL segment shipped yet"
 
     def check_directories(self):
         """
@@ -109,10 +105,43 @@ class Server(object):
         (and if not, it creates them).
         """
         status = [("Server %s:" % (self.config.name),)]
-        if self.config.description: status.append(("\tdescription: %s" % (self.config.description),))
+        #FIXME: Description makes sense in a "check" command?
+        #if self.config.description: status.append(("\tdescription: %s" % (self.config.description),))
         status.append(self.check_ssh())
         status.append(self.check_postgres())
         status.append(self.check_directories())
+        return itertools.chain.from_iterable(status)
+
+    def status_postgres(self):
+        """
+        Status of PostgreSQL server
+        """
+        remote_status = self.get_remote_status()
+        if remote_status['server_txt_version']:
+            yield "\tPostgreSQL version: %s " % (remote_status['server_txt_version'])
+        else:
+            yield "\tPostgreSQL version: FAILED trying to get PostgreSQL version"
+            return
+        if remote_status['data_directory']:
+            yield "\tPostgreSQL Data directory: %s " % (remote_status['data_directory'])
+        if remote_status['archive_command']:
+            yield "\tarchive_command: %s " % (remote_status['archive_command'])
+        else:
+            yield "\tarchive_command: FAILED (please set it accordingly to documentation)"
+        if remote_status['last_shipped_wal']:
+            yield "\tarchive_status: last shipped WAL segment %s" % remote_status['last_shipped_wal']
+        else:
+            yield "\tarchive_status: No WAL segment shipped yet"
+        if remote_status['current_xlog']:
+            yield "\tcurrent_xlog: %s " % (remote_status['current_xlog'])
+
+    def status(self):
+        """
+        Implements the 'server status' command.
+        """
+        status = [("Server %s:" % (self.config.name),)]
+        if self.config.description: status.append(("\tdescription: %s" % (self.config.description),))
+        status.append(self.status_postgres())
         return itertools.chain.from_iterable(status)
 
     def get_remote_status(self):
@@ -127,6 +156,12 @@ class Server(object):
                 result['server_txt_version'] = cur.fetchone()[0].split()[1]
             except:
                 result['server_txt_version'] = None
+            try:
+                cur = conn.cursor()
+                cur.execute('SELECT pg_xlogfile_name(pg_current_xlog_location())')
+                result['current_xlog'] = cur.fetchone()[0];
+            except:
+                result['current_xlog'] = None
         cmd = Command(self.ssh_command, self.ssh_options)
         result['last_shipped_wal'] = None
         if result['data_directory'] and result['archive_command']:
