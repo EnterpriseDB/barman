@@ -217,7 +217,7 @@ class Server(object):
             yield "Delete associated WAL segments:"
             remove_until = None
             if next_backup:
-                remove_until = next.begin_wal
+                remove_until = next_backup.begin_wal
             with self.xlogdb() as fxlogdb:
                 xlogdb_new = fxlogdb.name + ".new"
                 with open(xlogdb_new, 'w') as fxlogdb_new:
