@@ -146,22 +146,26 @@ class Server(object):
 
     def get_remote_status(self):
         pg_settings = ('archive_mode', 'archive_command', 'data_directory')
-        result = {}
-        with self.pg_connect() as conn:
-            for name in pg_settings:
-                result[name] = self.get_pg_setting(name)
-            try:
-                cur = conn.cursor()
-                cur.execute("SELECT version()")
-                result['server_txt_version'] = cur.fetchone()[0].split()[1]
-            except:
-                result['server_txt_version'] = None
-            try:
-                cur = conn.cursor()
-                cur.execute('SELECT pg_xlogfile_name(pg_current_xlog_location())')
-                result['current_xlog'] = cur.fetchone()[0];
-            except:
-                result['current_xlog'] = None
+        pg_query_keys = ('server_txt_version', 'current_xlog')
+        result = dict.fromkeys(pg_settings + pg_query_keys, None)
+        try:
+            with self.pg_connect() as conn:
+                for name in pg_settings:
+                    result[name] = self.get_pg_setting(name)
+                try:
+                    cur = conn.cursor()
+                    cur.execute("SELECT version()")
+                    result['server_txt_version'] = cur.fetchone()[0].split()[1]
+                except:
+                    result['server_txt_version'] = None
+                try:
+                    cur = conn.cursor()
+                    cur.execute('SELECT pg_xlogfile_name(pg_current_xlog_location())')
+                    result['current_xlog'] = cur.fetchone()[0];
+                except:
+                    result['current_xlog'] = None
+        except:
+            pass
         cmd = Command(self.ssh_command, self.ssh_options)
         result['last_shipped_wal'] = None
         if result['data_directory'] and result['archive_command']:
