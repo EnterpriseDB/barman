@@ -361,11 +361,15 @@ class Server(object):
         """
         return os.path.join(self.config.basebackups_directory, backup_id)
 
-    def get_backup_info_file(self, backup_id):
+    def get_backup(self, backup_id):
         """
         Get the name of information file for the given backup
         """
-        return os.path.join(self.get_backup_directory(backup_id), "backup.info")
+        path = os.path.join(self.get_backup_directory(backup_id), "backup.info")
+        if os.path.exists(path):
+            return Backup(self, path)
+        else:
+            return None
 
     def get_previous_backup(self, backup_id):
         """
@@ -452,16 +456,14 @@ class Server(object):
                 wal_last = name
         return wal_num, wal_size, wal_until_next_num, wal_until_next_size, wal_last
 
-    def recover(self, backup_id, dest, tablespaces=[], target_tli=None, target_time=None, target_xid=None, exclusive=False):
+    def recover(self, backup, dest, tablespaces=[], target_tli=None, target_time=None, target_xid=None, exclusive=False):
         """
         Performs a recovery of a backup
         """
         for line in self.cron():
             yield line
-        backup_base = self.get_backup_directory(backup_id)
-        backup_info_file = self.get_backup_info_file(backup_id)
-        backup = Backup(self, backup_info_file)
-        yield "Starting restore for server %s using backup %s " % (self.config.name, backup_id)
+        yield "Starting restore for server %s using backup %s " % (self.config.name, backup.backup_id)
+        backup_base = self.get_backup_directory(backup.backup_id)
         yield "Destination directory: %s" % dest
         if backup.tablespaces:
             tblspc_dir = os.path.join(dest, 'pg_tblspc')

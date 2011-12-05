@@ -17,7 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from argh import ArghParser, alias, arg
-from barman.backup import Backup
 from barman.lockfile import lockfile
 from barman.server import Server
 import barman.config
@@ -104,6 +103,11 @@ def recover(args):
     if server == None:
         yield "Unknown server '%s'" % (args.server_name)
         return
+    # Retrieves the backup info
+    backup = server.get_backup(args.backup_id)
+    if backup == None:
+        yield "Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name)
+        return
     tablespaces = {}
     if args.tablespace:
         for rule in args.tablespace:
@@ -111,7 +115,7 @@ def recover(args):
                 tablespaces.update([rule.split(':', 1)])
             except:
                 yield "Invalid tablespace relocation rule %s" % rule
-    for line in server.recover(args.backup_id,
+    for line in server.recover(backup,
                                args.destination_directory,
                                tablespaces=tablespaces,
                                target_tli=args.target_tli,
@@ -156,9 +160,11 @@ def show_backup(args):
     if server == None:
         yield "Unknown server '%s'" % (args.server_name)
         return
-    # Retrieves the backup info file
-    backup_info_file = server.get_backup_info_file(args.backup_id)
-    backup = Backup(server, backup_info_file)
+    # Retrieves the backup info
+    backup = server.get_backup(args.backup_id)
+    if backup == None:
+        yield "Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name)
+        return
     for line in backup.show():
         yield line
 
@@ -170,9 +176,11 @@ def delete(args):
     if server == None:
         yield "Unknown server '%s'" % (args.server_name)
         return
-    # Retrieves the backup info file
-    backup_info_file = server.get_backup_info_file(args.backup_id)
-    backup = Backup(server, backup_info_file)
+    # Retrieves the backup info
+    backup = server.get_backup(args.backup_id)
+    if backup == None:
+        yield "Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name)
+        return
     for line in server.delete_backup(backup):
         yield line
 
