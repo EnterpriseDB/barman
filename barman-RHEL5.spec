@@ -17,7 +17,10 @@ Vendor: 2ndQuadrant Italia (Devise.IT S.r.l.) <info@2ndquadrant.it>
 Requires: python26-psycopg2 python26-argh python26-dateutil
 
 %description
-BaRman is a tool to backup and recovery PostgreSQL clusters.
+BaRMan is a tool that helps PostgreSQL database administrators
+perform remote backup and recovery of multiple PostgreSQL servers.
+It is a suitable disaster recovery solution for any PostgreSQL
+environment, business critical included.
 
 
 %prep
