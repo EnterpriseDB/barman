@@ -77,7 +77,7 @@ class Server(object):
             yield "\tarchive_mode: OK"
         else:
             yield "\tarchive_mode: FAILED (please set it to 'on')"
-        if remote_status['archive_command']:
+        if remote_status['archive_command'] and remote_status['archive_command'] != '(disabled)':
             yield "\tarchive_command: OK"
         else:
             yield "\tarchive_command: FAILED (please set it accordingly to documentation)"
