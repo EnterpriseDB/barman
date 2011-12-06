@@ -1,3 +1,35 @@
+2011-12-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2011-12-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid exceptions in server.get_remote_status (Bug #1389)
+
+	Factor backup object creation in server.get_backup method (Bug #1387, #1388)
+
+2011-11-15  Carlo Ascani  <carlo.ascani@2ndquadrant.it>
+
+	Fix crash on backup deletion (Bug #1391)
+
+2011-11-14  Carlo Ascani  <carlo.ascani@2ndquadrant.it>
+
+	Rationalize check and status commands output (Task #1351)
+
+2011-11-14  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Cominciata correzione manpages
+
+2011-11-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add man pages to distribution
+
+	Update Copyright information
+
+2011-11-04  Carlo Ascani  <carlo.ascani@2ndquadrant.it>
+
+	Add man page for barman
+
 2011-10-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
