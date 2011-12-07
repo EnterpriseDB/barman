@@ -19,7 +19,10 @@
 
 """Backup and Recovery Manager for PostgreSQL
 
-BaRman is a tool to backup and recovery PostgreSQL clusters.
+BaRMan is a tool that helps PostgreSQL database administrators
+perform remote backup and recovery of multiple PostgreSQL servers.
+It is a suitable disaster recovery solution for any PostgreSQL
+environment, business critical included.
 """
 
 import sys
