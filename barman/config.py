@@ -46,6 +46,7 @@ _TIME_INTERVAL_RE = re.compile(r"""
       \s*$
       """, re.IGNORECASE | re.VERBOSE)
 
+REUSE_BACKUP_VALUES = ('copy', 'link', 'off')
 
 class CsvOption(set):
 
@@ -194,6 +195,24 @@ def parse_time_interval(value):
     return time_delta
 
 
+def parse_reuse_backup(value):
+    """
+    Parse a string to a valid reuse_backup value.
+
+    Valid values are "copy", "link" and "off"
+
+    :param str value: reuse_backup value
+    :raises ValueError: if the value is invalid
+    """
+    if value is None:
+        return None
+    if value.lower() in REUSE_BACKUP_VALUES:
+        return value.lower()
+    raise ValueError(
+        "Invalid value (use '%s' or '%s')" % (
+            "', '".join(REUSE_BACKUP_VALUES[:-1]), REUSE_BACKUP_VALUES[-1]))
+
+
 class Server(object):
     """
     This class represents a server.
@@ -209,6 +228,7 @@ class Server(object):
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
         'pre_archive_script', 'post_archive_script',
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
+        'reuse_backup',
         'backup_options', 'immediate_checkpoint', 'network_compression',
         'basebackup_retry_times', 'basebackup_retry_sleep',
         'last_backup_maximum_age',
@@ -222,6 +242,7 @@ class Server(object):
         'pre_archive_script', 'post_archive_script',
         'configuration_files_directory',
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
+        'reuse_backup',
         'backup_options', 'immediate_checkpoint', 'network_compression',
         'basebackup_retry_times', 'basebackup_retry_sleep',
         'last_backup_maximum_age',
@@ -249,6 +270,7 @@ class Server(object):
         'immediate_checkpoint': parse_boolean,
         'network_compression': parse_boolean,
         'backup_options': BackupOptions,
+        'reuse_backup': parse_reuse_backup,
         'basebackup_retry_times': int,
         'basebackup_retry_sleep': int,
         'last_backup_maximum_age': parse_time_interval,

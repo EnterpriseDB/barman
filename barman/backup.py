@@ -894,6 +894,21 @@ class BackupManager(object):
                 if tablespace_data.location.startswith(backup_info.pgdata)
             ]
 
+        # Retrieve the previous backup metadata and set the safe_horizon
+        # accordingly
+        previous_backup = self.get_previous_backup(backup_info.backup_id)
+        if previous_backup:
+            # safe_horizon is a tz-aware timestamp because BackupInfo class
+            # ensures it
+            safe_horizon = previous_backup.begin_time
+        else:
+            # If no previous backup is present, the safe horizon is set to None
+            safe_horizon = None
+
+        # Make sure the destination directory exists in order for smart copy
+        # to detect that no file is present there
+        mkpath(backup_dest)
+
         # deal with tablespaces with a different bwlimit
         if len(tablespaces_bwlimit) > 0:
             # we are copying the tablespaces before the data directory,
@@ -903,29 +918,38 @@ class BackupManager(object):
                 self.current_action = "copying tablespace '%s' with bwlimit " \
                                       "%d" % (tablespace_dir, bwlimit)
                 _logger.debug(self.current_action)
+                ref_dir = self.reuse_dir(previous_backup, tablespace_dir)
                 tb_rsync = RsyncPgData(
                     ssh=self.server.ssh_command,
                     ssh_options=self.server.ssh_options,
+                    args=self.reuse_args(ref_dir),
                     bwlimit=bwlimit,
                     network_compression=self.config.network_compression,
                     check=True)
                 try:
-                    tb_rsync(':%s/' %
-                             os.path.join(backup_info.pgdata, tablespace_dir),
-                             os.path.join(backup_dest, tablespace_dir))
+                    tb_rsync.smart_copy(
+                        ':%s/' % os.path.join(backup_info.pgdata,
+                                              tablespace_dir),
+                        os.path.join(backup_dest, tablespace_dir),
+                        safe_horizon,
+                        ref_dir)
                 except CommandFailedException, e:
                     msg = "data transfer failure on directory '%s'" % \
                           os.path.join(backup_info.pgdata, tablespace_dir)
                     self._raise_rsync_error(e, msg)
 
+        ref_dir = self.reuse_dir(previous_backup)
         rsync = RsyncPgData(
             ssh=self.server.ssh_command,
             ssh_options=self.server.ssh_options,
+            args=self.reuse_args(ref_dir),
             bwlimit=self.config.bandwidth_limit,
             exclude_and_protect=exclude_and_protect,
             network_compression=self.config.network_compression)
         try:
-            rsync(':%s/' % backup_info.pgdata, backup_dest)
+            rsync.smart_copy(':%s/' % backup_info.pgdata, backup_dest,
+                             safe_horizon,
+                             ref_dir)
         except CommandFailedException, e:
             msg = "data transfer failure on directory '%s'" % \
                   backup_info.pgdata
@@ -1000,6 +1024,39 @@ class BackupManager(object):
                 os.fsync(file_fd)
                 os.close(file_fd)
         return backup_size
+
+    def reuse_dir(self, previous_backup_info, path=None):
+        """
+        If reuse_backup is 'copy' or 'link', builds the path of the directory
+        to reuse, otherwise always returns None.
+
+        If path is None, it returns the full path of pgdata directory of
+        the previous_backup otherwise it returns the specified path inside the
+        data directory.
+
+        :param BackupInfo previous_backup_info: backup to be reused
+        :param str path: path inside the data directory to be reused
+        :return str: the local path with data to be reused
+        """
+        if self.config.reuse_backup in ('copy', 'link') and previous_backup_info is not None:
+            last_backup_dir = previous_backup_info.get_basebackup_directory()
+            reuse_dir = os.path.join(last_backup_dir, 'pgdata')
+            if path is not None:
+                reuse_dir = os.path.join(reuse_dir, path)
+            return reuse_dir
+
+    def reuse_args(self, reuse_dir):
+        """
+        If reuse_backup is 'copy' or 'link', build the rsync option to enable
+        the reuse, otherwise returns an empty list
+
+        :param str|None reuse_dir: the local path with data to be reused
+        :return list: the argument list for rsync
+        """
+        if self.config.reuse_backup in ('copy', 'link') and reuse_dir is not None:
+            return ['--%s-dest=%s' % (self.config.reuse_backup, reuse_dir)]
+        else:
+            return []
 
     def backup_stop(self, backup_info):
         '''

@@ -53,6 +53,7 @@ incoming_wals_directory = incoming
 lock_file = main.lock
 compression_filter = bzip2 -c -9
 decompression_filter = bzip2 -c -d
+reuse_backup = link
 retention_policy = redundancy 3
 wal_retention_policy = base
 last_backup_maximum_age = '1 day'
@@ -87,6 +88,7 @@ TEST_CONFIG_MAIN = {
     'pre_backup_script': None,
     'retention_policy': 'redundancy 3',
     'retention_policy_mode': 'auto',
+    'reuse_backup': 'link',
     'ssh_command': 'ssh -c arcfour -p 22 postgres@pg01',
     'tablespace_bandwidth_limit': None,
     'wal_retention_policy': 'base',
@@ -120,6 +122,7 @@ TEST_CONFIG_WEB = {
     'pre_backup_script': None,
     'retention_policy': 'redundancy 2',
     'retention_policy_mode': 'auto',
+    'reuse_backup': None,
     'ssh_command': 'ssh -I ~/.ssh/web01_rsa -c arcfour -p 22 postgres@web01',
     'tablespace_bandwidth_limit': None,
     'wal_retention_policy': 'base',
@@ -165,6 +168,7 @@ MINIMAL_CONFIG_MAIN = {
     'retention_policy_mode': 'auto',
     'bandwidth_limit': None,
     'tablespace_bandwidth_limit': None,
+    'reuse_backup': None,
     'immediate_checkpoint': False,
     'network_compression': False,
     'backup_options': BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", ""),

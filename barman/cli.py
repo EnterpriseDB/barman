@@ -134,6 +134,11 @@ def backup_completer(prefix, parsed_args, **kwargs):
      dest='immediate_checkpoint',
      action='store_false',
      default=SUPPRESS)
+@arg('--reuse-backup', nargs='?',
+     choices=barman.config.REUSE_BACKUP_VALUES,
+     default=None, const='link',
+     help='use the previous backup to improve transfer-rate. '
+          'If no argument is given "link" is assumed')
 @arg('--retry-times',
      help='Number of retries after an error if base backup copy fails.',
      type=check_positive)
@@ -153,6 +158,8 @@ def backup(args):
         if server is None:
             output.error("Unknown server '%s'" % name)
             continue
+        if args.reuse_backup is not None:
+            server.config.reuse_backup = args.reuse_backup
         if args.retry_sleep is not None:
             server.config.basebackup_retry_sleep = args.retry_sleep
         if args.retry_times is not None:
@@ -160,7 +167,6 @@ def backup(args):
         if hasattr(args, 'immediate_checkpoint'):
             server.config.immediate_checkpoint = args.immediate_checkpoint
         server.backup()
-
     output.close_and_exit()
 
 

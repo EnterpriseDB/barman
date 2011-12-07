@@ -308,7 +308,7 @@ class Rsync(Command):
                 raise
         return self.out, self.err
 
-    def smart_copy(self, src, dst, safe_horizon=None):
+    def smart_copy(self, src, dst, safe_horizon=None, ref=None):
         """
         Recursively copies files from "src" to "dst" in a way that is safe from
         the point of view of a PostgreSQL backup.
@@ -322,37 +322,47 @@ class Rsync(Command):
         assumptions about what can be considered "safe", so we must check
         everything with checksums enabled.
 
-        If src or dst argument begin with a ':' character, it is a remote path
+        If "ref" parameter is provided and is not None, it is looked up
+        instead of the dst dir. This is useful when we are copying files using
+        '--link-dest' and '--copy-dest' rsync options
+
+        If "src" or "dst" content begin with a ':' character, it is a remote
+        path. Only local paths are supported in "ref" argument.
 
         :param str src: the source path
         :param str dst: the destination path
         :param datetime.datetime safe_horizon: anything after this time
             has to be checked
+        :param str ref: the reference path
         :except CommandFailedException: If rsync failed at any time
         :except RsyncListFilesFailure: If source rsync output format is unknown
         """
-        _logger.info("Smart copy: %r -> %r (safe before %r)",
-                     src, dst, safe_horizon)
+        _logger.info("Smart copy: %r -> %r (ref: %r, safe before %r)",
+                     src, dst, ref, safe_horizon)
 
-        # Make sure the dst path ends with a '/' or rsync will add the
+        # If reference is not set we use dst as reference path
+        if ref is None:
+            ref = dst
+
+        # Make sure the ref path ends with a '/' or rsync will add the
         # last path component to all the returned items during listing
-        if dst[-1] != '/':
-            dst += '/'
+        if ref[-1] != '/':
+            ref += '/'
 
-        # Build a hash containing all files present on destination.
+        # Build a hash containing all files present on reference directory.
         # Directories are not included
         _logger.info("Smart copy step 1/4: preparation")
         try:
-            dst_hash = dict((
+            ref_hash = dict((
                 (item.path, item)
-                for item in self.list_files(dst)
+                for item in self.list_files(ref)
                 if item.mode[0] != 'd'))
         except (CommandFailedException, RsyncListFilesFailure):
-            # Here we set dst_hash to None, thus disable the code that marks as
+            # Here we set ref_hash to None, thus disable the code that marks as
             # "safe matching" those destination files with different time or
             # size, even if newer than "safe_horizon". As a result, all files
             # newer than "safe_horizon" will be checked through checksums.
-            dst_hash = None
+            ref_hash = None
             _logger.exception(
                 "Unable to retrieve destination file list. "
                 "Using only source file information to decide which files need "
@@ -395,17 +405,17 @@ class Rsync(Command):
                     safe_list.write(item.path + '\n')
                     continue
 
-                # If dst_hash is None, it means we failed to retrieve the
+                # If ref_hash is None, it means we failed to retrieve the
                 # destination file list. We assume the only safe way is to
                 # check every file that is older than safe_horizon
-                if dst_hash is None:
+                if ref_hash is None:
                     check_list.write(item.path + '\n')
                     continue
 
                 # If source file differs by time or size from the matching
                 # destination, rsync will discover the difference in any case.
                 # It is then safe to skip checksum check here.
-                dst_item = dst_hash.get(item.path, None)
+                dst_item = ref_hash.get(item.path, None)
                 if (dst_item is None
                         or dst_item.size != item.size
                         or dst_item.date != item.date):
