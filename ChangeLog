@@ -1,4 +1,26 @@
+2011-12-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Bump version (0.3.2)
+
+	Avoid trashing of WAL files during the first backup
+
+	Update spec files layout
+
+	Updated description in setup.py
+
+2011-12-06  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add Copyright to version file (for consistency)
+
+	Fixed spec description
+
 2011-12-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix bug in check command (always show archive_command as OK)
+
+	Add spec files for rhel5
 
 	Update the ChangeLog file
 
