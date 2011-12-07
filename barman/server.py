@@ -331,18 +331,23 @@ class Server(object):
             if info:
                 info.close()
 
-    def get_available_backups(self):
+    def get_available_backups(self, allow_running=False):
         """
         Get a list of available backups
         """
-        if not self.available_backups:
-            self.available_backups = {}
+        if not self.available_backups or allow_running:
+            available_backups = {}
             for filename in glob("%s/*/backup.info" % self.config.basebackups_directory):
                 backup = Backup(self, filename)
                 if backup.status != 'DONE':
-                    continue
-                self.available_backups[backup.backup_id] = backup
-        return self.available_backups
+                    if not allow_running or backup.status != None:
+                        continue
+                available_backups[backup.backup_id] = backup
+            if not allow_running:
+                self.available_backups = available_backups
+            return available_backups
+        else:
+            return self.available_backups
 
     def list_backups(self):
         """
@@ -548,7 +553,7 @@ class Server(object):
             compressor = Compressor(self.config.compression_filter, remove_origin=False)
         if verbose:
             yield "Processing xlog segments for %s" % self.config.name
-        available_backups = self.get_available_backups()
+        available_backups = self.get_available_backups(allow_running=True)
         for filename in sorted(glob(os.path.join(self.config.incoming_wals_directory, '*'))):
             if not found and not verbose:
                 yield "Processing xlog segments for %s" % self.config.name
