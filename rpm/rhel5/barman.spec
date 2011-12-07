@@ -1,6 +1,6 @@
 %define name barman
-%define version 0.3.0
-%define unmangled_version 0.3.0
+%define version 0.3.1
+%define unmangled_version 0.3.1
 %define release 1
 
 Summary: Backup and Recovery Manager for PostgreSQL
@@ -37,3 +37,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files -f INSTALLED_FILES
 %defattr(-,root,root)
+
+%changelog
+* Tue Dec 6 2011 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 0.3.1-1
+- Initial packaging.
