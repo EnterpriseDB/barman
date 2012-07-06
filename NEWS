@@ -1,0 +1,67 @@
+Barman News - History of user-visible changes
+Copyright (C) 2011-2012  2ndQuadrant Italia (Devise.IT S.r.l.)
+
+Version 1.0.0 - 6 July 2012
+
+* Backup of multiple PostgreSQL servers, with different versions. Versions
+  from PostgreSQL 8.4+ are supported.
+
+* Support for secure remote backup (through SSH)
+
+* Management of a catalog of backups for every server, allowing users
+  to easily create new backups, delete old ones or restore them
+
+* Compression of WAL files that can be configured on a per server
+  basis using compression/decompression filters, both predefined (gzip
+  and bzip2) or custom
+
+* Support for INI configuration file with global and per-server directives.
+  Default location for configuration files are /etc/barman.conf or
+  ~/.barman.conf. The '-c' option allows users to specify a different one
+
+* Simple indexing of base backups and WAL segments that does not require
+  a local database
+
+* Maintenance mode (invoked through the 'cron' command) which performs
+  ordinary operations such as WAL archival and compression, catalog
+  updates, etc.
+
+* Added the 'backup' command which takes a full physical base backup
+  of the given PostgreSQL server configured in Barman
+
+* Added the 'recover' command which performs local recovery of a given
+  backup, allowing DBAs to specify a point in time. The 'recover' command
+  supports relocation of both the PGDATA directory and, where applicable,
+  the tablespaces
+
+* Added the '--remote-ssh-command' option to the 'recover' command for
+  remote recovery of a backup. Remote recovery does not currently support
+  relocation of tablespaces
+
+* Added the 'list-server' command that lists all the active servers
+  that have been configured in barman
+
+* Added the 'show-server' command that shows the relevant information
+  for a given server, including all configuration options
+
+* Added the 'status' command which shows information about the current
+  state of a server, including Postgres version, current transaction ID,
+  archive command, etc.
+
+* Added the 'check' command which returns 0 if everything Barman needs
+  is functioning correctly
+
+* Added the 'list-backup' command that lists all the available backups
+  for a given server, including size of the base backup and total size
+  of the related WAL segments
+
+* Added the 'show-backup' command that shows the relevant information
+  for a given backup, including time of start, size, number of related
+  WAL segments and their size, etc.
+
+* Added the 'delete' command which removes a backup from the catalog
+
+* Added the 'list-files' command which lists all the files for a
+  single backup
+
+* RPM Package for RHEL 5/6

@@ -1,0 +1,22 @@
+# compiled python sources
+*.pyc
+*.pyo
+
+# editor backups
+*~
+\#*\#
+.*.swp
+
+# eclipse project files
+/.project
+/.pydevproject
+/.settings
+
+# setuptools
+/MANIFEST
+/dist
+/build
+/barman.egg-info
+
+# OSX
+.DS_Store

@@ -1,0 +1,11 @@
+--- setup.cfg.old	2011-08-22 12:16:18.703486005 +0300
++++ setup.cfg	2011-08-22 12:16:31.596486005 +0300
+@@ -26,7 +26,7 @@
+ # libraries needed to build psycopg2. If pg_config is not in the path or
+ # is installed under a different name uncomment the following option and
+ # set it to the pg_config full path.
+-#pg_config=
++pg_config=/usr/pgsql-9.0/bin/pg_config
+ 
+ # If "pg_config" is not available, "include_dirs" can be used to locate 
+ # postgresql headers and libraries. Some extra checks on sys.platform will

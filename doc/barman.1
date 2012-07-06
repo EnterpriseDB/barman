@@ -1,0 +1,361 @@
+'\" t
+.\"     Title: barman
+.\"    Author: [see the "AUTHORS" section]
+.\" Generator: DocBook XSL Stylesheets v1.77.1 <http://docbook.sf.net/>
+.\"      Date: 07/06/2012
+.\"    Manual: \ \&
+.\"    Source: \ \&
+.\"  Language: English
+.\"
+.TH "BARMAN" "1" "07/06/2012" "\ \&" "\ \&"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+barman \- Backup and Recovery Manager for PostgreSQL
+.SH "SYNOPSIS"
+.sp
+\fBbarman\fR [\fIOPTIONS\fR] {COMMAND}
+.SH "DESCRIPTION"
+.sp
+barman(1) is an administration tool for disaster recovery of PostgreSQL servers written in Python\&. barman can perform remote backups of multiple servers in business critical environments and helps DBAs during the recovery phase\&.
+.SH "OPTIONS"
+.PP
+\fB\-v, \-\-version\fR
+.RS 4
+Show program version number and exit\&.
+.RE
+.PP
+\fB\-q, \-\-quiet\fR
+.RS 4
+Do not output anything\&. Useful for cron scripts\&.
+.RE
+.PP
+\fB\-h, \-\-help\fR
+.RS 4
+Show a help message and exit\&.
+.RE
+.PP
+\fB\-c CONFIG, \-\-config CONFIG\fR
+.RS 4
+Use the specified configuration file\&.
+.RE
+.SH "WHERE COMMAND CAN BE:"
+.sp
+Important: every command has an help option
+.PP
+\fBcron\fR
+.RS 4
+Perform maintenance tasks, such as moving incoming WAL files to the appropriate directory\&.
+.RE
+.PP
+\fBlist\-server\fR
+.RS 4
+Show all the configured servers, and their descriptions\&.
+.RE
+.PP
+\fBshow\-server SERVERNAME\fR
+.RS 4
+Show information about
+SERVERNAME, including:
+conninfo,
+backup_directory,
+wals_directory
+and many more\&. Specify
+ALL
+as SERVERNAME to show information about all the configured servers\&.
+.RE
+.PP
+\fBstatus SERVERNAME\fR
+.RS 4
+Show information about the status of a server, including: number of available backups,
+archive_command,
+archive_status
+and many more\&.
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+Example:
+Server main:
+  description: PostgreSQL Example Database
+  PostgreSQL version: 9\&.1\&.1
+  PostgreSQL Data directory: /var/lib/pgsql/9\&.1/data
+  archive_command: rsync \-a %p barman@test\-backup\-server:/srv/barman/main/incoming/%f
+  archive_status: last shipped WAL segment 0000000100000009000000ED
+  current_xlog: 0000000100000009000000EF
+  No\&. of available backups: 1
+  first/last available backup: 20120528T113358
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.PP
+\fBcheck SERVERNAME\fR
+.RS 4
+Show diagnostic information about
+SERVERNAME, including: ssh connection check, PostgreSQL version, configuration and backup directories\&. Specify
+ALL
+as SERVERNAME to show diagnostic information about all the configured servers\&.
+.RE
+.PP
+\fBbackup SERVERNAME\fR
+.RS 4
+Perform a backup of SERVERNAME using parameters specified in the configuration file\&.
+.RE
+.PP
+\fBlist\-backup SERVERNAME\fR
+.RS 4
+Show available backups for SERVERNAME\&. This command is useful to retrieve a backup ID\&.
+.RE
+.sp
+Example: servername 20111104T102647 \- Fri Nov 4 10:26:48 2011 \- Size: 17\&.0 MiB \- WAL Size: 100 B
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+Here 20111104T102647 is the backup ID\&.
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+\fBshow\-backup SERVERNAME BACKUPID\fR
+.RS 4
+Show detailed information about a particular backup, identified by the server name and the backup ID\&.
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+Example:
+Backup 20111104T102647:
+  Server Name       : main
+  PostgreSQL Version: 90101
+  PGDATA directory  : /var/lib/pgsql/9\&.1/data
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+Base backup information:
+  Disk usage      : 17\&.0 MiB
+  Timeline        : 1
+  Begin WAL       : 000000010000000000000002
+  End WAL         : 000000010000000000000002
+  WAL number      : 0
+  Begin time      : 2011\-11\-04 10:26:47\&.357260
+  End time        : 2011\-11\-04 10:26:48\&.888903
+  Begin Offset    : 32
+  End Offset      : 160
+  Begin XLOG      : 0/2000020
+  End XLOG        : 0/20000A0
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+WAL information:
+  No of files     : 0
+  Disk usage      : 0 B
+  Last available  : None
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+Catalog information:
+  Previous Backup : \- (this is the oldest base backup)
+  Next Backup     : \- (this is the latest base backup)
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.PP
+\fBlist\-files [OPTIONS] SERVERNAME BACKUPID\fR
+.RS 4
+List all the files in a particular backup, identified by the server name and the backup ID\&.
+.PP
+\fB\-\-target TARGET_TYPE\fR
+.RS 4
+Possible values for TARGET_TYPE are:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
+\fBdata\fR
+\- lists just the data files;
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
+\fBstandalone\fR
+\- lists the base backup files, including required WAL files;
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
+\fBwal\fR
+\- lists all the WAL files between the start of the base backup and the end of the log / the start of the following base backup (depending on whether the specified base backup is the most recent one available);
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
+\fBfull\fR
+\- same as data + wal\&. Defaults to standalone
+.RE
+.RE
+.RE
+.PP
+\fBrecover [OPTIONS] SERVERNAME BACKUPID DESTINATIONDIRECTORY\fR
+.RS 4
+Recover a backup in a given (FIXME: local?) directory\&.
+.PP
+\fB\-\-target\-tli TARGET_TLI\fR
+.RS 4
+Recover the specified timeline\&.
+.RE
+.PP
+\fB\-\-target\-time TARGET_TIME\fR
+.RS 4
+Recover to the specified time\&. You can use any valid unambiguous representation\&. e\&.g: "YYYY\-MM\-DD HH:MM:SS\&.mmm"
+.RE
+.PP
+\fB\-\-exclusive\fR
+.RS 4
+Set target xid to be non inclusive\&.
+.RE
+.PP
+\fB\-\-tablespace NAME:LOCATION\fR
+.RS 4
+Specify tablespace relocation rule (currently not available with remote recovery)\&.
+.RE
+.PP
+\fB\-\-remote\-ssh\-command SSH_COMMAND\fR
+.RS 4
+This options activates remote recovery, by specifying the secure shell command to be launched on a remote host\&. This is the equivalent of the "ssh_command" server option in the configuration file for remote recovery\&. Example:
+\fIssh postgres@db2\fR\&.
+.RE
+.RE
+.PP
+\fBdelete SERVERNAME BACKUPID\fR
+.RS 4
+Delete the specified backup\&.
+.RE
+.SH "EXIT STATUS"
+.PP
+\fB0\fR
+.RS 4
+Success
+.RE
+.PP
+\fBNot zero\fR
+.RS 4
+Failure
+.RE
+.SH "BUGS"
+.sp
+Barman has been extensively tested, and is currently being used in several live installation\&. All the reported bugs were fixed prior to the open source release, due to the particular nature of backup operations where data security is paramount\&. In particular, there are no known bugs at present\&. Any bug can be reported via the Sourceforge bug tracker\&.
+.SH "AUTHORS"
+.sp
+In alphabetical order:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Carlo Ascani <carlo\&.ascani@2ndquadrant\&.it>
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Gabriele Bartolini <gabriele\&.bartolini@2ndquadrant\&.it>
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Marco Nenciarini <marco\&.nenciarini@2ndquadrant\&.it>
+.RE
+.SH "RESOURCES"
+.sp
+Homepage: http://www\&.pgbarman\&.org
+.SH "COPYING"
+.sp
+Barman is the exclusive property of 2ndQuadrant Italia and its code is distributed under GNU General Public License v3\&.
+.sp
+Copyright \(co 2011\-2012, 2ndQuadrant Italia (Devise\&.IT S\&.r\&.l\&.) \- http://www\&.2ndQuadrant\&.it/\&.

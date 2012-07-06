@@ -1,0 +1,5 @@
+have barman &&
+_barman() {
+   COMPREPLY=($(ARGH_AUTO_COMPLETE=1 COMP_WORDS="${COMP_WORDS[*]}" COMP_CWORD=$COMP_CWORD barman));
+}
+[ "${have:-}" ] && complete -F _barman barman

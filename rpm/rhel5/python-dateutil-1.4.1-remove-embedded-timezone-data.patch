@@ -1,0 +1,89 @@
+diff -up python-dateutil-1.4.1/dateutil/tz.py.remove-embedded-timezone-data python-dateutil-1.4.1/dateutil/tz.py
+--- python-dateutil-1.4.1/dateutil/tz.py.remove-embedded-timezone-data	2008-02-27 20:45:41.000000000 -0500
++++ python-dateutil-1.4.1/dateutil/tz.py	2010-07-13 14:40:30.228122861 -0400
+@@ -930,9 +930,6 @@ def gettz(name=None):
+                     except OSError:
+                         pass
+                 if not tz:
+-                    from dateutil.zoneinfo import gettz
+-                    tz = gettz(name)
+-                if not tz:
+                     for c in name:
+                         # name must have at least one offset to be a tzstr
+                         if c in "0123456789":
+diff -up python-dateutil-1.4.1/dateutil/zoneinfo/__init__.py.remove-embedded-timezone-data python-dateutil-1.4.1/dateutil/zoneinfo/__init__.py
+--- python-dateutil-1.4.1/dateutil/zoneinfo/__init__.py.remove-embedded-timezone-data	2005-12-22 13:13:50.000000000 -0500
++++ python-dateutil-1.4.1/dateutil/zoneinfo/__init__.py	2010-07-13 14:40:30.228122861 -0400
+@@ -3,6 +3,10 @@ Copyright (c) 2003-2005  Gustavo Niemeye
+ 
+ This module offers extensions to the standard python 2.3+
+ datetime module.
++
++This version of the code has been modified to remove the embedded copy
++of zoneinfo-2008e.tar.gz and instead use the system data from the tzdata
++package
+ """
+ from dateutil.tz import tzfile
+ from tarfile import TarFile
+@@ -13,49 +17,12 @@ __license__ = "PSF License"
+ 
+ __all__ = ["setcachesize", "gettz", "rebuild"]
+ 
+-CACHE = []
+-CACHESIZE = 10
+-
+-class tzfile(tzfile):
+-    def __reduce__(self):
+-        return (gettz, (self._filename,))
+-
+-def getzoneinfofile():
+-    filenames = os.listdir(os.path.join(os.path.dirname(__file__)))
+-    filenames.sort()
+-    filenames.reverse()
+-    for entry in filenames:
+-        if entry.startswith("zoneinfo") and ".tar." in entry:
+-            return os.path.join(os.path.dirname(__file__), entry)
+-    return None
+-
+-ZONEINFOFILE = getzoneinfofile()
+-
+-del getzoneinfofile
+-
+ def setcachesize(size):
+-    global CACHESIZE, CACHE
+-    CACHESIZE = size
+-    del CACHE[size:]
++    pass
+ 
+ def gettz(name):
+-    tzinfo = None
+-    if ZONEINFOFILE:
+-        for cachedname, tzinfo in CACHE:
+-            if cachedname == name:
+-                break
+-        else:
+-            tf = TarFile.open(ZONEINFOFILE)
+-            try:
+-                zonefile = tf.extractfile(name)
+-            except KeyError:
+-                tzinfo = None
+-            else:
+-                tzinfo = tzfile(zonefile)
+-            tf.close()
+-            CACHE.insert(0, (name, tzinfo))
+-            del CACHE[CACHESIZE:]
+-    return tzinfo
++    from dateutil.tz import gettz
++    return gettz(name)
+ 
+ def rebuild(filename, tag=None, format="gz"):
+     import tempfile, shutil
+diff -up python-dateutil-1.4.1/MANIFEST.in.remove-embedded-timezone-data python-dateutil-1.4.1/MANIFEST.in
+--- python-dateutil-1.4.1/MANIFEST.in.remove-embedded-timezone-data	2010-07-13 14:42:07.974118722 -0400
++++ python-dateutil-1.4.1/MANIFEST.in	2010-07-13 14:42:14.409994960 -0400
+@@ -1,4 +1,4 @@
+-recursive-include dateutil *.py *.tar.*
++recursive-include dateutil *.py
+ recursive-include sandbox *.py
+ include setup.py setup.cfg MANIFEST.in README LICENSE NEWS Makefile
+ include test.py example.py

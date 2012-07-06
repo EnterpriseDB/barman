@@ -1,0 +1,522 @@
+              Backup and Recovery Manager for PostgreSQL Tutorial
+
+   Barman (backup and recovery manager) is an administration tool for
+   disaster recovery of PostgreSQL servers written in Python. Barman can
+   perform remote backups of multiple servers in business critical
+   environments, and helps DBAs during the recovery phase.
+
+   Barman's most wanted features include: backup catalogues, retention
+   policies, remote recovery, archiving and compression of WAL files and
+   of backups. Barman is written and maintained by PostgreSQL
+   professionals 2ndQuadrant.
+     __________________________________________________________________
+
+Introduction
+
+   In a perfect world, there would be no need for a backup. However it is
+   important, especially in business environments, to be prepared for when
+   the "unexpected" happens. In a database scenario, the unexpected could
+   take any of the following forms:
+     * data corruption;
+     * system failure, including hardware failure;
+     * human error;
+     * natural disaster.
+
+   In such cases, any ICT manager or DBA should be able to repair the
+   incident and recover the database in the shortest possible time. We
+   normally refer to this discipline as Disaster recovery.
+
+   This guide assumes that you are familiar with theoretical disaster
+   recovery concepts, and you have a grasp of PostgreSQL fundamentals in
+   terms of physical backup and disaster recovery. If not, we encourage
+   you to read the PostgreSQL documentation or any of the recommended
+   books on PostgreSQL.
+
+   Professional training on this topic is another effective way of
+   learning these concepts. At any time of the year you can find many
+   courses available all over the world, delivered by PostgreSQL companies
+   such as 2ndQuadrant.
+
+   For now, you should be aware that any PostgreSQL physical/binary backup
+   (not to be confused with the logical backups produced by the pg_dump
+   utility) is composed of:
+     * a base backup;
+     * one or more WAL files (usually collected through continuous
+       archiving).
+
+   PostgreSQL offers the core primitives that allow DBAs to setup a really
+   robust Disaster Recovery environment. However, it becomes complicated
+   to manage multiple backups, from one or more PostgreSQL servers.
+   Restoring a given backup is another task that any PostgreSQL DBA would
+   love to see more automated and user friendly.
+
+   With these goals in mind, 2ndQuadrant started the development of Barman
+   for PostgreSQL. Barman is an acronym for "Backup and Recovery Manager".
+   Currently Barman works only on Linux and Unix operating systems.
+     __________________________________________________________________
+
+Before you start
+
+   The first step is to decide the architecture of your backup. In a
+   simple scenario, you have one PostgreSQL instance (server) running on a
+   host. You want your data continuously backed up to another server,
+   called the backup server.
+
+   Barman allows you to launch PostgreSQL backups directly from the backup
+   server, using SSH connections. Furthermore, it allows you to centralise
+   your backups in case you have more than one PostgreSQL server to
+   manage.
+
+   During this guide, we will assume that:
+     * there is one PostgreSQL instance on a host (called pg for
+       simplicity)
+     * there is one backup server on another host (called backup)
+     * communication via SSH between the two servers is enabled
+     * the PostgreSQL server can be reached from the backup server as the
+       postgres operating system user (or another user with PostgreSQL
+       database superuser privileges, typically configured via ident
+       authentication)
+
+   It is important to note that, for disaster recovery, these two servers
+   must not share any physical resource except for the network. You can
+   use Barman in geographical redundancy scenarios for better disaster
+   recovery outcomes.
+
+  System requirements
+
+     * Linux/Unix
+     * Python 2.6 or 2.7
+     * Python modules:
+          + argh
+          + psycopg2
+          + python-dateutil < 2.0 (since version 2.0 requires python3)
+          + distribute (optional)
+     * PostgreSQL >= 8.4
+     * rsync >= 3.0.4
+
+   Important
+   The same major version of PostgreSQL should be installed on both
+   servers.
+
+   Tip
+   Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
+   advised to install the Extra Packages Enterprise Linux (EPEL)
+   repository.
+   [Further information at [1]http://fedoraproject.org/wiki/EPEL]
+     __________________________________________________________________
+
+Installation
+
+   Create a system user called barman on the backup server. As barman
+   user, download the sources and uncompress them.
+
+   For a system-wide installation, type:
+
+  barman@backup$ ./setup.py build
+  barman@backup# ./setup.py install # run this command with root privileges or s
+udo
+
+   For a local installation, type:
+
+     barman@backup$ ./setup.py install --user
+
+   Important
+   The --user option works only with python-distribute
+
+   barman will be installed in your user directory (make sure that your
+   PATH environment variable is set properly).
+     __________________________________________________________________
+
+Getting started
+
+  Prerequisites
+
+    SSH connection
+
+   Barman needs a bidirectional SSH connection between the barman user on
+   the backup server and the postgres user. SSH must be configured such
+   that there is no password prompt presented when connecting. on the pg
+   server. As the barman user on the backup server, generate an SSH key
+   with an empty password, and append the public key to the
+   authorized_keys file of the postgres user on the pg server.
+
+   The barman user on the backup server should then be able to perform the
+   following operation without typing a password:
+
+     barman@backup$ ssh postgres@pg
+
+   The procedure must be repeated with sides swapped in order to allow the
+   postgres user on the pg server to connect to the backup server as the
+   barman user without typing a password:
+
+     postgres@pg$ ssh barman@backup
+
+   For further information, refer to OpenSSH documentation.
+
+    PostgreSQL connection
+
+   You need to make sure that the backup server allows connection to the
+   PostgreSQL server on pg as superuser (postgres).
+
+   You can choose your favourite client authentication method among those
+   offered by PostgreSQL. More information can be found here:
+   [2]http://www.postgresql.org/docs/current/static/client-authentication.
+   html
+
+     barman@backup$ psql -c 'SELECT version()' -U postgres -h pg
+
+    Backup directory
+
+   Barman needs a main backup directory to store all the backups. Even
+   though you can define a separate folder for each server you want to
+   back up and for each type of resource (backup or WAL segments, for
+   instance), we suggest that you adhere to the default rules and stick
+   with the conventions that Barman chooses for you.
+
+   You will see that the configuration file (as explained below) defines a
+   barman_home variable, which is the directory where Barman will store
+   all your backups by default. We choose /srv/barman as home directory
+   for Barman:
+
+  barman@backup$ sudo mkdir /srv/barman
+  barman@backup$ sudo chown barman:barman /srv/barman
+
+   Important
+   We assume that you have enough space, and that you have already thought
+   about redundancy and safety of your disks.
+
+  Basic configuration
+
+   In the docs directory you will find a minimal configuration file. Use
+   it as a template, and copy it to /etc/barman.conf, or to
+   ~/.barman.conf. In general, the former applies to all the users on the
+   backup server, while the latter applies only to the barman user; for
+   the purpose of this tutorial there is no difference in using one or the
+   other.
+
+   The configuration file follows the standard INI format, and is split
+   in:
+     * a section for general configuration (identified by the barman
+       label)
+     * a section for each PostgreSQL server to be backed up (identified by
+       the server label, e.g. main or pg)
+
+  [barman]
+  ; Main directory
+  barman_home = /var/lib/barman
+
+  ; Log location
+  log_file = /var/log/barman/barman.log
+
+  ; Default compression level: possible values are None (default), bzip2, gzip o
+r custom
+  ;compression = gzip
+
+  ; 'main' PostgreSQL Server configuration
+  [main]
+  ; Human readable description
+  description =  "Main PostgreSQL Database"
+
+  ; SSH options
+  ssh_command = ssh postgres@pg
+
+  ; PostgreSQL connection string
+  conninfo = host=pg user=postgres
+
+   You can now test the configuration by executing:
+
+  barman@backup$ barman show-server main
+  barman@backup$ barman check main
+
+   Write down the incoming_wals_directory, as printed by the barman
+   show-server main command, because you will need it to setup continuous
+   WAL archiving.
+
+    Continuous WAL archiving
+
+   Edit the postgresql.conf file of the PostgreSQL instance on the pg
+   database and activate the archive mode:
+
+  wal_level = 'archive' # For PostgreSQL >= 9.0
+  archive_mode = on
+  archive_command = 'rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
+
+   Make sure you change the INCOMING_WALS_DIRECTORY placeholder with the
+   value returned by the barman show-server main command above.
+
+   Restart the PostgreSQL server.
+
+   In order to test that continuous archiving is on and properly working,
+   you need to check both the PostgreSQL server
+   [For more information, refer to the PostgreSQL documentation]
+   and the backup server (in particular, that the WAL files are collected
+   in the destination directory).
+
+  Listing the servers
+
+   The following command displays the list of all the available servers:
+
+     barman@backup$ barman list-server
+
+  Executing a full backup
+
+   To take a backup issue the command:
+
+     barman@backup$ barman backup main
+
+  Viewing the list of backups for a server
+
+   To list all the available backups for a given server, issue:
+
+     barman@backup$ barman list-backup main
+
+   the format of the output is as in:
+
+  main - 20120529T092136 - Wed May 30 15:20:25 2012 - Size: 5.0 TiB - WAL Size:
+845.0 GiB (tablespaces: tb_name:/home/tblspace/name, tb_temp:/home/tblspace/temp
+)
+
+   where 20120529T092136 is the ID of the backup and Wed May 30 15:20:25
+   2012 is the start time of the operation, Size is the size of the base
+   backup and WAL Size is the size of WAL files archived.
+
+  Restoring a whole server
+
+   To restore a whole server issue the following command:
+
+   barman@backup$ barman recover main 20110920T185953 /path/to/recover/directory
+
+   where 20110920T185953 is the ID of the backup to be restored. When this
+   command completes succesfully, /path/to/recover/directory contains a
+   complete data directory ready to be started as a PostgreSQL database
+   server.
+
+   Here is an example of a command that starts the server:
+
+     barman@backup$ pg_ctl -D /path/to/recover/directory start
+
+   Important
+   If you run this command as user barman, it will become the database
+   superuser.
+
+   You can retrieve a list of backup IDs for a specific server with:
+
+     barman@backup$ barman list-backup srvpgsql
+
+  Remote recovery
+
+   Barman is able to recover a backup on a remote server through the
+   --remote-ssh-command COMMAND option for the recover command.
+
+   If this option is specified, barman uses COMMAND to connect to a remote
+   host.
+
+   Note
+   The postgres user is normally used to recover on a remote host.
+
+   There are some limitations when using remote recovery. It is important
+   to be aware that:
+     * Barman needs at least 4GB of free space in the system temporary
+       directory (usually /tmp);
+     * the SSH connection between Barman and the remote host must use
+       public key exchange authentication method;
+     * PGDATA directory must exists on the remote host and the remote user
+       must be its owner;
+     * a directory per tablespace must exist on the remote host and the
+       remote user must be their owner;
+     * there must be enough free space on the remote server to contain the
+       base backup and the WAL files needed for recovery.
+
+  Restoring to a given point in time
+
+   Barman employs PostgreSQL's Point-in-Time Recovery (PITR) by allowing
+   DBAs to specify a recovery target, either as a timestamp or as a
+   transaction ID; you can also specify whether the recovery target should
+   be included or not in the recovery.
+
+   The recovery target can be specified using one of two mutually
+   exclusive options:
+     * --target-time TARGET_TIME: to specify a timestamp
+     * --target-xid TARGET_XID: to specify a transaction ID
+
+   You can use the --exclusive option to specify whether to stop
+   immediately before or immediately after the recovery target.
+
+   Barman allows you to specify a target timeline for recovery, using the
+   target-tli option. The notion of timeline goes beyond the scope of this
+   document; you can find more details in the PostgreSQL documentation, or
+   in one of 2ndQuadrant's Recovery training courses.
+     __________________________________________________________________
+
+WAL compression
+
+   The barman cron command (see below) will compress WAL files if the
+   compression option is set in the configuration file. This option allows
+   three values:
+     * gzip: for Gzip compression (requires gzip)
+     * bzip2: for Bzip2 compression (requires bzip2)
+     * custom: for custom compression, which requires you to set the
+       following options as well:
+          + custom_compression_filter: a compression filter
+          + custom_decompression_filter: a decompression filter
+     __________________________________________________________________
+
+Available commands
+
+   Barman commands are applied to three different levels:
+     * general commands, which apply to the backup catalogue
+     * server commands, which apply to a specific server (list available
+       backups, execute a backup, etc.)
+     * backup commands, which apply to a specific backup in the catalogue
+       (display information, issue a recovery, delete the backup, etc.)
+
+   In the following sections the available commands will be described in
+   detail.
+
+  General commands
+
+    List available servers
+
+   You can display the list of active servers that have been configured
+   for your backup system with:
+
+     barman list-server
+
+    Maintenance mode
+
+   You can perform maintenance operations, like compressing WAL files and
+   moving them from the incoming directory to the archived one, with:
+
+     barman cron
+
+   Note
+   This command should be executed in a cron script. In future versions of
+   Barman, this command will automatically enforce the retention policy.
+
+  Server commands
+
+    Show the configuration for a given server
+
+   You can show the configuration parameters for a given server with:
+
+     barman show-server <server_name>
+
+    Take a base backup
+
+   You can perform a full backup (base backup) for a given server with:
+
+     barman backup <server_name>
+
+    Show available backups for a server
+
+   You can list the catalogue of available backups for a given server
+   with:
+
+     barman list-backup <server_name>
+
+    Diagnostics check
+
+   You can check if the connection to a given server is properly working
+   with:
+
+     barman check <server_name>
+
+  Backup commands
+
+   Note
+   Remember: a backup ID can be retrieved with server list <server_name>
+
+    Show backup information
+
+   You can show all the available information for a particular backup of a
+   given server with:
+
+     barman show-backup <server_name> <backup_id>
+
+    Delete a backup
+
+   You can delete a given backup with:
+
+     barman delete <server_name> <backup_id>
+
+    List backup files
+
+   You can list the files (base backup and required WAL files) for a given
+   backup with:
+
+     barman list-files [--target TARGET_TYPE] <server_name> <backup_id>
+
+   With the --target TARGET_TYPE option, it is possible to choose the
+   content of the list for a given backup.
+
+   Possible values for TARGET_TYPE are:
+     * data: lists just the data files;
+     * standalone: lists the base backup files, including required WAL
+       files;
+     * wal: lists all WAL files from the beginning of the base backup to
+       the start of the following one (or until the end of the log);
+     * full: same as data + wal.
+
+   The default value for TARGET_TYPE is standalone.
+
+   Important
+   The list-files command facilitates interaction with external tools, and
+   therefore can be extremely useful to integrate Barman into your
+   archiving procedures.
+     __________________________________________________________________
+
+Support and sponsor opportunities
+
+   Barman is free software, written and maintained by 2ndQuadrant. If you
+   require support on using Barman, or if you need new features, please
+   get in touch with 2ndQuadrant. You can sponsor the development of new
+   features of Barman and PostgreSQL which will be made publicly available
+   as open source.
+
+   For further information, please visit our websites:
+     * Barman website: [3]http://www.pgbarman.org/
+     * 2ndQuadrant website: [4]http://www.2ndquadrant.com/
+     __________________________________________________________________
+
+Authors
+
+   In alphabetical order:
+     * Carlo Ascani <[5]carlo.ascani@2ndquadrant.it> (core team)
+     * Gabriele Bartolini <[6]gabriele.bartolini@2ndquadrant.it> (core
+       team)
+     * Marco Nenciarini <[7]marco.nenciarini@2ndquadrant.it> (core team)
+     __________________________________________________________________
+
+License and Contributions
+
+   Barman is the exclusive property of 2ndQuadrant Italia and its code is
+   distributed under GNU General Public License 3.
+   Copyright © 2011-2012, 2ndQuadrant Italia (Devise.IT S.r.l.) -
+   [8]http://www.2ndQuadrant.it.
+
+   Barman has been partially funded through [9]4CaaSt, a research project
+   funded by the European Commission's Seventh Framework programme.
+
+   Contributions to Barman are welcome, and will be listed in the file
+   AUTHORS. 2ndQuadrant Italia requires that any contributions provide a
+   copyright assignment and a disclaimer of any work-for-hire ownership
+   claims from the employer of the developer. This lets us make sure that
+   all of the Barman distribution remains free code. Please contact
+   [10]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
+   Form.
+     __________________________________________________________________
+
+   Last updated 2012-07-06 11:32:06 CEST
+
+References
+
+   1. http://fedoraproject.org/wiki/EPEL
+   2. http://www.postgresql.org/docs/current/static/client-authentication.html
+   3. http://www.pgbarman.org/
+   4. http://www.2ndquadrant.com/
+   5. mailto:carlo.ascani@2ndquadrant.it
+   6. mailto:gabriele.bartolini@2ndquadrant.it
+   7. mailto:marco.nenciarini@2ndquadrant.it
+   8. http://www.2ndQuadrant.it/
+   9. http://4caast.morfeo-project.org/
+  10. mailto:info@2ndQuadrant.it
