@@ -168,7 +168,7 @@ def show_server(args):
 @arg('server_name', nargs='+', help="specifies the server names to check ('all' will check all available servers)")
 def check(args):
     """ Check if the server configuration is working.
-    Thsi function returns 0 if every checks pass, or 0 if any of these fails
+    This function returns 0 if every checks pass, or 0 if any of these fails
     """
     servers = get_server_list(args)
 
