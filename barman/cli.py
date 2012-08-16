@@ -58,11 +58,11 @@ def cron(args):
                 for lines in server.cron(verbose=True):
                     yield lines
 
-@arg('server_name', nargs='+', help='specifies the server names for the backup command ('all' will show all available servers)')
+@arg('server_name', nargs='+', help="specifies the server names for the backup command ('all' will show all available servers)")
 def backup(args):
     """ Perform a full backup for the given server
     """
-    servers = get_server(args)
+    servers = get_server_list(args)
     for name, server in servers.items():
         if server == None:
             yield "Unknown server '%s'" % (name)

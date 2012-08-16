@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.77.1 <http://docbook.sf.net/>
-.\"      Date: 07/06/2012
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 08/16/2012
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "07/06/2012" "\ \&" "\ \&"
+.TH "BARMAN" "1" "08/16/2012" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -78,8 +78,10 @@ conninfo,
 backup_directory,
 wals_directory
 and many more\&. Specify
-ALL
-as SERVERNAME to show information about all the configured servers\&.
+all
+as
+SERVERNAME
+to show information about all the configured servers\&.
 .RE
 .PP
 \fBstatus SERVERNAME\fR
@@ -113,18 +115,27 @@ Server main:
 .RS 4
 Show diagnostic information about
 SERVERNAME, including: ssh connection check, PostgreSQL version, configuration and backup directories\&. Specify
-ALL
-as SERVERNAME to show diagnostic information about all the configured servers\&.
+all
+as
+SERVERNAME
+to show diagnostic information about all the configured servers\&.
 .RE
 .PP
 \fBbackup SERVERNAME\fR
 .RS 4
-Perform a backup of SERVERNAME using parameters specified in the configuration file\&.
+Perform a backup of
+SERVERNAME
+using parameters specified in the configuration file\&. Specify
+all
+as
+SERVERNAME
+to perform a backup of all the configured servers\&.
 .RE
 .PP
 \fBlist\-backup SERVERNAME\fR
 .RS 4
-Show available backups for SERVERNAME\&. This command is useful to retrieve a backup ID\&.
+Show available backups for
+SERVERNAME\&. This command is useful to retrieve a backup ID\&.
 .RE
 .sp
 Example: servername 20111104T102647 \- Fri Nov 4 10:26:48 2011 \- Size: 17\&.0 MiB \- WAL Size: 100 B
