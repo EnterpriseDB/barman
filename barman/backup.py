@@ -18,7 +18,7 @@
 ''' This module represents a bakup. '''
 
 from barman import xlog, _pretty_size
-from barman.command_wrappers import RsyncPgData
+from barman.command_wrappers import RsyncPgData, Command
 from barman.compression import CompressionManager, CompressionIncompatibility
 from glob import glob
 import ast
@@ -364,6 +364,55 @@ class BackupManager(object):
                 os.rename(xlogdb_new, fxlogdb.name)
         yield "Done"
 
+
+    def build_script_env(self, backup_info, phase):
+        """
+        Prepare the environment for executing a script
+        """
+        env = {}
+        env['BARMAN_BACKUP_DIR'] = backup_info.get_basebackup_directory()
+        env['BARMAN_SERVER'] = self.config.name
+        env['BARMAN_CONFIGURATION'] = self.config.config.config_file
+        env['BARMAN_BACKUP_ID'] = backup_info.backup_id
+        env['BARMAN_PHASE'] = phase
+        return env
+
+    def run_pre_backup_script(self, backup_info):
+        '''
+        Run the pre_backup_script if configured.
+        This method must never throw any exception
+        '''
+        try:
+            script = self.config.pre_backup_script
+            if script:
+                _logger.info("Attempt to run pre_backup_script: %s", script)
+                cmd = Command(
+                    script,
+                    env_append=self.build_script_env(backup_info, 'pre'),
+                    shell=True, check=False)
+                ret = cmd()
+                _logger.info("pre_backup_script returned %d", ret)
+        except Exception:
+            _logger.exception('Exception running pre_backup_script')
+
+    def run_post_backup_script(self, backup_info):
+        '''
+        Run the post_backup_script if configured.
+        This method must never throw any exception
+        '''
+        try:
+            script = self.config.post_backup_script
+            if script:
+                _logger.info("Attempt to run post_backup_script: %s", script)
+                cmd = Command(
+                    script,
+                    env_append=self.build_script_env(backup_info, 'post'),
+                    shell=True, check=False)
+                ret = cmd()
+                _logger.info("post_backup_script returned %d", ret)
+        except Exception:
+            _logger.exception('Exception running post_backup_script')
+
     def backup(self):
         '''
         Performs a backup for the server
@@ -379,6 +428,9 @@ class BackupManager(object):
                backup_info.get_basebackup_directory())
             _logger.info(msg)
             yield msg
+
+            # Run the pre-backup-script if present.
+            self.run_pre_backup_script(backup_info)
 
             # Start the backup
             self.backup_start(backup_info)
@@ -431,6 +483,9 @@ class BackupManager(object):
             _logger.info(msg)
             yield msg
         finally:
+            # Run the post-backup-script if present.
+            self.run_post_backup_script(backup_info)
+
             if backup_info:
                 backup_info.save()
 
@@ -709,8 +764,6 @@ class BackupManager(object):
         current_action = "issuing pg_start_backup command"
         _logger.debug(current_action)
         start_xlog, start_file_name, start_file_offset = self.server.pg_start_backup()
-        msg = "Backup begin at xlog location: %s (%s, %08X)" % (start_xlog, start_file_name, start_file_offset)
-        _logger.info(msg)
         backup_info.set_attribute("status", "STARTED")
         backup_info.set_attribute("timeline", int(start_file_name[0:8]))
         backup_info.set_attribute("begin_xlog", start_xlog)

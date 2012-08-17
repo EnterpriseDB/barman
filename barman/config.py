@@ -34,12 +34,14 @@ class Server(object):
     KEYS = ['active', 'description', 'ssh_command', 'conninfo',
         'backup_directory', 'basebackups_directory',
         'wals_directory', 'incoming_wals_directory', 'lock_file',
-        'compression', 'custom_compression_filter', 'custom_decompression_filter',
-        'retention_policy', 'wal_retention_policy',
+        'compression', 'custom_compression_filter',
+        'custom_decompression_filter', 'retention_policy',
+        'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
     ]
 
-    BARMAN_KEYS = ['compression', 'custom_compression_filter', 'custom_decompression_filter',
-        'retention_policy', 'wal_retention_policy',
+    BARMAN_KEYS = ['compression', 'custom_compression_filter',
+        'custom_decompression_filter', 'retention_policy',
+        'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
     ]
 
     DEFAULTS = {
@@ -52,6 +54,7 @@ class Server(object):
     }
 
     def __init__(self, config, name):
+        self.config = config
         self.name = name
         self.barman_home = config.get('barman', 'barman_home')
         for key in Server.KEYS:
