@@ -267,9 +267,17 @@ r custom
 
   Executing a full backup
 
-   To take a backup issue the command:
+   To take a backup for the main server, issue the following command:
 
      barman@backup$ barman backup main
+
+   As of version 1.0.1, you can serialise the backup of your managed
+   servers by using the all target for the server:
+
+     barman@backup$ barman backup all
+
+   This will iterate through your available servers and sequentially take
+   a backup for each of them.
 
   Viewing the list of backups for a server
 
@@ -414,6 +422,10 @@ Available commands
 
      barman backup <server_name>
 
+   Tip
+      You can use barman backup all to sequentially backup all your
+      configured servers.
+
     Show available backups for a server
 
    You can list the catalogue of available backups for a given server
@@ -427,6 +439,9 @@ Available commands
    with:
 
      barman check <server_name>
+
+   Tip
+      You can use barman check all to check all your configured servers.
 
   Backup commands
 
