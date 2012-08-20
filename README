@@ -5,7 +5,7 @@
    perform remote backups of multiple servers in business critical
    environments, and helps DBAs during the recovery phase.
 
-   Barman's most wanted features include: backup catalogues, retention
+   Barman’s most wanted features include: backup catalogues, retention
    policies, remote recovery, archiving and compression of WAL files and
    of backups. Barman is written and maintained by PostgreSQL
    professionals 2ndQuadrant.
@@ -95,14 +95,14 @@ Before you start
      * rsync >= 3.0.4
 
    Important
-   The same major version of PostgreSQL should be installed on both
-   servers.
+            The same major version of PostgreSQL should be installed on both
+            servers.
 
    Tip
-   Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
-   advised to install the Extra Packages Enterprise Linux (EPEL)
-   repository.
-   [Further information at [1]http://fedoraproject.org/wiki/EPEL]
+      Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
+      advised to install the Extra Packages Enterprise Linux (EPEL)
+      repository.
+      [Further information at [1]http://fedoraproject.org/wiki/EPEL]
      __________________________________________________________________
 
 Installation
@@ -121,7 +121,7 @@ udo
      barman@backup$ ./setup.py install --user
 
    Important
-   The --user option works only with python-distribute
+            The --user option works only with python-distribute
 
    barman will be installed in your user directory (make sure that your
    PATH environment variable is set properly).
@@ -178,12 +178,12 @@ Getting started
    all your backups by default. We choose /srv/barman as home directory
    for Barman:
 
-  barman@backup$ sudo mkdir /srv/barman
-  barman@backup$ sudo chown barman:barman /srv/barman
+     barman@backup$ sudo mkdir /srv/barman
+     barman@backup$ sudo chown barman:barman /srv/barman
 
-   Important
-   We assume that you have enough space, and that you have already thought
-   about redundancy and safety of your disks.
+Important
+         We assume that you have enough space, and that you have already thought
+         about redundancy and safety of your disks.
 
   Basic configuration
 
@@ -205,12 +205,19 @@ Getting started
   ; Main directory
   barman_home = /var/lib/barman
 
+  ; System user
+  barman_user = barman
+
   ; Log location
   log_file = /var/log/barman/barman.log
 
   ; Default compression level: possible values are None (default), bzip2, gzip o
 r custom
   ;compression = gzip
+
+  ; Pre/post backup hook scripts
+  ;pre_backup_script = env | grep ^BARMAN
+  ;post_backup_script = env | grep ^BARMAN
 
   ; 'main' PostgreSQL Server configuration
   [main]
@@ -225,8 +232,8 @@ r custom
 
    You can now test the configuration by executing:
 
-  barman@backup$ barman show-server main
-  barman@backup$ barman check main
+     barman@backup$ barman show-server main
+     barman@backup$ barman check main
 
    Write down the incoming_wals_directory, as printed by the barman
    show-server main command, because you will need it to setup continuous
@@ -237,9 +244,9 @@ r custom
    Edit the postgresql.conf file of the PostgreSQL instance on the pg
    database and activate the archive mode:
 
-  wal_level = 'archive' # For PostgreSQL >= 9.0
-  archive_mode = on
-  archive_command = 'rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
+     wal_level = 'archive' # For PostgreSQL >= 9.0
+     archive_mode = on
+     archive_command = 'rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
 
    Make sure you change the INCOMING_WALS_DIRECTORY placeholder with the
    value returned by the barman show-server main command above.
@@ -296,8 +303,8 @@ r custom
      barman@backup$ pg_ctl -D /path/to/recover/directory start
 
    Important
-   If you run this command as user barman, it will become the database
-   superuser.
+            If you run this command as user barman, it will become the database
+            superuser.
 
    You can retrieve a list of backup IDs for a specific server with:
 
@@ -312,7 +319,7 @@ r custom
    host.
 
    Note
-   The postgres user is normally used to recover on a remote host.
+       The postgres user is normally used to recover on a remote host.
 
    There are some limitations when using remote recovery. It is important
    to be aware that:
@@ -329,7 +336,7 @@ r custom
 
   Restoring to a given point in time
 
-   Barman employs PostgreSQL's Point-in-Time Recovery (PITR) by allowing
+   Barman employs PostgreSQL’s Point-in-Time Recovery (PITR) by allowing
    DBAs to specify a recovery target, either as a timestamp or as a
    transaction ID; you can also specify whether the recovery target should
    be included or not in the recovery.
@@ -345,7 +352,7 @@ r custom
    Barman allows you to specify a target timeline for recovery, using the
    target-tli option. The notion of timeline goes beyond the scope of this
    document; you can find more details in the PostgreSQL documentation, or
-   in one of 2ndQuadrant's Recovery training courses.
+   in one of 2ndQuadrant’s Recovery training courses.
      __________________________________________________________________
 
 WAL compression
@@ -390,8 +397,8 @@ Available commands
      barman cron
 
    Note
-   This command should be executed in a cron script. In future versions of
-   Barman, this command will automatically enforce the retention policy.
+       This command should be executed in a cron script. In future versions of
+       Barman, this command will automatically enforce the retention policy.
 
   Server commands
 
@@ -424,7 +431,7 @@ Available commands
   Backup commands
 
    Note
-   Remember: a backup ID can be retrieved with server list <server_name>
+       Remember: a backup ID can be retrieved with server list <server_name>
 
     Show backup information
 
@@ -459,10 +466,34 @@ Available commands
 
    The default value for TARGET_TYPE is standalone.
 
-   Important
-   The list-files command facilitates interaction with external tools, and
-   therefore can be extremely useful to integrate Barman into your
-   archiving procedures.
+Important
+         The list-files command facilitates interaction with external tools, and
+         therefore can be extremely useful to integrate Barman into your
+         archiving procedures.
+     __________________________________________________________________
+
+Hook scripts
+
+   You have the possibility to run hook scripts before and after a base
+   backup.
+
+   These script can be configured with two global (overridden per server)
+   configuration options called:
+     * pre_backup_script: Hook script launched before a base backup.
+     * post_backup_script: Hook script launched after a base backup.
+
+   The script definition is passed to a shell and can return any exit
+   code.
+
+   The shell environment will contain the following variables:
+     * BARMAN_BACKUP_DIR: backup destination directory
+     * BARMAN_BACKUP_ID: ID of the backup
+     * BARMAN_CONFIGURATION: configuration file used by barman
+     * BARMAN_PHASE: pre or post
+     * BARMAN_SERVER: name of the server
+
+   No check is performed on the exit code of the script. The result will
+   be simply written in the log file.
      __________________________________________________________________
 
 Support and sponsor opportunities
@@ -495,7 +526,7 @@ License and Contributions
    [8]http://www.2ndQuadrant.it.
 
    Barman has been partially funded through [9]4CaaSt, a research project
-   funded by the European Commission's Seventh Framework programme.
+   funded by the European Commission’s Seventh Framework programme.
 
    Contributions to Barman are welcome, and will be listed in the file
    AUTHORS. 2ndQuadrant Italia requires that any contributions provide a
@@ -506,7 +537,7 @@ License and Contributions
    Form.
      __________________________________________________________________
 
-   Last updated 2012-07-06 11:32:06 CEST
+   Last updated 2012-08-20 13:28:08 CEST
 
 References
 
