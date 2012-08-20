@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.77.1 <http://docbook.sf.net/>
-.\"      Date: 07/06/2012
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 08/20/2012
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "07/06/2012" "\ \&" "\ \&"
+.TH "BARMAN" "5" "08/20/2012" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -43,7 +43,7 @@ The system\-level Barman configuration file is located at
 .RE
 .\}
 .sp
-and is overriden on a per\-user level by
+and is overridden on a per\-user level by
 .sp
 .if n \{\
 .RS 4
@@ -109,6 +109,16 @@ Compression algorithm applied to WAL files\&.
 Decompression algorithm applied to compressed WAL files; this must match the compression algorithm\&.
 .RE
 .PP
+\fBpre_backup_script\fR
+.RS 4
+Hook script launched before a base backup\&.
+.RE
+.PP
+\fBpost_backup_script\fR
+.RS 4
+Hook script launched after a base backup\&.
+.RE
+.PP
 \fBretention_policy\fR
 .RS 4
 Policy for retention of old backups\&. This is not implemented yet\&.
@@ -118,6 +128,41 @@ Policy for retention of old backups\&. This is not implemented yet\&.
 .RS 4
 Policy for retention of old WAL files\&. This is not implemented yet\&.
 .RE
+.SH "HOOK SCRIPTS"
+.sp
+The script definition is passed to a shell and can return any exit code\&.
+.sp
+The shell environment will contain the following variables:
+.PP
+\fBBARMAN_BACKUP_DIR\fR
+.RS 4
+backup destination directory
+.RE
+.PP
+\fBBARMAN_BACKUP_ID\fR
+.RS 4
+ID of the backup
+.RE
+.PP
+\fBBARMAN_CONFIGURATION\fR
+.RS 4
+configuration file used by barman
+.RE
+.PP
+\fBBARMAN_PHASE\fR
+.RS 4
+
+\fIpre\fR
+or
+\fIpost\fR
+.RE
+.PP
+\fBBARMAN_SERVER\fR
+.RS 4
+name of the server
+.RE
+.sp
+No check is performed on the exit code of the script\&. The result will be simply written in the log file\&.
 .SH "EXAMPLE"
 .sp
 Example of the configuration file:
@@ -135,6 +180,10 @@ log_file = %(barman_home)s/log/barman\&.log
 
 ; Default compression level: none, bzip2, gz
 compression = gzip
+
+; Pre/post backup hook scripts
+pre_backup_script = env | grep ^BARMAN
+post_backup_script = env | grep ^BARMAN
 
 ; \*(Aqmain\*(Aq PostgreSQL Server configuration
 [main]
