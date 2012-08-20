@@ -1,6 +1,6 @@
 %global pybasever 2.6
 
-%if 0%{?el5}
+%if 0%{?rhel} == 5
 %global with_python26 1
 %endif
 
@@ -12,12 +12,13 @@
 %global __python_ver python
 %endif
 
+%{!?pybasever: %define pybasever %(%{__python} -c "import sys;print(sys.version[0:3])")}
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
 %{!?python_sitearch: %define python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib(1)")}
 
 Summary:	Backup and Recovery Manager for PostgreSQL
 Name:		barman
-Version:	1.0.0
+Version:	1.0.1
 Release:	1%{?dist}
 License:	GPLv3
 Group:		Applications/Databases
@@ -26,7 +27,7 @@ Source0:	%{name}-%{version}.tar.gz
 BuildRoot: 	%{_tmppath}/%{name}-%{version}-%{release}-buildroot-%(%{__id_u} -n)
 BuildArch:	noarch
 Vendor:		2ndQuadrant Italia (Devise.IT S.r.l.) <info@2ndquadrant.it>
-Requires: 	python-abi = %(%{__python} -c "import sys ; print sys.version[:3]") %{__python_ver}-psycopg2 %{__python_ver}-argh %{__python_ver}-dateutil
+Requires: 	python-abi = %{pybasever}, %{__python_ver}-psycopg2, %{__python_ver}-argh, %{__python_ver}-dateutil
 Requires:	/usr/sbin/useradd
 
 %description
@@ -56,7 +57,7 @@ cat > barman.logrotate << EOF
 EOF
 
 %install
-%{__python} setup.py install -O1 --skip-build --root $RPM_BUILD_ROOT
+%{__python} setup.py install -O1 --skip-build --root %{buildroot}
 mkdir -p %{buildroot}%{_sysconfdir}/bash_completion.d
 mkdir -p %{buildroot}%{_sysconfdir}/cron.d/
 mkdir -p %{buildroot}%{_sysconfdir}/logrotate.d/
@@ -69,23 +70,23 @@ install -pm 644 barman.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/barman
 touch %{buildroot}/var/log/barman/barman.log
 
 %clean
-rm -rf $RPM_BUILD_ROOT
+rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root)
 %doc INSTALL NEWS README
-%{python_sitelib}/barman-%{version}-py%{pybasever}.egg-info
-%{python_sitelib}/barman/
-%{_bindir}/barman
-%doc %{_mandir}/man1/barman.1.gz
-%doc %{_mandir}/man5/barman.5.gz
+%{python_sitelib}/%{name}-%{version}-py%{pybasever}.egg-info/
+%{python_sitelib}/%{name}/
+%{_bindir}/%{name}
+%doc %{_mandir}/man1/%{name}.1.gz
+%doc %{_mandir}/man5/%{name}.5.gz
 %config(noreplace) %{_sysconfdir}/bash_completion.d/
-%config(noreplace) %{_sysconfdir}/barman.conf
-%config(noreplace) %{_sysconfdir}/cron.d/barman
-%config(noreplace) %{_sysconfdir}/logrotate.d/barman
-%attr(700,barman,barman) %dir /var/lib/barman
-%attr(755,barman,barman) %dir /var/log/barman
-%attr(600,barman,barman) %ghost /var/log/barman/barman.log
+%config(noreplace) %{_sysconfdir}/%{name}.conf
+%config(noreplace) %{_sysconfdir}/cron.d/%{name}
+%config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
+%attr(700,barman,barman) %dir /var/lib/%{name}
+%attr(755,barman,barman) %dir /var/log/%{name}
+%attr(600,barman,barman) %ghost /var/log/%{name}/%{name}.log
 
 %pre
 groupadd -f -r barman >/dev/null 2>&1 || :
@@ -93,6 +94,10 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
+* Mon Aug 20 2012 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 1.0.1-1
+- New release 1.0.1
+- Some improvements from Devrim Gunduz <devrim@gunduz.org>
+
 * Fri Jul  6 2012 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 1.0.0-1
 - Open source release
 

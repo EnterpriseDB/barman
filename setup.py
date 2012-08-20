@@ -35,7 +35,7 @@ except ImportError:
     from distutils.core import setup
 
 if sys.version_info < (2 , 6):
-    raise SystemExit('ERROR: Berman need at least python 2.6 to work')
+    raise SystemExit('ERROR: Barman need at least python 2.6 to work')
 
 REQUIRES = ['psycopg2', 'argh', 'python-dateutil < 2.0' ]
 
