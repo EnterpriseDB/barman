@@ -134,22 +134,29 @@ The script definition is passed to a shell and can return any exit code\&.
 .sp
 The shell environment will contain the following variables:
 .PP
-\fBBARMAN_BACKUP_DIR\fR
+BARMAN_BACKUP_DIR
 .RS 4
 backup destination directory
 .RE
 .PP
-\fBBARMAN_BACKUP_ID\fR
+BARMAN_BACKUP_ID
 .RS 4
 ID of the backup
 .RE
 .PP
-\fBBARMAN_CONFIGURATION\fR
+BARMAN_CONFIGURATION
 .RS 4
 configuration file used by barman
 .RE
 .PP
-\fBBARMAN_PHASE\fR
+BARMAN_ERROR
+.RS 4
+error message, if any (only for the
+\fIpost\fR
+phase)
+.RE
+.PP
+BARMAN_PHASE
 .RS 4
 
 \fIpre\fR
@@ -157,9 +164,14 @@ or
 \fIpost\fR
 .RE
 .PP
-\fBBARMAN_SERVER\fR
+BARMAN_SERVER
 .RS 4
 name of the server
+.RE
+.PP
+BARMAN_STATUS
+.RS 4
+status of the backup
 .RE
 .sp
 No check is performed on the exit code of the script\&. The result will be simply written in the log file\&.

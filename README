@@ -489,13 +489,12 @@ Important
 
 Hook scripts
 
-   You have the possibility to run hook scripts before and after a base
-   backup.
-
-   These script can be configured with two global (overridden per server)
-   configuration options called:
-     * pre_backup_script: Hook script launched before a base backup.
-     * post_backup_script: Hook script launched after a base backup.
+   As of version 1.0.1, Barman allows a database administrator to run hook
+   scripts before and after a backup. These scripts can be configured with
+   the following global configuration options (which can be overridden on
+   a per server basis):
+     * pre_backup_script: hook script launched before a base backup
+     * post_backup_script: hook script launched after a base backup
 
    The script definition is passed to a shell and can return any exit
    code.
@@ -504,11 +503,14 @@ Hook scripts
      * BARMAN_BACKUP_DIR: backup destination directory
      * BARMAN_BACKUP_ID: ID of the backup
      * BARMAN_CONFIGURATION: configuration file used by barman
-     * BARMAN_PHASE: pre or post
+     * BARMAN_ERROR: error message, if any (only for the post phase)
+     * BARMAN_PHASE: phase of the script, either pre or post
      * BARMAN_SERVER: name of the server
+     * BARMAN_STATUS: status of the backup
 
-   No check is performed on the exit code of the script. The result will
-   be simply written in the log file.
+  Important
+           No check is performed on the exit code of the script. The result will
+           be simply written in the log file.
      __________________________________________________________________
 
 Support and sponsor opportunities
@@ -552,7 +554,7 @@ License and Contributions
    Form.
      __________________________________________________________________
 
-   Last updated 2012-08-20 13:28:08 CEST
+   Last updated 2012-08-20 16:32:21 CEST
 
 References
 

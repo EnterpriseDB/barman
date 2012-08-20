@@ -375,6 +375,8 @@ class BackupManager(object):
         env['BARMAN_CONFIGURATION'] = self.config.config.config_file
         env['BARMAN_BACKUP_ID'] = backup_info.backup_id
         env['BARMAN_PHASE'] = phase
+        env['BARMAN_STATUS'] = backup_info.status
+        env['BARMAN_ERROR'] = backup_info.error or ''
         return env
 
     def run_pre_backup_script(self, backup_info):
@@ -483,11 +485,12 @@ class BackupManager(object):
             _logger.info(msg)
             yield msg
         finally:
+            if backup_info:
+                backup_info.save()
+
             # Run the post-backup-script if present.
             self.run_post_backup_script(backup_info)
 
-            if backup_info:
-                backup_info.save()
 
     def recover(self, backup, dest, tablespaces, target_tli, target_time, target_xid, exclusive, remote_command):
         '''
