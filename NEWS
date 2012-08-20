@@ -3,7 +3,11 @@ Copyright (C) 2011-2012  2ndQuadrant Italia (Devise.IT S.r.l.)
 
 Version 1.1.0 - d Month 2012
 
-* Added the management of  multiple servers to the 'backup' command.
+* Support for hook scripts to be executed before and after
+  a 'backup' command through the 'pre_backup_script' and 'post_backup_script'
+  configuration options.
+
+* Management of  multiple servers to the 'backup' command.
   'barman backup all' now iteratively backs up all the configured servers.
 
 Version 1.0.0 - 6 July 2012
