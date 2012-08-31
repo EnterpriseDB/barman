@@ -505,6 +505,7 @@ Hook scripts
      * BARMAN_CONFIGURATION: configuration file used by barman
      * BARMAN_ERROR: error message, if any (only for the post phase)
      * BARMAN_PHASE: phase of the script, either pre or post
+     * BARMAN_PREVIOUS_ID: ID of the previous backup (if present)
      * BARMAN_SERVER: name of the server
      * BARMAN_STATUS: status of the backup
 
@@ -554,7 +555,7 @@ License and Contributions
    Form.
      __________________________________________________________________
 
-   Last updated 2012-08-20 16:32:21 CEST
+   Last updated 2012-08-31 09:44:12 CEST
 
 References
 

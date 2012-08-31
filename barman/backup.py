@@ -369,11 +369,13 @@ class BackupManager(object):
         """
         Prepare the environment for executing a script
         """
+        previous_backup = self.get_previous_backup(backup_info.backup_id)
         env = {}
         env['BARMAN_BACKUP_DIR'] = backup_info.get_basebackup_directory()
         env['BARMAN_SERVER'] = self.config.name
         env['BARMAN_CONFIGURATION'] = self.config.config.config_file
         env['BARMAN_BACKUP_ID'] = backup_info.backup_id
+        env['BARMAN_PREVIOUS_ID'] =  previous_backup.backup_id if previous_backup else ''
         env['BARMAN_PHASE'] = phase
         env['BARMAN_STATUS'] = backup_info.status
         env['BARMAN_ERROR'] = backup_info.error or ''
