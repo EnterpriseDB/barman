@@ -10,6 +10,9 @@ Version 1.1.0 - d Month 2012
 * Management of  multiple servers to the 'backup' command.
   'barman backup all' now iteratively backs up all the configured servers.
 
+* Fixed bug #9: "9.2 issue with pg_tablespace_location()"
+
+
 Version 1.0.0 - 6 July 2012
 
 * Backup of multiple PostgreSQL servers, with different versions. Versions
