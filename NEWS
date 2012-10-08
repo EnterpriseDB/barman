@@ -12,6 +12,9 @@ Version 1.1.0 - d Month 2012
 
 * Fixed bug #9: "9.2 issue with pg_tablespace_location()"
 
+* Add warning in recovery when file location options have been defined
+  in the postgresql.conf file (issue #10)
+
 
 Version 1.0.0 - 6 July 2012
 
