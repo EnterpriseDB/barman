@@ -664,12 +664,26 @@ class BackupManager(object):
             recovery = rsync.from_file_list(['postgresql.conf', 'postgresql.conf.origin'], tempdir, ':%s' % dest)
             shutil.rmtree(tempdir)
 
-        yield "Restore done!"
+        # Found dangerous options in the configuration file (locations)
+        clashes = self.pg_config_detect_possible_issues(pg_config)
+
         yield ""
-        yield "Please review the network and archiving related settings"
-        yield "in the postgres configuration file before start the just recovered instance."
+        yield "Your PostgreSQL server has been successfully prepared for recovery!"
         yield ""
-        _logger.info("Restore completed successful.")
+        yield "Please review network and archive related settings in the PostgreSQL"
+        yield "configuration file before starting the just recovered instance."
+        yield ""
+        if clashes:
+            yield "WARNING: Before starting up the recovered PostgreSQL server,"
+            yield "please review the also settings of the following configuration"
+            yield "options as they might interfere with your current recovery attempt:"
+            yield ""
+
+            for name, value in sorted(clashes.items()):
+                yield "    %s = %s" % (name, value)
+
+            yield ""
+        _logger.info("Recovery completed successful.")
 
 
     def cron(self, verbose):
@@ -973,3 +987,28 @@ class BackupManager(object):
                 f.write(line)
 
         return mangled
+
+    def pg_config_detect_possible_issues(self, filename):
+        '''This method looks for any possible issue with PostgreSQL
+        location options such as data_directory, config_file, etc.
+        It returns a dictionary with the dangerous options that have been found.
+
+        :param filename: the Postgres configuration file
+        '''
+
+        file_options = ['data_directory', 'config_file', 'hba_file',
+                'ident_file', 'external_pid_file']
+        clashes = {}
+
+        with open(filename) as f:
+            content = f.readlines()
+
+        r = re.compile('^\s*([^\s=]+)\s*=\s*(.*)$')
+        for line in content:
+            rm = r.match(line)
+            if rm:
+                key = rm.group(1)
+                if key in file_options:
+                    clashes[key] = rm.group(2)
+
+        return clashes
