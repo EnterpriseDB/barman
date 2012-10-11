@@ -785,12 +785,17 @@ class BackupManager(object):
         # Issue pg_start_backup on the PostgreSQL server
         self.current_action = "issuing pg_start_backup command"
         _logger.debug(self.current_action)
-        start_xlog, start_file_name, start_file_offset = self.server.pg_start_backup()
-        backup_info.set_attribute("status", "STARTED")
-        backup_info.set_attribute("timeline", int(start_file_name[0:8]))
-        backup_info.set_attribute("begin_xlog", start_xlog)
-        backup_info.set_attribute("begin_wal", start_file_name)
-        backup_info.set_attribute("begin_offset", start_file_offset)
+        start_row = self.server.pg_start_backup()
+        if start_row:
+            start_xlog, start_file_name, start_file_offset = start_row
+            backup_info.set_attribute("status", "STARTED")
+            backup_info.set_attribute("timeline", int(start_file_name[0:8]))
+            backup_info.set_attribute("begin_xlog", start_xlog)
+            backup_info.set_attribute("begin_wal", start_file_name)
+            backup_info.set_attribute("begin_offset", start_file_offset)
+        else:
+            self.current_action = "starting the backup: PostgreSQL server is already in exclusive backup mode"
+            raise Exception('concurrent exclusive backups are not allowed')
 
     def backup_copy(self, backup_info):
         '''
