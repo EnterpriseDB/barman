@@ -139,6 +139,10 @@ def recover(args):
                 tablespaces.update([rule.split(':', 1)])
             except:
                 yield "WARNING: Invalid tablespace relocation rule %s" % rule
+    if ':' in args.destination_directory:
+        raise SystemExit(
+            "ERROR: the destination directory parameter cannot contain the ':' character\n"
+            "HINT: if you want to do a remote recovery you have to use the --remote-ssh-command option")
     if args.remote_ssh_command and len(tablespaces) > 0:
         raise SystemExit("ERROR: Tablespace relocation is not supported with remote recovery")
     for line in server.recover(backup,
