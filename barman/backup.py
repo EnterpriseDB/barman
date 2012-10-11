@@ -678,7 +678,7 @@ class BackupManager(object):
         yield ""
         if clashes:
             yield "WARNING: Before starting up the recovered PostgreSQL server,"
-            yield "please review the also settings of the following configuration"
+            yield "please review also the settings of the following configuration"
             yield "options as they might interfere with your current recovery attempt:"
             yield ""
 
