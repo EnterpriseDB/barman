@@ -789,7 +789,7 @@ class BackupManager(object):
         if start_row:
             start_xlog, start_file_name, start_file_offset = start_row
             backup_info.set_attribute("status", "STARTED")
-            backup_info.set_attribute("timeline", int(start_file_name[0:8]))
+            backup_info.set_attribute("timeline", int(start_file_name[0:8], 16))
             backup_info.set_attribute("begin_xlog", start_xlog)
             backup_info.set_attribute("begin_wal", start_file_name)
             backup_info.set_attribute("begin_offset", start_file_offset)
