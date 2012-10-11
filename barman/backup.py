@@ -240,6 +240,9 @@ class BackupManager(object):
         self.config = server.config
         self.available_backups = {}
         self.compression_manager = CompressionManager(self.config)
+        
+        # used for error messages
+        self.current_action = None
 
     def get_available_backups(self, status_filter=DEFAULT_STATUS_FILTER):
         '''
@@ -423,7 +426,7 @@ class BackupManager(object):
         '''
         _logger.debug("initialising backup information")
         backup_stamp = datetime.datetime.now()
-        current_action = "starting backup"
+        self.current_action = "starting backup"
         backup_info = None
         try:
             backup_info = BackupInfo(self.server, backup_id=backup_stamp.strftime('%Y%m%dT%H%M%S'))
@@ -445,8 +448,8 @@ class BackupManager(object):
             yield msg
             _logger.info(msg)
 
-            current_action = "copying files"
-            _logger.debug(current_action)
+            self.current_action = "copying files"
+            _logger.debug(self.current_action)
             try:
                 # Start the copy
                 msg = "Copying files."
@@ -460,7 +463,7 @@ class BackupManager(object):
             except:
                 raise
             else:
-                current_action = "issuing stop of the backup"
+                self.current_action = "issuing stop of the backup"
                 msg = "Asking PostgreSQL server to finalize the backup."
                 yield msg
                 _logger.info(msg)
@@ -472,9 +475,9 @@ class BackupManager(object):
         except:
             if backup_info:
                 backup_info.set_attribute("status", "FAILED")
-                backup_info.set_attribute("error", "failure %s" % current_action)
+                backup_info.set_attribute("error", "failure %s" % self.current_action)
 
-            msg = "Backup failed %s" % current_action
+            msg = "Backup failed %s" % self.current_action
             _logger.exception(msg)
             yield msg
 
@@ -751,12 +754,12 @@ class BackupManager(object):
 
         :param backup_info: the backup information structure
         '''
-        current_action = "connecting to database (%s)" % self.config.conninfo
-        _logger.debug(current_action)
+        self.current_action = "connecting to database (%s)" % self.config.conninfo
+        _logger.debug(self.current_action)
 
         # Set the PostgreSQL data directory
-        current_action = "detecting data directory"
-        _logger.debug(current_action)
+        self.current_action = "detecting data directory"
+        _logger.debug(self.current_action)
         data_directory = self.server.get_pg_setting('data_directory')
         backup_info.set_attribute('pgdata', data_directory)
 
@@ -770,8 +773,8 @@ class BackupManager(object):
                 backup_info.set_attribute(key, cf[key])
 
         # Get server version and tablespaces information
-        current_action = "detecting tablespaces"
-        _logger.debug(current_action)
+        self.current_action = "detecting tablespaces"
+        _logger.debug(self.current_action)
         tablespaces = self.server.get_pg_tablespaces()
         if tablespaces and len(tablespaces) > 0:
             backup_info.set_attribute("tablespaces", tablespaces)
@@ -780,8 +783,8 @@ class BackupManager(object):
                 _logger.info(msg)
 
         # Issue pg_start_backup on the PostgreSQL server
-        current_action = "issuing pg_start_backup command"
-        _logger.debug(current_action)
+        self.current_action = "issuing pg_start_backup command"
+        _logger.debug(self.current_action)
         start_xlog, start_file_name, start_file_offset = self.server.pg_start_backup()
         backup_info.set_attribute("status", "STARTED")
         backup_info.set_attribute("timeline", int(start_file_name[0:8]))
@@ -805,26 +808,26 @@ class BackupManager(object):
             raise Exception(msg)
 
         # Copy configuration files (if not inside PGDATA)
-        current_action = "copying configuration files"
-        _logger.debug(current_action)
+        self.current_action = "copying configuration files"
+        _logger.debug(self.current_action)
         cf = self.server.get_pg_configuration_files()
         if cf:
             for key in sorted(cf.keys()):
                 # Consider only those that reside outside of the original PGDATA
                 if cf[key]:
                     if cf[key].find(backup_info.pgdata) == 0:
-                        current_action = "skipping %s as contained in %s directory" % (key, backup_info.pgdata)
-                        _logger.debug(current_action)
+                        self.current_action = "skipping %s as contained in %s directory" % (key, backup_info.pgdata)
+                        _logger.debug(self.current_action)
                         continue
                     else:
-                        current_action = "copying %s as outside %s directory" % (key, backup_info.pgdata)
-                        _logger.info(current_action)
+                        self.current_action = "copying %s as outside %s directory" % (key, backup_info.pgdata)
+                        _logger.info(self.current_action)
                         retval = rsync(':%s' % cf[key], backup_dest)
                         if retval not in (0, 24):
                             raise Exception("ERROR: data transfer failure")
 
-        current_action = "calculating backup size"
-        _logger.debug(current_action)
+        self.current_action = "calculating backup size"
+        _logger.debug(self.current_action)
         backup_size = 0
         for dirpath, _, filenames in os.walk(backup_dest):
             for f in filenames:
