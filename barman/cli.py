@@ -26,8 +26,6 @@ import barman.config
 import logging
 import os
 import sys
-import textwrap
-from argparse import RawDescriptionHelpFormatter
 from barman.backup import BackupInfo
 
 _logger = logging.getLogger(__name__)
