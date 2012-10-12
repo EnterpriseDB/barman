@@ -125,18 +125,28 @@ def recover(args):
     """
     server = get_server(args)
     if server == None:
-        raise SystemExit("ERROR: Unknown server '%s'" % (args.server_name))
+        raise SystemExit("ERROR: unknown server '%s'" % (args.server_name))
     # Retrieves the backup info
     backup = server.get_backup(args.backup_id)
     if backup == None or backup.status != BackupInfo.DONE:
-        raise SystemExit("ERROR: Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name))
+        raise SystemExit("ERROR: unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name))
+    # decode the tablespace relocation rules
     tablespaces = {}
     if args.tablespace:
         for rule in args.tablespace:
             try:
                 tablespaces.update([rule.split(':', 1)])
             except:
-                yield "WARNING: Invalid tablespace relocation rule %s" % rule
+                raise SystemExit("ERROR: invalid tablespace relocation rule '%s'\n"
+                                 "HINT: the valid syntax for a relocation rule is NAME:LOCATION" % rule)
+    # validate the rules against the tablespace list
+    valid_tablespaces = [tablespace_data[0] for tablespace_data in backup.tablespaces]
+    for tablespace in tablespaces:
+        if tablespace not in valid_tablespaces:
+            raise SystemExit("ERROR: invalid tablespace name '%s'\n"
+                             "HINT: please use any of the following tablespaces: %s" 
+                             % (tablespace, ', '.join(valid_tablespaces)))
+    # explicitly disallow the rsync remote syntax (common mistake)
     if ':' in args.destination_directory:
         raise SystemExit(
             "ERROR: the destination directory parameter cannot contain the ':' character\n"
