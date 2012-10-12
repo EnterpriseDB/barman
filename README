@@ -271,7 +271,7 @@ r custom
 
      barman@backup$ barman backup main
 
-   As of version 1.0.1, you can serialise the backup of your managed
+   As of version 1.1.0, you can serialise the backup of your managed
    servers by using the all target for the server:
 
      barman@backup$ barman backup all
@@ -489,7 +489,7 @@ Important
 
 Hook scripts
 
-   As of version 1.0.1, Barman allows a database administrator to run hook
+   As of version 1.1.0, Barman allows a database administrator to run hook
    scripts before and after a backup. These scripts can be configured with
    the following global configuration options (which can be overridden on
    a per server basis):
@@ -555,7 +555,7 @@ License and Contributions
    Form.
      __________________________________________________________________
 
-   Last updated 2012-08-31 09:44:12 CEST
+   Last updated 2012-10-12 19:06:52 CEST
 
 References
 

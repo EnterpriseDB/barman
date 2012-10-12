@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2012  2ndQuadrant Italia (Devise.IT S.r.l.)
 
-Version 1.1.0 - d Month 2012
+Version 1.1.0 - 12 Oct 2012
 
 * Support for hook scripts to be executed before and after
   a 'backup' command through the 'pre_backup_script' and 'post_backup_script'
@@ -15,6 +15,12 @@ Version 1.1.0 - d Month 2012
 * Add warning in recovery when file location options have been defined
   in the postgresql.conf file (issue #10)
 
+* Fail fast on recover command if the destination directory contains
+  the ':' character (Closes: #4) or if an invalid tablespace
+  relocation rule is passed
+
+* Report an informative message when pg_start_backup() invocation
+  fails because an exclusive backup is already running (Closes: #8)
 
 Version 1.0.0 - 6 July 2012
 

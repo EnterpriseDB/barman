@@ -1,3 +1,106 @@
+2012-10-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Update rpm changelog
+
+	Make recover fail if an invalid tablespace relocation rule is given
+
+	Remove unused imports from cli.py
+
+2012-10-11  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated version to 1.1.0
+
+	Fixes bug #12
+
+2012-10-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fail fast on recover command if the destination directory contains the ':' character (Closes: #4)
+
+	Fix typo in recovery messages
+
+	Report an informative message when pg_start_backup() invocation fails because an exclusive backup is already running (Closes: #8)
+
+	Make current_action an attribute of BackupManager class
+
+2012-10-08  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added ticket #10 to NEWS
+
+	Add pg_config_detect_possible_issues function for issue #10
+
+2012-10-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated NEWS file with bug fixing #9
+
+	Fixes issue #9 on pg_tablespace_location() for 9.2
+
+2012-08-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add BARMAN_PREVIOUS_ID variable to hooks environment
+
+2012-08-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Merge spec changes from Devrim
+
+	Add BARMAN_ERROR and BARMAN_STATUS variables to hook's environment
+
+	Added backup all documentation to README
+
+2012-08-20  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated release notes
+
+	Set version to 1.0.1
+
+2012-08-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Document {pre,post}_backup_script in README
+
+	Document {pre,post}_backup_script in configuration man-page
+
+2012-08-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add pre/post backup hook scripts definition (Closes: #7)
+	Add the possibility to manage hook scripts before and after a base
+	backup. Add the global (overridden per server) configuration options
+	called:
+
+	* pre_backup_script: executed before a backup
+	* post_backup_script: executed after a backup
+
+	Use the environment to pass at least the following variabiles:
+
+	* BARMAN_BACKUP_DIR: backup destination directory
+	* BARMAN_BACKUP_ID: ID of the backup
+	* BARMAN_CONFIGURATION: configuration file used by barman
+	* BARMAN_PHASE: 'pre' or 'post'
+	* BARMAN_SERVER: name of the server
+
+	The script definition is passed to the shell and can return any exit code.
+
+	Barman won't perform any exit code check. It will simply log the result in the log file.
+
+	To test it you can try adding
+
+	pre_backup_script = env | grep ^BARMAN
+	post_backup_script = env | grep ^BARMAN
+
+	in your barman config and you'll see the variables on console.
+
+2012-08-16  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add documentation for 'backup all' command.
+
+2012-07-19  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Add 'backup all' shortcut and, in general, multiple servers specification (issue #1)
+
+2012-07-16  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fixed typo (thanks to Daymel Bonne Solís)
+
 2012-07-06  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
 
 	Released version 1.0.0
