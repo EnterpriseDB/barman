@@ -140,7 +140,7 @@ def recover(args):
                 raise SystemExit("ERROR: invalid tablespace relocation rule '%s'\n"
                                  "HINT: the valid syntax for a relocation rule is NAME:LOCATION" % rule)
     # validate the rules against the tablespace list
-    valid_tablespaces = [tablespace_data[0] for tablespace_data in backup.tablespaces]
+    valid_tablespaces = [tablespace_data[0] for tablespace_data in backup.tablespaces] if backup.tablespaces else []
     for tablespace in tablespaces:
         if tablespace not in valid_tablespaces:
             raise SystemExit("ERROR: invalid tablespace name '%s'\n"

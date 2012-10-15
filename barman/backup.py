@@ -663,12 +663,14 @@ class BackupManager(object):
             msg = "The archive_command was set to 'false' to prevent data losses."
             yield msg
             _logger.info(msg)
+
+        # Find dangerous options in the configuration file (locations)
+        clashes = self.pg_config_detect_possible_issues(pg_config)
+
         if remote_command:
             recovery = rsync.from_file_list(['postgresql.conf', 'postgresql.conf.origin'], tempdir, ':%s' % dest)
             shutil.rmtree(tempdir)
 
-        # Found dangerous options in the configuration file (locations)
-        clashes = self.pg_config_detect_possible_issues(pg_config)
 
         yield ""
         yield "Your PostgreSQL server has been successfully prepared for recovery!"
