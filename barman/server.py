@@ -444,5 +444,8 @@ class Server(object):
         except ValueError:
             # Old format compatibility (no compression)
             compression = None
-            name, size, stamp = line.split()
+            try:
+                name, size, stamp = line.split()
+            except:
+                raise ValueError("cannot parse line: %r" % (line,))
         return name, int(size), float(stamp), compression
