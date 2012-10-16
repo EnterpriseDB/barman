@@ -1,6 +1,10 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2012  2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.1.1 - 16 Oct 2012
+
+* Fix regressions in recover command.
+
 Version 1.1.0 - 12 Oct 2012
 
 * Support for hook scripts to be executed before and after
