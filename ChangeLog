@@ -1,3 +1,17 @@
+2012-10-16  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Update NEWS file and rpm package
+
+	Bump version to 1.1.1
+
+	Add more information about the failing line in xlogdb_parse_line errors
+
+2012-10-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix two bug on recover command
+
 2012-10-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
