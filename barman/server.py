@@ -221,7 +221,7 @@ class Server(object):
         with self.pg_connect() as conn:
             try:
                 cur = conn.cursor()
-                if self.server_version > 90200:
+                if self.server_version >= 90200:
                     cur.execute("SELECT spcname, oid, pg_tablespace_location(oid) AS spclocation FROM pg_tablespace WHERE pg_tablespace_location(oid) != ''")
                 else:
                     cur.execute("SELECT spcname, oid, spclocation FROM pg_tablespace WHERE spclocation != ''")
