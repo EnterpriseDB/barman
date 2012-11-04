@@ -196,6 +196,11 @@ class Server(object):
         if myconn:
             self.conn = psycopg2.connect(self.config.conninfo)
             self.server_version = self.conn.server_version
+            if (self.server_version >= 90000
+                and 'application_name=' not in self.config.conninfo):
+                cur = self.conn.cursor()
+                cur.execute('SET application_name TO barman')
+                cur.close()
         try:
             yield self.conn
         finally:
