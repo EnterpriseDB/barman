@@ -127,7 +127,8 @@ def recover(args):
     if server == None:
         raise SystemExit("ERROR: unknown server '%s'" % (args.server_name))
     # Retrieves the backup info
-    backup = server.get_backup(args.backup_id)
+    backup_id = parse_backup_id(server, args)
+    backup = server.get_backup(backup_id)
     if backup == None or backup.status != BackupInfo.DONE:
         raise SystemExit("ERROR: unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name))
     # decode the tablespace relocation rules
@@ -210,7 +211,8 @@ def show_backup(args):
         yield "Unknown server '%s'" % (args.server_name)
         return
     # Retrieves the backup info
-    backup = server.get_backup(args.backup_id)
+    backup_id = parse_backup_id(server, args)
+    backup = server.get_backup(backup_id)
     if backup == None:
         yield "Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name)
         return
@@ -235,7 +237,8 @@ def list_files(args):
         yield "Unknown server '%s'" % (args.server_name)
         return
     # Retrieves the backup info
-    backup = server.get_backup(args.backup_id)
+    backup_id = parse_backup_id(server, args)
+    backup = server.get_backup(backup_id)
     if backup == None:
         yield "Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name)
         return
@@ -252,7 +255,8 @@ def delete(args):
         yield "Unknown server '%s'" % (args.server_name)
         return
     # Retrieves the backup info
-    backup = server.get_backup(args.backup_id)
+    backup_id = parse_backup_id(server, args)
+    backup = server.get_backup(backup_id)
     if backup == None:
         yield "Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name)
         return
@@ -313,6 +317,19 @@ def get_server_list(args):
             else:
                 server_dict[server] = Server(conf)
         return server_dict
+
+def parse_backup_id(server, args):
+    ''' Parses special backup IDs such as latest, oldest, etc. '''
+    if args.backup_id in ('latest', 'last'):
+        backup_id = server.get_last_backup()
+    elif args.backup_id in ('oldest', 'first'):
+        backup_id = server.get_first_backup()
+    else:
+        return args.backup_id
+    if backup_id == None:
+        raise SystemExit("ERROR: '%s' backup is not available for server '%s'" % (args.backup_id, args.server_name))
+    return backup_id
+
 
 def main():
     ''' The main method of Barman '''
