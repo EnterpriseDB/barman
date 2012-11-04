@@ -287,6 +287,22 @@ class Server(object):
         '''
         return self.backup_manager.get_available_backups(status_filter)
 
+    def get_last_backup(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+        '''
+        Get the last backup (if any) in the catalog
+
+        :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
+        '''
+        return self.backup_manager.get_last_backup(status_filter)
+
+    def get_first_backup(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+        '''
+        Get the first backup (if any) in the catalog
+
+        :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
+        '''
+        return self.backup_manager.get_first_backup(status_filter)
+
     def list_backups(self):
         '''Lists all the available backups for the server'''
         status_filter = BackupInfo.STATUS_NOT_EMPTY
