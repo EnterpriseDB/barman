@@ -70,21 +70,22 @@ def backup(args):
         yield ''
 
 @alias('list-backup')
-@arg('server_name', help='specifies the server name for the command')
+@arg('server_name', nargs='+', help="specifies the server name for the command ('all' will show all available servers)")
 @arg('--minimal', help='machine readable output', action='store_true')
 def list_backup(args):
-    """ List available backups for the given server
+    """ List available backups for the given server (supports 'all')
     """
-    server = get_server(args)
-    if server == None:
-        yield "Unknown server '%s'" % (args.server_name)
-        return
-    if not args.minimal:
-        for line in server.list_backups():
-            yield line
-    else:
-        for backup_id in sorted(server.get_available_backups().iterkeys(), reverse=True):
-            yield backup_id
+    servers = get_server_list(args)
+    for name, server in servers.items():
+        if server == None:
+            yield "Unknown server '%s'" % (name)
+            return
+        if not args.minimal:
+            for line in server.list_backups():
+                yield line
+        else:
+            for backup_id in sorted(server.get_available_backups().iterkeys(), reverse=True):
+                yield backup_id
 
 @arg('server_name', nargs='+', help='specifies the server name for the command')
 def status(args):
