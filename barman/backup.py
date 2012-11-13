@@ -744,11 +744,15 @@ class BackupManager(object):
         :param name: the name of the WAL to delete
         '''
         hashdir = os.path.join(self.config.wals_directory, xlog.hash_dir(name))
-        os.unlink(os.path.join(hashdir, name))
         try:
-            os.removedirs(hashdir)
+            os.unlink(os.path.join(hashdir, name))
+            try:
+                os.removedirs(hashdir)
+            except:
+                pass
         except:
-            pass
+            _logger.warning('Expected WAL file %s not found during delete',
+                name)
 
     def backup_start(self, backup_info):
         '''
