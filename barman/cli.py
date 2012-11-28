@@ -35,12 +35,12 @@ _logger = logging.getLogger(__name__)
 def list_server(args):
     """ List available servers, with useful information
     """
-    servers = barman.__config__.servers()
-    for server in servers:
+    for name in sorted(barman.__config__.server_names()):
+        server = barman.__config__.get_server(name)
         if server.description and not args.minimal:
-            yield "%s - %s" % (server.name, server.description)
+            yield "%s - %s" % (name, server.description)
         else:
-            yield server.name
+            yield name
 
 def cron(args):
     """ Run maintenance tasks

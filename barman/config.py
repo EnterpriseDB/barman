@@ -25,6 +25,7 @@ import pwd
 import grp
 from ConfigParser import ConfigParser, NoOptionError
 import logging.handlers
+from glob import iglob
 
 _logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class Server(object):
     BARMAN_KEYS = ['compression', 'custom_compression_filter',
         'custom_decompression_filter', 'retention_policy',
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
+        'configuration_files_directory',
     ]
 
     DEFAULTS = {
@@ -90,7 +92,7 @@ class Config(object):
         self.config_file = filename
         self._servers = None
         self._parse_global_config()
-
+        self._load_configuration_files_directory()
 
     def get(self, section, option, defaults={}):
         '''Method to get the value from a given section from
@@ -142,6 +144,10 @@ class Config(object):
             logging.root.setLevel(level_int)
         else:
             _logger.warn('unknown log_level in config file: %s', level)
+        self._global_config = set(self._config.items('barman'))
+
+    def _is_global_config_changed(self):
+        return self._global_config != set(self._config.items('barman'))
 
     def _enforce_user(self):
         '''Set the correct user'''
@@ -162,6 +168,35 @@ class Config(object):
             msg = "ERROR: please run barman as %r user" % self.user
             raise SystemExit(msg)
         os.environ['HOME'] = pw.pw_dir
+
+    def _load_configuration_files_directory(self):
+        '''Read the "configuration_files_directory" option and loads all the
+        configuration files with the .conf suffix that lie in that folder
+        '''
+
+        configuration_files_directory = self.get('barman', 'configuration_files_directory')
+
+        if not configuration_files_directory:
+           return
+
+        if not os.path.isdir(os.path.expanduser(configuration_files_directory)):
+           _logger.warn('Ignoring the "configuration_files_directory" option as "%s" is not a directory',
+                configuration_files_directory)
+           return
+
+        for cfile in iglob(os.path.join(os.path.expanduser(configuration_files_directory), '*.conf')):
+           filename = os.path.basename(cfile)
+           if os.path.isfile(cfile):
+               # Load a file
+               _logger.info('Including configuration file: %s', filename)
+               self._config.read(cfile)
+               if self._is_global_config_changed():
+                   msg="the configuration file %s contains a not empty [barman] section" % filename
+                   _logger.fatal(msg)
+                   raise SystemExit("FATAL: %s" % msg)
+           else:
+               # Add an info that a file has been discarded
+               _logger.warn('Discarding configuration file: %s (not a file)', filename)
 
     def _populate_servers(self):
         '''Populate server list from configuration file'''
