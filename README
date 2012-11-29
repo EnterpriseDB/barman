@@ -400,8 +400,9 @@ WAL compression
        following options as well:
           + custom_compression_filter: a compression filter
           + custom_decompression_filter: a decompression filter
+     __________________________________________________________________
 
-  Backup ID shortcuts
+Backup ID shortcuts
 
    As of version 1.1.2, you can use any of the following shortcuts to
    identify a particular backup for a given server:
@@ -607,7 +608,7 @@ License and Contributions
    Form.
      __________________________________________________________________
 
-   Last updated 2012-11-29 11:06:15 CET
+   Last updated 2012-11-29 12:50:16 CET
 
 References
 
