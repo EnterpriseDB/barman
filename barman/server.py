@@ -80,8 +80,10 @@ class Server(object):
         error = None
         try:
             for key in self.config.KEYS:
-                if key.endswith('_directory') and hasattr(self.config, key) and not os.path.isdir(getattr(self.config, key)):
-                    os.makedirs(getattr(self.config, key))
+                if key.endswith('_directory') and hasattr(self.config, key):
+                    val = getattr(self.config, key)
+                    if val != None and not os.path.isdir(val):
+                        os.makedirs(val)
         except OSError, e:
                 error = e.strerror
         if not error:
