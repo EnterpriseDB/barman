@@ -1,3 +1,37 @@
+2012-11-28  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Add the configuration_files_directory option which allows to include multiple files from a directory
+
+2012-11-29  Carlo Ascani  <carlo.ascani@2ndquadrant.it>
+
+	Update README
+
+2012-11-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update NEWS file
+
+2012-11-05  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added support for list-backup all
+
+2012-11-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added latest/oldest for show-backup, delete, list-files and recover commands
+
+	Added get_first_backup and get_last_backup functions to Server class
+
+	Added application_name management for PostgreSQL >= 9.0
+
+2012-11-13  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Switched to version 1.1.2
+
+	Continue if a WAL file is not found during delete (bug #18)
+
+2012-11-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Includes version 90200 for tablespace new function
+
 2012-10-16  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
@@ -111,10 +145,12 @@
 
 	Add 'backup all' shortcut and, in general, multiple servers specification (issue #1)
 
+	Add 'backup all' shortcut and, in general, multiple servers specification (issue #1)
+
 2012-07-16  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Fixed typo (thanks to Daymel Bonne Solís)
 
-2012-07-06  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+2012-07-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
-	Released version 1.0.0
+	Initial commit

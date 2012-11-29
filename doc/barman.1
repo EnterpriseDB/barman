@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 08/20/2012
+.\" Generator: DocBook XSL Stylesheets v1.77.1 <http://docbook.sf.net/>
+.\"      Date: 11/29/2012
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "08/20/2012" "\ \&" "\ \&"
+.TH "BARMAN" "1" "11/29/2012" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -152,7 +152,7 @@ Here 20111104T102647 is the backup ID\&.
 .PP
 \fBshow\-backup SERVERNAME BACKUPID\fR
 .RS 4
-Show detailed information about a particular backup, identified by the server name and the backup ID\&.
+Show detailed information about a particular backup, identified by the server name and the backup ID\&. See the "Backup ID shortcuts" section below for available shortcuts\&.
 .sp
 .if n \{\
 .RS 4
@@ -217,7 +217,7 @@ Catalog information:
 .PP
 \fBlist\-files [OPTIONS] SERVERNAME BACKUPID\fR
 .RS 4
-List all the files in a particular backup, identified by the server name and the backup ID\&.
+List all the files in a particular backup, identified by the server name and the backup ID\&. See the "Backup ID shortcuts" section below for available shortcuts\&.
 .PP
 \fB\-\-target TARGET_TYPE\fR
 .RS 4
@@ -279,7 +279,9 @@ Possible values for TARGET_TYPE are:
 .PP
 \fBrecover [OPTIONS] SERVERNAME BACKUPID DESTINATIONDIRECTORY\fR
 .RS 4
-Recover a backup in a given (FIXME: local?) directory\&.
+Recover a backup in a given directory (local or remote, depending on the
+\-\-remote\-ssh\-command
+option settings)\&. See the "Backup ID shortcuts" section below for available shortcuts\&.
 .PP
 \fB\-\-target\-tli TARGET_TLI\fR
 .RS 4
@@ -310,7 +312,32 @@ This options activates remote recovery, by specifying the secure shell command t
 .PP
 \fBdelete SERVERNAME BACKUPID\fR
 .RS 4
-Delete the specified backup\&.
+Delete the specified backup\&. See the "Backup ID shortcuts" section below for available shortcuts\&.
+.RE
+.SH "BACKUP ID SHORTCUTS"
+.sp
+Rather than using the timestamp backup ID, you can use any of the following shortcuts/aliases to identity a backup for a given server:
+.PP
+\fBfirst\fR
+.RS 4
+Oldest available backup for that server, in chronological order\&.
+.RE
+.PP
+\fBlast\fR
+.RS 4
+Latest available backup for that server, in chronological order\&.
+.RE
+.PP
+\fBlatest\fR
+.RS 4
+same ast
+\fBlast\fR\&.
+.RE
+.PP
+\fBoldest\fR
+.RS 4
+same ast
+\fBfirst\fR\&.
 .RE
 .SH "EXIT STATUS"
 .PP
