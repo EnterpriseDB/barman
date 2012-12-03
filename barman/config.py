@@ -184,7 +184,8 @@ class Config(object):
                 configuration_files_directory)
            return
 
-        for cfile in iglob(os.path.join(os.path.expanduser(configuration_files_directory), '*.conf')):
+        for cfile in sorted(iglob(os.path.join(os.path.expanduser(configuration_files_directory),
+            '*.conf'))):
            filename = os.path.basename(cfile)
            if os.path.isfile(cfile):
                # Load a file
