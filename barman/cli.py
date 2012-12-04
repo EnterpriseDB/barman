@@ -61,7 +61,8 @@ def backup(args):
     """ Perform a full backup for the given server
     """
     servers = get_server_list(args)
-    for name, server in servers.items():
+    for name in sorted(servers):
+        server = servers[name]
         if server == None:
             yield "Unknown server '%s'" % (name)
             continue
@@ -76,7 +77,8 @@ def list_backup(args):
     """ List available backups for the given server (supports 'all')
     """
     servers = get_server_list(args)
-    for name, server in servers.items():
+    for name in sorted(servers):
+        server = servers[name]
         if server == None:
             yield "Unknown server '%s'" % (name)
             return
@@ -92,8 +94,8 @@ def status(args):
     """ Shows live information and status of the PostgreSQL server
     """
     servers = get_server_list(args)
-
-    for name, server in servers.items():
+    for name in sorted(servers):
+        server = servers[name]
         if server == None:
             yield "Unknown server '%s'" % (name)
             continue
@@ -172,8 +174,8 @@ def show_server(args):
     """ Show all configuration parameters for the specified servers
     """
     servers = get_server_list(args)
-
-    for name, server in servers.items():
+    for name in sorted(servers):
+        server = servers[name]
         if server == None:
             yield "Unknown server '%s'" % (name)
             continue
@@ -187,9 +189,9 @@ def check(args):
     This function returns 0 if every checks pass, or 0 if any of these fails
     """
     servers = get_server_list(args)
-
     ok = True
-    for name, server in servers.items():
+    for name in sorted(servers):
+        server = servers[name]
         if server == None:
             yield "Unknown server '%s'" % (name)
             ok = False
