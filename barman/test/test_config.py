@@ -80,6 +80,8 @@ MINIMAL_CONFIG_MAIN = {
     'custom_decompression_filter': None,
     'retention_policy': None,
     'wal_retention_policy': None,
+    'post_backup_script': None,
+    'pre_backup_script': None,
 }
 
 class Test(unittest.TestCase):
@@ -102,7 +104,10 @@ class Test(unittest.TestCase):
         fp = StringIO(MINIMAL_CONFIG.format(**os.environ))
         c = Config(fp)
         main = c.get_server('main')
-        self.assertEqual(main.__dict__, MINIMAL_CONFIG_MAIN)
+        
+        self.assertEqual(main.__dict__, 
+            dict(MINIMAL_CONFIG_MAIN.items() +
+            [('config',c)]))
 
 
 if __name__ == "__main__":
