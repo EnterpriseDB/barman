@@ -232,7 +232,10 @@ class BackupManager(object):
     '''Manager of the backup archive for a server'''
 
     DEFAULT_STATUS_FILTER = (BackupInfo.DONE,)
-
+    DANGEROUS_OPTIONS = ['data_directory', 'config_file', 'hba_file',
+            'ident_file', 'external_pid_file', 'ssl_cert_file',
+            'ssl_key_file', 'ssl_ca_file', 'ssl_crl_file',
+            'unix_socket_directory']
     def __init__(self, server):
         '''Constructor'''
         self.name = "default"
@@ -1010,8 +1013,6 @@ class BackupManager(object):
         :param filename: the Postgres configuration file
         '''
 
-        file_options = ['data_directory', 'config_file', 'hba_file',
-                'ident_file', 'external_pid_file']
         clashes = {}
 
         with open(filename) as f:
@@ -1022,7 +1023,7 @@ class BackupManager(object):
             rm = r.match(line)
             if rm:
                 key = rm.group(1)
-                if key in file_options:
+                if key in self.DANGEROUS_OPTIONS:
                     clashes[key] = rm.group(2)
 
         return clashes
