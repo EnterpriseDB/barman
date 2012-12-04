@@ -149,8 +149,8 @@ class BackupInfo(object):
                 yield "  PGDATA directory  : %s" % self.pgdata
                 if self.tablespaces:
                     yield "  Tablespaces:"
-                    for name, _, location in self.tablespaces:
-                        yield "    %s: %s" % (name, location)
+                    for name, oid, location in self.tablespaces:
+                        yield "    %s: %s (oid: %s)" % (name, location, oid)
                 yield ""
                 yield "  Base backup information:"
                 yield "    Disk usage      : %s" % _pretty_size(self.size + wal_size)
