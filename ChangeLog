@@ -1,3 +1,33 @@
+2012-12-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Add ssl_*_file and unix_socket_directory to dangerous options list
+
+	Display tablespace's oid in show-backup output
+
+	Alphabetically sort servers in all commands output
+
+	Don't give up on first error in 'barman check all' command
+
+2012-12-03  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added sorting of files in configuration directory
+
+2012-11-29  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix regression in barman check command when configuration_files_directory is None
+
+	Update rpm files to 1.1.2 release
+
+2012-11-29  Carlo Ascani  <carlo.ascani@2ndquadrant.it>
+
+	Update README
+
+2012-11-29  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Prepared files for release
+
 2012-11-28  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
 
 	Add the configuration_files_directory option which allows to include multiple files from a directory
