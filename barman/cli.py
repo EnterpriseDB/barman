@@ -198,8 +198,8 @@ def check(args):
             ok &= status
             yield line
         yield ''
-        if not ok:
-            raise SystemExit(1)
+    if not ok:
+        raise SystemExit(1)
 
 @alias('show-backup')
 @arg('server_name', help='specifies the server name for the command')
