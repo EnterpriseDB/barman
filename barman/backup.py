@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-''' This module represents a bakup. '''
+''' This module represents a backup. '''
 
 from barman import xlog, _pretty_size
 from barman.command_wrappers import RsyncPgData, Command
