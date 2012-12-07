@@ -725,6 +725,10 @@ class BackupManager(object):
                 yield "\t%s" % os.path.basename(filename)
         if not found and verbose:
             yield "\tno file found"
+            
+        # Retention policy management
+        if self.server.retention_policy_mode == 'auto':
+            yield "TODO: retention policy management"
 
 
     #

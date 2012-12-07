@@ -24,9 +24,12 @@ from barman.lockfile import lockfile
 from barman.backup import BackupInfo, BackupManager
 from barman.command_wrappers import Command
 import os
+import logging
 import psycopg2
 from contextlib import contextmanager
 import itertools
+
+_logger = logging.getLogger(__name__)
 
 class Server(object):
     '''This class represents a server to backup'''
@@ -46,6 +49,11 @@ class Server(object):
         self.ssh_options.extend("-o BatchMode=yes -o StrictHostKeyChecking=no".split())
         self.backup_manager = BackupManager(self)
         self.configuration_files = None
+        # Set retention policy mode
+        if self.config.retention_policy_mode != 'auto':
+            _logger.warning('Unsupported retention_policy_mode "%s" for server "%s" (fallback to "auto")'
+                            % (self.config.retention_policy_mode, self.config.name))
+            self.config.retention_policy_mode = 'auto'
 
     def check_ssh(self):
         '''Checks SSH connection'''
