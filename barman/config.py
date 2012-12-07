@@ -38,12 +38,14 @@ class Server(object):
         'compression', 'custom_compression_filter',
         'custom_decompression_filter', 'retention_policy_mode', 'retention_policy',
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
+        'minimum_redundancy',
     ]
 
     BARMAN_KEYS = ['compression', 'custom_compression_filter',
         'custom_decompression_filter', 'retention_policy_mode', 'retention_policy',
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
         'configuration_files_directory',
+        'minimum_redundancy',
     ]
 
     DEFAULTS = {
@@ -54,7 +56,8 @@ class Server(object):
         'incoming_wals_directory': r'%(backup_directory)s/incoming',
         'lock_file': r'%(backup_directory)s/%(name)s.lock',
         'retention_policy_mode' : 'auto',
-        'wal_retention_policy' : 'main'
+        'wal_retention_policy' : 'main',
+        'minimum_redundancy' : '0',
     }
 
     def __init__(self, config, name):

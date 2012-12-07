@@ -54,6 +54,17 @@ class Server(object):
             _logger.warning('Unsupported retention_policy_mode "%s" for server "%s" (fallback to "auto")'
                             % (self.config.retention_policy_mode, self.config.name))
             self.config.retention_policy_mode = 'auto'
+        # Set minimum redundancy (default 0)
+        if self.config.minimum_redundancy.isdigit():
+            self.config.minimum_redundancy = int(self.config.minimum_redundancy)
+            if self.config.minimum_redundancy < 0:
+                _logger.warning('Negative value of minimum_redundancy "%s" for server "%s" (fallback to "0")'
+                            % (self.config.minimum_redundancy, self.config.name))
+                self.config.minimum_redundancy = 0
+        else:
+            _logger.warning('Invalid minimum_redundancy "%s" for server "%s" (fallback to "0")'
+                            % (self.config.minimum_redundancy, self.config.name))
+            self.config.minimum_redundancy = 0
 
     def check_ssh(self):
         '''Checks SSH connection'''
