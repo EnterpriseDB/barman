@@ -151,7 +151,7 @@ class BackupInfo(object):
                 next_backup = self.backup_manager.get_next_backup(self.backup_id)
                 wal_num, wal_size, wal_until_next_num, wal_until_next_size, wal_last = self.server.get_wal_info(self)
                 yield "  Server Name       : %s" % self.server_name
-                yield "  Status:           : %s" % self.status
+                yield "  Status            : %s" % self.status
                 yield "  PostgreSQL Version: %s" % self.version
                 yield "  PGDATA directory  : %s" % self.pgdata
                 if self.tablespaces:
@@ -178,6 +178,12 @@ class BackupInfo(object):
                 yield "    Last available  : %s" % wal_last
                 yield ""
                 yield "  Catalog information:"
+                if self.server.enforce_retention_policies:
+                    yield "    Retention Policy: %s" % self.server.config.retention_policy.backup_status(self.backup_id)
+                else:
+                    yield "    Retention Policy: not enforced"
+                if previous_backup:
+                    yield "    Previous Backup : %s" % previous_backup.backup_id
                 if previous_backup:
                     yield "    Previous Backup : %s" % previous_backup.backup_id
                 else:
@@ -261,7 +267,7 @@ class BackupManager(object):
         :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup list returned
         '''
         if not isinstance(status_filter, tuple):
-            status_filter = tuple(status_filter)
+            status_filter = tuple(status_filter,)
         if status_filter not in self.available_backups:
             available_backups = {}
             for filename in glob("%s/*/backup.info" % self.config.basebackups_directory):
@@ -749,7 +755,7 @@ class BackupManager(object):
             for bid in sorted(retention_status.iterkeys()):
                 if retention_status[bid] == BackupInfo.OBSOLETE:
                     _logger.info("Enforcing retention policy: removing backup %s for server %s" % (
-                                 bid, self.config.name))
+                        bid, self.config.name))
                     for line in self.delete_backup(available_backups[bid]):
                         yield line
 

@@ -390,6 +390,7 @@ class Server(object):
     def list_backups(self):
         '''Lists all the available backups for the server'''
         status_filter = BackupInfo.STATUS_NOT_EMPTY
+        retention_status = self.report_backups()
         backups = self.get_available_backups(status_filter)
         for key in sorted(backups.iterkeys(), reverse=True):
             backup = backups[key]
@@ -398,16 +399,19 @@ class Server(object):
                 backup_size = _pretty_size(backup.size or 0 + backup_wal_size)
                 wal_size = _pretty_size(wal_until_next_size)
                 end_time = backup.end_time.ctime()
+                rstatus = ''
+                if self.enforce_retention_policies and retention_status[backup.backup_id] != BackupInfo.VALID:
+                    rstatus = ' - %s' % retention_status[backup.backup_id]
                 if backup.tablespaces:
                     tablespaces = [("%s:%s" % (name, location))for name, _, location in backup.tablespaces]
-                    yield ("%s %s - %s - Size: %s - WAL Size: %s (tablespaces: %s)"
+                    yield ("%s %s - %s - Size: %s - WAL Size: %s (tablespaces: %s)%s"
                            % (self.config.name, backup.backup_id,
                               end_time, backup_size, wal_size,
-                              ', '.join(tablespaces)))
+                              ', '.join(tablespaces), rstatus))
                 else:
-                    yield ("%s %s - %s - Size: %s - WAL Size: %s"
+                    yield ("%s %s - %s - Size: %s - WAL Size: %s%s"
                            % (self.config.name, backup.backup_id,
-                              end_time, backup_size, wal_size))
+                              end_time, backup_size, wal_size, rstatus))
             else:
                 yield "%s %s - %s" % (self.config.name, backup.backup_id, backup.status)
 
@@ -554,3 +558,9 @@ class Server(object):
             except:
                 raise ValueError("cannot parse line: %r" % (line,))
         return name, int(size), float(stamp), compression
+    
+    def report_backups(self):
+        if not self.enforce_retention_policies:
+            return dict()
+        else:
+            return self.config.retention_policy.report()
