@@ -743,9 +743,15 @@ class BackupManager(object):
             yield "\tno file found"
             
         # Retention policy management
-        if self.server.retention_policy_mode == 'auto':
-            yield "TODO: retention policy management"
-
+        if self.server.enforce_retention_policies and self.config.retention_policy_mode == 'auto':
+            available_backups = self.get_available_backups(BackupInfo.STATUS_ALL)
+            retention_status = self.config.retention_policy.report()
+            for bid in sorted(retention_status.iterkeys()):
+                if retention_status[bid] == BackupInfo.OBSOLETE:
+                    _logger.info("Enforcing retention policy: removing backup %s for server %s" % (
+                                 bid, self.config.name))
+                    for line in self.delete_backup(available_backups[bid]):
+                        yield line
 
     #
     # Hooks
