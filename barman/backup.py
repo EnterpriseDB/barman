@@ -64,6 +64,13 @@ class BackupInfo(object):
     '''Conversion from string '''
     TYPES_OUT = {'tablespaces':repr, # Treat the tablespaces as a literal Python list of tuples
     }
+    
+    '''Status according to retention policies'''
+    OBSOLETE = 'OBSOLETE'
+    VALID = 'VALID'
+    POTENTIALLY_OBSOLETE = 'OBSOLETE*'
+    NONE = '-'
+    RETENTION_STATUS = (OBSOLETE, VALID, POTENTIALLY_OBSOLETE, NONE)
 
     def __init__(self, server, info_file=None, backup_id=None):
         '''Constructor '''

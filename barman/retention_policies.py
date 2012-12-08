@@ -24,7 +24,11 @@ and any archived WAL files required for complete recovery of those backups.'''
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime, timedelta
+from barman.backup import BackupInfo
 import re
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class RetentionPolicy(object):
     '''Abstract base class for retention policies'''
@@ -37,7 +41,28 @@ class RetentionPolicy(object):
         self.value = int(value)
         self.context = context
         self.server = server
+        self._first_backup = None
             
+    def report(self):
+        '''Report obsolete/valid objects according to the retention policy'''
+        if self.context == 'BASE':
+            return self._backup_report()
+        elif self.context == 'WAL':
+            return self._wal_report()
+
+    def backup_status(self, backup_id):
+        '''Report the status of a backup according to the retention policy'''
+        if self.context == 'BASE':
+            return self._backup_report()[backup_id]
+        else:
+            return BackupInfo.NONE
+
+    def first_backup(self):
+        '''Returns the first valid backup according to retention policies'''
+        if not self._first_backup:
+            self.report()
+        return self._first_backup
+
     @abstractmethod
     def __str__(self):
         '''String representation'''
@@ -49,10 +74,15 @@ class RetentionPolicy(object):
         pass
 
     @abstractmethod
-    def first_backup(self):
-        '''Returns the first valid backup according to retention policies'''
+    def _backup_report(self):
+        '''Report obsolete/valid backups according to the retention policy'''
         pass
-
+        
+    @abstractmethod
+    def _wal_report(self):
+        '''Report obsolete/valid WALs according to the retention policy'''
+        pass
+        
     @abstractmethod
     def first_wal(self):
         '''Returns the first valid WAL according to retention policies'''
@@ -75,10 +105,38 @@ class RedundancyRetentionPolicy(RetentionPolicy):
     def debug(self):
         return "Redundancy: %s (%s)" % (self.value, self.context)
 
-    def first_backup(self):
-        '''Returns the first valid backup according to retention policies'''
-        return "TODO"
-    
+    def _backup_report(self):
+        '''Report obsolete/valid backups according to the retention policy'''
+        report = dict()
+        backups = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
+        # Normalise the redundancy value (according to minimum redundancy)
+        redundancy = self.value
+        if redundancy < self.server.config.minimum_redundancy:
+            _logger.warning("Retention policy redundancy (%s) is lower than the required minimum redundancy (%s). Enforce %s."
+                % (redundancy, self.server.config.minimum_redundancy, self.server.config.minimum_redundancy))
+            redundancy = self.server.config.minimum_redundancy
+
+        # Map the latest 'redundancy' DONE backups as VALID
+        # The remaining DONE backups are classified as OBSOLETE
+        # Non DONE backups are classified as NONE
+        # NOTE: reverse key orders (simulate reverse chronology)
+        i = 0
+        for bid in reversed(sorted(backups.iterkeys())):
+            if backups[bid].status == BackupInfo.DONE:
+                if i < redundancy:
+                    report[bid] = BackupInfo.VALID
+                    self._first_backup = bid
+                else:
+                    report[bid] = BackupInfo.OBSOLETE
+                i = i + 1
+            else:
+                report[bid] = BackupInfo.NONE
+        return report
+
+    def _wal_report(self):
+        '''Report obsolete/valid WALs according to the retention policy'''
+        pass
+
     def first_wal(self):
         '''Returns the first valid WAL according to retention policies'''
         return "TODO"
@@ -102,7 +160,7 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
     and the current time is 9:30 AM on Friday, Barman retains the backups required
     to allow point-in-time recovery back to 9:30 AM on the previous Friday.'''
 
-    _re = re.compile('^\s*recovery\s+window\s+of\s+(\d+)\s+(days|months|weeks)\s*$', re.IGNORECASE)
+    _re = re.compile('^\s*recovery\s+window\s+of\s+(\d+)\s+(day|month|week)s?\s*$', re.IGNORECASE)
     _kw = {'d':'DAYS', 'm':'MONTHS', 'w':'WEEKS'}
     
     def __init__(self, context, value, unit, server):
@@ -130,10 +188,53 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         backup or the first WAL'''
         return datetime.now() - self.timedelta
     
-    def first_backup(self):
-        '''Returns the first valid backup according to retention policies'''
-        return "TODO"
-    
+    def _backup_report(self):
+        '''Report obsolete/valid backups according to the retention policy'''
+        report = dict()
+        backups = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
+        # Map as VALID all DONE backups having end time lower than
+        # the point of recoverability. The older ones
+        # are classified as OBSOLETE.
+        # Non DONE backups are classified as NONE
+        found = False
+        valid = 0
+        # NOTE: reverse key orders (simulate reverse chronology)
+        for bid in reversed(sorted(backups.iterkeys())):
+            # We are interested in DONE backups only
+            if backups[bid].status == BackupInfo.DONE:
+                if found:
+                    # Check minimum redundancy requirements
+                    if valid < self.server.config.minimum_redundancy:
+                        _logger.warning("Keeping obsolete backup %s for server %s (older than %s) due to minimum redundancy requirements (%s)"
+                            % (bid, self.server.config.name, self._point_of_recoverability(),
+                               self.server.config.minimum_redundancy))
+                        # We mark the backup as potentially obsolete
+                        # as we must respect minimum redundancy requirements
+                        report[bid] = BackupInfo.POTENTIALLY_OBSOLETE
+                        self._first_backup = bid
+                        valid = valid + 1
+                    else:
+                        # We mark this backup as obsolete (older than the first valid one)
+                        _logger.info("Reporting backup %s for server %s as OBSOLETE (older than %s)"
+                            % (bid, self.server.config.name, self._point_of_recoverability()))
+                        report[bid] = BackupInfo.OBSOLETE
+                else:
+                    # Backup within the recovery window
+                    report[bid] = BackupInfo.VALID
+                    self._first_backup = bid
+                    valid = valid + 1
+                    # TODO: Currently we use the backup local end time
+                    # We need to make this more accurate
+                    if backups[bid].end_time < self._point_of_recoverability():
+                        found = True
+            else:
+                report[bid] = BackupInfo.NONE
+        return report
+
+    def _wal_report(self):
+        '''Report obsolete/valid WALs according to the retention policy'''
+        pass
+
     def first_wal(self):
         '''Returns the first valid WAL according to retention policies'''
         return "TODO"
@@ -165,9 +266,13 @@ class SimpleWALRetentionPolicy(RetentionPolicy):
     def debug(self):
         return "Simple WAL Retention Policy (%s)" % (self.policy)
 
-    def first_backup(self):
-        '''Returns the first valid backup according to retention policies'''
-        return self.policy.first_backup()
+    def _backup_report(self):
+        '''Report obsolete/valid backups according to the retention policy'''
+        pass
+
+    def _wal_report(self):
+        '''Report obsolete/valid backups according to the retention policy'''
+        self.policy._wal_report()
 
     def first_wal(self):
         '''Returns the first valid WAL according to retention policies'''
