@@ -975,6 +975,16 @@ class BackupManager(object):
 
             yield ("\tcompression settings: %s" % status, status == 'OK')
 
+        # Minimum redundancy checks
+        no_backups = len(self.get_available_backups())
+        if (no_backups < self.config.minimum_redundancy):
+            status = 'FAILED'
+        else:
+            status = 'OK'
+        yield ("\tminimum redundancy requirements: %s (have %s backups, expected at least %s)" % (
+                status, no_backups, self.config.minimum_redundancy), status == 'OK')
+
+
     def status(self):
         '''This function show the server status '''
         no_backups = len(self.get_available_backups())
@@ -984,6 +994,9 @@ class BackupManager(object):
         elif no_backups > 1:
             yield "\tfirst available backup: %s" % self.get_first_backup()
             yield "\tlast available backup: %s" % self.get_last_backup()
+        if (no_backups < self.config.minimum_redundancy):
+            yield "\tYou are currently below the minimum redundancy requirements: %s/%s" % (
+                no_backups, self.config.minimum_redundancy)
 
     def pg_config_mangle(self, filename, settings, backup_filename=None):
         '''This method modifies the postgres configuration file,
