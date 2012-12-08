@@ -23,6 +23,7 @@ from barman import xlog, _pretty_size
 from barman.lockfile import lockfile
 from barman.backup import BackupInfo, BackupManager
 from barman.command_wrappers import Command
+from barman.retention_policies import RetentionPolicyFactory, SimpleWALRetentionPolicy
 import os
 import logging
 import psycopg2
@@ -49,11 +50,8 @@ class Server(object):
         self.ssh_options.extend("-o BatchMode=yes -o StrictHostKeyChecking=no".split())
         self.backup_manager = BackupManager(self)
         self.configuration_files = None
-        # Set retention policy mode
-        if self.config.retention_policy_mode != 'auto':
-            _logger.warning('Unsupported retention_policy_mode "%s" for server "%s" (fallback to "auto")'
-                            % (self.config.retention_policy_mode, self.config.name))
-            self.config.retention_policy_mode = 'auto'
+        self.enforce_retention_policies = False
+        
         # Set minimum redundancy (default 0)
         if self.config.minimum_redundancy.isdigit():
             self.config.minimum_redundancy = int(self.config.minimum_redundancy)
@@ -65,6 +63,59 @@ class Server(object):
             _logger.warning('Invalid minimum_redundancy "%s" for server "%s" (fallback to "0")'
                             % (self.config.minimum_redundancy, self.config.name))
             self.config.minimum_redundancy = 0
+
+        # Initialise retention policies
+        self._init_retention_policies()
+
+            
+    def _init_retention_policies(self):
+        
+        # Set retention policy mode
+        if self.config.retention_policy_mode != 'auto':
+            _logger.warning('Unsupported retention_policy_mode "%s" for server "%s" (fallback to "auto")'
+                            % (self.config.retention_policy_mode, self.config.name))
+            self.config.retention_policy_mode = 'auto'
+
+        # If retention_policy is present, enforce them        
+        if self.config.retention_policy:
+            # Check wal_retention_policy
+            if self.config.wal_retention_policy != 'main':
+                _logger.warning('Unsupported wal_retention_policy value "%s" for server "%s" (fallback to "main")'
+                                % (self.config.wal_retention_policy, self.config.name))
+                self.config.wal_retention_policy = 'main'
+            # Create retention policy objects
+            try:
+                rp = RetentionPolicyFactory.create(self,
+                    'retention_policy', self.config.retention_policy)
+                # Reassign the configuration value (we keep it in one place)
+                self.config.retention_policy = rp
+                _logger.info('Retention policy for server %s: %s' % (
+                    self.config.name, self.config.retention_policy))
+                try:
+                    rp = RetentionPolicyFactory.create(self,
+                        'wal_retention_policy', self.config.wal_retention_policy)
+                    # Reassign the configuration value (we keep it in one place)
+                    self.wal_retention_policy = rp
+                    _logger.info('WAL retention policy for server %s: %s' % (
+                        self.config.name, self.config.wal_retention_policy))
+                except:
+                    _logger.error('Invalid wal_retention_policy setting "%s" for server "%s" (fallback to "main")' % (
+                        self.config.wal_retention_policy, self.config.name))
+                    self.wal_retention_policy = SimpleWALRetentionPolicy (
+                        self.retention_policy, self)
+                
+                self.enforce_retention_policies = True
+                
+            except:
+                _logger.error('Invalid retention_policy setting "%s" for server "%s"' % (
+                    self.config.retention_policy, self.config.name))
+            
+    def check_retention_policy_settings(self):
+        '''Checks retention policy settings'''
+        if self.config.retention_policy and not self.enforce_retention_policies:
+            yield ("\tretention policy settings: FAILED (see log)", False)
+        else:
+            yield ("\tretention policy settings: OK", True)
 
     def check_ssh(self):
         '''Checks SSH connection'''
@@ -122,6 +173,8 @@ class Server(object):
         status.append(self.check_ssh())
         status.append(self.check_postgres())
         status.append(self.check_directories())
+        # Check retention policies
+        status.append(self.check_retention_policy_settings())
         # Executes the backup manager set of checks
         status.append(self.backup_manager.check())
 
@@ -148,11 +201,21 @@ class Server(object):
         if remote_status['current_xlog']:
             yield "\tcurrent_xlog: %s " % (remote_status['current_xlog'])
 
+    def status_retention_policies(self):
+        '''Status of retention policies enforcement'''
+        if self.enforce_retention_policies:
+            yield "\tRetention policies: enforced (mode: %s, retention: %s, WAL retention: %s)" % (
+                self.config.retention_policy_mode, self.config.retention_policy,
+                self.config.wal_retention_policy)
+        else:
+            yield "\tRetention policies: not enforced" 
+
     def status(self):
         '''Implements the 'server status' command.'''
         status = [("Server %s:" % (self.config.name),)]
         if self.config.description: status.append(("\tdescription: %s" % (self.config.description),))
         status.append(self.status_postgres())
+        status.append(self.status_retention_policies())
         # Executes the backup manager status info method
         status.append(self.backup_manager.status())
         return itertools.chain.from_iterable(status)
