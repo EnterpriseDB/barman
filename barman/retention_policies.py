@@ -24,8 +24,6 @@ and any archived WAL files required for complete recovery of those backups.'''
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime, timedelta
-from barman.server import Server
-from barman.backup import BackupInfo, BackupManager
 import re
 
 class RetentionPolicy(object):
@@ -43,6 +41,11 @@ class RetentionPolicy(object):
     @abstractmethod
     def __str__(self):
         '''String representation'''
+        pass
+
+    @abstractmethod
+    def debug(self):
+        '''Debug information'''
         pass
 
     @abstractmethod
@@ -67,6 +70,9 @@ class RedundancyRetentionPolicy(RetentionPolicy):
         assert (value >= 0)
         
     def __str__(self):
+        return "REDUNDANCY %s" % (self.value)
+
+    def debug(self):
         return "Redundancy: %s (%s)" % (self.value, self.context)
 
     def first_backup(self):
@@ -97,6 +103,7 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
     to allow point-in-time recovery back to 9:30 AM on the previous Friday.'''
 
     _re = re.compile('^\s*recovery\s+window\s+of\s+(\d+)\s+(days|months|weeks)\s*$', re.IGNORECASE)
+    _kw = {'d':'DAYS', 'm':'MONTHS', 'w':'WEEKS'}
     
     def __init__(self, context, value, unit, server):
         RetentionPolicy.__init__(self, 'window', unit, value, context, server)
@@ -112,6 +119,9 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
             self.timedelta = timedelta(days=(31 * self.value))
         
     def __str__(self):
+        return "RECOVERY WINDOW OF %s %s" % (self.value, self._kw[self.unit])
+
+    def debug(self):
         return "Recovery Window: %s %s: %s (%s)" % (self.value, self.unit, self.context, self._point_of_recoverability())
 
     def _point_of_recoverability(self):
@@ -150,6 +160,9 @@ class SimpleWALRetentionPolicy(RetentionPolicy):
         self.policy = policy
         
     def __str__(self):
+        return "main"
+
+    def debug(self):
         return "Simple WAL Retention Policy (%s)" % (self.policy)
 
     def first_backup(self):
@@ -166,10 +179,7 @@ class SimpleWALRetentionPolicy(RetentionPolicy):
         rm = SimpleWALRetentionPolicy._re.match(optval)
         if not rm:
             return None
-        # Same as the main retention policy
-        # Retrieves the policy through the server
-        # TODO
-        pass
+        return SimpleWALRetentionPolicy(server.config.retention_policy, server)
 
 
 class RetentionPolicyFactory(object):
