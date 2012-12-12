@@ -182,27 +182,27 @@ class Config(object):
         configuration_files_directory = self.get('barman', 'configuration_files_directory')
 
         if not configuration_files_directory:
-           return
+            return
 
         if not os.path.isdir(os.path.expanduser(configuration_files_directory)):
-           _logger.warn('Ignoring the "configuration_files_directory" option as "%s" is not a directory',
+            _logger.warn('Ignoring the "configuration_files_directory" option as "%s" is not a directory',
                 configuration_files_directory)
-           return
+            return
 
         for cfile in sorted(iglob(os.path.join(os.path.expanduser(configuration_files_directory),
             '*.conf'))):
-           filename = os.path.basename(cfile)
-           if os.path.isfile(cfile):
-               # Load a file
-               _logger.info('Including configuration file: %s', filename)
-               self._config.read(cfile)
-               if self._is_global_config_changed():
-                   msg="the configuration file %s contains a not empty [barman] section" % filename
-                   _logger.fatal(msg)
-                   raise SystemExit("FATAL: %s" % msg)
-           else:
-               # Add an info that a file has been discarded
-               _logger.warn('Discarding configuration file: %s (not a file)', filename)
+            filename = os.path.basename(cfile)
+            if os.path.isfile(cfile):
+                # Load a file
+                _logger.info('Including configuration file: %s', filename)
+                self._config.read(cfile)
+                if self._is_global_config_changed():
+                    msg="the configuration file %s contains a not empty [barman] section" % filename
+                    _logger.fatal(msg)
+                    raise SystemExit("FATAL: %s" % msg)
+            else:
+                # Add an info that a file has been discarded
+                _logger.warn('Discarding configuration file: %s (not a file)', filename)
 
     def _populate_servers(self):
         '''Populate server list from configuration file'''

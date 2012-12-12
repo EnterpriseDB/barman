@@ -12,6 +12,9 @@
 /.pydevproject
 /.settings
 
+# tox testing
+.tox
+
 # setuptools
 /MANIFEST
 /dist

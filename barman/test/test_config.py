@@ -79,9 +79,11 @@ MINIMAL_CONFIG_MAIN = {
     'custom_compression_filter': None,
     'custom_decompression_filter': None,
     'retention_policy': None,
-    'wal_retention_policy': None,
+    'wal_retention_policy': 'main',
     'post_backup_script': None,
     'pre_backup_script': None,
+    'minimum_redundancy': '0',
+    'retention_policy_mode': 'auto',
 }
 
 class Test(unittest.TestCase):

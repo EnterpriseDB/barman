@@ -67,4 +67,5 @@ setup(
         'Topic :: Database',
         'Topic :: System :: Recovery Tools',
         ],
+    test_suite='barman.test',
 )
