@@ -61,14 +61,18 @@ def backup(args):
     """ Perform a full backup for the given server
     """
     servers = get_server_list(args)
+    ok = True
     for name in sorted(servers):
         server = servers[name]
         if server == None:
             yield "Unknown server '%s'" % (name)
+            ok = False
             continue
         for line in server.backup():
             yield line
         yield ''
+    if not ok:
+        raise SystemExit(1)
 
 @alias('list-backup')
 @arg('server_name', nargs='+', help="specifies the server name for the command ('all' will show all available servers)")
@@ -77,31 +81,39 @@ def list_backup(args):
     """ List available backups for the given server (supports 'all')
     """
     servers = get_server_list(args)
+    ok = True
     for name in sorted(servers):
         server = servers[name]
         if server == None:
             yield "Unknown server '%s'" % (name)
-            return
+            ok = False
+            continue
         if not args.minimal:
             for line in server.list_backups():
                 yield line
         else:
             for backup_id in sorted(server.get_available_backups().iterkeys(), reverse=True):
                 yield backup_id
+    if not ok:
+        raise SystemExit(1)
 
 @arg('server_name', nargs='+', help='specifies the server name for the command')
 def status(args):
     """ Shows live information and status of the PostgreSQL server
     """
     servers = get_server_list(args)
+    ok = True
     for name in sorted(servers):
         server = servers[name]
         if server == None:
             yield "Unknown server '%s'" % (name)
+            ok = False
             continue
         for line in server.status():
             yield line
         yield ''
+    if not ok:
+        raise SystemExit(1)
 
 
 @arg('server_name', help='specifies the server name for the command')
@@ -174,14 +186,18 @@ def show_server(args):
     """ Show all configuration parameters for the specified servers
     """
     servers = get_server_list(args)
+    ok = True
     for name in sorted(servers):
         server = servers[name]
         if server == None:
             yield "Unknown server '%s'" % (name)
+            ok = False
             continue
         for line in server.show():
             yield line
         yield ''
+    if not ok:
+        raise SystemExit(1)
 
 @arg('server_name', nargs='+', help="specifies the server names to check ('all' will check all available servers)")
 def check(args):
