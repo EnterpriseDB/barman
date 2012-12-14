@@ -107,6 +107,40 @@ Before you start
 
 Installation
 
+  On RedHat/CentOS using RPM packages
+
+   Barman can be installed on RHEL5 and RHEL6 Linux systems using RPM
+   packages.
+
+   Barman is available through the PostgreSQL Global Development Group RPM
+   repository with Yum. You need to follow the instructions for your
+   distribution (RedHat, CentOS, Fedora, etc.) and architecture that you
+   can find at [2]http://yum.postgresql.org/.
+
+   Then, as root simply type:
+
+     yum install barman
+
+  On Debian/Ubuntu using packages
+
+   Barman can be installed on Debian and Ubuntu Linux systems using
+   packages.
+
+   It is available in the official repository for Debian Sid (unstable)
+   and Ubuntu 12.10 (Quantal Quetzal).
+
+   Note
+   You can install an up-to-date version of Barman on many Debian and
+   Ubuntu releases using the PostgreSQL Community APT repository at
+   [3]http://apt.postgresql.org/. Instructions can be found at
+   [4]https://wiki.postgresql.org/wiki/Apt.
+
+   Installing Barman is as simple as typing as root user:
+
+     apt-get install barman
+
+  From sources
+
    Create a system user called barman on the backup server. As barman
    user, download the sources and uncompress them.
 
@@ -160,7 +194,7 @@ Getting started
 
    You can choose your favourite client authentication method among those
    offered by PostgreSQL. More information can be found here:
-   [2]http://www.postgresql.org/docs/current/static/client-authentication.
+   [5]http://www.postgresql.org/docs/current/static/client-authentication.
    html
 
      barman@backup$ psql -c 'SELECT version()' -U postgres -h pg
@@ -240,16 +274,34 @@ r custom
   ; For example place the 'main' server section in /etc/barman.d/main.conf
   ;configuration_files_directory: /etc/barman.d
 
-  ; 'main' PostgreSQL Server configuration
-  [main]
-  ; Human readable description
-  description =  "Main PostgreSQL Database"
+  ; Minimum number of required backups (redundancy)
+  ; minimum_redundancy = 0
 
-  ; SSH options
-  ssh_command = ssh postgres@pg
+  ; Global retention policy (REDUNDANCY or RECOVERY WINDOW) - default empty
+  ; retention_policy =
 
-  ; PostgreSQL connection string
-  conninfo = host=pg user=postgres
+  ;; ; 'main' PostgreSQL Server configuration
+  ;; [main]
+  ;; ; Human readable description
+  ;; description =  "Main PostgreSQL Database"
+  ;;
+  ;; ; SSH options
+  ;; ssh_command = ssh postgres@pg
+  ;;
+  ;; ; PostgreSQL connection string
+  ;; conninfo = host=pg user=postgres
+  ;;
+  ;; ; Minimum number of required backups (redundancy)
+  ;; ; minimum_redundancy = 1
+  ;;
+  ;; ; Examples of retention policies
+  ;;
+  ;; ; Retention policy (disabled)
+  ;; ; retention_policy =
+  ;; ; Retention policy (based on redundancy)
+  ;; ; retention_policy = REDUNDANCY 2
+  ;; ; Retention policy (based on recovery window)
+  ;; ; retention_policy = RECOVERY WINDOW OF 4 WEEKS
 
    You can now test the configuration by executing:
 
@@ -415,6 +467,148 @@ Backup ID shortcuts
    show-backup, delete, list-files and recover.
      __________________________________________________________________
 
+Minimum redundancy safety
+
+   From version 1.2.0, you can define the minimum number of periodical
+   backups for a PostgreSQL server.
+
+   You can use the global/per server configuration option called
+   minimum_redundancy for this purpose, by default set to 0.
+
+   By setting this value to any number greater than 0, Barman makes sure
+   that at any time you will have at least that number of backups in a
+   server catalogue.
+
+   This will protect you from accidental barman delete operations.
+
+   Important
+   Make sure that your policy retention settings do not collide with
+   minimum redundancy requirements. Regularly check Barman's log for
+   messages on this topic.
+     __________________________________________________________________
+
+Retention policies
+
+   From version 1.2.0, Barman supports retention policies for backups.
+
+   A backup retention policy is an user-defined policy that determines how
+   long backups and related archive logs (Write Ahead Log segments) need
+   to be retained for recovery procedures.
+
+   Based on the user's request, Barman retains the periodical backups
+   required to satisfy the current retention policy, and any archived WAL
+   files required for the complete recovery of those backups.
+
+   Barman users can define a retention policy in terms of backup
+   redundancy (how many periodical backups) or a recovery window (how
+   long).
+
+   Retention policy based on redundancy
+          In a retention policy, the setting that determines how many
+          periodical backups to keep. A redundancy-based retention policy
+          is contrasted with retention policy that uses a recovery window.
+
+   Retention policy based on recovery window
+          A recovery window is one type of Barman backup retention policy,
+          in which the DBA specifies a period of time and Barman ensures
+          retention of backups and/or archived WAL files required for
+          point-in-time recovery to any time during the recovery window.
+          The interval always ends with the current time and extends back
+          in time for the number of days specified by the user. For
+          example, if the retention policy is set for a recovery window of
+          seven days, and the current time is 9:30 AM on Friday, Barman
+          retains the backups required to allow point-in-time recovery
+          back to 9:30 AM on the previous Friday.
+
+  Scope
+
+   Retention policies can be defined for:
+     * PostgreSQL periodical base backups: through the retention_policy
+       configuration option;
+     * Archive logs, for Point-In-Time-Recovery: through the
+       wal_retention_policy configuration option.
+
+   Important
+   In a temporal dimension, archive logs must be included in the time
+   window of periodical backups.
+
+   There are two typical use cases here: full or partial point-in-time
+   recovery.
+
+   Full point in time recovery scenario
+          Base backups and archive logs share the same retention policy,
+          allowing DBAs to recover at any point in time from the first
+          available backup.
+
+   Partial point in time recovery scenario
+          Base backup retention policy is wider than that of archive logs,
+          allowing users for example to keep full weekly backups of the
+          last 6 months, but archive logs for the last 4 weeks (granting
+          to recover at any point in time starting from the last 4
+          periodical weekly backups).
+
+   Important
+   Currently, Barman implements only the full point in time recovery
+   scenario, by constraining the wal_retention_policy option to main.
+
+  How they work
+
+   Retention policies in Barman can be:
+     * automated: enforced by barman cron;
+     * manual: Barman simply reports obsolete backups and allows DBAs to
+       delete them.
+
+   Important
+   Currently Barman does not implement manual enforcement. This feature
+   will be available in future versions.
+
+  Configuration and syntax
+
+   Retention policies can be defined through the following configuration
+   options:
+     * retention_policy: for base backup retention;
+     * wal_retention_policy: for archive logs retention;
+     * retention_policy_mode: can only be set to auto (retention policies
+       are automatically enforced by the barman cron command).
+
+   These configuration options can be defined both at a global level and a
+   server level, allowing users maximum flexibility on a multi-server
+   environment.
+
+    Syntax for retention_policy
+
+   The general syntax for a base backup retention policy through
+   retention_policy is the following:
+
+  retention_policy = {REDUNDANCY value | RECOVERY WINDOW OF value {DAYS | WEEKS
+| MONTHS}}
+
+   Where:
+     * syntax is case insensitive;
+     * value is an integer and is > 0;
+     * in case of redundancy retention policy:
+          + value must be greater than the server minimum redundancy level
+            (if not is is assigned to that value and a warning is
+            generated);
+          + the first valid backup is the value-th backup in a reverse
+            ordered time series;
+     * in case of recovery window policy:
+          + the point of recoverability is: current time - window;
+          + the first valid backup is the first available backup before
+            the point of recoverability; its value in a reverse ordered
+            time series must be greater than the server minimum redundancy
+            level (if not is is assigned to that value and a warning is
+            generated).
+
+   By default, retention_policy is empty (no retention enforced).
+
+    Syntax for wal_retention_policy
+
+   Currently, the only allowed value for wal_retention_policy is the
+   special value main, that maps the retention policy of archive logs to
+   that of base backups.
+     __________________________________________________________________
+
 Available commands
 
    Barman commands are applied to three different levels:
@@ -443,9 +637,12 @@ Available commands
 
      barman cron
 
+   This command enforces retention policies on those servers that have:
+     * retention_policy not empty and valid;
+     * retention_policy_mode set to auto.
+
    Note
-   This command should be executed in a cron script. In future versions of
-   Barman, this command will automatically enforce the retention policy.
+   This command should be executed in a cron script.
 
   Server commands
 
@@ -576,27 +773,27 @@ Support and sponsor opportunities
    as open source.
 
    For further information, please visit our websites:
-     * Barman website: [3]http://www.pgbarman.org/
-     * 2ndQuadrant website: [4]http://www.2ndquadrant.com/
+     * Barman website: [6]http://www.pgbarman.org/
+     * 2ndQuadrant website: [7]http://www.2ndquadrant.com/
      __________________________________________________________________
 
 Authors
 
    In alphabetical order:
-     * Carlo Ascani <[5]carlo.ascani@2ndquadrant.it> (core team)
-     * Gabriele Bartolini <[6]gabriele.bartolini@2ndquadrant.it> (core
+     * Carlo Ascani <[8]carlo.ascani@2ndquadrant.it> (core team)
+     * Gabriele Bartolini <[9]gabriele.bartolini@2ndquadrant.it> (core
        team)
-     * Marco Nenciarini <[7]marco.nenciarini@2ndquadrant.it> (core team)
+     * Marco Nenciarini <[10]marco.nenciarini@2ndquadrant.it> (core team)
      __________________________________________________________________
 
 License and Contributions
 
    Barman is the exclusive property of 2ndQuadrant Italia and its code is
    distributed under GNU General Public License 3.
-   Copyright © 2011-2012, 2ndQuadrant Italia (Devise.IT S.r.l.) -
-   [8]http://www.2ndQuadrant.it.
+   Copyright © 2011-2013, 2ndQuadrant Italia (Devise.IT S.r.l.) -
+   [11]http://www.2ndQuadrant.it.
 
-   Barman has been partially funded through [9]4CaaSt, a research project
+   Barman has been partially funded through [12]4CaaSt, a research project
    funded by the European Commission's Seventh Framework programme.
 
    Contributions to Barman are welcome, and will be listed in the file
@@ -604,21 +801,24 @@ License and Contributions
    copyright assignment and a disclaimer of any work-for-hire ownership
    claims from the employer of the developer. This lets us make sure that
    all of the Barman distribution remains free code. Please contact
-   [10]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
+   [13]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
    Form.
      __________________________________________________________________
 
-   Last updated 2012-11-29 12:50:16 CET
+   Last updated 2012-12-14 17:46:21 CET
 
 References
 
    1. http://fedoraproject.org/wiki/EPEL
-   2. http://www.postgresql.org/docs/current/static/client-authentication.html
-   3. http://www.pgbarman.org/
-   4. http://www.2ndquadrant.com/
-   5. mailto:carlo.ascani@2ndquadrant.it
-   6. mailto:gabriele.bartolini@2ndquadrant.it
-   7. mailto:marco.nenciarini@2ndquadrant.it
-   8. http://www.2ndQuadrant.it/
-   9. http://4caast.morfeo-project.org/
-  10. mailto:info@2ndQuadrant.it
+   2. http://yum.postgresql.org/
+   3. http://apt.postgresql.org/
+   4. https://wiki.postgresql.org/wiki/Apt
+   5. http://www.postgresql.org/docs/current/static/client-authentication.html
+   6. http://www.pgbarman.org/
+   7. http://www.2ndquadrant.com/
+   8. mailto:carlo.ascani@2ndquadrant.it
+   9. mailto:gabriele.bartolini@2ndquadrant.it
+  10. mailto:marco.nenciarini@2ndquadrant.it
+  11. http://www.2ndQuadrant.it/
+  12. http://4caast.morfeo-project.org/
+  13. mailto:info@2ndQuadrant.it

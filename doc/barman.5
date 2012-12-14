@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.77.1 <http://docbook.sf.net/>
-.\"      Date: 11/29/2012
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 12/14/2012
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "11/29/2012" "\ \&" "\ \&"
+.TH "BARMAN" "5" "12/14/2012" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -60,7 +60,7 @@ The Barman configuration file is a plain ini file\&. There is a general section 
 .SH "CONFIGURATION FILE DIRECTORY"
 .sp
 Barman supports the inclusion of multiple configuration files, through the configuration_files_directory option\&. Included files must contain only server specifications, not global configurations\&. If the value of configuration_files_directory is a directory, Barman reads all files with \&.conf extension that exist in that folder\&. For example, if you set it to /etc/barman\&.d, you can specify your PostgreSQL servers placing each section in a separate \&.conf file inside the /etc/barman\&.d folder\&.
-.SH "PARAMETERS"
+.SH "OPTIONS"
 .PP
 \fBactive\fR
 .RS 4
@@ -122,14 +122,24 @@ Hook script launched before a base backup\&.
 Hook script launched after a base backup\&.
 .RE
 .PP
+\fBminimum_redundancy\fR
+.RS 4
+Minimum number of backups to be retained\&. Default 0\&.
+.RE
+.PP
 \fBretention_policy\fR
 .RS 4
-Policy for retention of old backups\&. This is not implemented yet\&.
+Policy for retention of periodical backups and archive logs\&. If left empty, retention policies are not enforced\&. For redundancy based retention policy use "REDUNDANCY i" (where i is an integer > 0 and defines the number of backups to retain)\&. For recovery window retention policy use "RECOVERY WINDOW OF i DAYS" or "RECOVERY WINDOW OF i WEEKS" or "RECOVERY WINDOW OF i MONTHS" where i is a positive integer representing, specifically, the number of days, weeks or months to retain your backups\&. For more detailed information, refer to the official documentation\&. Default value is empty\&.
 .RE
 .PP
 \fBwal_retention_policy\fR
 .RS 4
-Policy for retention of old WAL files\&. This is not implemented yet\&.
+Policy for retention of archive logs (WAL files)\&. Currently only "MAIN" is available\&.
+.RE
+.PP
+\fBretention_policy_mode\fR
+.RS 4
+Currently only "auto" is implemented\&.
 .RE
 .SH "HOOK SCRIPTS"
 .sp
@@ -193,17 +203,16 @@ Example of the configuration file:
 .nf
 [barman]
 ; Main directory
-barman_home = /srv/barman
+barman_home = /var/lib/barman
+
+; System user
+barman_user = barman
 
 ; Log location
-log_file = %(barman_home)s/log/barman\&.log
+log_file = /var/log/barman/barman\&.log
 
-; Default compression level: none, bzip2, gz
-compression = gzip
-
-; Pre/post backup hook scripts
-pre_backup_script = env | grep ^BARMAN
-post_backup_script = env | grep ^BARMAN
+; Default compression level
+;compression = gzip
 
 ; \*(Aqmain\*(Aq PostgreSQL Server configuration
 [main]
@@ -215,6 +224,12 @@ ssh_command = ssh postgres@pg
 
 ; PostgreSQL connection string
 conninfo = host=pg user=postgres
+
+; Minimum number of required backups (redundancy)
+minimum_redundancy = 1
+
+; Retention policy (based on redundancy)
+retention_policy = REDUNDANCY 2
 .fi
 .if n \{\
 .RE
@@ -262,4 +277,4 @@ Homepage: http://www\&.pgbarman\&.org
 .sp
 Barman is the exclusive property of 2ndQuadrant Italia and its code is distributed under GNU General Public License v3\&.
 .sp
-Copyright \(co 2011\-2012, 2ndQuadrant Italia (Devise\&.IT S\&.r\&.l\&.) \- http://www\&.2ndQuadrant\&.it/\&.
+Copyright \(co 2011\-2013, 2ndQuadrant Italia (Devise\&.IT S\&.r\&.l\&.) \- http://www\&.2ndQuadrant\&.it/\&.
