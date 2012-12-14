@@ -68,8 +68,11 @@ def backup(args):
             yield "Unknown server '%s'" % (name)
             ok = False
             continue
-        for line in server.backup():
-            yield line
+        try:
+            for line in server.backup():
+                yield line
+        except:
+            ok = False
         yield ''
     if not ok:
         raise SystemExit(1)

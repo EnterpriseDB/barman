@@ -504,7 +504,7 @@ class BackupManager(object):
 
             msg = "Backup failed %s" % self.current_action
             _logger.exception(msg)
-            yield msg
+            raise Exception("ERROR: %s" % msg)
 
         else:
             msg = "Backup end at xlog location: %s (%s, %08X)" % (backup_info.end_xlog,
