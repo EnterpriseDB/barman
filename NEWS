@@ -1,6 +1,28 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2013  2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.2.0 - X Jan 2013
+
+* Added the "retention_policy_mode" global/server option which defines
+  the method for enforcing retention policies (currently only "auto")
+
+* Added the "minimum_redundancy" global/server option which defines
+  the minimum number of backups to be kept for a server
+
+* Added the "retention_policy" global/server option which defines
+  retention policies management based on redunancy (e.g. REDUNDANCY 4)
+  or recovery window (e.g. RECOVERY WINDOW OF 3 MONTHS)
+
+* Added retention policy support to the logging infrastructure, the
+  "check" and the "status" commands
+
+* The "check" command now integrates minimum redundancy control 
+
+* Added retention policy states (valid, obsolete and potentially obsolete)
+  to "show-backup" and "list-backup" commands
+
+* Minor bug fixes
+
 Version 1.1.2 - 29 Nov 2012
 
 * Added "configuration_files_directory" option that allows
