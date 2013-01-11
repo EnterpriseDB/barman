@@ -19,7 +19,7 @@
 and the logger.
 '''
 
-from argh import ArghParser, alias, arg
+from argh import ArghParser, named, arg
 from barman.lockfile import lockfile
 from barman.server import Server
 import barman.config
@@ -30,7 +30,7 @@ from barman.backup import BackupInfo
 
 _logger = logging.getLogger(__name__)
 
-@alias('list-server')
+@named('list-server')
 @arg('--minimal', help='machine readable output', action='store_true')
 def list_server(args):
     """ List available servers, with useful information
@@ -56,7 +56,34 @@ def cron(args):
                 for lines in server.cron(verbose=True):
                     yield lines
 
-@arg('server_name', nargs='+', help="specifies the server names for the backup command ('all' will show all available servers)")
+def server_completer(prefix, parsed_args, **kwargs):
+    global_config(parsed_args)
+    for conf in barman.__config__.servers():
+         if conf.name.startswith(prefix):
+             yield conf.name
+
+def server_completer_all(prefix, parsed_args, **kwargs):
+    print >> sys.stderr,  "INVOKED"
+    global_config(parsed_args)
+    for conf in barman.__config__.servers():
+        if conf.name.startswith(prefix):
+            yield conf.name
+    if 'all'.startswith(prefix):
+        yield 'all'
+
+def backup_completer(prefix, parsed_args, **kwargs):
+    global_config(parsed_args)
+    server = get_server(parsed_args)
+    if server:
+        for backup_id in sorted(server.get_available_backups().iterkeys(), reverse=True):
+            if backup_id.startswith(prefix):
+                 yield backup_id
+    else:
+        return
+
+@arg('server_name', nargs='+',
+     completer=server_completer_all,
+     help="specifies the server names for the backup command ('all' will show all available servers)")
 def backup(args):
     """ Perform a full backup for the given server
     """
@@ -77,8 +104,10 @@ def backup(args):
     if not ok:
         raise SystemExit(1)
 
-@alias('list-backup')
-@arg('server_name', nargs='+', help="specifies the server name for the command ('all' will show all available servers)")
+@named('list-backup')
+@arg('server_name', nargs='+',
+     completer=server_completer_all,
+     help="specifies the server name for the command ('all' will show all available servers)")
 @arg('--minimal', help='machine readable output', action='store_true')
 def list_backup(args):
     """ List available backups for the given server (supports 'all')
@@ -100,7 +129,9 @@ def list_backup(args):
     if not ok:
         raise SystemExit(1)
 
-@arg('server_name', nargs='+', help='specifies the server name for the command')
+@arg('server_name', nargs='+',
+     completer=server_completer_all,
+     help='specifies the server name for the command')
 def status(args):
     """ Shows live information and status of the PostgreSQL server
     """
@@ -119,7 +150,9 @@ def status(args):
         raise SystemExit(1)
 
 
-@arg('server_name', help='specifies the server name for the command')
+@arg('server_name',
+     completer=server_completer,
+     help='specifies the server name for the command')
 @arg('--target-tli', help='target timeline', type=int)
 @arg('--target-time',
      help='target time. You can use any valid unambiguous representation. e.g: "YYYY-MM-DD HH:MM:SS.mmm"')
@@ -183,8 +216,10 @@ def recover(args):
                                ):
         yield line
 
-@alias('show-server')
-@arg('server_name', nargs='+', help="specifies the server names to show ('all' will show all available servers)")
+@named('show-server')
+@arg('server_name', nargs='+',
+     completer=server_completer_all,
+     help="specifies the server names to show ('all' will show all available servers)")
 def show_server(args):
     """ Show all configuration parameters for the specified servers
     """
@@ -202,7 +237,9 @@ def show_server(args):
     if not ok:
         raise SystemExit(1)
 
-@arg('server_name', nargs='+', help="specifies the server names to check ('all' will check all available servers)")
+@arg('server_name', nargs='+',
+     completer=server_completer_all,
+     help="specifies the server names to check ('all' will check all available servers)")
 def check(args):
     """ Check if the server configuration is working.
     This function returns 0 if every checks pass, or 0 if any of these fails
@@ -222,9 +259,13 @@ def check(args):
     if not ok:
         raise SystemExit(1)
 
-@alias('show-backup')
-@arg('server_name', help='specifies the server name for the command')
-@arg('backup_id', help='specifies the backup ID')
+@named('show-backup')
+@arg('server_name',
+     completer=server_completer,
+     help='specifies the server name for the command')
+@arg('backup_id',
+     completer=backup_completer,
+     help='specifies the backup ID')
 def show_backup(args):
     """ This method Shows a single backup information
     """
@@ -241,9 +282,13 @@ def show_backup(args):
     for line in backup.show():
         yield line
 
-@alias('list-files')
-@arg('server_name', help='specifies the server name for the command')
-@arg('backup_id', help='specifies the backup ID')
+@named('list-files')
+@arg('server_name',
+     completer=server_completer,
+     help='specifies the server name for the command')
+@arg('backup_id',
+     completer=backup_completer,
+     help='specifies the backup ID')
 @arg('--target', choices=('standalone', 'data', 'wal', 'full'), default='standalone',
      help='''
      Possible values are: data (just the data files), standalone (base backup files, including required WAL files),
@@ -267,8 +312,12 @@ def list_files(args):
     for line in backup.get_list_of_files(args.target):
         yield line
 
-@arg('server_name', help='specifies the server name for the command')
-@arg('backup_id', help='specifies the backup ID')
+@arg('server_name',
+     completer=server_completer,
+     help='specifies the server name for the command')
+@arg('backup_id',
+     completer=backup_completer,
+     help='specifies the backup ID')
 def delete(args):
     """ Delete a backup
     """

@@ -16,6 +16,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+#
+# PYTHON_ARGCOMPLETE_OK
 
 from barman.cli import main
 

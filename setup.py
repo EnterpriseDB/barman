@@ -37,7 +37,7 @@ except ImportError:
 if sys.version_info < (2 , 6):
     raise SystemExit('ERROR: Barman need at least python 2.6 to work')
 
-REQUIRES = ['psycopg2', 'argh', 'python-dateutil < 2.0' ]
+REQUIRES = ['psycopg2', 'argh >= 0.21.2', 'python-dateutil < 2.0' , 'argcomplete']
 
 if sys.version_info < (2 , 7):
     REQUIRES.append('argparse')
