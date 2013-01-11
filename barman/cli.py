@@ -247,24 +247,39 @@ def show_server(args):
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help="specifies the server names to check ('all' will check all available servers)")
+@arg('--nagios', help='Nagios plugin compatible output', action='store_true')
 @expects_obj
 def check(args):
     """ Check if the server configuration is working.
     This function returns 0 if every checks pass, or 0 if any of these fails
     """
     servers = get_server_list(args)
-    ok = True
+    issues = 0
     for name in sorted(servers):
+        ok = True
         server = servers[name]
         if server == None:
-            yield "Unknown server '%s'" % (name)
-            ok = False
+            if not args.nagios:
+                yield "Unknown server '%s'" % (name)
+            issues += 1
             continue
         for line, status in server.check():
             ok &= status
-            yield line
-        yield ''
-    if not ok:
+            if not args.nagios:
+                yield line
+        if not args.nagios:
+            yield ''
+        if not ok:
+            issues += 1
+
+    if args.nagios:
+        if issues:
+            yield "BARMAN CRITICAL - %d server out of %d that have been checked has issues" % (issues, len(servers))
+            raise SystemExit(2)
+        else:
+            yield "BARMAN OK - Ready to serve the Espresso backup"
+
+    if issues:
         raise SystemExit(1)
 
 @named('show-backup')
