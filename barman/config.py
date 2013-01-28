@@ -29,6 +29,8 @@ from glob import iglob
 
 _logger = logging.getLogger(__name__)
 
+FORBIDDEN_SERVER_NAMES = ['all']
+
 
 class Server(object):
     '''This class represents a server.'''
@@ -139,7 +141,7 @@ class Config(object):
         formatter = logging.Formatter(fmt)
         handler.setFormatter(formatter)
         logging.root.addHandler(handler)
-        if warn: _logger.warn(warn) # this will be always displayed because the default level is WARNING
+        if warn: _logger.warn(warn)  # this will be always displayed because the default level is WARNING
         level = self.get('barman', 'log_level') or 'INFO'
         if level.isdigit():
             level_int = int(level)
@@ -197,7 +199,7 @@ class Config(object):
                 _logger.info('Including configuration file: %s', filename)
                 self._config.read(cfile)
                 if self._is_global_config_changed():
-                    msg="the configuration file %s contains a not empty [barman] section" % filename
+                    msg = "the configuration file %s contains a not empty [barman] section" % filename
                     _logger.fatal(msg)
                     raise SystemExit("FATAL: %s" % msg)
             else:
@@ -211,7 +213,11 @@ class Config(object):
         self._servers = {}
         for section in self._config.sections():
             if section == 'barman':
-                continue # skip global settings
+                continue  # skip global settings
+            if section in FORBIDDEN_SERVER_NAMES:
+                msg = "the reserved word %s is not allowed as server name. Please rename it." % section
+                _logger.fatal(msg)
+                raise SystemExit("FATAL: %s" % msg)
             self._servers[section] = Server(self, section)
 
     def server_names(self):
