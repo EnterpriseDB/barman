@@ -19,7 +19,7 @@
 and the logger.
 '''
 
-from argh import ArghParser, named, arg
+from argh import ArghParser, named, arg, expects_obj
 from barman.lockfile import lockfile
 from barman.server import Server
 import barman.config
@@ -32,6 +32,7 @@ _logger = logging.getLogger(__name__)
 
 @named('list-server')
 @arg('--minimal', help='machine readable output', action='store_true')
+@expects_obj
 def list_server(args):
     """ List available servers, with useful information
     """
@@ -42,6 +43,7 @@ def list_server(args):
         else:
             yield name
 
+@expects_obj
 def cron(args):
     """ Run maintenance tasks
     """
@@ -84,6 +86,7 @@ def backup_completer(prefix, parsed_args, **kwargs):
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help="specifies the server names for the backup command ('all' will show all available servers)")
+@expects_obj
 def backup(args):
     """ Perform a full backup for the given server
     """
@@ -109,6 +112,7 @@ def backup(args):
      completer=server_completer_all,
      help="specifies the server name for the command ('all' will show all available servers)")
 @arg('--minimal', help='machine readable output', action='store_true')
+@expects_obj
 def list_backup(args):
     """ List available backups for the given server (supports 'all')
     """
@@ -132,6 +136,7 @@ def list_backup(args):
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help='specifies the server name for the command')
+@expects_obj
 def status(args):
     """ Shows live information and status of the PostgreSQL server
     """
@@ -171,6 +176,7 @@ def status(args):
      help='specifies the backup ID to recover')
 @arg('destination_directory',
      help='the directory where the new server is created')
+@expects_obj
 def recover(args):
     """ Recover a server at a given time or xid
     """
@@ -220,6 +226,7 @@ def recover(args):
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help="specifies the server names to show ('all' will show all available servers)")
+@expects_obj
 def show_server(args):
     """ Show all configuration parameters for the specified servers
     """
@@ -240,6 +247,7 @@ def show_server(args):
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help="specifies the server names to check ('all' will check all available servers)")
+@expects_obj
 def check(args):
     """ Check if the server configuration is working.
     This function returns 0 if every checks pass, or 0 if any of these fails
@@ -266,6 +274,7 @@ def check(args):
 @arg('backup_id',
      completer=backup_completer,
      help='specifies the backup ID')
+@expects_obj
 def show_backup(args):
     """ This method Shows a single backup information
     """
@@ -296,6 +305,7 @@ def show_backup(args):
      full (same as data + wal). Defaults to %(default)s
      '''
      )
+@expects_obj
 def list_files(args):
     """ List all the files for a single backup
     """
@@ -318,6 +328,7 @@ def list_files(args):
 @arg('backup_id',
      completer=backup_completer,
      help='specifies the backup ID')
+@expects_obj
 def delete(args):
     """ Delete a backup
     """
