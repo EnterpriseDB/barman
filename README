@@ -87,7 +87,8 @@ Before you start
      * Linux/Unix
      * Python 2.6 or 2.7
      * Python modules:
-          + argh
+          + argcomplete
+          + argh >= 0.21.2
           + psycopg2
           + python-dateutil < 2.0 (since version 2.0 requires python3)
           + distribute (optional)
@@ -272,7 +273,7 @@ r custom
   ; Directory of configuration files. Place your sections in separate files with
  .conf extension
   ; For example place the 'main' server section in /etc/barman.d/main.conf
-  ;configuration_files_directory: /etc/barman.d
+  ;configuration_files_directory = /etc/barman.d
 
   ; Minimum number of required backups (redundancy)
   ; minimum_redundancy = 0
@@ -805,7 +806,7 @@ License and Contributions
    Form.
      __________________________________________________________________
 
-   Last updated 2012-12-14 17:46:21 CET
+   Last updated 2013-01-30 14:49:04 EST
 
 References
 

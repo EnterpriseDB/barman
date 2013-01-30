@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2013  2ndQuadrant Italia (Devise.IT S.r.l.)
 
-Version 1.2.0 - X Jan 2013
+Version 1.2.0 - 31 Jan 2013
 
 * Added the "retention_policy_mode" global/server option which defines
   the method for enforcing retention policies (currently only "auto")
@@ -20,6 +20,13 @@ Version 1.2.0 - X Jan 2013
 
 * Added retention policy states (valid, obsolete and potentially obsolete)
   to "show-backup" and "list-backup" commands
+
+* The 'all' keyword is now forbidden as server name
+
+* Added basic support for Nagios plugin output to the 'check'
+  command through the --nagios option
+
+* Barman now requires argh => 0.21.2 and argcomplete-
 
 * Minor bug fixes
 
