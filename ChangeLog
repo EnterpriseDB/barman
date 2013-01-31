@@ -1,4 +1,114 @@
+2013-01-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Update RPM's spec files
+
+2013-01-30  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Finalised files for version 1.2.0
+
+2013-01-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Forbid the usage of 'all' word as server name
+
+2013-01-11  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Added basic support for Nagios plugin output for check command through the --nagios option
+
+2013-01-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add @expects_obj decorator to cli function as required by the upcoming Argh 1.0 API
+
+2013-01-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Migratte to new argh api.
+	Now barman requires arg => 0.21.2 and argcomplete-
+
+2013-01-11  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Prepared release notes
+
+2012-12-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix typo in doc/barman.conf
+
+2012-12-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Return failure exit code if backup command fails in any way
+
+2012-12-14  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Prepared copyright lines for 2013
+
+	Updated documentation and man pages
+
+	Added retention policy examples in configuration file
+
+2012-12-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Q/A on retention policy code
+
+2012-12-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix configuration parser unit tests
+
+	Exit with error if an invalid server name is passed in any command which takes a list of server
+
+2012-12-08  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add retention status to show-backup and list-backup commands
+
+	Auto-management of retention policies for base backups
+	Using the report() method for retention policies, enforce retention
+	policy through cron (if policy mode is 'auto'), by deleting OBSOLETE
+	backups.
+
+	Retention status and report() method for retention policies
+	Created the following states for retention policies:
+	VALID, OBSOLETE, NONE and POTENTIALLY_OBSOLETE (an
+	object which is OBSOLETE but cannot be removed
+	automatically due to minimum_redundancy requirements).
+	Created the report() method for the retention policy
+	base class, which exected the _backup_report() method
+	for base backups and the _wal_report() method for WAL
+	retention policies (currently not enforced).
+	The report method iterates through the DONE backups
+	and according to the retention policy, classifies
+	the backup. RedundancyRetentionPolicy uses the number
+	of backups, RecoveryWindowRetentionPolicy uses the
+	time window and the recoverability point concept.
+
+	Integrated minimum_redundancy with "barman check"
+
+	Initialisation of retention policies for a server
+	Added the _init_retention_policies() method in the
+	Server class constructor, which integrates with
+	the new RetentionPolicy classes and performs
+	syntax checking.
+	Integrated retention policies with log, 'barman check'
+	and 'barman status'.
+
+	String representation conforms to retention syntax
+	The string representation produces now a syntax-valid
+	retention policy configuration string.
+	The previous __str__ method has been renamed into debug()
+	SimpleWALRetentionPolicy objects are now created from
+	the server's main retention policy by the factory class.
+
+2012-12-07  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add the global/server option minimum_redundancy. Check it is >= 0. Guarantees that when delete is performed (or retention policies are enforced), this is the minimum number of backups to be kept for that server.
+
+	Add support for retention_policy_mode global/server option which defines the method for enforcing retention policies (currently only "auto", in future versions "manual" will be allowed)
+
+	Added first stub of retention policy classes
+
+	Started version 1.2.0
+
 2012-12-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix unit config tests
 
 	Update the ChangeLog file
 
