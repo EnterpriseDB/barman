@@ -18,7 +18,7 @@
 
 Summary:	Backup and Recovery Manager for PostgreSQL
 Name:		barman
-Version:	1.1.2
+Version:	1.2.0
 Release:	1%{?dist}
 License:	GPLv3
 Group:		Applications/Databases
@@ -27,7 +27,7 @@ Source0:	%{name}-%{version}.tar.gz
 BuildRoot: 	%{_tmppath}/%{name}-%{version}-%{release}-buildroot-%(%{__id_u} -n)
 BuildArch:	noarch
 Vendor:		2ndQuadrant Italia (Devise.IT S.r.l.) <info@2ndquadrant.it>
-Requires: 	python-abi = %{pybasever}, %{__python_ver}-psycopg2, %{__python_ver}-argh, %{__python_ver}-dateutil
+Requires: 	python-abi = %{pybasever}, %{__python_ver}-psycopg2, %{__python_ver}-argh >= 0.21.2, %{__python_ver}-argcomplete, %{__python_ver}-dateutil
 Requires:	/usr/sbin/useradd
 
 %description
@@ -94,6 +94,10 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
+* Thu Jan 31 2013 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 1.2.0-1
+- New release 1.2.0
+- Depend on python-argh >= 0.21.2 and python-argcomplete
+
 * Thu Nov 29 2012 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 1.1.2-1
 - New release 1.1.2
 
