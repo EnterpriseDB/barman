@@ -17,7 +17,7 @@
 
 ''' This module represents a backup. '''
 
-from barman import xlog, _pretty_size
+from barman import xlog, _pretty_size, version
 from barman.command_wrappers import RsyncPgData, Command
 from barman.compression import CompressionManager, CompressionIncompatibility
 from glob import glob
@@ -407,6 +407,7 @@ class BackupManager(object):
         env['BARMAN_PHASE'] = phase
         env['BARMAN_STATUS'] = backup_info.status
         env['BARMAN_ERROR'] = backup_info.error or ''
+        env['BARMAN_VERSION'] = version.__version__
         return env
 
     def run_pre_backup_script(self, backup_info):
