@@ -360,7 +360,7 @@ class BackupManager(object):
         '''
         available_backups = self.get_available_backups()
         # Honour minimum required redundancy
-        if self.server.config.minimum_redundancy >= len(available_backups):
+        if backup.status == BackupInfo.DONE and self.server.config.minimum_redundancy >= len(available_backups):
             yield "Skipping delete of backup %s for server %s due to minimum redundancy requirements (%s)" % (
                 backup.backup_id, self.config.name, self.server.config.minimum_redundancy)
             _logger.warning("Could not delete backup %s for server %s - minimum redundancy = %s, current size = %s"
