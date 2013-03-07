@@ -215,7 +215,7 @@ class Config(object):
             if section == 'barman':
                 continue  # skip global settings
             if section in FORBIDDEN_SERVER_NAMES:
-                msg = "the reserved word %s is not allowed as server name. Please rename it." % section
+                msg = "the reserved word '%s' is not allowed as server name. Please rename it." % section
                 _logger.fatal(msg)
                 raise SystemExit("FATAL: %s" % msg)
             self._servers[section] = Server(self, section)
