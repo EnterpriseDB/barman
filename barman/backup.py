@@ -184,8 +184,6 @@ class BackupInfo(object):
                     yield "    Retention Policy: not enforced"
                 if previous_backup:
                     yield "    Previous Backup : %s" % previous_backup.backup_id
-                if previous_backup:
-                    yield "    Previous Backup : %s" % previous_backup.backup_id
                 else:
                     yield "    Previous Backup : - (this is the oldest base backup)"
                 if next_backup:
