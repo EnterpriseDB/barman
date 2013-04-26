@@ -3,6 +3,9 @@ Copyright (C) 2011-2013  2ndQuadrant Italia (Devise.IT S.r.l.)
 
 Version 1.2.1 - X May 2013
 
+* Added the "bandwidth_limit" global/server option which allows
+  to limit the I/O bandwidth (in KBPS) for backup and recovery operations
+
 * Added /etc/barman/barman.conf as default location
 
 * Bug fix: avoid triggering the minimum_redundancy check

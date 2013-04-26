@@ -541,7 +541,7 @@ class BackupManager(object):
         recovery_dest = 'local'
         if remote_command:
             recovery_dest = 'remote'
-            rsync = RsyncPgData(ssh=remote_command)
+            rsync = RsyncPgData(ssh=remote_command, bwlimit=self.config.bandwidth_limit)
         msg = "Starting %s restore for server %s using backup %s " % (recovery_dest, self.config.name, backup.backup_id)
         yield msg
         _logger.info(msg)
@@ -845,7 +845,9 @@ class BackupManager(object):
         :param backup_info: the backup information structure
         '''
         backup_dest = os.path.join(backup_info.get_basebackup_directory(), 'pgdata')
-        rsync = RsyncPgData(ssh=self.server.ssh_command, ssh_options=self.server.ssh_options)
+        rsync = RsyncPgData(ssh=self.server.ssh_command,
+                ssh_options=self.server.ssh_options,
+                bwlimit=self.config.bandwidth_limit)
         retval = rsync(':%s/' % backup_info.pgdata, backup_dest)
         if retval not in (0, 24):
             msg = "ERROR: data transfer failure"
@@ -901,7 +903,7 @@ class BackupManager(object):
         :param remote_command: default None. The remote command to recover the base backup,
                                in case of remote backup.
         '''
-        rsync = RsyncPgData(ssh=remote_command)
+        rsync = RsyncPgData(ssh=remote_command, bwlimit=self.config.bandwidth_limit)
         sourcedir = '%s/' % os.path.join(backup.get_basebackup_directory(), 'pgdata')
         if remote_command:
             dest = ':%s' % dest
@@ -920,7 +922,7 @@ class BackupManager(object):
         :param remote_command: default None. The remote command to recover the xlog,
                                in case of remote backup.
         '''
-        rsync = RsyncPgData(ssh=remote_command)
+        rsync = RsyncPgData(ssh=remote_command, bwlimit=self.config.bandwidth_limit)
         if remote_command:
             # If remote recovery tell rsync to copy them remotely
             wal_dest = ':%s' % wal_dest

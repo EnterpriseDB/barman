@@ -153,6 +153,11 @@ Policy for retention of archive logs (WAL files)\&. Currently only "MAIN" is ava
 .RS 4
 Currently only "auto" is implemented\&.
 .RE
+.PP
+\fBbandwidth_limit\fR
+.RS 4
+This option allows you to specify a maximum transfer rate in kilobytes per second\&. A value of zero specifies no limit (default)\&.
+.RE
 .SH "HOOK SCRIPTS"
 .sp
 The script definition is passed to a shell and can return any exit code\&.

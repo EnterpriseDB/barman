@@ -52,6 +52,14 @@ class Server(object):
         self.configuration_files = None
         self.enforce_retention_policies = False
         
+        # Set bandwidth_limit
+        if self.config.bandwidth_limit.isdigit():
+            self.config.bandwidth_limit = int(self.config.bandwidth_limit)
+        else:
+            _logger.warning('Invalid bandwidth_limit "%s" for server "%s" (fallback to "0")'
+                            % (self.config.bandwidth_limit, self.config.name))
+            self.config.bandwidth_limit = 0
+
         # Set minimum redundancy (default 0)
         if self.config.minimum_redundancy.isdigit():
             self.config.minimum_redundancy = int(self.config.minimum_redundancy)

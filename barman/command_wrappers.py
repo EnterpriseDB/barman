@@ -103,11 +103,13 @@ class Rsync(Command):
     This class is a wrapper for the rsync system command,
     which is used vastly by barman
     '''
-    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, debug=False):
+    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, bwlimit=0, debug=False):
         if ssh:
             options = ['-e', self._cmd_quote(ssh, ssh_options)] + args
         else:
             options = args
+        if bwlimit > 0:
+            options = options + ["--bwlimit=%s" % (bwlimit)]
         Command.__init__(self, rsync, options, debug=debug)
 
     def from_file_list(self, filelist, src, dst):
@@ -135,11 +137,11 @@ class Rsync(Command):
 class RsyncPgData(Rsync):
     ''' This class is a wrapper for rsync, specialized in Postgres data directory syncing
     '''
-    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, debug=False):
+    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, bwlimit=0, debug=False):
         options = ['-rLKpts', '--delete-excluded', '--inplace',
                    '--exclude=/pg_xlog/*',
                    '--exclude=/pg_log/*',
                    '--exclude=/postmaster.pid'
                    ] + args
-        Rsync.__init__(self, rsync, options, ssh, ssh_options, debug)
+        Rsync.__init__(self, rsync, options, ssh, ssh_options, bwlimit, debug)
 
