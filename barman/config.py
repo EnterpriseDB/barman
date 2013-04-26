@@ -78,10 +78,12 @@ class Server(object):
 class Config(object):
     ''' This class represents the barman configuration.
 
-    Default configuration files are /etc/barman.conf
+    Default configuration files are /etc/barman.conf,
+    /etc/barman/barman.conf
     and ~/.barman.conf for a per-user configuration
     '''
-    CONFIG_FILES = ['~/.barman.conf', '/etc/barman.conf']
+    CONFIG_FILES = ['~/.barman.conf', '/etc/barman.conf',
+            '/etc/barman/barman.conf']
 
     def __init__(self, filename=None):
         self._config = ConfigParser()

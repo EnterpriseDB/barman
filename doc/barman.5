@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 01/30/2013
+.\"      Date: 04/26/2013
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "01/30/2013" "\ \&" "\ \&"
+.TH "BARMAN" "5" "04/26/2013" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -38,6 +38,18 @@ The system\-level Barman configuration file is located at
 .\}
 .nf
 /etc/barman\&.conf
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+or
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+/etc/barman/barman\&.conf
 .fi
 .if n \{\
 .RE
@@ -190,6 +202,11 @@ name of the server
 BARMAN_STATUS
 .RS 4
 status of the backup
+.RE
+.PP
+BARMAN_VERSION
+.RS 4
+version of Barman
 .RE
 .sp
 No check is performed on the exit code of the script\&. The result will be simply written in the log file\&.
