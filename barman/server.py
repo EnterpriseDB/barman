@@ -51,14 +51,31 @@ class Server(object):
         self.backup_manager = BackupManager(self)
         self.configuration_files = None
         self.enforce_retention_policies = False
-        
+
         # Set bandwidth_limit
-        if self.config.bandwidth_limit.isdigit():
-            self.config.bandwidth_limit = int(self.config.bandwidth_limit)
-        else:
-            _logger.warning('Invalid bandwidth_limit "%s" for server "%s" (fallback to "0")'
-                            % (self.config.bandwidth_limit, self.config.name))
-            self.config.bandwidth_limit = 0
+        if self.config.bandwidth_limit:
+            try:
+                self.config.bandwidth_limit = int(self.config.bandwidth_limit)
+            except:
+                _logger.warning('Invalid bandwidth_limit "%s" for server "%s" (fallback to "0")'
+                                % (self.config.bandwidth_limit, self.config.name))
+                self.config.bandwidth_limit = None
+
+        # set tablespace_bandwidth_limit
+        if self.config.tablespace_bandwidth_limit:
+            rules = {}
+            for rule in self.config.tablespace_bandwidth_limit.split():
+                try:
+                    key, value = rule.split(':', 1)
+                    value = int(value)
+                    if value != self.config.bandwidth_limit:
+                        rules[key] = value
+                except:
+                    _logger.warning("Invalid tablespace_bandwidth_limit rule '%s'" % (rule,))
+            if len(rules) > 0:
+                self.config.tablespace_bandwidth_limit = rules
+            else:
+                self.config.tablespace_bandwidth_limit = None
 
         # Set minimum redundancy (default 0)
         if self.config.minimum_redundancy.isdigit():
@@ -75,16 +92,16 @@ class Server(object):
         # Initialise retention policies
         self._init_retention_policies()
 
-            
+
     def _init_retention_policies(self):
-        
+
         # Set retention policy mode
         if self.config.retention_policy_mode != 'auto':
             _logger.warning('Unsupported retention_policy_mode "%s" for server "%s" (fallback to "auto")'
                             % (self.config.retention_policy_mode, self.config.name))
             self.config.retention_policy_mode = 'auto'
 
-        # If retention_policy is present, enforce them        
+        # If retention_policy is present, enforce them
         if self.config.retention_policy:
             # Check wal_retention_policy
             if self.config.wal_retention_policy != 'main':
@@ -111,13 +128,13 @@ class Server(object):
                         self.config.wal_retention_policy, self.config.name))
                     self.wal_retention_policy = SimpleWALRetentionPolicy (
                         self.retention_policy, self)
-                
+
                 self.enforce_retention_policies = True
-                
+
             except:
                 _logger.error('Invalid retention_policy setting "%s" for server "%s"' % (
                     self.config.retention_policy, self.config.name))
-            
+
     def check_retention_policy_settings(self):
         '''Checks retention policy settings'''
         if self.config.retention_policy and not self.enforce_retention_policies:
@@ -216,7 +233,7 @@ class Server(object):
                 self.config.retention_policy_mode, self.config.retention_policy,
                 self.config.wal_retention_policy)
         else:
-            yield "\tRetention policies: not enforced" 
+            yield "\tRetention policies: not enforced"
 
     def status(self):
         '''Implements the 'server status' command.'''
@@ -566,7 +583,7 @@ class Server(object):
             except:
                 raise ValueError("cannot parse line: %r" % (line,))
         return name, int(size), float(stamp), compression
-    
+
     def report_backups(self):
         if not self.enforce_retention_policies:
             return dict()

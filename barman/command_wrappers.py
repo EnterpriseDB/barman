@@ -47,11 +47,11 @@ class Command(object):
             self.env = None
 
     def _cmd_quote(self, cmd, args):
-        ''' Quote all cmd's arguments.
+        """ Quote all cmd's arguments.
 
         This is needed to avoid command string breaking.
         WARNING: this function does not protect against injection.
-        '''
+        """
         if args != None and len(args) > 0:
             cmd = "%s '%s'" % (cmd, "' '".join(args))
         return cmd
@@ -103,13 +103,16 @@ class Rsync(Command):
     This class is a wrapper for the rsync system command,
     which is used vastly by barman
     '''
-    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, bwlimit=0, debug=False):
+    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, bwlimit=None, exclude_and_protect=None, debug=False):
+        options = []
         if ssh:
-            options = ['-e', self._cmd_quote(ssh, ssh_options)] + args
-        else:
-            options = args
-        if bwlimit > 0:
-            options = options + ["--bwlimit=%s" % (bwlimit)]
+            options += ['-e', self._cmd_quote(ssh, ssh_options)]
+        if exclude_and_protect:
+            for path in exclude_and_protect:
+                options += ["--exclude=%s" % (path,), "--filter=P_%s" % (path,)]
+        options += args
+        if bwlimit != None and bwlimit > 0:
+            options += ["--bwlimit=%s" % (bwlimit)]
         Command.__init__(self, rsync, options, debug=debug)
 
     def from_file_list(self, filelist, src, dst):
@@ -137,11 +140,10 @@ class Rsync(Command):
 class RsyncPgData(Rsync):
     ''' This class is a wrapper for rsync, specialized in Postgres data directory syncing
     '''
-    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, bwlimit=0, debug=False):
+    def __init__(self, rsync='rsync', args=[], ssh=None, ssh_options=None, bwlimit=None, exclude_and_protect=None, debug=False):
         options = ['-rLKpts', '--delete-excluded', '--inplace',
                    '--exclude=/pg_xlog/*',
                    '--exclude=/pg_log/*',
                    '--exclude=/postmaster.pid'
                    ] + args
-        Rsync.__init__(self, rsync, options, ssh, ssh_options, bwlimit, debug)
-
+        Rsync.__init__(self, rsync, options, ssh, ssh_options, bwlimit, exclude_and_protect, debug)

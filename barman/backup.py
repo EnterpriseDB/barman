@@ -844,15 +844,45 @@ class BackupManager(object):
 
         :param backup_info: the backup information structure
         '''
+
+        # validate the bandwidth rules against the tablespace list
+        tablespaces_bwlimit={}
+        if self.config.tablespace_bandwidth_limit and backup_info.tablespaces:
+            valid_tablespaces = {tablespace_data[0]: tablespace_data[1]
+                                 for tablespace_data in backup_info.tablespaces}
+            for tablespace, bwlimit in self.config.tablespace_bandwidth_limit.items():
+                if tablespace in valid_tablespaces:
+                    tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[tablespace],)
+                    tablespaces_bwlimit[tablespace_dir] = bwlimit
+
         backup_dest = os.path.join(backup_info.get_basebackup_directory(), 'pgdata')
         rsync = RsyncPgData(ssh=self.server.ssh_command,
                 ssh_options=self.server.ssh_options,
-                bwlimit=self.config.bandwidth_limit)
+                bwlimit=self.config.bandwidth_limit,
+                exclude_and_protect=tablespaces_bwlimit.keys())
         retval = rsync(':%s/' % backup_info.pgdata, backup_dest)
         if retval not in (0, 24):
             msg = "ERROR: data transfer failure"
             _logger.exception(msg)
             raise Exception(msg)
+
+        # deal with tablespaces with a different bwlimit
+        if len(tablespaces_bwlimit) > 0:
+            for tablespace_dir, bwlimit in tablespaces_bwlimit.items():
+                self.current_action = "copying tablespace '%s' with bwlimit %d" % (
+                    tablespace_dir, bwlimit)
+                _logger.debug(self.current_action)
+                tb_rsync = RsyncPgData(ssh=self.server.ssh_command,
+                    ssh_options=self.server.ssh_options,
+                    bwlimit=bwlimit)
+                retval = tb_rsync(
+                    ':%s/' % os.path.join(backup_info.pgdata, tablespace_dir),
+                    os.path.join(backup_dest, tablespace_dir))
+                if retval not in (0, 24):
+                    msg = "ERROR: data transfer failure on directory '%s'" % (
+                        tablespace_dir,)
+                    _logger.exception(msg)
+                    raise Exception(msg)
 
         # Copy configuration files (if not inside PGDATA)
         self.current_action = "copying configuration files"
@@ -903,13 +933,44 @@ class BackupManager(object):
         :param remote_command: default None. The remote command to recover the base backup,
                                in case of remote backup.
         '''
-        rsync = RsyncPgData(ssh=remote_command, bwlimit=self.config.bandwidth_limit)
-        sourcedir = '%s/' % os.path.join(backup.get_basebackup_directory(), 'pgdata')
+
+        sourcedir = os.path.join(backup.get_basebackup_directory(), 'pgdata')
+        tablespaces_bwlimit={}
         if remote_command:
             dest = ':%s' % dest
-        retval = rsync(sourcedir, dest)
+
+            # validate the bandwidth rules against the tablespace list
+            if self.config.tablespace_bandwidth_limit and backup.tablespaces:
+                valid_tablespaces = {tablespace_data[0]: tablespace_data[1]
+                                     for tablespace_data in backup.tablespaces}
+                for tablespace, bwlimit in self.config.tablespace_bandwidth_limit.items():
+                    if tablespace in valid_tablespaces:
+                        tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[tablespace],)
+                        tablespaces_bwlimit[tablespace_dir] = bwlimit
+
+        rsync = RsyncPgData(ssh=remote_command,
+                bwlimit=self.config.bandwidth_limit,
+                exclude_and_protect=tablespaces_bwlimit.keys())
+        retval = rsync('%s/' % (sourcedir,), dest)
         if retval != 0:
             raise Exception("ERROR: data transfer failure")
+
+        if remote_command and len(tablespaces_bwlimit) > 0:
+            for tablespace_dir, bwlimit in tablespaces_bwlimit.items():
+                self.current_action = "copying tablespace '%s' with bwlimit %d" % (
+                    tablespace_dir, bwlimit)
+                _logger.debug(self.current_action)
+                tb_rsync = RsyncPgData(ssh=remote_command,
+                                       bwlimit=bwlimit)
+                retval = tb_rsync(
+                    os.path.join(sourcedir, tablespace_dir),
+                    '%s/' % os.path.join(dest, tablespace_dir))
+                if retval != 0:
+                    msg = "ERROR: data transfer failure on directory '%s'" % (
+                        tablespace_dir,)
+                    _logger.exception(msg)
+                    raise Exception(msg)
+
         # TODO: Manage different location for configuration files that were not within the data directory
 
     def recover_xlog_copy(self, decompressor, xlogs, wal_dest, remote_command=None):
