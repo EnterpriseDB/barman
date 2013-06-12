@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 04/26/2013
+.\"      Date: 06/09/2013
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "04/26/2013" "\ \&" "\ \&"
+.TH "BARMAN" "5" "06/09/2013" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -76,87 +76,92 @@ Barman supports the inclusion of multiple configuration files, through the confi
 .PP
 \fBactive\fR
 .RS 4
-Ignored\&.
+Ignored\&. Server\&.
 .RE
 .PP
 \fBdescription\fR
 .RS 4
-A human readable description of a server\&.
+A human readable description of a server\&. Server\&.
 .RE
 .PP
 \fBssh_command\fR
 .RS 4
-Command used by Barman to login to the Postgres server via ssh\&.
+Command used by Barman to login to the Postgres server via ssh\&. Server\&.
 .RE
 .PP
 \fBconninfo\fR
 .RS 4
-Connection string used by Barman to connect to the Postgres server\&.
+Connection string used by Barman to connect to the Postgres server\&. Server\&.
 .RE
 .PP
 \fBbasebackups_directory\fR
 .RS 4
-Directory where base backups will be placed\&.
+Directory where base backups will be placed\&. Global/Server\&.
 .RE
 .PP
 \fBwals_directory\fR
 .RS 4
-Directory which contains WAL files\&.
+Directory which contains WAL files\&. Global/Server\&.
 .RE
 .PP
 \fBincoming_wals_directory\fR
 .RS 4
-Directory where incoming WAL files are archived into\&.
+Directory where incoming WAL files are archived into\&. Global/Server\&.
 .RE
 .PP
 \fBlock_file\fR
 .RS 4
-Lock file for a backup in progress\&.
+Lock file for a backup in progress\&. Global/Server\&.
 .RE
 .PP
 \fBcompression_filter\fR
 .RS 4
-Compression algorithm applied to WAL files\&.
+Compression algorithm applied to WAL files\&. Global/Server\&.
 .RE
 .PP
 \fBdecompression_filter\fR
 .RS 4
-Decompression algorithm applied to compressed WAL files; this must match the compression algorithm\&.
+Decompression algorithm applied to compressed WAL files; this must match the compression algorithm\&. Global/Server\&.
 .RE
 .PP
 \fBpre_backup_script\fR
 .RS 4
-Hook script launched before a base backup\&.
+Hook script launched before a base backup\&. Global/Server\&.
 .RE
 .PP
 \fBpost_backup_script\fR
 .RS 4
-Hook script launched after a base backup\&.
+Hook script launched after a base backup\&. Global/Server\&.
 .RE
 .PP
 \fBminimum_redundancy\fR
 .RS 4
-Minimum number of backups to be retained\&. Default 0\&.
+Minimum number of backups to be retained\&. Default 0\&. Global/Server\&.
 .RE
 .PP
 \fBretention_policy\fR
 .RS 4
-Policy for retention of periodical backups and archive logs\&. If left empty, retention policies are not enforced\&. For redundancy based retention policy use "REDUNDANCY i" (where i is an integer > 0 and defines the number of backups to retain)\&. For recovery window retention policy use "RECOVERY WINDOW OF i DAYS" or "RECOVERY WINDOW OF i WEEKS" or "RECOVERY WINDOW OF i MONTHS" where i is a positive integer representing, specifically, the number of days, weeks or months to retain your backups\&. For more detailed information, refer to the official documentation\&. Default value is empty\&.
+Policy for retention of periodical backups and archive logs\&. If left empty, retention policies are not enforced\&. For redundancy based retention policy use "REDUNDANCY i" (where i is an integer > 0 and defines the number of backups to retain)\&. For recovery window retention policy use "RECOVERY WINDOW OF i DAYS" or "RECOVERY WINDOW OF i WEEKS" or "RECOVERY WINDOW OF i MONTHS" where i is a positive integer representing, specifically, the number of days, weeks or months to retain your backups\&. For more detailed information, refer to the official documentation\&. Default value is empty\&. Global/Server\&.
 .RE
 .PP
 \fBwal_retention_policy\fR
 .RS 4
-Policy for retention of archive logs (WAL files)\&. Currently only "MAIN" is available\&.
+Policy for retention of archive logs (WAL files)\&. Currently only "MAIN" is available\&. Global/Server\&.
 .RE
 .PP
 \fBretention_policy_mode\fR
 .RS 4
-Currently only "auto" is implemented\&.
+Currently only "auto" is implemented\&. Global/Server\&.
 .RE
 .PP
 \fBbandwidth_limit\fR
 .RS 4
-This option allows you to specify a maximum transfer rate in kilobytes per second\&. A value of zero specifies no limit (default)\&.
+This option allows you to specify a maximum transfer rate in kilobytes per second\&. A value of zero specifies no limit (default)\&. Global/Server\&.
+.RE
+.PP
+\fBtablespace_bandwidth_limit\fR
+.RS 4
+This option allows you to specify a maximum transfer rate in kilobytes per second, by specifying a comma separated list of tablespaces (pairs TBNAME:BWLIMIT)\&. A value of zero specifies no limit (default)\&. Global/Server\&.
 .RE
 .SH "HOOK SCRIPTS"
 .sp

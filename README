@@ -257,6 +257,11 @@ Getting started
    Otherwise, you can use Barman's standard way of specifying sections
    within the main configuration file.
 
+  ; Barman, Backup and Recovery Manager for PostgreSQL
+  ; http://www.pgbarman.org/ - http://www.2ndQuadrant.com/
+  ;
+  ; Main configuration file
+
   [barman]
   ; Main directory
   barman_home = /var/lib/barman
@@ -281,10 +286,13 @@ r custom
   ;configuration_files_directory = /etc/barman.d
 
   ; Minimum number of required backups (redundancy)
-  ; minimum_redundancy = 0
+  ;minimum_redundancy = 0
 
   ; Global retention policy (REDUNDANCY or RECOVERY WINDOW) - default empty
-  ; retention_policy =
+  ;retention_policy =
+
+  ; Global bandwidth limit in KBPS - default 0 (meaning no limit)
+  ;bandwidth_limit = 4000
 
   ;; ; 'main' PostgreSQL Server configuration
   ;; [main]
@@ -317,6 +325,10 @@ r custom
    Write down the incoming_wals_directory, as printed by the barman
    show-server main command, because you will need it to setup continuous
    WAL archiving.
+
+   Important
+   Executing these two commands, saves you the time of manually creating
+   backup directories for your servers.
 
     Continuous WAL archiving
 
@@ -466,6 +478,20 @@ Limiting bandwidth usage
    through the bandwidth_limit option (global/per server), by specifying
    the maximum number of kilobytes per second. By default it is set to 0,
    meaning no limit.
+
+   In case you have several tablespaces and you prefer to limit the I/O
+   workload of your backup procedures on one or more tablespaces, you can
+   use the tablespace_bandwidth_limit option (global/per server):
+
+     tablespace_bandwidth_limit = tbname:bwlimit[, tbname:bwlimit, ...]
+
+   The option accepts a comma separated list of pairs made up of the
+   tablespace name and the bandwidth limit (in kilobytes per second).
+
+   When backing up a server, Barman will try and locate any existing
+   tablespace in the above option. If found, the specified bandwidth limit
+   will be enforced. If not, the default bandwidth limit for that server
+   will be applied.
      __________________________________________________________________
 
 Backup ID shortcuts
@@ -791,17 +817,19 @@ Support and sponsor opportunities
      * Barman website: [6]http://www.pgbarman.org/
      * 2ndQuadrant website: [7]http://www.2ndquadrant.com/
 
-   Useful information can be found in the FAQ section of our website:
-   [8]http://www.pgbarman.org/faq/.
+   Useful information can be found in:
+     * the FAQ section of the website: [8]http://www.pgbarman.org/faq/
+     * the "Barman" category of 2ndQuadrant's blog:
+       [9]http://blog.2ndquadrant.com/tag/barman/
      __________________________________________________________________
 
 Authors
 
    In alphabetical order:
-     * Carlo Ascani <[9]carlo.ascani@2ndquadrant.it> (core team)
-     * Gabriele Bartolini <[10]gabriele.bartolini@2ndquadrant.it> (core
+     * Carlo Ascani <[10]carlo.ascani@2ndquadrant.it> (core team)
+     * Gabriele Bartolini <[11]gabriele.bartolini@2ndquadrant.it> (core
        team)
-     * Marco Nenciarini <[11]marco.nenciarini@2ndquadrant.it> (core team)
+     * Marco Nenciarini <[12]marco.nenciarini@2ndquadrant.it> (core team)
      __________________________________________________________________
 
 License and Contributions
@@ -809,9 +837,9 @@ License and Contributions
    Barman is the exclusive property of 2ndQuadrant Italia and its code is
    distributed under GNU General Public License 3.
    Copyright © 2011-2013, 2ndQuadrant Italia (Devise.IT S.r.l.) -
-   [12]http://www.2ndQuadrant.it.
+   [13]http://www.2ndQuadrant.it.
 
-   Barman has been partially funded through [13]4CaaSt, a research project
+   Barman has been partially funded through [14]4CaaSt, a research project
    funded by the European Commission's Seventh Framework programme.
 
    Contributions to Barman are welcome, and will be listed in the file
@@ -819,11 +847,11 @@ License and Contributions
    copyright assignment and a disclaimer of any work-for-hire ownership
    claims from the employer of the developer. This lets us make sure that
    all of the Barman distribution remains free code. Please contact
-   [14]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
+   [15]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
    Form.
      __________________________________________________________________
 
-   Last updated 2013-04-26 15:23:06 CEST
+   Last updated 2013-06-09 13:16:41 CEST
 
 References
 
@@ -835,9 +863,10 @@ References
    6. http://www.pgbarman.org/
    7. http://www.2ndquadrant.com/
    8. http://www.pgbarman.org/faq/
-   9. mailto:carlo.ascani@2ndquadrant.it
-  10. mailto:gabriele.bartolini@2ndquadrant.it
-  11. mailto:marco.nenciarini@2ndquadrant.it
-  12. http://www.2ndQuadrant.it/
-  13. http://4caast.morfeo-project.org/
-  14. mailto:info@2ndQuadrant.it
+   9. http://blog.2ndquadrant.com/tag/barman/
+  10. mailto:carlo.ascani@2ndquadrant.it
+  11. mailto:gabriele.bartolini@2ndquadrant.it
+  12. mailto:marco.nenciarini@2ndquadrant.it
+  13. http://www.2ndQuadrant.it/
+  14. http://4caast.morfeo-project.org/
+  15. mailto:info@2ndQuadrant.it
