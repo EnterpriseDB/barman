@@ -963,8 +963,8 @@ class BackupManager(object):
                 tb_rsync = RsyncPgData(ssh=remote_command,
                                        bwlimit=bwlimit)
                 retval = tb_rsync(
-                    os.path.join(sourcedir, tablespace_dir),
-                    '%s/' % os.path.join(dest, tablespace_dir))
+                    '%s/' % os.path.join(sourcedir, tablespace_dir),
+                    os.path.join(dest, tablespace_dir))
                 if retval != 0:
                     msg = "ERROR: data transfer failure on directory '%s'" % (
                         tablespace_dir,)
