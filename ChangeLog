@@ -1,3 +1,39 @@
+2013-06-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Fix remote recovery with bwlimit on a tablespace
+
+2013-06-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Added the "tablespace_bandwidth_limit" option
+
+2013-06-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated docs and man pages for 1.2.1
+
+	Prepared NEWS file for 1.2.1 release
+
+2013-04-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added the "bandwidth_limit" global/server option which allows to limit the I/O bandwidth (in KBPS) for backup and recovery operations
+
+	Added /etc/barman/barman.conf as default location
+
+2013-03-13  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Removed duplicate message for previous backup in show command
+
+2013-03-07  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Cosmetic change in message for "all" reserved section
+
+2013-02-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid triggering the minimum_redundancy check on FAILED backups
+
+	Add BARMAN_VERSION to hook script environment
+
 2013-01-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
