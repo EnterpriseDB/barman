@@ -1,6 +1,10 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2013  2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.2.2 - 24 June 2013
+
+* Fix python 2.6 compatibility
+
 Version 1.2.1 - 17 June 2013
 
 * Added the "bandwidth_limit" global/server option which allows

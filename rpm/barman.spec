@@ -18,7 +18,7 @@
 
 Summary:	Backup and Recovery Manager for PostgreSQL
 Name:		barman
-Version:	1.2.1
+Version:	1.2.2
 Release:	1%{?dist}
 License:	GPLv3
 Group:		Applications/Databases
@@ -94,6 +94,9 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
+* Mon Jun 24 2013 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 1.2.2-1
+- New release 1.2.2
+
 * Mon Jun 17 2013 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 1.2.1-1
 - New release 1.2.1
 
