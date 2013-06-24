@@ -848,8 +848,8 @@ class BackupManager(object):
         # validate the bandwidth rules against the tablespace list
         tablespaces_bwlimit={}
         if self.config.tablespace_bandwidth_limit and backup_info.tablespaces:
-            valid_tablespaces = {tablespace_data[0]: tablespace_data[1]
-                                 for tablespace_data in backup_info.tablespaces}
+            valid_tablespaces = dict([(tablespace_data[0], tablespace_data[1])
+                                     for tablespace_data in backup_info.tablespaces])
             for tablespace, bwlimit in self.config.tablespace_bandwidth_limit.items():
                 if tablespace in valid_tablespaces:
                     tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[tablespace],)
@@ -941,8 +941,8 @@ class BackupManager(object):
 
             # validate the bandwidth rules against the tablespace list
             if self.config.tablespace_bandwidth_limit and backup.tablespaces:
-                valid_tablespaces = {tablespace_data[0]: tablespace_data[1]
-                                     for tablespace_data in backup.tablespaces}
+                valid_tablespaces = dict([(tablespace_data[0], tablespace_data[1])
+                                          for tablespace_data in backup.tablespaces])
                 for tablespace, bwlimit in self.config.tablespace_bandwidth_limit.items():
                     if tablespace in valid_tablespaces:
                         tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[tablespace],)
