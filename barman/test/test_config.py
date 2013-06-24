@@ -84,6 +84,8 @@ MINIMAL_CONFIG_MAIN = {
     'pre_backup_script': None,
     'minimum_redundancy': '0',
     'retention_policy_mode': 'auto',
+    'bandwidth_limit': None,
+    'tablespace_bandwidth_limit': None,
 }
 
 class Test(unittest.TestCase):
