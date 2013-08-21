@@ -18,8 +18,8 @@
 import unittest
 from barman import xlog
 
-class Test(unittest.TestCase):
 
+class Test(unittest.TestCase):
     def testEncodeSegmentName(self):
         self.assertEqual(xlog.encode_segment_name(0, 0, 0), '000000000000000000000000')
         self.assertEqual(xlog.encode_segment_name(1, 1, 1), '000000010000000100000001')
@@ -45,16 +45,29 @@ class Test(unittest.TestCase):
 
     def testEnumerateSegments(self):
         self.assertEqual(
-            tuple(xlog.enumerate_segments('0000000100000001000000FD', '000000010000000200000002')),
+            tuple(xlog.enumerate_segments('0000000100000001000000FD', '000000010000000200000002', 90200)),
             ('0000000100000001000000FD',
              '0000000100000001000000FE',
              '000000010000000200000000',
              '000000010000000200000001',
              '000000010000000200000002'))
         self.assertEqual(
-            tuple(xlog.enumerate_segments('0000000100000001000000FD', '0000000100000001000000FF')),
+            tuple(xlog.enumerate_segments('0000000100000001000000FD', '0000000100000001000000FF', 90200)),
             ('0000000100000001000000FD',
              '0000000100000001000000FE'))
+        self.assertEqual(
+            tuple(xlog.enumerate_segments('0000000100000001000000FD', '000000010000000200000002', 90300)),
+            ('0000000100000001000000FD',
+             '0000000100000001000000FE',
+             '0000000100000001000000FF',
+             '000000010000000200000000',
+             '000000010000000200000001',
+             '000000010000000200000002'))
+        self.assertEqual(
+            tuple(xlog.enumerate_segments('0000000100000001000000FD', '0000000100000001000000FF', 90300)),
+            ('0000000100000001000000FD',
+             '0000000100000001000000FE',
+             '0000000100000001000000FF',))
 
     def testHashDir(self):
         self.assertEqual(xlog.hash_dir('000000000000000200000001'), '0000000000000002')
@@ -67,6 +80,7 @@ class Test(unittest.TestCase):
         self.assertRaises(xlog.BadXlogSegmentName, xlog.hash_dir, '00000000000000000000000')
         self.assertRaises(xlog.BadXlogSegmentName, xlog.hash_dir, '0000000000000000000000000')
         self.assertRaises(xlog.BadXlogSegmentName, xlog.hash_dir, '000000000000X00000000000')
+
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

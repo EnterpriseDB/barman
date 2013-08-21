@@ -119,7 +119,7 @@ class BackupInfo(object):
 
     def get_required_wal_segments(self):
         '''Get the list of required WAL segments for the current backup'''
-        return xlog.enumerate_segments(self.begin_wal, self.end_wal)
+        return xlog.enumerate_segments(self.begin_wal, self.end_wal, self.version)
 
     def get_list_of_files(self, target):
         '''Get the list of files for the current backup'''
@@ -812,7 +812,7 @@ class BackupManager(object):
             for key in sorted(cf.keys()):
                 backup_info.set_attribute(key, cf[key])
 
-        # Get server version and tablespaces information
+        # Get tablespaces information
         self.current_action = "detecting tablespaces"
         _logger.debug(self.current_action)
         tablespaces = self.server.get_pg_tablespaces()
