@@ -60,6 +60,7 @@ class BackupInfo(object):
              'begin_time':dateutil.parser.parse,
              'end_time':dateutil.parser.parse,
              'size':int,
+             'version':int,
     }
     '''Conversion from string '''
     TYPES_OUT = {'tablespaces':repr, # Treat the tablespaces as a literal Python list of tuples
