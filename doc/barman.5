@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 06/09/2013
+.\"      Date: 07/08/2013
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "06/09/2013" "\ \&" "\ \&"
+.TH "BARMAN" "5" "07/08/2013" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -114,12 +114,12 @@ Directory where incoming WAL files are archived into\&. Global/Server\&.
 Lock file for a backup in progress\&. Global/Server\&.
 .RE
 .PP
-\fBcompression_filter\fR
+\fBcustom_compression_filter\fR
 .RS 4
 Compression algorithm applied to WAL files\&. Global/Server\&.
 .RE
 .PP
-\fBdecompression_filter\fR
+\fBcustom_decompression_filter\fR
 .RS 4
 Decompression algorithm applied to compressed WAL files; this must match the compression algorithm\&. Global/Server\&.
 .RE
@@ -273,17 +273,6 @@ In alphabetical order:
 .sp -1
 .IP \(bu 2.3
 .\}
-Carlo Ascani <carlo\&.ascani@2ndquadrant\&.it>
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
 Gabriele Bartolini <gabriele\&.bartolini@2ndquadrant\&.it>
 .RE
 .sp
@@ -296,6 +285,19 @@ Gabriele Bartolini <gabriele\&.bartolini@2ndquadrant\&.it>
 .IP \(bu 2.3
 .\}
 Marco Nenciarini <marco\&.nenciarini@2ndquadrant\&.it>
+.RE
+.sp
+Past contributors:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Carlo Ascani
 .RE
 .SH "RESOURCES"
 .sp

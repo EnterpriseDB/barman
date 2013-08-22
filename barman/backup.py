@@ -65,7 +65,7 @@ class BackupInfo(object):
     '''Conversion from string '''
     TYPES_OUT = {'tablespaces':repr, # Treat the tablespaces as a literal Python list of tuples
     }
-    
+
     '''Status according to retention policies'''
     OBSOLETE = 'OBSOLETE'
     VALID = 'VALID'
@@ -255,7 +255,7 @@ class BackupManager(object):
         self.config = server.config
         self.available_backups = {}
         self.compression_manager = CompressionManager(self.config)
-        
+
         # used for error messages
         self.current_action = None
 
@@ -365,7 +365,7 @@ class BackupManager(object):
             _logger.warning("Could not delete backup %s for server %s - minimum redundancy = %s, current size = %s"
                 % (backup.backup_id, self.config.name, self.server.config.minimum_redundancy, len(available_backups)))
             return
-        
+
         yield "Deleting backup %s for server %s" % (backup.backup_id, self.config.name)
         previous_backup = self.get_previous_backup(backup.backup_id)
         next_backup = self.get_next_backup(backup.backup_id)
@@ -522,7 +522,7 @@ class BackupManager(object):
             self.run_post_backup_script(backup_info)
 
 
-    def recover(self, backup, dest, tablespaces, target_tli, target_time, target_xid, exclusive, remote_command):
+    def recover(self, backup, dest, tablespaces, target_tli, target_time, target_xid, target_name, exclusive, remote_command):
         '''
         Performs a recovery of a backup
 
@@ -532,7 +532,8 @@ class BackupManager(object):
         :param target_tli: the target timeline
         :param target_time: the target time
         :param target_xid: the target xid
-        :param exclusive: whether the recovery is exlusive or not
+        :param target_name: the target name created previously with pg_create_restore_point() function call
+        :param exclusive: whether the recovery is exclusive or not
         :param remote_command: default None. The remote command to recover the base backup,
                                in case of remote backup.
         '''
@@ -571,7 +572,7 @@ class BackupManager(object):
                             os.unlink(location)
                         if not os.path.exists(location):
                             os.makedirs(location)
-                        # test permissiones
+                        # test permissions
                         barman_write_check_file = os.path.join(location, '.barman_write_check')
                         file(barman_write_check_file, 'a').close()
                         os.unlink(barman_write_check_file)
@@ -581,7 +582,10 @@ class BackupManager(object):
                         _logger.critical(msg)
                         raise SystemExit(msg)
                     yield "\t%s, %s, %s" % (oid, name, location)
+
+        wal_dest = os.path.join(dest, 'pg_xlog')
         target_epoch = None
+        target_datetime = None
         if target_time:
             try:
                 target_datetime = dateutil.parser.parse(target_time)
@@ -590,7 +594,7 @@ class BackupManager(object):
                 _logger.critical(msg)
                 raise SystemExit(msg)
             target_epoch = time.mktime(target_datetime.timetuple()) + (target_datetime.microsecond / 1000000.)
-        if target_time or target_xid or (target_tli and target_tli != backup.timeline):
+        if target_time or target_xid or (target_tli and target_tli != backup.timeline) or target_name:
             targets = {}
             if target_time:
                 targets['time'] = str(target_datetime)
@@ -598,8 +602,11 @@ class BackupManager(object):
                 targets['xid'] = str(target_xid)
             if target_tli and target_tli != backup.timeline:
                 targets['timeline'] = str(target_tli)
+            if target_name:
+                targets['name'] = str(target_name)
             yield "Doing PITR. Recovery target %s" % \
                 (", ".join(["%s: %r" % (k, v) for k, v in targets.items()]))
+            wal_dest = os.path.join(dest, 'barman_xlog')
 
         # Copy the base backup
         msg = "Copying the base backup."
@@ -612,13 +619,10 @@ class BackupManager(object):
         msg = "Copying required wal segments."
         _logger.info(msg)
         yield msg
-        if target_time or target_xid or (target_tli and target_tli != backup.timeline):
-            wal_dest = os.path.join(dest, 'barman_xlog')
-        else:
-            wal_dest = os.path.join(dest, 'pg_xlog')
+
         # Retrieve the list of required WAL segments according to recovery options
         xlogs = {}
-        required_xlog_files = tuple(self.server.get_required_xlog_files(backup, target_tli, target_epoch, target_xid))
+        required_xlog_files = tuple(self.server.get_required_xlog_files(backup, target_tli, target_epoch))
         for filename in required_xlog_files:
             hashdir = xlog.hash_dir(filename)
             if hashdir not in xlogs:
@@ -632,7 +636,7 @@ class BackupManager(object):
         _logger.info("Wal segmets copied.")
 
         # Generate recovery.conf file (only if needed by PITR)
-        if target_time or target_xid or (target_tli and target_tli != backup.timeline):
+        if target_time or target_xid or (target_tli and target_tli != backup.timeline) or target_name:
             msg = "Generating recovery.conf"
             yield  msg
             _logger.info(msg)
@@ -649,8 +653,10 @@ class BackupManager(object):
                 print >> recovery, "recovery_target_timeline = %s" % target_tli
             if target_xid:
                 print >> recovery, "recovery_target_xid = '%s'" % target_xid
-                if exclusive:
-                    print >> recovery, "recovery_target_inclusive = '%s'" % (not exclusive)
+            if target_name:
+                print >> recovery, "recovery_target_name = '%s'" % target_name
+            if (target_xid or target_time) and exclusive:
+                print >> recovery, "recovery_target_inclusive = '%s'" % (not exclusive)
             recovery.close()
             if remote_command:
                 recovery = rsync.from_file_list(['recovery.conf'], tempdir, ':%s' % dest)
@@ -747,7 +753,7 @@ class BackupManager(object):
                 yield "\t%s" % os.path.basename(filename)
         if not found and verbose:
             yield "\tno file found"
-            
+
         # Retention policy management
         if self.server.enforce_retention_policies and self.config.retention_policy_mode == 'auto':
             available_backups = self.get_available_backups(BackupInfo.STATUS_ALL)

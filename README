@@ -445,10 +445,13 @@ r custom
    transaction ID; you can also specify whether the recovery target should
    be included or not in the recovery.
 
-   The recovery target can be specified using one of two mutually
+   The recovery target can be specified using one of three mutually
    exclusive options:
      * --target-time TARGET_TIME: to specify a timestamp
      * --target-xid TARGET_XID: to specify a transaction ID
+     * --target-name TARGET_NAME: to specify a named restore point created
+       previously with pg_create_restore_point(name) function call (from
+       PostgreSQL 9.1)
 
    You can use the --exclusive option to specify whether to stop
    immediately before or immediately after the recovery target.
@@ -853,7 +856,7 @@ License and Contributions
    Form.
      __________________________________________________________________
 
-   Last updated 2013-06-24 11:24:26 CEST
+   Last updated 2013-08-23 18:35:29 CEST
 
 References
 

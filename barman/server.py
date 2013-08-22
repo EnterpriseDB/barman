@@ -540,9 +540,9 @@ class Server(object):
                 wal_last = name
         return wal_num, wal_size, wal_until_next_num, wal_until_next_size, wal_last
 
-    def recover(self, backup, dest, tablespaces=[], target_tli=None, target_time=None, target_xid=None, exclusive=False, remote_command=None):
+    def recover(self, backup, dest, tablespaces=[], target_tli=None, target_time=None, target_xid=None, target_name=None, exclusive=False, remote_command=None):
         '''Performs a recovery of a backup'''
-        return self.backup_manager.recover(backup, dest, tablespaces, target_tli, target_time, target_xid, exclusive, remote_command)
+        return self.backup_manager.recover(backup, dest, tablespaces, target_tli, target_time, target_xid, target_name, exclusive, remote_command)
 
     def cron(self, verbose=True):
         '''Maintenance operations

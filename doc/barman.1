@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 01/30/2013
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 08/23/2013
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "01/30/2013" "\ \&" "\ \&"
+.TH "BARMAN" "1" "08/23/2013" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -236,7 +236,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBdata\fR
 \- lists just the data files;
 .RE
@@ -249,7 +248,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBstandalone\fR
 \- lists the base backup files, including required WAL files;
 .RE
@@ -262,7 +260,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBwal\fR
 \- lists all the WAL files between the start of the base backup and the end of the log / the start of the following base backup (depending on whether the specified base backup is the most recent one available);
 .RE
@@ -275,7 +272,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBfull\fR
 \- same as data + wal\&. Defaults to standalone
 .RE
@@ -296,6 +292,16 @@ Recover the specified timeline\&.
 \fB\-\-target\-time TARGET_TIME\fR
 .RS 4
 Recover to the specified time\&. You can use any valid unambiguous representation\&. e\&.g: "YYYY\-MM\-DD HH:MM:SS\&.mmm"
+.RE
+.PP
+\fB\-\-target\-xid TARGET_XID\fR
+.RS 4
+Recover to the specified transaction ID\&.
+.RE
+.PP
+\fB\-\-target\-name TARGET_NAME\fR
+.RS 4
+Recover to the named restore point created previously with pg_create_restore_point(name) function call\&. (from PostgreSQL 9\&.1)
 .RE
 .PP
 \fB\-\-exclusive\fR
@@ -370,17 +376,6 @@ In alphabetical order:
 .sp -1
 .IP \(bu 2.3
 .\}
-Carlo Ascani <carlo\&.ascani@2ndquadrant\&.it>
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
 Gabriele Bartolini <gabriele\&.bartolini@2ndquadrant\&.it>
 .RE
 .sp
@@ -393,6 +388,19 @@ Gabriele Bartolini <gabriele\&.bartolini@2ndquadrant\&.it>
 .IP \(bu 2.3
 .\}
 Marco Nenciarini <marco\&.nenciarini@2ndquadrant\&.it>
+.RE
+.sp
+Past contributors:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Carlo Ascani
 .RE
 .SH "RESOURCES"
 .sp

@@ -161,7 +161,8 @@ def status(args):
 @arg('--target-tli', help='target timeline', type=int)
 @arg('--target-time',
      help='target time. You can use any valid unambiguous representation. e.g: "YYYY-MM-DD HH:MM:SS.mmm"')
-@arg('--target-xid', help='target xid')
+@arg('--target-xid', help='target transaction ID')
+@arg('--target-name', help='target name created previously with pg_create_restore_point() function call')
 @arg('--exclusive',
      help='set target xid to be non inclusive', action="store_true")
 @arg('--tablespace',
@@ -217,6 +218,7 @@ def recover(args):
                                target_tli=args.target_tli,
                                target_time=args.target_time,
                                target_xid=args.target_xid,
+                               target_name=args.target_name,
                                exclusive=args.exclusive,
                                remote_command=args.remote_ssh_command
                                ):
