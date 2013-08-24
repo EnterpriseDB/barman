@@ -69,7 +69,7 @@ class lockfile(object):
             fd = os.open(self.filename, os.O_TRUNC | os.O_CREAT | os.O_RDWR, 0600)
             flags = fcntl.LOCK_EX
             if not wait or (wait == None and not self.wait): flags |= fcntl.LOCK_NB
-            fcntl.flock (fd, flags)
+            fcntl.flock(fd, flags)
             os.write(fd, "%s\n" % os.getpid())
             self.fd = fd
             return True
@@ -91,7 +91,7 @@ class lockfile(object):
         '''
         if not self.fd: return
         try:
-            os.unlink(self.filename)
+            fcntl.flock(self.fd, fcntl.LOCK_UN)
             os.close(self.fd)
         except (OSError, IOError):
             pass
