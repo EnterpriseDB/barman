@@ -70,7 +70,7 @@ class lockfile(object):
             flags = fcntl.LOCK_EX
             if not wait or (wait == None and not self.wait): flags |= fcntl.LOCK_NB
             fcntl.flock(fd, flags)
-            os.write(fd, "%s\n" % os.getpid())
+            os.write(fd, ("%s\n" % os.getpid()).encode('ascii'))
             self.fd = fd
             return True
         except (OSError, IOError), e:

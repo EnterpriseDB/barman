@@ -129,7 +129,7 @@ class Rsync(Command):
             print >> sys.stderr, "RUN: %r" % (cmd)
         _logger.debug("RUN: %r", cmd)
         pipe = subprocess.Popen(cmd, preexec_fn=restore_sigpipe, stdin=subprocess.PIPE)
-        pipe.communicate('\n'.join(filelist))
+        pipe.communicate(('\n'.join(filelist)).encode('UTF-8'))
         _logger.debug("FILELIST: %r", filelist)
         ret = pipe.wait()
         if self.debug:

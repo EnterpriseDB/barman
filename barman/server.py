@@ -272,7 +272,7 @@ class Server(object):
         result['last_shipped_wal'] = None
         if result['data_directory'] and result['archive_command']:
             archive_dir = os.path.join(result['data_directory'], 'pg_xlog', 'archive_status')
-            out = cmd.getoutput(None, 'ls', '-tr', archive_dir)[0]
+            out = str(cmd.getoutput(None, 'ls', '-tr', archive_dir)[0])
             for line in out.splitlines():
                 if line.endswith('.done'):
                     name = line[:-5]

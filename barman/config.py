@@ -110,7 +110,7 @@ class Config(object):
         if not self._config.has_section(section):
             return None
         try:
-            value = self._config.get(section, option, False, defaults)
+            value = self._config.get(section, option, raw=False, vars=defaults)
             if value == 'None':
                 value = None
             if value != None:

@@ -670,7 +670,7 @@ class BackupManager(object):
                 status_dir = os.path.join(wal_dest, 'archive_status')
                 os.makedirs(status_dir) # no need to check, it must not exist
             for filename in required_xlog_files:
-                with file(os.path.join(status_dir, "%s.done" % filename), 'a') as f:
+                with open(os.path.join(status_dir, "%s.done" % filename), 'a') as f:
                     f.write('')
             if remote_command:
                 retval = rsync('%s/' % status_dir, ':%s' % os.path.join(wal_dest, 'archive_status'))

@@ -17,7 +17,10 @@
 
 import os
 import unittest
-from cStringIO import StringIO
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from io import StringIO
 from barman.config import Config
 
 
@@ -108,10 +111,10 @@ class Test(unittest.TestCase):
         fp = StringIO(MINIMAL_CONFIG.format(**os.environ))
         c = Config(fp)
         main = c.get_server('main')
-        
-        self.assertEqual(main.__dict__, 
-            dict(MINIMAL_CONFIG_MAIN.items() +
-            [('config',c)]))
+
+        expected = dict(config=c)
+        expected.update(MINIMAL_CONFIG_MAIN)
+        self.assertEqual(main.__dict__,expected)
 
 
 if __name__ == "__main__":

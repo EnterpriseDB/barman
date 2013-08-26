@@ -62,7 +62,8 @@ if sys.version_info < (2, 7):
     install_requires.append('argparse')
 
 barman = {}
-execfile('barman/version.py', barman)
+with open('barman/version.py', 'r') as fversion:
+    exec (fversion.read(), barman)
 
 setup(
     name='barman',
@@ -92,7 +93,10 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.2',
+        'Programming Language :: Python :: 3.3',
     ],
     tests_require=['pytest'],
     cmdclass=cmdclass,
+    use_2to3=True,
 )

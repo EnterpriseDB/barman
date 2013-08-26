@@ -26,7 +26,7 @@ _xlog_re = re.compile(r'^([\dA-Fa-f]{8})(?:([\dA-Fa-f]{8})([\dA-Fa-f]{8})(?:\.[\
 
 # Taken from xlog_internal.h from PostgreSQL sources
 XLOG_SEG_SIZE = 1 << 24
-XLOG_SEG_PER_FILE = 0xffffffff / XLOG_SEG_SIZE
+XLOG_SEG_PER_FILE = 0xffffffff // XLOG_SEG_SIZE
 XLOG_FILE_SIZE = XLOG_SEG_SIZE * XLOG_SEG_PER_FILE
 
 
