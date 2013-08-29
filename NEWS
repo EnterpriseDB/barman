@@ -1,6 +1,19 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2013  2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.2.3 - X September 2013
+
+* Added support for PostgreSQL 9.3
+
+* Added support for the "--target-name" recovery option, which allows to
+  restore to a named point previously specified with pg_create_restore_point
+  (only for PostgreSQL 9.1 and above users)
+
+* Fixed bug #27 about flock() usage with barman.lockfile (many thanks to
+  Damon Snyder <damonsnyder at users.sf.net>)
+
+* Introduced Python 3 compatibility
+
 Version 1.2.2 - 24 June 2013
 
 * Fix python 2.6 compatibility
