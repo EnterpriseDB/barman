@@ -104,6 +104,11 @@ Before you start
    advised to install the Extra Packages Enterprise Linux (EPEL)
    repository.
    [Further information at [1]http://fedoraproject.org/wiki/EPEL]
+
+   Note
+   Version 1.2.3 of Barman has been refactored for Python 3 support.
+   Please consider it as experimental now and report any bug through the
+   ticketing system on SourceForge or mailing list.
      __________________________________________________________________
 
 Installation
@@ -449,9 +454,9 @@ r custom
    exclusive options:
      * --target-time TARGET_TIME: to specify a timestamp
      * --target-xid TARGET_XID: to specify a transaction ID
-     * --target-name TARGET_NAME: to specify a named restore point created
-       previously with pg_create_restore_point(name) function call (from
-       PostgreSQL 9.1)
+     * --target-name TARGET_NAME: to specify a named restore point -
+       previously created with the pg_create_restore_point(name) function
+       [Only available for PostgreSQL 9.1 and above users]
 
    You can use the --exclusive option to specify whether to stop
    immediately before or immediately after the recovery target.
@@ -856,7 +861,7 @@ License and Contributions
    Form.
      __________________________________________________________________
 
-   Last updated 2013-08-23 18:35:29 CEST
+   Last updated 2013-08-29 17:38:49 CEST
 
 References
 
