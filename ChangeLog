@@ -1,3 +1,44 @@
+2013-09-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Bump version to 1.2.3
+
+2013-08-29  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated README and man page
+
+	Added stub of release notes
+
+2013-08-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Initial Python 3 support
+
+	Update setup.py to support py.test and recent setuptools
+
+2013-08-24  Damon Snyder  <damonsnyder@users.sourceforge.net>
+
+	27: Addresses potential corruption of WAL xlog.db files.
+	In barman.lockfile.release() the file is unlinked (deleted). This effectively
+	nullifies any future attempts to lock the file by a blocking process by deleting
+	the open file table entry upon which the flock is based.
+
+	This commit removes the unlink and instead unlocks the file and then closes the file
+	descriptor leaving the lock file and open file table entry intact.
+
+2013-08-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add support for restore target name (PostgreSQL 9.1+)
+
+2013-08-21  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	PostgreSQL version in backup.info file is an integer
+
+	Make WAL sequence calculation compatible with PostgreSQL 9.3
+	With PostgreSQL 9.3 WAL files are written in a continuous stream,
+	rather than skipping the last 16MB segment every 4GB, meaning WAL
+	filenames may end in FF.
+
 2013-06-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
