@@ -96,7 +96,7 @@ setup(
         'Programming Language :: Python :: 3.2',
         'Programming Language :: Python :: 3.3',
     ],
-    tests_require=['pytest'],
+    tests_require=['pytest', 'mock'],
     cmdclass=cmdclass,
     use_2to3=True,
 )

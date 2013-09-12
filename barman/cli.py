@@ -27,6 +27,7 @@ import logging
 import os
 import sys
 from barman.backup import BackupInfo
+from barman.utils import drop_privileges, configure_logging, parse_log_level
 
 _logger = logging.getLogger(__name__)
 
@@ -398,8 +399,9 @@ class stream_wrapper(object):
 
 _output_stream = stream_wrapper(sys.stdout)
 
+
 def global_config(args):
-    ''' Set the configuration file '''
+    """ Set the configuration file """
     if hasattr(args, 'config'):
         filename = args.config
     else:
@@ -407,11 +409,31 @@ def global_config(args):
             filename = os.environ['BARMAN_CONFIG_FILE']
         except KeyError:
             filename = None
-    barman.__config__ = barman.config.Config(filename)
+    config = barman.config.Config(filename)
+    barman.__config__ = config
+
+    # change user if needed
+    try:
+        drop_privileges(config.user)
+    except OSError:
+        msg = "ERROR: please run barman as %r user" % config.user
+        raise SystemExit(msg)
+    except KeyError:
+        msg = "ERROR: the configured user %r does not exists" % config.user
+        raise SystemExit(msg)
+
+    # configure logging
+    log_level = parse_log_level(config.log_level)
+    configure_logging(config.log_file,
+                      log_level or barman.config.DEFAULT_LOG_LEVEL,
+                      config.log_format)
+    if log_level is None:
+        _logger.warn('unknown log_level in config file: %s', config.log_level)
+
     _logger.debug('Initialized Barman version %s (config: %s)',
-                 barman.__version__, barman.__config__.config_file)
+                  barman.__version__, config.config_file)
     if hasattr(args, 'quiet') and args.quiet:
-        _logger.debug("Replacing output stream ")
+        _logger.debug("Replacing output stream")
         global _output_stream
         _output_stream.set_stream(open(os.devnull, 'w'))
 
