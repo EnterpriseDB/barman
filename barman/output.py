@@ -23,7 +23,7 @@ import inspect
 import logging
 import sys
 from barman.infofile import BackupInfo
-from barman import _pretty_size
+from barman.utils import pretty_size
 
 
 __all__ = [
@@ -407,8 +407,8 @@ class ConsoleOutputWriter(object):
             end_time = backup_info.end_time.ctime()
             out_list.append('%s - Size: %s - WAL Size: %s' %
                             (end_time,
-                             _pretty_size(backup_size),
-                             _pretty_size(wal_size)))
+                             pretty_size(backup_size),
+                             pretty_size(wal_size)))
             if backup_info.tablespaces:
                 tablespaces = [("%s:%s" % (name, location))
                                for name, _, location in backup_info.tablespaces]

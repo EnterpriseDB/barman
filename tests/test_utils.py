@@ -15,13 +15,13 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import unittest
 import logging
 import mock
 import barman.utils
 
 
-class DropPrivilegesTestCase(unittest.TestCase):
+#noinspection PyMethodMayBeStatic
+class TestDropPrivileges(object):
     def mock_pwd_entry(self, user, home, uid, gid):
         pwd_entry = mock.MagicMock(name='pwd_entry_%s' % uid)
         pwd_entry.pw_name = user
@@ -36,8 +36,9 @@ class DropPrivilegesTestCase(unittest.TestCase):
         grp_entry.gr_mem = members
         return grp_entry
 
-    @mock.patch.multiple('barman.utils',
-                         os=mock.DEFAULT, pwd=mock.DEFAULT, grp=mock.DEFAULT)
+    @mock.patch('barman.utils.grp')
+    @mock.patch('barman.utils.pwd')
+    @mock.patch('barman.utils.os')
     def test_change_user(self, os, pwd, grp):
         current_uid = 100
 
@@ -57,9 +58,9 @@ class DropPrivilegesTestCase(unittest.TestCase):
 
         # configure group
         group_list = []
-        for id in groups:
+        for _id in groups:
             group_list.append(
-                self.mock_grp_entry(id, [user] if groups[id] else [])
+                self.mock_grp_entry(_id, [user] if groups[_id] else [])
             )
         grp.getgrall.return_value = group_list
 
@@ -70,11 +71,12 @@ class DropPrivilegesTestCase(unittest.TestCase):
         os.setegid.assert_called_with(gid)
         os.seteuid.assert_called_with(uid)
         os.setgroups.assert_called_with(
-            [id for id in groups if groups[id]] + [gid])
+            [_id for _id in groups if groups[_id]] + [gid])
         assert os.environ['HOME'] == home
 
-    @mock.patch.multiple('barman.utils',
-                         os=mock.DEFAULT, pwd=mock.DEFAULT, grp=mock.DEFAULT)
+    @mock.patch('barman.utils.grp')
+    @mock.patch('barman.utils.pwd')
+    @mock.patch('barman.utils.os')
     def test_same_user(self, os, pwd, grp):
         current_uid = 101
 
@@ -93,9 +95,9 @@ class DropPrivilegesTestCase(unittest.TestCase):
 
         # configure group
         group_list = []
-        for id in groups:
+        for _id in groups:
             group_list.append(
-                self.mock_grp_entry(id, [user] if groups[id] else [])
+                self.mock_grp_entry(_id, [user] if groups[_id] else [])
             )
         grp.getgrall.return_value = group_list
 
@@ -109,7 +111,8 @@ class DropPrivilegesTestCase(unittest.TestCase):
         assert not os.environ.__setitem__.called
 
 
-class ParseLogLevelTestCase(unittest.TestCase):
+#noinspection PyMethodMayBeStatic
+class TestParseLogLevel(object):
     def test_int_to_int(self):
         assert barman.utils.parse_log_level(1) == 1
 
@@ -126,8 +129,9 @@ class ParseLogLevelTestCase(unittest.TestCase):
         assert barman.utils.parse_log_level('unknown') is None
 
 
+#noinspection PyMethodMayBeStatic
 @mock.patch('barman.utils.os')
-class MkpathTestCase(unittest.TestCase):
+class TestMkpath(object):
     def test_path_exists(self, mock_os):
         mock_os.path.isdir.return_value = True
         test_path = '/path/to/create'
@@ -153,9 +157,10 @@ class MkpathTestCase(unittest.TestCase):
         mock_os.makedirs.assert_called_with(test_path)
 
 
+#noinspection PyMethodMayBeStatic,PyUnresolvedReferences
 @mock.patch.multiple('barman.utils', logging=mock.DEFAULT, mkpath=mock.DEFAULT,
                      _logger=mock.DEFAULT)
-class TestConfigureLogging(unittest.TestCase):
+class TestConfigureLogging(object):
     def test_simple_call(self, **mocks):
         barman.utils.configure_logging(None)
 
@@ -265,5 +270,51 @@ class TestConfigureLogging(unittest.TestCase):
         mocks['_logger'].warn.assert_called_with(mock.ANY)
 
 
-if __name__ == '__main__':
-    unittest.main()
+#noinspection PyMethodMayBeStatic
+class TestPrettySize(object):
+
+    def test_1000(self):
+        val = 10
+        base = 1000
+        assert barman.utils.pretty_size(val, base) == '10 B'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 kB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 MB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 GB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 TB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 PB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 EB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 ZB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 YB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10000.0 YB'
+
+    def test_1024(self):
+        val = 10
+        base = 1024
+        assert barman.utils.pretty_size(val, base) == '10 B'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 KiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 MiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 GiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 TiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 PiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 EiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 ZiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10.0 YiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '10240.0 YiB'

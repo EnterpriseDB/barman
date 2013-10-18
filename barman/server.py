@@ -19,7 +19,7 @@
 Barman is able to manage multiple servers.
 '''
 
-from barman import xlog, output, _pretty_size
+from barman import xlog, output
 from barman.infofile import BackupInfo
 from barman.lockfile import lockfile
 from barman.backup import BackupManager
@@ -30,6 +30,7 @@ import logging
 import psycopg2
 from contextlib import contextmanager
 import itertools
+from barman.utils import pretty_size
 
 _logger = logging.getLogger(__name__)
 

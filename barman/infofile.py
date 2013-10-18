@@ -20,7 +20,7 @@ import os
 import dateutil.parser
 from barman import xlog
 from barman.compression import identify_compression
-from barman import _pretty_size as pretty_size
+from barman.utils import pretty_size
 
 
 class Field(object):

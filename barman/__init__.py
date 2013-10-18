@@ -15,22 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-''' The main Barman module
-'''
+"""
+The main Barman module
+"""
 from __future__ import absolute_import
 from .version import __version__
 
 __config__ = None
-
-def _pretty_size(size, unit=1024):
-    ''' This function returns a pretty representation of a size value
-    '''
-    SUFFIXES = ["B"] + [i + {1000: "B", 1024: "iB"}[unit] for i in "KMGTPEZY"]
-    for suffix in SUFFIXES:
-        if size < unit or suffix == SUFFIXES[-1]:
-            if suffix == SUFFIXES[0]:
-                return "%d %s" % (size, suffix)
-            else:
-                return "%.1f %s" % (size, suffix)
-        else:
-            size /= unit

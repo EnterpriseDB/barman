@@ -51,16 +51,16 @@ def drop_privileges(user):
     os.environ['HOME'] = pw.pw_dir
 
 
-def mkpath(dir):
+def mkpath(directory):
     """
     Recursively create a target directory.
 
     If the path already exists it does nothing.
 
-    :param str dir: directory to be created
+    :param str directory: directory to be created
     """
-    if not os.path.isdir(dir):
-        os.makedirs(dir)
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
 
 
 def configure_logging(
@@ -70,7 +70,7 @@ def configure_logging(
     """
     Configure the logging module
 
-    :param str log_file: target file path. If None use standard error.
+    :param str,None log_file: target file path. If None use standard error.
     :param int log_level: min log level to be reported in log file.
         Default to INFO
     :param str log_format: format string used for a log line.
@@ -111,3 +111,24 @@ def parse_log_level(log_level):
     if isinstance(log_level_int, int):
         return log_level_int
     return None
+
+
+def pretty_size(size, unit=1024):
+    """
+    This function returns a pretty representation of a size value
+
+    :param int size: the number to to prettify
+    :param int unit: 1000 or 1024 (the default)
+    :rtype : str
+    """
+    suffixes = ["B"] + [i + {1000: "B", 1024: "iB"}[unit] for i in "KMGTPEZY"]
+    if unit == 1000:
+        suffixes[1] = 'kB'  # special case kB instead of KB
+    for suffix in suffixes:
+        if size < unit or suffix == suffixes[-1]:
+            if suffix == suffixes[0]:
+                return "%d %s" % (size, suffix)
+            else:
+                return "%.1f %s" % (size, suffix)
+        else:
+            size /= unit
