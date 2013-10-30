@@ -1,0 +1,18 @@
+Barman TODO - Backlog of features for Barman
+Copyright (C) 2011-2013  2ndQuadrant Italia (Devise.IT S.r.l.)
+
+* Incremental backup
+* Improve recovery support
+* Sandbox recovery
+* Logical backup integration (pg_dump on sandbox instances)
+* Backup from a standby
+* Hook scripts for backup delete, WAL archiving, etc.
+* TAR format for backups
+* Export/Import of backups
+* External backups
+* SSH only connections
+* Replication protocol support (libpq only connections, pg_basebackup, WAL streaming for "0 Data Loss"), backup server
+* Windows support
+* JSON output for full automation
+* Backup validation
+* ...
