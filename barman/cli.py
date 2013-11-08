@@ -43,19 +43,18 @@ def list_server(args):
         else:
             yield name
 
-@expects_obj
-def cron(args):
+
+def cron(verbose=True):
     """ Run maintenance tasks
     """
     filename = os.path.join(barman.__config__.barman_home, '.cron.lock')
     with lockfile(filename) as locked:
         if not locked:
-            yield "ERROR: Another cron is running"
-            raise SystemExit, 1
+            raise SystemExit("ERROR: Another cron is running")
         else:
-            servers = [ Server(conf) for conf in barman.__config__.servers()]
+            servers = [Server(conf) for conf in barman.__config__.servers()]
             for server in servers:
-                for lines in server.cron(verbose=True):
+                for lines in server.cron(verbose):
                     yield lines
 
 def server_completer(prefix, parsed_args, **kwargs):
@@ -154,6 +153,27 @@ def status(args):
     if not ok:
         raise SystemExit(1)
 
+@arg('server_name', nargs='+',
+     completer=server_completer_all,
+     help='specifies the server name for the command')
+@expects_obj
+def rebuild_xlogdb(args):
+    """
+    Rebuild the WAL file database guessing it from the disk content.
+    """
+    servers = get_server_list(args)
+    ok = True
+    for name in sorted(servers):
+        server = servers[name]
+        if server is None:
+            yield "Unknown server '%s'" % (name)
+            ok = False
+            continue
+        for line in server.rebuild_xlogdb():
+            yield line
+        yield ''
+    if not ok:
+        raise SystemExit(1)
 
 @arg('server_name',
      completer=server_completer,
@@ -449,6 +469,7 @@ def main():
             list_files,
             recover,
             delete,
+            rebuild_xlogdb,
         ]
     )
     try:

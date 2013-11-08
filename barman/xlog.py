@@ -22,7 +22,7 @@ about xlog files
 import re
 
 # xlog file segment name parser (regular expression)
-_xlog_re = re.compile(r'^([\dA-Fa-f]{8})(?:([\dA-Fa-f]{8})([\dA-Fa-f]{8})(?:\.[\dA-Fa-f]{8}\.backup)?|\.history)$')
+_xlog_re = re.compile(r'\b([\dA-Fa-f]{8})(?:([\dA-Fa-f]{8})([\dA-Fa-f]{8})(?:\.[\dA-Fa-f]{8}\.backup)?|\.history)\b')
 
 # Taken from xlog_internal.h from PostgreSQL sources
 XLOG_SEG_SIZE = 1 << 24
@@ -37,21 +37,41 @@ class BadXlogSegmentName(Exception):
 
 
 def is_history_file(name):
-    """ Return True if the xlog is a .history, False otherwise
     """
-    return type(name) == str and name.endswith('.history')
+    Return True if the xlog is a .history file, False otherwise
+
+    :param str name: the file name to test
+    """
+    match = _xlog_re.search(name)
+    if match and match.group(0).endswith('.history'):
+        return True
+    return False
 
 
 def is_backup_file(name):
-    """ Return True if the xlog is a .backup, False otherwise
     """
-    return type(name) == str and name.endswith('.backup')
+    Return True if the xlog is a .backup file, False otherwise
+
+    :param str name: the file name to test
+    """
+    match = _xlog_re.search(name)
+    if match and match.group(0).endswith('.backup'):
+        return True
+    return False
 
 
 def is_wal_file(name):
-    """ Return True if the xlog is a regular xlog file, False otherwise
     """
-    return not is_backup_file(name) and not is_history_file(name)
+    Return True if the xlog is a regular xlog file, False otherwise
+
+    :param str name: the file name to test
+    """
+    match = _xlog_re.search(name)
+    if match \
+            and not match.group(0).endswith('.backup')\
+            and not match.group(0).endswith('.history'):
+        return True
+    return False
 
 
 def decode_segment_name(name):

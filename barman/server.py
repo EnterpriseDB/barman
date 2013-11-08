@@ -589,3 +589,9 @@ class Server(object):
             return dict()
         else:
             return self.config.retention_policy.report()
+
+    def rebuild_xlogdb(self):
+        """
+        Rebuild the whole xlog database guessing it from the archive content.
+        """
+        return self.backup_manager.rebuild_xlogdb()

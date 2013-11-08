@@ -30,6 +30,7 @@ import shutil
 import time
 import tempfile
 import re
+from barman.infofile import WalFileInfo
 
 _logger = logging.getLogger(__name__)
 
@@ -629,10 +630,10 @@ class BackupManager(object):
                 xlogs[hashdir] = []
             xlogs[hashdir].append(filename)
         # Check decompression options
-        decompressor = self.compression_manager.get_decompressor()
+        compressor = self.compression_manager.get_compressor()
 
         # Restore WAL segments
-        self.recover_xlog_copy(decompressor, xlogs, wal_dest, remote_command)
+        self.recover_xlog_copy(compressor, xlogs, wal_dest, remote_command)
         _logger.info("Wal segmets copied.")
 
         # Generate recovery.conf file (only if needed by PITR)
@@ -745,10 +746,10 @@ class BackupManager(object):
                     os.unlink(filename)
                     continue
                 # Archive the WAL file
-                basename, size, time = self.cron_wal_archival(compressor, filename)
+                wal_info = self.cron_wal_archival(compressor, filename)
 
                 # Updates the information of the WAL archive with the latest segement's
-                fxlogdb.write("%s\t%s\t%s\t%s\n" % (basename, size, time, self.config.compression))
+                fxlogdb.write(wal_info.to_xlogdb_line())
                 _logger.info('Processed file %s', filename)
                 yield "\t%s" % os.path.basename(filename)
         if not found and verbose:
@@ -980,11 +981,11 @@ class BackupManager(object):
 
         # TODO: Manage different location for configuration files that were not within the data directory
 
-    def recover_xlog_copy(self, decompressor, xlogs, wal_dest, remote_command=None):
+    def recover_xlog_copy(self, compressor, xlogs, wal_dest, remote_command=None):
         '''
         Restore WAL segments
 
-        :param decompressor: the decompressor for the file (if any)
+        :param compressor: the compressor for the file (if any)
         :param xlogs: the xlog dictionary to recover
         :param wal_dest: the destination directory for xlog recover
         :param remote_command: default None. The remote command to recover the xlog,
@@ -998,67 +999,65 @@ class BackupManager(object):
             # we will not use rsync: destdir must exists
             if not os.path.exists(wal_dest):
                 os.makedirs(wal_dest)
-        if decompressor and remote_command:
+        if compressor and remote_command:
             xlog_spool = tempfile.mkdtemp(prefix='barman_xlog-')
         for prefix in xlogs:
             source_dir = os.path.join(self.config.wals_directory, prefix)
-            if decompressor:
+            if compressor:
                 if remote_command:
                     for segment in xlogs[prefix]:
-                        decompressor(os.path.join(source_dir, segment), os.path.join(xlog_spool, segment))
+                        compressor.decompress(os.path.join(source_dir, segment), os.path.join(xlog_spool, segment))
                     rsync.from_file_list(xlogs[prefix], xlog_spool, wal_dest)
                     for segment in xlogs[prefix]:
                         os.unlink(os.path.join(xlog_spool, segment))
                 else:
                     # decompress directly to the right place
                     for segment in xlogs[prefix]:
-                        decompressor(os.path.join(source_dir, segment), os.path.join(wal_dest, segment))
+                        compressor.decompress(os.path.join(source_dir, segment), os.path.join(wal_dest, segment))
             else:
                 rsync.from_file_list(xlogs[prefix], "%s/" % os.path.join(self.config.wals_directory, prefix), wal_dest)
-        if decompressor and remote_command:
+        if compressor and remote_command:
             shutil.rmtree(xlog_spool)
 
-
     def cron_wal_archival(self, compressor, filename):
-        '''
+        """
         Archive a WAL segment from the incoming directory.
-        This function returns the name, the size and the time of the WAL file.
+        This function returns a WalFileInfo object.
 
         :param compressor: the compressor for the file (if any)
-        :param filename: the name of the WAthe name of the WAL
-        '''
+        :param filename: the name of the WAL file is being processed
+        :return WalFileInfo:
+        """
         basename = os.path.basename(filename)
         destdir = os.path.join(self.config.wals_directory, xlog.hash_dir(basename))
         destfile = os.path.join(destdir, basename)
-        time = os.stat(filename).st_mtime
         if not os.path.isdir(destdir):
             os.makedirs(destdir)
         if compressor:
-            compressor(filename, destfile)
+            compressor.compress(filename, destfile)
             shutil.copystat(filename, destfile)
             os.unlink(filename)
         else:
             os.rename(filename, destfile)
-        return basename, os.stat(destfile).st_size, time
+
+        wal_info = WalFileInfo.from_file(
+            destfile,
+            compression=compressor and compressor.compression)
+        return wal_info
 
     def check(self):
         '''
         This function performs some checks on the server.
         Returns 0 if all went well, 1 if any of the checks fails
         '''
-        if not self.compression_manager.check():
+        if self.config.compression and not self.compression_manager.check():
             yield ("\tcompression settings: FAILED", False)
         else:
             status = 'OK'
             try:
                 self.compression_manager.get_compressor()
             except CompressionIncompatibility, field:
-                yield ("\tcompressor settings '%s': FAILED" % field, False)
-                status = 'FAILED'
-            try:
-                self.compression_manager.get_decompressor()
-            except CompressionIncompatibility, field:
-                yield ("\tdecompressor settings '%s': FAILED" % field, False)
+                yield ("\t%s setting: FAILED" % field, False)
                 status = 'FAILED'
 
             yield ("\tcompression settings: %s" % status, status == 'OK')
@@ -1141,3 +1140,63 @@ class BackupManager(object):
                     clashes[key] = rm.group(2)
 
         return clashes
+
+    def rebuild_xlogdb(self):
+        """
+        Rebuild the whole xlog database guessing it from the archive content.
+        """
+        from os.path import isdir, join
+
+        yield "Rebuilding xlogdb for server %s" % self.config.name
+        root = self.config.wals_directory
+        default_compression = self.config.compression
+        wal_count = label_count = history_count = 0
+        # lock the xlogdb as we are about replacing it completely
+        with self.server.xlogdb('w') as fxlogdb:
+            for name in sorted(os.listdir(root)):
+                # ignore the xlogdb and its lockfile
+                if name.startswith(self.server.XLOG_DB):
+                    continue
+                fullname = join(root, name)
+                if isdir(fullname):
+                    # all relevant files are in subdirectories
+                    hash_dir = fullname
+                    for wal_name in sorted(os.listdir(hash_dir)):
+                        fullname = join(hash_dir, wal_name)
+                        if isdir(fullname):
+                            _logger.warning(
+                                'unexpected directory '
+                                'rebuilding the wal database: %s',
+                                fullname)
+                        else:
+                            if xlog.is_wal_file(fullname):
+                                wal_count += 1
+                            elif xlog.is_backup_file(fullname):
+                                label_count += 1
+                            else:
+                                _logger.warning(
+                                    'unexpected file '
+                                    'rebuilding the wal database: %s',
+                                    fullname)
+                                continue
+                            wal_info = WalFileInfo.from_file(
+                                fullname,
+                                default_compression=default_compression)
+                            fxlogdb.write(wal_info.to_xlogdb_line())
+                else:
+                    # only history files are here
+                    if xlog.is_history_file(fullname):
+                        history_count += 1
+                        wal_info = WalFileInfo.from_file(
+                            fullname,
+                            default_compression=default_compression)
+                        fxlogdb.write(wal_info.to_xlogdb_line())
+                    else:
+                        _logger.warning(
+                            'unexpected file '
+                            'rebuilding the wal database: %s',
+                            fullname)
+
+        yield 'Done rebuilding xlogdb for server %s ' \
+            '(history: %s, backup_labels: %s, wal_file: %s)' % (
+                self.config.name, history_count, label_count, wal_count)
