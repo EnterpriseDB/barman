@@ -347,6 +347,8 @@ r custom
    Make sure you change the INCOMING_WALS_DIRECTORY placeholder with the
    value returned by the barman show-server main command above.
 
+   In case you use Hot Standby, wal_level must be set to hot_standby.
+
    Restart the PostgreSQL server.
 
    In order to test that continuous archiving is on and properly working,
@@ -439,9 +441,26 @@ r custom
      * PGDATA directory must exists on the remote host and the remote user
        must be its owner;
      * a directory per tablespace must exist on the remote host and the
-       remote user must be their owner;
+       remote user must be their owner
+       [Tablespace relocation is not currently supported]
+       ;
      * there must be enough free space on the remote server to contain the
        base backup and the WAL files needed for recovery.
+
+  Relocating one or more tablespaces
+
+   Important
+   Relocating a tablespace is currently available only with local
+   recovery.
+
+   Barman is able to automatically relocate one or more tablespaces using
+   the recover command with the --tablespace option. The option accepts a
+   pair of values as arguments using the NAME:DIRECTORY format:
+     * name/identifier of the tablespace (NAME);
+     * destination directory (DIRECTORY).
+
+   If the destination directory does not exists, Barman will try to create
+   it (assuming you have enough privileges).
 
   Restoring to a given point in time
 
@@ -835,8 +854,13 @@ Authors
 
    In alphabetical order:
      * Gabriele Bartolini <[10]gabriele.bartolini@2ndquadrant.it> (core
-       team)
-     * Marco Nenciarini <[11]marco.nenciarini@2ndquadrant.it> (core team)
+       team, project leader)
+     * Giuseppe Broccolo <[11]giuseppe.broccolo@2ndquadrant.it> (core
+       team, QA)
+     * Giulio Calacoci <[12]giulio.calacoci@2ndquadrant.it> (core team,
+       developer)
+     * Marco Nenciarini <[13]marco.nenciarini@2ndquadrant.it> (core team,
+       team leader)
 
    Past contributors:
      * Carlo Ascani
@@ -847,9 +871,9 @@ License and Contributions
    Barman is the exclusive property of 2ndQuadrant Italia and its code is
    distributed under GNU General Public License 3.
    Copyright © 2011-2013, 2ndQuadrant Italia (Devise.IT S.r.l.) -
-   [12]http://www.2ndQuadrant.it.
+   [14]http://www.2ndQuadrant.it.
 
-   Barman has been partially funded through [13]4CaaSt, a research project
+   Barman has been partially funded through [15]4CaaSt, a research project
    funded by the European Commission's Seventh Framework programme.
 
    Contributions to Barman are welcome, and will be listed in the file
@@ -857,11 +881,11 @@ License and Contributions
    copyright assignment and a disclaimer of any work-for-hire ownership
    claims from the employer of the developer. This lets us make sure that
    all of the Barman distribution remains free code. Please contact
-   [14]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
+   [16]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
    Form.
      __________________________________________________________________
 
-   Last updated 2013-08-29 17:38:49 CEST
+   Last updated 2013-11-19 15:00:40 CET
 
 References
 
@@ -875,7 +899,9 @@ References
    8. http://www.pgbarman.org/faq/
    9. http://blog.2ndquadrant.com/tag/barman/
   10. mailto:gabriele.bartolini@2ndquadrant.it
-  11. mailto:marco.nenciarini@2ndquadrant.it
-  12. http://www.2ndQuadrant.it/
-  13. http://4caast.morfeo-project.org/
-  14. mailto:info@2ndQuadrant.it
+  11. mailto:giuseppe.broccolo@2ndquadrant.it
+  12. mailto:giulio.calacoci@2ndquadrant.it
+  13. mailto:marco.nenciarini@2ndquadrant.it
+  14. http://www.2ndQuadrant.it/
+  15. http://4caast.morfeo-project.org/
+  16. mailto:info@2ndQuadrant.it
