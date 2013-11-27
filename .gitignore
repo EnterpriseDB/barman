@@ -2,6 +2,9 @@
 *.pyc
 *.pyo
 
+# python modules
+/*.egg
+
 # editor backups
 *~
 \#*\#

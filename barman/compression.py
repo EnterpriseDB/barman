@@ -73,7 +73,7 @@ def identify_compression(filename):
     :param filename: the pat of the file to identify
     :rtype: str
     """
-    with open(filename) as f:
+    with open(filename, 'rb') as f:
         file_start = f.read(MAGIC_MAX_LENGTH)
     for file_type, cls in compression_registry.iteritems():
         if cls.validate(file_start):
@@ -129,7 +129,7 @@ class GZipCompressor(Compressor):
     Predefined compressor with GZip
     """
 
-    MAGIC = '\x1f\x8b\x08'
+    MAGIC = b'\x1f\x8b\x08'
 
     def __init__(self, config, compression, remove_origin=False, debug=False):
         super(GZipCompressor, self).__init__(
@@ -143,7 +143,7 @@ class BZip2Compressor(Compressor):
     Predefined compressor with BZip2
     """
 
-    MAGIC = '\x42\x5a\x68'
+    MAGIC = b'\x42\x5a\x68'
 
     def __init__(self, config, compression, remove_origin=False, debug=False):
         super(BZip2Compressor, self).__init__(
