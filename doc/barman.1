@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 08/29/2013
+.\"      Date: 12/16/2013
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "08/29/2013" "\ \&" "\ \&"
+.TH "BARMAN" "1" "12/16/2013" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -280,6 +280,17 @@ Possible values for TARGET_TYPE are:
 \- same as data + wal\&. Defaults to standalone
 .RE
 .RE
+.RE
+.PP
+\fBrebuild\-xlogdb SERVERNAME\fR
+.RS 4
+Perform a rebuild of the WAL file metadata for
+SERVERNAME
+(or every server, using the
+all
+shortcut) guessing it from the disk content\&. The metadata of the WAL archive is contained in the
+xlog\&.db
+file, and every Barman server has its own copy\&.
 .RE
 .PP
 \fBrecover [OPTIONS] SERVERNAME BACKUPID DESTINATIONDIRECTORY\fR
