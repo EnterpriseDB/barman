@@ -22,7 +22,7 @@ This module control how the output of Barman will be rendered
 import inspect
 import logging
 import sys
-from barman.backup import BackupInfo
+from barman.infofile import BackupInfo
 from barman import _pretty_size
 
 

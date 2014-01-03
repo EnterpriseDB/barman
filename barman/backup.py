@@ -17,242 +17,25 @@
 
 ''' This module represents a backup. '''
 
-from barman import xlog, _pretty_size, version, output
-from barman.command_wrappers import RsyncPgData, Command
-from barman.compression import CompressionManager, CompressionIncompatibility
 from glob import glob
-import ast
 import datetime
-import dateutil.parser
 import logging
 import os
 import shutil
 import time
 import tempfile
 import re
-from barman.infofile import WalFileInfo
+from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
+
+import dateutil.parser
+
+from barman import xlog, output
+from barman.command_wrappers import RsyncPgData
+from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
 
+
 _logger = logging.getLogger(__name__)
-
-class BackupInfoBadInitialisation(Exception):
-    '''Exception for a bad initialization error '''
-    pass
-
-
-class UnknownBackupIdException(Exception):
-    """
-    The searched backup_id doesn't exists
-    """
-    pass
-
-
-class BackupInfo(object):
-    '''This class contains information about a single backup '''
-
-    '''Conversion to string '''
-    EMPTY = 'EMPTY'
-    STARTED = 'STARTED'
-    FAILED = 'FAILED'
-    DONE = 'DONE'
-    STATUS_ALL = (EMPTY, STARTED, DONE, FAILED)
-    STATUS_NOT_EMPTY = (STARTED, DONE, FAILED)
-    '''PostgreSQL Physical base backup information '''
-    KEYS = [ 'version', 'pgdata', 'tablespaces', 'timeline',
-             'begin_time', 'begin_xlog', 'begin_wal', 'begin_offset',
-             'size', 'end_time', 'end_xlog', 'end_wal', 'end_offset',
-             'status', 'server_name', 'error', 'mode',
-             'config_file', 'hba_file', 'ident_file',
-    ]
-    '''Attributes of the backup.info file '''
-    TYPES = {'tablespaces':ast.literal_eval, # Treat the tablespaces as a literal Python list of tuples
-             'timeline':int, # Timeline is an integer
-             'begin_time':dateutil.parser.parse,
-             'end_time':dateutil.parser.parse,
-             'size':int,
-             'version':int,
-    }
-    '''Conversion from string '''
-    TYPES_OUT = {'tablespaces':repr, # Treat the tablespaces as a literal Python list of tuples
-    }
-
-    '''Status according to retention policies'''
-    OBSOLETE = 'OBSOLETE'
-    VALID = 'VALID'
-    POTENTIALLY_OBSOLETE = 'OBSOLETE*'
-    NONE = '-'
-    RETENTION_STATUS = (OBSOLETE, VALID, POTENTIALLY_OBSOLETE, NONE)
-
-    def __init__(self, server, info_file=None, backup_id=None):
-        '''Constructor '''
-        # Initialises the attributes for the object based on the predefined keys
-        self.__dict__.update(dict.fromkeys(self.KEYS))
-        self.server = server
-        self.config = server.config
-        self.backup_manager = self.server.backup_manager
-        if backup_id:
-            # Cannot pass both info_file and backup_id
-            if info_file:
-                raise BackupInfoBadInitialisation()
-            self.backup_id = backup_id
-            info_file = self.get_filename()
-            # Check if a backup info file for a given server and a given ID
-            # already exists. If not, create it from scratch
-            if not os.path.exists(info_file):
-                info_file = None
-                self.set_attribute("status", BackupInfo.EMPTY)
-                self.set_attribute('server_name', self.config.name)
-                self.set_attribute('mode', self.backup_manager.name)
-        elif not info_file:
-            raise BackupInfoBadInitialisation()
-
-        if info_file:
-            # Looks for a backup.info file
-            if hasattr(info_file, 'read'): # We have been given a file-like object
-                info = info_file
-                filename = os.path.abspath(info_file.name)
-            else: # Just a file name
-                filename = os.path.abspath(info_file)
-                info = open(info_file, 'r').readlines()
-            # Detect the backup ID
-            self.backup_id = self.detect_backup_id(filename)
-            # TODO: detect mismatch between current server backup manager and the one on disk
-            # Parses the backup.info file
-            for line in info:
-                try:
-                    key, value = line.rstrip().split('=')
-                except:
-                    raise Exception('invalid line in backup file: %s' % line)
-                if key in self.TYPES:
-                    self.set_attribute(key, self.TYPES[key](value))
-                else:
-                    self.set_attribute(key, value)
-
-    def get_required_wal_segments(self):
-        '''Get the list of required WAL segments for the current backup'''
-        return xlog.enumerate_segments(self.begin_wal, self.end_wal, self.version)
-
-    def get_list_of_files(self, target):
-        '''Get the list of files for the current backup'''
-        # Walk down the base backup directory
-        if target in ('data', 'standalone', 'full'):
-            for root, _, files in os.walk(self.get_basebackup_directory()):
-                for f in files:
-                    yield os.path.join(root, f)
-        if target in ('standalone'):
-            # List all the WAL files for this backup
-            for x in self.get_required_wal_segments():
-                hashdir = os.path.join(self.config.wals_directory, xlog.hash_dir(x))
-                yield os.path.join(hashdir, x)
-        if target in ('wal', 'full'):
-            for x, _ in self.server.get_wal_until_next_backup(self):
-                hashdir = os.path.join(self.config.wals_directory, xlog.hash_dir(x))
-                yield os.path.join(hashdir, x)
-
-    def detect_backup_id(self, filename):
-        '''Detect the backup ID from the name of the parent dir of the info file'''
-        return os.path.basename(os.path.dirname(filename))
-
-    def show(self):
-        '''Show backup information'''
-        yield "Backup %s:" % (self.backup_id)
-        if self.status == BackupInfo.DONE:
-            try:
-                previous_backup = self.backup_manager.get_previous_backup(self.backup_id)
-                next_backup = self.backup_manager.get_next_backup(self.backup_id)
-                wal_num, wal_size, wal_until_next_num, wal_until_next_size, wal_last = self.server.get_wal_info(self)
-                yield "  Server Name       : %s" % self.server_name
-                yield "  Status            : %s" % self.status
-                yield "  PostgreSQL Version: %s" % self.version
-                yield "  PGDATA directory  : %s" % self.pgdata
-                if self.tablespaces:
-                    yield "  Tablespaces:"
-                    for name, oid, location in self.tablespaces:
-                        yield "    %s: %s (oid: %s)" % (name, location, oid)
-                yield ""
-                yield "  Base backup information:"
-                yield "    Disk usage      : %s" % _pretty_size(self.size + wal_size)
-                yield "    Timeline        : %s" % self.timeline
-                yield "    Begin WAL       : %s" % self.begin_wal
-                yield "    End WAL         : %s" % self.end_wal
-                yield "    WAL number      : %s" % wal_num
-                yield "    Begin time      : %s" % self.begin_time
-                yield "    End time        : %s" % self.end_time
-                yield "    Begin Offset    : %s" % self.begin_offset
-                yield "    End Offset      : %s" % self.end_offset
-                yield "    Begin XLOG      : %s" % self.begin_xlog
-                yield "    End XLOG        : %s" % self.end_xlog
-                yield ""
-                yield "  WAL information:"
-                yield "    No of files     : %s" % wal_until_next_num
-                yield "    Disk usage      : %s" % _pretty_size(wal_until_next_size)
-                yield "    Last available  : %s" % wal_last
-                yield ""
-                yield "  Catalog information:"
-                if self.server.enforce_retention_policies:
-                    yield "    Retention Policy: %s" % self.server.config.retention_policy.backup_status(self.backup_id)
-                else:
-                    yield "    Retention Policy: not enforced"
-                if previous_backup:
-                    yield "    Previous Backup : %s" % previous_backup.backup_id
-                else:
-                    yield "    Previous Backup : - (this is the oldest base backup)"
-                if next_backup:
-                    yield "    Next Backup     : %s" % next_backup.backup_id
-                else:
-                    yield "    Next Backup     : - (this is the latest base backup)"
-
-            except:
-                pass
-        else:
-            yield "  Server Name       : %s" % self.server_name
-            yield "  Status:           : %s" % self.status
-            if self.error:
-                yield "  Error:            : %s" % self.error
-
-    def get_basebackup_directory(self):
-        '''
-        Get the default filename for the backup.info file based on
-        backup ID and server directory for base backups
-        '''
-        return os.path.join(self.config.basebackups_directory,
-            self.backup_id)
-
-    def get_filename(self):
-        '''
-        Get the default filename for the backup.info file based on
-        backup ID and server directory for base backups
-        '''
-        return os.path.join(self.get_basebackup_directory(), 'backup.info')
-
-    def set_attribute(self, key, value):
-        '''Set a value for a given key'''
-        if key not in self.KEYS:
-            raise Exception('invalid key for backup info: %s' % key)
-        self.__dict__[key] = value
-
-    def save(self):
-        '''Save a backup information file'''
-        # Make sure the base backup directory exists
-        dirname = self.get_basebackup_directory()
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
-        # Open the file for writing and flushes the content
-        # of the dictionary in alphabetical order and ignoring
-        # null values
-        with open(self.get_filename(), 'w') as info:
-            data = self.to_dict()
-            for key in sorted(data):
-                info.write("%s=%s\n" % (key, data[key]))
-
-    def to_dict(self):
-        result = {}
-        for key in self.KEYS:
-            if not self.__dict__[key]:
-                continue
-            converter = self.TYPES_OUT.get(key, str)
-            result[key] = converter(self.__dict__[key])
-        return result
 
 
 class BackupManager(object):

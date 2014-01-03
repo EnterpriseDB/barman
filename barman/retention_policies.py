@@ -27,9 +27,9 @@ recovery of those backups.
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime, timedelta
-from barman.backup import BackupInfo
 import re
 import logging
+from barman.infofile import BackupInfo
 
 _logger = logging.getLogger(__name__)
 

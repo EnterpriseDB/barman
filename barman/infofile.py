@@ -14,9 +14,13 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+import ast
 
 import os
+import dateutil.parser
+from barman import xlog
 from barman.compression import identify_compression
+from barman import _pretty_size as pretty_size
 
 
 class Field(object):
@@ -108,22 +112,35 @@ class FieldListFile(object):
         o.load(filename)
         return o
 
-    def save(self, filename=None):
+    def save(self, filename=None, file_object=None):
         """
-        Serialize the object to the specified file
+        Serialize the object to the specified file or file object
+
+        If a file_object is specified it will be used.
 
         If the filename is not specified it uses the one memorized in the
         filename attribute. If neither the filename attribute and parameter are
         set a ValueError exception is raised.
 
+        :param str filename: path of the file to write
+        :param file file_object: a file like object to write in
         :param str filename: the file to write
         :raises: ValueError
         """
-        filename = filename or self.filename
-        if not filename:
-            raise ValueError('filename was not specified in any way')
+        if file_object:
+            info = file_object
+        else:
+            filename = filename or self.filename
+            if filename:
+                info = open(filename, 'w')
+            else:
+                info = None
 
-        with open(filename, 'w') as info:
+        if not info:
+            raise ValueError(
+                'either a valid filename or a file_object must be specified')
+
+        with info:
             for name in sorted(vars(type(self))):
                 field = getattr(type(self), name)
                 value = getattr(self, name, None)
@@ -132,7 +149,7 @@ class FieldListFile(object):
                         value = field.to_str(value)
                     info.write("%s=%s\n" % (name, value))
 
-    def load(self, filename):
+    def load(self, filename=None, file_object=None):
         """
         Replaces the current object content with the one deserialized from
         the provided file.
@@ -142,25 +159,50 @@ class FieldListFile(object):
         A ValueError exception is raised if the provided file contains any
         invalid line.
 
+        :param str filename: path of the file to read
+        :param file file_object: a file like object to read from
         :param str filename: the file to read
         :raises: ValueError
         """
-        self.filename = filename
-        with open(filename, 'r') as info:
+
+        if file_object:
+            info = file_object
+        elif filename:
+            info = open(filename, 'r')
+        else:
+            raise ValueError(
+                'either filename or file_object must be specified')
+
+        # detect the filename if a file_object is passed
+        if not filename and file_object:
+            if hasattr(file_object, 'name'):
+                filename = file_object.name
+
+        # canonicalize filename
+        if filename:
+            self.filename = os.path.abspath(filename)
+        else:
+            self.filename = None
+            filename = '<UNKNOWN>'  # This is only for error reporting
+
+        with info:
             for line in info:
+                # skip spaces and comments
                 if line.isspace() or line.rstrip().startswith('#'):
                     continue
 
+                # parse the line of form "key = value"
                 try:
                     name, value = [x.strip() for x in line.split('=', 1)]
                 except:
                     raise ValueError('invalid line %s in file %s' % (
                         line.strip(), filename))
 
+                # use the from_str function to parse the value
                 field = getattr(type(self), name, None)
                 if value == 'None':
                     value = None
-                if isinstance(field, Field) and callable(field.from_str):
+                elif isinstance(field, Field) and callable(field.from_str):
                         value = field.from_str(value)
                 setattr(self, name, value)
 
@@ -231,3 +273,247 @@ class WalFileInfo(FieldListFile):
             self.size,
             self.time,
             self.compression)
+
+
+class UnknownBackupIdException(Exception):
+    """
+    The searched backup_id doesn't exists
+    """
+
+
+class BackupInfoBadInitialisation(Exception):
+    """
+    Exception for a bad initialization error
+    """
+
+
+class BackupInfo(FieldListFile):
+
+    #: Conversion to string
+    EMPTY = 'EMPTY'
+    STARTED = 'STARTED'
+    FAILED = 'FAILED'
+    DONE = 'DONE'
+    STATUS_ALL = (EMPTY, STARTED, DONE, FAILED)
+    STATUS_NOT_EMPTY = (STARTED, DONE, FAILED)
+
+    #: Status according to retention policies
+    OBSOLETE = 'OBSOLETE'
+    VALID = 'VALID'
+    POTENTIALLY_OBSOLETE = 'OBSOLETE*'
+    NONE = '-'
+    RETENTION_STATUS = (OBSOLETE, VALID, POTENTIALLY_OBSOLETE, NONE)
+
+    version = Field('version', load=int)
+    pgdata = Field('pgdata')
+    # Parse the tablespaces as a literal Python list of tuple
+    # Output the tablespaces as a literal Python list of tuple
+    tablespaces = Field('tablespaces', load=ast.literal_eval, dump=repr)
+    # Timeline is an integer
+    timeline = Field('timeline', load=int)
+    begin_time = Field('begin_time', load=dateutil.parser.parse)
+    begin_xlog = Field('begin_xlog')
+    begin_wal = Field('begin_wal')
+    begin_offset = Field('begin_offset')
+    size = Field('size', load=int)
+    end_time = Field('end_time', load=dateutil.parser.parse)
+    end_xlog = Field('end_xlog')
+    end_wal = Field('end_wal')
+    end_offset = Field('end_offset')
+    status = Field('status', default=EMPTY)
+    server_name = Field('server_name')
+    error = Field('error')
+    mode = Field('mode')
+    config_file = Field('config_file')
+    hba_file = Field('hba_file')
+    ident_file = Field('ident_file')
+
+    __slots__ = ('server', 'config', 'backup_manager', 'backup_id')
+
+    def __init__(self, server, info_file=None, backup_id=None, **kwargs):
+        # Initialises the attributes for the object based on the predefined keys
+        """
+        Stores meta information about a single backup
+
+        :param Server server:
+        :param file,str,None info_file:
+        :param str,None backup_id:
+        :raise BackupInfoBadInitialisation: if the info_file content is invalid
+            or neither backup_info or
+        """
+
+        super(BackupInfo, self).__init__(**kwargs)
+
+        self.server = server
+        self.config = server.config
+        self.backup_manager = self.server.backup_manager
+        if backup_id:
+            # Cannot pass both info_file and backup_id
+            if info_file:
+                raise BackupInfoBadInitialisation(
+                    'both info_file and backup_id parameters are set')
+            self.backup_id = backup_id
+            self.filename = self.get_filename()
+            # Check if a backup info file for a given server and a given ID
+            # already exists. If not, create it from scratch
+            if not os.path.exists(self.filename):
+                self.server_name = self.config.name
+                self.mode = self.backup_manager.name
+            else:
+                self.load(filename=self.filename)
+        elif info_file:
+            if hasattr(info_file, 'read'):
+            # We have been given a file-like object
+                self.load(file_object=info_file)
+            else:
+                # Just a file name
+                self.load(filename=info_file)
+            self.backup_id = self.detect_backup_id()
+        elif not info_file:
+            raise BackupInfoBadInitialisation(
+                'backup_id and info_file parameters are both unset')
+
+    def get_required_wal_segments(self):
+        """
+        Get the list of required WAL segments for the current backup
+        """
+        return xlog.enumerate_segments(self.begin_wal, self.end_wal,
+                                       self.version)
+
+    def get_list_of_files(self, target):
+        """
+        Get the list of files for the current backup
+        """
+        # Walk down the base backup directory
+        if target in ('data', 'standalone', 'full'):
+            for root, _, files in os.walk(self.get_basebackup_directory()):
+                for f in files:
+                    yield os.path.join(root, f)
+        if target in 'standalone':
+            # List all the WAL files for this backup
+            for x in self.get_required_wal_segments():
+                hash_dir = os.path.join(self.config.wals_directory,
+                                        xlog.hash_dir(x))
+                yield os.path.join(hash_dir, x)
+        if target in ('wal', 'full'):
+            for x, _ in self.server.get_wal_until_next_backup(self):
+                hash_dir = os.path.join(self.config.wals_directory,
+                                        xlog.hash_dir(x))
+                yield os.path.join(hash_dir, x)
+
+    def detect_backup_id(self):
+        """
+        Detect the backup ID from the name of the parent dir of the info file
+        """
+        return os.path.basename(os.path.dirname(self.filename))
+
+    def description(self):
+        """
+        Format a string with all the backup information
+
+        :return str: the backup description
+        """
+        result = ["Backup %s:" % self.backup_id]
+        if self.status == BackupInfo.DONE:
+            try:
+                previous_backup = self.backup_manager.get_previous_backup(
+                    self.backup_id)
+                next_backup = self.backup_manager.get_next_backup(
+                    self.backup_id)
+                if previous_backup:
+                    previous_backup_id = previous_backup.backup_id
+                else:
+                    previous_backup_id = '- (this is the oldest base backup)'
+                if next_backup:
+                    next_backup_id = next_backup.backup_id
+                else:
+                    next_backup_id = '- (this is the latest base backup)'
+            except UnknownBackupIdException:
+                previous_backup_id = 'N/A'
+                next_backup_id = 'N/A'
+            wal_num, wal_size, wal_until_next_num, wal_until_next_size, \
+            wal_last = self.server.get_wal_info(self)
+            result.append("  Server Name       : %s" % self.server_name)
+            result.append("  Status            : %s" % self.status)
+            result.append("  PostgreSQL Version: %s" % self.version)
+            result.append("  PGDATA directory  : %s" % self.pgdata)
+            if self.tablespaces:
+                result.append("  Tablespaces:")
+                for name, oid, location in self.tablespaces:
+                    result.append("    %s: %s (oid: %s)" %
+                                  (name, location, oid))
+            result.append("")
+            result.append("  Base backup information:")
+            result.append("    Disk usage      : %s" %
+                          pretty_size(self.size + wal_size))
+            result.append("    Timeline        : %s" % self.timeline)
+            result.append("    Begin WAL       : %s" % self.begin_wal)
+            result.append("    End WAL         : %s" % self.end_wal)
+            result.append("    WAL number      : %s" % wal_num)
+            result.append("    Begin time      : %s" % self.begin_time)
+            result.append("    End time        : %s" % self.end_time)
+            result.append("    Begin Offset    : %s" % self.begin_offset)
+            result.append("    End Offset      : %s" % self.end_offset)
+            result.append("    Begin XLOG      : %s" % self.begin_xlog)
+            result.append("    End XLOG        : %s" % self.end_xlog)
+            result.append("")
+            result.append("  WAL information:")
+            result.append("    No of files     : %s" % wal_until_next_num)
+            result.append("    Disk usage      : %s" %
+                          pretty_size(wal_until_next_size))
+            result.append("    Last available  : %s" % wal_last)
+            result.append("")
+            result.append("  Catalog information:")
+            if self.server.enforce_retention_policies:
+                policy = self.server.config.retention_policy
+                result.append(
+                    "    Retention Policy: %s" %
+                    policy.backup_status(self.backup_id))
+            else:
+                result.append("    Retention Policy: not enforced")
+            result.append("    Previous Backup : %s" % previous_backup_id)
+            result.append("    Next Backup     : %s" % next_backup_id)
+        else:
+            result.append("  Server Name       : %s" % self.server_name)
+            result.append("  Status:           : %s" % self.status)
+            if self.error:
+                result.append("  Error:            : %s" % self.error)
+        return '\n'.join(result)
+
+    def get_basebackup_directory(self):
+        """
+        Get the default filename for the backup.info file based on
+        backup ID and server directory for base backups
+        """
+        return os.path.join(self.config.basebackups_directory,
+                            self.backup_id)
+
+    def get_filename(self):
+        """
+        Get the default filename for the backup.info file based on
+        backup ID and server directory for base backups
+        """
+        return os.path.join(self.get_basebackup_directory(), 'backup.info')
+
+    def set_attribute(self, key, value):
+        """
+        Set a value for a given key
+        """
+        setattr(self, key, value)
+
+    def save(self, filename=None, file_object=None):
+        if not file_object:
+            # Make sure the containing directory exists
+            filename = filename or self.filename
+            dir_name = os.path.dirname(filename)
+            if not os.path.exists(dir_name):
+                os.makedirs(dir_name)
+        super(BackupInfo, self).save(filename=filename, file_object=file_object)
+
+    def to_dict(self):
+        """
+        Return the backup_info content as a simple dictionary suitable for
+
+        :return dict:
+        """
+        return dict(self.items())

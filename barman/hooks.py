@@ -21,8 +21,8 @@ This module contains the logic to run hook scripts
 
 import logging
 from barman import version
-import barman.backup
 from barman.command_wrappers import Command
+from barman.infofile import UnknownBackupIdException
 
 _logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ class HookScriptRunner(object):
                 previous_backup_id = previous_backup.backup_id
             else:
                 previous_backup_id = ''
-        except barman.backup.UnknownBackupIdException:
+        except UnknownBackupIdException:
             previous_backup_id = ''
         self.environment.update({
             'BARMAN_BACKUP_DIR': backup_info.get_basebackup_directory(),

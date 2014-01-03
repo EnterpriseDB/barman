@@ -18,7 +18,7 @@
 import unittest
 from mock import MagicMock, patch
 import time
-from barman.backup import UnknownBackupIdException
+from barman.infofile import UnknownBackupIdException
 from barman.version import __version__ as version
 from barman.hooks import HookScriptRunner
 

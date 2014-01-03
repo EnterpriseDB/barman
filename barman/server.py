@@ -20,8 +20,9 @@ Barman is able to manage multiple servers.
 '''
 
 from barman import xlog, output, _pretty_size
+from barman.infofile import BackupInfo
 from barman.lockfile import lockfile
-from barman.backup import BackupInfo, BackupManager
+from barman.backup import BackupManager
 from barman.command_wrappers import Command
 from barman.retention_policies import RetentionPolicyFactory, SimpleWALRetentionPolicy
 import os

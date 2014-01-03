@@ -21,13 +21,13 @@ This module implements the interface with the command line and the logger.
 
 from argh import ArghParser, named, arg, expects_obj
 from barman import output
+from barman.infofile import BackupInfo
 from barman.lockfile import lockfile
 from barman.server import Server
 import barman.config
 import logging
 import os
 import sys
-from barman.backup import BackupInfo
 from barman.utils import drop_privileges, configure_logging, parse_log_level
 
 _logger = logging.getLogger(__name__)
