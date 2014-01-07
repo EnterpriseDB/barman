@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 01/20/2014
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 01/24/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "01/20/2014" "\ \&" "\ \&"
+.TH "BARMAN" "1" "01/24/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -248,6 +248,7 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
+
 \fBdata\fR
 \- lists just the data files;
 .RE
@@ -260,6 +261,7 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
+
 \fBstandalone\fR
 \- lists the base backup files, including required WAL files;
 .RE
@@ -272,6 +274,7 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
+
 \fBwal\fR
 \- lists all the WAL files between the start of the base backup and the end of the log / the start of the following base backup (depending on whether the specified base backup is the most recent one available);
 .RE
@@ -284,6 +287,7 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
+
 \fBfull\fR
 \- same as data + wal\&. Defaults to standalone
 .RE
@@ -478,4 +482,4 @@ http://docs\&.pgbarman\&.org/
 .sp
 Barman is the exclusive property of 2ndQuadrant Italia and its code is distributed under GNU General Public License v3\&.
 .sp
-Copyright \(co 2011\-2013, 2ndQuadrant Italia (Devise\&.IT S\&.r\&.l\&.) \- http://www\&.2ndQuadrant\&.it/\&.
+Copyright \(co 2011\-2014 2ndQuadrant Italia (Devise\&.IT S\&.r\&.l\&.) \- http://www\&.2ndQuadrant\&.it/\&.

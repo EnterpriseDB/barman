@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 01/20/2014
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 01/24/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "01/20/2014" "\ \&" "\ \&"
+.TH "BARMAN" "5" "01/24/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -144,6 +144,16 @@ Hook script launched before a base backup\&. Global/Server\&.
 Hook script launched after a base backup\&. Global/Server\&.
 .RE
 .PP
+\fBpre_archive_script\fR
+.RS 4
+Hook script launched before a base backup\&. Global/Server\&.
+.RE
+.PP
+\fBpost_archive_script\fR
+.RS 4
+Hook script launched after a base backup\&. Global/Server\&.
+.RE
+.PP
 \fBminimum_redundancy\fR
 .RS 4
 Minimum number of backups to be retained\&. Default 0\&. Global/Server\&.
@@ -187,16 +197,6 @@ The script definition is passed to a shell and can return any exit code\&.
 .sp
 The shell environment will contain the following variables:
 .PP
-BARMAN_BACKUP_DIR
-.RS 4
-backup destination directory
-.RE
-.PP
-BARMAN_BACKUP_ID
-.RS 4
-ID of the backup
-.RE
-.PP
 BARMAN_CONFIGURATION
 .RS 4
 configuration file used by barman
@@ -211,19 +211,32 @@ phase)
 .PP
 BARMAN_PHASE
 .RS 4
+
 \fIpre\fR
 or
 \fIpost\fR
 .RE
 .PP
-BARMAN_PREVIOUS_ID
-.RS 4
-ID of the previous backup (if present)
-.RE
-.PP
 BARMAN_SERVER
 .RS 4
 name of the server
+.RE
+.sp
+Backup scripts specific variables:
+.PP
+BARMAN_BACKUP_DIR
+.RS 4
+backup destination directory
+.RE
+.PP
+BARMAN_BACKUP_ID
+.RS 4
+ID of the backup
+.RE
+.PP
+BARMAN_PREVIOUS_ID
+.RS 4
+ID of the previous backup (if present)
 .RE
 .PP
 BARMAN_STATUS
@@ -234,6 +247,33 @@ status of the backup
 BARMAN_VERSION
 .RS 4
 version of Barman
+.RE
+.sp
+Archive scripts specific variables:
+.PP
+BARMAN_SEGMENT
+.RS 4
+name of the WAL file
+.RE
+.PP
+BARMAN_FILE
+.RS 4
+full path of the WAL file
+.RE
+.PP
+BARMAN_SIZE
+.RS 4
+size of the WAL file
+.RE
+.PP
+BARMAN_TIMESTAMP
+.RS 4
+WAL file timestamp
+.RE
+.PP
+BARMAN_COMPRESSION
+.RS 4
+type of compression used for the WAL file
 .RE
 .sp
 No check is performed on the exit code of the script\&. The result will be simply written in the log file\&.
@@ -367,4 +407,4 @@ http://docs\&.pgbarman\&.org/
 .sp
 Barman is the exclusive property of 2ndQuadrant Italia and its code is distributed under GNU General Public License v3\&.
 .sp
-Copyright \(co 2011\-2013, 2ndQuadrant Italia (Devise\&.IT S\&.r\&.l\&.) \- http://www\&.2ndQuadrant\&.it/\&.
+Copyright \(co 2011\-2014 2ndQuadrant Italia (Devise\&.IT S\&.r\&.l\&.) \- http://www\&.2ndQuadrant\&.it/\&.

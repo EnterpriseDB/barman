@@ -233,6 +233,73 @@ class HooksUnitTest(unittest.TestCase):
         assert command_mock.call_count == 1
         assert command_mock.call_args[1]['env_append'] == expected_env
 
+    @patch('barman.hooks.Command')
+    def test_wal_info(self, command_mock):
+        # BackupManager mock
+        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager.config.pre_test_hook = 'not_existent_script'
+
+        # WalFileInfo mock
+        wal_info = MagicMock(name='wal_info')
+        wal_info.name = 'XXYYZZAABBCC'
+        wal_info.full_path = '/incoming/directory'
+        wal_info.size = 1234567
+        wal_info.time = 1337133713
+        wal_info.compression = 'gzip'
+
+        # the actual test
+        script = HookScriptRunner(backup_manager, 'test_hook', 'pre')
+        script.env_from_wal_info(wal_info)
+        expected_env = {
+            'BARMAN_PHASE': 'pre',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_HOOK': 'test_hook',
+            'BARMAN_SEGMENT': 'XXYYZZAABBCC',
+            'BARMAN_FILE': '/incoming/directory',
+            'BARMAN_SIZE': '1234567',
+            'BARMAN_TIMESTAMP': '1337133713',
+            'BARMAN_COMPRESSION': 'gzip',
+        }
+        script.run()
+        assert command_mock.call_count == 1
+        assert command_mock.call_args[1]['env_append'] == expected_env
+
+    @patch('barman.hooks.Command')
+    def test_wal_info_corner_cases(self, command_mock):
+        # BackupManager mock
+        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager.config.pre_test_hook = 'not_existent_script'
+
+        # WalFileInfo mock
+        timestamp = time.time()
+        wal_info = MagicMock(name='wal_info')
+        wal_info.name = 'XXYYZZAABBCC'
+        wal_info.full_path = '/incoming/directory'
+        wal_info.size = 1234567
+        wal_info.time = timestamp
+        wal_info.compression = None
+
+        # the actual test
+        script = HookScriptRunner(backup_manager, 'test_hook', 'pre')
+        script.env_from_wal_info(wal_info)
+        expected_env = {
+            'BARMAN_PHASE': 'pre',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_HOOK': 'test_hook',
+            'BARMAN_SEGMENT': 'XXYYZZAABBCC',
+            'BARMAN_FILE': '/incoming/directory',
+            'BARMAN_SIZE': '1234567',
+            'BARMAN_TIMESTAMP': str(timestamp),
+            'BARMAN_COMPRESSION': '',
+        }
+        script.run()
+        assert command_mock.call_count == 1
+        assert command_mock.call_args[1]['env_append'] == expected_env
+
 
 if __name__ == '__main__':
     unittest.main()

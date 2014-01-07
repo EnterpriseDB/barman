@@ -770,6 +770,14 @@ class BackupManager(object):
         basename = os.path.basename(filename)
         destdir = os.path.join(self.config.wals_directory, xlog.hash_dir(basename))
         destfile = os.path.join(destdir, basename)
+
+        wal_info = WalFileInfo.from_file(filename, compression=None)
+
+        # Run the pre_archive_script if present.
+        script = HookScriptRunner(self, 'archive_script', 'pre')
+        script.env_from_wal_info(wal_info)
+        script.run()
+
         if not os.path.isdir(destdir):
             os.makedirs(destdir)
         if compressor:
@@ -782,6 +790,12 @@ class BackupManager(object):
         wal_info = WalFileInfo.from_file(
             destfile,
             compression=compressor and compressor.compression)
+
+        # Run the post_archive_script if present.
+        script = HookScriptRunner(self, 'archive_script', 'post')
+        script.env_from_wal_info(wal_info)
+        script.run()
+
         return wal_info
 
     def check(self):

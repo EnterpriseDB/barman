@@ -93,6 +93,20 @@ class HookScriptRunner(object):
             'BARMAN_ERROR': backup_info.error or '',
         })
 
+    def env_from_wal_info(self, wal_info):
+        """
+        Prepare the environment for executing a script
+
+        :param WalFileInfo wal_info: the backup metadata
+        """
+        self.environment.update({
+            'BARMAN_SEGMENT': wal_info.name,
+            'BARMAN_FILE': wal_info.full_path,
+            'BARMAN_SIZE': str(wal_info.size),
+            'BARMAN_TIMESTAMP': str(wal_info.time),
+            'BARMAN_COMPRESSION': wal_info.compression or '',
+        })
+
     def run(self):
         """
         Run a a hook script if configured.
