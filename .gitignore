@@ -20,6 +20,7 @@
 /dist
 /build
 /barman.egg-info
+/*.egg/
 
 # OSX
 .DS_Store

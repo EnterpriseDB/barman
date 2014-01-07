@@ -31,12 +31,21 @@ import time
 import tempfile
 import re
 from barman.infofile import WalFileInfo
+from barman.hooks import HookScriptRunner
 
 _logger = logging.getLogger(__name__)
 
 class BackupInfoBadInitialisation(Exception):
     '''Exception for a bad initialization error '''
     pass
+
+
+class UnknownBackupIdException(Exception):
+    """
+    The searched backup_id doesn't exists
+    """
+    pass
+
 
 class BackupInfo(object):
     '''This class contains information about a single backup '''
@@ -301,7 +310,7 @@ class BackupManager(object):
             else:
                 return None
         except ValueError:
-            raise Exception('Could not find backup_id %s' % backup_id)
+            raise UnknownBackupIdException('Could not find backup_id %s' % backup_id)
 
     def get_next_backup(self, backup_id, status_filter=DEFAULT_STATUS_FILTER):
         '''
@@ -324,7 +333,7 @@ class BackupManager(object):
             else:
                 return None
         except ValueError:
-            raise Exception('Could not find backup_id %s' % backup_id)
+            raise UnknownBackupIdException('Could not find backup_id %s' % backup_id)
 
     def get_last_backup(self, status_filter=DEFAULT_STATUS_FILTER):
         '''
@@ -392,60 +401,6 @@ class BackupManager(object):
                 os.rename(xlogdb_new, fxlogdb.name)
         yield "Done"
 
-
-    def build_script_env(self, backup_info, phase):
-        """
-        Prepare the environment for executing a script
-        """
-        previous_backup = self.get_previous_backup(backup_info.backup_id)
-        env = {}
-        env['BARMAN_BACKUP_DIR'] = backup_info.get_basebackup_directory()
-        env['BARMAN_SERVER'] = self.config.name
-        env['BARMAN_CONFIGURATION'] = self.config.config.config_file
-        env['BARMAN_BACKUP_ID'] = backup_info.backup_id
-        env['BARMAN_PREVIOUS_ID'] =  previous_backup.backup_id if previous_backup else ''
-        env['BARMAN_PHASE'] = phase
-        env['BARMAN_STATUS'] = backup_info.status
-        env['BARMAN_ERROR'] = backup_info.error or ''
-        env['BARMAN_VERSION'] = version.__version__
-        return env
-
-    def run_pre_backup_script(self, backup_info):
-        '''
-        Run the pre_backup_script if configured.
-        This method must never throw any exception
-        '''
-        try:
-            script = self.config.pre_backup_script
-            if script:
-                _logger.info("Attempt to run pre_backup_script: %s", script)
-                cmd = Command(
-                    script,
-                    env_append=self.build_script_env(backup_info, 'pre'),
-                    shell=True, check=False)
-                ret = cmd()
-                _logger.info("pre_backup_script returned %d", ret)
-        except Exception:
-            _logger.exception('Exception running pre_backup_script')
-
-    def run_post_backup_script(self, backup_info):
-        '''
-        Run the post_backup_script if configured.
-        This method must never throw any exception
-        '''
-        try:
-            script = self.config.post_backup_script
-            if script:
-                _logger.info("Attempt to run post_backup_script: %s", script)
-                cmd = Command(
-                    script,
-                    env_append=self.build_script_env(backup_info, 'post'),
-                    shell=True, check=False)
-                ret = cmd()
-                _logger.info("post_backup_script returned %d", ret)
-        except Exception:
-            _logger.exception('Exception running post_backup_script')
-
     def backup(self):
         '''
         Performs a backup for the server
@@ -463,7 +418,9 @@ class BackupManager(object):
             yield msg
 
             # Run the pre-backup-script if present.
-            self.run_pre_backup_script(backup_info)
+            script = HookScriptRunner(self, 'backup_script', 'pre')
+            script.env_from_backup_info(backup_info)
+            script.run()
 
             # Start the backup
             self.backup_start(backup_info)
@@ -520,8 +477,9 @@ class BackupManager(object):
                 backup_info.save()
 
             # Run the post-backup-script if present.
-            self.run_post_backup_script(backup_info)
-
+            script = HookScriptRunner(self, 'backup_script', 'post')
+            script.env_from_backup_info(backup_info)
+            script.run()
 
     def recover(self, backup, dest, tablespaces, target_tli, target_time, target_xid, target_name, exclusive, remote_command):
         '''
@@ -765,10 +723,6 @@ class BackupManager(object):
                         bid, self.config.name))
                     for line in self.delete_backup(available_backups[bid]):
                         yield line
-
-    #
-    # Hooks
-    #
 
     def delete_basebackup(self, backup):
         '''

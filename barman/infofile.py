@@ -192,6 +192,7 @@ class WalFileInfo(FieldListFile):
     __slots__ = ()
 
     name = Field('name', doc='base name of WAL file')
+    full_path = Field('full_path', doc='complete path of the file')
     size = Field('size', load=int, doc='WAL file size after compression')
     time = Field('time', load=int, doc='WAL file modification time')
     compression = Field('compression', doc='compression type')
@@ -211,6 +212,7 @@ class WalFileInfo(FieldListFile):
         """
         stat = os.stat(filename)
         kwargs.setdefault('name', os.path.basename(filename))
+        kwargs.setdefault('full_path', os.path.abspath(filename))
         kwargs.setdefault('size', stat.st_size)
         kwargs.setdefault('time', stat.st_mtime)
         if 'compression' not in kwargs:
