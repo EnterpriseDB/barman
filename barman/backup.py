@@ -17,7 +17,7 @@
 
 ''' This module represents a backup. '''
 
-from barman import xlog, _pretty_size, version
+from barman import xlog, _pretty_size, version, output
 from barman.command_wrappers import RsyncPgData, Command
 from barman.compression import CompressionManager, CompressionIncompatibility
 from glob import glob
@@ -241,13 +241,18 @@ class BackupInfo(object):
         # of the dictionary in alphabetical order and ignoring
         # null values
         with open(self.get_filename(), 'w') as info:
-            for key in sorted(self.KEYS):
-                if not self.__dict__[key]:
-                    continue
-                if key in self.TYPES_OUT:
-                    info.write("%s=%s\n" % (key, self.TYPES_OUT[key](self.__dict__[key])))
-                else:
-                    info.write("%s=%s\n" % (key, self.__dict__[key]))
+            data = self.to_dict()
+            for key in sorted(data):
+                info.write("%s=%s\n" % (key, data[key]))
+
+    def to_dict(self):
+        result = {}
+        for key in self.KEYS:
+            if not self.__dict__[key]:
+                continue
+            converter = self.TYPES_OUT.get(key, str)
+            result[key] = converter(self.__dict__[key])
+        return result
 
 
 class BackupManager(object):
@@ -402,20 +407,22 @@ class BackupManager(object):
         yield "Done"
 
     def backup(self):
-        '''
+        """
         Performs a backup for the server
-        '''
+        """
         _logger.debug("initialising backup information")
         backup_stamp = datetime.datetime.now()
         self.current_action = "starting backup"
         backup_info = None
         try:
-            backup_info = BackupInfo(self.server, backup_id=backup_stamp.strftime('%Y%m%dT%H%M%S'))
+            backup_info = BackupInfo(
+                self.server,
+                backup_id=backup_stamp.strftime('%Y%m%dT%H%M%S'))
             backup_info.save()
-            msg = "Starting backup for server %s in %s" % (self.config.name,
-               backup_info.get_basebackup_directory())
-            _logger.info(msg)
-            yield msg
+            output.info(
+                "Starting backup for server %s in %s",
+                self.config.name,
+                backup_info.get_basebackup_directory())
 
             # Run the pre-backup-script if present.
             script = HookScriptRunner(self, 'backup_script', 'pre')
@@ -426,30 +433,23 @@ class BackupManager(object):
             self.backup_start(backup_info)
             backup_info.set_attribute("begin_time", backup_stamp)
             backup_info.save()
-            msg = "Backup start at xlog location: %s (%s, %08X)" % (backup_info.begin_xlog,
-                backup_info.begin_wal, backup_info.begin_offset)
-            yield msg
-            _logger.info(msg)
+            output.info("Backup start at xlog location: %s (%s, %08X)",
+                            backup_info.begin_xlog,
+                            backup_info.begin_wal,
+                            backup_info.begin_offset)
 
             self.current_action = "copying files"
-            _logger.debug(self.current_action)
             try:
                 # Start the copy
-                msg = "Copying files."
-                yield msg
-                _logger.info(msg)
+                output.info("Copying files.")
                 backup_size = self.backup_copy(backup_info)
                 backup_info.set_attribute("size", backup_size)
-                msg = "Copy done."
-                yield msg
-                _logger.info(msg)
+                output.info("Copy done.")
             except:
                 raise
             else:
                 self.current_action = "issuing stop of the backup"
-                msg = "Asking PostgreSQL server to finalize the backup."
-                yield msg
-                _logger.info(msg)
+                output.info("Asking PostgreSQL server to finalize the backup.")
             finally:
                 self.backup_stop(backup_info)
 
@@ -461,25 +461,24 @@ class BackupManager(object):
                 backup_info.set_attribute("error", "failure %s" % self.current_action)
 
             msg = "Backup failed %s" % self.current_action
-            _logger.exception(msg)
-            raise Exception("ERROR: %s" % msg)
+            output.exception(msg)
 
         else:
-            msg = "Backup end at xlog location: %s (%s, %08X)" % (backup_info.end_xlog,
-                backup_info.end_wal, backup_info.end_offset)
-            _logger.info(msg)
-            yield msg
-            msg = "Backup completed"
-            _logger.info(msg)
-            yield msg
+            output.info("Backup end at xlog location: %s (%s, %08X)",
+                            backup_info.end_xlog,
+                            backup_info.end_wal,
+                            backup_info.end_offset)
+            output.info("Backup completed")
         finally:
             if backup_info:
                 backup_info.save()
 
-            # Run the post-backup-script if present.
-            script = HookScriptRunner(self, 'backup_script', 'post')
-            script.env_from_backup_info(backup_info)
-            script.run()
+                # Run the post-backup-script if present.
+                script = HookScriptRunner(self, 'backup_script', 'post')
+                script.env_from_backup_info(backup_info)
+                script.run()
+
+        output.result('backup', backup_info)
 
     def recover(self, backup, dest, tablespaces, target_tli, target_time, target_xid, target_name, exclusive, remote_command):
         '''
@@ -1000,31 +999,34 @@ class BackupManager(object):
         return wal_info
 
     def check(self):
-        '''
+        """
         This function performs some checks on the server.
         Returns 0 if all went well, 1 if any of the checks fails
-        '''
+        """
         if self.config.compression and not self.compression_manager.check():
-            yield ("\tcompression settings: FAILED", False)
+            output.result('check', self.config.name,
+                          'compression settings', False)
         else:
-            status = 'OK'
+            status = True
             try:
                 self.compression_manager.get_compressor()
             except CompressionIncompatibility, field:
-                yield ("\t%s setting: FAILED" % field, False)
-                status = 'FAILED'
-
-            yield ("\tcompression settings: %s" % status, status == 'OK')
+                output.result('check', self.config.name,
+                              '%s setting' % field, False)
+                status = False
+            output.result('check', self.config.name,
+                          'compression settings', status)
 
         # Minimum redundancy checks
         no_backups = len(self.get_available_backups())
-        if (no_backups < self.config.minimum_redundancy):
-            status = 'FAILED'
+        if no_backups < self.config.minimum_redundancy:
+            status = False
         else:
-            status = 'OK'
-        yield ("\tminimum redundancy requirements: %s (have %s backups, expected at least %s)" % (
-                status, no_backups, self.config.minimum_redundancy), status == 'OK')
-
+            status = True
+        output.result('check', self.config.name,
+                      'minimum redundancy requirements', status,
+                      'have %s backups, expected at least %s' %
+                      (no_backups, self.config.minimum_redundancy))
 
     def status(self):
         '''This function show the server status '''

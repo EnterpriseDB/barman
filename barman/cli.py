@@ -15,11 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-''' This module implements the interface with the command line
-and the logger.
-'''
+"""
+This module implements the interface with the command line and the logger.
+"""
 
 from argh import ArghParser, named, arg, expects_obj
+from barman import output
 from barman.lockfile import lockfile
 from barman.server import Server
 import barman.config
@@ -31,22 +32,24 @@ from barman.utils import drop_privileges, configure_logging, parse_log_level
 
 _logger = logging.getLogger(__name__)
 
+
 @named('list-server')
-@arg('--minimal', help='machine readable output', action='store_true')
-@expects_obj
-def list_server(args):
-    """ List available servers, with useful information
+@arg('--minimal', help='machine readable output')
+def list_server(minimal=False):
+    """
+    List available servers, with useful information
     """
     for name in sorted(barman.__config__.server_names()):
         server = barman.__config__.get_server(name)
-        if server.description and not args.minimal:
+        if server.description and not minimal:
             yield "%s - %s" % (name, server.description)
         else:
             yield name
 
 
 def cron(verbose=True):
-    """ Run maintenance tasks
+    """
+    Run maintenance tasks
     """
     filename = os.path.join(barman.__config__.barman_home, '.cron.lock')
     with lockfile(filename) as locked:
@@ -58,80 +61,86 @@ def cron(verbose=True):
                 for lines in server.cron(verbose):
                     yield lines
 
+
+# noinspection PyUnusedLocal
 def server_completer(prefix, parsed_args, **kwargs):
     global_config(parsed_args)
     for conf in barman.__config__.servers():
-         if conf.name.startswith(prefix):
-             yield conf.name
+        if conf.name.startswith(prefix) \
+                and conf.name not in parsed_args.server_name:
+            yield conf.name
 
+
+# noinspection PyUnusedLocal
 def server_completer_all(prefix, parsed_args, **kwargs):
-    print >> sys.stderr,  "INVOKED"
     global_config(parsed_args)
     for conf in barman.__config__.servers():
-        if conf.name.startswith(prefix):
+        if conf.name.startswith(prefix) \
+                and conf.name not in parsed_args.server_name:
             yield conf.name
-    if 'all'.startswith(prefix):
+    if 'server_name' in parsed_args \
+            and parsed_args.server_name is None \
+            and 'all'.startswith(prefix):
         yield 'all'
 
+
+# noinspection PyUnusedLocal
 def backup_completer(prefix, parsed_args, **kwargs):
     global_config(parsed_args)
     server = get_server(parsed_args)
-    if server:
-        for backup_id in sorted(server.get_available_backups().iterkeys(), reverse=True):
+    if server and len(parsed_args.backup_id) == 0:
+        for backup_id in sorted(server.get_available_backups().iterkeys(),
+                                reverse=True):
             if backup_id.startswith(prefix):
-                 yield backup_id
+                yield backup_id
+        for special_id in ('latest', 'last', 'oldest', 'first'):
+            if len(server.get_available_backups()) > 0 \
+                    and special_id.startswidth(prefix):
+                yield special_id
     else:
         return
 
+
 @arg('server_name', nargs='+',
      completer=server_completer_all,
-     help="specifies the server names for the backup command ('all' will show all available servers)")
+     help="specifies the server names for the backup command "
+          "('all' will show all available servers)")
 @expects_obj
 def backup(args):
-    """ Perform a full backup for the given server
+    """
+    Perform a full backup for the given server
     """
     servers = get_server_list(args)
-    ok = True
     for name in sorted(servers):
         server = servers[name]
-        if server == None:
-            yield "Unknown server '%s'" % (name)
-            ok = False
+        if server is None:
+            output.error("Unknown server '%s'" % name)
             continue
-        try:
-            for line in server.backup():
-                yield line
-        except:
-            ok = False
-        yield ''
-    if not ok:
-        raise SystemExit(1)
+        server.backup()
+    output.close_and_exit()
+
 
 @named('list-backup')
 @arg('server_name', nargs='+',
      completer=server_completer_all,
-     help="specifies the server name for the command ('all' will show all available servers)")
+     help="specifies the server name for the command "
+          "('all' will show all available servers)")
 @arg('--minimal', help='machine readable output', action='store_true')
 @expects_obj
 def list_backup(args):
-    """ List available backups for the given server (supports 'all')
+    """
+    List available backups for the given server (supports 'all')
     """
     servers = get_server_list(args)
-    ok = True
     for name in sorted(servers):
         server = servers[name]
-        if server == None:
-            yield "Unknown server '%s'" % (name)
-            ok = False
+        output.init('list_backup', minimal=args.minimal)
+        if server is None:
+            output.error("Unknown server '%s'" % name)
             continue
-        if not args.minimal:
-            for line in server.list_backups():
-                yield line
-        else:
-            for backup_id in sorted(server.get_available_backups().iterkeys(), reverse=True):
-                yield backup_id
-    if not ok:
-        raise SystemExit(1)
+        server.list_backups()
+    output.close_and_exit()
+
 
 @arg('server_name', nargs='+',
      completer=server_completer_all,
@@ -183,7 +192,8 @@ def rebuild_xlogdb(args):
 @arg('--target-time',
      help='target time. You can use any valid unambiguous representation. e.g: "YYYY-MM-DD HH:MM:SS.mmm"')
 @arg('--target-xid', help='target transaction ID')
-@arg('--target-name', help='target name created previously with pg_create_restore_point() function call')
+@arg('--target-name',
+     help='target name created previously with pg_create_restore_point() function call')
 @arg('--exclusive',
      help='set target xid to be non inclusive', action="store_true")
 @arg('--tablespace',
@@ -192,8 +202,8 @@ def rebuild_xlogdb(args):
 @arg('--remote-ssh-command',
      metavar='SSH_COMMAND',
      help='This options activates remote recovery, by specifying the secure shell command '
-     'to be launched on a remote host. It is the equivalent of the "ssh_command" server'
-     'option in the configuration file for remote recovery. Example: "ssh postgres@db2"')
+          'to be launched on a remote host. It is the equivalent of the "ssh_command" server'
+          'option in the configuration file for remote recovery. Example: "ssh postgres@db2"')
 @arg('backup_id',
      help='specifies the backup ID to recover')
 @arg('destination_directory',
@@ -205,34 +215,38 @@ def recover(args):
     server = get_server(args)
     if server == None:
         raise SystemExit("ERROR: unknown server '%s'" % (args.server_name))
-    # Retrieves the backup info
+        # Retrieves the backup info
     backup_id = parse_backup_id(server, args)
     backup = server.get_backup(backup_id)
     if backup == None or backup.status != BackupInfo.DONE:
-        raise SystemExit("ERROR: unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name))
-    # decode the tablespace relocation rules
+        raise SystemExit("ERROR: unknown backup '%s' for server '%s'" % (
+            args.backup_id, args.server_name))
+        # decode the tablespace relocation rules
     tablespaces = {}
     if args.tablespace:
         for rule in args.tablespace:
             try:
                 tablespaces.update([rule.split(':', 1)])
             except:
-                raise SystemExit("ERROR: invalid tablespace relocation rule '%s'\n"
-                                 "HINT: the valid syntax for a relocation rule is NAME:LOCATION" % rule)
-    # validate the rules against the tablespace list
-    valid_tablespaces = [tablespace_data[0] for tablespace_data in backup.tablespaces] if backup.tablespaces else []
+                raise SystemExit(
+                    "ERROR: invalid tablespace relocation rule '%s'\n"
+                    "HINT: the valid syntax for a relocation rule is NAME:LOCATION" % rule)
+                # validate the rules against the tablespace list
+    valid_tablespaces = [tablespace_data[0] for tablespace_data in
+                         backup.tablespaces] if backup.tablespaces else []
     for tablespace in tablespaces:
         if tablespace not in valid_tablespaces:
             raise SystemExit("ERROR: invalid tablespace name '%s'\n"
-                             "HINT: please use any of the following tablespaces: %s" 
+                             "HINT: please use any of the following tablespaces: %s"
                              % (tablespace, ', '.join(valid_tablespaces)))
-    # explicitly disallow the rsync remote syntax (common mistake)
+            # explicitly disallow the rsync remote syntax (common mistake)
     if ':' in args.destination_directory:
         raise SystemExit(
             "ERROR: the destination directory parameter cannot contain the ':' character\n"
             "HINT: if you want to do a remote recovery you have to use the --remote-ssh-command option")
     if args.remote_ssh_command and len(tablespaces) > 0:
-        raise SystemExit("ERROR: Tablespace relocation is not supported with remote recovery")
+        raise SystemExit(
+            "ERROR: Tablespace relocation is not supported with remote recovery")
     for line in server.recover(backup,
                                args.destination_directory,
                                tablespaces=tablespaces,
@@ -242,8 +256,9 @@ def recover(args):
                                target_name=args.target_name,
                                exclusive=args.exclusive,
                                remote_command=args.remote_ssh_command
-                               ):
+    ):
         yield line
+
 
 @named('show-server')
 @arg('server_name', nargs='+',
@@ -267,43 +282,31 @@ def show_server(args):
     if not ok:
         raise SystemExit(1)
 
+
 @arg('server_name', nargs='+',
      completer=server_completer_all,
-     help="specifies the server names to check ('all' will check all available servers)")
+     help="specifies the server names to check "
+          "('all' will check all available servers)")
 @arg('--nagios', help='Nagios plugin compatible output', action='store_true')
 @expects_obj
 def check(args):
-    """ Check if the server configuration is working.
-    This function returns 0 if every checks pass, or 0 if any of these fails
     """
-    servers = get_server_list(args)
-    issues = 0
-    for name in sorted(servers):
-        ok = True
-        server = servers[name]
-        if server == None:
-            if not args.nagios:
-                yield "Unknown server '%s'" % (name)
-            issues += 1
-            continue
-        for line, status in server.check():
-            ok &= status
-            if not args.nagios:
-                yield line
-        if not args.nagios:
-            yield ''
-        if not ok:
-            issues += 1
+    Check if the server configuration is working.
 
+    This command returns success if every checks pass,
+    or failure if any of these fails
+    """
     if args.nagios:
-        if issues:
-            yield "BARMAN CRITICAL - %d server out of %d that have been checked has issues" % (issues, len(servers))
-            raise SystemExit(2)
-        else:
-            yield "BARMAN OK - Ready to serve the Espresso backup"
+        output.set_output_writer(output.NagiosOutputWriter())
+    servers = get_server_list(args)
+    for name in sorted(servers):
+        server = servers[name]
+        if server is None:
+            output.error("Unknown server '%s'" % name)
+            continue
+        server.check()
+    output.close_and_exit()
 
-    if issues:
-        raise SystemExit(1)
 
 @named('show-backup')
 @arg('server_name',
@@ -320,14 +323,15 @@ def show_backup(args):
     if server == None:
         yield "Unknown server '%s'" % (args.server_name)
         return
-    # Retrieves the backup info
+        # Retrieves the backup info
     backup_id = parse_backup_id(server, args)
     backup = server.get_backup(backup_id)
     if backup == None:
-        yield "Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name)
+        yield "Unknown backup '%s' for server '%s'" % (
+            args.backup_id, args.server_name)
         return
-    for line in backup.show():
-        yield line
+    yield backup.description()
+
 
 @named('list-files')
 @arg('server_name',
@@ -336,13 +340,14 @@ def show_backup(args):
 @arg('backup_id',
      completer=backup_completer,
      help='specifies the backup ID')
-@arg('--target', choices=('standalone', 'data', 'wal', 'full'), default='standalone',
+@arg('--target', choices=('standalone', 'data', 'wal', 'full'),
+     default='standalone',
      help='''
      Possible values are: data (just the data files), standalone (base backup files, including required WAL files),
      wal (just WAL files between the beginning of base backup and the following one (if any) or the end of the log) and
      full (same as data + wal). Defaults to %(default)s
      '''
-     )
+)
 @expects_obj
 def list_files(args):
     """ List all the files for a single backup
@@ -351,14 +356,16 @@ def list_files(args):
     if server == None:
         yield "Unknown server '%s'" % (args.server_name)
         return
-    # Retrieves the backup info
+        # Retrieves the backup info
     backup_id = parse_backup_id(server, args)
     backup = server.get_backup(backup_id)
     if backup == None:
-        yield "Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name)
+        yield "Unknown backup '%s' for server '%s'" % (
+            args.backup_id, args.server_name)
         return
     for line in backup.get_list_of_files(args.target):
         yield line
+
 
 @arg('server_name',
      completer=server_completer,
@@ -374,11 +381,12 @@ def delete(args):
     if server == None:
         yield "Unknown server '%s'" % (args.server_name)
         return
-    # Retrieves the backup info
+        # Retrieves the backup info
     backup_id = parse_backup_id(server, args)
     backup = server.get_backup(backup_id)
     if backup == None:
-        yield "Unknown backup '%s' for server '%s'" % (args.backup_id, args.server_name)
+        yield "Unknown backup '%s' for server '%s'" % (
+            args.backup_id, args.server_name)
         return
     for line in server.delete_backup(backup):
         yield line
@@ -387,6 +395,7 @@ def delete(args):
 class stream_wrapper(object):
     """ This class represents a wrapper for a stream
     """
+
     def __init__(self, stream):
         self.stream = stream
 
@@ -396,6 +405,7 @@ class stream_wrapper(object):
 
     def __getattr__(self, attr):
         return getattr(self.stream, attr)
+
 
 _output_stream = stream_wrapper(sys.stdout)
 
@@ -430,6 +440,10 @@ def global_config(args):
     if log_level is None:
         _logger.warn('unknown log_level in config file: %s', config.log_level)
 
+    # configure output
+    if args.format != output.DEFAULT_WRITER:
+        output.set_output_writer(args.format)
+
     _logger.debug('Initialized Barman version %s (config: %s)',
                   barman.__version__, config.config_file)
     if hasattr(args, 'quiet') and args.quiet:
@@ -445,10 +459,12 @@ def get_server(args):
         return None
     return Server(config)
 
+
 def get_server_list(args):
     ''' Get the server list from the configuration '''
     if args.server_name[0] == 'all':
-        return dict((conf.name, Server(conf)) for conf in barman.__config__.servers())
+        return dict(
+            (conf.name, Server(conf)) for conf in barman.__config__.servers())
     else:
         server_dict = {}
         for server in args.server_name:
@@ -459,6 +475,7 @@ def get_server_list(args):
                 server_dict[server] = Server(conf)
         return server_dict
 
+
 def parse_backup_id(server, args):
     ''' Parses special backup IDs such as latest, oldest, etc. '''
     if args.backup_id in ('latest', 'last'):
@@ -468,16 +485,23 @@ def parse_backup_id(server, args):
     else:
         return args.backup_id
     if backup_id == None:
-        raise SystemExit("ERROR: '%s' backup is not available for server '%s'" % (args.backup_id, args.server_name))
+        raise SystemExit(
+            "ERROR: '%s' backup is not available for server '%s'" % (
+                args.backup_id, args.server_name))
     return backup_id
 
 
 def main():
     ''' The main method of Barman '''
     p = ArghParser()
-    p.add_argument('-v', '--version', action='version', version=barman.__version__)
-    p.add_argument('-c', '--config', help='uses a configuration file (defaults: $HOME/.barman.conf, /etc/barman.conf)')
+    p.add_argument('-v', '--version', action='version',
+                   version=barman.__version__)
+    p.add_argument('-c', '--config',
+                   help='uses a configuration file (defaults: $HOME/.barman.conf, /etc/barman.conf)')
     p.add_argument('-q', '--quiet', help='be quiet', action='store_true')
+    p.add_argument('-f', '--format', help='output format',
+                   choices=output.AVAILABLE_WRITERS.keys(),
+                   default=output.DEFAULT_WRITER)
     p.add_commands(
         [
             cron,
@@ -501,5 +525,15 @@ def main():
         logging.exception(msg)
         raise SystemExit(msg)
 
+
 if __name__ == '__main__':
+    # This code requires the mock module and allow us to test
+    # bash completion inside the IDE debugger
+    try:
+        import mock
+        sys.stdout = mock.Mock(wraps=sys.stdout)
+        sys.stdout.isatty.return_value = True
+        os.dup2(2, 8)
+    except ImportError:
+        pass
     main()

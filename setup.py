@@ -96,7 +96,7 @@ setup(
         'Programming Language :: Python :: 3.2',
         'Programming Language :: Python :: 3.3',
     ],
-    tests_require=['pytest', 'mock'],
+    tests_require=['pytest', 'mock', 'pytest-capturelog'],
     cmdclass=cmdclass,
     use_2to3=True,
 )

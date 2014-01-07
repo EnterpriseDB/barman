@@ -19,7 +19,7 @@
 Barman is able to manage multiple servers.
 '''
 
-from barman import xlog, _pretty_size
+from barman import xlog, output, _pretty_size
 from barman.lockfile import lockfile
 from barman.backup import BackupInfo, BackupManager
 from barman.command_wrappers import Command
@@ -135,75 +135,85 @@ class Server(object):
                 _logger.error('Invalid retention_policy setting "%s" for server "%s"' % (
                     self.config.retention_policy, self.config.name))
 
-    def check_retention_policy_settings(self):
-        '''Checks retention policy settings'''
-        if self.config.retention_policy and not self.enforce_retention_policies:
-            yield ("\tretention policy settings: FAILED (see log)", False)
-        else:
-            yield ("\tretention policy settings: OK", True)
+    def check(self):
+        """
+        Implements the 'server check' command and makes sure SSH and PostgreSQL
+        connections work properly. It checks also that backup directories exist
+        (and if not, it creates them).
+        """
+        output.info("Server %s:" % (self.config.name,))
+        self.check_ssh()
+        self.check_postgres()
+        self.check_directories()
+        # Check retention policies
+        self.check_retention_policy_settings()
+        # Executes the backup manager set of checks
+        self.backup_manager.check()
 
     def check_ssh(self):
-        '''Checks SSH connection'''
+        """
+        Checks SSH connection
+        """
         cmd = Command(self.ssh_command, self.ssh_options)
         ret = cmd("true")
         if ret == 0:
-            yield ("\tssh: OK", True)
+            output.result('check', self.config.name, 'ssh', True)
         else:
-            yield ("\tssh: FAILED (return code: %s)" % (ret,), False)
+            output.result('check', self.config.name, 'ssh', False,
+                          'return code: %s' % ret)
 
     def check_postgres(self):
-        '''
+        """
         Checks PostgreSQL connection
-        '''
+        """
         remote_status = self.get_remote_status()
         if remote_status['server_txt_version']:
-            yield ("\tPostgreSQL: OK", True)
+            output.result('check', self.config.name, 'PostgreSQL', True)
         else:
-            yield ("\tPostgreSQL: FAILED", False)
+            output.result('check', self.config.name, 'PostgreSQL', False)
             return
         if remote_status['archive_mode'] == 'on':
-            yield ("\tarchive_mode: OK", True)
+            output.result('check', self.config.name, 'archive_mode', True)
         else:
-            yield ("\tarchive_mode: FAILED (please set it to 'on')", False)
-        if remote_status['archive_command'] and remote_status['archive_command'] != '(disabled)':
-            yield ("\tarchive_command: OK", True)
+            output.result('check', self.config.name, 'archive_mode', False,
+                          "please set it to 'on'")
+        if remote_status['archive_command'] and\
+                remote_status['archive_command'] != '(disabled)':
+            output.result('check', self.config.name, 'archive_command', True)
         else:
-            yield ("\tarchive_command: FAILED (please set it accordingly to documentation)", False)
+            output.result('check', self.config.name, 'archive_command', False,
+                          'please set it accordingly to documentation')
 
     def check_directories(self):
-        '''Checks backup directories and creates them if they do not exist'''
+        """
+        Checks backup directories and creates them if they do not exist
+        """
         error = None
         try:
             for key in self.config.KEYS:
                 if key.endswith('_directory') and hasattr(self.config, key):
                     val = getattr(self.config, key)
-                    if val != None and not os.path.isdir(val):
+                    if val is not None and not os.path.isdir(val):
+                        #noinspection PyTypeChecker
                         os.makedirs(val)
         except OSError, e:
                 error = e.strerror
         if not error:
-            yield ("\tdirectories: OK", True)
+            output.result('check', self.config.name, 'directories', True)
         else:
-            yield ("\tdirectories: FAILED (%s)" % (error,), False)
+            output.result('check', self.config.name, 'directories', False,
+                          error)
 
-    def check(self):
-        '''
-        Implements the 'server check' command and makes sure SSH and PostgreSQL
-        connections work properly. It checks also that backup directories exist
-        (and if not, it creates them).
-        '''
-        status = [(("Server %s:" % (self.config.name,), True),)]
-        #FIXME: Description makes sense in a "check" command?
-        #if self.config.description: status.append(("\tdescription: %s" % (self.config.description),))
-        status.append(self.check_ssh())
-        status.append(self.check_postgres())
-        status.append(self.check_directories())
-        # Check retention policies
-        status.append(self.check_retention_policy_settings())
-        # Executes the backup manager set of checks
-        status.append(self.backup_manager.check())
-
-        return itertools.chain.from_iterable(status)
+    def check_retention_policy_settings(self):
+        """
+        Checks retention policy setting
+        """
+        if self.config.retention_policy and not self.enforce_retention_policies:
+            output.result('check', self.config.name,
+                          'retention policy settings', False, 'see log')
+        else:
+            output.result('check', self.config.name,
+                          'retention policy settings', True)
 
     def status_postgres(self):
         '''Status of PostgreSQL server'''
@@ -413,32 +423,27 @@ class Server(object):
         return self.backup_manager.get_first_backup(status_filter)
 
     def list_backups(self):
-        '''Lists all the available backups for the server'''
+        """
+        Lists all the available backups for the server
+        """
         status_filter = BackupInfo.STATUS_NOT_EMPTY
         retention_status = self.report_backups()
         backups = self.get_available_backups(status_filter)
         for key in sorted(backups.iterkeys(), reverse=True):
             backup = backups[key]
+
+            backup_size = 0
+            wal_size = 0
+            rstatus = None
             if backup.status == BackupInfo.DONE:
                 _, backup_wal_size, _, wal_until_next_size, _ = self.get_wal_info(backup)
-                backup_size = _pretty_size(backup.size or 0 + backup_wal_size)
-                wal_size = _pretty_size(wal_until_next_size)
-                end_time = backup.end_time.ctime()
-                rstatus = ''
-                if self.enforce_retention_policies and retention_status[backup.backup_id] != BackupInfo.VALID:
-                    rstatus = ' - %s' % retention_status[backup.backup_id]
-                if backup.tablespaces:
-                    tablespaces = [("%s:%s" % (name, location))for name, _, location in backup.tablespaces]
-                    yield ("%s %s - %s - Size: %s - WAL Size: %s (tablespaces: %s)%s"
-                           % (self.config.name, backup.backup_id,
-                              end_time, backup_size, wal_size,
-                              ', '.join(tablespaces), rstatus))
-                else:
-                    yield ("%s %s - %s - Size: %s - WAL Size: %s%s"
-                           % (self.config.name, backup.backup_id,
-                              end_time, backup_size, wal_size, rstatus))
-            else:
-                yield "%s %s - %s" % (self.config.name, backup.backup_id, backup.status)
+                backup_size = backup.size or 0 + backup_wal_size
+                wal_size = wal_until_next_size
+                if self.enforce_retention_policies and \
+                        retention_status[backup.backup_id] != BackupInfo.VALID:
+                    rstatus = retention_status[backup.backup_id]
+            output.result('list_backup', self.config.name, backup,
+                          backup_size, wal_size, rstatus)
 
     def get_backup(self, backup_id):
         '''Return the backup information for the given backup,
