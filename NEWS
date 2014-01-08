@@ -1,6 +1,26 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2013  2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.3.0 - X Mon 2014
+
+* Refactored BackupInfo class for backup metadata to use the new
+  FieldListFile class (infofile module)
+
+* Refactored output layer to use a dedicated module, in order to
+  facilitate integration with Nagios (NagiosOutputWriter class)
+
+* Refactored subprocess handling in order to isolate stdin/stderr/stdout
+  channels (command_wrappers module)
+
+* Refactored hook scripts management
+
+* Extracted logging configuration and userid enforcement from the
+  configuration class.
+
+* Implemented the rebuild-xlogdb command (Closes #27)
+
+* Added documentation for tablespaces relocation (#22)
+
 Version 1.2.3 - 5 September 2013
 
 * Added support for PostgreSQL 9.3
