@@ -21,11 +21,13 @@ from glob import glob
 import datetime
 import logging
 import os
+import sys
 import shutil
 import time
 import tempfile
 import re
 from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
+from barman.fs import UnixLocalCommand, UnixRemoteCommand, FsOperationFailed
 
 import dateutil.parser
 
@@ -282,9 +284,15 @@ class BackupManager(object):
             yield line
 
         recovery_dest = 'local'
+        cmd = None
         if remote_command:
             recovery_dest = 'remote'
             rsync = RsyncPgData(ssh=remote_command, bwlimit=self.config.bandwidth_limit)
+            # create a UnixRemoteCommand obj if is a remote recovery
+            cmd = UnixRemoteCommand(remote_command)
+        else:
+            # if is a local recovery create a UnixLocalCommand
+            cmd = UnixLocalCommand()
         msg = "Starting %s restore for server %s using backup %s " % (recovery_dest, self.config.name, backup.backup_id)
         yield msg
         _logger.info(msg)
@@ -293,36 +301,43 @@ class BackupManager(object):
         yield msg
         _logger.info(msg)
         if backup.tablespaces:
-            if remote_command:
-                # TODO: remote dir preparation
-                msg = "Skipping remote directory preparation, you must have done it by yourself."
-                yield msg
-                _logger.warning(msg)
-            else:
+            try:
                 tblspc_dir = os.path.join(dest, 'pg_tblspc')
-                if not os.path.exists(tblspc_dir):
-                    os.makedirs(tblspc_dir)
-                for name, oid, location in backup.tablespaces:
-                    try:
-                        if name in tablespaces:
-                            location = tablespaces[name]
-                        tblspc_file = os.path.join(tblspc_dir, str(oid))
-                        if os.path.exists(tblspc_file):
-                            os.unlink(tblspc_file)
-                        if os.path.exists(location) and not os.path.isdir(location):
-                            os.unlink(location)
-                        if not os.path.exists(location):
-                            os.makedirs(location)
-                        # test permissions
-                        barman_write_check_file = os.path.join(location, '.barman_write_check')
-                        file(barman_write_check_file, 'a').close()
-                        os.unlink(barman_write_check_file)
-                        os.symlink(location, tblspc_file)
-                    except:
-                        msg = "ERROR: unable to prepare '%s' tablespace (destination '%s')" % (name, location)
-                        _logger.critical(msg)
-                        raise SystemExit(msg)
-                    yield "\t%s, %s, %s" % (oid, name, location)
+                # check for pg_tblspc dir into recovery destination folder.
+                # if does not exists, create it
+                cmd.create_dir_if_not_exists(tblspc_dir)
+            except FsOperationFailed:
+                msg = "ERROR: unable to initialize Tablespace Recovery Operation "
+                _logger.critical(msg)
+                info = sys.exc_info()[0]
+                _logger.critical(info)
+                raise SystemExit(msg)
+
+            for name, oid, location in backup.tablespaces:
+                try:
+                    # check if relocation is needed
+                    if name in tablespaces:
+                        location = tablespaces[name]
+
+                    tblspc_file = os.path.join(tblspc_dir, str(oid))
+                    # delete destination directory for symlink file if exists
+                    cmd.delete_dir_if_exists(tblspc_file)
+                    # check that destination dir for tablespace exists
+                    cmd.check_directory_exists(location)
+                    # create it if does not exists
+                    cmd.create_dir_if_not_exists(location)
+                    # check for write permission into destination directory)
+                    cmd.check_write_permission(location)
+                    # create symlink between tablespace and recovery folder
+                    cmd.create_symbolic_link(location,tblspc_file)
+                except FsOperationFailed:
+                    msg = "ERROR: unable to prepare '%s' tablespace (destination '%s')" % (name, location)
+                    _logger.critical(msg)
+                    info = sys.exc_info()[0]
+                    _logger.critical(info)
+                    raise SystemExit(msg)
+
+                yield "\t%s, %s, %s" % (oid, name, location)
 
         wal_dest = os.path.join(dest, 'pg_xlog')
         target_epoch = None
