@@ -20,7 +20,6 @@ import os
 import dateutil.parser
 from barman import xlog
 from barman.compression import identify_compression
-from barman.utils import pretty_size
 
 
 class Field(object):
@@ -407,79 +406,6 @@ class BackupInfo(FieldListFile):
         """
         return os.path.basename(os.path.dirname(self.filename))
 
-    def description(self):
-        """
-        Format a string with all the backup information
-
-        :return str: the backup description
-        """
-        result = ["Backup %s:" % self.backup_id]
-        if self.status == BackupInfo.DONE:
-            try:
-                previous_backup = self.backup_manager.get_previous_backup(
-                    self.backup_id)
-                next_backup = self.backup_manager.get_next_backup(
-                    self.backup_id)
-                if previous_backup:
-                    previous_backup_id = previous_backup.backup_id
-                else:
-                    previous_backup_id = '- (this is the oldest base backup)'
-                if next_backup:
-                    next_backup_id = next_backup.backup_id
-                else:
-                    next_backup_id = '- (this is the latest base backup)'
-            except UnknownBackupIdException:
-                previous_backup_id = 'N/A'
-                next_backup_id = 'N/A'
-            wal_num, wal_size, wal_until_next_num, wal_until_next_size, \
-            wal_last = self.server.get_wal_info(self)
-            result.append("  Server Name       : %s" % self.server_name)
-            result.append("  Status            : %s" % self.status)
-            result.append("  PostgreSQL Version: %s" % self.version)
-            result.append("  PGDATA directory  : %s" % self.pgdata)
-            if self.tablespaces:
-                result.append("  Tablespaces:")
-                for name, oid, location in self.tablespaces:
-                    result.append("    %s: %s (oid: %s)" %
-                                  (name, location, oid))
-            result.append("")
-            result.append("  Base backup information:")
-            result.append("    Disk usage      : %s" %
-                          pretty_size(self.size + wal_size))
-            result.append("    Timeline        : %s" % self.timeline)
-            result.append("    Begin WAL       : %s" % self.begin_wal)
-            result.append("    End WAL         : %s" % self.end_wal)
-            result.append("    WAL number      : %s" % wal_num)
-            result.append("    Begin time      : %s" % self.begin_time)
-            result.append("    End time        : %s" % self.end_time)
-            result.append("    Begin Offset    : %s" % self.begin_offset)
-            result.append("    End Offset      : %s" % self.end_offset)
-            result.append("    Begin XLOG      : %s" % self.begin_xlog)
-            result.append("    End XLOG        : %s" % self.end_xlog)
-            result.append("")
-            result.append("  WAL information:")
-            result.append("    No of files     : %s" % wal_until_next_num)
-            result.append("    Disk usage      : %s" %
-                          pretty_size(wal_until_next_size))
-            result.append("    Last available  : %s" % wal_last)
-            result.append("")
-            result.append("  Catalog information:")
-            if self.server.enforce_retention_policies:
-                policy = self.server.config.retention_policy
-                result.append(
-                    "    Retention Policy: %s" %
-                    policy.backup_status(self.backup_id))
-            else:
-                result.append("    Retention Policy: not enforced")
-            result.append("    Previous Backup : %s" % previous_backup_id)
-            result.append("    Next Backup     : %s" % next_backup_id)
-        else:
-            result.append("  Server Name       : %s" % self.server_name)
-            result.append("  Status:           : %s" % self.status)
-            if self.error:
-                result.append("  Error:            : %s" % self.error)
-        return '\n'.join(result)
-
     def get_basebackup_directory(self):
         """
         Get the default filename for the backup.info file based on
@@ -512,8 +438,11 @@ class BackupInfo(FieldListFile):
 
     def to_dict(self):
         """
-        Return the backup_info content as a simple dictionary suitable for
+        Return the backup_info content as a simple dictionary
 
         :return dict:
         """
-        return dict(self.items())
+        result = dict(self.items())
+        result.update(backup_id=self.backup_id, server_name=self.server_name,
+                      mode=self.mode, tablespaces=self.tablespaces)
+        return result

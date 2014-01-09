@@ -229,12 +229,11 @@ def recover(args):
     """ Recover a server at a given time or xid
     """
     server = get_server(args)
-    if server == None:
+    if server is None:
         raise SystemExit("ERROR: unknown server '%s'" % (args.server_name))
-        # Retrieves the backup info
-    backup_id = parse_backup_id(server, args)
-    backup = server.get_backup(backup_id)
-    if backup == None or backup.status != BackupInfo.DONE:
+    # Retrieves the backup
+    backup = parse_backup_id(server, args)
+    if backup is None or backup.status != BackupInfo.DONE:
         raise SystemExit("ERROR: unknown backup '%s' for server '%s'" % (
             args.backup_id, args.server_name))
         # decode the tablespace relocation rules
@@ -333,20 +332,21 @@ def check(args):
      help='specifies the backup ID')
 @expects_obj
 def show_backup(args):
-    """ This method Shows a single backup information
+    """
+    This method shows a single backup information
     """
     server = get_server(args)
-    if server == None:
-        yield "Unknown server '%s'" % (args.server_name)
-        return
-        # Retrieves the backup info
-    backup_id = parse_backup_id(server, args)
-    backup = server.get_backup(backup_id)
-    if backup == None:
-        yield "Unknown backup '%s' for server '%s'" % (
-            args.backup_id, args.server_name)
-        return
-    yield backup.description()
+    if server is None:
+        output.error("Unknown server '%s'" % args.server_name)
+    else:
+        # Retrieves the backup
+        backup_info = parse_backup_id(server, args)
+        if backup_info is None:
+            output.error("Unknown backup '%s' for server '%s'" % (
+                args.backup_id, args.server_name))
+        else:
+            server.show_backup(backup_info)
+    output.close_and_exit()
 
 
 @named('list-files')
@@ -369,13 +369,12 @@ def list_files(args):
     """ List all the files for a single backup
     """
     server = get_server(args)
-    if server == None:
+    if server is None:
         yield "Unknown server '%s'" % (args.server_name)
         return
-        # Retrieves the backup info
-    backup_id = parse_backup_id(server, args)
-    backup = server.get_backup(backup_id)
-    if backup == None:
+    # Retrieves the backup
+    backup = parse_backup_id(server, args)
+    if backup is None:
         yield "Unknown backup '%s' for server '%s'" % (
             args.backup_id, args.server_name)
         return
@@ -394,13 +393,12 @@ def delete(args):
     """ Delete a backup
     """
     server = get_server(args)
-    if server == None:
+    if server is None:
         yield "Unknown server '%s'" % (args.server_name)
         return
-        # Retrieves the backup info
-    backup_id = parse_backup_id(server, args)
-    backup = server.get_backup(backup_id)
-    if backup == None:
+    # Retrieves the backup
+    backup = parse_backup_id(server, args)
+    if backup is None:
         yield "Unknown backup '%s' for server '%s'" % (
             args.backup_id, args.server_name)
         return
@@ -493,18 +491,21 @@ def get_server_list(args):
 
 
 def parse_backup_id(server, args):
-    ''' Parses special backup IDs such as latest, oldest, etc. '''
+    """
+    Parses backup IDs including special words such as latest, oldest, etc.
+
+    :param Server server: server object to search for the required backup
+    :param args: command lien arguments namespace
+    :rtype BackupInfo,None: the decoded backup_info object
+    """
     if args.backup_id in ('latest', 'last'):
         backup_id = server.get_last_backup()
     elif args.backup_id in ('oldest', 'first'):
         backup_id = server.get_first_backup()
     else:
-        return args.backup_id
-    if backup_id == None:
-        raise SystemExit(
-            "ERROR: '%s' backup is not available for server '%s'" % (
-                args.backup_id, args.server_name))
-    return backup_id
+        backup_id = args.backup_id
+    backup_info = server.get_backup(backup_id) if backup_id else None
+    return backup_info
 
 
 def main():

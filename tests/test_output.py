@@ -15,12 +15,18 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from barman import output
 import mock
 import pytest
 
+from barman import output
+from barman.infofile import BackupInfo
+
 
 #noinspection PyMethodMayBeStatic
+from barman.testing_helpers import mock_backup_info, mock_backup_ext_info
+from barman.utils import pretty_size
+
+
 class TestOutputAPI(object):
     @staticmethod
     def _mock_writer():
@@ -461,20 +467,35 @@ class TestOutputAPI(object):
 
         args = ('1', 'two')
         kwargs = dict(three=3, four=5)
-        output.init('type', *args, **kwargs)
-        output.init('another_type')
+        output.init('command', *args, **kwargs)
+        output.init('another_command')
 
         # writer test
-        writer.init_type.assert_called_once_with(*args, **kwargs)
-        writer.init_another_type.assert_called_once_with()
+        writer.init_command.assert_called_once_with(*args, **kwargs)
+        writer.init_another_command.assert_called_once_with()
 
-    def test_init_bad_type(self):
+    @mock.patch('sys.exit')
+    def test_init_bad_command(self, exit_mock, caplog):
         # preparation
         writer = self._mock_writer()
-        del writer.init_bad_type
+        del writer.init_bad_command
 
-        with pytest.raises(ValueError):
-            output.init('bad_type')
+        output.init('bad_command')
+
+        # logging test
+        for record in caplog.records():
+            assert record.levelname == 'ERROR'
+        assert 'bad_command' in caplog.text()
+        assert 'Traceback' in caplog.text()
+
+        # writer test
+        writer.error_occurred.assert_called_once_with()
+        writer.exception.assert_called_once()
+
+        # exit with error
+        assert exit_mock.called
+        assert exit_mock.call_count == 1
+        assert exit_mock.call_args[0] != 0
 
     def test_result(self):
         # preparation
@@ -482,20 +503,35 @@ class TestOutputAPI(object):
 
         args = ('1', 'two')
         kwargs = dict(three=3, four=5)
-        output.result('type', *args, **kwargs)
-        output.result('another_type')
+        output.result('command', *args, **kwargs)
+        output.result('another_command')
 
         # writer test
-        writer.result_type.assert_called_once_with(*args, **kwargs)
-        writer.result_another_type.assert_called_once_with()
+        writer.result_command.assert_called_once_with(*args, **kwargs)
+        writer.result_another_command.assert_called_once_with()
 
-    def test_result_bad_type(self):
+    @mock.patch('sys.exit')
+    def test_result_bad_command(self, exit_mock, caplog):
         # preparation
         writer = self._mock_writer()
-        del writer.result_bad_type
+        del writer.result_bad_command
 
-        with pytest.raises(ValueError):
-            output.result('bad_type')
+        output.result('bad_command')
+
+        # logging test
+        for record in caplog.records():
+            assert record.levelname == 'ERROR'
+        assert 'bad_command' in caplog.text()
+        assert 'Traceback' in caplog.text()
+
+        # writer test
+        writer.error_occurred.assert_called_once_with()
+        writer.exception.assert_called_once()
+
+        # exit with error
+        assert exit_mock.called
+        assert exit_mock.call_count == 1
+        assert exit_mock.call_args[0] != 0
 
     def test_close(self):
         # preparation
@@ -541,6 +577,13 @@ class TestConsoleWriter(object):
         assert out == ''
         assert err == 'DEBUG: ' + msg + '\n'
 
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.debug(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == 'DEBUG: ' + msg % args + '\n'
+
         msg = 'test args %d %s'
         args = (1, 'two')
         writer.debug(msg, *args)
@@ -560,6 +603,13 @@ class TestConsoleWriter(object):
 
         msg = 'test message'
         writer.debug(msg)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
         assert out == ''
         assert err == ''
@@ -587,6 +637,13 @@ class TestConsoleWriter(object):
         assert out == msg + '\n'
         assert err == ''
 
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.info(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == msg % args + '\n'
+        assert err == ''
+
         msg = 'test args %d %s'
         args = (1, 'two')
         writer.info(msg, *args)
@@ -609,6 +666,13 @@ class TestConsoleWriter(object):
         (out, err) = capsys.readouterr()
         assert out == ''
         assert err == 'WARNING: ' + msg + '\n'
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.warning(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == 'WARNING: ' + msg % args + '\n'
 
         msg = 'test args %d %s'
         args = (1, 'two')
@@ -633,6 +697,13 @@ class TestConsoleWriter(object):
         assert out == ''
         assert err == 'ERROR: ' + msg + '\n'
 
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.error(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == 'ERROR: ' + msg % args + '\n'
+
         msg = 'test args %d %s'
         args = (1, 'two')
         writer.error(msg, *args)
@@ -655,6 +726,13 @@ class TestConsoleWriter(object):
         (out, err) = capsys.readouterr()
         assert out == ''
         assert err == 'EXCEPTION: ' + msg + '\n'
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.exception(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == 'EXCEPTION: ' + msg % args + '\n'
 
         msg = 'test args %d %s'
         args = (1, 'two')
@@ -724,6 +802,98 @@ class TestConsoleWriter(object):
         assert err == ''
         assert output.error_occurred
 
+    def test_init_list_backup(self):
+        writer = output.ConsoleOutputWriter()
+
+        writer.init_list_backup()
+        assert not writer.minimal
+
+        writer.init_list_backup(True)
+        assert writer.minimal
+
+    def test_result_list_backup(self, capsys):
+        # mock the backup info
+        bi = mock_backup_info()
+        backup_size = 12345
+        wal_size = 54321
+        retention_status = 'test status'
+
+        writer = output.ConsoleOutputWriter()
+
+        # test minimal
+        writer.init_list_backup(True)
+        writer.result_list_backup(bi, backup_size, wal_size, retention_status)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert writer.minimal
+        assert bi.backup_id in out
+        assert err == ''
+
+        # test status=DONE output
+        writer.init_list_backup(False)
+        writer.result_list_backup(bi, backup_size, wal_size, retention_status)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert not writer.minimal
+        assert bi.server_name in out
+        assert bi.backup_id in out
+        assert str(bi.end_time.ctime()) in out
+        for name, _, location in bi.tablespaces:
+            assert '%s:%s' % (name, location)
+        assert 'Size: ' + pretty_size(backup_size) in out
+        assert 'WAL Size: ' + pretty_size(wal_size) in out
+        assert err == ''
+
+        # test status = FAILED output
+        bi = mock_backup_info(status=BackupInfo.FAILED)
+        writer.init_list_backup(False)
+        writer.result_list_backup(bi, backup_size, wal_size, retention_status)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert not writer.minimal
+        assert bi.server_name in out
+        assert bi.backup_id in out
+        assert bi.status in out
+
+    def test_result_show_backup(self, capsys):
+        # mock the backup ext info
+        ext_info = mock_backup_ext_info()
+
+        writer = output.ConsoleOutputWriter()
+
+        # test minimal
+        writer.result_show_backup(ext_info)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert ext_info['server_name'] in out
+        assert ext_info['backup_id'] in out
+        assert ext_info['status'] in out
+        assert str(ext_info['end_time']) in out
+        for name, _, location in ext_info['tablespaces']:
+            assert '%s: %s' % (name, location) in out
+        assert (pretty_size(ext_info['size'] + ext_info['wal_size'])) in out
+        assert (pretty_size(ext_info['wal_until_next_size'])) in out
+        # TODO: this test can be expanded
+        assert err == ''
+
+    def test_result_show_backup_error(self, capsys):
+        # mock the backup ext info
+        msg = 'test error message'
+        ext_info = mock_backup_ext_info(status=BackupInfo.FAILED, error=msg)
+
+        writer = output.ConsoleOutputWriter()
+
+        # test minimal
+        writer.result_show_backup(ext_info)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert ext_info['server_name'] in out
+        assert ext_info['backup_id'] in out
+        assert ext_info['status'] in out
+        assert str(ext_info['end_time']) not in out
+        assert msg in out
+        assert err == ''
+
 
 #noinspection PyMethodMayBeStatic
 class TestNagiosWriter(object):
@@ -733,6 +903,13 @@ class TestNagiosWriter(object):
 
         msg = 'test message'
         writer.debug(msg)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
         assert out == ''
         assert err == ''
@@ -760,6 +937,13 @@ class TestNagiosWriter(object):
         assert out == ''
         assert err == ''
 
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.debug(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
         msg = 'test args %d %s'
         args = (1, 'two')
         writer.debug(msg, *args)
@@ -779,6 +963,13 @@ class TestNagiosWriter(object):
 
         msg = 'test message'
         writer.info(msg)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.info(msg, *args)
         (out, err) = capsys.readouterr()
         assert out == ''
         assert err == ''
@@ -806,6 +997,13 @@ class TestNagiosWriter(object):
         assert out == ''
         assert err == ''
 
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.warning(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
         msg = 'test args %d %s'
         args = (1, 'two')
         writer.warning(msg, *args)
@@ -829,6 +1027,13 @@ class TestNagiosWriter(object):
         assert out == ''
         assert err == ''
 
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.error(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
         msg = 'test args %d %s'
         args = (1, 'two')
         writer.error(msg, *args)
@@ -848,6 +1053,13 @@ class TestNagiosWriter(object):
 
         msg = 'test message'
         writer.exception(msg)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.exception(msg, *args)
         (out, err) = capsys.readouterr()
         assert out == ''
         assert err == ''

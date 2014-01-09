@@ -20,7 +20,7 @@ Barman is able to manage multiple servers.
 '''
 
 from barman import xlog, output
-from barman.infofile import BackupInfo
+from barman.infofile import BackupInfo, UnknownBackupIdException
 from barman.lockfile import lockfile
 from barman.backup import BackupManager
 from barman.command_wrappers import Command
@@ -30,7 +30,6 @@ import logging
 import psycopg2
 from contextlib import contextmanager
 import itertools
-from barman.utils import pretty_size
 
 _logger = logging.getLogger(__name__)
 
@@ -444,14 +443,13 @@ class Server(object):
             wal_size = 0
             rstatus = None
             if backup.status == BackupInfo.DONE:
-                _, backup_wal_size, _, wal_until_next_size, _ = self.get_wal_info(backup)
-                backup_size = backup.size or 0 + backup_wal_size
-                wal_size = wal_until_next_size
+                wal_info = self.get_wal_info(backup)
+                backup_size = backup.size or 0 + wal_info['wal_size']
+                wal_size = wal_info['wal_until_next_size']
                 if self.enforce_retention_policies and \
                         retention_status[backup.backup_id] != BackupInfo.VALID:
                     rstatus = retention_status[backup.backup_id]
-            output.result('list_backup', self.config.name, backup,
-                          backup_size, wal_size, rstatus)
+            output.result('list_backup', backup, backup_size, wal_size, rstatus)
 
     def get_backup(self, backup_id):
         '''Return the backup information for the given backup,
@@ -529,29 +527,29 @@ class Server(object):
                 # count
                 yield (name, size)
 
-    def get_wal_info(self, backup):
-        '''Returns information about WALs for the given backup
+    def get_wal_info(self, backup_info):
+        """
+        Returns information about WALs for the given backup
 
-        :param backup: a backup object of which return wal information
-        '''
-        end = backup.end_wal
+        :param BackupInfo backup_info: the target backup
+        """
+        end = backup_info.end_wal
 
         # counters
-        wal_num = 0
-        wal_size = 0
-        wal_until_next_num = 0
-        wal_until_next_size = 0
-        wal_last = None
+        wal_info = dict.fromkeys(
+            ('wal_num', 'wal_size',
+             'wal_until_next_num', 'wal_until_next_size'), 0)
+        wal_info['wal_last'] = None
 
-        for name, size in self.get_wal_until_next_backup(backup):
+        for name, size in self.get_wal_until_next_backup(backup_info):
                 if name <= end:
-                    wal_num += 1
-                    wal_size += size
+                    wal_info['wal_num'] += 1
+                    wal_info['wal_size'] += size
                 else:
-                    wal_until_next_num += 1
-                    wal_until_next_size += size
-                wal_last = name
-        return wal_num, wal_size, wal_until_next_num, wal_until_next_size, wal_last
+                    wal_info['wal_until_next_num'] += 1
+                    wal_info['wal_until_next_size'] += size
+                wal_info['wal_last'] = name
+        return wal_info
 
     def recover(self, backup, dest, tablespaces=[], target_tli=None, target_time=None, target_xid=None, target_name=None, exclusive=False, remote_command=None):
         '''Performs a recovery of a backup'''
@@ -608,3 +606,55 @@ class Server(object):
         Rebuild the whole xlog database guessing it from the archive content.
         """
         return self.backup_manager.rebuild_xlogdb()
+
+    def get_backup_ext_info(self, backup_info):
+        """
+        Return a dictionary containing all available information about a backup
+
+        The result is equivalent to the sum of information from
+
+         * BackupInfo object
+         * the Server.get_wal_info() return value
+         * the context in the catalog (if available)
+         * the retention policy status
+
+        :param backup_info: the target backup
+        :rtype dict: all information about a backup
+        """
+        backup_ext_info = backup_info.to_dict()
+        if backup_info.status == BackupInfo.DONE:
+            try:
+                previous_backup = self.backup_manager.get_previous_backup(
+                    backup_ext_info['backup_id'])
+                next_backup = self.backup_manager.get_next_backup(
+                    backup_ext_info['backup_id'])
+                if previous_backup:
+                    backup_ext_info[
+                        'previous_backup_id'] = previous_backup.backup_id
+                else:
+                    backup_ext_info['previous_backup_id'] = None
+                if next_backup:
+                    backup_ext_info['next_backup_id'] = next_backup.backup_id
+                else:
+                    backup_ext_info['next_backup_id'] = None
+            except UnknownBackupIdException:
+                # no next_backup_id and previous_backup_id items
+                # means "Not available"
+                pass
+            backup_ext_info.update(self.get_wal_info(backup_info))
+            if self.enforce_retention_policies:
+                policy = self.config.retention_policy
+                backup_ext_info['retention_policy_status'] = \
+                    policy.backup_status(backup_info.backup_id)
+            else:
+                backup_ext_info['retention_policy_status'] = None
+        return backup_ext_info
+
+    def show_backup(self, backup_info):
+        """
+        Output all available information about a backup
+
+        :param backup_info: the target backup
+        """
+        backup_ext_info = self.get_backup_ext_info(backup_info)
+        output.result('show_backup', backup_ext_info)

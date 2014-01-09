@@ -57,7 +57,7 @@ def _format_message(message, args):
     """
     if len(args) == 1 and isinstance(args[0], dict):
         return message % args[0]
-    elif len(args) > 1:
+    elif len(args) > 0:
         return message % args
     else:
         return message
@@ -122,7 +122,7 @@ def _dispatch(obj, prefix, name, *args, **kwargs):
     if callable(handler):
         return handler(*args, **kwargs)
     else:
-        raise ValueError("The object %r do not has the %r method" % (
+        raise ValueError("The object %r does not have the %r method" % (
             obj, method_name))
 
 
@@ -199,30 +199,40 @@ def exception(message, *args, **kwargs):
             raise
 
 
-def init(command_type, *args, **kwargs):
+def init(command, *args, **kwargs):
     """
     Initialize the output writer for a given command.
 
-    :param str command_type: the name of the command are being executed
+    :param str command: name of the command are being executed
     :param tuple args: all remaining positional arguments will be sent
         to the output processor
     :param dict kwargs: all keyword arguments will be sent
-    to the output processor
+        to the output processor
     """
-    _dispatch(_writer, 'init', command_type, *args, **kwargs)
+    try:
+        _dispatch(_writer, 'init', command, *args, **kwargs)
+    except ValueError:
+        exception('The %s writer does not support the "%s" command',
+                  _writer.__class__.__name__, command)
+        close_and_exit()
 
 
-def result(result_type, *args, **kwargs):
+def result(command, *args, **kwargs):
     """
     Output the result of an operation.
 
-    :param str result_type: the operation type
+    :param str command: name of the command are being executed
     :param tuple args: all remaining positional arguments will be sent
         to the output processor
     :param dict kwargs: all keyword arguments will be sent
-    to the output processor
+        to the output processor
     """
-    _dispatch(_writer, 'result', result_type, *args, **kwargs)
+    try:
+        _dispatch(_writer, 'result', command, *args, **kwargs)
+    except ValueError:
+        exception('The %s writer does not support the "%s" command',
+                  _writer.__class__.__name__, command)
+        close_and_exit()
 
 
 def close_and_exit():
@@ -388,21 +398,31 @@ class ConsoleOutputWriter(object):
 
     def init_list_backup(self, minimal=False):
         """
-        Init the backup-list command
+        Init the list-backup command
 
-        :param minimal: if true output only a list of backup id
+        :param bool minimal: if true output only a list of backup id
         """
         self.minimal = minimal
 
-    def result_list_backup(self, server_name, backup_info,
+    def result_list_backup(self, backup_info,
                            backup_size, wal_size,
                            retention_status):
+        """
+        Output a single backup in the list-backup command
+
+        :param basestring server_name: server we are displaying
+        :param BackupInfo backup_info: backup we are displaying
+        :param backup_size: size of base backup (with the required WAL files)
+        :param wal_size: size of WAL files belonging to this backup
+            (without the required WAL files)
+        :param retention_status: retention policy status
+        """
         # If minimal is set only output the backup id
         if self.minimal:
             self.info(backup_info.backup_id)
             return
 
-        out_list = ["%s %s - " % (server_name, backup_info.backup_id)]
+        out_list = ["%s %s - " % (backup_info.server_name, backup_info.backup_id)]
         if backup_info.status == BackupInfo.DONE:
             end_time = backup_info.end_time.ctime()
             out_list.append('%s - Size: %s - WAL Size: %s' %
@@ -419,6 +439,68 @@ class ConsoleOutputWriter(object):
         else:
             out_list.append(backup_info.status)
         self.info(''.join(out_list))
+
+    def result_show_backup(self, backup_ext_info):
+        """
+        Output all available information about a backup in show-backup command
+
+        The argument has to be the result of a Server.get_backup_ext_info() call
+
+        :param dict backup_ext_info: a dictionary containing the info to display
+        """
+        data = dict(backup_ext_info)
+        self.info("Backup %s:", data['backup_id'])
+        self.info("  Server Name       : %s", data['server_name'])
+        self.info("  Status            : %s", data['status'])
+        if data['status'] == BackupInfo.DONE:
+            self.info("  PostgreSQL Version: %s", data['version'])
+            self.info("  PGDATA directory  : %s", data['pgdata'])
+            if data['tablespaces']:
+                self.info("  Tablespaces:")
+                for name, oid, location in data['tablespaces']:
+                    self.info("    %s: %s (oid: %s)", name, location, oid)
+            self.info("")
+            self.info("  Base backup information:")
+            self.info("    Disk usage      : %s",
+                      pretty_size(data['size'] + data[
+                          'wal_size']))
+            self.info("    Timeline        : %s", data['timeline'])
+            self.info("    Begin WAL       : %s",
+                      data['begin_wal'])
+            self.info("    End WAL         : %s", data['end_wal'])
+            self.info("    WAL number      : %s", data['wal_num'])
+            self.info("    Begin time      : %s",
+                      data['begin_time'])
+            self.info("    End time        : %s", data['end_time'])
+            self.info("    Begin Offset    : %s",
+                      data['begin_offset'])
+            self.info("    End Offset      : %s",
+                      data['end_offset'])
+            self.info("    Begin XLOG      : %s",
+                      data['begin_xlog'])
+            self.info("    End XLOG        : %s", data['end_xlog'])
+            self.info("")
+            self.info("  WAL information:")
+            self.info("    No of files     : %s",
+                      data['wal_until_next_num'])
+            self.info("    Disk usage      : %s",
+                      pretty_size(data['wal_until_next_size']))
+            self.info("    Last available  : %s", data['wal_last'])
+            self.info("")
+            self.info("  Catalog information:")
+            self.info("    Retention Policy: %s",
+                      data['retention_policy_status']
+                      or 'not enforced')
+            self.info("    Previous Backup : %s",
+                      data.setdefault('previous_backup_id', 'not available')
+                      or '- (this is the oldest base backup)')
+            self.info("    Next Backup     : %s",
+                      data.setdefault('next_backup_id', 'not available')
+                      or '- (this is the latest base backup)')
+        else:
+            if data['error']:
+                self.info("  Error:            : %s",
+                          data['error'])
 
 
 class NagiosOutputWriter(ConsoleOutputWriter):
@@ -464,7 +546,7 @@ class NagiosOutputWriter(ConsoleOutputWriter):
 #: This dictionary acts as a registry of available OutputWriters
 AVAILABLE_WRITERS = {
     'console': ConsoleOutputWriter,
-    # nagios is not registered as not a general purpose output writer
+    # nagios is not registered as it isn't a general purpose output writer
     # 'nagios': NagiosOutputWriter,
 }
 
