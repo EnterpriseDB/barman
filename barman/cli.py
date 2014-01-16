@@ -20,6 +20,7 @@ This module implements the interface with the command line and the logger.
 """
 
 from argh import ArghParser, named, arg, expects_obj
+from argparse import SUPPRESS
 from barman import output
 from barman.infofile import BackupInfo
 from barman.lockfile import lockfile
@@ -105,6 +106,16 @@ def backup_completer(prefix, parsed_args, **kwargs):
      completer=server_completer_all,
      help="specifies the server names for the backup command "
           "('all' will show all available servers)")
+@arg('--immediate-checkpoint',
+     help='forces the initial checkpoint to be done as quickly as possible',
+     dest='immediate_checkpoint',
+     action='store_true',
+     default=SUPPRESS)
+@arg('--no-immediate-checkpoint',
+     help='forces the initial checkpoint to be spreaded',
+     dest='immediate_checkpoint',
+     action='store_false',
+     default=SUPPRESS)
 @expects_obj
 def backup(args):
     """
@@ -116,7 +127,12 @@ def backup(args):
         if server is None:
             output.error("Unknown server '%s'" % name)
             continue
-        server.backup()
+        immediate_checkpoint = getattr(args, 'immediate_checkpoint', None)
+        checkpoint = server.config.immediate_checkpoint
+        if (immediate_checkpoint is None
+            and checkpoint is not None):
+            immediate_checkpoint = checkpoint.lower() == 'true'
+        server.backup(immediate_checkpoint)
     output.close_and_exit()
 
 

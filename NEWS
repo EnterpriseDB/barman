@@ -17,6 +17,9 @@ Version 1.3.0 - X Mon 2014
 * Extracted logging configuration and userid enforcement from the
   configuration class.
 
+* Implemented immediate checkpoint capability with --immediate-checkpoint
+  command option and immediate_checkpoint configuration option
+
 * Implemented the rebuild-xlogdb command (Closes #27)
 
 * Added documentation for tablespaces relocation (#22)

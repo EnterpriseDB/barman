@@ -370,12 +370,18 @@ class Server(object):
             except:
                 return None
 
-    def pg_start_backup(self):
-        '''Execute a pg_start_backup'''
+    def pg_start_backup(self, backup_label, immediate_checkpoint):
+        """
+        Execute a pg_start_backup
+
+        :param backup_label: label for the backup
+        :param immediate_checkpoint Boolean for immediate checkpoint execution
+        """
         with self.pg_connect() as conn:
             try:
                 cur = conn.cursor()
-                cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_start_backup(%s) as xlog_loc', ('Barman backup',))
+                cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_start_backup(%s,%s) as xlog_loc',
+                            (backup_label, immediate_checkpoint))
                 return cur.fetchone()
             except:
                 return None
@@ -397,9 +403,9 @@ class Server(object):
         '''
         return self.backup_manager.delete_backup(backup)
 
-    def backup(self):
+    def backup(self, immediate_checkpoint):
         '''Performs a backup for the server'''
-        return self.backup_manager.backup()
+        return self.backup_manager.backup(immediate_checkpoint)
 
     def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         '''Get a list of available backups

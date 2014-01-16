@@ -189,7 +189,7 @@ class BackupManager(object):
                 os.rename(xlogdb_new, fxlogdb.name)
         yield "Done"
 
-    def backup(self):
+    def backup(self, immediate_checkpoint):
         """
         Performs a backup for the server
         """
@@ -213,7 +213,7 @@ class BackupManager(object):
             script.run()
 
             # Start the backup
-            self.backup_start(backup_info)
+            self.backup_start(backup_info, immediate_checkpoint)
             backup_info.set_attribute("begin_time", backup_stamp)
             backup_info.save()
             output.info("Backup start at xlog location: %s (%s, %08X)",
@@ -532,7 +532,7 @@ class BackupManager(object):
             _logger.warning('Expected WAL file %s not found during delete',
                 name)
 
-    def backup_start(self, backup_info):
+    def backup_start(self, backup_info, immediate_checkpoint):
         '''
         Start of the backup
 
@@ -569,7 +569,10 @@ class BackupManager(object):
         # Issue pg_start_backup on the PostgreSQL server
         self.current_action = "issuing pg_start_backup command"
         _logger.debug(self.current_action)
-        start_row = self.server.pg_start_backup()
+        backup_label = ("Barman backup %s %s"
+                        % (backup_info.server_name, backup_info.backup_id))
+        start_row = self.server.pg_start_backup(backup_label,
+                                                immediate_checkpoint)
         if start_row:
             start_xlog, start_file_name, start_file_offset = start_row
             backup_info.set_attribute("status", "STARTED")

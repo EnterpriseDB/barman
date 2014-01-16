@@ -219,11 +219,11 @@ Getting started
 
    You will see that the configuration file (as explained below) defines a
    barman_home variable, which is the directory where Barman will store
-   all your backups by default. We choose /srv/barman as home directory
-   for Barman:
+   all your backups by default. We choose /var/lib/barman as home
+   directory for Barman:
 
-  barman@backup$ sudo mkdir /srv/barman
-  barman@backup$ sudo chown barman:barman /srv/barman
+  barman@backup$ sudo mkdir /var/lib/barman
+  barman@backup$ sudo chown barman:barman /var/lib/barman
 
    Important
    We assume that you have enough space, and that you have already thought
@@ -377,6 +377,26 @@ r custom
    This will iterate through your available servers and sequentially take
    a backup for each of them.
 
+  Immediate Checkpoint
+
+   By default, when issuing a backup, Barman waits for the checkpoint to
+   happen on the PostgreSQL server (depending on the configuration
+   settings for workload or time checkpoint control). This might take
+   longer for a backup to start.
+
+   As of version 1.3.0, it is possible to use the immediate_checkpoint
+   configuration global/server option (set to false by default).
+
+   By setting it to true, you can force the checkpoint on the Postgres
+   server to happen immediately and start your backup copy process as soon
+   as possible:
+
+   At any time, you can override the configuration option behaviour, by
+   issuing the barman backup with any of these two options:
+     * --immediate-checkpoint, which forces an immediate checkpoint;
+     * --no-immediate-checkpoint, which forces to wait for the checkpoint
+       to happen.
+
   Viewing the list of backups for a server
 
    To list all the available backups for a given server, issue:
@@ -420,6 +440,13 @@ r custom
    You can retrieve a list of backup IDs for a specific server with:
 
      barman@backup$ barman list-backup srvpgsql
+
+   Important
+   Barman does not currently keep track of symbolic links inside PGDATA
+   (except for tablespaces inside pg_tblspc). We encourage system
+   administrators to keep track of symbolic links and to add them to the
+   disaster recovery plans/procedures in case they need to be restored in
+   their original location.
 
   Remote recovery
 
@@ -723,7 +750,7 @@ Available commands
 
    You can perform a full backup (base backup) for a given server with:
 
-     barman backup <server_name>
+     barman backup [--immediate-checkpoint] <server_name>
 
    Tip
    You can use barman backup all to sequentially backup all your
@@ -745,6 +772,22 @@ Available commands
 
    Tip
    You can use barman check all to check all your configured servers.
+
+    Rebuild the WAL archive
+
+   At any time, you can regenerate the content of the WAL archive for a
+   specific server (or every server, using the all shortcut). The WAL
+   archive is contained in the xlog.db file, and every Barman server has
+   its own copy. From version 1.2.4 you can now rebuild the xlog.db file
+   with the rebuild-xlogdb command. This will scan all the archived WAL
+   files and regenerate the metadata for the archive.
+
+   Important
+   Users of Barman < 1.2.3 might have suffered from a bug due to bad
+   locking in highly concurrent environments. You can now regenerate the
+   WAL archive using the rebuild-xlogdb command.
+
+     barman rebuild-xlogdb <server_name>
 
   Backup commands
 
@@ -866,14 +909,20 @@ Authors
      * Carlo Ascani
      __________________________________________________________________
 
+Links
+
+     * check-barman: a Nagios plugin for Barman, written by Holger Hamann
+       ([14]https://github.com/hamann/check-barman, MIT license)
+     __________________________________________________________________
+
 License and Contributions
 
    Barman is the exclusive property of 2ndQuadrant Italia and its code is
    distributed under GNU General Public License 3.
    Copyright © 2011-2013, 2ndQuadrant Italia (Devise.IT S.r.l.) -
-   [14]http://www.2ndQuadrant.it.
+   [15]http://www.2ndQuadrant.it.
 
-   Barman has been partially funded through [15]4CaaSt, a research project
+   Barman has been partially funded through [16]4CaaSt, a research project
    funded by the European Commission's Seventh Framework programme.
 
    Contributions to Barman are welcome, and will be listed in the file
@@ -881,11 +930,11 @@ License and Contributions
    copyright assignment and a disclaimer of any work-for-hire ownership
    claims from the employer of the developer. This lets us make sure that
    all of the Barman distribution remains free code. Please contact
-   [16]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
+   [17]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
    Form.
      __________________________________________________________________
 
-   Last updated 2013-11-19 15:00:40 CET
+   Last updated 2014-01-20 11:57:18 CET
 
 References
 
@@ -902,6 +951,7 @@ References
   11. mailto:giuseppe.broccolo@2ndquadrant.it
   12. mailto:giulio.calacoci@2ndquadrant.it
   13. mailto:marco.nenciarini@2ndquadrant.it
-  14. http://www.2ndQuadrant.it/
-  15. http://4caast.morfeo-project.org/
-  16. mailto:info@2ndQuadrant.it
+  14. https://github.com/hamann/check-barman
+  15. http://www.2ndQuadrant.it/
+  16. http://4caast.morfeo-project.org/
+  17. mailto:info@2ndQuadrant.it

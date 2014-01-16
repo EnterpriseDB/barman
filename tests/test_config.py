@@ -89,6 +89,7 @@ MINIMAL_CONFIG_MAIN = {
     'retention_policy_mode': 'auto',
     'bandwidth_limit': None,
     'tablespace_bandwidth_limit': None,
+    'immediate_checkpoint': 'false',
 }
 
 class Test(unittest.TestCase):
@@ -114,7 +115,7 @@ class Test(unittest.TestCase):
 
         expected = dict(config=c)
         expected.update(MINIMAL_CONFIG_MAIN)
-        self.assertEqual(main.__dict__,expected)
+        assert main.__dict__ == expected
 
 
 if __name__ == "__main__":
