@@ -142,7 +142,6 @@ class Server(object):
         connections work properly. It checks also that backup directories exist
         (and if not, it creates them).
         """
-        output.info("Server %s:" % (self.config.name,))
         self.check_ssh()
         self.check_postgres()
         self.check_directories()
@@ -217,44 +216,74 @@ class Server(object):
                           'retention policy settings', True)
 
     def status_postgres(self):
-        '''Status of PostgreSQL server'''
+        """
+        Status of PostgreSQL server
+        """
         remote_status = self.get_remote_status()
         if remote_status['server_txt_version']:
-            yield "\tPostgreSQL version: %s " % (remote_status['server_txt_version'])
+            output.result('status', self.config.name,
+                          "pg_version",
+                          "PostgreSQL version",
+                          remote_status['server_txt_version'])
         else:
-            yield "\tPostgreSQL version: FAILED trying to get PostgreSQL version"
+            output.result('status', self.config.name,
+                          "pg_version",
+                          "PostgreSQL version",
+                          "FAILED trying to get PostgreSQL version")
             return
         if remote_status['data_directory']:
-            yield "\tPostgreSQL Data directory: %s " % (remote_status['data_directory'])
-        if remote_status['archive_command']:
-            yield "\tarchive_command: %s " % (remote_status['archive_command'])
-        else:
-            yield "\tarchive_command: FAILED (please set it accordingly to documentation)"
-        if remote_status['last_shipped_wal']:
-            yield "\tarchive_status: last shipped WAL segment %s" % remote_status['last_shipped_wal']
-        else:
-            yield "\tarchive_status: No WAL segment shipped yet"
+            output.result('status', self.config.name,
+                          "data_directory",
+                          "PostgreSQL Data directory",
+                          remote_status['data_directory'])
+        output.result('status', self.config.name,
+                      "archive_command",
+                      "PostgreSQL 'archive_command' setting",
+                      remote_status['archive_command']
+                      or "FAILED (please set it accordingly to documentation)")
+        output.result('status', self.config.name,
+                      "last_shipped_wal",
+                      "Archive status",
+                      "last shipped WAL segment %s" %
+                      remote_status['last_shipped_wal']
+                      or "No WAL segment shipped yet")
         if remote_status['current_xlog']:
-            yield "\tcurrent_xlog: %s " % (remote_status['current_xlog'])
+            output.result('status', self.config.name,
+                          "current_xlog",
+                          "Current WAL segment",
+                          remote_status['current_xlog'])
 
     def status_retention_policies(self):
-        '''Status of retention policies enforcement'''
+        """
+        Status of retention policies enforcement
+        """
         if self.enforce_retention_policies:
-            yield "\tRetention policies: enforced (mode: %s, retention: %s, WAL retention: %s)" % (
-                self.config.retention_policy_mode, self.config.retention_policy,
-                self.config.wal_retention_policy)
+            output.result('status', self.config.name,
+                          "retention_policies",
+                          "Retention policies",
+                          "enforced "
+                          "(mode: %s, retention: %s, WAL retention: %s)" % (
+                              self.config.retention_policy_mode,
+                              self.config.retention_policy,
+                              self.config.wal_retention_policy))
         else:
-            yield "\tRetention policies: not enforced"
+            output.result('status', self.config.name,
+                          "retention_policies",
+                          "Retention policies",
+                          "not enforced")
 
     def status(self):
-        '''Implements the 'server status' command.'''
-        status = [("Server %s:" % (self.config.name),)]
-        if self.config.description: status.append(("\tdescription: %s" % (self.config.description),))
-        status.append(self.status_postgres())
-        status.append(self.status_retention_policies())
+        """
+        Implements the 'server-status' command.
+        """
+        if self.config.description:
+            output.result('status', self.config.name,
+                          "description",
+                          "Description", self.config.description)
+        self.status_postgres()
+        self.status_retention_policies()
         # Executes the backup manager status info method
-        status.append(self.backup_manager.status())
-        return itertools.chain.from_iterable(status)
+        self.backup_manager.status()
 
     def get_remote_status(self):
         '''Get the status of the remote server'''

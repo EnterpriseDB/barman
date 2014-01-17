@@ -815,17 +815,33 @@ class BackupManager(object):
                       (no_backups, self.config.minimum_redundancy))
 
     def status(self):
-        '''This function show the server status '''
+        """
+        This function show the server status
+        """
         no_backups = len(self.get_available_backups())
-        yield "\tNo. of available backups: %d" % no_backups
-        if no_backups == 1:
-            yield "\tfirst/last available backup: %s" % self.get_first_backup()
-        elif no_backups > 1:
-            yield "\tfirst available backup: %s" % self.get_first_backup()
-            yield "\tlast available backup: %s" % self.get_last_backup()
-        if (no_backups < self.config.minimum_redundancy):
-            yield "\tYou are currently below the minimum redundancy requirements: %s/%s" % (
-                no_backups, self.config.minimum_redundancy)
+        output.result('status', self.config.name,
+                      "backups_number",
+                      "No. of available backups", no_backups)
+        output.result('status', self.config.name,
+                      "first_backup",
+                      "First available backup",
+                      self.get_first_backup())
+        output.result('status', self.config.name,
+                      "last_backup",
+                      "Last available backup",
+                      self.get_last_backup())
+        if no_backups < self.config.minimum_redundancy:
+            output.result('status', self.config.name,
+                          "minimum_redundancy",
+                          "Minimum redundancy requirements"
+                          "FAILED (%s/%s)" % (no_backups,
+                                            self.config.minimum_redundancy))
+        else:
+            output.result('status', self.config.name,
+                          "minimum_redundancy",
+                          "Minimum redundancy requirements",
+                          "satisfied (%s/%s)" % (no_backups,
+                          self.config.minimum_redundancy))
 
     def pg_config_mangle(self, filename, settings, backup_filename=None):
         '''This method modifies the postgres configuration file,

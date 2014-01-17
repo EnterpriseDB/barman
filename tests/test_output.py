@@ -748,6 +748,16 @@ class TestConsoleWriter(object):
         assert out == ''
         assert err == 'EXCEPTION: ' + msg % kwargs + '\n'
 
+    def test_init_check(self, capsys):
+        writer = output.ConsoleOutputWriter()
+
+        server = 'test'
+
+        writer.init_check(server)
+        (out, err) = capsys.readouterr()
+        assert out == 'Server %s:\n' % server
+        assert err == ''
+
     def test_result_check_ok(self, capsys):
         writer = output.ConsoleOutputWriter()
         output.error_occurred = False
@@ -805,10 +815,10 @@ class TestConsoleWriter(object):
     def test_init_list_backup(self):
         writer = output.ConsoleOutputWriter()
 
-        writer.init_list_backup()
+        writer.init_list_backup('test server')
         assert not writer.minimal
 
-        writer.init_list_backup(True)
+        writer.init_list_backup('test server', True)
         assert writer.minimal
 
     def test_result_list_backup(self, capsys):
@@ -821,7 +831,7 @@ class TestConsoleWriter(object):
         writer = output.ConsoleOutputWriter()
 
         # test minimal
-        writer.init_list_backup(True)
+        writer.init_list_backup(bi.server_name, True)
         writer.result_list_backup(bi, backup_size, wal_size, retention_status)
         writer.close()
         (out, err) = capsys.readouterr()
@@ -830,7 +840,7 @@ class TestConsoleWriter(object):
         assert err == ''
 
         # test status=DONE output
-        writer.init_list_backup(False)
+        writer.init_list_backup(bi.server_name, False)
         writer.result_list_backup(bi, backup_size, wal_size, retention_status)
         writer.close()
         (out, err) = capsys.readouterr()
@@ -846,7 +856,7 @@ class TestConsoleWriter(object):
 
         # test status = FAILED output
         bi = mock_backup_info(status=BackupInfo.FAILED)
-        writer.init_list_backup(False)
+        writer.init_list_backup(bi.server_name, False)
         writer.result_list_backup(bi, backup_size, wal_size, retention_status)
         writer.close()
         (out, err) = capsys.readouterr()
@@ -892,6 +902,42 @@ class TestConsoleWriter(object):
         assert ext_info['status'] in out
         assert str(ext_info['end_time']) not in out
         assert msg in out
+        assert err == ''
+
+    def test_init_status(self, capsys):
+        writer = output.ConsoleOutputWriter()
+
+        server = 'test'
+
+        writer.init_status(server)
+        (out, err) = capsys.readouterr()
+        assert out == 'Server %s:\n' % server
+        assert err == ''
+
+    def test_result_status(self, capsys):
+        writer = output.ConsoleOutputWriter()
+
+        server = 'test'
+        name = 'test name'
+        description = 'test description'
+        message = 'test message'
+
+        writer.result_status(server, name, description, message)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: %s\n' % (description, message)
+        assert err == ''
+
+    def test_result_status_non_str(self, capsys):
+        writer = output.ConsoleOutputWriter()
+
+        server = 'test'
+        name = 'test name'
+        description = 'test description'
+        message = 1
+
+        writer.result_status(server, name, description, message)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: %s\n' % (description, message)
         assert err == ''
 
 

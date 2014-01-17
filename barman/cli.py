@@ -40,12 +40,12 @@ def list_server(minimal=False):
     """
     List available servers, with useful information
     """
-    for name in sorted(barman.__config__.server_names()):
-        server = barman.__config__.get_server(name)
-        if server.description and not minimal:
-            yield "%s - %s" % (name, server.description)
-        else:
-            yield name
+    servers = get_server_list()
+    for name in sorted(servers):
+        server = servers[name]
+        output.init('list_server', name, minimal=minimal)
+        output.result('list_server', name, server.config.description)
+    output.close_and_exit()
 
 
 def cron(verbose=True):
@@ -130,7 +130,7 @@ def backup(args):
         immediate_checkpoint = getattr(args, 'immediate_checkpoint', None)
         checkpoint = server.config.immediate_checkpoint
         if (immediate_checkpoint is None
-            and checkpoint is not None):
+                and checkpoint is not None):
             immediate_checkpoint = checkpoint.lower() == 'true'
         server.backup(immediate_checkpoint)
     output.close_and_exit()
@@ -150,7 +150,7 @@ def list_backup(args):
     servers = get_server_list(args)
     for name in sorted(servers):
         server = servers[name]
-        output.init('list_backup', minimal=args.minimal)
+        output.init('list_backup', name, minimal=args.minimal)
         if server is None:
             output.error("Unknown server '%s'" % name)
             continue
@@ -163,21 +163,19 @@ def list_backup(args):
      help='specifies the server name for the command')
 @expects_obj
 def status(args):
-    """ Shows live information and status of the PostgreSQL server
+    """
+    Shows live information and status of the PostgreSQL server
     """
     servers = get_server_list(args)
-    ok = True
     for name in sorted(servers):
         server = servers[name]
-        if server == None:
-            yield "Unknown server '%s'" % (name)
-            ok = False
+        if server is None:
+            output.error("Unknown server '%s'" % name)
             continue
-        for line in server.status():
-            yield line
-        yield ''
-    if not ok:
-        raise SystemExit(1)
+        output.init('status', name)
+        server.status()
+    output.close_and_exit()
+
 
 @arg('server_name', nargs='+',
      completer=server_completer_all,
@@ -319,6 +317,7 @@ def check(args):
         if server is None:
             output.error("Unknown server '%s'" % name)
             continue
+        output.init('check', name)
         server.check()
     output.close_and_exit()
 
@@ -467,16 +466,27 @@ def global_config(args):
 
 
 def get_server(args):
-    ''' Get the server from the configuration '''
+    """
+    Get a single server from the configuration
+
+    :param args: an argparse namespace containing a single server_name parameter
+    """
     config = barman.__config__.get_server(args.server_name)
     if not config:
         return None
     return Server(config)
 
 
-def get_server_list(args):
-    ''' Get the server list from the configuration '''
-    if args.server_name[0] == 'all':
+def get_server_list(args=None):
+    """
+    Get the server list from the configuration
+
+    If args the parameter is None or arg.server_name[0] is 'all'
+    returns all defined servers
+
+    :param args: an argparse namespace containing a list server_name parameter
+    """
+    if args is None or args.server_name[0] == 'all':
         return dict(
             (conf.name, Server(conf)) for conf in barman.__config__.servers())
     else:
@@ -509,12 +519,17 @@ def parse_backup_id(server, args):
 
 
 def main():
-    ''' The main method of Barman '''
+    """
+    The main method of Barman
+    """
     p = ArghParser()
     p.add_argument('-v', '--version', action='version',
                    version=barman.__version__)
     p.add_argument('-c', '--config',
-                   help='uses a configuration file (defaults: $HOME/.barman.conf, /etc/barman.conf)')
+                   help='uses a configuration file '
+                        '(defaults: %s)'
+                        % ', '.join(barman.config.Config.CONFIG_FILES),
+                   default=SUPPRESS)
     p.add_argument('-q', '--quiet', help='be quiet', action='store_true')
     p.add_argument('-f', '--format', help='output format',
                    choices=output.AVAILABLE_WRITERS.keys(),
@@ -535,12 +550,13 @@ def main():
             rebuild_xlogdb,
         ]
     )
+    # noinspection PyBroadException
     try:
         p.dispatch(pre_call=global_config, output_file=_output_stream)
     except Exception:
-        msg = "ERROR: Unhandled exception. See log file for more details."
-        logging.exception(msg)
-        raise SystemExit(msg)
+        msg = "Unhandled exception. See log file for more details."
+        output.exception(msg)
+        output.close_and_exit()
 
 
 if __name__ == '__main__':

@@ -292,6 +292,9 @@ class ConsoleOutputWriter(object):
         #: Used in check command to hold the check results
         self.result_check_list = []
 
+        #: Used in status command to hold the status results
+        self.result_status_list = []
+
         #: The minimal flag. If set the command must output a single list of
         #: values.
         self.minimal = False
@@ -372,10 +375,18 @@ class ConsoleOutputWriter(object):
         :param str,None hint: hint to print if not None
         """
         self.result_check_list.append(dict(
-            server=server_name, check=check, status=status, hint=hint))
+            server_name=server_name, check=check, status=status, hint=hint))
         if not status:
             global error_occurred
             error_occurred = True
+
+    def init_check(self, server_name):
+        """
+        Init the check command
+
+        :param str server_name: the server we are start listing
+        """
+        self.info("Server %s:" % server_name)
 
     def result_check(self, server_name, check, status, hint=None):
         """
@@ -396,10 +407,11 @@ class ConsoleOutputWriter(object):
             self.info("\t%s: %s" %
                       (check, 'OK' if status else 'FAILED'))
 
-    def init_list_backup(self, minimal=False):
+    def init_list_backup(self, server_name, minimal=False):
         """
         Init the list-backup command
 
+        :param str server_name: the server we are start listing
         :param bool minimal: if true output only a list of backup id
         """
         self.minimal = minimal
@@ -422,7 +434,8 @@ class ConsoleOutputWriter(object):
             self.info(backup_info.backup_id)
             return
 
-        out_list = ["%s %s - " % (backup_info.server_name, backup_info.backup_id)]
+        out_list = ["%s %s - "
+            % (backup_info.server_name, backup_info.backup_id)]
         if backup_info.status == BackupInfo.DONE:
             end_time = backup_info.end_time.ctime()
             out_list.append('%s - Size: %s - WAL Size: %s' %
@@ -502,6 +515,51 @@ class ConsoleOutputWriter(object):
                 self.info("  Error:            : %s",
                           data['error'])
 
+    def init_status(self, server_name):
+        """
+        Init the status command
+
+        :param str server_name: the server we are start listing
+        """
+        self.info("Server %s:", server_name)
+
+    def result_status(self, server_name, status, description, message):
+        """
+        Record a result line of a server status command
+
+        and output it as INFO
+
+        :param str server_name: the server is being checked
+        :param str status: the returned status code
+        :param str description: the returned status description
+        :param str,object message: status message. It will be converted to str
+        """
+        message = str(message)
+        self.result_status_list.append(dict(
+            server_name=server_name, status=status,
+            description=description, message=message))
+        self.info("\t%s: %s", description, message)
+
+    def init_list_server(self, server_name, minimal=False):
+        """
+        Init the list-server command
+
+        :param str server_name: the server we are start listing
+        """
+        self.minimal = minimal
+
+    def result_list_server(self, server_name, description=None):
+        """
+        Output a result line of a list-server command
+
+        :param str server_name: the server is being checked
+        :param str,None description: server description if applicable
+        """
+        if self.minimal or not description:
+            self.info("%s", server_name)
+        else:
+            self.info("%s - %s", server_name, description)
+
 
 class NagiosOutputWriter(ConsoleOutputWriter):
     """
@@ -530,10 +588,10 @@ class NagiosOutputWriter(ConsoleOutputWriter):
         issues = []
         servers = []
         for item in self.result_check_list:
-            if item['server'] not in servers:
-                servers.append(item['server'])
-            if not item['status'] and item['server'] not in issues:
-                issues.append(item['server'])
+            if item['server_name'] not in servers:
+                servers.append(item['server_name'])
+            if not item['status'] and item['server_name'] not in issues:
+                issues.append(item['server_name'])
         if len(issues) > 0:
             print "BARMAN CRITICAL - %d server out of %d has issues" % \
                   (len(issues), len(servers))
