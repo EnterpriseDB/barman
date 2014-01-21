@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2013 2ndQuadrant Italia (Devise.IT S.r.L.)
+# Copyright (C) 2011-2014 2ndQuadrant Italia (Devise.IT S.r.L.)
 #
 # This file is part of Barman.
 #
