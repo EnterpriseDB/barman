@@ -607,6 +607,9 @@ class BackupManager(object):
         :param backup_info: the backup information structure
         '''
 
+        # paths to be ignored from rsync
+        exclude_and_protect = []
+
         # validate the bandwidth rules against the tablespace list
         tablespaces_bwlimit={}
         if self.config.tablespace_bandwidth_limit and backup_info.tablespaces:
@@ -616,12 +619,24 @@ class BackupManager(object):
                 if tablespace in valid_tablespaces:
                     tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[tablespace],)
                     tablespaces_bwlimit[tablespace_dir] = bwlimit
+                    exclude_and_protect.append(tablespace_dir)
 
         backup_dest = os.path.join(backup_info.get_basebackup_directory(), 'pgdata')
+
+        # find tablespaces which need to be excluded from rsync command
+        if backup_info.tablespaces is not None:
+            exclude_and_protect += [
+                # removes tablespaces that are located within PGDATA
+                # as they are already being copied along with it
+                tablespace_data[2][len(backup_info.pgdata):]
+                for tablespace_data in backup_info.tablespaces
+                if tablespace_data[2].startswith(backup_info.pgdata)
+            ]
+
         rsync = RsyncPgData(ssh=self.server.ssh_command,
                 ssh_options=self.server.ssh_options,
                 bwlimit=self.config.bandwidth_limit,
-                exclude_and_protect=tablespaces_bwlimit.keys())
+                exclude_and_protect=exclude_and_protect)
         retval = rsync(':%s/' % backup_info.pgdata, backup_dest)
         if retval not in (0, 24):
             msg = "ERROR: data transfer failure"
