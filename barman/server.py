@@ -306,6 +306,7 @@ class Server(object):
                     result['current_xlog'] = cur.fetchone()[0];
                 except:
                     result['current_xlog'] = None
+                result.update(self.get_pg_configuration_files())
         except:
             pass
         cmd = Command(self.ssh_command, self.ssh_options)
@@ -321,22 +322,17 @@ class Server(object):
         return result
 
     def show(self):
-        '''Shows the server configuration'''
-        yield "Server %s:" % (self.config.name)
-        for key in self.config.KEYS:
-            if hasattr(self.config, key):
-                yield "\t%s: %s" % (key, getattr(self.config, key))
+        """
+        Shows the server configuration
+        """
+        #Populate result map with all the required keys
+        result = dict([
+            (key, getattr(self.config, key))
+            for key in self.config.KEYS
+        ])
         remote_status = self.get_remote_status()
-        for key in remote_status:
-            yield "\t%s: %s" % (key, remote_status[key])
-
-        try:
-            cf = self.get_pg_configuration_files()
-            if cf:
-                for key in sorted(cf.keys()):
-                    yield "\t%s: %s" % (key, cf[key])
-        except:
-            yield "ERROR: cannot connect to the PostgreSQL Server"
+        result.update(remote_status)
+        output.result('show_server', self.config.name, result)
 
     @contextmanager
     def pg_connect(self):

@@ -279,21 +279,18 @@ def recover(args):
      help="specifies the server names to show ('all' will show all available servers)")
 @expects_obj
 def show_server(args):
-    """ Show all configuration parameters for the specified servers
+    """
+    Show all configuration parameters for the specified servers
     """
     servers = get_server_list(args)
-    ok = True
     for name in sorted(servers):
         server = servers[name]
-        if server == None:
-            yield "Unknown server '%s'" % (name)
-            ok = False
+        if server is None:
+            output.error("Unknown server '%s'" % name)
             continue
-        for line in server.show():
-            yield line
-        yield ''
-    if not ok:
-        raise SystemExit(1)
+        output.init('show_server', name)
+        server.show()
+    output.close_and_exit()
 
 
 @arg('server_name', nargs='+',

@@ -560,6 +560,24 @@ class ConsoleOutputWriter(object):
         else:
             self.info("%s - %s", server_name, description)
 
+    def init_show_server(self, server_name):
+        """
+        Init the show-server command output method
+
+        :param str server_name: the server we are displaying
+        """
+        self.info("Server %s:" % server_name)
+
+    def result_show_server(self, server_name, server_info):
+        """
+        Output the results of the show-server command
+
+        :param str server_name: the server we are displaying
+        :param dict server_info: a dictionary containing the info to display
+        """
+        for status, message in server_info.items():
+            self.info("\t%s: %s", status, message)
+
 
 class NagiosOutputWriter(ConsoleOutputWriter):
     """
