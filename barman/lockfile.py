@@ -15,39 +15,59 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-''' This module is the lock manager for Barman.'''
+"""
+This module is the lock manager for Barman
+"""
 
 import errno
 import fcntl
 import os
 
 
-class LockfileBusyException(Exception):
-    ''' Exception when lock file is non free'''
+class LockFileException(Exception):
+    """
+    LockFile Exception base class
+    """
     pass
 
 
-class lockfile(object):
+class LockFileBusy(LockFileException):
     """
-    Ensures that there is only one process which is running against a specified lockfile.
+    Raised when a lock file is not free
+    """
+    pass
 
-    It supports the Context Manager interface, allowing the use in with statements.
 
-        with lockfile('file.lock') as locked:
+class LockFilePermissionDenied(LockFileException):
+    """
+    Raised when a lock file is not accessible
+    """
+    pass
+
+
+class LockFile(object):
+    """
+    Ensures that there is only one process which is running against a
+    specified LockFile.
+    It supports the Context Manager interface, allowing the use in with
+    statements.
+
+        with LockFile('file.lock') as locked:
             if not locked:
                 print "failed"
             else:
-                <do someting>
+                <do something>
 
     You can also use exceptions on failures
 
         try:
-            with lockfile('file.lock', True):
-                <do someting>
-        except LockfileBusyException, e, file:
+            with LockFile('file.lock', True):
+                <do something>
+        except LockFileBusy, e, file:
             print "failed to lock %s" % file
 
     """
+
     def __init__(self, filename, raise_if_fail=False, wait=False):
         self.filename = os.path.abspath(filename)
         self.fd = None
@@ -55,41 +75,55 @@ class lockfile(object):
         self.wait = wait
 
     def acquire(self, raise_if_fail=None, wait=None):
-        '''
+        """
         Creates and holds on to the lock file.
-        Returns True if lock successful, False if it is not.
 
-        :param raise_if_fail: when True, a LockfileBusyException is raised if the
-        lock is held by someone else. Default to None
-        :param wait: when True, avoid a blocking lock acquisition
-        '''
-        if self.fd: return True
+        When raise_if_fail, a LockFileBusy is raised if
+        the lock is held by someone else and a LockFilePermissionDenied is
+        raised when the user executing barman have insufficient rights for
+        the creation of a LockFile.
+
+        Returns True if lock has been successfully acquired, False if it is not.
+
+        :param bool raise_if_fail: If True raise an exception on failure
+        :param bool wait: If True issue a blocking request
+        :returns bool: whether the lock has been acquired
+        """
+        if self.fd:
+            return True
         fd = None
         try:
-            fd = os.open(self.filename, os.O_TRUNC | os.O_CREAT | os.O_RDWR, 0600)
+            fd = os.open(self.filename, os.O_TRUNC | os.O_CREAT | os.O_RDWR,
+                         0600)
             flags = fcntl.LOCK_EX
-            if not wait or (wait == None and not self.wait): flags |= fcntl.LOCK_NB
+            if not wait or (wait is None and not self.wait):
+                flags |= fcntl.LOCK_NB
             fcntl.flock(fd, flags)
             os.write(fd, ("%s\n" % os.getpid()).encode('ascii'))
             self.fd = fd
             return True
         except (OSError, IOError), e:
-            if fd: os.close(fd)   ## let's not leak  file descriptors
-            if e.errno in (errno.EACCES, errno.EAGAIN):
-                if (raise_if_fail or (raise_if_fail == None and self.raise_if_fail)):
-                    raise LockfileBusyException, self.filename
+            if fd:
+                os.close(fd)   # let's not leak  file descriptors
+            if (raise_if_fail or
+                    (raise_if_fail is None and self.raise_if_fail)):
+                if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
+                    raise LockFileBusy(self.filename)
+                elif e.errno == errno.EACCES:
+                    raise LockFilePermissionDenied(self.filename)
                 else:
-                    return False
+                    raise
             else:
-                raise
+                return False
 
     def release(self):
-        '''
+        """
         Releases the lock.
 
         If the lock is not held by the current process it does nothing.
-        '''
-        if not self.fd: return
+        """
+        if not self.fd:
+            return
         try:
             fcntl.flock(self.fd, fcntl.LOCK_UN)
             os.close(self.fd)
@@ -97,10 +131,12 @@ class lockfile(object):
             pass
 
     def __del__(self):
-        '''Avoid stale lock files.'''
+        """
+        Avoid stale lock files.
+        """
         self.release()
 
-    ### Contextmanager interface
+    # Contextmanager interface
 
     def __enter__(self):
         return self.acquire()

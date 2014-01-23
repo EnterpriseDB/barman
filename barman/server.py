@@ -21,7 +21,7 @@ Barman is able to manage multiple servers.
 
 from barman import xlog, output
 from barman.infofile import BackupInfo, UnknownBackupIdException
-from barman.lockfile import lockfile
+from barman.lockfile import LockFile
 from barman.backup import BackupManager
 from barman.command_wrappers import Command
 from barman.retention_policies import RetentionPolicyFactory, SimpleWALRetentionPolicy
@@ -600,7 +600,7 @@ class Server(object):
             else:
                 mode = "a%s" % mode[1:]
         xlogdb_lock = xlogdb + ".lock"
-        with lockfile(xlogdb_lock, wait=True):
+        with LockFile(xlogdb_lock, wait=True):
             with open(xlogdb, mode) as f:
                 yield f
 

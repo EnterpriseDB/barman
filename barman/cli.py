@@ -23,7 +23,7 @@ from argh import ArghParser, named, arg, expects_obj
 from argparse import SUPPRESS
 from barman import output
 from barman.infofile import BackupInfo
-from barman.lockfile import lockfile
+from barman import lockfile
 from barman.server import Server
 import barman.config
 import logging
@@ -53,14 +53,18 @@ def cron(verbose=True):
     Run maintenance tasks
     """
     filename = os.path.join(barman.__config__.barman_home, '.cron.lock')
-    with lockfile(filename) as locked:
-        if not locked:
-            raise SystemExit("ERROR: Another cron is running")
-        else:
+    try:
+        with lockfile.LockFile(filename, raise_if_fail=True):
             servers = [Server(conf) for conf in barman.__config__.servers()]
             for server in servers:
                 for lines in server.cron(verbose):
                     yield lines
+    except lockfile.LockFileBusy:
+        raise SystemExit("ERROR: Another cron is running")
+
+    except lockfile.LockFilePermissionDenied:
+        raise SystemExit("ERROR: Permission denied, unable to access '%s'"
+                         % filename)
 
 
 # noinspection PyUnusedLocal
