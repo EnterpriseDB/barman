@@ -186,7 +186,7 @@ class BackupManager(object):
                             yield "\t%s" % name
                             # Delete the WAL segment
                             self.delete_wal(name)
-                os.rename(xlogdb_new, fxlogdb.name)
+                shutil.move(xlogdb_new, fxlogdb.name)
         yield "Done"
 
     def backup(self, immediate_checkpoint):
@@ -777,7 +777,7 @@ class BackupManager(object):
             shutil.copystat(filename, destfile)
             os.unlink(filename)
         else:
-            os.rename(filename, destfile)
+            shutil.move(filename, destfile)
 
         wal_info = WalFileInfo.from_file(
             destfile,
