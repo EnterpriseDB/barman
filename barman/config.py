@@ -149,7 +149,8 @@ class Config(object):
         return self._global_config != set(self._config.items('barman'))
 
     def load_configuration_files_directory(self):
-        """Read the "configuration_files_directory" option and loads all the
+        """
+        Read the "configuration_files_directory" option and load all the
         configuration files with the .conf suffix that lie in that folder
         """
 
@@ -172,7 +173,7 @@ class Config(object):
             filename = os.path.basename(cfile)
             if os.path.isfile(cfile):
                 # Load a file
-                _logger.info('Including configuration file: %s', filename)
+                _logger.debug('Including configuration file: %s', filename)
                 self._config.read(cfile)
                 if self._is_global_config_changed():
                     msg = "the configuration file %s contains a not empty [" \

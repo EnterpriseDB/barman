@@ -115,14 +115,14 @@ class Server(object):
                     'retention_policy', self.config.retention_policy)
                 # Reassign the configuration value (we keep it in one place)
                 self.config.retention_policy = rp
-                _logger.info('Retention policy for server %s: %s' % (
+                _logger.debug('Retention policy for server %s: %s' % (
                     self.config.name, self.config.retention_policy))
                 try:
                     rp = RetentionPolicyFactory.create(self,
                         'wal_retention_policy', self.config.wal_retention_policy)
                     # Reassign the configuration value (we keep it in one place)
                     self.wal_retention_policy = rp
-                    _logger.info('WAL retention policy for server %s: %s' % (
+                    _logger.debug('WAL retention policy for server %s: %s' % (
                         self.config.name, self.config.wal_retention_policy))
                 except:
                     _logger.error('Invalid wal_retention_policy setting "%s" for server "%s" (fallback to "main")' % (
