@@ -115,7 +115,6 @@ class Config(object):
         self.config_file = filename
         self._servers = None
         self._parse_global_config()
-        self._load_configuration_files_directory()
 
     def get(self, section, option, defaults=None):
         """Method to get the value from a given section from
@@ -149,7 +148,7 @@ class Config(object):
         """Return true if something has changed in global configuration"""
         return self._global_config != set(self._config.items('barman'))
 
-    def _load_configuration_files_directory(self):
+    def load_configuration_files_directory(self):
         """Read the "configuration_files_directory" option and loads all the
         configuration files with the .conf suffix that lie in that folder
         """
@@ -219,6 +218,7 @@ class Config(object):
 if __name__ == "__main__":
     print "Active configuration settings:"
     r = Config()
+    r.load_configuration_files_directory()
     for section in r._config.sections():
         print "Section: %s" % section
         for option in r._config.options(section):

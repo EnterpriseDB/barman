@@ -458,6 +458,10 @@ def global_config(args):
     if args.format != output.DEFAULT_WRITER:
         output.set_output_writer(args.format)
 
+    # Load additional configuration files
+    _logger.debug('Loading additional configuration files')
+    config.load_configuration_files_directory()
+
     _logger.debug('Initialized Barman version %s (config: %s)',
                   barman.__version__, config.config_file)
     if hasattr(args, 'quiet') and args.quiet:
