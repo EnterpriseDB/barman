@@ -184,25 +184,29 @@ class Server(object):
             output.result('check', self.config.name, 'archive_command', False,
                           'please set it accordingly to documentation')
 
+    def _make_directories(self):
+        """
+        Make backup directories in case they do not exist
+        """
+        for key in self.config.KEYS:
+            if key.endswith('_directory') and hasattr(self.config, key):
+                val = getattr(self.config, key)
+                if val is not None and not os.path.isdir(val):
+                    #noinspection PyTypeChecker
+                    os.makedirs(val)
+
     def check_directories(self):
         """
         Checks backup directories and creates them if they do not exist
         """
         error = None
         try:
-            for key in self.config.KEYS:
-                if key.endswith('_directory') and hasattr(self.config, key):
-                    val = getattr(self.config, key)
-                    if val is not None and not os.path.isdir(val):
-                        #noinspection PyTypeChecker
-                        os.makedirs(val)
+            self._make_directories()
         except OSError, e:
-                error = e.strerror
-        if not error:
-            output.result('check', self.config.name, 'directories', True)
-        else:
             output.result('check', self.config.name, 'directories', False,
-                          error)
+                          "%s: %s" % (e.filename, e.strerror))
+        else:
+            output.result('check', self.config.name, 'directories', True)
 
     def check_retention_policy_settings(self):
         """
@@ -429,7 +433,14 @@ class Server(object):
 
     def backup(self, immediate_checkpoint):
         '''Performs a backup for the server'''
-        return self.backup_manager.backup(immediate_checkpoint)
+        try:
+            # check required backup directories exist
+            self._make_directories()
+        except OSError, e:
+            output.error('failed to create %s directory: %s',
+                         e.filename, e.strerror)
+        else:
+            self.backup_manager.backup(immediate_checkpoint)
 
     def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         '''Get a list of available backups
