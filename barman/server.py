@@ -600,6 +600,20 @@ class Server(object):
 
     @contextmanager
     def xlogdb(self, mode='r'):
+        """
+        Context manager to access the xlogdb file.
+
+        This method uses locking to make sure only one process is accessing
+        the database at a time. The database file will be created if not exists.
+
+        Usage example:
+
+            with server.xlogdb('w') ad file:
+                file.write(new_line)
+
+        :param str mode: open the file with the required mode
+            (default read-only)
+        """
         if not os.path.exists(self.config.wals_directory):
             os.makedirs(self.config.wals_directory)
         xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
@@ -613,7 +627,15 @@ class Server(object):
         xlogdb_lock = xlogdb + ".lock"
         with LockFile(xlogdb_lock, wait=True):
             with open(xlogdb, mode) as f:
+
+                # execute the block nested in the with statement
                 yield f
+
+                # we are exiting the context
+                # make sure the data is written to disk
+                # http://docs.python.org/2/library/os.html#os.fsync
+                f.flush()
+                os.fsync(f.fileno())
 
     def xlogdb_parse_line(self, line):
         '''Parse a line from xlog catalogue
