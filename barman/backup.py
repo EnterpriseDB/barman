@@ -287,7 +287,9 @@ class BackupManager(object):
         cmd = None
         if remote_command:
             recovery_dest = 'remote'
-            rsync = RsyncPgData(ssh=remote_command, bwlimit=self.config.bandwidth_limit)
+            rsync = RsyncPgData(ssh=remote_command,
+                                bwlimit=self.config.bandwidth_limit,
+                                network_compression=self.config.network_compression)
             # create a UnixRemoteCommand obj if is a remote recovery
             cmd = UnixRemoteCommand(remote_command)
         else:
@@ -636,7 +638,8 @@ class BackupManager(object):
         rsync = RsyncPgData(ssh=self.server.ssh_command,
                 ssh_options=self.server.ssh_options,
                 bwlimit=self.config.bandwidth_limit,
-                exclude_and_protect=exclude_and_protect)
+                exclude_and_protect=exclude_and_protect,
+                network_compression=self.config.network_compression)
         retval = rsync(':%s/' % backup_info.pgdata, backup_dest)
         if retval not in (0, 24):
             msg = "ERROR: data transfer failure"
@@ -651,7 +654,8 @@ class BackupManager(object):
                 _logger.debug(self.current_action)
                 tb_rsync = RsyncPgData(ssh=self.server.ssh_command,
                     ssh_options=self.server.ssh_options,
-                    bwlimit=bwlimit)
+                    bwlimit=bwlimit,
+                    network_compression=self.config.network_compression)
                 retval = tb_rsync(
                     ':%s/' % os.path.join(backup_info.pgdata, tablespace_dir),
                     os.path.join(backup_dest, tablespace_dir))
@@ -727,7 +731,8 @@ class BackupManager(object):
 
         rsync = RsyncPgData(ssh=remote_command,
                 bwlimit=self.config.bandwidth_limit,
-                exclude_and_protect=tablespaces_bwlimit.keys())
+                exclude_and_protect=tablespaces_bwlimit.keys(),
+                network_compression=self.config.network_compression)
         retval = rsync('%s/' % (sourcedir,), dest)
         if retval != 0:
             raise Exception("ERROR: data transfer failure")
@@ -738,7 +743,8 @@ class BackupManager(object):
                     tablespace_dir, bwlimit)
                 _logger.debug(self.current_action)
                 tb_rsync = RsyncPgData(ssh=remote_command,
-                                       bwlimit=bwlimit)
+                                       bwlimit=bwlimit,
+                                       network_compression=self.config.network_compression)
                 retval = tb_rsync(
                     '%s/' % os.path.join(sourcedir, tablespace_dir),
                     os.path.join(dest, tablespace_dir))
@@ -751,7 +757,7 @@ class BackupManager(object):
         # TODO: Manage different location for configuration files that were not within the data directory
 
     def recover_xlog_copy(self, compressor, xlogs, wal_dest, remote_command=None):
-        '''
+        """
         Restore WAL segments
 
         :param compressor: the compressor for the file (if any)
@@ -759,8 +765,9 @@ class BackupManager(object):
         :param wal_dest: the destination directory for xlog recover
         :param remote_command: default None. The remote command to recover the xlog,
                                in case of remote backup.
-        '''
-        rsync = RsyncPgData(ssh=remote_command, bwlimit=self.config.bandwidth_limit)
+        """
+        rsync = RsyncPgData(ssh=remote_command, bwlimit=self.config.bandwidth_limit,
+                            network_compression=self.config.network_compression)
         if remote_command:
             # If remote recovery tell rsync to copy them remotely
             wal_dest = ':%s' % wal_dest

@@ -109,10 +109,13 @@ class Rsync(Command):
     """
 
     def __init__(self, rsync='rsync', args=None, ssh=None, ssh_options=None,
-                 bwlimit=None, exclude_and_protect=None, **kwargs):
+                 bwlimit=None, exclude_and_protect=None,
+                 network_compression=None, **kwargs):
         options = []
         if ssh:
             options += ['-e', self._cmd_quote(ssh, ssh_options)]
+        if network_compression:
+            options += ['-z']
         if exclude_and_protect:
             for path in exclude_and_protect:
                 options += ["--exclude=%s" % (path,), "--filter=P_%s" % (path,)]

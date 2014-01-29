@@ -15,7 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-""" This module is responsible for all the things related to
+"""
+This module is responsible for all the things related to
 Barman configuration, such as parsing configuration file.
 """
 
@@ -24,6 +25,7 @@ import re
 from ConfigParser import ConfigParser, NoOptionError
 import logging.handlers
 from glob import iglob
+from barman import output
 
 _logger = logging.getLogger(__name__)
 
@@ -33,9 +35,29 @@ DEFAULT_USER = 'barman'
 DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_LOG_FORMAT = "%(asctime)s %(name)s %(levelname)s: %(message)s"
 
+_TRUE_RE = re.compile(r"""^(true|t|yes|1)$""", re.IGNORECASE)
+_FALSE_RE = re.compile(r"""^(false|f|no|0)$""", re.IGNORECASE)
+
+
+def parse_boolean(value):
+    """
+    Parse a string to a boolean value
+
+    :param str value: string representing a boolean
+    :raises ValueError: if the string is an invalid boolean representation
+    """
+    if _TRUE_RE.match(value):
+        return True
+    if _FALSE_RE.match(value):
+        return False
+    raise ValueError("Invalid boolean representation (use 'true' or 'false')")
+
 
 class Server(object):
-    """This class represents a server."""
+    """
+    This class represents a server.
+    """
+
     KEYS = [
         'active', 'description', 'ssh_command', 'conninfo',
         'backup_directory', 'basebackups_directory',
@@ -45,7 +67,7 @@ class Server(object):
         'retention_policy',
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
-        'immediate_checkpoint',
+        'immediate_checkpoint', 'network_compression',
     ]
 
     BARMAN_KEYS = [
@@ -54,7 +76,8 @@ class Server(object):
         'retention_policy',
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
         'configuration_files_directory',
-        'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit'
+        'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
+        'immediate_checkpoint', 'network_compression',
     ]
 
     DEFAULTS = {
@@ -68,6 +91,13 @@ class Server(object):
         'wal_retention_policy': 'main',
         'minimum_redundancy': '0',
         'immediate_checkpoint': 'false',
+        'network_compression': 'false',
+    }
+
+    PARSERS = {
+        'active': parse_boolean,
+        'immediate_checkpoint': parse_boolean,
+        'network_compression': parse_boolean,
     }
 
     def __init__(self, config, name):
@@ -76,10 +106,24 @@ class Server(object):
         self.barman_home = config.get('barman', 'barman_home')
         for key in Server.KEYS:
             value = config.get(name, key, self.__dict__)
+            source = '[%s] section' % name
             if value is None and key in Server.BARMAN_KEYS:
                 value = config.get('barman', key)
+                source = '[barman] section'
             if value is None and key in Server.DEFAULTS:
                 value = Server.DEFAULTS[key] % self.__dict__
+                source = 'DEFAULTS'
+            # If we have a parser for the current key use it to obtain the
+            # actual value. If an exception is trown output a warning and
+            # ignore the value.
+            # noinspection PyBroadException
+            try:
+                if key in self.PARSERS:
+                    value = self.PARSERS[key](value)
+            except Exception, e:
+                output.warning("Invalid configuration value '%s' for key %s"
+                               " in %s: %s",
+                               value, key, source, e)
             setattr(self, key, value)
 
 

@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 01/24/2014
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 01/29/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "01/24/2014" "\ \&" "\ \&"
+.TH "BARMAN" "5" "01/29/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -191,6 +191,14 @@ false
 (default), Postgres will wait for a checkpoint to happen before allowing the start of the backup\&. If set to
 true, an immediate checkpoint is requested\&.
 .RE
+.PP
+\fBnetwork_compression\fR
+.RS 4
+This option allows you to enable data compression for network transfers\&. If set to
+false
+(default), no compression is used\&. If set to
+true, compression is enabled, reducing network usage\&.
+.RE
 .SH "HOOK SCRIPTS"
 .sp
 The script definition is passed to a shell and can return any exit code\&.
@@ -211,7 +219,6 @@ phase)
 .PP
 BARMAN_PHASE
 .RS 4
-
 \fIpre\fR
 or
 \fIpost\fR

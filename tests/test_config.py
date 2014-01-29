@@ -69,7 +69,7 @@ conninfo = host=pg01 user=postgres port=5432
 MINIMAL_CONFIG_MAIN = {
     'barman_home': '/srv/barman',
     'name': 'main',
-    'active': 'true',
+    'active': True,
     'description': ' Text with quotes ',
     'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01',
     'conninfo': 'host=pg01 user=postgres port=5432',
@@ -89,7 +89,8 @@ MINIMAL_CONFIG_MAIN = {
     'retention_policy_mode': 'auto',
     'bandwidth_limit': None,
     'tablespace_bandwidth_limit': None,
-    'immediate_checkpoint': 'false',
+    'immediate_checkpoint': False,
+    'network_compression': False,
 }
 
 class Test(unittest.TestCase):

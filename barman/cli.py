@@ -131,11 +131,8 @@ def backup(args):
         if server is None:
             output.error("Unknown server '%s'" % name)
             continue
-        immediate_checkpoint = getattr(args, 'immediate_checkpoint', None)
-        checkpoint = server.config.immediate_checkpoint
-        if (immediate_checkpoint is None
-                and checkpoint is not None):
-            immediate_checkpoint = checkpoint.lower() == 'true'
+        immediate_checkpoint = getattr(args, 'immediate_checkpoint',
+                                       server.config.immediate_checkpoint)
         server.backup(immediate_checkpoint)
     output.close_and_exit()
 
