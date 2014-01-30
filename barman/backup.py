@@ -284,14 +284,21 @@ class BackupManager(object):
             yield line
 
         recovery_dest = 'local'
-        cmd = None
+
         if remote_command:
             recovery_dest = 'remote'
             rsync = RsyncPgData(ssh=remote_command,
                                 bwlimit=self.config.bandwidth_limit,
                                 network_compression=self.config.network_compression)
-            # create a UnixRemoteCommand obj if is a remote recovery
-            cmd = UnixRemoteCommand(remote_command)
+            try:
+                # create a UnixRemoteCommand obj if is a remote recovery
+                cmd = UnixRemoteCommand(remote_command)
+            except FsOperationFailed:
+                output.error(
+                    "Unable to connect to the target host using the command "
+                    "'%s'" % remote_command
+                )
+                return
         else:
             # if is a local recovery create a UnixLocalCommand
             cmd = UnixLocalCommand()

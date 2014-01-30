@@ -186,4 +186,5 @@ class UnixRemoteCommand(UnixLocalCommand):
         self.cmd = Command(cmd=ssh_command, shell=True)
         ret = self.cmd("true")
         if ret != 0:
-            raise FsOperationFailed()
+            raise FsOperationFailed("Connection failed using the command '%s'" %
+                                    ssh_command)
