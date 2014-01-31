@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2014 2ndQuadrant Italia (Devise.IT S.r.l.)
 
-Version 1.3.0 - X Mon 2014
+Version 1.3.0 - 3 Feb 2014
 
 * Refactored BackupInfo class for backup metadata to use the new
   FieldListFile class (infofile module)
@@ -9,24 +9,44 @@ Version 1.3.0 - X Mon 2014
 * Refactored output layer to use a dedicated module, in order to
   facilitate integration with Nagios (NagiosOutputWriter class)
 
-* Refactored subprocess handling in order to isolate stdin/stderr/stdout
-  channels (command_wrappers module)
+* Refactored subprocess handling in order to isolate stdin/stderr/
+  stdout channels (command_wrappers module)
 
 * Refactored hook scripts management
 
 * Extracted logging configuration and userid enforcement from the
   configuration class.
 
-* Support for hook scripts to be executed before and after
-  a WAL file is archived, through the 'pre_archive_script'
-  and 'post_archive_script' configuration options.
+* Support for hook scripts to be executed before and after a WAL
+  file is archived, through the 'pre_archive_script' and
+  'post_archive_script' configuration options.
 
-* Implemented immediate checkpoint capability with --immediate-checkpoint
-  command option and immediate_checkpoint configuration option
+* Implemented immediate checkpoint capability with
+  --immediate-checkpoint command option and 'immediate_checkpoint'
+  configuration option
 
-* Implemented the rebuild-xlogdb command (Closes #27)
+* Implemented network compression for remote backup and recovery
+  through the 'network_compression' configuration option (#19)
 
-* Added documentation for tablespaces relocation (#22)
+* Implemented the 'rebuild-xlogdb' command (Closes #27 and #28)
+
+* Removed deduplication of tablespaces located inside the PGDATA
+  directory
+
+* Refactored remote recovery code to work the same way local
+  recovery does, by performing remote directory preparation
+  (assuming the remote user has the right permissions on the remote
+  server)
+
+* 'barman backup' now tries and create server directories before
+  attempting to execute a full backup (#14)
+
+* Fixed bug #22: improved documentation for tablespaces relocation
+
+* Fixed bug #31: 'barman cron' checks directory permissions for
+  lock file
+
+* Fixed bug #32: xlog.db read access during cron activities
 
 Version 1.2.3 - 5 September 2013
 

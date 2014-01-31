@@ -306,6 +306,9 @@ r custom
   ; Immediate checkpoint for backup command
   ;immediate_checkpoint = false
 
+  ; Enable network compression for data transfers
+  ;network_compression = false
+
   ;; ; 'main' PostgreSQL Server configuration
   ;; [main]
   ;; ; Human readable description
@@ -384,22 +387,22 @@ r custom
    This will iterate through your available servers and sequentially take
    a backup for each of them.
 
-  Immediate Checkpoint
-
-   By default, when issuing a backup, Barman waits for the checkpoint to
-   happen on the PostgreSQL server (depending on the configuration
-   settings for workload or time checkpoint control). This might take
-   longer for a backup to start.
+    Immediate Checkpoint
 
    As of version 1.3.0, it is possible to use the immediate_checkpoint
    configuration global/server option (set to false by default).
 
-   By setting it to true, you can force the checkpoint on the Postgres
-   server to happen immediately and start your backup copy process as soon
-   as possible:
+   When issuing a backup, Barman normally waits for the checkpoint to
+   happen on the PostgreSQL server (depending on the configuration
+   settings for workload or time checkpoint control). This might take
+   longer for a backup to start.
+
+   By setting immediate_checkpoint to true, you can force the checkpoint
+   on the Postgres server to happen immediately and start your backup copy
+   process as soon as possible:
 
    At any time, you can override the configuration option behaviour, by
-   issuing the barman backup with any of these two options:
+   issuing barman backup with any of these two options:
      * --immediate-checkpoint, which forces an immediate checkpoint;
      * --no-immediate-checkpoint, which forces to wait for the checkpoint
        to happen.
@@ -472,12 +475,8 @@ r custom
        directory (usually /tmp);
      * the SSH connection between Barman and the remote host must use
        public key exchange authentication method;
-     * PGDATA directory must exists on the remote host and the remote user
-       must be its owner;
-     * a directory per tablespace must exist on the remote host and the
-       remote user must be their owner
-       [Tablespace relocation is not currently supported]
-       ;
+     * the remote user must be able to create the required destination
+       directories for PGDATA and, where applicable, tablespaces;
      * there must be enough free space on the remote server to contain the
        base backup and the WAL files needed for recovery.
 
@@ -553,6 +552,19 @@ Limiting bandwidth usage
    tablespace in the above option. If found, the specified bandwidth limit
    will be enforced. If not, the default bandwidth limit for that server
    will be applied.
+     __________________________________________________________________
+
+Network Compression
+
+   From version 1.3.0 it is possible to reduce the size of transferred
+   data using compression. It can be enabled using the network_compression
+   option (global/per server):
+
+     network_compression = true|false
+
+   Setting this option to true will enable data compression during network
+   transfers (for both backup and recovery). By default it is set to
+   false.
      __________________________________________________________________
 
 Backup ID shortcuts
@@ -688,18 +700,18 @@ Retention policies
      * syntax is case insensitive;
      * value is an integer and is > 0;
      * in case of redundancy retention policy:
-          + value must be greater than the server minimum redundancy level
-            (if not is is assigned to that value and a warning is
-            generated);
+          + value must be greater than or equal to the server minimum
+            redundancy level (if not is is assigned to that value and a
+            warning is generated);
           + the first valid backup is the value-th backup in a reverse
             ordered time series;
      * in case of recovery window policy:
           + the point of recoverability is: current time - window;
           + the first valid backup is the first available backup before
             the point of recoverability; its value in a reverse ordered
-            time series must be greater than the server minimum redundancy
-            level (if not is is assigned to that value and a warning is
-            generated).
+            time series must be greater than or equal to the server
+            minimum redundancy level (if not is is assigned to that value
+            and a warning is generated).
 
    By default, retention_policy is empty (no retention enforced).
 
@@ -974,7 +986,7 @@ License and Contributions
    Form.
      __________________________________________________________________
 
-   Last updated 2014-01-28 19:17:40 CET
+   Last updated 2014-01-30 16:20:35 CET
 
 References
 
