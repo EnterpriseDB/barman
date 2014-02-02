@@ -30,7 +30,7 @@ Version 1.3.0 - 3 Feb 2014
 
 * Implemented the 'rebuild-xlogdb' command (Closes #27 and #28)
 
-* Removed deduplication of tablespaces located inside the PGDATA
+* Added deduplication of tablespaces located inside the PGDATA
   directory
 
 * Refactored remote recovery code to work the same way local
