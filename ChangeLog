@@ -1,3 +1,141 @@
+2014-02-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Update RPM spec file for release 1.3.0
+
+	Review of NEWS and AUTHORS files
+
+2014-01-31  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated files for final release
+
+2014-01-30  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improve error messages during remote recovery
+
+2014-01-29  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Use fsync to avoid xlog.db file corruption (Closes #32)
+
+	Add network_compression configuration option (Closes #19)
+	When network_compression is enabled, all network transfers are done
+	using compression (if available).
+
+2014-01-29  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Check directories exist before executing a backup (#14)
+
+2014-01-28  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Reduce log verbosity during initialisation phase
+
+2014-01-28  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Load configuration files after logger initialisation
+
+2014-01-21  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid tablespaces inside pgdata directory from being copied twice
+
+2014-01-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Generalise recovery operations (local/remote)
+
+2014-01-28  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Reviewed documentation of WAL archive hook scripts
+
+2014-01-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add pre_archive_script and post_archive_scrip hook scripts
+
+2014-01-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Refactor the LockFile management class to report permission errors.
+
+	Fix 'Invalid cross-device link' error in cron when incoming is on a different filesystem (merge request #4 by Holger Hamann)
+
+2014-01-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Port 'show-server' command to the new output interface
+
+2014-01-21  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Updated copyright (2014)
+
+2014-01-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Port 'status' and 'list-server' commands to the new output interface
+
+2014-01-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Port the 'show-backup' command to the new output interface
+
+2014-01-16  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Added implementation for backup command --immediate-checkpoint option and immediate_checkpoint configuration option
+
+2014-01-08  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Bump version number and add release notes for 1.3.0
+
+2013-11-27  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add unit tests for infofile and compression modules
+	Fix some python3 compatibility bugs highlighted by the tests
+
+2013-10-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Move barman._pretty_size() to barman.utils.pretty_size()
+
+2014-01-03  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Implement BackupInfo as a FieldListFile and move it in infofile module.
+
+2014-01-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Refactor output to a dedicate module.
+	The following commands have been ported to the new interface:
+
+	 * backup
+	 * check
+	 * list-backup
+
+	A special NagiosOutputWriter has been added to support Nagios compatible
+	output for the check command
+
+	WARNING: this code doesn't run due to a circular dependency. The issue
+	will be fixed in the next commit
+
+2013-09-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Isolate subrocesses' stdin/stdout in command_wrappers module
+
+2014-01-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Refactor hooks management
+
+2013-09-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Split out logging configuration and userid enforcement from the configuration class.
+
+2013-12-16  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added rebuild-xlogdb command man page
+
+2013-11-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Implement the rebuild-xlogdb command. (Closes #27)
+
+2013-11-19  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	added documentation for tablespaces relocation (#22)
+
+2013-10-30  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added TODO list
+
 2013-09-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
