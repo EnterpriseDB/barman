@@ -279,15 +279,15 @@ def set_output_writer(new_writer, *args, **kwargs):
 
 
 class ConsoleOutputWriter(object):
-    def __init__(self, debug_enabled=False):
+    def __init__(self, debug=False, quiet=False):
         """
         Default output writer that output everything on console.
 
-        If debug_enabled print the debug information on console.
-
-        :param bool debug_enabled:
+        :param bool debug: print debug messages on standard error
+        :param bool quiet: don't print info messages
         """
-        self._debug = debug_enabled
+        self._debug = debug
+        self._quiet = quiet
 
         #: Used in check command to hold the check results
         self.result_check_list = []
@@ -322,7 +322,8 @@ class ConsoleOutputWriter(object):
         """
         Normal messages are sent to standard output
         """
-        self._out(message, args)
+        if not self._quiet:
+            self._out(message, args)
 
     def warning(self, message, *args):
         """

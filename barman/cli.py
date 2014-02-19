@@ -60,7 +60,8 @@ def cron(verbose=True):
                 for lines in server.cron(verbose):
                     yield lines
     except lockfile.LockFileBusy:
-        raise SystemExit("ERROR: Another cron is running")
+        output.info("Another cron is running")
+        output.close_and_exit()
 
     except lockfile.LockFilePermissionDenied:
         raise SystemExit("ERROR: Permission denied, unable to access '%s'"
@@ -449,8 +450,10 @@ def global_config(args):
         _logger.warn('unknown log_level in config file: %s', config.log_level)
 
     # configure output
-    if args.format != output.DEFAULT_WRITER:
-        output.set_output_writer(args.format)
+    if args.format != output.DEFAULT_WRITER or args.quiet or args.debug:
+        output.set_output_writer(args.format,
+                                 quiet=args.quiet,
+                                 debug=args.debug)
 
     # Load additional configuration files
     _logger.debug('Loading additional configuration files')
@@ -530,6 +533,7 @@ def main():
                         % ', '.join(barman.config.Config.CONFIG_FILES),
                    default=SUPPRESS)
     p.add_argument('-q', '--quiet', help='be quiet', action='store_true')
+    p.add_argument('-d', '--debug', help='debug output', action='store_true')
     p.add_argument('-f', '--format', help='output format',
                    choices=output.AVAILABLE_WRITERS.keys(),
                    default=output.DEFAULT_WRITER)

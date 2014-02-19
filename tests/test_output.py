@@ -569,7 +569,7 @@ class TestOutputAPI(object):
 class TestConsoleWriter(object):
 
     def test_debug(self, capsys):
-        writer = output.ConsoleOutputWriter(debug_enabled=True)
+        writer = output.ConsoleOutputWriter(debug=True)
 
         msg = 'test message'
         writer.debug(msg)
@@ -599,7 +599,7 @@ class TestConsoleWriter(object):
         assert err == 'DEBUG: ' + msg % kwargs + '\n'
 
     def test_debug_disabled(self, capsys):
-        writer = output.ConsoleOutputWriter(debug_enabled=False)
+        writer = output.ConsoleOutputWriter(debug=False)
 
         msg = 'test message'
         writer.debug(msg)
@@ -628,8 +628,8 @@ class TestConsoleWriter(object):
         assert out == ''
         assert err == ''
 
-    def test_info(self, capsys):
-        writer = output.ConsoleOutputWriter()
+    def test_info_verbose(self, capsys):
+        writer = output.ConsoleOutputWriter(quiet=False)
 
         msg = 'test message'
         writer.info(msg)
@@ -656,6 +656,36 @@ class TestConsoleWriter(object):
         writer.info(msg, kwargs)
         (out, err) = capsys.readouterr()
         assert out == msg % kwargs + '\n'
+        assert err == ''
+
+    def test_info_quiet(self, capsys):
+        writer = output.ConsoleOutputWriter(quiet=True)
+
+        msg = 'test message'
+        writer.info(msg)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.info(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.info(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.info(msg, kwargs)
+        (out, err) = capsys.readouterr()
+        assert out == ''
         assert err == ''
 
     def test_warning(self, capsys):
@@ -975,7 +1005,7 @@ class TestNagiosWriter(object):
         assert err == ''
 
     def test_debug_disabled(self, capsys):
-        writer = output.NagiosOutputWriter(debug_enabled=False)
+        writer = output.NagiosOutputWriter(debug=False)
 
         msg = 'test message'
         writer.debug(msg)
