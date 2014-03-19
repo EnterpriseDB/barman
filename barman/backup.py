@@ -306,20 +306,30 @@ class BackupManager(object):
         yield msg
         _logger.info(msg)
 
+        # check destination directory. If doesn't exist create it
+        try:
+            cmd.create_dir_if_not_exists(dest)
+        except FsOperationFailed, e:
+            msg = ("ERROR: unable to initialize destination directory "
+                   "'%s': %s" % (dest, e))
+            _logger.critical(msg)
+            raise SystemExit(msg)
+
         msg = "Destination directory: %s" % dest
         yield msg
         _logger.info(msg)
+
+        # initialize tablespace structure
         if backup.tablespaces:
+            tblspc_dir = os.path.join(dest, 'pg_tblspc')
             try:
-                tblspc_dir = os.path.join(dest, 'pg_tblspc')
                 # check for pg_tblspc dir into recovery destination folder.
                 # if does not exists, create it
                 cmd.create_dir_if_not_exists(tblspc_dir)
-            except FsOperationFailed:
-                msg = "ERROR: unable to initialize Tablespace Recovery Operation "
+            except FsOperationFailed, e:
+                msg = ("ERROR: unable to initialize tablespace directory "
+                       "'%s': %s" % (tblspc_dir, e))
                 _logger.critical(msg)
-                info = sys.exc_info()[0]
-                _logger.critical(info)
                 raise SystemExit(msg)
 
             for name, oid, location in backup.tablespaces:
@@ -339,11 +349,11 @@ class BackupManager(object):
                     cmd.check_write_permission(location)
                     # create symlink between tablespace and recovery folder
                     cmd.create_symbolic_link(location,tblspc_file)
-                except FsOperationFailed:
-                    msg = "ERROR: unable to prepare '%s' tablespace (destination '%s')" % (name, location)
+                except FsOperationFailed, e:
+                    msg = ("ERROR: unable to prepare '%s' tablespace "
+                           "(destination '%s'): %s" %
+                           (name, location, e))
                     _logger.critical(msg)
-                    info = sys.exc_info()[0]
-                    _logger.critical(info)
                     raise SystemExit(msg)
 
                 yield "\t%s, %s, %s" % (oid, name, location)
