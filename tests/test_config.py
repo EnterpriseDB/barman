@@ -91,6 +91,7 @@ MINIMAL_CONFIG_MAIN = {
     'tablespace_bandwidth_limit': None,
     'immediate_checkpoint': False,
     'network_compression': False,
+    'backup_options': 'exclusive_backup',
 }
 
 class Test(unittest.TestCase):

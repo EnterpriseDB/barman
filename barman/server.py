@@ -21,15 +21,18 @@ Barman is able to manage multiple servers.
 
 from barman import xlog, output
 from barman.infofile import BackupInfo, UnknownBackupIdException
-from barman.lockfile import LockFile
+from barman.lockfile import LockFile, LockFileBusy, \
+    LockFilePermissionDenied
 from barman.backup import BackupManager
 from barman.command_wrappers import Command
 from barman.retention_policies import RetentionPolicyFactory, SimpleWALRetentionPolicy
 import os
+import re
 import logging
+import datetime
 import psycopg2
 from contextlib import contextmanager
-import itertools
+import xlog
 
 _logger = logging.getLogger(__name__)
 
@@ -172,6 +175,15 @@ class Server(object):
         else:
             output.result('check', self.config.name, 'PostgreSQL', False)
             return
+        if (self.config.backup_options == 'concurrent_backup' and
+                remote_status['pgespresso_installed']):
+            output.result('check', self.config.name, 'pgespresso extension',
+                          True)
+        elif (self.config.backup_options == 'concurrent_backup' and
+                  not remote_status['pgespresso_installed']):
+            output.result('check', self.config.name, 'pgespresso extension',
+                          False,
+                          'required for concurrent backups')
         if remote_status['archive_mode'] == 'on':
             output.result('check', self.config.name, 'archive_mode', True)
         else:
@@ -235,6 +247,12 @@ class Server(object):
                           "PostgreSQL version",
                           "FAILED trying to get PostgreSQL version")
             return
+        if remote_status['pgespresso_installed']:
+            output.result('status', self.config.name, 'pgespresso',
+                          'Pgespresso extension', "Available")
+        else:
+            output.result('status', self.config.name, 'pgespresso',
+                          'Pgespresso extension', "Not available")
         if remote_status['data_directory']:
             output.result('status', self.config.name,
                           "data_directory",
@@ -289,8 +307,33 @@ class Server(object):
         # Executes the backup manager status info method
         self.backup_manager.status()
 
+    def pg_espresso_installed(self):
+        with self.pg_connect() as conn:
+            cur = conn.cursor()
+            cur.execute("select count(*) from pg_extension where extname = 'pgespresso'")
+            q_result = cur.fetchone()[0]
+            if q_result == 1:
+                return True
+            else:
+                return False
+
+    def pg_is_in_recovery(self):
+        with self.pg_connect() as conn:
+            cur = conn.cursor()
+            cur.execute("select pg_is_in_recovery()")
+            q_result = cur.fetchone()[0]
+            if q_result:
+                return True
+            else:
+                return False
+
     def get_remote_status(self):
-        '''Get the status of the remote server'''
+        """
+        Get the status of the remote server
+
+        :return: result of the server status query
+        """
+
         pg_settings = ('archive_mode', 'archive_command', 'data_directory')
         pg_query_keys = ('server_txt_version', 'current_xlog')
         result = dict.fromkeys(pg_settings + pg_query_keys, None)
@@ -302,13 +345,21 @@ class Server(object):
                     cur = conn.cursor()
                     cur.execute("SELECT version()")
                     result['server_txt_version'] = cur.fetchone()[0].split()[1]
-                except:
+                except Exception, e:
+                    # TODO: improve exception information
                     result['server_txt_version'] = None
                 try:
-                    cur = conn.cursor()
-                    cur.execute('SELECT pg_xlogfile_name(pg_current_xlog_location())')
-                    result['current_xlog'] = cur.fetchone()[0];
-                except:
+                    result['pgespresso_installed'] = self.pg_espresso_installed()
+                except Exception, e:
+                    # TODO: improve exception information
+                    result['pgespresso_installed'] = None
+                try:
+                    if not self.pg_is_in_recovery():
+                        cur = conn.cursor()
+                        cur.execute('SELECT pg_xlogfile_name(pg_current_xlog_location())')
+                        result['current_xlog'] = cur.fetchone()[0];
+                except Exception, e:
+                    # TODO: improve exception information
                     result['current_xlog'] = None
                 result.update(self.get_pg_configuration_files())
         except:
@@ -403,26 +454,148 @@ class Server(object):
         Execute a pg_start_backup
 
         :param backup_label: label for the backup
-        :param immediate_checkpoint Boolean for immediate checkpoint execution
+        :param immediate_checkpoint: Boolean for immediate checkpoint execution
         """
         with self.pg_connect() as conn:
+            if (self.config.backup_options != "concurrent_backup" and
+                self.pg_is_in_recovery()):
+                raise Exception(
+                    'Unable to start a backup because of server recovery state')
             try:
                 cur = conn.cursor()
                 cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_start_backup(%s,%s) as xlog_loc',
                             (backup_label, immediate_checkpoint))
                 return cur.fetchone()
-            except:
+            except Exception, e:
                 return None
 
+    def pgespresso_start_backup(self, backup_label, immediate_checkpoint):
+        """
+        Execute a pgespresso_start_backup
+
+        :param backup_label: label for the backup
+        :param immediate_checkpoint Boolean for immediate checkpoint execution
+        """
+        with self.pg_connect() as conn:
+
+            if (self.config.backup_options == "concurrent_backup" and
+                    not self.pg_espresso_installed()):
+                raise Exception(
+                    'Pgespresso extension required for concurrent_backup')
+            try:
+                cur = conn.cursor()
+                cur.execute('SELECT pgespresso_start_backup(%s,%s)',
+                            (backup_label, immediate_checkpoint))
+                return cur.fetchone()[0]
+            except Exception, e:
+                return None
+
+    def start_backup(self, label, immediate_checkpoint, backup_info):
+        """
+        start backup wrapper
+
+        :param backup_label: label for the backup
+        :param immediate_checkpoint: Boolean for immediate checkpoint execution
+        :param backup_info: backup_info object
+        :return:
+        """
+        if self.config.backup_options != 'concurrent_backup':
+            start_row = self.pg_start_backup(label, immediate_checkpoint)
+            if start_row:
+                start_xlog, start_file_name, start_file_offset = start_row
+                backup_info.set_attribute("status", "STARTED")
+                backup_info.set_attribute("timeline",
+                                          int(start_file_name[0:8], 16))
+                backup_info.set_attribute("begin_xlog", start_xlog)
+                backup_info.set_attribute("begin_wal", start_file_name)
+                backup_info.set_attribute("begin_offset", start_file_offset)
+
+            else:
+                self.current_action = "starting the backup: PostgreSQL server " \
+                                      "is already in exclusive backup mode"
+                raise Exception('concurrent exclusive backups are not allowed')
+        elif self.config.backup_options == 'concurrent_backup':
+            backup_data = self.pgespresso_start_backup(label,
+                                                       immediate_checkpoint)
+            if backup_data:
+                e = re.compile('^START WAL LOCATION: (.*) \(file (.*)\)',
+                               re.MULTILINE)
+                b_info = e.search(backup_data)
+                backup_info.set_attribute("status", "STARTED")
+                backup_info.set_attribute("timeline",
+                                          int(b_info.group(2)[0:8], 16))
+                backup_info.set_attribute("begin_xlog", b_info.group(1))
+                backup_info.set_attribute("begin_wal", b_info.group(2))
+                backup_info.set_attribute("begin_offset",
+                                          xlog.get_offset_from_location(
+                                              b_info.group(1)))
+                backup_info.set_attribute("backup_label", backup_data)
+
+
+
     def pg_stop_backup(self):
-        '''Execute a pg_stop_backup'''
+        """
+        Execute a pg_stop_backup
+        """
         with self.pg_connect() as conn:
             try:
                 cur = conn.cursor()
-                cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_stop_backup() as xlog_loc')
+                cur.execute(
+                    'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* '
+                    'from pg_stop_backup() as xlog_loc')
                 return cur.fetchone()
             except:
                 return None
+
+    def pgespresso_stop_backup(self, backup_label):
+        """
+        Execute a pgespresso_stop_backup
+        """
+        with self.pg_connect() as conn:
+            try:
+                cur = conn.cursor()
+                cur.execute('SELECT pgespresso_stop_backup(%s)', (backup_label,))
+                return cur.fetchone()[0]
+            except Exception, e:
+                return None
+
+    def stop_backup(self, backup_info):
+        """
+        stop backup wrapper
+
+        :param backup_label: label for the backup
+        :param immediate_checkpoint: Boolean for immediate checkpoint execution
+        :param backup_info: backup_info object
+        :return:
+        """
+        if self.config.backup_options != 'concurrent_backup':
+            stop_string = self.pg_stop_backup()
+            if stop_string:
+                stop_xlog, stop_file_name, stop_file_offset = stop_string
+                backup_info.set_attribute("end_time", datetime.datetime.now())
+                backup_info.set_attribute("end_xlog", stop_xlog)
+                backup_info.set_attribute("end_wal", stop_file_name)
+                backup_info.set_attribute("end_offset", stop_file_offset)
+            else:
+                self.current_action = "starting the backup: PostgreSQL server " \
+                                      "" \
+                                      "is already in exclusive backup mode"
+                raise Exception('concurrent exclusive backups are not allowed')
+
+        elif self.config.backup_options == 'concurrent_backup':
+
+            end_wal = self.pgespresso_stop_backup(backup_info.backup_label)
+            if end_wal:
+                decoded_segment = xlog.decode_segment_name(end_wal)
+                backup_info.set_attribute("end_time", datetime.datetime.now())
+                backup_info.set_attribute("end_xlog",
+                                          "%X/%X" % (decoded_segment[1],
+                                                     (decoded_segment[
+                                                          2] + 1) << 24))
+                backup_info.set_attribute("end_wal", end_wal)
+                backup_info.set_attribute("end_offset", 0)
+            else:
+                raise Exception('Concurrent stop backup failed')
 
     def delete_backup(self, backup):
         '''Deletes a backup
@@ -432,7 +605,11 @@ class Server(object):
         return self.backup_manager.delete_backup(backup)
 
     def backup(self, immediate_checkpoint):
-        '''Performs a backup for the server'''
+        """
+        Performs a backup for the server
+
+        :param immediate_checkpoint: Boolean for immediate checkpoint execution
+        """
         try:
             # check required backup directories exist
             self._make_directories()
@@ -440,7 +617,19 @@ class Server(object):
             output.error('failed to create %s directory: %s',
                          e.filename, e.strerror)
         else:
-            self.backup_manager.backup(immediate_checkpoint)
+            filename = os.path.join(self.config.barman_home,
+                                    '.%s-backup.lock' % self.config.name)
+        try:
+            # lock acquisition and backup execution
+            with LockFile(filename, raise_if_fail=True):
+                self.backup_manager.backup(immediate_checkpoint)
+
+        except LockFileBusy:
+            output.error("ERROR: Another backup process is running")
+
+        except LockFilePermissionDenied:
+            output.error(
+                "ERROR: Permission denied, unable to access '%s'" % filename)
 
     def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         '''Get a list of available backups
@@ -592,11 +781,17 @@ class Server(object):
         return self.backup_manager.recover(backup, dest, tablespaces, target_tli, target_time, target_xid, target_name, exclusive, remote_command)
 
     def cron(self, verbose=True):
-        '''Maintenance operations
-
-        :param verbose: turn on verbose mode. default True
-        '''
-        return self.backup_manager.cron(verbose)
+        """
+        Maintenance operations
+        """
+        filename = os.path.join(self.config.barman_home,
+                                '.%s-cron.lock' % self.config.name)
+        try:
+            with LockFile(filename, raise_if_fail=True, wait=True):
+                return self.backup_manager.cron(verbose=verbose)
+        except LockFilePermissionDenied:
+            raise output.error("Permission denied, unable to access '%s'",
+                               filename)
 
     @contextmanager
     def xlogdb(self, mode='r'):

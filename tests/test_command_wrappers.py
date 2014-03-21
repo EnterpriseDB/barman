@@ -441,6 +441,7 @@ class RsyncPgdataUnitTest(unittest.TestCase):
             [
                 'rsync', '-rLKpts', '--delete-excluded', '--inplace',
                 '--exclude=/pg_xlog/*', '--exclude=/pg_log/*',
+                '--exclude=/recovery.conf',
                 '--exclude=/postmaster.pid', 'src', 'dst'
             ],
             shell=False, env=None,
@@ -467,6 +468,7 @@ class RsyncPgdataUnitTest(unittest.TestCase):
             [
                 'rsync', '-rLKpts', '--delete-excluded', '--inplace',
                 '--exclude=/pg_xlog/*', '--exclude=/pg_log/*',
+                '--exclude=/recovery.conf',
                 '--exclude=/postmaster.pid', 'a', 'b', 'src', 'dst'
             ],
             shell=False, env=None,

@@ -148,6 +148,7 @@ class RsyncPgData(Rsync):
             '-rLKpts', '--delete-excluded', '--inplace',
             '--exclude=/pg_xlog/*',
             '--exclude=/pg_log/*',
+            '--exclude=/recovery.conf',
             '--exclude=/postmaster.pid'
         ]
         if args:

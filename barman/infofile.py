@@ -326,6 +326,7 @@ class BackupInfo(FieldListFile):
     config_file = Field('config_file')
     hba_file = Field('hba_file')
     ident_file = Field('ident_file')
+    backup_label = Field('backup_label', load=ast.literal_eval, dump=repr)
 
     __slots__ = ('server', 'config', 'backup_manager', 'backup_id')
 

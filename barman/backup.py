@@ -152,11 +152,11 @@ class BackupManager(object):
         return ids[0]
 
     def delete_backup(self, backup):
-        '''
+        """
         Delete a backup
 
         :param backup: the backup to delete
-        '''
+        """
         available_backups = self.get_available_backups()
         # Honour minimum required redundancy
         if backup.status == BackupInfo.DONE and self.server.config.minimum_redundancy >= len(available_backups):
@@ -171,29 +171,25 @@ class BackupManager(object):
         next_backup = self.get_next_backup(backup.backup_id)
         # remove the backup
         self.delete_basebackup(backup)
-        if not previous_backup:  # backup is the first one
-            yield "Delete associated WAL segments:"
-            remove_until = None
+        if not previous_backup:
+            # If this is the first avalaible backup, remove unused WAL files
+            # If no backup left, remove all WAL files unless in concurrent_backup mode
+            # If in concurrent_backup mode, remove all WAL files prior to the
+            # backup that is being deleted
+            remove_until = None # means to remove all wal files
             if next_backup:
-                remove_until = next_backup.begin_wal
-            with self.server.xlogdb() as fxlogdb:
-                xlogdb_new = fxlogdb.name + ".new"
-                with open(xlogdb_new, 'w') as fxlogdb_new:
-                    for line in fxlogdb:
-                        name, _, _, _ = self.server.xlogdb_parse_line(line)
-                        if remove_until and name >= remove_until:
-                            fxlogdb_new.write(line)
-                            continue
-                        else:
-                            yield "\t%s" % name
-                            # Delete the WAL segment
-                            self.delete_wal(name)
-                shutil.move(xlogdb_new, fxlogdb.name)
+                remove_until = next_backup
+            elif self.config.backup_options == 'concurrent_backup':
+                remove_until = backup
+            yield "Delete associated WAL segments:"
+            for name in self._remove_unused_wal_files(remove_until):
+                yield "\t%s" % name
         yield "Done"
 
     def backup(self, immediate_checkpoint):
         """
         Performs a backup for the server
+        :param immediate_checkpoint: immediate checkpoint on start_backup
         """
         _logger.debug("initialising backup information")
         backup_stamp = datetime.datetime.now()
@@ -218,6 +214,12 @@ class BackupManager(object):
             self.backup_start(backup_info, immediate_checkpoint)
             backup_info.set_attribute("begin_time", backup_stamp)
             backup_info.save()
+
+            # If we are the first backup, purge unused WAL files
+            previous_backup = self.get_previous_backup(backup_info.backup_id)
+            if not previous_backup:
+                self._remove_unused_wal_files(backup_info)
+
             output.info("Backup start at xlog location: %s (%s, %08X)",
                             backup_info.begin_xlog,
                             backup_info.begin_wal,
@@ -238,15 +240,21 @@ class BackupManager(object):
             finally:
                 self.backup_stop(backup_info)
 
+            if self.config.backup_options == 'concurrent_backup':
+                self.current_action = "writing backup label"
+                self._write_backup_label(backup_info)
             backup_info.set_attribute("status", "DONE")
 
-        except:
+        except Exception, e:
             if backup_info:
                 backup_info.set_attribute("status", "FAILED")
-                backup_info.set_attribute("error", "failure %s" % self.current_action)
+                # errors must not contain '\n', so we replace them with '|'
+                backup_info.set_attribute(
+                    "error",
+                    "failure %s (%s)" % (
+                        self.current_action, str(e).replace('\n', '|')))
 
-            msg = "Backup failed %s" % self.current_action
-            output.exception(msg)
+            output.exception("Backup failed %s (%s)", self.current_action, e)
 
         else:
             output.info("Backup end at xlog location: %s (%s, %08X)",
@@ -280,8 +288,9 @@ class BackupManager(object):
         :param remote_command: default None. The remote command to recover the base backup,
                                in case of remote backup.
         '''
-        for line in self.cron(False):
-            yield line
+
+        # run the cron to be sure the wal catalog is up to date
+        self.server.cron(verbose=False)
 
         recovery_dest = 'local'
 
@@ -496,49 +505,53 @@ class BackupManager(object):
             yield ""
         _logger.info("Recovery completed successful.")
 
-
-    def cron(self, verbose):
-        '''
+    def cron(self, verbose=True):
+        """
         Executes maintenance operations, such as WAL trashing.
-
-        :param verbose: print some information
-        '''
+        """
         found = False
         compressor = self.compression_manager.get_compressor()
         with self.server.xlogdb('a') as fxlogdb:
             if verbose:
-                yield "Processing xlog segments for %s" % self.config.name
-            available_backups = self.get_available_backups(BackupInfo.STATUS_ALL)
-            for filename in sorted(glob(os.path.join(self.config.incoming_wals_directory, '*'))):
+                output.info("Processing xlog segments for %s", self.config.name)
+            available_backups = self.get_available_backups(
+                BackupInfo.STATUS_ALL)
+            for filename in sorted(glob(
+                    os.path.join(self.config.incoming_wals_directory, '*'))):
                 if not found and not verbose:
-                    yield "Processing xlog segments for %s" % self.config.name
-                found = True
-                if not len(available_backups):
-                    msg = "No base backup available. Trashing file %s" % os.path.basename(filename)
-                    yield "\t%s" % msg
-                    _logger.warning(msg)
+                    output.info("Processing xlog segments for %s",
+                                self.config.name)
+                    found = True
+                # Delete xlog segments only if the backup is exclusive
+                if (not len(available_backups) and
+                        (self.config.backup_options != "concurrent_backup")):
+                    output.info("\tNo base backup available. Trashing file %s",
+                                os.path.basename(filename))
                     os.unlink(filename)
                     continue
                 # Archive the WAL file
                 wal_info = self.cron_wal_archival(compressor, filename)
 
-                # Updates the information of the WAL archive with the latest segement's
+                # Updates the information of the WAL archive with
+                # the latest segments
                 fxlogdb.write(wal_info.to_xlogdb_line())
-                _logger.info('Processed file %s', filename)
-                yield "\t%s" % os.path.basename(filename)
+                output.info("\t%s", os.path.basename(filename))
         if not found and verbose:
-            yield "\tno file found"
+            output.info("\tno file found")
 
         # Retention policy management
-        if self.server.enforce_retention_policies and self.config.retention_policy_mode == 'auto':
-            available_backups = self.get_available_backups(BackupInfo.STATUS_ALL)
+        if (self.server.enforce_retention_policies
+                and self.config.retention_policy_mode == 'auto'):
+            available_backups = self.get_available_backups(
+                BackupInfo.STATUS_ALL)
             retention_status = self.config.retention_policy.report()
             for bid in sorted(retention_status.iterkeys()):
                 if retention_status[bid] == BackupInfo.OBSOLETE:
-                    _logger.info("Enforcing retention policy: removing backup %s for server %s" % (
-                        bid, self.config.name))
+                    output.info(
+                        "Enforcing retention policy: removing backup %s for "
+                        "server %s" % (bid, self.config.name))
                     for line in self.delete_backup(available_backups[bid]):
-                        yield line
+                        output.info(line)
 
     def delete_basebackup(self, backup):
         '''
@@ -567,11 +580,13 @@ class BackupManager(object):
                 name)
 
     def backup_start(self, backup_info, immediate_checkpoint):
-        '''
+        """
         Start of the backup
 
+        :param immediate_checkpoint: force execution of a check point as soon
+        as possible
         :param backup_info: the backup information structure
-        '''
+        """
         self.current_action = "connecting to database (%s)" % self.config.conninfo
         _logger.debug(self.current_action)
 
@@ -601,31 +616,19 @@ class BackupManager(object):
                 _logger.info(msg)
 
         # Issue pg_start_backup on the PostgreSQL server
-        self.current_action = "issuing pg_start_backup command"
+        self.current_action = "issuing start backup command"
         _logger.debug(self.current_action)
-        backup_label = ("Barman backup %s %s"
+        label = ("Barman backup %s %s"
                         % (backup_info.server_name, backup_info.backup_id))
-        start_row = self.server.pg_start_backup(backup_label,
-                                                immediate_checkpoint)
-        if start_row:
-            start_xlog, start_file_name, start_file_offset = start_row
-            backup_info.set_attribute("status", "STARTED")
-            backup_info.set_attribute("timeline", int(start_file_name[0:8], 16))
-            backup_info.set_attribute("begin_xlog", start_xlog)
-            backup_info.set_attribute("begin_wal", start_file_name)
-            backup_info.set_attribute("begin_offset", start_file_offset)
-        else:
-            self.current_action = "starting the backup: PostgreSQL server is already in exclusive backup mode"
-            raise Exception('concurrent exclusive backups are not allowed')
+        self.server.start_backup(label, immediate_checkpoint, backup_info)
 
     def backup_copy(self, backup_info):
-        '''
+        """
         Perform the copy of the backup.
         This function returns the size of the backup (in bytes)
 
         :param backup_info: the backup information structure
-        '''
-
+        """
         # paths to be ignored from rsync
         exclude_and_protect = []
 
@@ -652,19 +655,11 @@ class BackupManager(object):
                 if tablespace_data[2].startswith(backup_info.pgdata)
             ]
 
-        rsync = RsyncPgData(ssh=self.server.ssh_command,
-                ssh_options=self.server.ssh_options,
-                bwlimit=self.config.bandwidth_limit,
-                exclude_and_protect=exclude_and_protect,
-                network_compression=self.config.network_compression)
-        retval = rsync(':%s/' % backup_info.pgdata, backup_dest)
-        if retval not in (0, 24):
-            msg = "ERROR: data transfer failure"
-            _logger.exception(msg)
-            raise Exception(msg)
-
         # deal with tablespaces with a different bwlimit
         if len(tablespaces_bwlimit) > 0:
+            # we are copying the tablespaces before the data directory,
+            # so we need to create the 'pg_tblspc' directory
+            os.makedirs(os.path.join(backup_dest, 'pg_tblspc'))
             for tablespace_dir, bwlimit in tablespaces_bwlimit.items():
                 self.current_action = "copying tablespace '%s' with bwlimit %d" % (
                     tablespace_dir, bwlimit)
@@ -681,6 +676,25 @@ class BackupManager(object):
                         tablespace_dir,)
                     _logger.exception(msg)
                     raise Exception(msg)
+
+        rsync = RsyncPgData(ssh=self.server.ssh_command,
+                ssh_options=self.server.ssh_options,
+                bwlimit=self.config.bandwidth_limit,
+                exclude_and_protect=exclude_and_protect,
+                network_compression=self.config.network_compression)
+        retval = rsync(':%s/' % backup_info.pgdata, backup_dest)
+        if retval not in (0, 24):
+            msg = "ERROR: data transfer failure"
+            _logger.exception(msg)
+            raise Exception(msg)
+
+        # at last copy pg_control
+        retval = rsync(':%s/global/pg_control' % (backup_info.pgdata,),
+                       '%s/global/pg_control' % (backup_dest,))
+        if retval not in (0, 24):
+            msg = "ERROR: data transfer failure"
+            _logger.exception(msg)
+            raise Exception(msg)
 
         # Copy configuration files (if not inside PGDATA)
         self.current_action = "copying configuration files"
@@ -716,11 +730,8 @@ class BackupManager(object):
 
         :param backup_info: the backup information structure
         '''
-        stop_xlog, stop_file_name, stop_file_offset = self.server.pg_stop_backup()
-        backup_info.set_attribute("end_time", datetime.datetime.now())
-        backup_info.set_attribute("end_xlog", stop_xlog)
-        backup_info.set_attribute("end_wal", stop_file_name)
-        backup_info.set_attribute("end_offset", stop_file_offset)
+        self.server.stop_backup(backup_info)
+
 
     def recover_basebackup_copy(self, backup, dest, remote_command=None):
         '''
@@ -1026,3 +1037,41 @@ class BackupManager(object):
         yield 'Done rebuilding xlogdb for server %s ' \
             '(history: %s, backup_labels: %s, wal_file: %s)' % (
                 self.config.name, history_count, label_count, wal_count)
+
+    def _write_backup_label(self, backup_info):
+        """
+        Write backup_label file inside pgdata folder
+
+        :param backup_info: the backup information structure
+        """
+        label_file = os.path.join(backup_info.get_basebackup_directory(),
+                                  'pgdata/backup_label')
+
+        with open(label_file, 'w') as f:
+            f.write(backup_info.backup_label)
+
+    def _remove_unused_wal_files(self, backup_info):
+        """
+        Remove WAL files which have been archived before the start of
+        the provided backup.
+
+        If no backup_info is provided delete all available wal files
+
+        :param backup_info: the backup information structure
+        :return list: a list of removed wal files
+        """
+        removed = []
+        with self.server.xlogdb() as fxlogdb:
+            xlogdb_new = fxlogdb.name + ".new"
+            with open(xlogdb_new, 'w') as fxlogdb_new:
+                for line in fxlogdb:
+                    name, _, _, _ = self.server.xlogdb_parse_line(line)
+                    if backup_info and name >= backup_info.begin_wal:
+                        fxlogdb_new.write(line)
+                        continue
+                    else:
+                        # Delete the WAL segment
+                        self.delete_wal(name)
+                        removed.append(name)
+            shutil.move(xlogdb_new, fxlogdb.name)
+        return removed

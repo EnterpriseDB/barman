@@ -48,25 +48,23 @@ def list_server(minimal=False):
     output.close_and_exit()
 
 
-def cron(verbose=True):
+def cron():
     """
     Run maintenance tasks
     """
-    filename = os.path.join(barman.__config__.barman_home, '.cron.lock')
+    lockname = os.path.join(barman.__config__.barman_home, '.cron.lock')
     try:
-        with lockfile.LockFile(filename, raise_if_fail=True):
+        with lockfile.LockFile(lockname, raise_if_fail=True):
             servers = [Server(conf) for conf in barman.__config__.servers()]
             for server in servers:
-                for lines in server.cron(verbose):
-                    yield lines
+                server.cron()
     except lockfile.LockFileBusy:
         output.info("Another cron is running")
-        output.close_and_exit()
 
     except lockfile.LockFilePermissionDenied:
-        raise SystemExit("ERROR: Permission denied, unable to access '%s'"
-                         % filename)
-
+        output.error("Permission denied, unable to access '%s'",
+                     lockname)
+    output.close_and_exit()
 
 # noinspection PyUnusedLocal
 def server_completer(prefix, parsed_args, **kwargs):
@@ -126,6 +124,7 @@ def backup(args):
     """
     Perform a full backup for the given server
     """
+
     servers = get_server_list(args)
     for name in sorted(servers):
         server = servers[name]
@@ -135,8 +134,8 @@ def backup(args):
         immediate_checkpoint = getattr(args, 'immediate_checkpoint',
                                        server.config.immediate_checkpoint)
         server.backup(immediate_checkpoint)
-    output.close_and_exit()
 
+    output.close_and_exit()
 
 @named('list-backup')
 @arg('server_name', nargs='+',

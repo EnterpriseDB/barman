@@ -23,6 +23,8 @@ import re
 
 # xlog file segment name parser (regular expression)
 _xlog_re = re.compile(r'\b([\dA-Fa-f]{8})(?:([\dA-Fa-f]{8})([\dA-Fa-f]{8})(?:\.[\dA-Fa-f]{8}\.backup)?|\.history)\b')
+# xlog location parser for concurrent backup (regular expression)
+_location_re = re.compile(r'([\dA-F]+)/([\dA-F]+)')
 
 # Taken from xlog_internal.h from PostgreSQL sources
 XLOG_SEG_SIZE = 1 << 24
@@ -124,3 +126,17 @@ def hash_dir(name):
         return name[0:16]
     else:
         return ''
+
+
+def get_offset_from_location(location):
+    """
+
+    :param location:
+    :return:
+    """
+    match = _location_re.match(location)
+    if match:
+        xlo = int(match.group(2), 16)
+        return xlo % XLOG_SEG_SIZE
+    else:
+        return None

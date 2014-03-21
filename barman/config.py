@@ -67,7 +67,7 @@ class Server(object):
         'retention_policy',
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
-        'immediate_checkpoint', 'network_compression',
+        'backup_options', 'immediate_checkpoint', 'network_compression',
     ]
 
     BARMAN_KEYS = [
@@ -77,7 +77,7 @@ class Server(object):
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
         'configuration_files_directory',
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
-        'immediate_checkpoint', 'network_compression',
+        'backup_options', 'immediate_checkpoint', 'network_compression',
     ]
 
     DEFAULTS = {
@@ -90,6 +90,7 @@ class Server(object):
         'retention_policy_mode': 'auto',
         'wal_retention_policy': 'main',
         'minimum_redundancy': '0',
+        'backup_options': 'exclusive_backup',
         'immediate_checkpoint': 'false',
         'network_compression': 'false',
     }
@@ -114,7 +115,7 @@ class Server(object):
                 value = Server.DEFAULTS[key] % self.__dict__
                 source = 'DEFAULTS'
             # If we have a parser for the current key use it to obtain the
-            # actual value. If an exception is trown output a warning and
+            # actual value. If an exception is thrown output a warning and
             # ignore the value.
             # noinspection PyBroadException
             try:
