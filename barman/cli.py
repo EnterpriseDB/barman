@@ -25,6 +25,7 @@ from barman import output
 from barman.infofile import BackupInfo
 from barman import lockfile
 from barman.server import Server
+import barman.diagnose
 import barman.config
 import logging
 import os
@@ -316,6 +317,14 @@ def check(args):
         server.check()
     output.close_and_exit()
 
+@expects_obj
+def diagnose(args):
+    """
+    Diagnostic command (for support and problems detection purpose)
+    """
+    servers = get_server_list(None)
+    barman.diagnose.exec_diagnose(servers)
+    output.close_and_exit()
 
 @named('show-backup')
 @arg('server_name',
@@ -543,6 +552,7 @@ def main():
             show_server,
             status,
             check,
+            diagnose,
             backup,
             list_backup,
             show_backup,

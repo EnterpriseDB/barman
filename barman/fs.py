@@ -166,6 +166,35 @@ class UnixLocalCommand(object):
         else:
             raise FsOperationFailed('ln source does not exists')
 
+    def get_system_info(self):
+        """
+            Gather important system information for 'barman diagnose' command
+        """
+        result = {}
+        lsb_return = self.cmd("lsb_release -a")
+        lsb = ''
+        if lsb_return == 0:
+            lsb = self.cmd.out.rstrip()
+        elif self.cmd('test -e /etc/lsb-release') == 0:
+            self.cmd('cat /etc/lsb-release ')
+            lsb = "Ubuntu Linux %s" % self.cmd.out.rstrip()
+        elif self.cmd('test -e /etc/lsb-release') == 0:
+            self.cmd('cat /etc/debian_version')
+            lsb = "Debian GNU/Linux %s" % self.cmd.out.rstrip()
+        elif self.cmd('test -e /etc/lsb-release') == 0:
+            self.cmd('cat /etc/redhat-release')
+            lsb = "RedHat Linux %s" % self.cmd.out.rstrip()
+
+        self.cmd('uname -a')
+        result['kernel_ver'] = self.cmd.out.rstrip()
+        r = self.cmd('python --version 2>&1')
+        result['python_ver'] = self.cmd.out.rstrip()
+        r = self.cmd('rsync --version 2>&1')
+        result['rsync_ver'] = str(self.cmd.out).splitlines(True)[0].rstrip()
+        r = self.cmd('ssh -v 2>&1')
+        result['ssh_ver'] = str(self.cmd.out).splitlines(True)[0].rstrip()
+        return result
+
 
 class UnixRemoteCommand(UnixLocalCommand):
     """

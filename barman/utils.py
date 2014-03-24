@@ -24,6 +24,8 @@ import logging.handlers
 import os
 import pwd
 import grp
+import json
+from barman.retention_policies import RetentionPolicy
 
 _logger = logging.getLogger(__name__)
 
@@ -134,3 +136,21 @@ def pretty_size(size, unit=1024):
                 return "%.1f %s" % (size, suffix)
         else:
             size /= unit
+
+
+class BarmanEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder used for BackupInfo encoding
+
+    This encoder is able to serialize dates and timestamps if
+    they have a ctime() method.
+
+    This encoder is able to serialize RetentionPolicy objects
+    """
+    def default(self, obj):
+        if hasattr(obj, 'ctime') and callable(obj.ctime):
+            return obj.ctime()
+        if isinstance(obj, RetentionPolicy):
+            return "%s %s" % (obj.mode, obj.value )
+        # Let the base class default method raise the TypeError
+        return super(BarmanEncoder, self).default(obj)
