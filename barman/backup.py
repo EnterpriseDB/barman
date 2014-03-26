@@ -279,7 +279,7 @@ class BackupManager(object):
 
         :param backup: the backup to recover
         :param dest: the destination directory
-        :param tablespaces: a dictionary of tablespaces
+        :param tablespaces: a dictionary of tablespaces (for relocation)
         :param target_tli: the target timeline
         :param target_time: the target time
         :param target_xid: the target xid
@@ -396,7 +396,7 @@ class BackupManager(object):
         msg = "Copying the base backup."
         yield msg
         _logger.info(msg)
-        self.recover_basebackup_copy(backup, dest, remote_command)
+        self.recover_basebackup_copy(backup, dest, tablespaces, remote_command)
         _logger.info("Base backup copied.")
 
         # Prepare WAL segments local directory
@@ -629,11 +629,14 @@ class BackupManager(object):
 
         :param backup_info: the backup information structure
         """
+        backup_dest = os.path.join(backup_info.get_basebackup_directory(), 'pgdata')
+
         # paths to be ignored from rsync
         exclude_and_protect = []
 
         # validate the bandwidth rules against the tablespace list
         tablespaces_bwlimit={}
+
         if self.config.tablespace_bandwidth_limit and backup_info.tablespaces:
             valid_tablespaces = dict([(tablespace_data[0], tablespace_data[1])
                                      for tablespace_data in backup_info.tablespaces])
@@ -642,8 +645,6 @@ class BackupManager(object):
                     tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[tablespace],)
                     tablespaces_bwlimit[tablespace_dir] = bwlimit
                     exclude_and_protect.append(tablespace_dir)
-
-        backup_dest = os.path.join(backup_info.get_basebackup_directory(), 'pgdata')
 
         # find tablespaces which need to be excluded from rsync command
         if backup_info.tablespaces is not None:
@@ -733,18 +734,37 @@ class BackupManager(object):
         self.server.stop_backup(backup_info)
 
 
-    def recover_basebackup_copy(self, backup, dest, remote_command=None):
+    def recover_basebackup_copy(self, backup, dest, tablespaces, remote_command=None):
         '''
         Perform the actual copy of the base backup for recovery purposes
 
         :param backup: the backup to recover
         :param dest: the destination directory
+        :param tablespaces: tablespace relocation options
         :param remote_command: default None. The remote command to recover the base backup,
                                in case of remote backup.
         '''
 
         sourcedir = os.path.join(backup.get_basebackup_directory(), 'pgdata')
+
+        # Dictionary for paths to be excluded from rsync
+        exclude_and_protect = []
+        # Dictionary for tablespace bandwith limit settings
         tablespaces_bwlimit={}
+
+        # find tablespaces which need to be excluded from rsync command
+        if backup.tablespaces is not None:
+            # Look for tablespaces that will be recovered
+            # inside the destination PGDATA directory (including
+            # relocated ones) and add them to the excluded files list
+            for name, oid, location in backup.tablespaces:
+	        # check if relocation is needed
+                if name in tablespaces:
+                    location = tablespaces[name]
+
+                if location.startswith(dest):
+                    exclude_and_protect.append(location[len(dest):])
+
         if remote_command:
             dest = ':%s' % dest
 
@@ -756,10 +776,11 @@ class BackupManager(object):
                     if tablespace in valid_tablespaces:
                         tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[tablespace],)
                         tablespaces_bwlimit[tablespace_dir] = bwlimit
+                        exclude_and_protect.append(tablespace_dir)
 
         rsync = RsyncPgData(ssh=remote_command,
                 bwlimit=self.config.bandwidth_limit,
-                exclude_and_protect=tablespaces_bwlimit.keys(),
+                exclude_and_protect=exclude_and_protect,
                 network_compression=self.config.network_compression)
         retval = rsync('%s/' % (sourcedir,), dest)
         if retval != 0:

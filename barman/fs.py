@@ -49,6 +49,7 @@ class UnixLocalCommand(object):
 
             :param dir_path full path for the directory
         """
+        _logger.debug('Create directory %s if it does not exists' % dir_path)
         exists = self.cmd('test -e %s' % dir_path)
         if exists == 0:
             is_dir = self.cmd('test -d %s' % dir_path)
@@ -75,6 +76,7 @@ class UnixLocalCommand(object):
 
             :param dir_path the full path for the directory
         """
+        _logger.debug('Delete if directory %s exists' % dir_path)
         exists = self.cmd('test -e %s' % dir_path)
         if exists == 0:
             is_dir = self.cmd('test -d %s' % dir_path)
@@ -100,6 +102,7 @@ class UnixLocalCommand(object):
 
             :param dir_path full path for the directory
         """
+        _logger.debug('Check if directory %s exists' % dir_path)
         exists = self.cmd('test -e %s' % dir_path)
         if exists == 0:
             is_dir = self.cmd('test -d %s' % dir_path)
@@ -121,6 +124,7 @@ class UnixLocalCommand(object):
 
             :param dir_path full dir_path for the directory to check
         """
+        _logger.debug('Check if directory %s is writable' % dir_path)
         exists = self.cmd('test -e %s' % dir_path)
         if exists == 0:
             is_dir = self.cmd('test -d %s' % dir_path)
@@ -151,7 +155,7 @@ class UnixLocalCommand(object):
             :param src full path to the source of the symlink
             :param dst full path for the destination of the symlink
         """
-
+        _logger.debug('Create symbolic link %s -> %s' % (src, dst))
         exists = self.cmd('test -e %s' % src)
         if exists == 0:
             exists_dst = self.cmd('test -e %s' % dst)
