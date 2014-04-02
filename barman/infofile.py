@@ -18,8 +18,42 @@ import ast
 
 import os
 import dateutil.parser
+import collections
 from barman import xlog
 from barman.compression import identify_compression
+
+# create a namedtuple object called Tablespace with 'name' 'oid' and 'location'
+# as property.
+Tablespace = collections.namedtuple('Tablespace', 'name oid location')
+
+
+def output_tablespace_list(tablespaces):
+    """
+    Return the literal representation of tablespaces as a Python string
+
+    :param tablespaces list: list of Tablespaces objects
+    :return str: Literal representation of tablespaces
+    """
+    if tablespaces:
+        return repr([tuple(item) for item in tablespaces])
+    else:
+        return None
+
+
+def load_tablespace_list(string):
+    """
+    Load the tablespaces as a Python list of namedtuple
+    Uses ast to evaluate information about tablespaces.
+    The returned list is used to create a list of namedtuple
+
+    :param str string:
+    :return list: list of namedtuple representing all the tablespaces
+    """
+    obj = ast.literal_eval(string)
+    if obj:
+        return [Tablespace._make(item) for item in obj]
+    else:
+        return None
 
 
 class Field(object):
@@ -305,9 +339,10 @@ class BackupInfo(FieldListFile):
 
     version = Field('version', load=int)
     pgdata = Field('pgdata')
-    # Parse the tablespaces as a literal Python list of tuple
+    # Parse the tablespaces as a literal Python list of namedtuple
     # Output the tablespaces as a literal Python list of tuple
-    tablespaces = Field('tablespaces', load=ast.literal_eval, dump=repr)
+    tablespaces = Field('tablespaces', load=load_tablespace_list,
+                        dump=output_tablespace_list)
     # Timeline is an integer
     timeline = Field('timeline', load=int)
     begin_time = Field('begin_time', load=dateutil.parser.parse)

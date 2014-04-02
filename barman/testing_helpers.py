@@ -17,37 +17,40 @@
 
 from datetime import datetime, timedelta
 import mock
-from barman.infofile import BackupInfo
+from barman.infofile import BackupInfo, Tablespace
 
 
 def mock_backup_info(backup_id='1234567890',
-                      begin_offset=40,
-                      begin_time=None,
-                      begin_wal='000000010000000000000002',
-                      begin_xlog='0/2000028',
-                      config_file='/pgdata/location/postgresql.conf',
-                      end_offset=184,
-                      end_time=None,
-                      end_wal='000000010000000000000002',
-                      end_xlog='0/20000B8',
-                      error=None,
-                      hba_file='/pgdata/location/pg_hba.conf',
-                      ident_file='/pgdata/location/pg_ident.conf',
-                      mode='default',
-                      pgdata='/pgdata/location',
-                      server_name='test_server',
-                      size=12345,
-                      status=BackupInfo.DONE,
-                      tablespaces=[
-                          ['tbs1', 16387, '/fake/location'],
-                          ['tbs2', 16405, '/another/location'],
-                      ],
-                      timeline=1,
-                      version=90302):
+                     begin_offset=40,
+                     begin_time=None,
+                     begin_wal='000000010000000000000002',
+                     begin_xlog='0/2000028',
+                     config_file='/pgdata/location/postgresql.conf',
+                     end_offset=184,
+                     end_time=None,
+                     end_wal='000000010000000000000002',
+                     end_xlog='0/20000B8',
+                     error=None,
+                     hba_file='/pgdata/location/pg_hba.conf',
+                     ident_file='/pgdata/location/pg_ident.conf',
+                     mode='default',
+                     pgdata='/pgdata/location',
+                     server_name='test_server',
+                     size=12345,
+                     status=BackupInfo.DONE,
+                     tablespaces=[
+                         ['tbs1', 16387, '/fake/location'],
+                         ['tbs2', 16405, '/another/location'],
+                     ],
+                     timeline=1,
+                     version=90302):
     if begin_time is None:
         begin_time = datetime.now() - timedelta(minutes=10)
     if end_time is None:
         end_time = datetime.now()
+
+    # Generate a list of tablespace objects
+    tablespaces = [Tablespace._make(item) for item in tablespaces]
 
     # make a dictionary with all the arguments
     to_dict = dict(locals())

@@ -65,7 +65,7 @@ class UnixLocalCommand(object):
             else:
                 raise FsOperationFailed('mkdir execution failed')
 
-    def delete_dir_if_exists(self, dir_path):
+    def delete_if_exists(self, dir_path):
         """
             This method check for the existence of a directory.
             if exists and is not a directory an exception is raised

@@ -341,31 +341,39 @@ class BackupManager(object):
                 _logger.critical(msg)
                 raise SystemExit(msg)
 
-            for name, oid, location in backup.tablespaces:
-                try:
-                    # check if relocation is needed
-                    if name in tablespaces:
-                        location = tablespaces[name]
+            for item in backup.tablespaces:
 
-                    tblspc_file = os.path.join(tblspc_dir, str(oid))
-                    # delete destination directory for symlink file if exists
-                    cmd.delete_dir_if_exists(tblspc_file)
-                    # check that destination dir for tablespace exists
-                    cmd.check_directory_exists(location)
-                    # create it if does not exists
+                # build the filename of the link under pg_tblspc directory
+                pg_tblspc_file = os.path.join(tblspc_dir, str(item.oid))
+
+                # by default a tablespace goes in the same location where
+                # it was on the source server when the backup was taken
+                location = item.location
+
+                # if a relocation has been requested for this tablespace
+                # use the user provided target directory
+                if item.name in tablespaces:
+                    location = tablespaces[item.name]
+
+                try:
+                    # remove the current link in pg_tblspc if exists
+                    # (raise if it's a directory)
+                    cmd.delete_if_exists(pg_tblspc_file)
+                    # create tablespace location if not exists
+                    # (raise if not possible)
                     cmd.create_dir_if_not_exists(location)
-                    # check for write permission into destination directory)
+                    # check for write permission into destination directory
                     cmd.check_write_permission(location)
                     # create symlink between tablespace and recovery folder
-                    cmd.create_symbolic_link(location,tblspc_file)
+                    cmd.create_symbolic_link(location, pg_tblspc_file)
                 except FsOperationFailed, e:
                     msg = ("ERROR: unable to prepare '%s' tablespace "
                            "(destination '%s'): %s" %
-                           (name, location, e))
+                           (item.name, location, e))
                     _logger.critical(msg)
                     raise SystemExit(msg)
 
-                yield "\t%s, %s, %s" % (oid, name, location)
+                yield "\t%s, %s, %s" % (item.oid, item.name, location)
 
         wal_dest = os.path.join(dest, 'pg_xlog')
         target_epoch = None
@@ -404,7 +412,8 @@ class BackupManager(object):
         _logger.info(msg)
         yield msg
 
-        # Retrieve the list of required WAL segments according to recovery options
+        # Retrieve the list of required WAL segments
+        # according to recovery options
         xlogs = {}
         required_xlog_files = tuple(self.server.get_required_xlog_files(backup, target_tli, target_epoch))
         for filename in required_xlog_files:
@@ -459,7 +468,7 @@ class BackupManager(object):
             if remote_command:
                 retval = rsync('%s/' % status_dir, ':%s' % os.path.join(wal_dest, 'archive_status'))
                 if retval != 0:
-                    msg = "WARNING: unable to populate pg_xlog/archive_status dorectory"
+                    msg = "WARNING: unable to populate pg_xlog/archive_status directory"
                     yield msg
                     _logger.warning(msg)
                 shutil.rmtree(status_dir)
@@ -611,8 +620,8 @@ class BackupManager(object):
         tablespaces = self.server.get_pg_tablespaces()
         if tablespaces and len(tablespaces) > 0:
             backup_info.set_attribute("tablespaces", tablespaces)
-            for oid, name, location in tablespaces:
-                msg = "\t%s, %s, %s" % (oid, name, location)
+            for item in tablespaces:
+                msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
                 _logger.info(msg)
 
         # Issue pg_start_backup on the PostgreSQL server
@@ -638,7 +647,7 @@ class BackupManager(object):
         tablespaces_bwlimit={}
 
         if self.config.tablespace_bandwidth_limit and backup_info.tablespaces:
-            valid_tablespaces = dict([(tablespace_data[0], tablespace_data[1])
+            valid_tablespaces = dict([(tablespace_data.name, tablespace_data.oid)
                                      for tablespace_data in backup_info.tablespaces])
             for tablespace, bwlimit in self.config.tablespace_bandwidth_limit.items():
                 if tablespace in valid_tablespaces:
@@ -651,9 +660,9 @@ class BackupManager(object):
             exclude_and_protect += [
                 # removes tablespaces that are located within PGDATA
                 # as they are already being copied along with it
-                tablespace_data[2][len(backup_info.pgdata):]
+                tablespace_data.location[len(backup_info.pgdata):]
                 for tablespace_data in backup_info.tablespaces
-                if tablespace_data[2].startswith(backup_info.pgdata)
+                if tablespace_data.location.startswith(backup_info.pgdata)
             ]
 
         # deal with tablespaces with a different bwlimit
@@ -757,10 +766,15 @@ class BackupManager(object):
             # Look for tablespaces that will be recovered
             # inside the destination PGDATA directory (including
             # relocated ones) and add them to the excluded files list
-            for name, oid, location in backup.tablespaces:
-	        # check if relocation is needed
-                if name in tablespaces:
-                    location = tablespaces[name]
+            for item in backup.tablespaces:
+                # by default a tablespace goes in the same location where
+                # it was on the source server when the backup was taken
+                location = item.location
+
+                # if a relocation has been requested for this tablespace
+                # use the user provided target directory
+                if item.name in tablespaces:
+                    location = tablespaces[item.name]
 
                 if location.startswith(dest):
                     exclude_and_protect.append(location[len(dest):])
@@ -770,11 +784,13 @@ class BackupManager(object):
 
             # validate the bandwidth rules against the tablespace list
             if self.config.tablespace_bandwidth_limit and backup.tablespaces:
-                valid_tablespaces = dict([(tablespace_data[0], tablespace_data[1])
+                # create a map containing the tablespace name as key and the
+                # tablespace oid as value
+                valid_tablespaces = dict([(tablespace_data.name, tablespace_data.oid)
                                           for tablespace_data in backup.tablespaces])
-                for tablespace, bwlimit in self.config.tablespace_bandwidth_limit.items():
-                    if tablespace in valid_tablespaces:
-                        tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[tablespace],)
+                for item, bwlimit in self.config.tablespace_bandwidth_limit.items():
+                    if item in valid_tablespaces:
+                        tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[item],)
                         tablespaces_bwlimit[tablespace_dir] = bwlimit
                         exclude_and_protect.append(tablespace_dir)
 

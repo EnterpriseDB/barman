@@ -444,8 +444,8 @@ class ConsoleOutputWriter(object):
                              pretty_size(backup_size),
                              pretty_size(wal_size)))
             if backup_info.tablespaces:
-                tablespaces = [("%s:%s" % (name, location))
-                               for name, _, location in backup_info.tablespaces]
+                tablespaces = [("%s:%s" % (tablespace.name, tablespace.location))
+                               for tablespace in backup_info.tablespaces]
                 out_list.append(' (tablespaces: %s)' %
                                 ', '.join(tablespaces))
             if retention_status:
@@ -471,8 +471,9 @@ class ConsoleOutputWriter(object):
             self.info("  PGDATA directory  : %s", data['pgdata'])
             if data['tablespaces']:
                 self.info("  Tablespaces:")
-                for name, oid, location in data['tablespaces']:
-                    self.info("    %s: %s (oid: %s)", name, location, oid)
+                for item in data['tablespaces']:
+                    self.info("    %s: %s (oid: %s)",
+                              item.name, item.location, item.oid)
             self.info("")
             self.info("  Base backup information:")
             self.info("    Disk usage      : %s",

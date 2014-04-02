@@ -15,12 +15,13 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-'''This module represents a Server.
+"""
+This module represents a Server.
 Barman is able to manage multiple servers.
-'''
+"""
 
 from barman import xlog, output
-from barman.infofile import BackupInfo, UnknownBackupIdException
+from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace
 from barman.lockfile import LockFile, LockFileBusy, \
     LockFilePermissionDenied
 from barman.backup import BackupManager
@@ -430,7 +431,8 @@ class Server(object):
                     cur.execute("SELECT spcname, oid, pg_tablespace_location(oid) AS spclocation FROM pg_tablespace WHERE pg_tablespace_location(oid) != ''")
                 else:
                     cur.execute("SELECT spcname, oid, spclocation FROM pg_tablespace WHERE spclocation != ''")
-                return cur.fetchall()
+                # Generate a list of tablespace objects
+                return [Tablespace._make(item) for item in cur.fetchall()]
             except:
                 return None
 
