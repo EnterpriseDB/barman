@@ -517,6 +517,11 @@ class BackupManager(object):
     def cron(self, verbose=True):
         """
         Executes maintenance operations, such as WAL trashing.
+
+        If verbose is set to False, outputs something only if there is
+        at least one file
+
+        :param bool verbose: report even if no actions
         """
         found = False
         compressor = self.compression_manager.get_compressor()
@@ -530,7 +535,7 @@ class BackupManager(object):
                 if not found and not verbose:
                     output.info("Processing xlog segments for %s",
                                 self.config.name)
-                    found = True
+                found = True
                 # Delete xlog segments only if the backup is exclusive
                 if (not len(available_backups) and
                         (self.config.backup_options != "concurrent_backup")):
