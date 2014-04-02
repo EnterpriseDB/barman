@@ -577,7 +577,7 @@ class ConsoleOutputWriter(object):
         :param str server_name: the server we are displaying
         :param dict server_info: a dictionary containing the info to display
         """
-        for status, message in server_info.items():
+        for status, message in sorted(server_info.items()):
             self.info("\t%s: %s", status, message)
 
 
