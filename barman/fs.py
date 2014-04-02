@@ -188,14 +188,17 @@ class UnixLocalCommand(object):
         elif self.cmd('test -e /etc/lsb-release') == 0:
             self.cmd('cat /etc/redhat-release')
             lsb = "RedHat Linux %s" % self.cmd.out.rstrip()
+        elif self.cmd('sw_vers') == 0:
+            lsb = self.cmd.out.rstrip()
+        result['release'] = lsb
 
         self.cmd('uname -a')
         result['kernel_ver'] = self.cmd.out.rstrip()
-        r = self.cmd('python --version 2>&1')
+        self.cmd('python --version 2>&1')
         result['python_ver'] = self.cmd.out.rstrip()
-        r = self.cmd('rsync --version 2>&1')
+        self.cmd('rsync --version 2>&1')
         result['rsync_ver'] = str(self.cmd.out).splitlines(True)[0].rstrip()
-        r = self.cmd('ssh -v 2>&1')
+        self.cmd('ssh -v 2>&1')
         result['ssh_ver'] = str(self.cmd.out).splitlines(True)[0].rstrip()
         return result
 
