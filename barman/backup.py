@@ -939,6 +939,7 @@ class BackupManager(object):
         """
         This function show the server status
         """
+        #get number of backups
         no_backups = len(self.get_available_backups())
         output.result('status', self.config.name,
                       "backups_number",
@@ -951,18 +952,22 @@ class BackupManager(object):
                       "last_backup",
                       "Last available backup",
                       self.get_last_backup())
+        # Minimum redundancy check. if number of backups minor than minimum
+        # redundancy, fail.
         if no_backups < self.config.minimum_redundancy:
             output.result('status', self.config.name,
                           "minimum_redundancy",
-                          "Minimum redundancy requirements"
-                          "FAILED (%s/%s)" % (no_backups,
-                                            self.config.minimum_redundancy))
+                          "Minimum redundancy requirements",
+                          "FAILED (%s/%s)" % (
+                              no_backups,
+                              self.config.minimum_redundancy))
         else:
             output.result('status', self.config.name,
                           "minimum_redundancy",
                           "Minimum redundancy requirements",
-                          "satisfied (%s/%s)" % (no_backups,
-                          self.config.minimum_redundancy))
+                          "satisfied (%s/%s)" % (
+                              no_backups,
+                              self.config.minimum_redundancy))
 
     def pg_config_mangle(self, filename, settings, backup_filename=None):
         '''This method modifies the postgres configuration file,
