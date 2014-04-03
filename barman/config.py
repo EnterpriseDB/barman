@@ -106,14 +106,27 @@ class Server(object):
         self.name = name
         self.barman_home = config.get('barman', 'barman_home')
         for key in Server.KEYS:
-            value = config.get(name, key, self.__dict__)
+            # Get the setting from the [name] section of config file
+            # A literal None value is converted to an empty string
+            value = config.get(name, key, self.__dict__, none_value='')
             source = '[%s] section' % name
+
+            # If the setting isn't present in [name] section of config file
+            # check if it has to be inherited from the [barman] section
             if value is None and key in Server.BARMAN_KEYS:
                 value = config.get('barman', key)
                 source = '[barman] section'
+
+            # If the setting isn't present in [name] section of config file
+            # and is not inherited from global section use its default
+            # (if present)
             if value is None and key in Server.DEFAULTS:
                 value = Server.DEFAULTS[key] % self.__dict__
                 source = 'DEFAULTS'
+            # An empty string is a None value (bypassing inheritance
+            # from global configuration)
+            if value is not None and len(value) == 0:
+                value = None
             # If we have a parser for the current key use it to obtain the
             # actual value. If an exception is thrown output a warning and
             # ignore the value.
@@ -161,7 +174,7 @@ class Config(object):
         self._servers = None
         self._parse_global_config()
 
-    def get(self, section, option, defaults=None):
+    def get(self, section, option, defaults=None, none_value=None):
         """Method to get the value from a given section from
         Barman configuration
         """
@@ -169,8 +182,8 @@ class Config(object):
             return None
         try:
             value = self._config.get(section, option, raw=False, vars=defaults)
-            if value == 'None':
-                value = None
+            if value.lower() == 'none':
+                value = none_value
             if value is not None:
                 value = self._QUOTE_RE.sub(lambda m: m.group(2), value)
             return value

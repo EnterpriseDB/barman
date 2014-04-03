@@ -29,7 +29,6 @@ TEST_CONFIG = """
 barman_home = /srv/barman
 barman_user = {USER}
 compression = gzip
-decompression = gzip
 log_file = /srv/barman/log/barman.log
 log_level = INFO
 retention_policy = redundancy 2
@@ -53,7 +52,62 @@ active = true
 description = Web applications database
 ssh_command = ssh -I ~/.ssh/web01_rsa -c arcfour -p 22 postgres@web01
 conninfo = host=web01 user=postgres port=5432
+compression =
 """
+
+TEST_CONFIG_MAIN = {
+    'active': True,
+    'backup_directory': 'main',
+    'backup_options': 'exclusive_backup',
+    'bandwidth_limit': None,
+    'barman_home': '/srv/barman',
+    'basebackups_directory': 'base',
+    'compression': 'gzip',
+    'conninfo': 'host=pg01 user=postgres port=5432',
+    'custom_compression_filter': None,
+    'custom_decompression_filter': None,
+    'description': 'Main PostgreSQL Database',
+    'immediate_checkpoint': False,
+    'incoming_wals_directory': 'incoming',
+    'lock_file': 'main.lock',
+    'minimum_redundancy': '0',
+    'name': 'main',
+    'network_compression': False,
+    'post_backup_script': None,
+    'pre_backup_script': None,
+    'retention_policy': 'redundancy 3',
+    'retention_policy_mode': 'auto',
+    'ssh_command': 'ssh -c arcfour -p 22 postgres@pg01',
+    'tablespace_bandwidth_limit': None,
+    'wal_retention_policy': 'base',
+    'wals_directory': 'wals'}
+
+TEST_CONFIG_WEB = {
+    'active': True,
+    'backup_directory': '/srv/barman/web',
+    'backup_options': 'exclusive_backup',
+    'bandwidth_limit': None,
+    'barman_home': '/srv/barman',
+    'basebackups_directory': '/srv/barman/web/base',
+    'compression': None,
+    'conninfo': 'host=web01 user=postgres port=5432',
+    'custom_compression_filter': None,
+    'custom_decompression_filter': None,
+    'description': 'Web applications database',
+    'immediate_checkpoint': False,
+    'incoming_wals_directory': '/srv/barman/web/incoming',
+    'lock_file': '/srv/barman/web/web.lock',
+    'minimum_redundancy': '0',
+    'name': 'web',
+    'network_compression': False,
+    'post_backup_script': None,
+    'pre_backup_script': None,
+    'retention_policy': 'redundancy 2',
+    'retention_policy_mode': 'auto',
+    'ssh_command': 'ssh -I ~/.ssh/web01_rsa -c arcfour -p 22 postgres@web01',
+    'tablespace_bandwidth_limit': None,
+    'wal_retention_policy': 'base',
+    'wals_directory': '/srv/barman/web/wals'}
 
 MINIMAL_CONFIG = """
 [barman]
@@ -101,6 +155,22 @@ class Test(unittest.TestCase):
         c = Config(fp)
         dbs = c.server_names()
         self.assertEqual(set(dbs), set(['main', 'web']))
+
+    def test_config(self):
+        self.maxDiff = None
+        fp = StringIO(TEST_CONFIG.format(**os.environ))
+        c = Config(fp)
+
+        main = c.get_server('main')
+        expected = dict(config=c)
+        expected.update(TEST_CONFIG_MAIN)
+        assert main.__dict__ == expected
+
+        web = c.get_server('web')
+        expected = dict(config=c)
+        expected.update(TEST_CONFIG_WEB)
+        assert web.__dict__ == expected
+
 
     def test_quotes(self):
         fp = StringIO(MINIMAL_CONFIG.format(**os.environ))
