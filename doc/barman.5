@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 01/29/2014
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 03/26/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "01/29/2014" "\ \&" "\ \&"
+.TH "BARMAN" "5" "03/26/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -199,6 +199,18 @@ false
 (default), no compression is used\&. If set to
 true, compression is enabled, reducing network usage\&.
 .RE
+.PP
+\fBbackup_options\fR
+.RS 4
+This option allows you to enable to control the way PostgreSQL handles backups: If set to
+exclusive_backup
+(default),
+barman backup
+executes backup operations using the standard exclusive backup approach (technically through pg_start_backup/pg_stop_backup)\&. If set to
+concurrent_backup, Barman requires the
+pgespresso
+module to be installed on the PostgreSQL server (this allows to perform backup from a standby server)\&.
+.RE
 .SH "HOOK SCRIPTS"
 .sp
 The script definition is passed to a shell and can return any exit code\&.
@@ -219,6 +231,7 @@ phase)
 .PP
 BARMAN_PHASE
 .RS 4
+
 \fIpre\fR
 or
 \fIpost\fR

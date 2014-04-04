@@ -1,6 +1,25 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2014 2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.3.1 - 14 Apr 2014
+
+* Added support for concurrent backup of PostgreSQL 9.2 and 9.3
+  servers that use the "pgespresso" extension. This feature is
+  controlled by the "backup_options" configuration option (global/
+  server) and activated when set to "concurrent_backup". Concurrent
+  backup allows DBAs to perform full backup operations from a
+  streaming replicated standby.
+* Added the "barman diagnose" command which prints important
+  information about the Barman system (extremely useful for support
+  and problem solving)
+* Improved error messages and exception handling interface
+* Fixed bug in recovery of tablespaces that are created inside the
+  PGDATA directory (bug introduced in version 1.3.0)
+* Fixed minor bug of unhandled -q option, for quiet mode of
+  commands to be used in cron jobs (bug introduced in version
+  1.3.0)
+* Minor bug fixes and code refactoring
+
 Version 1.3.0 - 3 Feb 2014
 
 * Refactored BackupInfo class for backup metadata to use the new
