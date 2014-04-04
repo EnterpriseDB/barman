@@ -142,15 +142,19 @@ class BarmanEncoder(json.JSONEncoder):
     """
     Custom JSON encoder used for BackupInfo encoding
 
-    This encoder is able to serialize dates and timestamps if
-    they have a ctime() method.
+    This encoder supports the following types:
 
-    This encoder is able to serialize RetentionPolicy objects
+    * dates and timestamps if they have a ctime() method.
+    * RetentionPolicy objects
+    * binary strings (python 3)
+
     """
     def default(self, obj):
         if hasattr(obj, 'ctime') and callable(obj.ctime):
             return obj.ctime()
         if isinstance(obj, RetentionPolicy):
-            return "%s %s" % (obj.mode, obj.value )
+            return "%s %s" % (obj.mode, obj.value)
+        if hasattr(obj, 'decode') and callable(obj.decode):
+            return obj.decode('utf-8', 'replace')
         # Let the base class default method raise the TypeError
         return super(BarmanEncoder, self).default(obj)

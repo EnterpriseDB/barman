@@ -17,7 +17,6 @@
 
 import logging
 from barman.command_wrappers import Command
-from shutil import rmtree
 
 _logger = logging.getLogger(__name__)
 
@@ -27,6 +26,20 @@ class FsOperationFailed(Exception):
     Exception which represents a failed execution of a command on FS
     """
     pass
+
+
+def _str(cmd_out):
+    """
+    Make a string from the output of a CommandWrapper execution.
+    If input is None returns a literal 'None' string
+
+    :param cmd_out: String or ByteString to convert
+    :return str: a string
+    """
+    if hasattr(cmd_out, 'decode') and callable(cmd_out.decode):
+        return cmd_out.decode('utf-8', 'replace')
+    else:
+        return str(cmd_out)
 
 
 class UnixLocalCommand(object):
@@ -179,28 +192,28 @@ class UnixLocalCommand(object):
         # translated to a literal 'None'
         release = ''
         if self.cmd("lsb_release -a") == 0:
-            release = str(self.cmd.out).rstrip()
+            release = _str(self.cmd.out).rstrip()
         elif self.cmd('test -e /etc/lsb-release') == 0:
             self.cmd('cat /etc/lsb-release ')
-            release = "Ubuntu Linux %s" % str(self.cmd.out).rstrip()
+            release = "Ubuntu Linux %s" % _str(self.cmd.out).rstrip()
         elif self.cmd('test -e /etc/debian_version') == 0:
             self.cmd('cat /etc/debian_version')
-            release = "Debian GNU/Linux %s" % str(self.cmd.out).rstrip()
+            release = "Debian GNU/Linux %s" % _str(self.cmd.out).rstrip()
         elif self.cmd('test -e /etc/redhat-release') == 0:
             self.cmd('cat /etc/redhat-release')
-            release = "RedHat Linux %s" % str(self.cmd.out).rstrip()
+            release = "RedHat Linux %s" % _str(self.cmd.out).rstrip()
         elif self.cmd('sw_vers') == 0:
-            release = str(self.cmd.out).rstrip()
+            release = _str(self.cmd.out).rstrip()
         result['release'] = release
 
         self.cmd('uname -a')
-        result['kernel_ver'] = str(self.cmd.out).rstrip()
+        result['kernel_ver'] = _str(self.cmd.out).rstrip()
         self.cmd('python --version 2>&1')
-        result['python_ver'] = str(self.cmd.out).rstrip()
+        result['python_ver'] = _str(self.cmd.out).rstrip()
         self.cmd('rsync --version 2>&1')
-        result['rsync_ver'] = str(self.cmd.out).splitlines(True)[0].rstrip()
+        result['rsync_ver'] = _str(self.cmd.out).splitlines(True)[0].rstrip()
         self.cmd('ssh -v 2>&1')
-        result['ssh_ver'] = str(self.cmd.out).splitlines(True)[0].rstrip()
+        result['ssh_ver'] = _str(self.cmd.out).splitlines(True)[0].rstrip()
         return result
 
 
