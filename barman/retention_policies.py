@@ -363,5 +363,6 @@ class RetentionPolicyFactory(object):
             policy = policy_class.create(server, context, value)
             if policy:
                 return policy
-        raise Exception('Cannot parse option %s: %s' % (option, value))
+
+        raise ValueError('Cannot parse option %s: %s' % (option, value))
 

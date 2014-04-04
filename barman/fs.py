@@ -175,27 +175,28 @@ class UnixLocalCommand(object):
             Gather important system information for 'barman diagnose' command
         """
         result = {}
-        lsb_return = self.cmd("lsb_release -a")
-        lsb = ''
-        if lsb_return == 0:
-            lsb = self.cmd.out.rstrip()
+        # self.cmd.out can be None. The str() call will ensure it will be
+        # translated to a literal 'None'
+        release = ''
+        if self.cmd("lsb_release -a") == 0:
+            release = str(self.cmd.out).rstrip()
         elif self.cmd('test -e /etc/lsb-release') == 0:
             self.cmd('cat /etc/lsb-release ')
-            lsb = "Ubuntu Linux %s" % self.cmd.out.rstrip()
-        elif self.cmd('test -e /etc/lsb-release') == 0:
+            release = "Ubuntu Linux %s" % str(self.cmd.out).rstrip()
+        elif self.cmd('test -e /etc/debian_version') == 0:
             self.cmd('cat /etc/debian_version')
-            lsb = "Debian GNU/Linux %s" % self.cmd.out.rstrip()
-        elif self.cmd('test -e /etc/lsb-release') == 0:
+            release = "Debian GNU/Linux %s" % str(self.cmd.out).rstrip()
+        elif self.cmd('test -e /etc/redhat-release') == 0:
             self.cmd('cat /etc/redhat-release')
-            lsb = "RedHat Linux %s" % self.cmd.out.rstrip()
+            release = "RedHat Linux %s" % str(self.cmd.out).rstrip()
         elif self.cmd('sw_vers') == 0:
-            lsb = self.cmd.out.rstrip()
-        result['release'] = lsb
+            release = str(self.cmd.out).rstrip()
+        result['release'] = release
 
         self.cmd('uname -a')
-        result['kernel_ver'] = self.cmd.out.rstrip()
+        result['kernel_ver'] = str(self.cmd.out).rstrip()
         self.cmd('python --version 2>&1')
-        result['python_ver'] = self.cmd.out.rstrip()
+        result['python_ver'] = str(self.cmd.out).rstrip()
         self.cmd('rsync --version 2>&1')
         result['rsync_ver'] = str(self.cmd.out).splitlines(True)[0].rstrip()
         self.cmd('ssh -v 2>&1')

@@ -18,6 +18,7 @@
 """
 This module contains a wrapper for shell commands
 """
+import inspect
 
 import sys
 import signal
@@ -41,11 +42,12 @@ class Command(object):
     """
 
     def __init__(self, cmd, args=None, env_append=None, shell=False,
-                 check=False, debug=False):
+                 check=False, allowed_retval=(0,), debug=False):
         self.cmd = cmd
         self.args = args if args is not None else []
         self.shell = shell
         self.check = check
+        self.allowed_retval = allowed_retval
         self.debug = debug
         if env_append:
             self.env = os.environ.copy()
@@ -68,14 +70,20 @@ class Command(object):
             cmd = "%s '%s'" % (cmd, "' '".join(args))
         return cmd
 
-    def __call__(self, *args):
-        self.getoutput(None, *args)
+    def __call__(self, *args, **kwargs):
+        self.getoutput(*args, **kwargs)
         return self.ret
 
-    def getoutput(self, stdin=None, *args):
+    def getoutput(self, *args, **kwargs):
         """
         Run the command and return the output and the error (if present)
         """
+        # check keyword arguments
+        stdin = kwargs.pop('stdin', None)
+        check = kwargs.pop('check', None)
+        if len(kwargs):
+            raise TypeError('%s() got an unexpected keyword argument %r' %
+                            (inspect.stack()[1][3], kwargs.popitem()[0]))
         args = self.args + list(args)
         if self.shell:
             cmd = self._cmd_quote(self.cmd, args)
@@ -96,7 +104,8 @@ class Command(object):
         _logger.debug("Command return code: %s", self.ret)
         _logger.debug("Command stdout: %s", self.out)
         _logger.debug("Command stderr: %s", self.err)
-        if self.check and self.ret != 0:
+        is_checking = check if check is not None else self.check
+        if is_checking and self.ret not in self.allowed_retval:
             raise CommandFailedException(dict(
                 ret=self.ret, out=self.out, err=self.err))
         return self.out, self.err
@@ -110,7 +119,8 @@ class Rsync(Command):
 
     def __init__(self, rsync='rsync', args=None, ssh=None, ssh_options=None,
                  bwlimit=None, exclude_and_protect=None,
-                 network_compression=None, **kwargs):
+                 network_compression=None, check=True, allowed_retval=(0,24),
+                 **kwargs):
         options = []
         if ssh:
             options += ['-e', self._cmd_quote(ssh, ssh_options)]
@@ -123,7 +133,8 @@ class Rsync(Command):
             options += args
         if bwlimit is not None and bwlimit > 0:
             options += ["--bwlimit=%s" % bwlimit]
-        Command.__init__(self, rsync, args=options, **kwargs)
+        Command.__init__(self, rsync, args=options, check=check,
+                         allowed_retval=allowed_retval, **kwargs)
 
     def from_file_list(self, filelist, src, dst):
         """
@@ -133,7 +144,7 @@ class Rsync(Command):
         """
         input_string = ('\n'.join(filelist)).encode('UTF-8')
         _logger.debug("from_file_list: %r", filelist)
-        self.getoutput(input_string, '--files-from=-', src, dst)
+        self.getoutput('--files-from=-', src, dst, stdin=input_string)
         return self.ret
 
 

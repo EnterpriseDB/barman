@@ -138,6 +138,7 @@ class Server(object):
                 output.warning("Invalid configuration value '%s' for key %s"
                                " in %s: %s",
                                value, key, source, e)
+                _logger.exception(e)
             setattr(self, key, value)
 
 

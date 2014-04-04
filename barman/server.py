@@ -37,8 +37,11 @@ import xlog
 
 _logger = logging.getLogger(__name__)
 
+
 class Server(object):
-    '''This class represents a server to backup'''
+    """
+    This class represents a server to backup
+    """
     XLOG_DB = "xlog.db"
 
     def __init__(self, config):
@@ -61,7 +64,7 @@ class Server(object):
         if self.config.bandwidth_limit:
             try:
                 self.config.bandwidth_limit = int(self.config.bandwidth_limit)
-            except:
+            except ValueError:
                 _logger.warning('Invalid bandwidth_limit "%s" for server "%s" (fallback to "0")'
                                 % (self.config.bandwidth_limit, self.config.name))
                 self.config.bandwidth_limit = None
@@ -75,7 +78,7 @@ class Server(object):
                     value = int(value)
                     if value != self.config.bandwidth_limit:
                         rules[key] = value
-                except:
+                except ValueError:
                     _logger.warning("Invalid tablespace_bandwidth_limit rule '%s'" % (rule,))
             if len(rules) > 0:
                 self.config.tablespace_bandwidth_limit = rules
@@ -102,43 +105,53 @@ class Server(object):
 
         # Set retention policy mode
         if self.config.retention_policy_mode != 'auto':
-            _logger.warning('Unsupported retention_policy_mode "%s" for server "%s" (fallback to "auto")'
-                            % (self.config.retention_policy_mode, self.config.name))
+            _logger.warning(
+                'Unsupported retention_policy_mode "%s" for server "%s" '
+                '(fallback to "auto")' % (
+                    self.config.retention_policy_mode, self.config.name))
             self.config.retention_policy_mode = 'auto'
 
         # If retention_policy is present, enforce them
         if self.config.retention_policy:
             # Check wal_retention_policy
             if self.config.wal_retention_policy != 'main':
-                _logger.warning('Unsupported wal_retention_policy value "%s" for server "%s" (fallback to "main")'
-                                % (self.config.wal_retention_policy, self.config.name))
+                _logger.warning(
+                    'Unsupported wal_retention_policy value "%s" '
+                    'for server "%s" (fallback to "main")' % (
+                        self.config.wal_retention_policy, self.config.name))
                 self.config.wal_retention_policy = 'main'
             # Create retention policy objects
             try:
-                rp = RetentionPolicyFactory.create(self,
-                    'retention_policy', self.config.retention_policy)
+                rp = RetentionPolicyFactory.create(
+                    self, 'retention_policy', self.config.retention_policy)
                 # Reassign the configuration value (we keep it in one place)
                 self.config.retention_policy = rp
                 _logger.debug('Retention policy for server %s: %s' % (
                     self.config.name, self.config.retention_policy))
                 try:
-                    rp = RetentionPolicyFactory.create(self,
-                        'wal_retention_policy', self.config.wal_retention_policy)
+                    rp = RetentionPolicyFactory.create(
+                        self, 'wal_retention_policy',
+                        self.config.wal_retention_policy)
                     # Reassign the configuration value (we keep it in one place)
-                    self.wal_retention_policy = rp
-                    _logger.debug('WAL retention policy for server %s: %s' % (
-                        self.config.name, self.config.wal_retention_policy))
-                except:
-                    _logger.error('Invalid wal_retention_policy setting "%s" for server "%s" (fallback to "main")' % (
-                        self.config.wal_retention_policy, self.config.name))
-                    self.wal_retention_policy = SimpleWALRetentionPolicy (
-                        self.retention_policy, self)
+                    self.config.wal_retention_policy = rp
+                    _logger.debug(
+                        'WAL retention policy for server %s: %s' % (
+                            self.config.name, self.config.wal_retention_policy))
+                except ValueError:
+                    _logger.exception(
+                        'Invalid wal_retention_policy setting "%s" '
+                        'for server "%s" (fallback to "main")' % (
+                            self.config.wal_retention_policy, self.config.name))
+                    rp = RetentionPolicyFactory.create(
+                        self, 'wal_retention_policy', 'main')
+                    self.config.wal_retention_policy = rp
 
                 self.enforce_retention_policies = True
 
-            except:
-                _logger.error('Invalid retention_policy setting "%s" for server "%s"' % (
-                    self.config.retention_policy, self.config.name))
+            except ValueError:
+                _logger.exception(
+                    'Invalid retention_policy setting "%s" for server "%s"' % (
+                        self.config.retention_policy, self.config.name))
 
     def check(self):
         """
@@ -309,24 +322,39 @@ class Server(object):
         self.backup_manager.status()
 
     def pg_espresso_installed(self):
-        with self.pg_connect() as conn:
-            cur = conn.cursor()
-            cur.execute("select count(*) from pg_extension where extname = 'pgespresso'")
-            q_result = cur.fetchone()[0]
-            if q_result == 1:
-                return True
-            else:
-                return False
+        """
+        Returns true if pgexpresso extension is available
+        """
+        try:
+            with self.pg_connect() as conn:
+                cur = conn.cursor()
+                cur.execute("select count(*) from pg_extension "
+                            "where extname = 'pgespresso'")
+                q_result = cur.fetchone()[0]
+                if q_result > 0:
+                    return True
+                else:
+                    return False
+        except psycopg2.Error, e:
+            _logger.debug("Error retrieving pgespresso information: %s", e)
+            return False
 
     def pg_is_in_recovery(self):
-        with self.pg_connect() as conn:
-            cur = conn.cursor()
-            cur.execute("select pg_is_in_recovery()")
-            q_result = cur.fetchone()[0]
-            if q_result:
-                return True
-            else:
-                return False
+        """
+        Returns true if PostgreSQL server is in recovery mode
+        """
+        try:
+            with self.pg_connect() as conn:
+                cur = conn.cursor()
+                cur.execute("select pg_is_in_recovery()")
+                q_result = cur.fetchone()[0]
+                if q_result:
+                    return True
+                else:
+                    return False
+        except psycopg2.Error, e:
+            _logger.debug("Error calling pg_is_in_recovery() function: %s", e)
+            return None
 
     def get_remote_status(self):
         """
@@ -335,41 +363,50 @@ class Server(object):
         :return: result of the server status query
         """
 
-        pg_settings = ('archive_mode', 'archive_command', 'data_directory')
-        pg_query_keys = ('server_txt_version', 'current_xlog')
+        pg_settings = (
+            'archive_mode', 'archive_command', 'data_directory')
+        pg_query_keys = (
+            'server_txt_version', 'current_xlog', 'pgespresso_installed')
+
+        # Initialise the result dictionary setting all the values to None
         result = dict.fromkeys(pg_settings + pg_query_keys, None)
         try:
             with self.pg_connect() as conn:
                 for name in pg_settings:
                     result[name] = self.get_pg_setting(name)
+
                 try:
                     cur = conn.cursor()
                     cur.execute("SELECT version()")
                     result['server_txt_version'] = cur.fetchone()[0].split()[1]
-                except Exception, e:
-                    # TODO: improve exception information
-                    result['server_txt_version'] = None
-                try:
-                    result['pgespresso_installed'] = self.pg_espresso_installed()
-                except Exception, e:
-                    # TODO: improve exception information
-                    result['pgespresso_installed'] = None
+                except psycopg2.Error, e:
+                    _logger.debug(
+                        "Error retrieving PostgreSQL version: %s", e)
+
+
+                result['pgespresso_installed'] = self.pg_espresso_installed()
+
                 try:
                     if not self.pg_is_in_recovery():
                         cur = conn.cursor()
-                        cur.execute('SELECT pg_xlogfile_name(pg_current_xlog_location())')
-                        result['current_xlog'] = cur.fetchone()[0];
-                except Exception, e:
-                    # TODO: improve exception information
-                    result['current_xlog'] = None
+                        cur.execute(
+                            'SELECT pg_xlogfile_name('
+                            'pg_current_xlog_location())')
+                        result['current_xlog'] = cur.fetchone()[0]
+                except psycopg2.Error, e:
+                    _logger.debug("Error retrieving current xlog: %s", e)
+
                 result.update(self.get_pg_configuration_files())
-        except:
-            pass
+        except psycopg2.Error, e:
+            _logger.warn("Error retrieving PostgreSQL status: %s", e)
+
+        # TODO: replace with RemoteUnixCommand
         cmd = Command(self.ssh_command, self.ssh_options)
         result['last_shipped_wal'] = None
         if result['data_directory'] and result['archive_command']:
-            archive_dir = os.path.join(result['data_directory'], 'pg_xlog', 'archive_status')
-            out = str(cmd.getoutput(None, 'ls', '-tr', archive_dir)[0])
+            archive_dir = os.path.join(result['data_directory'],
+                                       'pg_xlog', 'archive_status')
+            out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
             for line in out.splitlines():
                 if line.endswith('.done'):
                     name = line[:-5]
@@ -392,13 +429,15 @@ class Server(object):
 
     @contextmanager
     def pg_connect(self):
-        '''A generic function to connect to Postgres using Psycopg2'''
+        """
+        A generic function to connect to Postgres using Psycopg2
+        """
         myconn = self.conn == None
         if myconn:
             self.conn = psycopg2.connect(self.config.conninfo)
             self.server_version = self.conn.server_version
             if (self.server_version >= 90000
-                and 'application_name=' not in self.config.conninfo):
+                    and 'application_name=' not in self.config.conninfo):
                 cur = self.conn.cursor()
                 cur.execute('SET application_name TO barman')
                 cur.close()
@@ -410,46 +449,64 @@ class Server(object):
                 self.conn = None
 
     def get_pg_setting(self, name):
-        '''Get a postgres setting with a given name
+        """
+        Get a postgres setting with a given name
 
         :param name: a parameter name
-        '''
+        """
         with self.pg_connect() as conn:
             try:
                 cur = conn.cursor()
                 cur.execute('SHOW "%s"' % name.replace('"', '""'))
                 return cur.fetchone()[0]
-            except:
+            except psycopg2.Error, e:
+                _logger.debug("Error retrieving PostgreSQL setting '%s': %s",
+                              name.replace('"', '""'), e)
                 return None
 
     def get_pg_tablespaces(self):
-        '''Returns a list of tablespaces or None if not present'''
+        """
+        Returns a list of tablespaces or None if not present
+        """
         with self.pg_connect() as conn:
             try:
                 cur = conn.cursor()
                 if self.server_version >= 90200:
-                    cur.execute("SELECT spcname, oid, pg_tablespace_location(oid) AS spclocation FROM pg_tablespace WHERE pg_tablespace_location(oid) != ''")
+                    cur.execute(
+                        "SELECT spcname, oid, "
+                        "pg_tablespace_location(oid) AS spclocation "
+                        "FROM pg_tablespace "
+                        "WHERE pg_tablespace_location(oid) != ''")
                 else:
-                    cur.execute("SELECT spcname, oid, spclocation FROM pg_tablespace WHERE spclocation != ''")
+                    cur.execute(
+                        "SELECT spcname, oid, spclocation "
+                        "FROM pg_tablespace WHERE spclocation != ''")
                 # Generate a list of tablespace objects
                 return [Tablespace._make(item) for item in cur.fetchall()]
-            except:
+            except psycopg2.Error, e:
+                _logger.debug("Error retrieving PostgreSQL tablespaces: %s", e)
                 return None
 
     def get_pg_configuration_files(self):
-        '''Get postgres configuration files or None in case of error'''
+        """
+        Get postgres configuration files or an empty dictionary in case of error
+        """
         if self.configuration_files:
             return self.configuration_files
         with self.pg_connect() as conn:
             try:
                 cur = conn.cursor()
-                cur.execute("SELECT name, setting FROM pg_settings WHERE name IN ('config_file', 'hba_file', 'ident_file')")
+                cur.execute("SELECT name, setting FROM pg_settings "
+                            "WHERE name IN ("
+                            "'config_file', 'hba_file', 'ident_file')")
                 self.configuration_files = {}
                 for cname, cpath in cur.fetchall():
                     self.configuration_files[cname] = cpath
                 return self.configuration_files
-            except:
-                return None
+            except psycopg2.Error, e:
+                _logger.debug("Error retrieving PostgreSQL configuration files "
+                              "location: %s", e)
+                return {}
 
     def pg_start_backup(self, backup_label, immediate_checkpoint):
         """
@@ -460,16 +517,20 @@ class Server(object):
         """
         with self.pg_connect() as conn:
             if (self.config.backup_options != "concurrent_backup" and
-                self.pg_is_in_recovery()):
+                    self.pg_is_in_recovery()):
                 raise Exception(
                     'Unable to start a backup because of server recovery state')
             try:
                 cur = conn.cursor()
-                cur.execute('SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* from pg_start_backup(%s,%s) as xlog_loc',
-                            (backup_label, immediate_checkpoint))
+                cur.execute(
+                    'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* '
+                    'FROM pg_start_backup(%s,%s) as xlog_loc',
+                    (backup_label, immediate_checkpoint))
                 return cur.fetchone()
-            except Exception, e:
-                return None
+            except psycopg2.Error, e:
+                msg = "pg_start_backup(): %s" % e
+                _logger.debug(msg)
+                raise Exception(msg)
 
     def pgespresso_start_backup(self, backup_label, immediate_checkpoint):
         """
@@ -489,8 +550,10 @@ class Server(object):
                 cur.execute('SELECT pgespresso_start_backup(%s,%s)',
                             (backup_label, immediate_checkpoint))
                 return cur.fetchone()[0]
-            except Exception, e:
-                return None
+            except psycopg2.Error, e:
+                msg = "pgexpresso_start_backup(): %s" % e
+                _logger.debug(msg)
+                raise Exception(msg)
 
     def start_backup(self, label, immediate_checkpoint, backup_info):
         """
@@ -512,10 +575,6 @@ class Server(object):
                 backup_info.set_attribute("begin_wal", start_file_name)
                 backup_info.set_attribute("begin_offset", start_file_offset)
 
-            else:
-                self.current_action = "starting the backup: PostgreSQL server " \
-                                      "is already in exclusive backup mode"
-                raise Exception('concurrent exclusive backups are not allowed')
         elif self.config.backup_options == 'concurrent_backup':
             backup_data = self.pgespresso_start_backup(label,
                                                        immediate_checkpoint)
@@ -533,8 +592,6 @@ class Server(object):
                                               b_info.group(1)))
                 backup_info.set_attribute("backup_label", backup_data)
 
-
-
     def pg_stop_backup(self):
         """
         Execute a pg_stop_backup
@@ -546,7 +603,8 @@ class Server(object):
                     'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* '
                     'from pg_stop_backup() as xlog_loc')
                 return cur.fetchone()
-            except:
+            except psycopg2.Error, e:
+                _logger.debug("Error issuing pg_stop_backup() command: %s", e)
                 return None
 
     def pgespresso_stop_backup(self, backup_label):
@@ -558,7 +616,9 @@ class Server(object):
                 cur = conn.cursor()
                 cur.execute('SELECT pgespresso_stop_backup(%s)', (backup_label,))
                 return cur.fetchone()[0]
-            except Exception, e:
+            except psycopg2.Error, e:
+                _logger.debug(
+                    "Error issuing pgespresso_stop_backup() command: %s", e)
                 return None
 
     def stop_backup(self, backup_info):
@@ -679,38 +739,47 @@ class Server(object):
             output.result('list_backup', backup, backup_size, wal_size, rstatus)
 
     def get_backup(self, backup_id):
-        '''Return the backup information for the given backup,
+        """
+        Return the backup information for the given backup,
         or None if its status is not empty
 
         :param backup_id: the ID of the backup to return
-        '''
+        """
         try:
             backup = BackupInfo(self, backup_id=backup_id)
             if backup.status in BackupInfo.STATUS_NOT_EMPTY:
                 return backup
             return None
-        except:
+        except Exception, e:
+            _logger.debug("Error reading backup information for %s %s: %s",
+                          self.config.name, backup_id, e, exc_info=1)
             return None
 
     def get_previous_backup(self, backup_id):
-        '''Get the previous backup (if any) from the catalog
+        """
+        Get the previous backup (if any) from the catalog
 
         :param backup_id: the backup id from which return the previous
-        '''
+        """
         return self.backup_manager.get_previous_backup(backup_id)
 
     def get_next_backup(self, backup_id):
-        '''Get the next backup (if any) from the catalog
+        """
+        Get the next backup (if any) from the catalog
 
         :param backup_id: the backup id from which return the next
-        '''
+        """
         return self.backup_manager.get_next_backup(backup_id)
 
-    def get_required_xlog_files(self, backup, target_tli=None, target_time=None, target_xid=None):
-        '''Get the xlog files required for a backup'''
+    def get_required_xlog_files(self, backup, target_tli=None, target_time=None,
+                                target_xid=None):
+        """
+        Get the xlog files required for a backup
+        """
         begin = backup.begin_wal
         end = backup.end_wal
-        # If timeline isn't specified, assume it is the same timeline of the backup
+        # If timeline isn't specified, assume it is the same timeline
+        # of the backup
         if not target_tli:
             target_tli, _, _ = xlog.decode_segment_name(end)
         with self.xlogdb() as fxlogdb:
@@ -732,10 +801,11 @@ class Server(object):
 
     # TODO: merge with the previous
     def get_wal_until_next_backup(self, backup):
-        '''Get the xlog files between backup and the next
+        """
+        Get the xlog files between backup and the next
 
         :param backup: a backup object, the starting point to retrieve wals
-        '''
+        """
         begin = backup.begin_wal
         next_end = None
         if self.get_next_backup(backup.backup_id):
@@ -846,7 +916,7 @@ class Server(object):
             compression = None
             try:
                 name, size, stamp = line.split()
-            except:
+            except ValueError:
                 raise ValueError("cannot parse line: %r" % (line,))
         return name, int(size), float(stamp), compression
 

@@ -243,7 +243,7 @@ def recover(args):
         for rule in args.tablespace:
             try:
                 tablespaces.update([rule.split(':', 1)])
-            except:
+            except ValueError:
                 raise SystemExit(
                     "ERROR: invalid tablespace relocation rule '%s'\n"
                     "HINT: the valid syntax for a relocation rule is "
@@ -570,8 +570,8 @@ def main():
     # noinspection PyBroadException
     try:
         p.dispatch(pre_call=global_config, output_file=_output_stream)
-    except Exception:
-        msg = "Unhandled exception. See log file for more details."
+    except Exception, e:
+        msg = "Unhandled exception: %s\nSee log file for more details." % e
         output.exception(msg)
         output.close_and_exit()
 

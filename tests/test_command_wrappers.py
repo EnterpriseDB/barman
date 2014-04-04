@@ -261,7 +261,7 @@ class CommandUnitTest(unittest.TestCase):
             cmd = command_wrappers.Command(command,
                                            env_append={'TEST1': 'VAL1',
                                                        'TEST2': 'VAL2'})
-            result = cmd.getoutput(stdin)
+            result = cmd.getoutput(stdin=stdin)
 
         popen.assert_called_with(
             [command], shell=False,

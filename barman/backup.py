@@ -32,12 +32,18 @@ from barman.fs import UnixLocalCommand, UnixRemoteCommand, FsOperationFailed
 import dateutil.parser
 
 from barman import xlog, output
-from barman.command_wrappers import RsyncPgData
+from barman.command_wrappers import RsyncPgData, CommandFailedException
 from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
 
 
 _logger = logging.getLogger(__name__)
+
+
+class DataTransferFailure(Exception):
+    """
+    Used to pass rsync failure details
+    """
 
 
 class BackupManager(object):
@@ -176,7 +182,7 @@ class BackupManager(object):
             # If no backup left, remove all WAL files unless in concurrent_backup mode
             # If in concurrent_backup mode, remove all WAL files prior to the
             # backup that is being deleted
-            remove_until = None # means to remove all wal files
+            remove_until = None # means to remove all WAL files
             if next_backup:
                 remove_until = next_backup
             elif self.config.backup_options == 'concurrent_backup':
@@ -233,6 +239,8 @@ class BackupManager(object):
                 backup_info.set_attribute("size", backup_size)
                 output.info("Copy done.")
             except:
+                # we do not need to do anything here besides re-throwin the
+                # exception. It will be handled in the external try block.
                 raise
             else:
                 self.current_action = "issuing stop of the backup"
@@ -246,15 +254,19 @@ class BackupManager(object):
             backup_info.set_attribute("status", "DONE")
 
         except Exception, e:
+            msg_lines = str(e).strip().splitlines()
             if backup_info:
+                # Use only the first line of exception message
+                # in backup_info error field
                 backup_info.set_attribute("status", "FAILED")
-                # errors must not contain '\n', so we replace them with '|'
                 backup_info.set_attribute(
                     "error",
                     "failure %s (%s)" % (
-                        self.current_action, str(e).replace('\n', '|')))
+                        self.current_action, msg_lines[0]))
 
-            output.exception("Backup failed %s (%s)", self.current_action, e)
+            output.error("Backup failed %s: %s\n%s",
+                         self.current_action, msg_lines[0],
+                         '\n'.join(msg_lines[1:]))
 
         else:
             output.info("Backup end at xlog location: %s (%s, %08X)",
@@ -273,8 +285,9 @@ class BackupManager(object):
 
         output.result('backup', backup_info)
 
-    def recover(self, backup, dest, tablespaces, target_tli, target_time, target_xid, target_name, exclusive, remote_command):
-        '''
+    def recover(self, backup, dest, tablespaces, target_tli, target_time,
+                target_xid, target_name, exclusive, remote_command):
+        """
         Performs a recovery of a backup
 
         :param backup: the backup to recover
@@ -283,11 +296,12 @@ class BackupManager(object):
         :param target_tli: the target timeline
         :param target_time: the target time
         :param target_xid: the target xid
-        :param target_name: the target name created previously with pg_create_restore_point() function call
+        :param target_name: the target name created previously with
+                            pg_create_restore_point() function call
         :param exclusive: whether the recovery is exclusive or not
-        :param remote_command: default None. The remote command to recover the base backup,
-                               in case of remote backup.
-        '''
+        :param remote_command: default None. The remote command to recover
+                               the base backup, in case of remote backup.
+        """
 
         # run the cron to be sure the wal catalog is up to date
         self.server.cron(verbose=False)
@@ -296,9 +310,10 @@ class BackupManager(object):
 
         if remote_command:
             recovery_dest = 'remote'
-            rsync = RsyncPgData(ssh=remote_command,
-                                bwlimit=self.config.bandwidth_limit,
-                                network_compression=self.config.network_compression)
+            rsync = RsyncPgData(
+                ssh=remote_command,
+                bwlimit=self.config.bandwidth_limit,
+                network_compression=self.config.network_compression)
             try:
                 # create a UnixRemoteCommand obj if is a remote recovery
                 cmd = UnixRemoteCommand(remote_command)
@@ -311,7 +326,8 @@ class BackupManager(object):
         else:
             # if is a local recovery create a UnixLocalCommand
             cmd = UnixLocalCommand()
-        msg = "Starting %s restore for server %s using backup %s " % (recovery_dest, self.config.name, backup.backup_id)
+        msg = "Starting %s restore for server %s using backup %s " % (
+            recovery_dest, self.config.name, backup.backup_id)
         yield msg
         _logger.info(msg)
 
@@ -319,9 +335,9 @@ class BackupManager(object):
         try:
             cmd.create_dir_if_not_exists(dest)
         except FsOperationFailed, e:
-            msg = ("ERROR: unable to initialize destination directory "
+            msg = ("unable to initialize destination directory "
                    "'%s': %s" % (dest, e))
-            _logger.critical(msg)
+            _logger.exception(msg)
             raise SystemExit(msg)
 
         msg = "Destination directory: %s" % dest
@@ -336,9 +352,9 @@ class BackupManager(object):
                 # if does not exists, create it
                 cmd.create_dir_if_not_exists(tblspc_dir)
             except FsOperationFailed, e:
-                msg = ("ERROR: unable to initialize tablespace directory "
+                msg = ("unable to initialize tablespace directory "
                        "'%s': %s" % (tblspc_dir, e))
-                _logger.critical(msg)
+                _logger.exception(msg)
                 raise SystemExit(msg)
 
             for item in backup.tablespaces:
@@ -367,10 +383,10 @@ class BackupManager(object):
                     # create symlink between tablespace and recovery folder
                     cmd.create_symbolic_link(location, pg_tblspc_file)
                 except FsOperationFailed, e:
-                    msg = ("ERROR: unable to prepare '%s' tablespace "
+                    msg = ("unable to prepare '%s' tablespace "
                            "(destination '%s'): %s" %
                            (item.name, location, e))
-                    _logger.critical(msg)
+                    _logger.exception(msg)
                     raise SystemExit(msg)
 
                 yield "\t%s, %s, %s" % (item.oid, item.name, location)
@@ -381,12 +397,15 @@ class BackupManager(object):
         if target_time:
             try:
                 target_datetime = dateutil.parser.parse(target_time)
-            except:
-                msg = "ERROR: unable to parse the target time parameter %r" % target_time
-                _logger.critical(msg)
+            except ValueError, e:
+                msg = "unable to parse the target time parameter %r: %s" % (
+                      target_time, e)
+                _logger.exception(msg)
                 raise SystemExit(msg)
-            target_epoch = time.mktime(target_datetime.timetuple()) + (target_datetime.microsecond / 1000000.)
-        if target_time or target_xid or (target_tli and target_tli != backup.timeline) or target_name:
+            target_epoch = time.mktime(target_datetime.timetuple()) + (
+                target_datetime.microsecond / 1000000.)
+        if target_time or target_xid or (
+                target_tli and target_tli != backup.timeline) or target_name:
             targets = {}
             if target_time:
                 targets['time'] = str(target_datetime)
@@ -404,7 +423,11 @@ class BackupManager(object):
         msg = "Copying the base backup."
         yield msg
         _logger.info(msg)
-        self.recover_basebackup_copy(backup, dest, tablespaces, remote_command)
+        try:
+            self.recover_basebackup_copy(backup, dest, tablespaces,
+                                         remote_command)
+        except DataTransferFailure, e:
+            raise SystemExit("Failure copying base backup: %s" % (e,))
         _logger.info("Base backup copied.")
 
         # Prepare WAL segments local directory
@@ -415,7 +438,9 @@ class BackupManager(object):
         # Retrieve the list of required WAL segments
         # according to recovery options
         xlogs = {}
-        required_xlog_files = tuple(self.server.get_required_xlog_files(backup, target_tli, target_epoch))
+        required_xlog_files = tuple(
+            self.server.get_required_xlog_files(backup, target_tli,
+                                                target_epoch))
         for filename in required_xlog_files:
             hashdir = xlog.hash_dir(filename)
             if hashdir not in xlogs:
@@ -425,13 +450,17 @@ class BackupManager(object):
         compressor = self.compression_manager.get_compressor()
 
         # Restore WAL segments
-        self.recover_xlog_copy(compressor, xlogs, wal_dest, remote_command)
-        _logger.info("Wal segmets copied.")
+        try:
+            self.recover_xlog_copy(compressor, xlogs, wal_dest, remote_command)
+        except DataTransferFailure, e:
+            raise SystemExit("Failure copying WAL files: %s" % (e,))
+        _logger.info("Wal segments copied.")
 
         # Generate recovery.conf file (only if needed by PITR)
-        if target_time or target_xid or (target_tli and target_tli != backup.timeline) or target_name:
+        if target_time or target_xid or (
+                target_tli and target_tli != backup.timeline) or target_name:
             msg = "Generating recovery.conf"
-            yield  msg
+            yield msg
             _logger.info(msg)
             if remote_command:
                 tempdir = tempfile.mkdtemp(prefix='barman_recovery-')
@@ -449,10 +478,19 @@ class BackupManager(object):
             if target_name:
                 print >> recovery, "recovery_target_name = '%s'" % target_name
             if (target_xid or target_time) and exclusive:
-                print >> recovery, "recovery_target_inclusive = '%s'" % (not exclusive)
+                print >> recovery, "recovery_target_inclusive = '%s'" % (
+                    not exclusive)
             recovery.close()
             if remote_command:
-                recovery = rsync.from_file_list(['recovery.conf'], tempdir, ':%s' % dest)
+                try:
+                    rsync.from_file_list(['recovery.conf'],
+                                         tempdir, ':%s' % dest)
+                except CommandFailedException, e:
+                    msg = (
+                        'remote copy of recovery.conf failed: %s' % (e,))
+                    _logger.exception(msg)
+                    raise SystemExit(msg)
+
                 shutil.rmtree(tempdir)
             _logger.info('recovery.conf generated')
         else:
@@ -463,28 +501,33 @@ class BackupManager(object):
                 status_dir = os.path.join(wal_dest, 'archive_status')
                 os.makedirs(status_dir) # no need to check, it must not exist
             for filename in required_xlog_files:
-                with open(os.path.join(status_dir, "%s.done" % filename), 'a') as f:
+                with open(os.path.join(status_dir, "%s.done" % filename),
+                          'a') as f:
                     f.write('')
             if remote_command:
-                retval = rsync('%s/' % status_dir, ':%s' % os.path.join(wal_dest, 'archive_status'))
-                if retval != 0:
-                    msg = "WARNING: unable to populate pg_xlog/archive_status directory"
-                    yield msg
-                    _logger.warning(msg)
+                try:
+                    rsync('%s/' % status_dir,
+                          ':%s' % os.path.join(wal_dest, 'archive_status'))
+                except CommandFailedException:
+                    msg = "unable to populate pg_xlog/archive_status directory"
+                    _logger.warning(msg, exc_info=1)
+                    raise SystemExit(msg)
                 shutil.rmtree(status_dir)
-
 
         # Disable dangerous setting in the target data dir
         if remote_command:
             tempdir = tempfile.mkdtemp(prefix='barman_recovery-')
             pg_config = os.path.join(tempdir, 'postgresql.conf')
-            shutil.copy2(os.path.join(backup.get_basebackup_directory(), 'pgdata', 'postgresql.conf'), pg_config)
+            shutil.copy2(
+                os.path.join(backup.get_basebackup_directory(), 'pgdata',
+                             'postgresql.conf'), pg_config)
         else:
             pg_config = os.path.join(dest, 'postgresql.conf')
         if self.pg_config_mangle(pg_config,
-                              {'archive_command': 'false'},
-                              "%s.origin" % pg_config):
-            msg = "The archive_command was set to 'false' to prevent data losses."
+                                 {'archive_command': 'false'},
+                                 "%s.origin" % pg_config):
+            msg = "The archive_command was set to 'false' to prevent data " \
+                  "losses."
             yield msg
             _logger.info(msg)
 
@@ -492,14 +535,22 @@ class BackupManager(object):
         clashes = self.pg_config_detect_possible_issues(pg_config)
 
         if remote_command:
-            recovery = rsync.from_file_list(['postgresql.conf', 'postgresql.conf.origin'], tempdir, ':%s' % dest)
+            try:
+                rsync.from_file_list(
+                    ['postgresql.conf', 'postgresql.conf.origin'], tempdir,
+                    ':%s' % dest)
+            except CommandFailedException, e:
+                msg = 'remote copy of configuration files failed: %s' % (e,)
+                _logger.error(msg)
+                raise SystemExit(msg)
             shutil.rmtree(tempdir)
 
-
         yield ""
-        yield "Your PostgreSQL server has been successfully prepared for recovery!"
+        yield "Your PostgreSQL server has been successfully prepared for " \
+              "recovery!"
         yield ""
-        yield "Please review network and archive related settings in the PostgreSQL"
+        yield "Please review network and archive related settings in the " \
+              "PostgreSQL"
         yield "configuration file before starting the just recovered instance."
         yield ""
         if clashes:
@@ -539,8 +590,9 @@ class BackupManager(object):
                 # Delete xlog segments only if the backup is exclusive
                 if (not len(available_backups) and
                         (self.config.backup_options != "concurrent_backup")):
-                    output.info("\tNo base backup available. Trashing file %s",
-                                os.path.basename(filename))
+                    output.info("\tNo base backup available. Trashing file %s"
+                                " from server %s",
+                                os.path.basename(filename), self.config.name)
                     os.unlink(filename)
                     continue
                 # Archive the WAL file
@@ -587,11 +639,14 @@ class BackupManager(object):
             os.unlink(os.path.join(hashdir, name))
             try:
                 os.removedirs(hashdir)
-            except:
+            except OSError:
+                # This is not an error condition
+                # We always try to remove the the trailing directories,
+                # this means that hashdir is not empty.
                 pass
-        except:
+        except OSError:
             _logger.warning('Expected WAL file %s not found during delete',
-                name)
+                            name, exc_info=1)
 
     def backup_start(self, backup_info, immediate_checkpoint):
         """
@@ -632,9 +687,25 @@ class BackupManager(object):
         # Issue pg_start_backup on the PostgreSQL server
         self.current_action = "issuing start backup command"
         _logger.debug(self.current_action)
-        label = ("Barman backup %s %s"
-                        % (backup_info.server_name, backup_info.backup_id))
+        label = "Barman backup %s %s" % (
+            backup_info.server_name, backup_info.backup_id)
         self.server.start_backup(label, immediate_checkpoint, backup_info)
+
+    def _raise_rsync_error(self, e, msg):
+        """
+        This method raises an exception and report the provided message to the
+        user (both console and log file) along with the output of
+        the failed rsync command.
+
+        :param CommandFailedException e: The exception we are handling
+        :param msg: a descriptive message on what we are trying to do
+        :raise Exception: will contain the message provided in msg
+        """
+        details = msg
+        details += "\nrsync error:\n"
+        details += e.args[0]['out']
+        details += e.args[0]['err']
+        raise DataTransferFailure(details)
 
     def backup_copy(self, backup_info):
         """
@@ -649,16 +720,22 @@ class BackupManager(object):
         exclude_and_protect = []
 
         # validate the bandwidth rules against the tablespace list
-        tablespaces_bwlimit={}
+        tablespaces_bwlimit = {}
 
         if self.config.tablespace_bandwidth_limit and backup_info.tablespaces:
-            valid_tablespaces = dict([(tablespace_data.name, tablespace_data.oid)
-                                     for tablespace_data in backup_info.tablespaces])
-            for tablespace, bwlimit in self.config.tablespace_bandwidth_limit.items():
+            valid_tablespaces = dict([
+                (tablespace_data.name, tablespace_data.oid)
+                for tablespace_data in backup_info.tablespaces])
+            for tablespace, bwlimit in \
+                    self.config.tablespace_bandwidth_limit.items():
                 if tablespace in valid_tablespaces:
-                    tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[tablespace],)
+                    tablespace_dir = "pg_tblspc/%s" % (
+                                     valid_tablespaces[tablespace],)
                     tablespaces_bwlimit[tablespace_dir] = bwlimit
                     exclude_and_protect.append(tablespace_dir)
+
+        backup_dest = os.path.join(
+            backup_info.get_basebackup_directory(), 'pgdata')
 
         # find tablespaces which need to be excluded from rsync command
         if backup_info.tablespaces is not None:
@@ -676,40 +753,45 @@ class BackupManager(object):
             # so we need to create the 'pg_tblspc' directory
             os.makedirs(os.path.join(backup_dest, 'pg_tblspc'))
             for tablespace_dir, bwlimit in tablespaces_bwlimit.items():
-                self.current_action = "copying tablespace '%s' with bwlimit %d" % (
-                    tablespace_dir, bwlimit)
+                self.current_action = "copying tablespace '%s' with bwlimit " \
+                                      "%d" % (tablespace_dir, bwlimit)
                 _logger.debug(self.current_action)
-                tb_rsync = RsyncPgData(ssh=self.server.ssh_command,
+                tb_rsync = RsyncPgData(
+                    ssh=self.server.ssh_command,
                     ssh_options=self.server.ssh_options,
                     bwlimit=bwlimit,
-                    network_compression=self.config.network_compression)
-                retval = tb_rsync(
-                    ':%s/' % os.path.join(backup_info.pgdata, tablespace_dir),
-                    os.path.join(backup_dest, tablespace_dir))
-                if retval not in (0, 24):
-                    msg = "ERROR: data transfer failure on directory '%s'" % (
-                        tablespace_dir,)
-                    _logger.exception(msg)
-                    raise Exception(msg)
+                    network_compression=self.config.network_compression,
+                    check=True)
+                try:
+                    tb_rsync(':%s/' %
+                             os.path.join(backup_info.pgdata, tablespace_dir),
+                             os.path.join(backup_dest, tablespace_dir))
+                except CommandFailedException, e:
+                    msg = "data transfer failure on directory '%s'" % \
+                          os.path.join(backup_info.pgdata, tablespace_dir)
+                    self._raise_rsync_error(e, msg)
 
-        rsync = RsyncPgData(ssh=self.server.ssh_command,
-                ssh_options=self.server.ssh_options,
-                bwlimit=self.config.bandwidth_limit,
-                exclude_and_protect=exclude_and_protect,
-                network_compression=self.config.network_compression)
-        retval = rsync(':%s/' % backup_info.pgdata, backup_dest)
-        if retval not in (0, 24):
-            msg = "ERROR: data transfer failure"
-            _logger.exception(msg)
-            raise Exception(msg)
+        rsync = RsyncPgData(
+            ssh=self.server.ssh_command,
+            ssh_options=self.server.ssh_options,
+            bwlimit=self.config.bandwidth_limit,
+            exclude_and_protect=exclude_and_protect,
+            network_compression=self.config.network_compression)
+        try:
+            rsync(':%s/' % backup_info.pgdata, backup_dest)
+        except CommandFailedException, e:
+            msg = "data transfer failure on directory '%s'" % \
+                  backup_info.pgdata
+            self._raise_rsync_error(e, msg)
 
         # at last copy pg_control
-        retval = rsync(':%s/global/pg_control' % (backup_info.pgdata,),
-                       '%s/global/pg_control' % (backup_dest,))
-        if retval not in (0, 24):
-            msg = "ERROR: data transfer failure"
-            _logger.exception(msg)
-            raise Exception(msg)
+        try:
+            rsync(':%s/global/pg_control' % (backup_info.pgdata,),
+                  '%s/global/pg_control' % (backup_dest,))
+        except CommandFailedException, e:
+            msg = "data transfer failure on file '%s/global/pg_control'" % \
+                  backup_info.pgdata
+            self._raise_rsync_error(e, msg)
 
         # Copy configuration files (if not inside PGDATA)
         self.current_action = "copying configuration files"
@@ -720,15 +802,23 @@ class BackupManager(object):
                 # Consider only those that reside outside of the original PGDATA
                 if cf[key]:
                     if cf[key].find(backup_info.pgdata) == 0:
-                        self.current_action = "skipping %s as contained in %s directory" % (key, backup_info.pgdata)
+                        self.current_action = \
+                            "skipping %s as contained in %s directory" % (
+                                key, backup_info.pgdata)
                         _logger.debug(self.current_action)
                         continue
                     else:
-                        self.current_action = "copying %s as outside %s directory" % (key, backup_info.pgdata)
+                        self.current_action = \
+                            "copying %s as outside %s directory" % (
+                                key, backup_info.pgdata)
                         _logger.info(self.current_action)
-                        retval = rsync(':%s' % cf[key], backup_dest)
-                        if retval not in (0, 24):
-                            raise Exception("ERROR: data transfer failure")
+                        try:
+                            rsync(':%s' % cf[key], backup_dest)
+
+                        except CommandFailedException, e:
+                            msg = "data transfer failure on file '%s'" % \
+                                  cf[key]
+                            self._raise_rsync_error(e, msg)
 
         self.current_action = "calculating backup size"
         _logger.debug(self.current_action)
@@ -747,24 +837,23 @@ class BackupManager(object):
         '''
         self.server.stop_backup(backup_info)
 
-
     def recover_basebackup_copy(self, backup, dest, tablespaces, remote_command=None):
-        '''
+        """
         Perform the actual copy of the base backup for recovery purposes
 
         :param backup: the backup to recover
         :param dest: the destination directory
         :param tablespaces: tablespace relocation options
-        :param remote_command: default None. The remote command to recover the base backup,
-                               in case of remote backup.
-        '''
+        :param remote_command: default None. The remote command to recover
+                               the base backup, in case of remote backup.
+        """
 
         sourcedir = os.path.join(backup.get_basebackup_directory(), 'pgdata')
 
         # Dictionary for paths to be excluded from rsync
         exclude_and_protect = []
         # Dictionary for tablespace bandwith limit settings
-        tablespaces_bwlimit={}
+        tablespaces_bwlimit = {}
 
         # find tablespaces which need to be excluded from rsync command
         if backup.tablespaces is not None:
@@ -799,45 +888,50 @@ class BackupManager(object):
                         tablespaces_bwlimit[tablespace_dir] = bwlimit
                         exclude_and_protect.append(tablespace_dir)
 
-        rsync = RsyncPgData(ssh=remote_command,
-                bwlimit=self.config.bandwidth_limit,
-                exclude_and_protect=exclude_and_protect,
-                network_compression=self.config.network_compression)
-        retval = rsync('%s/' % (sourcedir,), dest)
-        if retval != 0:
-            raise Exception("ERROR: data transfer failure")
+        rsync = RsyncPgData(
+            ssh=remote_command,
+            bwlimit=self.config.bandwidth_limit,
+            exclude_and_protect=exclude_and_protect,
+            network_compression=self.config.network_compression)
+        try:
+            rsync('%s/' % (sourcedir,), dest)
+        except CommandFailedException, e:
+            msg = "data transfer failure on directory '%s'" % (dest[1:],)
+            self._raise_rsync_error(e, msg)
 
         if remote_command and len(tablespaces_bwlimit) > 0:
             for tablespace_dir, bwlimit in tablespaces_bwlimit.items():
-                self.current_action = "copying tablespace '%s' with bwlimit %d" % (
-                    tablespace_dir, bwlimit)
                 _logger.debug(self.current_action)
-                tb_rsync = RsyncPgData(ssh=remote_command,
-                                       bwlimit=bwlimit,
-                                       network_compression=self.config.network_compression)
-                retval = tb_rsync(
-                    '%s/' % os.path.join(sourcedir, tablespace_dir),
-                    os.path.join(dest, tablespace_dir))
-                if retval != 0:
-                    msg = "ERROR: data transfer failure on directory '%s'" % (
-                        tablespace_dir,)
-                    _logger.exception(msg)
-                    raise Exception(msg)
+                tb_rsync = RsyncPgData(
+                    ssh=remote_command,
+                    bwlimit=bwlimit,
+                    network_compression=self.config.network_compression)
+                try:
+                    tb_rsync('%s/' % os.path.join(sourcedir, tablespace_dir),
+                             os.path.join(dest, tablespace_dir))
+                except CommandFailedException, e:
+                    msg = "data transfer failure on directory '%s'" % (
+                        tablespace_dir[1:],)
+                    self._raise_rsync_error(e, msg)
 
-        # TODO: Manage different location for configuration files that were not within the data directory
+        # TODO: Manage different location for configuration files
+        # TODO: that were not within the data directory
 
-    def recover_xlog_copy(self, compressor, xlogs, wal_dest, remote_command=None):
+    def recover_xlog_copy(self, compressor, xlogs, wal_dest,
+                          remote_command=None):
         """
         Restore WAL segments
 
         :param compressor: the compressor for the file (if any)
         :param xlogs: the xlog dictionary to recover
         :param wal_dest: the destination directory for xlog recover
-        :param remote_command: default None. The remote command to recover the xlog,
-                               in case of remote backup.
+        :param remote_command: default None. The remote command to recover
+               the xlog, in case of remote backup.
         """
-        rsync = RsyncPgData(ssh=remote_command, bwlimit=self.config.bandwidth_limit,
-                            network_compression=self.config.network_compression)
+        rsync = RsyncPgData(
+            ssh=remote_command,
+            bwlimit=self.config.bandwidth_limit,
+            network_compression=self.config.network_compression)
         if remote_command:
             # If remote recovery tell rsync to copy them remotely
             wal_dest = ':%s' % wal_dest
@@ -852,16 +946,36 @@ class BackupManager(object):
             if compressor:
                 if remote_command:
                     for segment in xlogs[prefix]:
-                        compressor.decompress(os.path.join(source_dir, segment), os.path.join(xlog_spool, segment))
-                    rsync.from_file_list(xlogs[prefix], xlog_spool, wal_dest)
+                        compressor.decompress(os.path.join(source_dir, segment),
+                                              os.path.join(xlog_spool, segment))
+                    try:
+                        rsync.from_file_list(xlogs[prefix],
+                                             xlog_spool, wal_dest)
+                    except CommandFailedException, e:
+                        msg = "data transfer failure while copying WAL files " \
+                              "to directory '%s'" % (wal_dest[1:],)
+                        self._raise_rsync_error(e, msg)
+
+                    # Cleanup files after the transfer
                     for segment in xlogs[prefix]:
                         os.unlink(os.path.join(xlog_spool, segment))
                 else:
                     # decompress directly to the right place
                     for segment in xlogs[prefix]:
-                        compressor.decompress(os.path.join(source_dir, segment), os.path.join(wal_dest, segment))
+                        compressor.decompress(os.path.join(source_dir, segment),
+                                              os.path.join(wal_dest, segment))
             else:
-                rsync.from_file_list(xlogs[prefix], "%s/" % os.path.join(self.config.wals_directory, prefix), wal_dest)
+                try:
+                    rsync.from_file_list(
+                        xlogs[prefix],
+                        "%s/" % os.path.join(
+                            self.config.wals_directory, prefix),
+                        wal_dest)
+                except CommandFailedException, e:
+                    msg = "data transfer failure while copying WAL files " \
+                          "to directory '%s'" % (wal_dest[1:],)
+                    self._raise_rsync_error(e, msg)
+
         if compressor and remote_command:
             shutil.rmtree(xlog_spool)
 
@@ -1102,10 +1216,10 @@ class BackupManager(object):
         Remove WAL files which have been archived before the start of
         the provided backup.
 
-        If no backup_info is provided delete all available wal files
+        If no backup_info is provided delete all available WAL files
 
         :param backup_info: the backup information structure
-        :return list: a list of removed wal files
+        :return list: a list of removed WAL files
         """
         removed = []
         with self.server.xlogdb() as fxlogdb:

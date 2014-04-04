@@ -227,7 +227,7 @@ class FieldListFile(object):
                 # parse the line of form "key = value"
                 try:
                     name, value = [x.strip() for x in line.split('=', 1)]
-                except:
+                except ValueError:
                     raise ValueError('invalid line %s in file %s' % (
                         line.strip(), filename))
 
