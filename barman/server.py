@@ -263,10 +263,10 @@ class Server(object):
             return
         if remote_status['pgespresso_installed']:
             output.result('status', self.config.name, 'pgespresso',
-                          'Pgespresso extension', "Available")
+                          'pgespresso extension', "Available")
         else:
             output.result('status', self.config.name, 'pgespresso',
-                          'Pgespresso extension', "Not available")
+                          'pgespresso extension', "Not available")
         if remote_status['data_directory']:
             output.result('status', self.config.name,
                           "data_directory",
@@ -544,7 +544,7 @@ class Server(object):
             if (self.config.backup_options == "concurrent_backup" and
                     not self.pg_espresso_installed()):
                 raise Exception(
-                    'Pgespresso extension required for concurrent_backup')
+                    'pgespresso extension required for concurrent_backup')
             try:
                 cur = conn.cursor()
                 cur.execute('SELECT pgespresso_start_backup(%s,%s)',
