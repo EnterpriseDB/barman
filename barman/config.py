@@ -53,6 +53,24 @@ def parse_boolean(value):
     raise ValueError("Invalid boolean representation (use 'true' or 'false')")
 
 
+def parse_backup_options(value):
+    """
+    Parse a string to a valid backup_options value.
+
+    At the moment only one option is allowed and it must be
+    either "concurrent_backup" or "exclusive_backup"
+
+    :param str value: backup_options value
+    :raises ValueError: if the value is invalid
+    """
+    if value.lower() == "concurrent_backup":
+        return "concurrent_backup"
+    if value.lower() == "exclusive_backup":
+        return "exclusive_backup"
+    raise ValueError("Invalid value "
+                     "(use 'concurrent_backup' or 'exclusive_backup')")
+
+
 class Server(object):
     """
     This class represents a server.
@@ -99,6 +117,7 @@ class Server(object):
         'active': parse_boolean,
         'immediate_checkpoint': parse_boolean,
         'network_compression': parse_boolean,
+        'backup_options': parse_backup_options,
     }
 
     def __init__(self, config, name):
