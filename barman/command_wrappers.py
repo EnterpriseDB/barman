@@ -156,7 +156,7 @@ class RsyncPgData(Rsync):
 
     def __init__(self, rsync='rsync', args=None, **kwargs):
         options = [
-            '-rLKpts', '--delete-excluded', '--inplace',
+            '-rLKptsc', '--delete-excluded', '--inplace',
             '--exclude=/pg_xlog/*',
             '--exclude=/pg_log/*',
             '--exclude=/recovery.conf',
