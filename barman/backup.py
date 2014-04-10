@@ -21,16 +21,15 @@ from glob import glob
 import datetime
 import logging
 import os
-import sys
 import shutil
 import time
 import tempfile
 import re
-from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
-from barman.fs import UnixLocalCommand, UnixRemoteCommand, FsOperationFailed
 
 import dateutil.parser
 
+from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
+from barman.fs import UnixLocalCommand, UnixRemoteCommand, FsOperationFailed
 from barman import xlog, output
 from barman.command_wrappers import RsyncPgData, CommandFailedException
 from barman.compression import CompressionManager, CompressionIncompatibility
@@ -326,6 +325,8 @@ class BackupManager(object):
         else:
             # if is a local recovery create a UnixLocalCommand
             cmd = UnixLocalCommand()
+            # silencing static analysis tools
+            rsync = None
         msg = "Starting %s restore for server %s using backup %s " % (
             recovery_dest, self.config.name, backup.backup_id)
         yield msg
@@ -714,7 +715,6 @@ class BackupManager(object):
 
         :param backup_info: the backup information structure
         """
-        backup_dest = os.path.join(backup_info.get_basebackup_directory(), 'pgdata')
 
         # paths to be ignored from rsync
         exclude_and_protect = []

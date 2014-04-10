@@ -67,6 +67,7 @@ def cron():
                      lockname)
     output.close_and_exit()
 
+
 # noinspection PyUnusedLocal
 def server_completer(prefix, parsed_args, **kwargs):
     global_config(parsed_args)
@@ -137,6 +138,7 @@ def backup(args):
         server.backup(immediate_checkpoint)
 
     output.close_and_exit()
+
 
 @named('list-backup')
 @arg('server_name', nargs='+',
@@ -571,7 +573,7 @@ def main():
     try:
         p.dispatch(pre_call=global_config, output_file=_output_stream)
     except Exception, e:
-        msg = "Unhandled exception: %s\nSee log file for more details." % e
+        msg = "%s\nSee log file for more details." % e
         output.exception(msg)
         output.close_and_exit()
 

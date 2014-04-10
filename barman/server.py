@@ -20,20 +20,23 @@ This module represents a Server.
 Barman is able to manage multiple servers.
 """
 
-from barman import xlog, output
+import os
+import re
+import logging
+import datetime
+from contextlib import contextmanager
+
+import psycopg2
+
+from barman import output
 from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace
 from barman.lockfile import LockFile, LockFileBusy, \
     LockFilePermissionDenied
 from barman.backup import BackupManager
 from barman.command_wrappers import Command
-from barman.retention_policies import RetentionPolicyFactory, SimpleWALRetentionPolicy
-import os
-import re
-import logging
-import datetime
-import psycopg2
-from contextlib import contextmanager
+from barman.retention_policies import RetentionPolicyFactory
 import xlog
+
 
 _logger = logging.getLogger(__name__)
 
@@ -225,7 +228,6 @@ class Server(object):
         """
         Checks backup directories and creates them if they do not exist
         """
-        error = None
         try:
             self._make_directories()
         except OSError, e:
@@ -678,20 +680,21 @@ class Server(object):
         except OSError, e:
             output.error('failed to create %s directory: %s',
                          e.filename, e.strerror)
-        else:
-            filename = os.path.join(self.config.barman_home,
-                                    '.%s-backup.lock' % self.config.name)
+            return
+
+        filename = os.path.join(
+            self.config.barman_home, '.%s-backup.lock' % self.config.name)
+
         try:
             # lock acquisition and backup execution
             with LockFile(filename, raise_if_fail=True):
                 self.backup_manager.backup(immediate_checkpoint)
 
         except LockFileBusy:
-            output.error("ERROR: Another backup process is running")
+            output.error("Another backup process is running")
 
-        except LockFilePermissionDenied:
-            output.error(
-                "ERROR: Permission denied, unable to access '%s'" % filename)
+        except LockFilePermissionDenied, e:
+            output.error("Permission denied, unable to access '%s'" % e)
 
     def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         '''Get a list of available backups
@@ -861,9 +864,10 @@ class Server(object):
         try:
             with LockFile(filename, raise_if_fail=True, wait=True):
                 return self.backup_manager.cron(verbose=verbose)
-        except LockFilePermissionDenied:
-            raise output.error("Permission denied, unable to access '%s'",
-                               filename)
+        except LockFilePermissionDenied, e:
+            output.error("Permission denied, unable to access '%s'" % e)
+        except (OSError, IOError), e:
+            output.error("%s", e)
 
     @contextmanager
     def xlogdb(self, mode='r'):
