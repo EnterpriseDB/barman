@@ -1,3 +1,79 @@
+2014-04-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2014-04-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Always pass --checksum to rsync invocations
+
+	Emit a warning if backup_options is set to an invalid value
+
+	Clarify some "permission denied" error
+
+2014-04-08  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Cosmetic change: Pgespresso -> pgespresso
+
+2014-04-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update RPM spec file for 1.3.1
+
+2014-04-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Prepared documentation for version 1.3.1
+
+2014-04-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix 'barman diagnose' python3 support
+
+	Improved logging and error reporting
+
+2014-04-03  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fixed SourceForge bug #36: Unhandled exception for minimum redundancy
+
+2014-04-03  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Empty strings are now treated as None in Barman configuration
+
+2014-04-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Removed spurious "file not found" message in cron output
+
+	Add release information to 'barman diagnose'
+
+	Sort 'barman show-server' output
+
+	Use a Tablespace object to carry tablespace information
+
+2014-03-26  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Protect during recovery tablespaces inside PGDATA
+	* When performing a recovery operation, tablespaces that will be recovered
+	  inside the new destination directory (PGDATA) are be 'protected' by
+	  rsync. This avoids overwrites by rsync when copying PGDATA content.
+	* Add debug messages to FS class
+
+2014-03-24  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Implementation of 'barman diagnose' command (JSON output)
+
+2014-03-21  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Concurrent backup using the 'pgespresso' extension
+	* Fix bwlimit tablespaces backup (missing destination directory)
+	* Purge unused wal files at first backup in concurrent mode
+	* Exclusion of recovery.conf during backup
+
+2014-03-19  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix unhandled exception in recover when destination dir is not writable
+
+2014-02-19  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make -q command line switch working again
+	Also demote "another cron is running" message from error to info level.
+
 2014-02-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
