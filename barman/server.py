@@ -192,15 +192,17 @@ class Server(object):
         else:
             output.result('check', self.config.name, 'PostgreSQL', False)
             return
-        if (self.config.backup_options == 'concurrent_backup' and
-                remote_status['pgespresso_installed']):
-            output.result('check', self.config.name, 'pgespresso extension',
-                          True)
-        elif (self.config.backup_options == 'concurrent_backup' and
-                  not remote_status['pgespresso_installed']):
-            output.result('check', self.config.name, 'pgespresso extension',
+
+        if self.config.backup_options == 'concurrent_backup':
+            if remote_status['pgespresso_installed']:
+                output.result('check', self.config.name,
+                        'pgespresso extension', True)
+            else:
+                output.result('check', self.config.name,
+                          'pgespresso extension',
                           False,
                           'required for concurrent backups')
+
         if remote_status['archive_mode'] == 'on':
             output.result('check', self.config.name, 'archive_mode', True)
         else:
@@ -329,6 +331,9 @@ class Server(object):
         """
         try:
             with self.pg_connect() as conn:
+                # pg_extension is only available from Postgres 9.1+
+                if self.server_version < 90100:
+                    return False
                 cur = conn.cursor()
                 cur.execute("select count(*) from pg_extension "
                             "where extname = 'pgespresso'")
@@ -347,6 +352,9 @@ class Server(object):
         """
         try:
             with self.pg_connect() as conn:
+                # pg_is_in_recovery is only available from Postgres 9.0+
+                if self.server_version < 90000:
+                    return False
                 cur = conn.cursor()
                 cur.execute("select pg_is_in_recovery()")
                 q_result = cur.fetchone()[0]
