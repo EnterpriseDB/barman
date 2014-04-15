@@ -1,6 +1,11 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2014 2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.3.2 - 15 Apr 2014
+
+* Fixed incompatibility with PostgreSQL 8.4 (Closes #40, bug
+  introduced in version 1.3.1)
+
 Version 1.3.1 - 14 Apr 2014
 
 * Added support for concurrent backup of PostgreSQL 9.2 and 9.3
