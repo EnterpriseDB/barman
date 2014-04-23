@@ -84,6 +84,7 @@ class Server(object):
         'custom_decompression_filter', 'retention_policy_mode',
         'retention_policy',
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
+        'pre_archive_script', 'post_archive_script',
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
         'backup_options', 'immediate_checkpoint', 'network_compression',
     ]
@@ -93,6 +94,7 @@ class Server(object):
         'custom_decompression_filter', 'retention_policy_mode',
         'retention_policy',
         'wal_retention_policy', 'pre_backup_script', 'post_backup_script',
+        'pre_archive_script', 'post_archive_script',
         'configuration_files_directory',
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
         'backup_options', 'immediate_checkpoint', 'network_compression',
