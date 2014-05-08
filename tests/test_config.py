@@ -80,7 +80,12 @@ TEST_CONFIG_MAIN = {
     'ssh_command': 'ssh -c arcfour -p 22 postgres@pg01',
     'tablespace_bandwidth_limit': None,
     'wal_retention_policy': 'base',
-    'wals_directory': 'wals'}
+    'wals_directory': 'wals',
+    'basebackup_retry_sleep': '10',
+    'basebackup_retry_times': '1',
+    'post_archive_script': None,
+    'pre_archive_script': None,
+}
 
 TEST_CONFIG_WEB = {
     'active': True,
@@ -107,7 +112,12 @@ TEST_CONFIG_WEB = {
     'ssh_command': 'ssh -I ~/.ssh/web01_rsa -c arcfour -p 22 postgres@web01',
     'tablespace_bandwidth_limit': None,
     'wal_retention_policy': 'base',
-    'wals_directory': '/srv/barman/web/wals'}
+    'wals_directory': '/srv/barman/web/wals',
+    'basebackup_retry_sleep': '10',
+    'basebackup_retry_times': '1',
+    'post_archive_script': None,
+    'pre_archive_script': None,
+    }
 
 MINIMAL_CONFIG = """
 [barman]
@@ -146,6 +156,10 @@ MINIMAL_CONFIG_MAIN = {
     'immediate_checkpoint': False,
     'network_compression': False,
     'backup_options': 'exclusive_backup',
+    'basebackup_retry_sleep': '10',
+    'basebackup_retry_times': '1',
+    'post_archive_script': None,
+    'pre_archive_script': None,
 }
 
 class Test(unittest.TestCase):

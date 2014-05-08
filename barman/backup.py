@@ -15,7 +15,9 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-''' This module represents a backup. '''
+"""
+This module represents a backup.
+"""
 
 from glob import glob
 import datetime
@@ -54,7 +56,9 @@ class BackupManager(object):
             'ssl_key_file', 'ssl_ca_file', 'ssl_crl_file',
             'unix_socket_directory']
     def __init__(self, server):
-        '''Constructor'''
+        """
+        Constructor
+        """
         self.name = "default"
         self.server = server
         self.config = server.config
@@ -191,6 +195,39 @@ class BackupManager(object):
                 yield "\t%s" % name
         yield "Done"
 
+    def retry_backup_copy(self, target_function, *args, **kwargs):
+        """
+        Execute the copy of a base bacup, retrying a given number of times
+
+        :param target_function: the base backup copy function
+        :param args: args for the copy function
+        :param kwargs: kwargs of the copy function
+        :return: the result of the copy function
+        """
+        attempts = 0
+        while True:
+            try:
+                # if is not the first attempt, output the retry number
+                if attempts > 1:
+                    output.warning("Copy of base backup: retry #%s", attempts)
+                return target_function(*args, **kwargs)
+            # catch rsync errors
+            except DataTransferFailure, e:
+                # exit condition: if retry number is lower than configured retry
+                # limit, try again; otherwise exit.
+                if attempts < self.config.basebackup_retry_times:
+                    output.warning(
+                        "Copy of base backup failed, waiting for next "
+                        "attempt in %s seconds",
+                        self.config.basebackup_retry_sleep)
+                    # sleep for configured time. then try again
+                    time.sleep(self.config.basebackup_retry_sleep)
+                    attempts += 1
+                else:
+                    # if the max number of attempts is reached an there is still
+                    # an error, exit re-raising the exception.
+                    raise
+
     def backup(self, immediate_checkpoint):
         """
         Performs a backup for the server
@@ -233,7 +270,9 @@ class BackupManager(object):
                 # Start the copy
                 self.current_action = "copying files"
                 output.info("Copying files.")
-                backup_size = self.backup_copy(backup_info)
+                # perform the backup copy, honouring the retry option if set
+                backup_size = self.retry_backup_copy(self.backup_copy,
+                                                     backup_info)
                 backup_info.set_attribute("size", backup_size)
                 output.info("Copy done.")
             except:
@@ -420,12 +459,11 @@ class BackupManager(object):
             wal_dest = os.path.join(dest, 'barman_xlog')
 
         # Copy the base backup
-        msg = "Copying the base backup."
-        yield msg
-        _logger.info(msg)
+        output.info("Copying the base backup.")
         try:
-            self.recover_basebackup_copy(backup, dest, tablespaces,
-                                         remote_command)
+            # perform the backup copy, honoring the retry option if set
+            self.retry_backup_copy(self.recover_basebackup_copy, backup, dest,
+                                   tablespaces, remote_command)
         except DataTransferFailure, e:
             raise SystemExit("Failure copying base backup: %s" % (e,))
         _logger.info("Base backup copied.")

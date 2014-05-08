@@ -87,6 +87,7 @@ class Server(object):
         'pre_archive_script', 'post_archive_script',
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
         'backup_options', 'immediate_checkpoint', 'network_compression',
+        'basebackup_retry_times', 'basebackup_retry_sleep',
     ]
 
     BARMAN_KEYS = [
@@ -98,6 +99,7 @@ class Server(object):
         'configuration_files_directory',
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
         'backup_options', 'immediate_checkpoint', 'network_compression',
+        'basebackup_retry_times', 'basebackup_retry_sleep',
     ]
 
     DEFAULTS = {
@@ -113,6 +115,8 @@ class Server(object):
         'backup_options': 'exclusive_backup',
         'immediate_checkpoint': 'false',
         'network_compression': 'false',
+        'basebackup_retry_times': '1',
+        'basebackup_retry_sleep': '10',
     }
 
     PARSERS = {
