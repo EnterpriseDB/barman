@@ -26,8 +26,11 @@ import logging
 from contextlib import contextmanager
 
 import psycopg2
+import sys
+import shutil
 
 from barman import output
+from barman.config import BackupOptions
 from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace
 from barman.lockfile import LockFile, LockFileBusy, \
     LockFilePermissionDenied
@@ -195,7 +198,7 @@ class Server(object):
             output.result('check', self.config.name, 'PostgreSQL', False)
             return
 
-        if self.config.backup_options == 'concurrent_backup':
+        if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
             if remote_status['pgespresso_installed']:
                 output.result('check', self.config.name,
                         'pgespresso extension', True)
@@ -576,8 +579,8 @@ class Server(object):
         :param immediate_checkpoint: Boolean for immediate checkpoint execution
         """
         with self.pg_connect() as conn:
-            if (self.config.backup_options != "concurrent_backup" and
-                    self.pg_is_in_recovery()):
+            if (BackupOptions.CONCURRENT_BACKUP not in
+                    self.config.backup_options and self.pg_is_in_recovery()):
                 raise Exception(
                     'Unable to start a backup because of server recovery state')
             try:
@@ -601,8 +604,8 @@ class Server(object):
         """
         with self.pg_connect() as conn:
 
-            if (self.config.backup_options == "concurrent_backup" and
-                    not self.pg_espresso_installed()):
+            if (BackupOptions.CONCURRENT_BACKUP in self.config.backup_options
+                and not self.pg_espresso_installed()):
                 raise Exception(
                     'pgespresso extension required for concurrent_backup')
             try:
@@ -624,7 +627,7 @@ class Server(object):
         :param backup_info: backup_info object
         :return:
         """
-        if self.config.backup_options != 'concurrent_backup':
+        if BackupOptions.CONCURRENT_BACKUP not in self.config.backup_options:
             start_row = self.pg_start_backup(label, immediate_checkpoint)
             start_xlog, start_file_name, start_file_offset, start_time = \
                 start_row
@@ -636,7 +639,7 @@ class Server(object):
             backup_info.set_attribute("begin_offset", start_file_offset)
             backup_info.set_attribute("begin_time", start_time)
 
-        elif self.config.backup_options == 'concurrent_backup':
+        else:
             start_row = self.pgespresso_start_backup(label,
                                                      immediate_checkpoint)
             backup_data, start_time = start_row
@@ -694,7 +697,7 @@ class Server(object):
         :param backup_info: backup_info object
         :return:
         """
-        if self.config.backup_options != 'concurrent_backup':
+        if BackupOptions.CONCURRENT_BACKUP not in self.config.backup_options:
             stop_row = self.pg_stop_backup()
             if stop_row:
                 stop_xlog, stop_file_name, stop_file_offset, stop_time = \

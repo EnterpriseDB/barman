@@ -39,6 +39,7 @@ from barman.command_wrappers import Rsync, RsyncPgData, CommandFailedException
 from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
 from barman.utils import human_readable_timedelta
+from barman.config import BackupOptions
 
 
 _logger = logging.getLogger(__name__)
@@ -183,15 +184,18 @@ class BackupManager(object):
         next_backup = self.get_next_backup(backup.backup_id)
         # remove the backup
         self.delete_basebackup(backup)
+        # We are deleting the first available backup
         if not previous_backup:
-            # If this is the first avalaible backup, remove unused WAL files
-            # If no backup left, remove all WAL files unless in concurrent_backup mode
-            # If in concurrent_backup mode, remove all WAL files prior to the
-            # backup that is being deleted
+            # In the case of exclusive backup (default), removes any WAL
+            # files associated to the backup being deleted.
+            # In the case of concurrent backup, removes only WAL files
+            # prior to the start of the backup being deleted, as they
+            # might be useful to any concurrent backup started immediately
+            # after.
             remove_until = None # means to remove all WAL files
             if next_backup:
                 remove_until = next_backup
-            elif self.config.backup_options == 'concurrent_backup':
+            elif BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
                 remove_until = backup
             yield "Delete associated WAL segments:"
             for name in self._remove_unused_wal_files(remove_until):
@@ -269,9 +273,9 @@ class BackupManager(object):
                     self._remove_unused_wal_files(backup_info)
 
                 output.info("Backup start at xlog location: %s (%s, %08X)",
-                                backup_info.begin_xlog,
-                                backup_info.begin_wal,
-                                backup_info.begin_offset)
+                            backup_info.begin_xlog,
+                            backup_info.begin_wal,
+                            backup_info.begin_offset)
 
                 # Start the copy
                 self.current_action = "copying files"
@@ -291,7 +295,7 @@ class BackupManager(object):
             finally:
                 self.backup_stop(backup_info)
 
-            if self.config.backup_options == 'concurrent_backup':
+            if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
                 self.current_action = "writing backup label"
                 self._write_backup_label(backup_info)
             backup_info.set_attribute("status", "DONE")
@@ -695,7 +699,8 @@ class BackupManager(object):
                 found = True
                 # Delete xlog segments only if the backup is exclusive
                 if (not len(available_backups) and
-                        (self.config.backup_options != "concurrent_backup")):
+                        (BackupOptions.CONCURRENT_BACKUP not in
+                             self.config.backup_options)):
                     output.info("\tNo base backup available. Trashing file %s"
                                 " from server %s",
                                 os.path.basename(filename), self.config.name)

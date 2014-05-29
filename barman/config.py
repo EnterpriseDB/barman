@@ -19,6 +19,7 @@
 This module is responsible for all the things related to
 Barman configuration, such as parsing configuration file.
 """
+import inspect
 
 import os
 import re
@@ -45,6 +46,98 @@ _TIME_INTERVAL_RE = re.compile(r"""
       """, re.IGNORECASE | re.VERBOSE)
 
 
+class CsvOption(set):
+
+    """
+    Base class for CSV options.
+
+    Given a comma delimited string, this class is a list containing the
+    submitted options.
+    Internally, it uses a set in order to avoid option replication.
+    Allowed values for the CSV option are contained in the 'value_list'
+    attribute.
+    The 'conflicts' attribute specifies for any value, the list of
+    values that are prohibited (and thus generate a conflict).
+    If a conflict is found, raises a ValueError exception.
+    """
+    value_list = []
+    conflicts = {}
+
+    def __init__(self, value, key, source):
+        # Invoke parent class init and initialize an empty set
+        super(CsvOption, self).__init__()
+
+        # Parse not None values
+        if value is not None:
+            self.parse(value, key, source)
+
+        # Validates the object structure before returning the new instance
+        self.validate(key, source)
+
+    def parse(self, value, key, source):
+        """
+        Parses a list of values and correctly assign the set of values
+        (removing duplication) and checking for conflicts.
+        """
+        if value == '':
+            return
+        values_list = value.split(',')
+        for val in values_list:
+            val = val.strip().lower()
+            if val in self.value_list:
+                # check for conflicting values. if a conflict is
+                # found the option is not valid then, raise exception.
+                if val in self.conflicts and self.conflicts[val] in self:
+                    raise ValueError("Invalid configuration value '%s' for "
+                                     "key %s in %s: cannot contain both "
+                                     "'%s' and '%s'."
+                                     "Configuration directive ignored." %
+                                     (val, key, source, val,
+                                      self.conflicts[val]))
+                else:
+                    #otherwise use parsed value
+                    self.add(val)
+            else:
+                # not allowed value, reject the configuration
+                raise ValueError("Invalid configuration value '%s' for "
+                                 "key %s in %s: Unknown option" %
+                                 (val, key, source))
+
+    def validate(self, key, source):
+        """
+        Override this method for special validation needs
+        """
+
+
+class BackupOptions(CsvOption):
+    """
+    Extends CsvOption class providing all the details for the backup_options
+    field
+    """
+    # constants containing labels for allowed values
+    EXCLUSIVE_BACKUP = 'exclusive_backup'
+    CONCURRENT_BACKUP = 'concurrent_backup'
+
+    #list holding all the allowed values for the BackupOption class
+    value_list = [EXCLUSIVE_BACKUP, CONCURRENT_BACKUP]
+    # map holding all the possible conflicts between the allowed values
+    conflicts = {
+        EXCLUSIVE_BACKUP: CONCURRENT_BACKUP,
+        CONCURRENT_BACKUP: EXCLUSIVE_BACKUP, }
+
+    def validate(self, key, source):
+        """
+        Validates backup_option values: currently it makes sure
+        that either exclusive_backup or concurrent_backup are set.
+        """
+        if self.CONCURRENT_BACKUP not in self \
+                and self.EXCLUSIVE_BACKUP not in self:
+            raise ValueError("Invalid configuration value for "
+                             "key %s in %s: it must contain either "
+                             "exclusive_backup or concurrent_backup option"
+                             % (key, source))
+
+
 def parse_boolean(value):
     """
     Parse a string to a boolean value
@@ -57,24 +150,6 @@ def parse_boolean(value):
     if _FALSE_RE.match(value):
         return False
     raise ValueError("Invalid boolean representation (use 'true' or 'false')")
-
-
-def parse_backup_options(value):
-    """
-    Parse a string to a valid backup_options value.
-
-    At the moment only one option is allowed and it must be
-    either "concurrent_backup" or "exclusive_backup"
-
-    :param str value: backup_options value
-    :raises ValueError: if the value is invalid
-    """
-    if value.lower() == "concurrent_backup":
-        return "concurrent_backup"
-    if value.lower() == "exclusive_backup":
-        return "exclusive_backup"
-    raise ValueError("Invalid value "
-                     "(use 'concurrent_backup' or 'exclusive_backup')")
 
 
 def parse_time_interval(value):
@@ -152,7 +227,7 @@ class Server(object):
         'retention_policy_mode': 'auto',
         'wal_retention_policy': 'main',
         'minimum_redundancy': '0',
-        'backup_options': 'exclusive_backup',
+        'backup_options': "%s" % BackupOptions.EXCLUSIVE_BACKUP,
         'immediate_checkpoint': 'false',
         'network_compression': 'false',
         'basebackup_retry_times': '1',
@@ -164,50 +239,86 @@ class Server(object):
         'active': parse_boolean,
         'immediate_checkpoint': parse_boolean,
         'network_compression': parse_boolean,
-        'backup_options': parse_backup_options,
+        'backup_options': BackupOptions,
         'basebackup_retry_times': int,
         'basebackup_retry_sleep': int,
         'last_backup_maximum_age': parse_time_interval,
     }
+
+    def invoke_parser(self, key, source, value, new_value):
+        """
+        Function used for parsing configuration values.
+        If needed, it uses special parsers from the PARSERS map,
+        and handles parsing exceptions.
+
+        Uses two values (value and new_value) to manage
+        configuration hierarchy (server config overwrites global config).
+
+        :param str key: the name of the configuration option
+        :param str source: the section that contains the configuration option
+        :param value: the old value of the option if present.
+        :param str new_value: the new value that needs to be parsed
+        :return: the parsed value of a configuration option
+        """
+        # If the new value is None, returns the old value
+        if new_value is None:
+            return value
+        # If we have a parser for the current key, use it to obtain the
+        # actual value. If an exception is thrown, print a warning and
+        # ignore the value.
+        # noinspection PyBroadException
+        if key in self.PARSERS:
+            parser = self.PARSERS[key]
+            try:
+                # If the parser is a subclass of the CsvOption class
+                # we need a different invocation, which passes not only
+                # the value to the parser, but also the key name
+                # and the section that contains the configuration
+                if inspect.isclass(parser) \
+                        and issubclass(parser, CsvOption):
+                    value = parser(new_value, key, source)
+                else:
+                    value = parser(new_value)
+            except Exception, e:
+                output.warning("Invalid configuration value '%s' for key %s"
+                               " in %s: %s",
+                               value, key, source, e)
+                _logger.exception(e)
+        else:
+            value = new_value
+        return value
 
     def __init__(self, config, name):
         self.config = config
         self.name = name
         self.barman_home = config.get('barman', 'barman_home')
         for key in Server.KEYS:
+            value = None
             # Get the setting from the [name] section of config file
             # A literal None value is converted to an empty string
-            value = config.get(name, key, self.__dict__, none_value='')
+            new_value = config.get(name, key, self.__dict__, none_value='')
             source = '[%s] section' % name
-
+            value = self.invoke_parser(key, source, value, new_value)
             # If the setting isn't present in [name] section of config file
             # check if it has to be inherited from the [barman] section
             if value is None and key in Server.BARMAN_KEYS:
-                value = config.get('barman', key)
+                new_value = config.get('barman',
+                                       key,
+                                       self.__dict__,
+                                       none_value='')
                 source = '[barman] section'
-
+                value = self.invoke_parser(key, source, value, new_value)
             # If the setting isn't present in [name] section of config file
             # and is not inherited from global section use its default
             # (if present)
             if value is None and key in Server.DEFAULTS:
-                value = Server.DEFAULTS[key] % self.__dict__
+                new_value = Server.DEFAULTS[key] % self.__dict__
                 source = 'DEFAULTS'
+                value = self.invoke_parser(key, source, value, new_value)
             # An empty string is a None value (bypassing inheritance
             # from global configuration)
-            if value is not None and len(value) == 0:
+            if value is not None and value == '':
                 value = None
-            # If we have a parser for the current key use it to obtain the
-            # actual value. If an exception is thrown output a warning and
-            # ignore the value.
-            # noinspection PyBroadException
-            try:
-                if key in self.PARSERS:
-                    value = self.PARSERS[key](value)
-            except Exception, e:
-                output.warning("Invalid configuration value '%s' for key %s"
-                               " in %s: %s",
-                               value, key, source, e)
-                _logger.exception(e)
             setattr(self, key, value)
 
 
@@ -237,7 +348,7 @@ class Config(object):
             for path in self.CONFIG_FILES:
                 full_path = os.path.expanduser(path)
                 if os.path.exists(full_path) \
-                    and full_path in self._config.read(full_path):
+                        and full_path in self._config.read(full_path):
                     filename = full_path
                     break
         self.config_file = filename
@@ -343,8 +454,10 @@ class Config(object):
         self._populate_servers()
         return self._servers.get(name, None)
 
-# easy config diagnostic with python -m
-if __name__ == "__main__":
+
+# easy raw config diagnostic with python -m
+# noinspection PyProtectedMember
+def _main():
     print "Active configuration settings:"
     r = Config()
     r.load_configuration_files_directory()
@@ -352,3 +465,7 @@ if __name__ == "__main__":
         print "Section: %s" % section
         for option in r._config.options(section):
             print "\t%s = %s " % (option, r.get(section, option))
+
+
+if __name__ == "__main__":
+    _main()

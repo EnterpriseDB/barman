@@ -18,13 +18,15 @@
 import os
 import unittest
 from datetime import timedelta
+import mock
 import pytest
 
 try:
     from cStringIO import StringIO
 except ImportError:
     from io import StringIO
-from barman.config import Config, parse_time_interval
+from barman.config import Config, parse_time_interval, BackupOptions
+from mock import patch
 
 
 TEST_CONFIG = """
@@ -63,7 +65,7 @@ last_backup_maximum_age = '1 day'
 TEST_CONFIG_MAIN = {
     'active': True,
     'backup_directory': 'main',
-    'backup_options': 'exclusive_backup',
+    'backup_options': BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", ""),
     'bandwidth_limit': None,
     'barman_home': '/srv/barman',
     'basebackups_directory': 'base',
@@ -96,7 +98,7 @@ TEST_CONFIG_MAIN = {
 TEST_CONFIG_WEB = {
     'active': True,
     'backup_directory': '/srv/barman/web',
-    'backup_options': 'exclusive_backup',
+    'backup_options': BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", ""),
     'bandwidth_limit': None,
     'barman_home': '/srv/barman',
     'basebackups_directory': '/srv/barman/web/base',
@@ -162,7 +164,7 @@ MINIMAL_CONFIG_MAIN = {
     'tablespace_bandwidth_limit': None,
     'immediate_checkpoint': False,
     'network_compression': False,
-    'backup_options': 'exclusive_backup',
+    'backup_options': BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", ""),
     'basebackup_retry_sleep': 10,
     'basebackup_retry_times': 1,
     'post_archive_script': None,
@@ -170,16 +172,59 @@ MINIMAL_CONFIG_MAIN = {
     'last_backup_maximum_age': None,
 }
 
-class Test(unittest.TestCase):
+
+def _build_config(barman, main):
+    """
+    utility method, generate a ini string containing a minimal configuration
+    for barman and a server, called Main
+    :param barman:  using this dictionary is possible to override/add new values
+                    to the [barman] section of the configuration file
+    :param main:    using this dictionary is possible to override/add new values
+                    to the [main] section of the configuration file
+    :return:        a StringIO object that is the representation of a minimal
+                    configuration file
+    """
+    # base barman section
+    base_barman = {
+        'barman_home': '/srv/barman',
+        'barman_user': '{USER}',
+        'log': '%(barman_home)s/log/barman.log'
+    }
+    # base main section
+    base_main = {
+        'description': '" Text with quotes "',
+        'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01',
+        'conninfo': 'host=pg01 user=postgres port=5432'
+    }
+    # update map values of the two sections
+    if barman is not None:
+        base_barman.update(barman)
+    if main is not None:
+        base_main.update(main)
+
+    # writing the StringIO obj with the barman and main sections
+    out = StringIO()
+    out.write('\n[barman]\n')
+    for key in base_barman.keys():
+        out.write('%s = %s\n' % (key, base_barman[key]))
+
+    out.write('[main]\n')
+    for key in base_main.keys():
+        out.write('%s = %s\n' % (key, base_main[key]))
+    a = out.getvalue()
+    out.seek(0)
+    return out
+
+
+class Test(object):
 
     def test_server_list(self):
         fp = StringIO(TEST_CONFIG.format(**os.environ))
         c = Config(fp)
         dbs = c.server_names()
-        self.assertEqual(set(dbs), set(['main', 'web']))
+        assert set(dbs) == set(['main', 'web'])
 
     def test_config(self):
-        self.maxDiff = None
         fp = StringIO(TEST_CONFIG.format(**os.environ))
         c = Config(fp)
 
@@ -193,16 +238,14 @@ class Test(unittest.TestCase):
         expected.update(TEST_CONFIG_WEB)
         assert web.__dict__ == expected
 
-
     def test_quotes(self):
         fp = StringIO(MINIMAL_CONFIG.format(**os.environ))
         c = Config(fp)
         main = c.get_server('main')
-        self.assertEqual(main.description, ' Text with quotes ')
-        self.assertEqual(main.ssh_command, 'ssh -c "arcfour" -p 22 postgres@pg01')
+        assert main.description == ' Text with quotes '
+        assert main.ssh_command == 'ssh -c "arcfour" -p 22 postgres@pg01'
 
     def test_interpolation(self):
-        self.maxDiff = None
         fp = StringIO(MINIMAL_CONFIG.format(**os.environ))
         c = Config(fp)
         main = c.get_server('main')
@@ -230,6 +273,176 @@ class Test(unittest.TestCase):
         # so we expect a ValueError exception
         with pytest.raises(ValueError):
             parse_time_interval('test_string')
+
+class TestCsvParsing(object):
+    """
+    Csv parser test class
+    """
+
+    def test_csv_values_global_exclusive(self):
+        """
+        test case
+        global value: backup_options = exclusive_backup
+        server value: backup_options =
+        expected: backup_options = exclusive_backup
+
+        Empty value is not allowed in BackupOptions class, so we expect the
+        configuration parser to fall back to the global value.
+        """
+        # add backup_options configuration to minimal configuration string
+        fp = _build_config({'backup_options': BackupOptions.EXCLUSIVE_BACKUP},
+                           {'backup_options': ''})
+        # parse configuration
+        c = Config(fp)
+        main = c.get_server('main')
+
+        # create the expected dictionary
+        expected = dict(config=c)
+        expected.update(MINIMAL_CONFIG_MAIN)
+
+        assert main.__dict__ == expected
+
+    @patch('barman.config.output')
+    def test_csv_values_global_conflict(self, out_mock):
+        """
+        test case
+        global value: backup_options = exclusive_backup, concurrent_backup
+        server value: backup_options =
+        expected: backup_options = exclusive_backup
+
+        Empty value is not allowed in BackupOptions class, so we expect the
+        configuration parser to fall back to the global value.
+        The global backup_options holds conflicting parameters, so we expect the
+        config builder to fall back to ignore de directive.
+        """
+        # build a string with conflicting values
+        conflict = "%s, %s" % (BackupOptions.EXCLUSIVE_BACKUP,
+                               BackupOptions.CONCURRENT_BACKUP)
+        # add backup_options to minimal configuration string
+        fp = _build_config({'backup_options': conflict}, None)
+        # parse configuration from string
+        c = Config(fp)
+        main = c.get_server('main')
+        # create the expected dictionary
+        expected = dict(config=c)
+        expected.update(MINIMAL_CONFIG_MAIN)
+        assert main.__dict__ == expected
+        # use the mocked output class to verify the presence of the warning
+        # for a bad configuration parameter
+        out_mock.warning.assert_called_with("Invalid configuration value '%s' "
+                                            "for key %s in %s: %s", None,
+                                            'backup_options',
+                                            '[barman] section', mock.ANY)
+
+    @patch('barman.config.output')
+    def test_csv_values_invalid_server_value(self, out_mock):
+        """
+        test case
+        global: backup_options = exclusive_backup
+        server: backup_options = none_of_your_business
+        result = backup_options = exclusive_backup
+
+        The 'none_of_your_business' value on server section,
+        is not an allowed value for the BackupOptions class,
+        We expect to the config builder to fallback to the global
+        'exclusive_backup' value
+        """
+        # add backup_options to minimal configuration string
+        fp = _build_config({'backup_options': BackupOptions.EXCLUSIVE_BACKUP},
+                           {'backup_options': 'none_of_your_business'})
+        # parse configuration from string
+        c = Config(fp)
+        main = c.get_server('main')
+        # create the expected dictionary
+        expected = dict(config=c)
+        expected.update(MINIMAL_CONFIG_MAIN)
+        assert main.__dict__ == expected
+        # use the mocked output class to verify the presence of the warning
+        # for a bad configuration parameter
+        out_mock.warning.assert_called_with("Invalid configuration value '%s' "
+                                            "for key %s in %s: %s",
+                                            None, 'backup_options',
+                                            '[main] section', mock.ANY)
+
+    @patch('barman.config.output')
+    def test_csv_values_multikey_invalid_server_value(self, out_mock):
+        """
+        test case
+        globale: backup_options = concurrent_backup
+        server: backup_options = exclusive_backup, none_of_your_business
+        risultato = backup_options = concurrent_backup
+
+        the 'none_of_your_business' value on server section invalidates the whole
+        csv string, because is not an allowed value of the BackupOptions class.
+        We expect to fallback to the global 'concurrent_backup' value.
+        """
+        # build a string with a wrong value
+        wrong_parameters = "%s, %s" % (BackupOptions.EXCLUSIVE_BACKUP,
+                                       'none_of_your_business')
+        # add backup_options to minimal configuration string
+        fp = _build_config({'backup_options': BackupOptions.CONCURRENT_BACKUP},
+                           {'backup_options': wrong_parameters})
+        # parse configuration from string
+        c = Config(fp)
+        main = c.get_server('main')
+        # create the expected dictionary
+        expected = dict(config=c)
+        expected.update(MINIMAL_CONFIG_MAIN)
+        # override the backup_options value in the expected dictionary
+        expected['backup_options'] = BackupOptions(BackupOptions.CONCURRENT_BACKUP, "", "")
+
+        assert main.__dict__ == expected
+        # use the mocked output class to verify the presence of the warning
+        # for a bad configuration parameter
+        out_mock.warning.assert_called_with("Invalid configuration value '%s' "
+                                            "for key %s in %s: %s", None,
+                                            'backup_options',
+                                            '[main] section', mock.ANY)
+
+    def test_csv_values_global_concurrent(self):
+        """
+        test case
+        global value: backup_options = concurrent_backup
+        expected: backup_options = concurrent_backup
+
+        Simple test for concurrent_backup option parsing
+        """
+        # add backup_options to minimal configuration string
+        fp = _build_config({'backup_options': BackupOptions.CONCURRENT_BACKUP},
+                           None)
+        # parse the configuration from string
+        c = Config(fp)
+        main = c.get_server('main')
+
+        expected = dict(config=c)
+        expected.update(MINIMAL_CONFIG_MAIN)
+        # override the backup_options value in the expected dictionary
+        expected['backup_options'] = BackupOptions(
+            BackupOptions.CONCURRENT_BACKUP, "", "")
+
+        assert main.__dict__ == expected
+
+    def test_backup_option_parser(self):
+        """
+        Test of the BackupOption class alone.
+
+        Builds the class using 'concurrent_backup', then using
+        'exclusive_backup' as values.
+        Then tests for ValueError conditions
+        """
+        # Builds using the two allowed values
+        assert set([BackupOptions.CONCURRENT_BACKUP]) == \
+            BackupOptions(BackupOptions.CONCURRENT_BACKUP, "", "")
+        assert set([BackupOptions.EXCLUSIVE_BACKUP]) == \
+            BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", "")
+        # build using a not allowed value
+        with pytest.raises(ValueError):
+            BackupOptions("test_string", "", "")
+        # conflicting values error
+        with pytest.raises(ValueError):
+            conflict = "%s, %s" % (BackupOptions.EXCLUSIVE_BACKUP,
+                                   BackupOptions.CONCURRENT_BACKUP)
+            BackupOptions(conflict, "", "")
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
