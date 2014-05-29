@@ -649,12 +649,11 @@ class Server(object):
                 backup_info.set_attribute("end_wal", stop_file_name)
                 backup_info.set_attribute("end_offset", stop_file_offset)
             else:
-                self.current_action = "starting the backup: PostgreSQL server " \
-                                      "" \
-                                      "is already in exclusive backup mode"
-                raise Exception('concurrent exclusive backups are not allowed')
+                raise Exception('Cannot terminate exclusive backup. You might '
+                        'have to manually execute pg_stop_backup() on your '
+                        'Postgres server')
 
-        elif self.config.backup_options == 'concurrent_backup':
+        else:
 
             end_wal = self.pgespresso_stop_backup(backup_info.backup_label)
             if end_wal:
@@ -667,7 +666,9 @@ class Server(object):
                 backup_info.set_attribute("end_wal", end_wal)
                 backup_info.set_attribute("end_offset", 0)
             else:
-                raise Exception('Concurrent stop backup failed')
+                raise Exception('Cannot terminate exclusive backup. You might '
+                        'have to manually execute pg_espresso_abort_backup() '
+                        'on your Postgres server')
 
     def delete_backup(self, backup):
         '''Deletes a backup

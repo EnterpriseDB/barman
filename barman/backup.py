@@ -203,7 +203,8 @@ class BackupManager(object):
         try:
             backup_info = BackupInfo(
                 self.server,
-                backup_id=backup_stamp.strftime('%Y%m%dT%H%M%S'))
+                backup_id=backup_stamp.strftime('%Y%m%dT%H%M%S'),
+                begin_time=backup_stamp)
             backup_info.save()
             output.info(
                 "Starting backup for server %s in %s",
@@ -215,24 +216,22 @@ class BackupManager(object):
             script.env_from_backup_info(backup_info)
             script.run()
 
-            # Start the backup
+            # Start the backup, all the subsequent code must be wrapped in a
+            # try except block which finally issue a backup_stop command
             self.backup_start(backup_info, immediate_checkpoint)
-            backup_info.set_attribute("begin_time", backup_stamp)
-            backup_info.save()
-
-            # If we are the first backup, purge unused WAL files
-            previous_backup = self.get_previous_backup(backup_info.backup_id)
-            if not previous_backup:
-                self._remove_unused_wal_files(backup_info)
-
-            output.info("Backup start at xlog location: %s (%s, %08X)",
-                            backup_info.begin_xlog,
-                            backup_info.begin_wal,
-                            backup_info.begin_offset)
-
-            self.current_action = "copying files"
             try:
+                # If we are the first backup, purge unused WAL files
+                previous_backup = self.get_previous_backup(backup_info.backup_id)
+                if not previous_backup:
+                    self._remove_unused_wal_files(backup_info)
+
+                output.info("Backup start at xlog location: %s (%s, %08X)",
+                                backup_info.begin_xlog,
+                                backup_info.begin_wal,
+                                backup_info.begin_offset)
+
                 # Start the copy
+                self.current_action = "copying files"
                 output.info("Copying files.")
                 backup_size = self.backup_copy(backup_info)
                 backup_info.set_attribute("size", backup_size)
