@@ -28,7 +28,8 @@ try:
     from cStringIO import StringIO
 except ImportError:
     from io import StringIO
-from barman.config import Config, parse_time_interval, BackupOptions
+from barman.config import Config, parse_time_interval, RecoveryOptions, \
+    BackupOptions
 from mock import patch
 
 MINIMAL_CONFIG = """
@@ -427,6 +428,55 @@ class TestCsvParsing(object):
             conflict = "%s, %s" % (BackupOptions.EXCLUSIVE_BACKUP,
                                    BackupOptions.CONCURRENT_BACKUP)
             BackupOptions(conflict, "", "")
+
+    def test_csv_values_recovery_options(self):
+        """
+        Simple test for recovery_options values: '' and get-wal
+
+        test case
+        global value: recovery_options = ''
+        expected: recovery_options = None
+
+        test case
+        global value: recovery_options = 'get-wal'
+        expected: recovery_options = empty RecoveryOptions obj
+        """
+        # Build configuration with empty recovery_options
+        c = build_config_from_dicts({'recovery_options': ''}, None)
+        main = c.get_server('main')
+
+        expected = build_config_dictionary({
+            'config': c,
+            'recovery_options': RecoveryOptions('', '', ''),
+        })
+        assert main.__dict__ == expected
+
+        # Build configuration with recovery_options set to get-wal
+        c = build_config_from_dicts({'recovery_options': 'get-wal'}, None)
+        main = c.get_server('main')
+
+        expected = build_config_dictionary({
+            'config': c,
+            'recovery_options': RecoveryOptions('get-wal', '', ''),
+        })
+        assert main.__dict__ == expected
+
+    def test_recovery_option_parser(self):
+        """
+        Test of the RecoveryOptions class.
+
+        Builds the class using '', then using
+        'get-wal' as values.
+        Tests for ValueError conditions
+        """
+        # Builds using the two allowed values
+        assert set([]) == \
+            RecoveryOptions('', '', '')
+        assert set([RecoveryOptions.GET_WAL]) == \
+            RecoveryOptions(RecoveryOptions.GET_WAL, '', '')
+        # build using a not allowed value
+        with pytest.raises(ValueError):
+            BackupOptions("test_string", "", "")
 
     @patch('barman.config.output')
     def test_invalid_option_output(self, out_mock):

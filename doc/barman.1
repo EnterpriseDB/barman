@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 07/02/2015
+.\"      Date: 08/11/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "07/02/2015" "\ \&" "\ \&"
+.TH "BARMAN" "1" "08/11/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -437,6 +437,31 @@ Same as
 .RS 4
 Number of seconds of wait after a failed copy, before retrying\&. Overrides value of the parameter
 basebackup_retry_sleep, if present in the configuration file\&.
+.RE
+.RE
+.PP
+\fBget\-wal [OPTIONS] SERVERNAME WALID\fR
+.RS 4
+Retrieve a WAL file from the
+xlog
+archive of a given server\&. By default, the requested WAL file, if found, is returned as uncompressed content to
+STDOUT\&. The following options allow users to change this behaviour:
+.PP
+*\-o OUTPUT_DIRECTORY
+.RS 4
+destination directory where the
+get\-wal
+will deposit the requested WAL
+.RE
+.PP
+*\-j
+.RS 4
+output will be compressed using gzip
+.RE
+.PP
+*\-x
+.RS 4
+output will be compressed using bzip2
 .RE
 .RE
 .PP

@@ -166,6 +166,7 @@ class TestRecoveryExecutor(object):
             'results': {'changes': [], 'warnings': []},
             'is_pitr': False,
             'wal_dest': wal_dest.strpath,
+            'get_wal': False,
         }
         backup_info = testing_helpers.build_test_backup_info()
         server = testing_helpers.build_mocked_server()
@@ -205,6 +206,7 @@ class TestRecoveryExecutor(object):
             'configuration_files': ['postgresql.conf', 'postgresql.auto.conf'],
             'tempdir': tmpdir.strpath,
             'results': {'changes': [], 'warnings': []},
+            'get_wal': False,
         }
         backup_info = testing_helpers.build_test_backup_info()
         dest = tmpdir.mkdir('destination')
@@ -373,6 +375,7 @@ class TestRecoveryExecutor(object):
                 dest.join('postgresql.auto.conf').strpath],
             'results': {
                 'delete_barman_xlog': False,
+                'get_wal': False,
                 'changes': [
                     Assertion._make([
                         'postgresql.conf',
@@ -402,6 +405,7 @@ class TestRecoveryExecutor(object):
             'target_datetime': None,
             'safe_horizon': None,
             'is_pitr': False,
+            'get_wal': False,
         }
         # test remote recovery
         rec_info = executor.recover(backup_info, dest.strpath, {}, None, None,
@@ -420,6 +424,7 @@ class TestRecoveryExecutor(object):
                 os.path.join(sys_tempdir, 'postgresql.auto.conf')],
             'results': {
                 'delete_barman_xlog': False,
+                'get_wal': False,
                 'changes': [
                     Assertion._make([
                         'postgresql.conf',
@@ -449,6 +454,7 @@ class TestRecoveryExecutor(object):
             'target_datetime': None,
             'safe_horizon': None,
             'is_pitr': False,
+            'get_wal': False,
         }
         # test failed rsync
         rsync_pg_mock.side_effect = CommandFailedException()

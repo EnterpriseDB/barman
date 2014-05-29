@@ -473,8 +473,8 @@ The +postgres+ user is normally used to recover on a remote host.
 There are some limitations when using remote recovery. It is important to be
 aware that:
 
-* Barman needs at least 4GB of free space in the system temporary directory
-(usually +/tmp+);
+* unless `get-wal` is specified in the `recovery_options` (available from version 1.5.0),
+Barman requires at least 4GB of free space in the system's temporary directory (usually +/tmp+);
 * the SSH connection between Barman and the remote host *must* use public key exchange authentication method;
 * the remote user must be able to create the required destination directories
 for +PGDATA+ and, where applicable, tablespaces;
@@ -657,6 +657,48 @@ in highly concurrent environments. You can now regenerate the WAL archive using 
 ----
 barman rebuild-xlogdb <server_name>
 ----
+
+==== Access WAL archive using +get-wal+
+
+From version 1.5.0, Barman allows users to request any _xlog_ file from its WAL archive through the
++get-wal+ command:
+
+----
+barman get-wal [-o OUTPUT_DIRECTORY] [-j|-x] <server_name> <wal_id>
+----
+
+If the requested WAL file is found in the server archive, the uncompressed content will be returned to +STDOUT+, unless otherwise specified.
+
+The following options are available for the +get-wal+ command:
+
+* `-o` allows users to specify a destination directory where Barman will deposit the requested WAL file
+* `-j` will compress the output using `bzip2` algorithm
+* `-x` will compress the output using `gzip` algorithm
+
+It is possible to use +get-wal+ during a recovery operation, transforming the Barman server in a _WAL hub_ for your servers.
+This can be automatically achieved by adding the `get-wal` value to the `recovery_options` global/server configuration option:
+
+----
+recovery_options = 'get-wal'
+----
+
+`recovery_options` is a global/server option that accepts a list of comma separated values.
+If the keyword `get-wal` is present, during a recovery operation Barman will prepare the `recovery.conf` file by setting the `restore_command` so that `barman get-wal` is used to fetch the required WAL files.
+
+This is an example of a `restore_command` for a remote recovery:
+
+----
+restore_command = 'ssh barman@pgbackup barman get-wal SERVER %f > %p'
+----
+
+This is an example of a `restore_command` for a local recovery:
+
+----
+restore_command = 'barman get-wal SERVER %f > %p'
+----
+
+[IMPORTANT]
+Even though `recovery_options` aims to automate the process, using the `get-wal` facility requires manual intervention and proper testing.
 
 === Backup commands
 

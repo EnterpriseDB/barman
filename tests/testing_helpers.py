@@ -233,6 +233,7 @@ def build_config_dictionary(config_keys=None):
         'network_compression': False,
         'post_backup_script': None,
         'pre_backup_script': None,
+        'recovery_options': set(),
         'retention_policy': None,
         'retention_policy_mode': 'auto',
         'reuse_backup': None,

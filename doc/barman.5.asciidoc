@@ -136,8 +136,7 @@ file inside the `/etc/barman.d` folder.
     Global/Server.
 
 *backup_options*::
-    This option allows you to enable to control the way PostgreSQL handles
-    backups:
+    This option allows you to control the way Barman interacts with PostgreSQL for backups.
     If set to +exclusive_backup+ (default), `barman backup` executes backup
     operations using the standard exclusive backup approach
     (technically through pg_start_backup/pg_stop_backup).
@@ -175,6 +174,13 @@ file inside the `/etc/barman.d` folder.
       and space). Requires operating system and file system support
       for hard links.
  
+*recovery_options*::
+    Options for recovery operations. Currently only supports `get-wal`.
+    `get-wal` activates generation of a basic `restore_command` in
+    the resulting `recovery.conf` file that uses the `barman get-wal`
+    command to fetch WAL files directly from Barman's archive of WALs.
+    Comma separated list of values, default empty. Global/Server.
+
 == HOOK SCRIPTS
 
 The script definition is passed to a shell and can return any exit code.

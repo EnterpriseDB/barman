@@ -24,12 +24,16 @@ from collections import namedtuple
 from contextlib import contextmanager
 import logging
 import os
+import shutil
+import sys
+from tempfile import NamedTemporaryFile
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 from barman import output
 from barman.backup import BackupManager
+from barman.compression import identify_compression
 from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace, \
     WalFileInfo
 from barman.lockfile import LockFileBusy, LockFilePermissionDenied, \
@@ -1076,6 +1080,92 @@ class Server(object):
         return self.backup_manager.recover(
             backup_info, dest, tablespaces, target_tli, target_time, target_xid,
             target_name, exclusive, remote_command)
+
+    def get_wal(self, wal_name, compression=None, output_directory=None):
+        """
+        Retrieve a WAL file from the archive
+
+        :param str wal_name: id of the WAL file to find into the WAL archive
+        :param str|None compression: compression format for the output
+        :param str|None output_directory: directory where to deposit the WAL file
+        """
+        # Get the WAL file full path
+        wal_file = self.get_wal_full_path(wal_name)
+
+        # Check for file existence
+        if not os.path.exists(wal_file):
+            output.error("WAL file '%s' not found in server '%s'",
+                         wal_name, self.config.name)
+            return
+
+        # If an output directory was provided write the file inside it
+        # otherwise we use standard output
+        if output_directory is not None:
+            destination_path = os.path.join(output_directory, wal_name)
+            try:
+                destination = open(destination_path, 'w')
+                output.info("Writing WAL '%s' for server '%s' into '%s' file",
+                            wal_name, self.config.name, destination_path)
+            except IOError as e:
+                output.error("Unable to open '%s' file: %s" %
+                             destination_path, e)
+                return
+        else:
+            destination = sys.stdout
+
+        # Get a decompressor for the file (None if not compressed)
+        wal_compressor = self.backup_manager.compression_manager \
+            .get_compressor(compression=identify_compression(wal_file))
+
+        # Get a compressor for the output (None if not compressed)
+        # Here we need to handle explicitly the None value because we don't
+        # want it ot fallback to the configured compression
+        if compression is not None:
+            out_compressor = self.backup_manager.compression_manager\
+                .get_compressor(compression=compression)
+        else:
+            out_compressor = None
+
+        # Initially our source is the stored WAL file and we do not have
+        # any temporary file
+        source_file = wal_file
+        uncompressed_file = None
+        compressed_file = None
+
+        # If the required compression is different from the source we
+        # decompress/compress it into the required format (getattr is
+        # used here to gracefully handle None objects)
+        if getattr(wal_compressor, 'compression', None) != \
+                getattr(out_compressor, 'compression', None):
+            # If source is compressed, decompress it into a temporary file
+            if wal_compressor is not None:
+                uncompressed_file = NamedTemporaryFile(
+                    dir=self.config.wals_directory,
+                    prefix='.%s.' % wal_name,
+                    suffix='.uncompressed')
+                # decompress wal file
+                wal_compressor.decompress(source_file, uncompressed_file.name)
+                source_file = uncompressed_file.name
+
+            # If output compression is required compress the source
+            # into a temporary file
+            if out_compressor is not None:
+                compressed_file = NamedTemporaryFile(
+                    dir=self.config.wals_directory,
+                    prefix='.%s.' % wal_name,
+                    suffix='.compressed')
+                out_compressor.compress(source_file, compressed_file.name)
+                source_file = compressed_file.name
+
+        # Copy the prepared source file to destination
+        with open(source_file) as input_file:
+            shutil.copyfileobj(input_file, destination)
+
+        # Remove temp files
+        if uncompressed_file is not None:
+            uncompressed_file.close()
+        if compressed_file is not None:
+            compressed_file.close()
 
     def cron(self, verbose=True, wals=True, retention_policies=True):
         """

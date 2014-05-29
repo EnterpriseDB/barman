@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 07/02/2015
+.\"      Date: 08/11/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "07/02/2015" "\ \&" "\ \&"
+.TH "BARMAN" "5" "08/11/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -209,7 +209,7 @@ true, compression is enabled, reducing network usage\&. Global/Server\&.
 .PP
 \fBbackup_options\fR
 .RS 4
-This option allows you to enable to control the way PostgreSQL handles backups: If set to
+This option allows you to control the way Barman interacts with PostgreSQL for backups\&. If set to
 exclusive_backup
 (default),
 barman backup
@@ -273,6 +273,20 @@ copy
 link
 \- reuse the last available backup for a server and create a hard link of the unchanged files (reduce backup time and space)\&. Requires operating system and file system support for hard links\&.
 .RE
+.RE
+.PP
+\fBrecovery_options\fR
+.RS 4
+Options for recovery operations\&. Currently only supports
+get\-wal\&.
+get\-wal
+activates generation of a basic
+restore_command
+in the resulting
+recovery\&.conf
+file that uses the
+barman get\-wal
+command to fetch WAL files directly from Barman\(cqs archive of WALs\&. Comma separated list of values, default empty\&. Global/Server\&.
 .RE
 .SH "HOOK SCRIPTS"
 .sp

@@ -153,6 +153,18 @@ class BackupOptions(CsvOption):
                              % (key, source))
 
 
+class RecoveryOptions(CsvOption):
+    """
+    Extends CsvOption class providing all the details for the recovery_options
+    field
+    """
+    # constants containing labels for allowed values
+    GET_WAL = 'get-wal'
+
+    # list holding all the allowed values for the RecoveryOptions class
+    value_list = [GET_WAL]
+
+
 def parse_boolean(value):
     """
     Parse a string to a boolean value
@@ -235,6 +247,7 @@ class ServerConfig(object):
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
         'reuse_backup',
         'backup_options', 'immediate_checkpoint', 'network_compression',
+        'recovery_options',
         'basebackup_retry_times', 'basebackup_retry_sleep',
         'last_backup_maximum_age',
     ]
@@ -249,6 +262,7 @@ class ServerConfig(object):
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
         'reuse_backup',
         'backup_options', 'immediate_checkpoint', 'network_compression',
+        'recovery_options',
         'basebackup_retry_times', 'basebackup_retry_sleep',
         'last_backup_maximum_age',
     ]
@@ -264,6 +278,7 @@ class ServerConfig(object):
         'wal_retention_policy': 'main',
         'minimum_redundancy': '0',
         'backup_options': "%s" % BackupOptions.EXCLUSIVE_BACKUP,
+        'recovery_options': '',
         'immediate_checkpoint': 'false',
         'network_compression': 'false',
         'basebackup_retry_times': '0',
@@ -283,6 +298,7 @@ class ServerConfig(object):
         'reuse_backup': parse_reuse_backup,
         'basebackup_retry_times': int,
         'basebackup_retry_sleep': int,
+        'recovery_options': RecoveryOptions,
         'last_backup_maximum_age': parse_time_interval,
     }
 

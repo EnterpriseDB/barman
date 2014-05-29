@@ -498,6 +498,40 @@ def delete(args):
     output.close_and_exit()
 
 
+@named('get-wal')
+@arg('server_name',
+     completer=server_completer,
+     help='specifies the server name for the command')
+@arg('wal_name',
+     help='the WAL file to get')
+@arg('--output-directory', '-o',
+     help='put the retrieved WAL file in this directory with the original name',
+     default=SUPPRESS)
+@arg('--gzip', '-x',
+     help='compress the output with gzip',
+     action='store_const', const='gzip', dest='compression', default=SUPPRESS)
+@arg('--bzip2', '-j',
+     help='compress the output with bzip2',
+     action='store_const', const='bzip2', dest='compression', default=SUPPRESS)
+@expects_obj
+def get_wal(args):
+    """
+    Retrieve WAL_NAME file from SERVER_NAME archive.
+    The content will be streamed on standard output unless
+    the --output-directory option is specified.
+    """
+    server = get_server(args)
+    # Retrieve optional arguments. If an argument is not specified,
+    # the namespace doesn't contain it due to SUPPRESS default.
+    # In that case we pick 'None' using getattr third argument.
+    compression = getattr(args, 'compression', None)
+    output_directory = getattr(args, 'output_directory', None)
+    server.get_wal(args.wal_name,
+                   compression=compression,
+                   output_directory=output_directory)
+    output.close_and_exit()
+
+
 def global_config(args):
     """
     Set the configuration file
@@ -784,6 +818,7 @@ def main():
             list_backup,
             show_backup,
             list_files,
+            get_wal,
             recover,
             delete,
             rebuild_xlogdb,

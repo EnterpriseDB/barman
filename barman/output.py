@@ -440,6 +440,15 @@ class ConsoleOutputWriter(object):
                       "\"barman_xlog\" directory")
             self.info("inside the PostgreSQL data directory.")
 
+        if results['get_wal']:
+            self.info("")
+            self.info("WARNING: 'get-wal' is in the specified "
+                      "'recovery_options'.")
+            self.info("Before you start up the PostgreSQL server, please "
+                      "review the recovery.conf file")
+            self.info("inside the target directory. Make sure that "
+                      "'restore_command' can be executed by "
+                      "the PostgreSQL user.")
         self.info("")
         self.info("Your PostgreSQL server has been successfully "
                   "prepared for recovery!")

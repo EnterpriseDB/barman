@@ -30,6 +30,8 @@ import time
 import collections
 import dateutil.parser
 import dateutil.tz
+import socket
+from barman.config import RecoveryOptions
 
 from barman import xlog, output
 from barman.command_wrappers import DataTransferFailure, \
@@ -346,8 +348,32 @@ class RecoveryExecutor(object):
                                          'recovery.conf'), 'w')
         else:
             recovery = open(os.path.join(dest, 'recovery.conf'), 'w')
-        print >> recovery, "restore_command = 'cp barman_xlog/%f %p'"
-        if backup_info.version >= 80400:
+
+        # If GET_WAL has been set, use the get-wal command to retrieve the
+        # required wal files. Otherwise use the unix command "cp" to copy
+        # them from the barman_xlog directory
+        if recovery_info['get_wal']:
+            # We need to guess the right way to execute the "barman"
+            # command on the Barman server.
+            # If remote recovery we use the machine FQDN and the barman_user
+            # setting to build an ssh command.
+            # If local recovery, we use barman directly, assuming
+            # the postgres process will be executed with the barman user.
+            # It has to be reviewed by the user in any case.
+            if remote_command:
+                fqdn = socket.getfqdn()
+                barman_command = 'ssh "%s@%s" barman' % (
+                    self.config.config.user, fqdn)
+            else:
+                barman_command = 'barman'
+            print >> recovery,\
+                "restore_command = '%s get-wal %s %%f > %%p'" % (
+                    barman_command, self.config.name)
+            recovery_info['results']['get_wal'] = True
+        else:
+            print >> recovery, "restore_command = 'cp barman_xlog/%f %p'"
+        if backup_info.version >= 80400 and \
+                not recovery_info['get_wal']:
             print >> recovery, "recovery_end_command = 'rm -fr barman_xlog'"
         if target_time:
             print >> recovery, "recovery_target_time = '%s'" % target_time
@@ -427,13 +453,16 @@ class RecoveryExecutor(object):
             'temporary_configuration_files': [],
             'tempdir': tempfile.mkdtemp(prefix='barman_recovery-'),
             'is_pitr': False,
-            'wal_dest': os.path.join(dest, 'pg_xlog')}
+            'wal_dest': os.path.join(dest, 'pg_xlog'),
+            'get_wal': RecoveryOptions.GET_WAL in self.config.recovery_options,
+        }
         # A map that will keep track of the results of the recovery.
         # Used for output generation
         results = {
             'changes': [],
             'warnings': [],
-            'delete_barman_xlog': False
+            'delete_barman_xlog': False,
+            'get_wal': False,
         }
         recovery_info['results'] = results
 
@@ -492,7 +521,8 @@ class RecoveryExecutor(object):
         if (target_time or
                 target_xid or
                 (target_tli and target_tli != backup_info.timeline) or
-                target_name):
+                target_name or
+                recovery_info['get_wal']):
             recovery_info['is_pitr'] = True
             targets = {}
             if target_time:
@@ -531,7 +561,8 @@ class RecoveryExecutor(object):
             # With a PostgreSQL version older than 8.4, it is the user's
             # responsibility to delete the "barman_xlog" directory as the
             # restore_command option in recovery.conf is not supported
-            if backup_info.version < 80400:
+            if backup_info.version < 80400 and \
+                    not recovery_info['get_wal']:
                 recovery_info['results']['delete_barman_xlog'] = True
         recovery_info['target_epoch'] = target_epoch
         recovery_info['target_datetime'] = target_datetime
@@ -614,22 +645,33 @@ class RecoveryExecutor(object):
         else:
             backup_info.save(os.path.join(dest, '.barman-recover.info'))
 
-        # Prepare WAL segments local directory
-        output.info("Copying required WAL segments.")
+        # Restore the WAL segments. If GET_WAL option is set, skip this phase
+        # as they will be retrieved using the wal-get command.
+        if not recovery_info['get_wal']:
+            # Prepare WAL segments local directory
+            output.info("Copying required WAL segments.")
 
-        required_xlog_files = tuple(
-            self.server.get_required_xlog_files(backup_info,
-                                                target_tli,
-                                                recovery_info['target_epoch']))
+            required_xlog_files = tuple(
+                self.server.get_required_xlog_files(backup_info,
+                                                    target_tli,
+                                                    recovery_info['target_epoch']))
 
-        # Restore WAL segments into the wal_dest directory
-        try:
-            self.xlog_copy(required_xlog_files,
-                           recovery_info['wal_dest'],
-                           remote_command)
-        except DataTransferFailure, e:
-            output.exception("Failure copying WAL files: %s", e)
-            output.close_and_exit()
+            # Restore WAL segments into the wal_dest directory
+            try:
+                self.xlog_copy(required_xlog_files,
+                               recovery_info['wal_dest'],
+                               remote_command)
+            except DataTransferFailure, e:
+                output.exception("Failure copying WAL files: %s", e)
+                output.close_and_exit()
+
+            # If WAL files are put directly in the pg_xlog directory,
+            # avoid shipping of just recovered files
+            # by creating the corresponding archive status file
+            if not recovery_info['is_pitr']:
+                output.info("Generating archive status files")
+                self.generate_archive_status(recovery_info, remote_command,
+                                             required_xlog_files)
 
         # Generate recovery.conf file (only if needed by PITR)
         if recovery_info['is_pitr']:
@@ -637,11 +679,6 @@ class RecoveryExecutor(object):
             self.generate_recovery_conf(recovery_info, backup_info, dest,
                                         exclusive, remote_command, target_name,
                                         target_time, target_tli, target_xid)
-        else:
-            # avoid shipping of just recovered pg_xlog files
-            output.info("Generating archive status files")
-            self.generate_archive_status(recovery_info, remote_command,
-                                         required_xlog_files)
 
         # As last step, analyse configuration files in order to spot
         # harmful options. Barman performs automatic conversion of

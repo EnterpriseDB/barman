@@ -218,6 +218,19 @@ recovery. Example: 'ssh postgres@db2'.
         Number of seconds of wait after a failed copy, before retrying. 
         Overrides value of the parameter +basebackup_retry_sleep+, if present in the configuration file.
 
+*get-wal [OPTIONS] SERVERNAME WALID*::
+    Retrieve a WAL file from the +xlog+ archive of a given server. By default, the requested WAL file, if found,
+    is returned as uncompressed content to +STDOUT+. The following options allow users to change this behaviour:
+
+    *-o OUTPUT_DIRECTORY;;
+        destination directory where the `get-wal` will deposit the requested WAL
+
+    *-j;;
+        output will be compressed using gzip
+
+    *-x;;
+        output will be compressed using bzip2
+
 *delete SERVERNAME BACKUPID*::
     Delete the specified backup. See the "Backup ID shortcuts" section below for available shortcuts.
 
