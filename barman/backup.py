@@ -33,7 +33,7 @@ import dateutil.parser
 from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
 from barman.fs import UnixLocalCommand, UnixRemoteCommand, FsOperationFailed
 from barman import xlog, output
-from barman.command_wrappers import RsyncPgData, CommandFailedException
+from barman.command_wrappers import Rsync, RsyncPgData, CommandFailedException
 from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
 
@@ -520,9 +520,14 @@ class BackupManager(object):
                     not exclusive)
             recovery.close()
             if remote_command:
+                # Uses plain rsync (without exclusions) to ship recovery.conf
+                plain_rsync = Rsync(
+                        ssh=remote_command,
+                        bwlimit=self.config.bandwidth_limit,
+                        network_compression=self.config.network_compression)
                 try:
-                    rsync.from_file_list(['recovery.conf'],
-                                         tempdir, ':%s' % dest)
+                    plain_rsync.from_file_list(['recovery.conf'],
+                                              tempdir, ':%s' % dest)
                 except CommandFailedException, e:
                     msg = (
                         'remote copy of recovery.conf failed: %s' % (e,))
