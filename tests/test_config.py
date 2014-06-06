@@ -81,8 +81,8 @@ TEST_CONFIG_MAIN = {
     'tablespace_bandwidth_limit': None,
     'wal_retention_policy': 'base',
     'wals_directory': 'wals',
-    'basebackup_retry_sleep': '10',
-    'basebackup_retry_times': '1',
+    'basebackup_retry_sleep': 10,
+    'basebackup_retry_times': 1,
     'post_archive_script': None,
     'pre_archive_script': None,
 }
@@ -113,8 +113,8 @@ TEST_CONFIG_WEB = {
     'tablespace_bandwidth_limit': None,
     'wal_retention_policy': 'base',
     'wals_directory': '/srv/barman/web/wals',
-    'basebackup_retry_sleep': '10',
-    'basebackup_retry_times': '1',
+    'basebackup_retry_sleep': 10,
+    'basebackup_retry_times': 1,
     'post_archive_script': None,
     'pre_archive_script': None,
     }
@@ -156,8 +156,8 @@ MINIMAL_CONFIG_MAIN = {
     'immediate_checkpoint': False,
     'network_compression': False,
     'backup_options': 'exclusive_backup',
-    'basebackup_retry_sleep': '10',
-    'basebackup_retry_times': '1',
+    'basebackup_retry_sleep': 10,
+    'basebackup_retry_times': 1,
     'post_archive_script': None,
     'pre_archive_script': None,
 }

@@ -124,6 +124,8 @@ class Server(object):
         'immediate_checkpoint': parse_boolean,
         'network_compression': parse_boolean,
         'backup_options': parse_backup_options,
+        'basebackup_retry_times': int,
+        'basebackup_retry_sleep': int,
     }
 
     def __init__(self, config, name):
