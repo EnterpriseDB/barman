@@ -862,13 +862,22 @@ class BackupManager(object):
                                   cf[key]
                             self._raise_rsync_error(e, msg)
 
+        # Calculate the base backup size
         self.current_action = "calculating backup size"
         _logger.debug(self.current_action)
         backup_size = 0
         for dirpath, _, filenames in os.walk(backup_dest):
-            for f in filenames:
-                fp = os.path.join(dirpath, f)
-                backup_size += os.path.getsize(fp)
+            # execute fsync() on the containing directory
+            dir_fd = os.open(dirpath, os.O_DIRECTORY)
+            os.fsync(dir_fd)
+            os.close(dir_fd)
+            # execute fsync() on all the contained files
+            for filename in filenames:
+                file_path = os.path.join(dirpath, filename)
+                file_fd = os.open(file_path, os.O_RDONLY)
+                backup_size += os.fstat(file_fd).st_size
+                os.fsync(file_fd)
+                os.close(file_fd)
         return backup_size
 
     def backup_stop(self, backup_info):
@@ -1049,6 +1058,15 @@ class BackupManager(object):
             os.unlink(filename)
         else:
             shutil.move(filename, destfile)
+
+        # execute fsync() on the archived WAL containing directory
+        dir_fd = os.open(os.path.dirname(destfile), os.O_DIRECTORY)
+        os.fsync(dir_fd)
+        os.close(dir_fd)
+        # execute fsync() on the archived WAL file
+        file_fd = os.open(destfile, os.O_RDONLY)
+        os.fsync(file_fd)
+        os.close(file_fd)
 
         wal_info = WalFileInfo.from_file(
             destfile,
