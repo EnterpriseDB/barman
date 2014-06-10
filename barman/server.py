@@ -34,6 +34,7 @@ from barman.lockfile import LockFile, LockFileBusy, \
 from barman.backup import BackupManager
 from barman.command_wrappers import Command
 from barman.retention_policies import RetentionPolicyFactory
+from barman.utils import human_readable_timedelta
 import xlog
 
 
@@ -166,6 +167,8 @@ class Server(object):
         self.check_directories()
         # Check retention policies
         self.check_retention_policy_settings()
+        # Check for backup validity
+        self.check_backup_validity()
         # Executes the backup manager set of checks
         self.backup_manager.check()
 
@@ -247,6 +250,30 @@ class Server(object):
         else:
             output.result('check', self.config.name,
                           'retention policy settings', True)
+
+    def check_backup_validity(self):
+        """
+        Check if backup validity requirements are satisfied
+        """
+        # first check: check backup maximum age
+        if self.config.last_backup_maximum_age is not None:
+            # get maximum age informations
+            backup_age = self.backup_manager.validate_last_backup_maximum_age(
+                self.config.last_backup_maximum_age)
+
+            # format the output
+            output.result('check', self.config.name,
+                          'backup maximum age', backup_age[0],
+                          "interval provided: %s, latest backup age: %s" %
+                          (human_readable_timedelta(
+                              self.config.last_backup_maximum_age),
+                           backup_age[1]))
+        else:
+            # last_backup_maximum_age provided by the user
+            output.result('check', self.config.name,
+                          'backup maximum age',
+                          True,
+                          "no last_backup_maximum_age provided")
 
     def status_postgres(self):
         """
@@ -434,6 +461,30 @@ class Server(object):
         ])
         remote_status = self.get_remote_status()
         result.update(remote_status)
+        # backup maximum age section
+        if self.config.last_backup_maximum_age is not None:
+            age = self.backup_manager.validate_last_backup_maximum_age(
+                self.config.last_backup_maximum_age)
+            # if latest backup is between the limits of the
+            # last_backup_maximum_age configuration, display how old is
+            # the latest backup.
+            if age[0]:
+                msg = "%s (latest backup: %s )" % \
+                    (human_readable_timedelta(
+                        self.config.last_backup_maximum_age),
+                     age[1])
+            else:
+                # if latest backup is outside the limits of the
+                # last_backup_maximum_age configuration (or the configuration
+                # value is none), warn the user.
+                msg = "%s (WARNING! latest backup is %s old)" % \
+                    (human_readable_timedelta(
+                        self.config.last_backup_maximum_age),
+                     age[1])
+            result['last_backup_maximum_age'] = msg
+        else:
+            result['last_backup_maximum_age'] = "None"
+
         output.result('show_server', self.config.name, result)
 
     @contextmanager

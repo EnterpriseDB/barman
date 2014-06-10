@@ -17,11 +17,14 @@
 
 import os
 import unittest
+from datetime import timedelta
+import pytest
+
 try:
     from cStringIO import StringIO
 except ImportError:
     from io import StringIO
-from barman.config import Config
+from barman.config import Config, parse_time_interval
 
 
 TEST_CONFIG = """
@@ -47,12 +50,14 @@ compression_filter = bzip2 -c -9
 decompression_filter = bzip2 -c -d
 retention_policy = redundancy 3
 wal_retention_policy = base
+last_backup_maximum_age = '1 day'
 [web]
 active = true
 description = Web applications database
 ssh_command = ssh -I ~/.ssh/web01_rsa -c arcfour -p 22 postgres@web01
 conninfo = host=web01 user=postgres port=5432
 compression =
+last_backup_maximum_age = '1 day'
 """
 
 TEST_CONFIG_MAIN = {
@@ -85,6 +90,7 @@ TEST_CONFIG_MAIN = {
     'basebackup_retry_times': 1,
     'post_archive_script': None,
     'pre_archive_script': None,
+    'last_backup_maximum_age': timedelta(1),
 }
 
 TEST_CONFIG_WEB = {
@@ -117,6 +123,7 @@ TEST_CONFIG_WEB = {
     'basebackup_retry_times': 1,
     'post_archive_script': None,
     'pre_archive_script': None,
+    'last_backup_maximum_age': timedelta(1),
     }
 
 MINIMAL_CONFIG = """
@@ -160,6 +167,7 @@ MINIMAL_CONFIG_MAIN = {
     'basebackup_retry_times': 1,
     'post_archive_script': None,
     'pre_archive_script': None,
+    'last_backup_maximum_age': None,
 }
 
 class Test(unittest.TestCase):
@@ -203,6 +211,25 @@ class Test(unittest.TestCase):
         expected.update(MINIMAL_CONFIG_MAIN)
         assert main.__dict__ == expected
 
+    def test_parse_time_interval(self):
+        """
+        basic test the parsing method for timedelta values
+        pass a value, check if is correctly transformed in a timedelta
+        """
+
+        # 1 day
+        val = parse_time_interval('1 day')
+        assert val == timedelta(days=1)
+        # 2 weeks
+        val = parse_time_interval('2 weeks')
+        assert val == timedelta(days=14)
+        # 3 months
+        val = parse_time_interval('3 months')
+        assert val == timedelta(days=93)
+        # this string is something that the regexp cannot manage,
+        # so we expect a ValueError exception
+        with pytest.raises(ValueError):
+            parse_time_interval('test_string')
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

@@ -26,6 +26,7 @@ from ConfigParser import ConfigParser, NoOptionError
 import logging.handlers
 from glob import iglob
 from barman import output
+import datetime
 
 _logger = logging.getLogger(__name__)
 
@@ -37,6 +38,11 @@ DEFAULT_LOG_FORMAT = "%(asctime)s %(name)s %(levelname)s: %(message)s"
 
 _TRUE_RE = re.compile(r"""^(true|t|yes|1)$""", re.IGNORECASE)
 _FALSE_RE = re.compile(r"""^(false|f|no|0)$""", re.IGNORECASE)
+_TIME_INTERVAL_RE = re.compile(r"""
+      ^\s*
+      (\d+)\s+(day|month|week)s?  # N (day|month|week) with optional 's'
+      \s*$
+      """, re.IGNORECASE | re.VERBOSE)
 
 
 def parse_boolean(value):
@@ -71,6 +77,39 @@ def parse_backup_options(value):
                      "(use 'concurrent_backup' or 'exclusive_backup')")
 
 
+def parse_time_interval(value):
+    """
+    Parse a string, transforming it in a time interval.
+    Accepted format: N (day|month|week)s
+
+    :param str value: the string to evaluate
+    """
+    # if empty string or none return none
+    if value is None or value == '':
+        return None
+    result = _TIME_INTERVAL_RE.match(value)
+    # if the string doesn't match, the option is invalid
+    if not result:
+        raise ValueError("Invalid value for a time interval %s" %
+                         value)
+    # if the int conversion
+    value = int(result.groups()[0])
+    unit = result.groups()[1][0].lower()
+
+    # Calculates the time delta
+    if unit == 'd':
+        time_delta = datetime.timedelta(days=value)
+    elif unit == 'w':
+        time_delta = datetime.timedelta(weeks=value)
+    elif unit == 'm':
+        time_delta = datetime.timedelta(days=(31 * value))
+    else:
+        # This should never happen
+        raise ValueError("Invalid unit time %s" % unit)
+
+    return time_delta
+
+
 class Server(object):
     """
     This class represents a server.
@@ -88,6 +127,7 @@ class Server(object):
         'minimum_redundancy', 'bandwidth_limit', 'tablespace_bandwidth_limit',
         'backup_options', 'immediate_checkpoint', 'network_compression',
         'basebackup_retry_times', 'basebackup_retry_sleep',
+        'last_backup_maximum_age'
     ]
 
     BARMAN_KEYS = [
@@ -117,6 +157,7 @@ class Server(object):
         'network_compression': 'false',
         'basebackup_retry_times': '1',
         'basebackup_retry_sleep': '10',
+        'last_backup_maximum_age': ''
     }
 
     PARSERS = {
@@ -126,6 +167,7 @@ class Server(object):
         'backup_options': parse_backup_options,
         'basebackup_retry_times': int,
         'basebackup_retry_sleep': int,
+        'last_backup_maximum_age': parse_time_interval,
     }
 
     def __init__(self, config, name):

@@ -17,8 +17,16 @@
 
 from mock import MagicMock, patch, Mock
 import pytest
+from datetime import timedelta, datetime
 from barman.backup import BackupManager, DataTransferFailure
+from barman.infofile import BackupInfo
+import barman.utils
 
+
+class FakeDate(datetime):
+  "A fake replacement for date that can be mocked for testing."
+  def __new__(cls, *args, **kwargs):
+      return datetime.__new__(datetime, *args, **kwargs)
 
 class TestBackup(object):
     @staticmethod
@@ -57,3 +65,52 @@ class TestBackup(object):
 
         assert sleep_moc.call_count == 5
         assert f.call_count == 6
+
+    @patch('barman.backup.datetime')
+    @patch('barman.backup.BackupInfo')
+    @patch('barman.backup.BackupManager.get_last_backup')
+    def test_backup_maximum_age(self, backup_id_mock, infofile_mock,
+                                datetime_mock):
+
+        # BackupManager setup
+        backup_manager = self.build_backup_manager()
+        # setting basic configuration for this test
+        backup_manager.config.last_backup_maximum_age = timedelta(days=7)
+        # force the tests to use the same values for the now() method,
+        # doing so the result is predictable
+        now = datetime.now()
+
+        # case 1: No available backups
+        # set the mock to None, simulating a no backup situation
+        backup_id_mock.return_value = None
+        datetime_mock.datetime.now.return_value = now
+        r = backup_manager.validate_last_backup_maximum_age(
+            backup_manager.config.last_backup_maximum_age)
+
+        assert r[0] is False, r[1] == "No available backups"
+
+        # case 2: backup older than the 1 day limit
+        # mocking the backup id to a custom value
+        backup_id_mock.return_value = "Mock_backup"
+        # simulate an existing backup using a mock obj
+        instance = infofile_mock.return_value
+        #force the backup end date over 1 day over the limit
+        instance.end_time = now - timedelta(days=8)
+        # build the expected message
+        msg = barman.utils.human_readable_timedelta(now - instance.end_time)
+        r = backup_manager.validate_last_backup_maximum_age(
+            backup_manager.config.last_backup_maximum_age)
+        assert (r[0], r[1]) == (False, msg)
+
+        # case 3: backup inside the one day limit
+        # mocking the backup id to a custom value
+        backup_id_mock.return_value = "Mock_backup"
+        # simulate an existing backup using a mock obj
+        instance = infofile_mock.return_value
+        # set the backup end date inside the limit
+        instance.end_time = now - timedelta(days=2)
+        # build the expected msg
+        msg = barman.utils.human_readable_timedelta(now - instance.end_time)
+        r = backup_manager.validate_last_backup_maximum_age(
+            backup_manager.config.last_backup_maximum_age)
+        assert (r[0], r[1]) == (True, msg)

@@ -38,6 +38,7 @@ from barman import xlog, output
 from barman.command_wrappers import Rsync, RsyncPgData, CommandFailedException
 from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
+from barman.utils import human_readable_timedelta
 
 
 _logger = logging.getLogger(__name__)
@@ -1363,3 +1364,36 @@ class BackupManager(object):
                         removed.append(name)
             shutil.move(xlogdb_new, fxlogdb.name)
         return removed
+
+    def validate_last_backup_maximum_age(self, last_backup_maximum_age):
+        """
+        Evaluate the age of the last available backup in a catalogue.
+        If the last backup is older than the specified time interval (age),
+        the function returns False. If within the requested age interval,
+        the function returns True.
+
+        :param timedate.timedelta last_backup_maximum_age: time interval
+            representing the maximum allowed age for the last backup in a server
+            catalogue
+        :return tuple: a tuple containing the boolean result of the check and
+            auxiliary information about the last backup current age
+        """
+        # Get the ID of the last available backup
+        backup_id = self.get_last_backup()
+        if backup_id:
+            # Get the backup object
+            backup = BackupInfo(self.server, backup_id=backup_id)
+            now = datetime.datetime.now()
+            # Evaluate the point of validity
+            validity_time = now - last_backup_maximum_age
+            # Pretty print of a time interval (age)
+            msg = human_readable_timedelta(now - backup.end_time)
+            # If the backup end time is older than the point of validity,
+            # return False, otherwise return true
+            if backup.end_time < validity_time:
+                return False, msg
+            else:
+                return True, msg
+        else:
+            # If no backup is available return false
+            return False, "No available backups"

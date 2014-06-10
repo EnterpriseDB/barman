@@ -138,6 +138,47 @@ def pretty_size(size, unit=1024):
             size /= unit
 
 
+def human_readable_timedelta(timedelta):
+    """
+    Given a time interval, returns a human readable string
+
+    :param timedelta: the timedelta to transform in a human readable form
+    """
+    delta = abs(timedelta)
+    # Calculate time units for the given interval
+    time_map = {
+        'day': int(delta.days % 365),
+        'hour': int(delta.seconds / 3600),
+        'minute': int(delta.seconds / 60) % 60,
+    }
+    # Build the resulting string
+    time_list = []
+
+    # 'Day' part
+    if time_map['day'] > 0:
+        if time_map['day'] == 1:
+            time_list.append('%s day' % time_map['day'])
+        else:
+            time_list.append('%s days' % time_map['day'])
+
+    # 'Hour' part
+    if time_map['hour'] > 0:
+        if time_map['hour'] == 1:
+            time_list.append('%s hour' % time_map['hour'])
+        else:
+            time_list.append('%s hours' % time_map['hour'])
+
+    # 'Minute' part
+    if time_map['minute'] > 0:
+        if time_map['minute'] == 1:
+            time_list.append('%s minute' % time_map['minute'])
+        else:
+            time_list.append('%s minutes' % time_map['minute'])
+
+    human = ', '.join(time_list)
+    return human
+
+
 class BarmanEncoder(json.JSONEncoder):
     """
     Custom JSON encoder used for BackupInfo encoding

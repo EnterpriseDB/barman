@@ -16,6 +16,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+from datetime import timedelta
 import mock
 import barman.utils
 
@@ -325,3 +326,83 @@ class TestPrettySize(object):
                barman.utils.pretty_size(1234.0, 1000)
         assert barman.utils.pretty_size(1234, 1024) == \
                barman.utils.pretty_size(1234.0, 1024)
+
+
+#noinspection PyMethodMayBeStatic
+class TestHumanReadableDelta(object):
+    """
+    Test class for the utility method human_readable_timedelta.
+    """
+    def test_one_day(self):
+        """
+        Test output for a 1 day timedelta.
+        """
+        td = timedelta(days=1)
+        assert barman.utils.human_readable_timedelta(td) == '1 day'
+
+    def test_two_days(self):
+        """
+        Test output for a 2 days timedelta.
+        """
+        td = timedelta(days=2)
+        assert barman.utils.human_readable_timedelta(td) == '2 days'
+
+    def test_one_hour(self):
+        """
+        Test output for a 1 hour timedelta.
+        """
+        td = timedelta(seconds=3600)
+        assert barman.utils.human_readable_timedelta(td) == '1 hour'
+
+    def test_two_hours(self):
+        """
+        Test output for a 2 hours timedelta.
+        """
+        td = timedelta(seconds=7200)
+        assert barman.utils.human_readable_timedelta(td) == '2 hours'
+
+    def test_one_minute(self):
+        """
+        Test output for a 1 minute timedelta.
+        """
+        td = timedelta(seconds=60)
+        assert barman.utils.human_readable_timedelta(td) == '1 minute'
+
+    def test_two_minutes(self):
+        """
+        Test output for a 2 minutes timedelta.
+        """
+        td = timedelta(seconds=120)
+        assert barman.utils.human_readable_timedelta(td) == '2 minutes'
+
+    def test_one_hour_two_mins(self):
+        """
+        Test output for a 1 hour, 2 minutes timedelta.
+        """
+        td = timedelta(seconds=3720)
+        assert barman.utils.human_readable_timedelta(td) == '1 hour, 2 minutes'
+
+    def test_one_day_three_hour_two_mins(self):
+        """
+        Test output for a 1 day, 3 hour, 2 minutes timedelta.
+        """
+        td = timedelta(days=1, seconds=10920)
+        assert barman.utils.human_readable_timedelta(td) == '1 day, ' \
+                                                            '3 hours, ' \
+                                                            '2 minutes'
+
+    def test_180_days_three_hour_4_mins(self):
+        """
+        Test output for 180 days, 3 hours, 4 minutes.
+        """
+        td = timedelta(days=180, seconds=11040)
+        assert barman.utils.human_readable_timedelta(td) == '180 days, ' \
+                                                            '3 hours, ' \
+                                                            '4 minutes'
+    def test_seven_days(self):
+        """
+        Test output for a 1 week timedelta.
+        """
+        td = timedelta(weeks=1)
+        assert barman.utils.human_readable_timedelta(td) == '7 days'
+
