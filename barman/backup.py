@@ -231,17 +231,16 @@ class BackupManager(object):
     def backup(self, immediate_checkpoint):
         """
         Performs a backup for the server
+
         :param immediate_checkpoint: immediate checkpoint on start_backup
         """
         _logger.debug("initialising backup information")
-        backup_stamp = datetime.datetime.now()
         self.current_action = "starting backup"
         backup_info = None
         try:
             backup_info = BackupInfo(
                 self.server,
-                backup_id=backup_stamp.strftime('%Y%m%dT%H%M%S'),
-                begin_time=backup_stamp)
+                backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'))
             backup_info.save()
             output.info(
                 "Starting backup for server %s in %s",
@@ -257,6 +256,10 @@ class BackupManager(object):
             # try except block which finally issue a backup_stop command
             self.backup_start(backup_info, immediate_checkpoint)
             try:
+                # save any metadata changed by backup_start() call
+                # This must be inside the try-except, because it could fail
+                backup_info.save()
+
                 # If we are the first backup, purge unused WAL files
                 previous_backup = self.get_previous_backup(backup_info.backup_id)
                 if not previous_backup:
@@ -301,7 +304,7 @@ class BackupManager(object):
                     "failure %s (%s)" % (
                         self.current_action, msg_lines[0]))
 
-            output.error("Backup failed %s: %s\n%s",
+            output.exception("Backup failed %s: %s\n%s",
                          self.current_action, msg_lines[0],
                          '\n'.join(msg_lines[1:]))
 

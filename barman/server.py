@@ -23,7 +23,6 @@ Barman is able to manage multiple servers.
 import os
 import re
 import logging
-import datetime
 from contextlib import contextmanager
 
 import psycopg2
@@ -533,8 +532,8 @@ class Server(object):
             try:
                 cur = conn.cursor()
                 cur.execute(
-                    'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* '
-                    'FROM pg_start_backup(%s,%s) as xlog_loc',
+                    'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
+                    'now() FROM pg_start_backup(%s,%s) as xlog_loc',
                     (backup_label, immediate_checkpoint))
                 return cur.fetchone()
             except psycopg2.Error, e:
@@ -557,9 +556,9 @@ class Server(object):
                     'pgespresso extension required for concurrent_backup')
             try:
                 cur = conn.cursor()
-                cur.execute('SELECT pgespresso_start_backup(%s,%s)',
+                cur.execute('SELECT pgespresso_start_backup(%s,%s), now()',
                             (backup_label, immediate_checkpoint))
-                return cur.fetchone()[0]
+                return cur.fetchone()
             except psycopg2.Error, e:
                 msg = "pgexpresso_start_backup(): %s" % e
                 _logger.debug(msg)
@@ -576,31 +575,34 @@ class Server(object):
         """
         if self.config.backup_options != 'concurrent_backup':
             start_row = self.pg_start_backup(label, immediate_checkpoint)
-            if start_row:
-                start_xlog, start_file_name, start_file_offset = start_row
-                backup_info.set_attribute("status", "STARTED")
-                backup_info.set_attribute("timeline",
-                                          int(start_file_name[0:8], 16))
-                backup_info.set_attribute("begin_xlog", start_xlog)
-                backup_info.set_attribute("begin_wal", start_file_name)
-                backup_info.set_attribute("begin_offset", start_file_offset)
+            start_xlog, start_file_name, start_file_offset, start_time = \
+                start_row
+            backup_info.set_attribute("status", "STARTED")
+            backup_info.set_attribute("timeline",
+                                      int(start_file_name[0:8], 16))
+            backup_info.set_attribute("begin_xlog", start_xlog)
+            backup_info.set_attribute("begin_wal", start_file_name)
+            backup_info.set_attribute("begin_offset", start_file_offset)
+            backup_info.set_attribute("begin_time", start_time)
 
         elif self.config.backup_options == 'concurrent_backup':
-            backup_data = self.pgespresso_start_backup(label,
-                                                       immediate_checkpoint)
-            if backup_data:
-                e = re.compile('^START WAL LOCATION: (.*) \(file (.*)\)',
-                               re.MULTILINE)
-                b_info = e.search(backup_data)
-                backup_info.set_attribute("status", "STARTED")
-                backup_info.set_attribute("timeline",
-                                          int(b_info.group(2)[0:8], 16))
-                backup_info.set_attribute("begin_xlog", b_info.group(1))
-                backup_info.set_attribute("begin_wal", b_info.group(2))
-                backup_info.set_attribute("begin_offset",
-                                          xlog.get_offset_from_location(
-                                              b_info.group(1)))
-                backup_info.set_attribute("backup_label", backup_data)
+            start_row = self.pgespresso_start_backup(label,
+                                                     immediate_checkpoint)
+            backup_data, start_time = start_row
+            wal_re = re.compile(
+                '^START WAL LOCATION: (.*) \(file (.*)\)',
+                re.MULTILINE)
+            wal_info = wal_re.search(backup_data)
+            backup_info.set_attribute("status", "STARTED")
+            backup_info.set_attribute("timeline",
+                                      int(wal_info.group(2)[0:8], 16))
+            backup_info.set_attribute("begin_xlog", wal_info.group(1))
+            backup_info.set_attribute("begin_wal", wal_info.group(2))
+            backup_info.set_attribute("begin_offset",
+                                      xlog.get_offset_from_location(
+                                          wal_info.group(1)))
+            backup_info.set_attribute("backup_label", backup_data)
+            backup_info.set_attribute("begin_time", start_time)
 
     def pg_stop_backup(self):
         """
@@ -610,8 +612,8 @@ class Server(object):
             try:
                 cur = conn.cursor()
                 cur.execute(
-                    'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).* '
-                    'from pg_stop_backup() as xlog_loc')
+                    'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
+                    'now() FROM pg_stop_backup() as xlog_loc')
                 return cur.fetchone()
             except psycopg2.Error, e:
                 _logger.debug("Error issuing pg_stop_backup() command: %s", e)
@@ -624,8 +626,9 @@ class Server(object):
         with self.pg_connect() as conn:
             try:
                 cur = conn.cursor()
-                cur.execute('SELECT pgespresso_stop_backup(%s)', (backup_label,))
-                return cur.fetchone()[0]
+                cur.execute('SELECT pgespresso_stop_backup(%s), now()',
+                            (backup_label,))
+                return cur.fetchone()
             except psycopg2.Error, e:
                 _logger.debug(
                     "Error issuing pgespresso_stop_backup() command: %s", e)
@@ -641,10 +644,11 @@ class Server(object):
         :return:
         """
         if self.config.backup_options != 'concurrent_backup':
-            stop_string = self.pg_stop_backup()
-            if stop_string:
-                stop_xlog, stop_file_name, stop_file_offset = stop_string
-                backup_info.set_attribute("end_time", datetime.datetime.now())
+            stop_row = self.pg_stop_backup()
+            if stop_row:
+                stop_xlog, stop_file_name, stop_file_offset, stop_time = \
+                    stop_row
+                backup_info.set_attribute("end_time", stop_time)
                 backup_info.set_attribute("end_xlog", stop_xlog)
                 backup_info.set_attribute("end_wal", stop_file_name)
                 backup_info.set_attribute("end_offset", stop_file_offset)
@@ -652,13 +656,12 @@ class Server(object):
                 raise Exception('Cannot terminate exclusive backup. You might '
                         'have to manually execute pg_stop_backup() on your '
                         'Postgres server')
-
         else:
-
-            end_wal = self.pgespresso_stop_backup(backup_info.backup_label)
-            if end_wal:
+            stop_row = self.pgespresso_stop_backup(backup_info.backup_label)
+            if stop_row:
+                end_wal, stop_time = stop_row
                 decoded_segment = xlog.decode_segment_name(end_wal)
-                backup_info.set_attribute("end_time", datetime.datetime.now())
+                backup_info.set_attribute("end_time", stop_time)
                 backup_info.set_attribute("end_xlog",
                                           "%X/%X" % (decoded_segment[1],
                                                      (decoded_segment[
