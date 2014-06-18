@@ -21,6 +21,7 @@ This module represents a backup.
 
 from glob import glob
 import datetime
+from io import StringIO
 import logging
 import os
 import shutil
@@ -29,6 +30,7 @@ import tempfile
 import re
 
 import dateutil.parser
+import dateutil.tz
 
 from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
 from barman.fs import UnixLocalCommand, UnixRemoteCommand, FsOperationFailed
@@ -461,12 +463,58 @@ class BackupManager(object):
                 (", ".join(["%s: %r" % (k, v) for k, v in targets.items()]))
             wal_dest = os.path.join(dest, 'barman_xlog')
 
+        # Retrieve the safe_horizon for smart copy
+        # If the target directory contains a previous recovery, it is safe to
+        # pick the least of the two backup "begin times" (the one we are
+        # recovering now and the one previously recovered in the target
+        # directory)
+        #
+        # noinspection PyBroadException
+        try:
+            backup_begin_time = backup.begin_time
+            # Retrieve previously recovered backup metadata (if available)
+            dest_info_txt = cmd.get_file_content(
+                os.path.join(dest, '.barman-recover.info'))
+            dest_info = BackupInfo(
+                self.server,
+                info_file=StringIO(dest_info_txt))
+            dest_begin_time = dest_info.begin_time
+            # Make sure both are tz-aware timestamps: if a timestamps is "naive"
+            # here, it's produced by a previous Barman version.
+            # We assume local timezone.
+            if dest_begin_time.tzinfo is None:
+                dest_begin_time = dest_begin_time.replace(
+                    tzinfo=dateutil.tz.tzlocal())
+            if backup_begin_time.tzinfo is None:
+                backup_begin_time = backup_begin_time.replace(
+                    tzinfo=dateutil.tz.tzlocal())
+            # Pick the earlier begin time
+            safe_horizon = min(backup_begin_time, dest_begin_time)
+            output.info("Using safe horizon time for smart rsync copy: %s",
+                         safe_horizon)
+        except FsOperationFailed, e:
+            # Setting safe_horizon to None will effectively disable
+            # the time-based part of smart_copy method. However it is still
+            # faster than running all the transfers with checksum enabled.
+            #
+            # FsOperationFailed means the .barman-recover.info is not available
+            # on destination directory
+            safe_horizon = None
+            _logger.warning('Unable to retrieve safe horizon time '
+                            'for smart rsync copy: %s', e)
+        except Exception, e:
+            # Same as above, but something failed decoding .barman-recover.info
+            # or comparing times, so log the full traceback
+            safe_horizon = None
+            _logger.exception('Error retrieving safe horizon time '
+                              'for smart rsync copy: %s', e)
+
         # Copy the base backup
         output.info("Copying the base backup.")
         try:
             # perform the backup copy, honoring the retry option if set
             self.retry_backup_copy(self.recover_basebackup_copy, backup, dest,
-                                   tablespaces, remote_command)
+                                   tablespaces, remote_command, safe_horizon)
         except DataTransferFailure, e:
             raise SystemExit("Failure copying base backup: %s" % (e,))
         _logger.info("Base backup copied.")
@@ -590,6 +638,17 @@ class BackupManager(object):
                 _logger.error(msg)
                 raise SystemExit(msg)
             shutil.rmtree(tempdir)
+
+        # Copy the backup.info file to the destination as ".barman-recover.info"
+        if remote_command:
+            try:
+                rsync(backup.filename, ':%s/.barman-recover.info' % dest)
+            except CommandFailedException, e:
+                    msg = 'copy of recovery metadata file failed: %s' % (e,)
+                    _logger.error(msg)
+                    raise SystemExit(msg)
+        else:
+            backup.save(os.path.join(dest, '.barman-recover.info'))
 
         yield ""
         yield "Your PostgreSQL server has been successfully prepared for " \
@@ -891,7 +950,8 @@ class BackupManager(object):
         '''
         self.server.stop_backup(backup_info)
 
-    def recover_basebackup_copy(self, backup, dest, tablespaces, remote_command=None):
+    def recover_basebackup_copy(self, backup, dest, tablespaces,
+                                remote_command=None, safe_horizon=None):
         """
         Perform the actual copy of the base backup for recovery purposes
 
@@ -900,6 +960,8 @@ class BackupManager(object):
         :param tablespaces: tablespace relocation options
         :param remote_command: default None. The remote command to recover
                                the base backup, in case of remote backup.
+        :param datetime.datetime safe_horizon: anything after this time
+            has to be checked with checksums
         """
 
         sourcedir = os.path.join(backup.get_basebackup_directory(), 'pgdata')
@@ -948,7 +1010,7 @@ class BackupManager(object):
             exclude_and_protect=exclude_and_protect,
             network_compression=self.config.network_compression)
         try:
-            rsync('%s/' % (sourcedir,), dest)
+            rsync.smart_copy('%s/' % (sourcedir,), dest, safe_horizon)
         except CommandFailedException, e:
             msg = "data transfer failure on directory '%s'" % (dest[1:],)
             self._raise_rsync_error(e, msg)
@@ -961,8 +1023,10 @@ class BackupManager(object):
                     bwlimit=bwlimit,
                     network_compression=self.config.network_compression)
                 try:
-                    tb_rsync('%s/' % os.path.join(sourcedir, tablespace_dir),
-                             os.path.join(dest, tablespace_dir))
+                    tb_rsync.smart_copy(
+                        '%s/' % os.path.join(sourcedir, tablespace_dir),
+                        os.path.join(dest, tablespace_dir),
+                        safe_horizon)
                 except CommandFailedException, e:
                     msg = "data transfer failure on directory '%s'" % (
                         tablespace_dir[1:],)

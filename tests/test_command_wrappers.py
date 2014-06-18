@@ -439,7 +439,7 @@ class RsyncPgdataUnitTest(unittest.TestCase):
 
         popen.assert_called_with(
             [
-                'rsync', '-rLKptsc', '--delete-excluded', '--inplace',
+                'rsync', '-rLKpts', '--delete-excluded', '--inplace',
                 '--exclude=/pg_xlog/*', '--exclude=/pg_log/*',
                 '--exclude=/recovery.conf',
                 '--exclude=/postmaster.pid', 'src', 'dst'
@@ -466,7 +466,7 @@ class RsyncPgdataUnitTest(unittest.TestCase):
 
         popen.assert_called_with(
             [
-                'rsync', '-rLKptsc', '--delete-excluded', '--inplace',
+                'rsync', '-rLKpts', '--delete-excluded', '--inplace',
                 '--exclude=/pg_xlog/*', '--exclude=/pg_log/*',
                 '--exclude=/recovery.conf',
                 '--exclude=/postmaster.pid', 'a', 'b', 'src', 'dst'

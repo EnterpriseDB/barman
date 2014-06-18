@@ -162,7 +162,7 @@ class UnixLocalCommand(object):
             Create a symlink pointing to src named dst.
             Check src exists, if so, checks that destination
             does not exists. if src is an invalid folder, raises an exception.
-            if dst allready exists, raises an exception. if ln -s command fails
+            if dst already exists, raises an exception. if ln -s command fails
             raises an exception
 
             :param src full path to the source of the symlink
@@ -215,6 +215,29 @@ class UnixLocalCommand(object):
         self.cmd('ssh -v 2>&1')
         result['ssh_ver'] = _str(self.cmd.out).splitlines(True)[0].rstrip()
         return result
+
+    def get_file_content(self, path):
+        """
+        Retrieve teh content of a file
+        If the file doesn't exist or isn't readable, it raises an exception.
+
+        :param str path: full path to the file to read
+        """
+        _logger.debug('Reading content of file %s' % path)
+
+        result = self.cmd("test -e '%s'" % path)
+        if result != 0:
+            raise FsOperationFailed('The %s file does not exist' % path)
+
+        result = self.cmd("test -r '%s'" % path)
+        if result != 0:
+            raise FsOperationFailed('The %s file is not readable' % path)
+
+        result = self.cmd("cat '%s'" % path)
+        if result != 0:
+            raise FsOperationFailed('Failed to execute "cat \'%s\'"' % path)
+
+        return self.cmd.out
 
 
 class UnixRemoteCommand(UnixLocalCommand):

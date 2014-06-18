@@ -440,7 +440,10 @@ class BackupInfo(FieldListFile):
         """
         Detect the backup ID from the name of the parent dir of the info file
         """
-        return os.path.basename(os.path.dirname(self.filename))
+        if self.filename:
+            return os.path.basename(os.path.dirname(self.filename))
+        else:
+            return None
 
     def get_basebackup_directory(self):
         """
