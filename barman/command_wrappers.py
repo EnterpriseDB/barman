@@ -115,7 +115,10 @@ class Command(object):
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 preexec_fn=self._restore_sigpipe)
-        self.out, self.err = pipe.communicate(stdin)
+        out, err = pipe.communicate(stdin)
+        # Convert output to a proper unicode string
+        self.out = out.decode('utf-8')
+        self.err = err.decode('utf-8')
         self.ret = pipe.returncode
         if self.debug:
             print >> sys.stderr, "Command return code: %s" % self.ret

@@ -26,21 +26,21 @@ except ImportError:  # pragma: no cover
     from io import StringIO
 
 
+def _mock_pipe(popen, ret=0, out='', err=''):
+    pipe = popen.return_value
+    pipe.communicate.return_value = (out.encode('utf-8'), err.encode('utf-8'))
+    pipe.returncode = ret
+    return pipe
+
 @mock.patch('barman.command_wrappers.subprocess.Popen')
 class CommandUnitTest(unittest.TestCase):
-    def _mock_pipe(self, popen, ret=0, out=None, err=None):
-        pipe = popen.return_value
-        pipe.communicate.return_value = (out, err)
-        pipe.returncode = ret
-        return pipe
-
     def test_simple_invocation(self, popen):
         command = 'command'
         ret = 0
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Command(command)
         result = cmd()
@@ -62,7 +62,7 @@ class CommandUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Command(command)
         result = cmd()
@@ -84,7 +84,7 @@ class CommandUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Command(command, check=True)
         try:
@@ -111,7 +111,7 @@ class CommandUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Command(command, shell=True)
         result = cmd('shell test')
@@ -133,7 +133,7 @@ class CommandUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Command(command, args=['one', 'two'])
         result = cmd()
@@ -155,7 +155,7 @@ class CommandUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Command(command)
         result = cmd('one', 'two')
@@ -177,7 +177,7 @@ class CommandUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Command(command, args=['a', 'b'])
         result = cmd('one', 'two')
@@ -199,7 +199,7 @@ class CommandUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         with mock.patch('os.environ', new={'TEST0': 'VAL0'}):
             cmd = command_wrappers.Command(command,
@@ -225,7 +225,7 @@ class CommandUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         stdout = StringIO()
         stderr = StringIO()
@@ -255,7 +255,7 @@ class CommandUnitTest(unittest.TestCase):
         err = 'err'
         stdin = 'in'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         with mock.patch('os.environ', new={'TEST0': 'VAL0'}):
             cmd = command_wrappers.Command(command,
@@ -278,18 +278,12 @@ class CommandUnitTest(unittest.TestCase):
 
 @mock.patch('barman.command_wrappers.subprocess.Popen')
 class RsyncUnitTest(unittest.TestCase):
-    def _mock_pipe(self, popen, ret=0, out=None, err=None):
-        pipe = popen.return_value
-        pipe.communicate.return_value = (out, err)
-        pipe.returncode = ret
-        return pipe
-
     def test_simple_invocation(self, popen):
         ret = 0
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Rsync()
         result = cmd('src', 'dst')
@@ -310,7 +304,7 @@ class RsyncUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Rsync(args=['a', 'b'])
         result = cmd('src', 'dst')
@@ -331,7 +325,7 @@ class RsyncUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Rsync('/custom/rsync', ssh='/custom/ssh',
                                      ssh_options=['-c', 'arcfour'])
@@ -354,7 +348,7 @@ class RsyncUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Rsync(exclude_and_protect=['foo', 'bar'])
         result = cmd('src', 'dst')
@@ -379,7 +373,7 @@ class RsyncUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Rsync(bwlimit=101)
         result = cmd('src', 'dst')
@@ -401,7 +395,7 @@ class RsyncUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.Rsync()
         result = cmd.from_file_list(['a', 'b', 'c'], 'src', 'dst')
@@ -432,7 +426,7 @@ class RsyncPgdataUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.RsyncPgData()
         result = cmd('src', 'dst')
@@ -459,7 +453,7 @@ class RsyncPgdataUnitTest(unittest.TestCase):
         out = 'out'
         err = 'err'
 
-        pipe = self._mock_pipe(popen, ret, out, err)
+        pipe = _mock_pipe(popen, ret, out, err)
 
         cmd = command_wrappers.RsyncPgData(args=['a', 'b'])
         result = cmd('src', 'dst')
