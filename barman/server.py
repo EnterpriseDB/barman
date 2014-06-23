@@ -585,10 +585,16 @@ class Server(object):
                     'Unable to start a backup because of server recovery state')
             try:
                 cur = conn.cursor()
-                cur.execute(
-                    'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
-                    'now() FROM pg_start_backup(%s,%s) as xlog_loc',
-                    (backup_label, immediate_checkpoint))
+                if self.server_version < 80400:
+                    cur.execute(
+                        'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
+                        'now() FROM pg_start_backup(%s) as xlog_loc',
+                        (backup_label,))
+                else:
+                    cur.execute(
+                        'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
+                        'now() FROM pg_start_backup(%s,%s) as xlog_loc',
+                        (backup_label, immediate_checkpoint))
                 return cur.fetchone()
             except psycopg2.Error, e:
                 msg = "pg_start_backup(): %s" % e

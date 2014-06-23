@@ -562,7 +562,8 @@ class BackupManager(object):
             else:
                 recovery = open(os.path.join(dest, 'recovery.conf'), 'w')
             print >> recovery, "restore_command = 'cp barman_xlog/%f %p'"
-            print >> recovery, "recovery_end_command = 'rm -fr barman_xlog'"
+            if backup.version >= 80400:
+                print >> recovery, "recovery_end_command = 'rm -fr barman_xlog'"
             if target_time:
                 print >> recovery, "recovery_target_time = '%s'" % target_time
             if target_tli:
@@ -663,10 +664,21 @@ class BackupManager(object):
               "PostgreSQL"
         yield "configuration file before starting the just recovered instance."
         yield ""
+        # With a PostgreSQL version older than 8.4, it is the user's
+        # responsibility to delete the "barman_xlog" directory as the
+        # restore_command option in recovery.conf is not supported
+        if backup.version < 80400 and (target_time or target_xid or (
+                target_tli and target_tli != backup.timeline) or target_name):
+            yield "After the recovery, please remember to remove the " \
+                  "\"barman_xlog\" directory"
+            yield "inside the PostgreSQL data directory."
+            yield ""
         if clashes:
             yield "WARNING: Before starting up the recovered PostgreSQL server,"
-            yield "please review also the settings of the following configuration"
-            yield "options as they might interfere with your current recovery attempt:"
+            yield "please review also the settings of the following " \
+                  "configuration"
+            yield "options as they might interfere with your current " \
+                  "recovery attempt:"
             yield ""
 
             for name, value in sorted(clashes.items()):

@@ -218,7 +218,7 @@ class UnixLocalCommand(object):
 
     def get_file_content(self, path):
         """
-        Retrieve teh content of a file
+        Retrieve the content of a file
         If the file doesn't exist or isn't readable, it raises an exception.
 
         :param str path: full path to the file to read
