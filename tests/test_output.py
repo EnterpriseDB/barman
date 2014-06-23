@@ -1154,6 +1154,20 @@ class TestNagiosWriter(object):
         assert out == ''
         assert err == ''
 
+    def test_single_result_check(self, capsys):
+        writer = output.NagiosOutputWriter()
+        output.error_occurred = False
+
+        # one server with no error
+        writer.result_check('a', 'test', True, None)
+
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
+                      'for a\n'
+        assert err == ''
+        assert not output.error_occurred
+
     def test_result_check(self, capsys):
         writer = output.NagiosOutputWriter()
         output.error_occurred = False
@@ -1165,22 +1179,39 @@ class TestNagiosWriter(object):
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN OK - Ready to serve the Espresso backup\n'
+        assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
+                      'for 3 server(s) * a * b * c\n'
         assert err == ''
         assert not output.error_occurred
+
+    def test_single_result_check_error(self, capsys):
+        writer = output.NagiosOutputWriter()
+        output.error_occurred = False
+
+        # one server with one error
+        writer.result_check('a', 'test', False, None)
+
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == 'BARMAN CRITICAL - server a has issues * ' \
+                      'a FAILED: test\na.test: FAILED\n'
+        assert err == ''
+        assert output.error_occurred
+        assert output.error_exit_code == 2
 
     def test_result_check_error(self, capsys):
         writer = output.NagiosOutputWriter()
         output.error_occurred = False
 
-        #three server with one error
+        # three server with one error
         writer.result_check('a', 'test', True, None)
         writer.result_check('b', 'test', False, None)
         writer.result_check('c', 'test', True, None)
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN CRITICAL - 1 server out of 3 has issues\n'
+        assert out == 'BARMAN CRITICAL - 1 server out of 3 have issues * ' \
+                      'b FAILED: test\nb.test: FAILED\n'
         assert err == ''
         assert output.error_occurred
         assert output.error_exit_code == 2

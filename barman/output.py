@@ -605,20 +605,75 @@ class NagiosOutputWriter(ConsoleOutputWriter):
 
         Also set the exit code as 2 (CRITICAL) in case of errors
         """
-        issues = []
+        # List of all servers that have been checked
         servers = []
+        # List of servers reporting issues
+        issues = []
         for item in self.result_check_list:
+            # Keep track of all the checked servers
             if item['server_name'] not in servers:
                 servers.append(item['server_name'])
+            # Keep track of the servers with issues
             if not item['status'] and item['server_name'] not in issues:
                 issues.append(item['server_name'])
         if len(issues) > 0:
-            print "BARMAN CRITICAL - %d server out of %d has issues" % \
-                  (len(issues), len(servers))
+            fail_summary = []
+            details = []
+            for server in issues:
+                # Join all the issues for a server. Output format is in the
+                # form:
+                # "<server_name> FAILED: <failed_check1>, <failed_check2> ... "
+                # All strings will be concatenated into the $SERVICEOUTPUT$
+                # macro of the Nagios output
+                server_fail = "%s FAILED: %s" % (
+                    server,
+                    ", ".join([
+                        item['check']
+                        for item in self.result_check_list
+                        if item['server_name'] == server and not item['status']
+                    ]))
+                fail_summary.append(server_fail)
+                # Prepare an array with the detailed output for
+                # the $LONGSERVICEOUTPUT$ macro of the Nagios output
+                # line format:
+                # <servername>.<failed_check1>: FAILED
+                # <servername>.<failed_check2>: FAILED (Hint if present)
+                # <servername2.<failed_check1>: FAILED
+                # .....
+                for issue in self.result_check_list:
+                    if issue['server_name'] == server and not issue['status']:
+                        fail_detail = "%s.%s: FAILED" % (server, issue['check'])
+                        if issue['hint']:
+                            fail_detail += " (%s)" % issue['hint']
+                        details.append(fail_detail)
+            # Append the summary of failures to the first line of the output
+            # using * as delimiter
+            if len(servers) == 1:
+                print "BARMAN CRITICAL - server %s has issues * %s" % \
+                    (servers[0], " * ".join(fail_summary))
+            else:
+                print "BARMAN CRITICAL - %d server out of %d have issues * " \
+                      "%s" % (len(issues), len(servers),
+                              " * ".join(fail_summary))
+
+            # add the detailed list to the output
+            for issue in details:
+                print issue
             global error_exit_code
             error_exit_code = 2
         else:
-            print "BARMAN OK - Ready to serve the Espresso backup"
+            # No issues, all good!
+            # Display the output message for a single server check
+            if len(servers) == 1:
+                print "BARMAN OK - Ready to serve the Espresso backup " \
+                    "for %s" % \
+                    (servers[0])
+            else:
+                # Display the output message for several servers, using
+                # '*' as delimiter
+                print "BARMAN OK - Ready to serve the Espresso backup " \
+                    "for %d server(s) * %s" % \
+                    (len(servers), " * ".join([server for server in servers]))
 
 
 #: This dictionary acts as a registry of available OutputWriters
