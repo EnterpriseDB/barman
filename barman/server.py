@@ -910,7 +910,9 @@ class Server(object):
         # counters
         wal_info = dict.fromkeys(
             ('wal_num', 'wal_size',
-             'wal_until_next_num', 'wal_until_next_size'), 0)
+             'wal_until_next_num', 'wal_until_next_size',
+             'wal_until_next_compression_ratio',
+             'wal_compression_ratio'), 0)
         wal_info['wal_last'] = None
 
         for name, size in self.get_wal_until_next_backup(backup_info):
@@ -921,6 +923,27 @@ class Server(object):
                     wal_info['wal_until_next_num'] += 1
                     wal_info['wal_until_next_size'] += size
                 wal_info['wal_last'] = name
+
+        # evaluation of compression ratio for basebackup WAL files
+        wal_info['wal_theoretical_size'] = \
+            wal_info['wal_num'] * float(xlog.XLOG_SEG_SIZE)
+        try:
+            wal_info['wal_compression_ratio'] = 1 - (
+                wal_info['wal_size'] /
+                wal_info['wal_theoretical_size'])
+        except ZeroDivisionError:
+            wal_info['wal_compression_ratio'] = 0.0
+
+        # evaluation of compression ratio of WAL files
+        wal_info['wal_until_next_theoretical_size'] = \
+            wal_info['wal_until_next_num'] * float(xlog.XLOG_SEG_SIZE)
+        try:
+            wal_info['wal_until_next_compression_ratio'] = 1 - (
+                wal_info['wal_until_next_size'] /
+                wal_info['wal_until_next_theoretical_size'])
+        except ZeroDivisionError:
+            wal_info['wal_until_next_compression_ratio'] = 0.0
+
         return wal_info
 
     def recover(self, backup, dest, tablespaces=[], target_tli=None, target_time=None, target_xid=None, target_name=None, exclusive=False, remote_command=None):

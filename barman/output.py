@@ -423,7 +423,6 @@ class ConsoleOutputWriter(object):
         """
         Output a single backup in the list-backup command
 
-        :param basestring server_name: server we are displaying
         :param BackupInfo backup_info: backup we are displaying
         :param backup_size: size of base backup (with the required WAL files)
         :param wal_size: size of WAL files belonging to this backup
@@ -435,8 +434,8 @@ class ConsoleOutputWriter(object):
             self.info(backup_info.backup_id)
             return
 
-        out_list = ["%s %s - "
-            % (backup_info.server_name, backup_info.backup_id)]
+        out_list = [
+            "%s %s - " % (backup_info.server_name, backup_info.backup_id)]
         if backup_info.status == BackupInfo.DONE:
             end_time = backup_info.end_time.ctime()
             out_list.append('%s - Size: %s - WAL Size: %s' %
@@ -464,11 +463,11 @@ class ConsoleOutputWriter(object):
         """
         data = dict(backup_ext_info)
         self.info("Backup %s:", data['backup_id'])
-        self.info("  Server Name       : %s", data['server_name'])
-        self.info("  Status            : %s", data['status'])
+        self.info("  Server Name            : %s", data['server_name'])
+        self.info("  Status                 : %s", data['status'])
         if data['status'] == BackupInfo.DONE:
-            self.info("  PostgreSQL Version: %s", data['version'])
-            self.info("  PGDATA directory  : %s", data['pgdata'])
+            self.info("  PostgreSQL Version     : %s", data['version'])
+            self.info("  PGDATA directory       : %s", data['pgdata'])
             if data['tablespaces']:
                 self.info("  Tablespaces:")
                 for item in data['tablespaces']:
@@ -476,40 +475,50 @@ class ConsoleOutputWriter(object):
                               item.name, item.location, item.oid)
             self.info("")
             self.info("  Base backup information:")
-            self.info("    Disk usage      : %s",
+            self.info("    Disk usage           : %s",
                       pretty_size(data['size'] + data[
                           'wal_size']))
-            self.info("    Timeline        : %s", data['timeline'])
-            self.info("    Begin WAL       : %s",
+            self.info("    Timeline             : %s", data['timeline'])
+            self.info("    Begin WAL            : %s",
                       data['begin_wal'])
-            self.info("    End WAL         : %s", data['end_wal'])
-            self.info("    WAL number      : %s", data['wal_num'])
-            self.info("    Begin time      : %s",
+            self.info("    End WAL              : %s", data['end_wal'])
+            self.info("    WAL number           : %s", data['wal_num'])
+            # Output WAL compression ratio for basebackup WAL files
+            if data['wal_compression_ratio'] > 0:
+                self.info("    WAL compression ratio: %s",
+                          '{percent:.2%}'.format(
+                              percent=data['wal_compression_ratio']))
+            self.info("    Begin time           : %s",
                       data['begin_time'])
-            self.info("    End time        : %s", data['end_time'])
-            self.info("    Begin Offset    : %s",
+            self.info("    End time             : %s", data['end_time'])
+            self.info("    Begin Offset         : %s",
                       data['begin_offset'])
-            self.info("    End Offset      : %s",
+            self.info("    End Offset           : %s",
                       data['end_offset'])
-            self.info("    Begin XLOG      : %s",
+            self.info("    Begin XLOG           : %s",
                       data['begin_xlog'])
-            self.info("    End XLOG        : %s", data['end_xlog'])
+            self.info("    End XLOG             : %s", data['end_xlog'])
             self.info("")
             self.info("  WAL information:")
-            self.info("    No of files     : %s",
+            self.info("    No of files          : %s",
                       data['wal_until_next_num'])
-            self.info("    Disk usage      : %s",
+            self.info("    Disk usage           : %s",
                       pretty_size(data['wal_until_next_size']))
-            self.info("    Last available  : %s", data['wal_last'])
+            # Output WAL compression ratio for archived WAL files
+            if data['wal_until_next_compression_ratio'] > 0:
+                self.info("    Compression ratio    : %s",
+                          '{percent:.2%}'.format(
+                              percent=data['wal_until_next_compression_ratio']))
+            self.info("    Last available       : %s", data['wal_last'])
             self.info("")
             self.info("  Catalog information:")
-            self.info("    Retention Policy: %s",
+            self.info("    Retention Policy     : %s",
                       data['retention_policy_status']
                       or 'not enforced')
-            self.info("    Previous Backup : %s",
+            self.info("    Previous Backup      : %s",
                       data.setdefault('previous_backup_id', 'not available')
                       or '- (this is the oldest base backup)')
-            self.info("    Next Backup     : %s",
+            self.info("    Next Backup          : %s",
                       data.setdefault('next_backup_id', 'not available')
                       or '- (this is the latest base backup)')
         else:
