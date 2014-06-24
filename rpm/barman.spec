@@ -12,23 +12,30 @@
 %global __python_ver python
 %endif
 
+%global main_version 1.3.3
+# comment out the next line if not a pre-release
+%global extra_version alpha.1
+# Usually 1 - unique sequence for all pre-release version
+%global package_release 1
+
 %{!?pybasever: %define pybasever %(%{__python} -c "import sys;print(sys.version[0:3])")}
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
 %{!?python_sitearch: %define python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib(1)")}
 
 Summary:	Backup and Recovery Manager for PostgreSQL
 Name:		barman
-Version:	1.3.2
-Release:	1%{?dist}
+Version:	%{main_version}
+Release:	%{?extra_version:0.}%{package_release}%{?extra_version:.%{extra_version}}%{?dist}
 License:	GPLv3
 Group:		Applications/Databases
 Url:		http://www.pgbarman.org/
-Source0:	%{name}-%{version}.tar.gz
-BuildRoot: 	%{_tmppath}/%{name}-%{version}-%{release}-buildroot-%(%{__id_u} -n)
+Source0:	%{name}-%{version}%{?extra_version:-%{extra_version}}.tar.gz
+BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-buildroot-%(%{__id_u} -n)
 BuildArch:	noarch
 Vendor:		2ndQuadrant Italia (Devise.IT S.r.l.) <info@2ndquadrant.it>
-Requires: 	python-abi = %{pybasever}, %{__python_ver}-psycopg2, %{__python_ver}-argh >= 0.21.2, %{__python_ver}-argcomplete, %{__python_ver}-dateutil
+Requires:	python-abi = %{pybasever}, %{__python_ver}-psycopg2, %{__python_ver}-argh >= 0.21.2, %{__python_ver}-argcomplete, %{__python_ver}-dateutil
 Requires:	/usr/sbin/useradd
+Requires:	rsync >= 3.0.4
 
 %description
 Barman (backup and recovery manager) is an administration
@@ -40,7 +47,7 @@ remote recovery, archiving and compression of WAL files and backups.
 Barman is written and maintained by PostgreSQL professionals 2ndQuadrant.
 
 %prep
-%setup -n barman-%{version} -q
+%setup -n barman-%{version}%{?extra_version:-%{extra_version}} -q
 
 %build
 %{__python} setup.py build
@@ -75,7 +82,7 @@ rm -rf %{buildroot}
 %files
 %defattr(-,root,root)
 %doc INSTALL NEWS README
-%{python_sitelib}/%{name}-%{version}-py%{pybasever}.egg-info/
+%{python_sitelib}/%{name}-%{version}%{?extra_version:_%{extra_version}}-py%{pybasever}.egg-info/
 %{python_sitelib}/%{name}/
 %{_bindir}/%{name}
 %doc %{_mandir}/man1/%{name}.1.gz
@@ -94,6 +101,9 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
+* Tue Jun 24 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.3-0.1.alpha.1
+- New release 1.3.3-alpha.1
+
 * Mon Apr 15 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.2-1
 - New release 1.3.2
 
