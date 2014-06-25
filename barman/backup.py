@@ -299,13 +299,17 @@ class BackupManager(object):
                 self.current_action = "writing backup label"
                 self._write_backup_label(backup_info)
             backup_info.set_attribute("status", "DONE")
-
-        except Exception, e:
+        # Use BaseException instead of Exception to catch events like
+        # KeyboardInterrupt (e.g.: CRTL-C)
+        except BaseException, e:
             msg_lines = str(e).strip().splitlines()
             if backup_info:
                 # Use only the first line of exception message
                 # in backup_info error field
                 backup_info.set_attribute("status", "FAILED")
+                # If the exception has no attached message use the raw type name
+                if len(msg_lines) == 0:
+                    msg_lines = [type(e).__name__]
                 backup_info.set_attribute(
                     "error",
                     "failure %s (%s)" % (

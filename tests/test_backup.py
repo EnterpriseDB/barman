@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from mock import MagicMock, patch, Mock
+from mock import MagicMock, patch, Mock, call
 import pytest
 from datetime import timedelta, datetime
 from barman.backup import BackupManager, DataTransferFailure
@@ -114,3 +114,34 @@ class TestBackup(object):
         r = backup_manager.validate_last_backup_maximum_age(
             backup_manager.config.last_backup_maximum_age)
         assert (r[0], r[1]) == (True, msg)
+
+    @patch('barman.backup.BackupManager.backup_start')
+    @patch('barman.backup.BackupInfo')
+    def test_keyboard_interrupt(self, mock_infofile, mock_start):
+        """
+        Integration test for a quick check on exception catching
+        during backup operations
+
+        Test case 1: raise a general exception, backup status in
+        BackupInfo should be FAILED.
+
+        Test case 2: raise a KeyboardInterrupt exception, simulating
+        a user pressing CTRL + C while a backup is in progress,
+        backup status in BackupInfo should be FAILED.
+        """
+        # BackupManager setup
+        backup_manager = self.build_backup_manager()
+        instance = mock_infofile.return_value
+        # Instruct the patched method to raise a general exception
+        mock_start.side_effect = Exception('abc')
+        # invoke backup method
+        backup_manager.backup(False)
+        # verify that mock status is FAILED
+        assert call.set_attribute('status', 'FAILED') in instance.mock_calls
+        # Instruct the patched method to raise a KeyboardInterrupt
+        mock_start.side_effect = KeyboardInterrupt()
+        # invoke backup method
+        backup_manager.backup(False)
+        # verify that mock status is FAILED
+        assert call.set_attribute('status', 'FAILED') in instance.mock_calls
+
