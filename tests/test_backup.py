@@ -15,18 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from mock import MagicMock, patch, Mock, call
+from mock import patch, Mock, call
 import pytest
 from datetime import timedelta, datetime
 from barman.backup import BackupManager, DataTransferFailure
-from barman.infofile import BackupInfo
 import barman.utils
 
-
-class FakeDate(datetime):
-  "A fake replacement for date that can be mocked for testing."
-  def __new__(cls, *args, **kwargs):
-      return datetime.__new__(datetime, *args, **kwargs)
 
 class TestBackup(object):
     @staticmethod

@@ -55,10 +55,12 @@ class Command(object):
     """
 
     def __init__(self, cmd, args=None, env_append=None, shell=False,
-                 check=False, allowed_retval=(0,), debug=False):
+                 check=False, allowed_retval=(0,), debug=False,
+                 close_fds=True):
         self.cmd = cmd
         self.args = args if args is not None else []
         self.shell = shell
+        self.close_fds = close_fds
         self.check = check
         self.allowed_retval = allowed_retval
         self.debug = debug
@@ -99,6 +101,7 @@ class Command(object):
         # check keyword arguments
         stdin = kwargs.pop('stdin', None)
         check = kwargs.pop('check', self.check)
+        close_fds = kwargs.pop('close_fds', self.close_fds)
         if len(kwargs):
             raise TypeError('%s() got an unexpected keyword argument %r' %
                             (inspect.stack()[1][3], kwargs.popitem()[0]))
@@ -114,7 +117,8 @@ class Command(object):
                                 stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
-                                preexec_fn=self._restore_sigpipe)
+                                preexec_fn=self._restore_sigpipe,
+                                close_fds=close_fds)
         out, err = pipe.communicate(stdin)
         # Convert output to a proper unicode string
         self.out = out.decode('utf-8')

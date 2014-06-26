@@ -48,7 +48,7 @@ class CommandUnitTest(unittest.TestCase):
         popen.assert_called_with(
             [command], shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -70,7 +70,7 @@ class CommandUnitTest(unittest.TestCase):
         popen.assert_called_with(
             [command], shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -98,7 +98,7 @@ class CommandUnitTest(unittest.TestCase):
         popen.assert_called_with(
             [command], shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert cmd.ret == ret
@@ -119,7 +119,7 @@ class CommandUnitTest(unittest.TestCase):
         popen.assert_called_with(
             "test -n 'shell test'", shell=True, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -141,7 +141,7 @@ class CommandUnitTest(unittest.TestCase):
         popen.assert_called_with(
             [command, 'one', 'two'], shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -163,7 +163,7 @@ class CommandUnitTest(unittest.TestCase):
         popen.assert_called_with(
             [command, 'one', 'two'], shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -185,7 +185,7 @@ class CommandUnitTest(unittest.TestCase):
         popen.assert_called_with(
             [command, 'a', 'b', 'one', 'two'], shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -211,7 +211,7 @@ class CommandUnitTest(unittest.TestCase):
             [command], shell=False,
             env={'TEST0': 'VAL0', 'TEST1': 'VAL1', 'TEST2': 'VAL2'},
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -236,7 +236,7 @@ class CommandUnitTest(unittest.TestCase):
         popen.assert_called_with(
             [command], shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -267,7 +267,7 @@ class CommandUnitTest(unittest.TestCase):
             [command], shell=False,
             env={'TEST0': 'VAL0', 'TEST1': 'VAL1', 'TEST2': 'VAL2'},
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(stdin)
         assert result == (out, err)
@@ -291,7 +291,7 @@ class RsyncUnitTest(unittest.TestCase):
         popen.assert_called_with(
             ['rsync', 'src', 'dst'], shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -312,7 +312,7 @@ class RsyncUnitTest(unittest.TestCase):
         popen.assert_called_with(
             ['rsync', 'a', 'b', 'src', 'dst'], shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -335,7 +335,7 @@ class RsyncUnitTest(unittest.TestCase):
             ['/custom/rsync', '-e', "/custom/ssh '-c' 'arcfour'", 'src', 'dst'],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -360,7 +360,7 @@ class RsyncUnitTest(unittest.TestCase):
              'src', 'dst'],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -382,7 +382,7 @@ class RsyncUnitTest(unittest.TestCase):
             ['rsync', '--bwlimit=101', 'src', 'dst'],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -404,7 +404,7 @@ class RsyncUnitTest(unittest.TestCase):
             ['rsync', '--files-from=-', 'src', 'dst'],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with('a\nb\nc'.encode('UTF-8'))
         assert result == ret
@@ -440,7 +440,7 @@ class RsyncPgdataUnitTest(unittest.TestCase):
             ],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
@@ -467,7 +467,7 @@ class RsyncPgdataUnitTest(unittest.TestCase):
             ],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY
+            preexec_fn=mock.ANY, close_fds=True
         )
         pipe.communicate.assert_called_with(None)
         assert result == ret
