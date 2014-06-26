@@ -14,11 +14,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+from datetime import datetime
 import os
 import mock
 import pytest
-
-from barman.infofile import Field, FieldListFile, WalFileInfo
+from dateutil.tz import tzoffset, tzlocal
+from barman.infofile import Field, FieldListFile, WalFileInfo, load_datetime_tz
 
 
 #noinspection PyMethodMayBeStatic
@@ -119,6 +120,7 @@ class TestFieldListFile(object):
         assert repr(dummy) == "DummyFieldListFile(dummy='18')"
 
 
+# noinspection PyMethodMayBeStatic
 class TestWallFileInfo(object):
     def test_from_file_no_compression(self, tmpdir):
         tmp_file = tmpdir.join("test_file")
@@ -220,3 +222,30 @@ class TestWallFileInfo(object):
         wfile_info.compression = None
 
         assert wfile_info.to_xlogdb_line() == 'test_name\t42\t43\tNone\n'
+
+    def test_timezone_aware_parser(self):
+        """
+        Test the timezone_aware_parser method with different string
+        formats
+        """
+        # test case 1 string with timezone info
+        tz_string = '2009/05/13 19:19:30 -0400'
+        result = load_datetime_tz(tz_string)
+        assert result.tzinfo == tzoffset(None, -14400)
+
+        # test case 2 string with timezone info with a different format
+        tz_string = '2004-04-09T21:39:00-08:00'
+        result = load_datetime_tz(tz_string)
+        assert result.tzinfo == tzoffset(None, -28800)
+
+        # test case 3 string without timezone info,
+        # expecting tzlocal() as timezone
+        tz_string = str(datetime.now())
+        result = load_datetime_tz(tz_string)
+        assert result.tzinfo == tzlocal()
+
+        # test case 4 string with a wrong timezone format,
+        # expecting tzlocal() as timezone
+        tz_string = '16:08:12 05/08/03 AEST'
+        result = load_datetime_tz(tz_string)
+        assert result.tzinfo == tzlocal()

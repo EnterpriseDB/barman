@@ -488,19 +488,11 @@ class BackupManager(object):
                 self.server,
                 info_file=StringIO(dest_info_txt))
             dest_begin_time = dest_info.begin_time
-            # Make sure both are tz-aware timestamps: if a timestamps is "naive"
-            # here, it's produced by a previous Barman version.
-            # We assume local timezone.
-            if dest_begin_time.tzinfo is None:
-                dest_begin_time = dest_begin_time.replace(
-                    tzinfo=dateutil.tz.tzlocal())
-            if backup_begin_time.tzinfo is None:
-                backup_begin_time = backup_begin_time.replace(
-                    tzinfo=dateutil.tz.tzlocal())
-            # Pick the earlier begin time
+            # Pick the earlier begin time. Both are tz-aware timestamps because
+            # BackupInfo class ensure it
             safe_horizon = min(backup_begin_time, dest_begin_time)
             output.info("Using safe horizon time for smart rsync copy: %s",
-                         safe_horizon)
+                        safe_horizon)
         except FsOperationFailed, e:
             # Setting safe_horizon to None will effectively disable
             # the time-based part of smart_copy method. However it is still
@@ -1404,7 +1396,7 @@ class BackupManager(object):
         if backup_id:
             # Get the backup object
             backup = BackupInfo(self.server, backup_id=backup_id)
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(dateutil.tz.tzlocal())
             # Evaluate the point of validity
             validity_time = now - last_backup_maximum_age
             # Pretty print of a time interval (age)

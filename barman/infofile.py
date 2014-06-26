@@ -18,6 +18,7 @@ import ast
 
 import os
 import dateutil.parser
+import dateutil.tz
 import collections
 from barman import xlog
 from barman.compression import identify_compression
@@ -54,6 +55,25 @@ def load_tablespace_list(string):
         return [Tablespace._make(item) for item in obj]
     else:
         return None
+
+
+def load_datetime_tz(time_str):
+    """
+    Load datetime and ensure the result is timezone-aware.
+
+    If the parsed timestamp is naive, transform it into a timezone-aware one
+    using the local timezone.
+
+    :param str time_str: string representing a timestamp
+    :return datetime: the parsed timezone-aware datetime
+    """
+    # dateutil parser returns naive or tz-aware string depending on the format
+    # of the input string
+    timestamp = dateutil.parser.parse(time_str)
+    # if the parsed timestamp is naive, forces it to local timezone
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=dateutil.tz.tzlocal())
+    return timestamp
 
 
 class Field(object):
@@ -345,12 +365,12 @@ class BackupInfo(FieldListFile):
                         dump=output_tablespace_list)
     # Timeline is an integer
     timeline = Field('timeline', load=int)
-    begin_time = Field('begin_time', load=dateutil.parser.parse)
+    begin_time = Field('begin_time', load=load_datetime_tz)
     begin_xlog = Field('begin_xlog')
     begin_wal = Field('begin_wal')
     begin_offset = Field('begin_offset')
     size = Field('size', load=int)
-    end_time = Field('end_time', load=dateutil.parser.parse)
+    end_time = Field('end_time', load=load_datetime_tz)
     end_xlog = Field('end_xlog')
     end_wal = Field('end_wal')
     end_offset = Field('end_offset')

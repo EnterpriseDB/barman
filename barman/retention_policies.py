@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 import re
 import logging
 from barman.infofile import BackupInfo
+from dateutil import tz
 
 _logger = logging.getLogger(__name__)
 
@@ -221,7 +222,7 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         of recoverability, which will be then used to define the first
         backup or the first WAL
         '''
-        return datetime.now() - self.timedelta
+        return datetime.now(tz.tzlocal()) - self.timedelta
 
     def _backup_report(self):
         '''Report obsolete/valid backups according to the retention policy'''

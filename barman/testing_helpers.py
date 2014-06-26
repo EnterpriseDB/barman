@@ -18,6 +18,7 @@
 from datetime import datetime, timedelta
 import mock
 from barman.infofile import BackupInfo, Tablespace
+from dateutil import tz
 
 
 def mock_backup_info(backup_id='1234567890',
@@ -45,9 +46,9 @@ def mock_backup_info(backup_id='1234567890',
                      timeline=1,
                      version=90302):
     if begin_time is None:
-        begin_time = datetime.now() - timedelta(minutes=10)
+        begin_time = datetime.now(tz.tzlocal()) - timedelta(minutes=10)
     if end_time is None:
-        end_time = datetime.now()
+        end_time = datetime.now(tz.tzlocal())
 
     # Generate a list of tablespace objects
     tablespaces = [Tablespace._make(item) for item in tablespaces]
