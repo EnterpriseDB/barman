@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 06/18/2014
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 06/27/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "06/18/2014" "\ \&" "\ \&"
+.TH "BARMAN" "5" "06/27/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -189,7 +189,7 @@ This option allows you to specify a maximum transfer rate in kilobytes per secon
 This option allows you to control the way PostgreSQL handles checkpoint at the start of the backup\&. If set to
 false
 (default), Postgres will wait for a checkpoint to happen before allowing the start of the backup\&. If set to
-true, an immediate checkpoint is requested\&.
+true, an immediate checkpoint is requested\&. Global/Server\&.
 .RE
 .PP
 \fBnetwork_compression\fR
@@ -197,7 +197,7 @@ true, an immediate checkpoint is requested\&.
 This option allows you to enable data compression for network transfers\&. If set to
 false
 (default), no compression is used\&. If set to
-true, compression is enabled, reducing network usage\&.
+true, compression is enabled, reducing network usage\&. Global/Server\&.
 .RE
 .PP
 \fBbackup_options\fR
@@ -209,12 +209,22 @@ barman backup
 executes backup operations using the standard exclusive backup approach (technically through pg_start_backup/pg_stop_backup)\&. If set to
 concurrent_backup, Barman requires the
 pgespresso
-module to be installed on the PostgreSQL server (this allows to perform backup from a standby server)\&.
+module to be installed on the PostgreSQL server (this allows to perform backup from a standby server)\&. Global/Server\&.
 .RE
 .PP
 \fBlast_backup_maximum_age\fR
 .RS 4
 This option identifies a time frame that must contain the latest backup\&. If the latest backup is older than the time frame, barman check command will report an error to the user\&. If empty (default), latest backup is always considered valid\&. Syntax for this option is: "i (DAYS | WEEKS | MONTHS)" where i is a integer greater than zero, representing the number of days | weeks | months of the time frame\&. Global/Server\&.
+.RE
+.PP
+\fBbasebackup_retry_times\fR
+.RS 4
+Number of retries of data copy during base backup after an error\&. Positive integer, default 0\&. Global/Server\&.
+.RE
+.PP
+\fBbasebackup_retry_sleep\fR
+.RS 4
+Number of seconds of wait after a failed copy, before retrying Positive integer, default 30\&. Global/Server\&.
 .RE
 .SH "HOOK SCRIPTS"
 .sp
@@ -236,7 +246,6 @@ phase)
 .PP
 BARMAN_PHASE
 .RS 4
-
 \fIpre\fR
 or
 \fIpost\fR
@@ -378,6 +387,17 @@ Giuseppe Broccolo <giuseppe\&.broccolo@2ndquadrant\&.it> (core team, QA)
 .IP \(bu 2.3
 .\}
 Giulio Calacoci <giulio\&.calacoci@2ndquadrant\&.it> (core team, developer)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Francesco Canovai <francesco\&.canovai@2ndquadrant\&.it> (core team, QA/testing)
 .RE
 .sp
 .RS 4

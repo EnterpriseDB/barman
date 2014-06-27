@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 03/26/2014
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 06/27/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "03/26/2014" "\ \&" "\ \&"
+.TH "BARMAN" "1" "06/27/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -255,7 +255,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBdata\fR
 \- lists just the data files;
 .RE
@@ -268,7 +267,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBstandalone\fR
 \- lists the base backup files, including required WAL files;
 .RE
@@ -281,7 +279,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBwal\fR
 \- lists all the WAL files between the start of the base backup and the end of the log / the start of the following base backup (depending on whether the specified base backup is the most recent one available);
 .RE
@@ -294,7 +291,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBfull\fR
 \- same as data + wal\&. Defaults to standalone
 .RE
@@ -437,6 +433,17 @@ Giuseppe Broccolo <giuseppe\&.broccolo@2ndquadrant\&.it> (core team, QA)
 .IP \(bu 2.3
 .\}
 Giulio Calacoci <giulio\&.calacoci@2ndquadrant\&.it> (core team, developer)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Francesco Canovai <francesco\&.canovai@2ndquadrant\&.it> (core team, QA/testing)
 .RE
 .sp
 .RS 4
