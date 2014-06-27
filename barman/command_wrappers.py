@@ -174,6 +174,27 @@ class Rsync(Command):
         $ # end of the line
     ''')
 
+    #: This regular expression is used to ignore error messages regarding
+    # vanished files that are not really an error. It is used because
+    # in some cases rsync reports it with exit code 23 which could also mean
+    # a fatal error
+    VANISHED_RE = re.compile('''
+        (?x) # Enable verbose mode
+
+        ^ # start of the line
+        (
+        # files which vanished before rsync start
+        rsync:\ link_stat\ ".+"\ failed:\ No\ such\ file\ or\ directory\ \(2\)
+        |
+        # files which vanished after rsync start
+        file\ has\ vanished:\ ".+"
+        |
+        # final summary
+        rsync\ error:\ .* \(code\ 23\)\ at\ main\.c\(\d+\)\ \[generator=[^\]]+\]
+        )
+        $ # end of the line
+    ''')
+
     # This named tuple is used to parse each line of the output
     # of a "rsync --list-only" call
     FileItem = collections.namedtuple('FileItem', 'mode size date path')
@@ -249,6 +270,30 @@ class Rsync(Command):
                        "'%s'" % line)
                 _logger.error(msg)
                 raise RsyncListFilesFailure(msg)
+
+    def _rsync_ignore_vanished_files(self, *args, **kwargs):
+        """
+        Wrap a getoutput() call and ignore missing args
+
+        TODO: when rsync 3.1 will be widespread, replace this
+            with --ignore-missing-args argument
+        """
+        try:
+            self.getoutput(*args, **kwargs)
+        except CommandFailedException:
+            # if return code is different than 23
+            # or there is any error which doesn't match the VANISHED_RE regexp
+            # raise the error again
+            if self.ret == 23 and self.err is not None:
+                for line in self.err.splitlines():
+                    match = self.VANISHED_RE.match(line.rstrip())
+                    if match:
+                        continue
+                    else:
+                        raise
+            else:
+                raise
+        return self.out, self.err
 
     def smart_copy(self, src, dst, safe_horizon=None):
         """
@@ -375,7 +420,7 @@ class Rsync(Command):
             # Create directories and delete/copy unknown files
             _logger.info("Smart copy step 2/4: create directories and "
                          "delete/copy unknown files")
-            self.getoutput(
+            self._rsync_ignore_vanished_files(
                 '--recursive',
                 '--delete',
                 '--files-from=%s' % dir_list.name,
@@ -385,14 +430,14 @@ class Rsync(Command):
 
             # Copy safe files
             _logger.info("Smart copy step 3/4: safe copy")
-            self.getoutput(
+            self._rsync_ignore_vanished_files(
                 '--files-from=%s' % safe_list.name,
                 src, dst,
                 check=True)
 
             # Copy remaining files with checksums
             _logger.info("Smart copy step 4/4: copy with checksums")
-            self.getoutput(
+            self._rsync_ignore_vanished_files(
                 '--checksum',
                 '--files-from=%s' % check_list.name,
                 src, dst,
