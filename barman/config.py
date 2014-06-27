@@ -231,8 +231,8 @@ class Server(object):
         'backup_options': "%s" % BackupOptions.EXCLUSIVE_BACKUP,
         'immediate_checkpoint': 'false',
         'network_compression': 'false',
-        'basebackup_retry_times': '1',
-        'basebackup_retry_sleep': '10',
+        'basebackup_retry_times': '0',
+        'basebackup_retry_sleep': '30',
     }
 
     PARSERS = {
