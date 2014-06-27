@@ -273,7 +273,8 @@ class Rsync(Command):
         :except CommandFailedException: If rsync failed at any time
         :except RsyncListFilesFailure: If source rsync output format is unknown
         """
-        _logger.debug("smart_copy: %r, %r, %r", src, dst, safe_horizon)
+        _logger.info("Smart copy: %r -> %r (safe before %r)",
+                     src, dst, safe_horizon)
 
         # Make sure the dst path ends with a '/' or rsync will add the
         # last path component to all the returned items during listing
@@ -282,6 +283,7 @@ class Rsync(Command):
 
         # Build a hash containing all files present on destination.
         # Directories are not included
+        _logger.info("Smart copy step 1/4: preparation")
         try:
             dst_hash = dict((
                 (item.path, item)
@@ -370,7 +372,9 @@ class Rsync(Command):
             self.args.append('--itemize-changes')
             self.args.append('--itemize-changes')
 
-            # Create directories and delete unknown files
+            # Create directories and delete/copy unknown files
+            _logger.info("Smart copy step 2/4: create directories and "
+                         "delete/copy unknown files")
             self.getoutput(
                 '--recursive',
                 '--delete',
@@ -380,12 +384,14 @@ class Rsync(Command):
                 check=True)
 
             # Copy safe files
+            _logger.info("Smart copy step 3/4: safe copy")
             self.getoutput(
                 '--files-from=%s' % safe_list.name,
                 src, dst,
                 check=True)
 
             # Copy remaining files with checksums
+            _logger.info("Smart copy step 4/4: copy with checksums")
             self.getoutput(
                 '--checksum',
                 '--files-from=%s' % check_list.name,
