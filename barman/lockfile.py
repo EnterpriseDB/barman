@@ -92,11 +92,15 @@ class LockFile(object):
         if self.fd:
             return True
         fd = None
+        # method arguments take precedence on class parameters
+        raise_if_fail = raise_if_fail \
+            if raise_if_fail is not None else self.raise_if_fail
+        wait = wait if wait is not None else self.wait
         try:
             fd = os.open(self.filename, os.O_TRUNC | os.O_CREAT | os.O_RDWR,
                          0600)
             flags = fcntl.LOCK_EX
-            if not wait or (wait is None and not self.wait):
+            if not wait:
                 flags |= fcntl.LOCK_NB
             fcntl.flock(fd, flags)
             os.write(fd, ("%s\n" % os.getpid()).encode('ascii'))
@@ -105,8 +109,7 @@ class LockFile(object):
         except (OSError, IOError), e:
             if fd:
                 os.close(fd)   # let's not leak  file descriptors
-            if (raise_if_fail or
-                    (raise_if_fail is None and self.raise_if_fail)):
+            if raise_if_fail:
                 if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
                     raise LockFileBusy(self.filename)
                 elif e.errno == errno.EACCES:
@@ -129,6 +132,7 @@ class LockFile(object):
             os.close(self.fd)
         except (OSError, IOError):
             pass
+        self.fd = None
 
     def __del__(self):
         """
