@@ -38,7 +38,7 @@ from barman import xlog, output
 from barman.command_wrappers import Rsync, RsyncPgData, CommandFailedException
 from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
-from barman.utils import human_readable_timedelta
+from barman.utils import human_readable_timedelta, mkpath
 from barman.config import BackupOptions
 
 
@@ -223,6 +223,8 @@ class BackupManager(object):
                 # exit condition: if retry number is lower than configured retry
                 # limit, try again; otherwise exit.
                 if attempts < self.config.basebackup_retry_times:
+                    # Log the exception, for debugging purpose
+                    _logger.exception("Failure in base backup copy: %s", e)
                     output.warning(
                         "Copy of base backup failed, waiting for next "
                         "attempt in %s seconds",
@@ -595,7 +597,7 @@ class BackupManager(object):
                 status_dir = tempfile.mkdtemp(prefix='barman_xlog_status-')
             else:
                 status_dir = os.path.join(wal_dest, 'archive_status')
-                os.makedirs(status_dir) # no need to check, it must not exist
+                mkpath(status_dir)
             for filename in required_xlog_files:
                 with open(os.path.join(status_dir, "%s.done" % filename),
                           'a') as f:
@@ -869,7 +871,7 @@ class BackupManager(object):
         if len(tablespaces_bwlimit) > 0:
             # we are copying the tablespaces before the data directory,
             # so we need to create the 'pg_tblspc' directory
-            os.makedirs(os.path.join(backup_dest, 'pg_tblspc'))
+            mkpath(os.path.join(backup_dest, 'pg_tblspc'))
             for tablespace_dir, bwlimit in tablespaces_bwlimit.items():
                 self.current_action = "copying tablespace '%s' with bwlimit " \
                                       "%d" % (tablespace_dir, bwlimit)
@@ -1069,8 +1071,7 @@ class BackupManager(object):
             wal_dest = ':%s' % wal_dest
         else:
             # we will not use rsync: destdir must exists
-            if not os.path.exists(wal_dest):
-                os.makedirs(wal_dest)
+            mkpath(wal_dest)
         if compressor and remote_command:
             xlog_spool = tempfile.mkdtemp(prefix='barman_xlog-')
         for prefix in xlogs:
@@ -1131,8 +1132,7 @@ class BackupManager(object):
         script.env_from_wal_info(wal_info)
         script.run()
 
-        if not os.path.isdir(destdir):
-            os.makedirs(destdir)
+        mkpath(destdir)
         if compressor:
             compressor.compress(filename, destfile)
             shutil.copystat(filename, destfile)
