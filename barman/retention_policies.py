@@ -109,6 +109,12 @@ class RetentionPolicy(object):
             'The class %s must override the create() class method',
             cls.__name__)
 
+    def to_json(self):
+        """
+        Output representation of the obj for JSON serialization
+        """
+        return "%s %s" % (self.mode, self.value)
+
 
 class RedundancyRetentionPolicy(RetentionPolicy):
     '''

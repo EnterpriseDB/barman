@@ -186,15 +186,15 @@ class BarmanEncoder(json.JSONEncoder):
     This encoder supports the following types:
 
     * dates and timestamps if they have a ctime() method.
-    * RetentionPolicy objects
+    * objects that implement the 'to_json' method.
     * binary strings (python 3)
 
     """
     def default(self, obj):
+        if hasattr(obj, 'to_json'):
+            return obj.to_json()
         if hasattr(obj, 'ctime') and callable(obj.ctime):
             return obj.ctime()
-        if isinstance(obj, RetentionPolicy):
-            return "%s %s" % (obj.mode, obj.value)
         if hasattr(obj, 'decode') and callable(obj.decode):
             return obj.decode('utf-8', 'replace')
         # Let the base class default method raise the TypeError

@@ -108,6 +108,14 @@ class CsvOption(set):
         Override this method for special validation needs
         """
 
+    def to_json(self):
+        """
+        Output representation of the obj for JSON serialization
+
+        The result is a string which can be parsed by the same class
+        """
+        return ",".join(self)
+
 
 class BackupOptions(CsvOption):
     """
