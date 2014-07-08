@@ -983,25 +983,29 @@ class Server(object):
         if not os.path.exists(self.config.wals_directory):
             os.makedirs(self.config.wals_directory)
         xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
-        # If the file doesn't exist and it is required to read it,
-        # we open it in a+ mode, to be sure it will be created
-        if not os.path.exists(xlogdb) and mode.startswith('r'):
-            if '+' not in mode:
-                mode = "a%s+" % mode[1:]
-            else:
-                mode = "a%s" % mode[1:]
+
         xlogdb_lock = xlogdb + ".lock"
         with LockFile(xlogdb_lock, wait=True):
+            # If the file doesn't exist and it is required to read it,
+            # we open it in a+ mode, to be sure it will be created
+            if not os.path.exists(xlogdb) and mode.startswith('r'):
+                if '+' not in mode:
+                    mode = "a%s+" % mode[1:]
+                else:
+                    mode = "a%s" % mode[1:]
+
             with open(xlogdb, mode) as f:
 
                 # execute the block nested in the with statement
-                yield f
+                try:
+                    yield f
 
-                # we are exiting the context
-                # make sure the data is written to disk
-                # http://docs.python.org/2/library/os.html#os.fsync
-                f.flush()
-                os.fsync(f.fileno())
+                finally:
+                    # we are exiting the context
+                    # make sure the data is written to disk
+                    # http://docs.python.org/2/library/os.html#os.fsync
+                    f.flush()
+                    os.fsync(f.fileno())
 
     def xlogdb_parse_line(self, line):
         '''Parse a line from xlog catalogue
