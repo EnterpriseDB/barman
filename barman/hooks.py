@@ -121,7 +121,17 @@ class HookScriptRunner(object):
                     env_append=self.environment,
                     shell=True, check=False)
                 self.exit_status = cmd()
-                _logger.debug("%s returned %d", self.script, self.exit_status)
+                if self.exit_status != 0:
+                    details = "%s returned %d\n" \
+                              "Output details:\n" \
+                              % (self.script, self.exit_status)
+                    details += cmd.out
+                    details += cmd.err
+                    _logger.warning(details)
+                else:
+                    _logger.debug("%s returned %d",
+                                  self.script,
+                                  self.exit_status)
                 return self.exit_status
         except Exception as e:
             _logger.exception('Exception running %s', self.name)
