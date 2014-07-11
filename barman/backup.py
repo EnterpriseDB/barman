@@ -1069,7 +1069,9 @@ class BackupManager(object):
             network_compression=self.config.network_compression)
         if remote_command:
             # If remote recovery tell rsync to copy them remotely
-            wal_dest = ':%s' % wal_dest
+            # add ':' prefix to mark it as remote
+            # add '/' suffix to ensure it is a directory
+            wal_dest = ':%s/' % wal_dest
         else:
             # we will not use rsync: destdir must exists
             mkpath(wal_dest)
