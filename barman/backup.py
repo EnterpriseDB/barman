@@ -749,7 +749,6 @@ class BackupManager(object):
         backup_dir = backup.get_basebackup_directory();
         shutil.rmtree(backup_dir)
 
-
     def delete_wal(self, wal_info):
         """
         Delete a WAL segment, with the given name
@@ -768,7 +767,7 @@ class BackupManager(object):
                 pass
         except OSError:
             _logger.warning('Expected WAL file %s not found during delete',
-                            name, exc_info=1)
+                            wal_info.name, exc_info=1)
 
     def backup_start(self, backup_info, immediate_checkpoint):
         """
