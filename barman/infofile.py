@@ -289,7 +289,8 @@ class WalFileInfo(FieldListFile):
     name = Field('name', doc='base name of WAL file')
     full_path = Field('full_path', doc='complete path of the file')
     size = Field('size', load=int, doc='WAL file size after compression')
-    time = Field('time', load=int, doc='WAL file modification time')
+    time = Field('time', load=float, doc='WAL file modification time '
+                                         '(seconds since epoch)')
     compression = Field('compression', doc='compression type')
 
     @classmethod

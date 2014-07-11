@@ -749,17 +749,18 @@ class BackupManager(object):
         backup_dir = backup.get_basebackup_directory();
         shutil.rmtree(backup_dir)
 
-    def delete_wal(self, name):
-        '''
+
+    def delete_wal(self, wal_info):
+        """
         Delete a WAL segment, with the given name
 
         :param name: the name of the WAL to delete
-        '''
-        hashdir = os.path.join(self.config.wals_directory, xlog.hash_dir(name))
+        """
+
         try:
-            os.unlink(os.path.join(hashdir, name))
+            os.unlink(wal_info.full_path)
             try:
-                os.removedirs(hashdir)
+                os.removedirs(os.path.dirname(wal_info.full_path))
             except OSError:
                 # This is not an error condition
                 # We always try to remove the the trailing directories,
@@ -1367,14 +1368,14 @@ class BackupManager(object):
             xlogdb_new = fxlogdb.name + ".new"
             with open(xlogdb_new, 'w') as fxlogdb_new:
                 for line in fxlogdb:
-                    name, _, _, _ = self.server.xlogdb_parse_line(line)
-                    if backup_info and name >= backup_info.begin_wal:
-                        fxlogdb_new.write(line)
+                    wal_info = self.server.xlogdb_parse_line(line)
+                    if backup_info and wal_info.name >= backup_info.begin_wal:
+                        fxlogdb_new.write(wal_info.to_xlogdb_line())
                         continue
                     else:
                         # Delete the WAL segment
-                        self.delete_wal(name)
-                        removed.append(name)
+                        self.delete_wal(wal_info)
+                        removed.append(wal_info.name)
             shutil.move(xlogdb_new, fxlogdb.name)
         return removed
 

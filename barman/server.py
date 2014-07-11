@@ -31,7 +31,8 @@ import shutil
 
 from barman import output
 from barman.config import BackupOptions
-from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace
+from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace, \
+    WalFileInfo
 from barman.lockfile import LockFile, LockFileBusy, \
     LockFilePermissionDenied
 from barman.backup import BackupManager
@@ -849,7 +850,7 @@ class Server(object):
     def get_required_xlog_files(self, backup, target_tli=None, target_time=None,
                                 target_xid=None):
         """
-        Get the xlog files required for a backup
+        Get the xlog files required for a recovery
         """
         begin = backup.begin_wal
         end = backup.end_wal
@@ -859,20 +860,22 @@ class Server(object):
             target_tli, _, _ = xlog.decode_segment_name(end)
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
-                name, _, stamp, _ = self.xlogdb_parse_line(line)
-                if name < begin: continue
-                tli, _, _ = xlog.decode_segment_name(name)
-                if tli > target_tli: continue
-                yield name
-                if name > end:
-                    end = name
-                    if target_time and target_time < stamp:
+                wal_info = self.xlogdb_parse_line(line)
+                if wal_info.name < begin:
+                    continue
+                tli, _, _ = xlog.decode_segment_name(wal_info.name)
+                if tli > target_tli:
+                    continue
+                yield wal_info.name
+                if wal_info.name > end:
+                    end = wal_info.name
+                    if target_time and target_time < wal_info.time:
                         break
             # return all the remaining history files
             for line in fxlogdb:
-                name, _, stamp, _ = self.xlogdb_parse_line(line)
-                if xlog.is_history_file(name):
-                    yield name
+                wal_info = self.xlogdb_parse_line(line)
+                if xlog.is_history_file(wal_info.name):
+                    yield wal_info.name
 
     # TODO: merge with the previous
     def get_wal_until_next_backup(self, backup):
@@ -889,15 +892,18 @@ class Server(object):
 
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
-                name, size, _, _ = self.xlogdb_parse_line(line)
-                if name < begin: continue
-                tli, _, _ = xlog.decode_segment_name(name)
-                if tli > backup_tli: continue
-                if not xlog.is_wal_file(name): continue
-                if next_end and name > next_end:
+                wal_info = self.xlogdb_parse_line(line)
+                if wal_info.name < begin:
+                    continue
+                tli, _, _ = xlog.decode_segment_name(wal_info.name)
+                if tli > backup_tli:
+                    continue
+                if not xlog.is_wal_file(wal_info.name):
+                    continue
+                if next_end and wal_info.name > next_end:
                     break
                 # count
-                yield (name, size)
+                yield (wal_info.name, wal_info.size)
 
     def get_wal_info(self, backup_info):
         """
@@ -1008,20 +1014,27 @@ class Server(object):
                     os.fsync(f.fileno())
 
     def xlogdb_parse_line(self, line):
-        '''Parse a line from xlog catalogue
+        """
+        Parse a line from xlog catalogue
 
         :param line: a line in the wal database to parse
-        '''
+        :rtype: WalFileInfo
+        """
         try:
-            name, size, stamp, compression = line.split()
+            name, size, time, compression = line.split()
         except ValueError:
             # Old format compatibility (no compression)
             compression = None
             try:
-                name, size, stamp = line.split()
+                name, size, time = line.split()
             except ValueError:
                 raise ValueError("cannot parse line: %r" % (line,))
-        return name, int(size), float(stamp), compression
+        hashdir = os.path.join(self.config.wals_directory, xlog.hash_dir(name))
+        full_path = os.path.join(hashdir, name)
+        size = int(size)
+        time = float(time)
+        return WalFileInfo(name=name, full_path=full_path, size=size, time=time,
+                           compression=compression)
 
     def report_backups(self):
         if not self.enforce_retention_policies:
