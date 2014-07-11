@@ -243,7 +243,11 @@ class Rsync(Command):
         :except RsyncListFilesFailure: if rsync output can't be parsed
         """
         _logger.debug("list_files: %r", path)
-        self.getoutput('--list-only', '-r', path, check=True)
+        # Use the --no-human-readable option to avoid digit groupings
+        # in "size" field with rsync >= 3.1.0.
+        # Ref: http://ftp.samba.org/pub/rsync/src/rsync-3.1.0-NEWS
+        self.getoutput('--no-human-readable', '--list-only', '-r', path,
+                       check=True)
         for line in self.out.splitlines():
             line = line.rstrip()
             match = self.LIST_ONLY_RE.match(line)
