@@ -35,7 +35,8 @@ FORBIDDEN_SERVER_NAMES = ['all']
 
 DEFAULT_USER = 'barman'
 DEFAULT_LOG_LEVEL = logging.INFO
-DEFAULT_LOG_FORMAT = "%(asctime)s %(name)s %(levelname)s: %(message)s"
+DEFAULT_LOG_FORMAT = "%(asctime)s [%(process)s] %(name)s " \
+                     "%(levelname)s: %(message)s"
 
 _TRUE_RE = re.compile(r"""^(true|t|yes|1)$""", re.IGNORECASE)
 _FALSE_RE = re.compile(r"""^(false|f|no|0)$""", re.IGNORECASE)
