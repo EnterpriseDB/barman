@@ -706,14 +706,17 @@ class BackupManager(object):
         compressor = self.compression_manager.get_compressor()
         with self.server.xlogdb('a') as fxlogdb:
             if verbose:
-                output.info("Processing xlog segments for %s", self.config.name)
+                output.info("Processing xlog segments for %s",
+                            self.config.name,
+                            log=False)
             available_backups = self.get_available_backups(
                 BackupInfo.STATUS_ALL)
             for filename in sorted(glob(
                     os.path.join(self.config.incoming_wals_directory, '*'))):
                 if not found and not verbose:
                     output.info("Processing xlog segments for %s",
-                                self.config.name)
+                                self.config.name,
+                                log=False)
                 found = True
                 # Delete xlog segments only if the backup is exclusive
                 if (not len(available_backups) and
@@ -730,9 +733,12 @@ class BackupManager(object):
                 # Updates the information of the WAL archive with
                 # the latest segments
                 fxlogdb.write(wal_info.to_xlogdb_line())
-                output.info("\t%s", os.path.basename(filename))
+                output.info("\t%s", wal_info.name, log=False)
+                _logger.info("Archiving %s/%s",
+                             self.config.name,
+                             wal_info.name)
         if not found and verbose:
-            output.info("\tno file found")
+            output.info("\tno file found", log=False)
 
         # Retention policy management
         if (self.server.enforce_retention_policies
