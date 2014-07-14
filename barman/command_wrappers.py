@@ -452,6 +452,8 @@ class Rsync(Command):
             self.args = orig_args
         finally:
             shutil.rmtree(temp_dir)
+            _logger.info("Smart copy finished: %s -> %s (safe before %s)",
+                         src, dst, safe_horizon)
 
 
 class RsyncPgData(Rsync):

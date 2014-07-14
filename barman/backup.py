@@ -1076,8 +1076,19 @@ class BackupManager(object):
             mkpath(wal_dest)
         if compressor and remote_command:
             xlog_spool = tempfile.mkdtemp(prefix='barman_xlog-')
-        for prefix in xlogs:
+        total_wals = sum(map(len, xlogs.values()))
+        partial_count = 0
+        for prefix in sorted(xlogs):
+            batch_len = len(xlogs[prefix])
+            partial_count += batch_len
             source_dir = os.path.join(self.config.wals_directory, prefix)
+            _logger.info(
+                "Starting copy of %s WAL files %s/%s from %s to %s",
+                batch_len,
+                partial_count,
+                total_wals,
+                xlogs[prefix][0],
+                xlogs[prefix][-1])
             if compressor:
                 if remote_command:
                     for segment in xlogs[prefix]:
@@ -1110,6 +1121,8 @@ class BackupManager(object):
                     msg = "data transfer failure while copying WAL files " \
                           "to directory '%s'" % (wal_dest[1:],)
                     self._raise_rsync_error(e, msg)
+
+        _logger.info("Finished copying %s WAL files.", total_wals)
 
         if compressor and remote_command:
             shutil.rmtree(xlog_spool)
