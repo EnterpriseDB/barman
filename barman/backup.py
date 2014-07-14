@@ -452,9 +452,17 @@ class BackupManager(object):
         if target_time:
             try:
                 target_datetime = dateutil.parser.parse(target_time)
-            except ValueError, e:
+            except ValueError as e:
                 msg = "unable to parse the target time parameter %r: %s" % (
                       target_time, e)
+                _logger.exception(msg)
+                raise SystemExit(msg)
+            except Exception:
+                # this should not happen, but there is a known bug in
+                # dateutil.parser.parse() implementation
+                # ref: https://bugs.launchpad.net/dateutil/+bug/1247643
+                msg = "unable to parse the target time parameter %r" % (
+                      target_time)
                 _logger.exception(msg)
                 raise SystemExit(msg)
             target_epoch = time.mktime(target_datetime.timetuple()) + (
