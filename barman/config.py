@@ -301,6 +301,7 @@ class Server(object):
         self.config = config
         self.name = name
         self.barman_home = config.get('barman', 'barman_home')
+        config.validate_server_config(self.name)
         for key in Server.KEYS:
             value = None
             # Get the setting from the [name] section of config file
@@ -459,9 +460,57 @@ class Config(object):
         return self._servers.values()
 
     def get_server(self, name):
-        """Get the server specifying its name"""
+        """
+        Get the configuration of the specified server
+
+        :param str name: the server name
+        """
         self._populate_servers()
         return self._servers.get(name, None)
+
+    def validate_global_config(self):
+        """
+        Validate global configuration parameters
+        """
+        # Check for the existence of unexpected parameters in the
+        # global section of the configuration file
+        keys = ['barman_home',
+                'barman_user',
+                'log_file',
+                'log_level',
+                'configuration_files_directory']
+        keys.extend(Server.KEYS)
+        self._validate_with_keys(self._global_config,
+                                 keys, 'barman')
+
+    def validate_server_config(self, server):
+        """
+        Validate configuration parameters for a specified server
+
+        :param str server: the server name
+        """
+        # Check for the existence of unexpected parameters in the
+        # server section of the configuration file
+        self._validate_with_keys(self._config.items(server),
+                                 Server.KEYS, server)
+
+    @staticmethod
+    def _validate_with_keys(config_items, allowed_keys, section):
+        """
+        Check every config parameter against a list of allowed keys
+
+        :param config_items: list of tuples containing provided parameters
+            along with their values
+        :param allowed_keys: list of allowed keys
+        :param section: source section (for error reporting)
+        """
+        for parameter in config_items:
+            # if the parameter name is not in the list of allowed values,
+            # then output a warning
+            name = parameter[0]
+            if name not in allowed_keys:
+                output.warning('Invalid configuration option "%s" in [%s] '
+                               'section.', name, section)
 
 
 # easy raw config diagnostic with python -m

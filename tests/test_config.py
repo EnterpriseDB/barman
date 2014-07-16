@@ -16,7 +16,6 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import unittest
 from datetime import timedelta
 import mock
 import pytest
@@ -132,7 +131,7 @@ MINIMAL_CONFIG = """
 [barman]
 barman_home = /srv/barman
 barman_user = {USER}
-log = %(barman_home)s/log/barman.log
+log_file = %(barman_home)s/log/barman.log
 [main]
 description = " Text with quotes "
 ssh_command = ssh -c "arcfour" -p 22 postgres@pg01
@@ -188,7 +187,7 @@ def _build_config(barman, main):
     base_barman = {
         'barman_home': '/srv/barman',
         'barman_user': '{USER}',
-        'log': '%(barman_home)s/log/barman.log'
+        'log_file': '%(barman_home)s/log/barman.log'
     }
     # base main section
     base_main = {
@@ -211,11 +210,11 @@ def _build_config(barman, main):
     out.write('[main]\n')
     for key in base_main.keys():
         out.write('%s = %s\n' % (key, base_main[key]))
-    a = out.getvalue()
     out.seek(0)
     return out
 
 
+# noinspection PyMethodMayBeStatic
 class Test(object):
 
     def test_server_list(self):
@@ -273,6 +272,7 @@ class Test(object):
         # so we expect a ValueError exception
         with pytest.raises(ValueError):
             parse_time_interval('test_string')
+
 
 class TestCsvParsing(object):
     """
@@ -372,8 +372,9 @@ class TestCsvParsing(object):
         server: backup_options = exclusive_backup, none_of_your_business
         risultato = backup_options = concurrent_backup
 
-        the 'none_of_your_business' value on server section invalidates the whole
-        csv string, because is not an allowed value of the BackupOptions class.
+        the 'none_of_your_business' value on server section invalidates the
+        whole csv string, because is not an allowed value of the BackupOptions
+        class.
         We expect to fallback to the global 'concurrent_backup' value.
         """
         # build a string with a wrong value
@@ -389,7 +390,8 @@ class TestCsvParsing(object):
         expected = dict(config=c)
         expected.update(MINIMAL_CONFIG_MAIN)
         # override the backup_options value in the expected dictionary
-        expected['backup_options'] = BackupOptions(BackupOptions.CONCURRENT_BACKUP, "", "")
+        expected['backup_options'] = BackupOptions(
+            BackupOptions.CONCURRENT_BACKUP, "", "")
 
         assert main.__dict__ == expected
         # use the mocked output class to verify the presence of the warning
@@ -444,6 +446,29 @@ class TestCsvParsing(object):
                                    BackupOptions.CONCURRENT_BACKUP)
             BackupOptions(conflict, "", "")
 
-if __name__ == "__main__":
-    #import sys;sys.argv = ['', 'Test.testName']
-    unittest.main()
+    @patch('barman.config.output')
+    def test_invalid_option_output(self, out_mock):
+        """
+        Test the config behavior with unknown options
+        """
+        # build a configuration with a a server and a global unknown vale. then
+        # add them to the minimal configuration.
+        fp = _build_config({'test_global_option': 'invalid_value'},
+                           {'test_server_option': 'invalid_value'})
+        # parse configuration from string
+        c = Config(fp)
+        c.validate_global_config()
+        # use the mocked output class to verify the presence of the warning
+        # for a unknown configuration parameter in the barman subsection
+        out_mock.warning.assert_called_with(
+            'Invalid configuration option "%s" in [%s] section.',
+            'test_global_option',
+            'barman')
+        #parse main section
+        c.get_server('main')
+        # use the mocked output class to verify the presence of the warning
+        # for a unknown configuration parameter in the server subsection
+        out_mock.warning.assert_called_with(
+            'Invalid configuration option "%s" in [%s] section.',
+            'test_server_option',
+            'main')

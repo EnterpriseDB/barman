@@ -473,6 +473,9 @@ def global_config(args):
     # Load additional configuration files
     _logger.debug('Loading additional configuration files')
     config.load_configuration_files_directory()
+    # We must validate the configuration here in order to have
+    # both output and logging configured
+    config.validate_global_config()
 
     _logger.debug('Initialized Barman version %s (config: %s)',
                   barman.__version__, config.config_file)
