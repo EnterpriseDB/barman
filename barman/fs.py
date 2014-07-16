@@ -212,8 +212,8 @@ class UnixLocalCommand(object):
         result['python_ver'] = _str(self.cmd.out).rstrip()
         self.cmd('rsync --version 2>&1')
         result['rsync_ver'] = _str(self.cmd.out).splitlines(True)[0].rstrip()
-        self.cmd('ssh -v 2>&1')
-        result['ssh_ver'] = _str(self.cmd.out).splitlines(True)[0].rstrip()
+        self.cmd('ssh -V 2>&1')
+        result['ssh_ver'] = _str(self.cmd.out).splitlines(True).rstrip()
         return result
 
     def get_file_content(self, path):
