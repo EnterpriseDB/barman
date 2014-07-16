@@ -129,13 +129,13 @@ class TestBackup(object):
         # Instruct the patched method to raise a general exception
         mock_start.side_effect = Exception('abc')
         # invoke backup method
-        backup_manager.backup(False)
+        backup_manager.backup()
         # verify that mock status is FAILED
         assert call.set_attribute('status', 'FAILED') in instance.mock_calls
         # Instruct the patched method to raise a KeyboardInterrupt
         mock_start.side_effect = KeyboardInterrupt()
         # invoke backup method
-        backup_manager.backup(False)
+        backup_manager.backup()
         # verify that mock status is FAILED
         assert call.set_attribute('status', 'FAILED') in instance.mock_calls
 

@@ -20,7 +20,7 @@ This module implements the interface with the command line and the logger.
 """
 
 from argh import ArghParser, named, arg, expects_obj
-from argparse import SUPPRESS
+from argparse import SUPPRESS, ArgumentTypeError
 from barman import output
 from barman.infofile import BackupInfo
 from barman import lockfile
@@ -34,6 +34,22 @@ from barman.utils import drop_privileges, configure_logging, parse_log_level
 
 _logger = logging.getLogger(__name__)
 
+
+def check_positive(value):
+    """
+    Check for a positive integer option
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    try:
+        int_value = int(value)
+    except Exception:
+        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
+    if int_value < 0:
+        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
+    return int_value
 
 @named('list-server')
 @arg('--minimal', help='machine readable output')
@@ -121,21 +137,32 @@ def backup_completer(prefix, parsed_args, **kwargs):
      dest='immediate_checkpoint',
      action='store_false',
      default=SUPPRESS)
+@arg('--retry-times',
+     help='Number of retries after an error if base backup copy fails.',
+     type=check_positive)
+@arg('--retry-sleep',
+     help='Wait time after a failed base backup copy, before retrying.',
+     type=check_positive)
+@arg('--no-retry', help='Disable base backup copy retry logic.',
+     dest='retry_times', action='store_const', const=0)
 @expects_obj
 def backup(args):
     """
     Perform a full backup for the given server
     """
-
     servers = get_server_list(args)
     for name in sorted(servers):
         server = servers[name]
         if server is None:
             output.error("Unknown server '%s'" % name)
             continue
-        immediate_checkpoint = getattr(args, 'immediate_checkpoint',
-                                       server.config.immediate_checkpoint)
-        server.backup(immediate_checkpoint)
+        if args.retry_sleep is not None:
+            server.config.basebackup_retry_sleep = args.retry_sleep
+        if args.retry_times is not None:
+            server.config.basebackup_retry_times = args.retry_times
+        if hasattr(args, 'immediate_checkpoint'):
+            server.config.immediate_checkpoint = args.immediate_checkpoint
+        server.backup()
 
     output.close_and_exit()
 
@@ -226,9 +253,18 @@ def rebuild_xlogdb(args):
      help='specifies the backup ID to recover')
 @arg('destination_directory',
      help='the directory where the new server is created')
+@arg('--retry-times',
+     help='Number of retries after an error if base backup copy fails.',
+     type=check_positive)
+@arg('--retry-sleep',
+     help='Wait time after a failed base backup copy, before retrying.',
+     type=check_positive)
+@arg('--no-retry', help='Disable base backup copy retry logic.',
+     dest='retry_times', action='store_const', const=0)
 @expects_obj
 def recover(args):
-    """ Recover a server at a given time or xid
+    """
+    Recover a server at a given time or xid
     """
     server = get_server(args)
     if server is None:
@@ -266,6 +302,10 @@ def recover(args):
         raise SystemExit(
             "ERROR: the destination directory parameter cannot contain the ':' character\n"
             "HINT: if you want to do a remote recovery you have to use the --remote-ssh-command option")
+    if args.retry_sleep is not None:
+        server.config.basebackup_retry_sleep = args.retry_sleep
+    if args.retry_times is not None:
+        server.config.basebackup_retry_times = args.retry_times
     for line in server.recover(backup,
                                args.destination_directory,
                                tablespaces=tablespaces,
@@ -274,8 +314,8 @@ def recover(args):
                                target_xid=args.target_xid,
                                target_name=args.target_name,
                                exclusive=args.exclusive,
-                               remote_command=args.remote_ssh_command
-    ):
+                               remote_command=args.remote_ssh_command):
+
         yield line
 
 

@@ -572,12 +572,11 @@ class Server(object):
                               "location: %s", e)
                 return {}
 
-    def pg_start_backup(self, backup_label, immediate_checkpoint):
+    def pg_start_backup(self, backup_label):
         """
         Execute a pg_start_backup
 
-        :param backup_label: label for the backup
-        :param immediate_checkpoint: Boolean for immediate checkpoint execution
+        :param str backup_label: label for the backup
         """
         with self.pg_connect() as conn:
             if (BackupOptions.CONCURRENT_BACKUP not in
@@ -595,19 +594,18 @@ class Server(object):
                     cur.execute(
                         'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
                         'now() FROM pg_start_backup(%s,%s) as xlog_loc',
-                        (backup_label, immediate_checkpoint))
+                        (backup_label, self.config.immediate_checkpoint))
                 return cur.fetchone()
             except psycopg2.Error, e:
                 msg = "pg_start_backup(): %s" % e
                 _logger.debug(msg)
                 raise Exception(msg)
 
-    def pgespresso_start_backup(self, backup_label, immediate_checkpoint):
+    def pgespresso_start_backup(self, backup_label):
         """
         Execute a pgespresso_start_backup
 
-        :param backup_label: label for the backup
-        :param immediate_checkpoint Boolean for immediate checkpoint execution
+        :param str backup_label: label for the backup
         """
         with self.pg_connect() as conn:
 
@@ -618,24 +616,23 @@ class Server(object):
             try:
                 cur = conn.cursor()
                 cur.execute('SELECT pgespresso_start_backup(%s,%s), now()',
-                            (backup_label, immediate_checkpoint))
+                            (backup_label, self.config.immediate_checkpoint))
                 return cur.fetchone()
             except psycopg2.Error, e:
                 msg = "pgexpresso_start_backup(): %s" % e
                 _logger.debug(msg)
                 raise Exception(msg)
 
-    def start_backup(self, label, immediate_checkpoint, backup_info):
+    def start_backup(self, label, backup_info):
         """
         start backup wrapper
 
-        :param backup_label: label for the backup
-        :param immediate_checkpoint: Boolean for immediate checkpoint execution
-        :param backup_info: backup_info object
+        :param str label: label for the backup
+        :param BackupInfo backup_info: backup information object
         :return:
         """
         if BackupOptions.CONCURRENT_BACKUP not in self.config.backup_options:
-            start_row = self.pg_start_backup(label, immediate_checkpoint)
+            start_row = self.pg_start_backup(label)
             start_xlog, start_file_name, start_file_offset, start_time = \
                 start_row
             backup_info.set_attribute("status", "STARTED")
@@ -647,8 +644,7 @@ class Server(object):
             backup_info.set_attribute("begin_time", start_time)
 
         else:
-            start_row = self.pgespresso_start_backup(label,
-                                                     immediate_checkpoint)
+            start_row = self.pgespresso_start_backup(label)
             backup_data, start_time = start_row
             wal_re = re.compile(
                 '^START WAL LOCATION: (.*) \(file (.*)\)',
@@ -741,7 +737,7 @@ class Server(object):
         '''
         return self.backup_manager.delete_backup(backup)
 
-    def backup(self, immediate_checkpoint):
+    def backup(self):
         """
         Performs a backup for the server
 
@@ -761,7 +757,7 @@ class Server(object):
         try:
             # lock acquisition and backup execution
             with LockFile(filename, raise_if_fail=True):
-                self.backup_manager.backup(immediate_checkpoint)
+                self.backup_manager.backup()
 
         except LockFileBusy:
             output.error("Another backup process is running")

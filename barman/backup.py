@@ -204,7 +204,7 @@ class BackupManager(object):
 
     def retry_backup_copy(self, target_function, *args, **kwargs):
         """
-        Execute the copy of a base bacup, retrying a given number of times
+        Execute the copy of a base backup, retrying a given number of times
 
         :param target_function: the base backup copy function
         :param args: args for the copy function
@@ -215,7 +215,7 @@ class BackupManager(object):
         while True:
             try:
                 # if is not the first attempt, output the retry number
-                if attempts > 1:
+                if attempts >= 1:
                     output.warning("Copy of base backup: retry #%s", attempts)
                 return target_function(*args, **kwargs)
             # catch rsync errors
@@ -237,11 +237,9 @@ class BackupManager(object):
                     # an error, exit re-raising the exception.
                     raise
 
-    def backup(self, immediate_checkpoint):
+    def backup(self):
         """
         Performs a backup for the server
-
-        :param immediate_checkpoint: immediate checkpoint on start_backup
         """
         _logger.debug("initialising backup information")
         self.current_action = "starting backup"
@@ -263,7 +261,7 @@ class BackupManager(object):
 
             # Start the backup, all the subsequent code must be wrapped in a
             # try except block which finally issue a backup_stop command
-            self.backup_start(backup_info, immediate_checkpoint)
+            self.backup_start(backup_info)
             try:
                 # save any metadata changed by backup_start() call
                 # This must be inside the try-except, because it could fail
@@ -783,13 +781,11 @@ class BackupManager(object):
             _logger.warning('Expected WAL file %s not found during delete',
                             wal_info.name, exc_info=1)
 
-    def backup_start(self, backup_info, immediate_checkpoint):
+    def backup_start(self, backup_info):
         """
         Start of the backup
 
-        :param immediate_checkpoint: force execution of a check point as soon
-        as possible
-        :param backup_info: the backup information structure
+        :param BackupInfo backup_info: the backup information
         """
         self.current_action = "connecting to database (%s)" % self.config.conninfo
         _logger.debug(self.current_action)
@@ -824,7 +820,7 @@ class BackupManager(object):
         _logger.debug(self.current_action)
         label = "Barman backup %s %s" % (
             backup_info.server_name, backup_info.backup_id)
-        self.server.start_backup(label, immediate_checkpoint, backup_info)
+        self.server.start_backup(label, backup_info)
 
     def _raise_rsync_error(self, e, msg):
         """
