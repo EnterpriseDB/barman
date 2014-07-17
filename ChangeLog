@@ -1,3 +1,222 @@
+2014-07-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2014-07-17  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Prepared version 1.3.3-alpha.1 docs
+
+2014-07-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Really fix "ssh" version detection in "barman diagnose" command
+
+2014-07-16  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add command line options for retry of backup/recover copy
+	Implemented the --retry-times (including --no-retry) and --retry-sleep
+	command line options for backup/recovery copy
+
+	Emit warnings in case of unexptected configuration options
+
+2014-07-14  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Reduce the verbosity of the log for "barman cron"
+	Currently the "barman cron" command emits one log line for
+	every WAL file that's archived (including the server name
+	as a prefix). No log line is emitted for an empty cron run.
+
+	Make recovery --target-time option more resilient to wrongly formatted values
+	Workaround a bug in dateutil.parser.parse() implementation
+	ref: https://bugs.launchpad.net/dateutil/+bug/1247643
+
+	Improved logging for "barman recover" command
+
+	Default log prefix now contains barman process ID (pid)
+
+2014-07-16  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix "ssh" version detection in "barman diagnose" command
+
+2014-07-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix wrong variable name in BackupManager.delete_wal()
+
+2014-07-09  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add unit test for LockFile object and server.xlogdb() call
+	Minor changes:
+	 - converted test_xlog.py to py.test style
+
+2014-07-11  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Make sure remote WAL destination path is a directory
+	Add a trailing slash to the remote WAL destination path, in
+	order to ensure it is a directory
+
+2014-07-07  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix serialisation of CvsOption during "barman diagnose" command
+
+2014-07-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Use a WalFileInfo object when decoding an xlogdb line
+
+	Add --no-human-readable to rsync --list-only invocation
+	In rsync >= 3.1.0 the --list-only format changed adding digit
+	groupings by default in "size" field. To obtain the pre 3.1.0 behavior
+	you need to add --no-human-readable
+	Ref: http://ftp.samba.org/pub/rsync/src/rsync-3.1.0-NEWS
+
+2014-07-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Log any hook script failure with its output at warning level
+
+2014-07-08  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Wraps xlogdb() code in a try/finally block
+
+2014-06-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix wait parameter logic in LockFile class
+	In previous versions the wait argument on the LockFile constructor was
+	mistakenly ignored, actually preventing the usage of a waiting lock
+	through the Context Manager interface
+
+	Always use utils.mkpath() to create directories that could already exist
+	Minor changes:
+	 - In retry_backup_copy log the exception which caused the failure
+
+2014-06-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Really ignore vanished files errors in rsync smart copy routine
+
+2014-06-27  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added info messages for the four phases of the new rsync smart copy
+	Minor changes:
+	- Fix unit tests for basebackup_retry_* config values
+
+	Updated documentation for 1.3.3-alpha1
+
+	Set default for basebackup_retry_times to 0
+	For compatibility with previous Barman versions, set
+	basebackup_retry_times to 0 as default value.
+
+2014-06-26  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Make sure timestamps are tz-aware anywhere in the code
+	Minor changes:
+	 - Add basic unit tests for retention policies
+
+2014-06-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Close all open descriptors but std{in,out,err} when spawning a child process
+	Minor changes:
+	 - Remove some dead code
+	 - fix missing 'last_backup_maximum_age' as global option
+
+2014-06-24  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Display compression ratio for WALs in show-backup
+
+2014-06-23  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Improved Nagios output for check command
+
+2014-06-25  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Manage KeyboardInterrupt exception in 'barman backup'
+
+2014-06-23  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Added support for PostgreSQL 8.3
+
+2014-06-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Updated rpm packaging spec to work with pre-releases
+	Minor changes:
+	- add rsync dependency to barman.spec file
+
+2014-05-29  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Support for comma separated list options
+	Added support for a new data type in configuration options:
+	comma separated list values. The first option to be implemented
+	is backup_options, now accepting a list of values.
+
+2014-06-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Decode binary strings in command_wrapper
+	This fixes python2.7 and python3 compatibility
+
+	Minor changes:
+	- make scripts/release.sh python3 compatible
+
+2014-06-10  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Support for 'last_backup_max_age'
+	This new global/server option allows administrators
+	to set the max age of the last backup, making it easier
+	to detect any issues with periodical backup execution.
+
+2014-06-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support for "smart" incremental recovery
+	Avoid invoking rsync with --checksum option during recovery,
+	while maintaining the same level of safety by splitting the
+	copy operation in multiple steps.
+	Barman will only use the --checksum option on files having identical
+	time and size that have been modified after the start of the backup.
+	This change greatly improves the speed of "incremental" recovery.
+
+	Minor changes:
+	- disable --checksum even for backup. During a backup the rsync
+	  destination directory is empty, so it is safe to go with a plain
+	  rsync
+	- Put a ".barman-recover.info" with backup metadata inside the
+	  destination directory during recover.
+
+	Use Postgres' server time for both begin_time and end_time
+	Minor changes:
+	- make sure exceptions during backup are logged with stacktraces
+	- commit on disk the backup status just after issuing the PostgreSQL
+	  start_backup command
+
+	Change version to 1.3.3-alpha.1
+
+2014-06-09  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Added fsync() for backup and cron operations
+
+2014-06-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix parsing of 'basebackup_retry_times' and 'basebackup_retry_sleep' options
+
+2014-05-30  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix for #43 recovery.conf not copied on remote recovery
+
+2014-05-08  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Retry option for base backup
+	If a network error happens during rsync, add the ability
+	to retry a defined number of time.
+
+	Two options have been added:
+	 * basebackup_retry_times: INT (> 0, default 1)
+	     maximum number or retry before giving up
+	 * basebackup_retry_sleep: INT (> 0, default 10)
+	     wait time (seconds) before retrying, after an error
+
+2014-05-29  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improve robustness of backup code
+	Improve error message about stop_backup failure
+
+2014-04-23  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	fixed missing pre/post archive parameters. #41 on sourceforge
+
 2014-04-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
