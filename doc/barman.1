@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 06/27/2014
+.\"      Date: 07/17/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "06/27/2014" "\ \&" "\ \&"
+.TH "BARMAN" "1" "07/17/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -153,6 +153,30 @@ immediate_checkpoint, if present in the configuration file\&.
 .RS 4
 forces to wait for the checkpoint\&. Overrides value of the parameter
 immediate_checkpoint, if present in the configuration file\&.
+.RE
+.PP
+\fB\-\-retry\-times\fR
+.RS 4
+Number of retries of data copy during base backup after an error\&. Overrides value of the parameter
+basebackup_retry_times, if present in the configuration file\&.
+.RE
+.PP
+\fB\-\-no\-retry\fR
+.RS 4
+Same as
+\-\-retry\-times 0
+.RE
+.PP
+\fB\-\-retry\-sleep\fR
+.RS 4
+Number of seconds of wait after a failed copy, before retrying\&. Overrides value of the parameter
+basebackup_retry_sleep, if present in the configuration file\&.
+.RE
+.PP
+\fB\-\-no\-immediate\-checkpoint\fR
+.RS 4
+Forces the number of retries of data copy to 0\&. Overrides value of the parameter
+basebackup_retry_times, if present in the configuration file\&.
 .RE
 .RE
 .PP
@@ -350,6 +374,24 @@ Specify tablespace relocation rule\&.
 .RS 4
 This options activates remote recovery, by specifying the secure shell command to be launched on a remote host\&. This is the equivalent of the "ssh_command" server option in the configuration file for remote recovery\&. Example:
 \fIssh postgres@db2\fR\&.
+.RE
+.PP
+\fB\-\-retry\-times\fR
+.RS 4
+Number of retries of data copy during base backup after an error\&. Overrides value of the parameter
+basebackup_retry_times, if present in the configuration file\&.
+.RE
+.PP
+\fB\-\-retry\-sleep\fR
+.RS 4
+Number of seconds of wait after a failed copy, before retrying\&. Overrides value of the parameter
+basebackup_retry_sleep, if present in the configuration file\&.
+.RE
+.PP
+\fB\-\-no\-immediate\-checkpoint\fR
+.RS 4
+Forces the number of retries of data copy to 0\&. Overrides value of the parameter
+basebackup_retry_times, if present in the configuration file\&.
 .RE
 .RE
 .PP

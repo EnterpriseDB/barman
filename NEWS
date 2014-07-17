@@ -1,6 +1,51 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2014 2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.3.3-alpha.1 - 17 Jul 2014
+
+  * Added "last_backup_max_age", a new global/server option that
+    allows administrators to set the max age of the last backup in a
+    catalogue, making it easier to detect any issues with periodical
+    backup execution
+  * Improved robustness of "barman backup" by introducing two global/
+    server options: "basebackup_retry_times" and
+    "basebackup_retry_sleep". These options allow an administrator to
+    specify, respectively, the number of attempts for a copy
+    operation after a failure, and the number of seconds of wait
+    before retrying. Available also as command line interface option,
+    allowing administrators to specify at runtime retry behaviour.
+  * Improved the recovery process via rsync on an existing directory,
+    by splitting the previous rsync call into several ones - invoking
+    checksum control only when necessary
+  * Added support for PostgreSQL 8.3
+  * Minor changes:
+
+      + Support for comma separated list values configuration options
+      + Improved backup durability by calling fsync() on backup and
+        WAL files during "barman backup" and "barman cron"
+      + Improved Nagios output for "barman check --nagios"
+      + Display compression ratio for WALs in "barman show-backup"
+      + Correctly handled keyboard interruption (CTRL-C) while
+        performing barman backup
+      + Improved usability through better log and output messages
+      + Improved error messages of failures regarding the stop of a
+        backup
+      + More robust configuration options checks
+      + … and a few more
+  * Bug fixes:
+
+      + Fixes concurrency issue with the WAL archive file (aka xlogdb
+        )
+      + Copies "recovery.conf" on the remote server during barman
+        recover (#45)
+      + Correctly detect pre/post archive hook scripts (#41)
+      + Closes all open descriptors but std{in,out,err} when spawning
+        a child process
+      + Ensure timestamps are timezone aware
+      + Forces remote WAL destination path to be a directory
+      + Fixes "ssh" version detection in "barman diagnose" command
+      + … and a few more
+
 Version 1.3.2 - 15 Apr 2014
 
 * Fixed incompatibility with PostgreSQL 8.4 (Closes #40, bug
