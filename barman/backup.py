@@ -552,7 +552,6 @@ class BackupManager(object):
             self.recover_xlog_copy(compressor, xlogs, wal_dest, remote_command)
         except DataTransferFailure, e:
             raise SystemExit("Failure copying WAL files: %s" % (e,))
-        _logger.info("Wal segments copied.")
 
         # Generate recovery.conf file (only if needed by PITR)
         if target_time or target_xid or (
