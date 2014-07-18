@@ -25,6 +25,7 @@ import os
 import pwd
 import grp
 import json
+import datetime
 from barman.retention_policies import RetentionPolicy
 
 _logger = logging.getLogger(__name__)
@@ -176,6 +177,9 @@ def human_readable_timedelta(timedelta):
             time_list.append('%s minutes' % time_map['minute'])
 
     human = ', '.join(time_list)
+    # If timedelta is negative append 'ago' suffix
+    if delta != timedelta:
+        human += " ago"
     return human
 
 
@@ -191,10 +195,17 @@ class BarmanEncoder(json.JSONEncoder):
 
     """
     def default(self, obj):
+        # If the object implements to_json() method use it
         if hasattr(obj, 'to_json'):
             return obj.to_json()
+        # Serialise date and datetime objects using ctime() method
         if hasattr(obj, 'ctime') and callable(obj.ctime):
             return obj.ctime()
+        # Serialise  timedelta objects using human_readable_timedelta()
+        if isinstance(obj, datetime.timedelta):
+            return human_readable_timedelta(obj)
+        # Binary strings must be decoded before using them in
+        # an unicode string
         if hasattr(obj, 'decode') and callable(obj.decode):
             return obj.decode('utf-8', 'replace')
         # Let the base class default method raise the TypeError
