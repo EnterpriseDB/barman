@@ -1391,7 +1391,7 @@ class BackupManager(object):
             xlogdb_new = fxlogdb.name + ".new"
             with open(xlogdb_new, 'w') as fxlogdb_new:
                 for line in fxlogdb:
-                    wal_info = self.server.xlogdb_parse_line(line)
+                    wal_info = WalFileInfo.from_xlogdb_line(self.server, line)
                     if backup_info and wal_info.name >= backup_info.begin_wal:
                         fxlogdb_new.write(wal_info.to_xlogdb_line())
                         continue

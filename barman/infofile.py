@@ -329,6 +329,34 @@ class WalFileInfo(FieldListFile):
             self.time,
             self.compression)
 
+    @classmethod
+    def from_xlogdb_line(cls, server, line):
+        """
+        Parse a line from xlog catalogue
+
+        :param Server server: server object
+        :param str line: a line in the wal database to parse
+        :rtype: WalFileInfo
+        """
+        try:
+            name, size, time, compression = line.split()
+        except ValueError:
+            # Old format compatibility (no compression)
+            compression = None
+            try:
+                name, size, time = line.split()
+            except ValueError:
+                raise ValueError("cannot parse line: %r" % (line,))
+        # The to_xlogdb_line method writes None values as literal 'None'
+        if compression == 'None':
+            compression = None
+        hash_dir = os.path.join(server.config.wals_directory, xlog.hash_dir(name))
+        full_path = os.path.join(hash_dir, name)
+        size = int(size)
+        time = float(time)
+        return cls(name=name, full_path=full_path, size=size, time=time,
+                   compression=compression)
+
 
 class UnknownBackupIdException(Exception):
     """

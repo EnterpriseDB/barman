@@ -223,6 +223,27 @@ class TestWallFileInfo(object):
 
         assert wfile_info.to_xlogdb_line() == 'test_name\t42\t43\tNone\n'
 
+    def test_from_xlogdb_line(self):
+        """
+        Test the conversion from a string to a WalFileInfo file
+        """
+        # build a WalFileInfo object
+        wfile_info = WalFileInfo()
+        wfile_info.name = '000000000000000000000001'
+        wfile_info.size = 42
+        wfile_info.time = 43
+        wfile_info.compression = None
+        wfile_info.full_path = '/tmp/0000000000000000/000000000000000000000001'
+        # mock a server object
+        server = mock.Mock(name='server')
+        server.config.wals_directory = '/tmp'
+        # parse the string
+        info_file = wfile_info.from_xlogdb_line(server,
+                                               '000000000000000000000001\t'
+                                               '42\t43\tNone\n')
+
+        assert list(wfile_info.items()) == list(info_file.items())
+
     def test_timezone_aware_parser(self):
         """
         Test the timezone_aware_parser method with different string

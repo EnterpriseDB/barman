@@ -857,7 +857,7 @@ class Server(object):
             target_tli, _, _ = xlog.decode_segment_name(end)
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
-                wal_info = self.xlogdb_parse_line(line)
+                wal_info = WalFileInfo.from_xlogdb_line(self, line)
                 if wal_info.name < begin:
                     continue
                 tli, _, _ = xlog.decode_segment_name(wal_info.name)
@@ -870,7 +870,7 @@ class Server(object):
                         break
             # return all the remaining history files
             for line in fxlogdb:
-                wal_info = self.xlogdb_parse_line(line)
+                wal_info = WalFileInfo.from_xlogdb_line(self, line)
                 if xlog.is_history_file(wal_info.name):
                     yield wal_info.name
 
@@ -890,7 +890,7 @@ class Server(object):
 
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
-                wal_info = self.xlogdb_parse_line(line)
+                wal_info = WalFileInfo.from_xlogdb_line(self, line)
                 if wal_info.name < begin:
                     continue
                 tli, _, _ = xlog.decode_segment_name(wal_info.name)
@@ -1031,29 +1031,6 @@ class Server(object):
                     # http://docs.python.org/2/library/os.html#os.fsync
                     f.flush()
                     os.fsync(f.fileno())
-
-    def xlogdb_parse_line(self, line):
-        """
-        Parse a line from xlog catalogue
-
-        :param line: a line in the wal database to parse
-        :rtype: WalFileInfo
-        """
-        try:
-            name, size, time, compression = line.split()
-        except ValueError:
-            # Old format compatibility (no compression)
-            compression = None
-            try:
-                name, size, time = line.split()
-            except ValueError:
-                raise ValueError("cannot parse line: %r" % (line,))
-        hashdir = os.path.join(self.config.wals_directory, xlog.hash_dir(name))
-        full_path = os.path.join(hashdir, name)
-        size = int(size)
-        time = float(time)
-        return WalFileInfo(name=name, full_path=full_path, size=size, time=time,
-                           compression=compression)
 
     def report_backups(self):
         if not self.enforce_retention_policies:
