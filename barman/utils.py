@@ -26,7 +26,7 @@ import pwd
 import grp
 import json
 import datetime
-from barman.retention_policies import RetentionPolicy
+
 
 _logger = logging.getLogger(__name__)
 

@@ -28,6 +28,7 @@ from contextlib import contextmanager
 import psycopg2
 import sys
 import shutil
+from datetime import timedelta
 
 from barman import output
 from barman.config import BackupOptions
@@ -878,7 +879,8 @@ class Server(object):
         """
         Get the xlog files between backup and the next
 
-        :param backup: a backup object, the starting point to retrieve wals
+        :param BackupInfo backup: a backup object, the starting point
+            to retrieve WALs
         """
         begin = backup.begin_wal
         next_end = None
@@ -898,8 +900,7 @@ class Server(object):
                     continue
                 if next_end and wal_info.name > next_end:
                     break
-                # count
-                yield (wal_info.name, wal_info.size)
+                yield wal_info
 
     def get_wal_info(self, backup_info):
         """
@@ -907,6 +908,7 @@ class Server(object):
 
         :param BackupInfo backup_info: the target backup
         """
+        begin = backup_info.begin_wal
         end = backup_info.end_wal
 
         # counters
@@ -915,16 +917,37 @@ class Server(object):
              'wal_until_next_num', 'wal_until_next_size',
              'wal_until_next_compression_ratio',
              'wal_compression_ratio'), 0)
+        # First WAL (always equal to begin_wal) and Last WAL names and ts
+        wal_info['wal_first'] = None
+        wal_info['wal_first_timestamp'] = None
         wal_info['wal_last'] = None
+        wal_info['wal_last_timestamp'] = None
+        # WAL rate (default 0.0 per second)
+        wal_info['wals_per_second'] = 0.0
 
-        for name, size in self.get_wal_until_next_backup(backup_info):
-                if name <= end:
+        for item in self.get_wal_until_next_backup(backup_info):
+                if item.name == begin:
+                    wal_info['wal_first'] = item.name
+                    wal_info['wal_first_timestamp'] = item.time
+                if item.name <= end:
                     wal_info['wal_num'] += 1
-                    wal_info['wal_size'] += size
+                    wal_info['wal_size'] += item.size
                 else:
                     wal_info['wal_until_next_num'] += 1
-                    wal_info['wal_until_next_size'] += size
-                wal_info['wal_last'] = name
+                    wal_info['wal_until_next_size'] += item.size
+                wal_info['wal_last'] = item.name
+                wal_info['wal_last_timestamp'] = item.time
+
+        # Estimate WAL ratio
+        if wal_info['wal_last_timestamp']:
+            # Calculate the difference between the timestamps of
+            # the first WAL (begin of backup) and the last WAL
+            # associated to the current backup
+            wal_info['wal_total_seconds'] = (wal_info['wal_last_timestamp'] -
+                                             wal_info['wal_first_timestamp'])
+            if wal_info['wal_total_seconds'] > 0:
+                wal_info['wals_per_second'] = (float(wal_info['wal_num']) /
+                                               wal_info['wal_total_seconds'])
 
         # evaluation of compression ratio for basebackup WAL files
         wal_info['wal_theoretical_size'] = \

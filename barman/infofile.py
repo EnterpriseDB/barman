@@ -32,7 +32,7 @@ def output_tablespace_list(tablespaces):
     """
     Return the literal representation of tablespaces as a Python string
 
-    :param tablespaces list: list of Tablespaces objects
+    :param tablespaces tablespaces: list of Tablespaces objects
     :return str: Literal representation of tablespaces
     """
     if tablespaces:
@@ -106,6 +106,7 @@ class Field(object):
         self.default = default
         self.__doc__ = doc
 
+    # noinspection PyUnusedLocal
     def __get__(self, obj, objtype=None):
         if obj is None:
             return self
@@ -452,10 +453,8 @@ class BackupInfo(FieldListFile):
                                         xlog.hash_dir(x))
                 yield os.path.join(hash_dir, x)
         if target in ('wal', 'full'):
-            for x, _ in self.server.get_wal_until_next_backup(self):
-                hash_dir = os.path.join(self.config.wals_directory,
-                                        xlog.hash_dir(x))
-                yield os.path.join(hash_dir, x)
+            for wal_info in self.server.get_wal_until_next_backup(self):
+                yield wal_info.full_path
 
     def detect_backup_id(self):
         """
