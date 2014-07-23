@@ -20,13 +20,18 @@ import pytest
 
 from barman import output
 from barman.infofile import BackupInfo
-
-
-#noinspection PyMethodMayBeStatic
 from barman.testing_helpers import mock_backup_info, mock_backup_ext_info
 from barman.utils import pretty_size
 
 
+def teardown_module(module):
+    """
+    Set the output API to a functional state, after testing it
+    """
+    output.set_output_writer(output.DEFAULT_WRITER)
+
+
+#noinspection PyMethodMayBeStatic
 class TestOutputAPI(object):
     @staticmethod
     def _mock_writer():
