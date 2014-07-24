@@ -41,23 +41,32 @@ def exec_diagnose(servers):
 
     :param servers: list of configured servers
     """
+    # global section. info about barman server
     diagnosis = {}
     diagnosis['global'] = {}
     diagnosis['servers'] = {}
+    # barman global config
     diagnosis['global']['config'] = dict(barman.__config__._global_config)
     command = fs.UnixLocalCommand()
+    # basic system info
     diagnosis['global']['system_info'] = command.get_system_info()
+    diagnosis['global']['system_info']['barman_ver'] = barman.__version__
+    # per server section
     for name in sorted(servers):
         server = servers[name]
         if server is None:
             output.error("Unknown server '%s'" % name)
             continue
+        # server configuration
         diagnosis['servers'][name] = {}
         diagnosis['servers'][name]['config'] = vars(server.config)
         del diagnosis['servers'][name]['config']['config']
+        # server system info
         command = fs.UnixRemoteCommand(ssh_command=server.config.ssh_command)
         diagnosis['servers'][name]['system_info'] = command.get_system_info()
+        # barman statuts information for the server
         diagnosis['servers'][name]['status'] = server.get_remote_status()
+        # backup list
         status_filter = BackupInfo.STATUS_NOT_EMPTY
         backups = server.get_available_backups(status_filter)
         diagnosis['servers'][name]['backups'] = dict([(k,v.to_dict())
