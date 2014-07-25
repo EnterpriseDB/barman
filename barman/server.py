@@ -1027,10 +1027,12 @@ class Server(object):
 
                 finally:
                     # we are exiting the context
+                    # if file is writable (mode contains w, a or +)
                     # make sure the data is written to disk
                     # http://docs.python.org/2/library/os.html#os.fsync
-                    f.flush()
-                    os.fsync(f.fileno())
+                    if any((c in 'wa+') for c in f.mode):
+                        f.flush()
+                        os.fsync(f.fileno())
 
     def report_backups(self):
         if not self.enforce_retention_policies:

@@ -54,7 +54,7 @@ class TestServer(object):
     @patch('barman.server.os')
     def test_xlogdb_with_exception(self, os_mock, tmpdir):
         """
-        Testing the execution of xlog-db operations
+        Testing the execution of xlog-db operations with an Exception
 
         :param os_mock: mock for os module
         :param tmpdir: temporary directory unique to the test invocation
@@ -97,3 +97,12 @@ class TestServer(object):
         lock_file_mock.return_value.__enter__.assert_called_once_with()
         lock_file_mock.return_value.__exit__.assert_called_once_with(
             None, None, None)
+
+        os_mock.fsync.reset_mock()
+        with server.xlogdb() as fxlogdb:
+            # nothing to do here.
+            pass
+        # Check for calls on fsync method.
+        # If the file is readonly exit method of the context manager must
+        # skip calls on fsync method
+        assert not os_mock.fsync.called
