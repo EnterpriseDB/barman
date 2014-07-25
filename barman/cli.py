@@ -615,10 +615,16 @@ def main():
     # noinspection PyBroadException
     try:
         p.dispatch(pre_call=global_config, output_file=_output_stream)
+    except KeyboardInterrupt:
+        msg = "Process interrupted by user (KeyboardInterrupt)"
+        output.exception(msg)
     except Exception, e:
         msg = "%s\nSee log file for more details." % e
         output.exception(msg)
-        output.close_and_exit()
+
+    # cleanup output API and exit honoring output.error_occurred and
+    # output.error_exit_code
+    output.close_and_exit()
 
 
 if __name__ == '__main__':
