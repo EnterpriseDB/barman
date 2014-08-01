@@ -724,16 +724,17 @@ class BackupManager(object):
                                 os.path.basename(filename), self.config.name)
                     os.unlink(filename)
                     continue
+                # Report to the user the WAL file we are archiving
+                output.info("\t%s", os.path.basename(filename), log=False)
+                _logger.info("Archiving %s/%s",
+                             self.config.name,
+                             os.path.basename(filename))
                 # Archive the WAL file
                 wal_info = self.cron_wal_archival(compressor, filename)
 
                 # Updates the information of the WAL archive with
                 # the latest segments
                 fxlogdb.write(wal_info.to_xlogdb_line())
-                output.info("\t%s", wal_info.name, log=False)
-                _logger.info("Archiving %s/%s",
-                             self.config.name,
-                             wal_info.name)
         if not found and verbose:
             output.info("\tno file found", log=False)
 
