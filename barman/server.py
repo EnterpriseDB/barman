@@ -912,7 +912,8 @@ class Server(object):
         hash_dir = os.path.join(self.config.wals_directory,
                                 xlog.hash_dir(wal_name))
         # Build the WAL file full path
-        wal_file = os.path.join(hash_dir, wal_name)
+        full_path = os.path.join(hash_dir, wal_name)
+        return full_path
 
     def get_wal_info(self, backup_info):
         """

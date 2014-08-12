@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from mock import patch, Mock, call
+from mock import patch, Mock
 import os
 import pytest
 
@@ -42,7 +42,7 @@ class TestServer(object):
         config.minimum_redundancy = '0'
         config.retention_policy = None
         if tmpdir:
-            config.wals_directory = os.path.join(str(tmpdir))
+            config.wals_directory = str(tmpdir.ensure('wals', dir=True))
         return config
 
     def test_init(self):
@@ -99,10 +99,21 @@ class TestServer(object):
             None, None, None)
 
         os_mock.fsync.reset_mock()
-        with server.xlogdb() as fxlogdb:
+        with server.xlogdb():
             # nothing to do here.
             pass
         # Check for calls on fsync method.
         # If the file is readonly exit method of the context manager must
         # skip calls on fsync method
         assert not os_mock.fsync.called
+
+    def test_get_wal_full_path(self, tmpdir):
+        """
+        Testing Server.get_wal_full_path() method
+        """
+        wal_name = '0000000B00000A36000000FF'
+        wal_hash = wal_name[:16]
+        server = Server(self.build_config(tmpdir))
+        full_path = server.get_wal_full_path(wal_name)
+        assert full_path == \
+               str(tmpdir.join('wals').join(wal_hash).join(wal_name))
