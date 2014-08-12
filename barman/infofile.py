@@ -350,8 +350,7 @@ class WalFileInfo(FieldListFile):
         # The to_xlogdb_line method writes None values as literal 'None'
         if compression == 'None':
             compression = None
-        hash_dir = os.path.join(server.config.wals_directory, xlog.hash_dir(name))
-        full_path = os.path.join(hash_dir, name)
+        full_path = server.get_wal_full_path(name)
         size = int(size)
         time = float(time)
         return cls(name=name, full_path=full_path, size=size, time=time,
@@ -477,9 +476,7 @@ class BackupInfo(FieldListFile):
         if target in 'standalone':
             # List all the WAL files for this backup
             for x in self.get_required_wal_segments():
-                hash_dir = os.path.join(self.config.wals_directory,
-                                        xlog.hash_dir(x))
-                yield os.path.join(hash_dir, x)
+                yield self.server.get_wal_full_path(x)
         if target in ('wal', 'full'):
             for wal_info in self.server.get_wal_until_next_backup(self):
                 yield wal_info.full_path

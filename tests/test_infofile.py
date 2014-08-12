@@ -236,13 +236,14 @@ class TestWallFileInfo(object):
         wfile_info.full_path = '/tmp/0000000000000000/000000000000000000000001'
         # mock a server object
         server = mock.Mock(name='server')
-        server.config.wals_directory = '/tmp'
+        server.get_wal_full_path.return_value = wfile_info.full_path
         # parse the string
         info_file = wfile_info.from_xlogdb_line(server,
                                                '000000000000000000000001\t'
                                                '42\t43\tNone\n')
 
         assert list(wfile_info.items()) == list(info_file.items())
+        server.get_wal_full_path.assert_called_with(wfile_info.name)
 
     def test_timezone_aware_parser(self):
         """

@@ -902,6 +902,18 @@ class Server(object):
                     break
                 yield wal_info
 
+    def get_wal_full_path(self, wal_name):
+        """
+        Build the full path of a WAL for a server given the name
+
+        :param wal_name: WAL file name
+        """
+        # Build the path which contains the file
+        hash_dir = os.path.join(self.config.wals_directory,
+                                xlog.hash_dir(wal_name))
+        # Build the WAL file full path
+        wal_file = os.path.join(hash_dir, wal_name)
+
     def get_wal_info(self, backup_info):
         """
         Returns information about WALs for the given backup
