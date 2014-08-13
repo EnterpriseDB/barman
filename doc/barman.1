@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 07/17/2014
+.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
+.\"      Date: 08/13/2014
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "07/17/2014" "\ \&" "\ \&"
+.TH "BARMAN" "1" "08/13/2014" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -279,6 +279,7 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
+
 \fBdata\fR
 \- lists just the data files;
 .RE
@@ -291,6 +292,7 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
+
 \fBstandalone\fR
 \- lists the base backup files, including required WAL files;
 .RE
@@ -303,6 +305,7 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
+
 \fBwal\fR
 \- lists all the WAL files between the start of the base backup and the end of the log / the start of the following base backup (depending on whether the specified base backup is the most recent one available);
 .RE
@@ -315,6 +318,7 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
+
 \fBfull\fR
 \- same as data + wal\&. Defaults to standalone
 .RE
@@ -452,7 +456,7 @@ In alphabetical order:
 .sp -1
 .IP \(bu 2.3
 .\}
-Gabriele Bartolini <gabriele\&.bartolini@2ndquadrant\&.it>
+Gabriele Bartolini <gabriele\&.bartolini@2ndquadrant\&.it> (core team, project leader)
 .RE
 .sp
 .RS 4
@@ -463,7 +467,7 @@ Gabriele Bartolini <gabriele\&.bartolini@2ndquadrant\&.it>
 .sp -1
 .IP \(bu 2.3
 .\}
-Giuseppe Broccolo <giuseppe\&.broccolo@2ndquadrant\&.it> (core team, QA)
+Giuseppe Broccolo <giuseppe\&.broccolo@2ndquadrant\&.it> (core team, QA/testing)
 .RE
 .sp
 .RS 4
@@ -496,7 +500,7 @@ Francesco Canovai <francesco\&.canovai@2ndquadrant\&.it> (core team, QA/testing)
 .sp -1
 .IP \(bu 2.3
 .\}
-Marco Nenciarini <marco\&.nenciarini@2ndquadrant\&.it>
+Marco Nenciarini <marco\&.nenciarini@2ndquadrant\&.it> (core team, team leader)
 .RE
 .sp
 Past contributors:

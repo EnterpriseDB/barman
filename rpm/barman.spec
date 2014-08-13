@@ -14,7 +14,7 @@
 
 %global main_version 1.3.3
 # comment out the next line if not a pre-release
-%global extra_version alpha.1
+#%%global extra_version alpha.1
 # Usually 1 - unique sequence for all pre-release version
 %global package_release 1
 
@@ -101,6 +101,9 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
+* Thu Aug 24 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.3-1
+- New release 1.3.3
+
 * Tue Jun 24 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.3-0.1.alpha.1
 - New release 1.3.3-alpha.1
 
