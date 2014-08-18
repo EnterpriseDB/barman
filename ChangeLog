@@ -1,3 +1,54 @@
+2014-08-18  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Update the ChangeLog file
+
+	Fixed typo in release date
+
+2014-08-13  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Prepared version 1.3.3
+
+2014-08-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add an unit-test for Server.get_wal_full_path() method
+
+2014-08-12  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Refactored building of full path of a WAL file
+
+2014-08-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Report which file is about to be archived before actually doing it
+
+2014-07-25  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Remove traceback from output when Barman is interrupted by CTRL-c
+
+	Avoid flushing/fsyncing read only files
+	Fixes: #49 EXCEPTION: [Errno 9] Bad file descriptor
+
+2014-07-24  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Added Barman's version number to 'barman diagnose'
+
+2014-07-22  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Move xlogdb_parse_line method in WalFileInfo class
+
+2014-07-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Cleanup output API status at the end of test_output.py
+
+2014-07-22  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Estimates WAL production rate for a backup
+
+2014-07-18  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Removed duplicate log message at the end of  'barman recover' wal segments copy
+
+	Fix datetime.timedelta json serialization in 'barman diagnose' command
+
 2014-07-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
