@@ -113,7 +113,7 @@ class RetentionPolicy(object):
         """
         Output representation of the obj for JSON serialization
         """
-        return "%s %s" % (self.mode, self.value)
+        return "%s %s %s" % (self.mode, self.value, self.unit)
 
 
 class RedundancyRetentionPolicy(RetentionPolicy):
@@ -127,7 +127,7 @@ class RedundancyRetentionPolicy(RetentionPolicy):
 
     def __init__(self, context, value, server):
         super(RedundancyRetentionPolicy, self
-              ).__init__('redundancy', 'r', value, 'BASE', server)
+              ).__init__('redundancy', 'b', value, 'BASE', server)
         assert (value >= 0)
 
     def __str__(self):
