@@ -331,6 +331,15 @@ class Server(object):
                 value = None
             setattr(self, key, value)
 
+    def to_json(self):
+        """
+        Return an equivalent dictionary that can be encoded in json
+        """
+        json_dict = dict(vars(self))
+        # remove the reference to main Config object
+        del json_dict['config']
+        return json_dict
+
 
 class Config(object):
     """This class represents the barman configuration.

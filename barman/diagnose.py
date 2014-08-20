@@ -69,8 +69,7 @@ def exec_diagnose(servers):
         # backup list
         status_filter = BackupInfo.STATUS_NOT_EMPTY
         backups = server.get_available_backups(status_filter)
-        diagnosis['servers'][name]['backups'] = dict([(k,v.to_dict())
-                                           for (k,v) in backups.iteritems()])
+        diagnosis['servers'][name]['backups'] = backups
     output.info(json.dumps(diagnosis, sys.stdout, cls=BarmanEncoder, indent=4,
                            sort_keys=True))
 

@@ -356,6 +356,12 @@ class WalFileInfo(FieldListFile):
         return cls(name=name, full_path=full_path, size=size, time=time,
                    compression=compression)
 
+    def to_json(self):
+        """
+        Return an equivalent dictionary that can be encoded in json
+        """
+        return dict(self.items())
+
 
 class UnknownBackupIdException(Exception):
     """
@@ -530,3 +536,9 @@ class BackupInfo(FieldListFile):
         result.update(backup_id=self.backup_id, server_name=self.server_name,
                       mode=self.mode, tablespaces=self.tablespaces)
         return result
+
+    def to_json(self):
+        """
+        Return an equivalent dictionary that can be encoded in json
+        """
+        return self.to_dict()
