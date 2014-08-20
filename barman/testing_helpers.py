@@ -16,9 +16,16 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 from datetime import datetime, timedelta
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from io import StringIO
+
 import mock
-from barman.infofile import BackupInfo, Tablespace
 from dateutil import tz
+
+from barman.config import Config
+from barman.infofile import BackupInfo, Tablespace
 
 
 def mock_backup_info(backup_id='1234567890',
@@ -50,8 +57,9 @@ def mock_backup_info(backup_id='1234567890',
     if end_time is None:
         end_time = datetime.now(tz.tzlocal())
 
-    # Generate a list of tablespace objects
-    tablespaces = [Tablespace._make(item) for item in tablespaces]
+    # Generate a list of tablespace objects (don't use a list comprehension
+    # or in python 2.x the 'item' variable will leak to the main context)
+    tablespaces = list(Tablespace._make(item) for item in tablespaces)
 
     # make a dictionary with all the arguments
     to_dict = dict(locals())
@@ -62,6 +70,7 @@ def mock_backup_info(backup_id='1234567890',
         setattr(bi_mock, key, to_dict[key])
 
     bi_mock.to_dict.return_value = to_dict
+    bi_mock.to_json.return_value = to_dict
 
     return bi_mock
 
@@ -94,3 +103,47 @@ def mock_backup_ext_info(backup_info=None,
     ext_info.update(backup_info.to_dict())
 
     return ext_info
+
+
+def build_config_from_dicts(global_conf=None, main_conf=None):
+    """
+    Utility method, generate a barman.config.Config object
+
+    It has  a minimal configuration and a single server called "main".
+    All options can be override using the optional arguments
+    :param dict|None global_conf: using this dictionary is possible
+        to override/add new values to the [barman] section
+    :param dict|None main_conf: using this dictionary is possible
+        to override/add new values to the [main] section
+    :return barman.config.Config: a barman configuration object
+    """
+    # base barman section
+    base_barman = {
+        'barman_home': '/srv/barman',
+        'barman_user': '{USER}',
+        'log_file': '%(barman_home)s/log/barman.log'
+    }
+    # base main section
+    base_main = {
+        'description': '" Text with quotes "',
+        'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01',
+        'conninfo': 'host=pg01 user=postgres port=5432'
+    }
+    # update map values of the two sections
+    if global_conf is not None:
+        base_barman.update(global_conf)
+    if main_conf is not None:
+        base_main.update(main_conf)
+
+    # writing the StringIO obj with the barman and main sections
+    config_file = StringIO()
+    config_file.write('\n[barman]\n')
+    for key in base_barman.keys():
+        config_file.write('%s = %s\n' % (key, base_barman[key]))
+
+    config_file.write('[main]\n')
+    for key in base_main.keys():
+        config_file.write('%s = %s\n' % (key, base_main[key]))
+    config_file.seek(0)
+    config = Config(config_file)
+    return config

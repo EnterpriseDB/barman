@@ -17,8 +17,12 @@
 
 import os
 from datetime import timedelta
+
 import mock
 import pytest
+
+from barman.testing_helpers import build_config_from_dicts
+
 
 try:
     from cStringIO import StringIO
@@ -172,48 +176,6 @@ MINIMAL_CONFIG_MAIN = {
 }
 
 
-def _build_config(barman, main):
-    """
-    utility method, generate a ini string containing a minimal configuration
-    for barman and a server, called Main
-    :param barman:  using this dictionary is possible to override/add new values
-                    to the [barman] section of the configuration file
-    :param main:    using this dictionary is possible to override/add new values
-                    to the [main] section of the configuration file
-    :return:        a StringIO object that is the representation of a minimal
-                    configuration file
-    """
-    # base barman section
-    base_barman = {
-        'barman_home': '/srv/barman',
-        'barman_user': '{USER}',
-        'log_file': '%(barman_home)s/log/barman.log'
-    }
-    # base main section
-    base_main = {
-        'description': '" Text with quotes "',
-        'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01',
-        'conninfo': 'host=pg01 user=postgres port=5432'
-    }
-    # update map values of the two sections
-    if barman is not None:
-        base_barman.update(barman)
-    if main is not None:
-        base_main.update(main)
-
-    # writing the StringIO obj with the barman and main sections
-    out = StringIO()
-    out.write('\n[barman]\n')
-    for key in base_barman.keys():
-        out.write('%s = %s\n' % (key, base_barman[key]))
-
-    out.write('[main]\n')
-    for key in base_main.keys():
-        out.write('%s = %s\n' % (key, base_main[key]))
-    out.seek(0)
-    return out
-
-
 # noinspection PyMethodMayBeStatic
 class Test(object):
 
@@ -273,7 +235,6 @@ class Test(object):
         with pytest.raises(ValueError):
             parse_time_interval('test_string')
 
-
 class TestCsvParsing(object):
     """
     Csv parser test class
@@ -290,10 +251,9 @@ class TestCsvParsing(object):
         configuration parser to fall back to the global value.
         """
         # add backup_options configuration to minimal configuration string
-        fp = _build_config({'backup_options': BackupOptions.EXCLUSIVE_BACKUP},
-                           {'backup_options': ''})
-        # parse configuration
-        c = Config(fp)
+        c = build_config_from_dicts(
+            {'backup_options': BackupOptions.EXCLUSIVE_BACKUP},
+            {'backup_options': ''})
         main = c.get_server('main')
 
         # create the expected dictionary
@@ -319,9 +279,9 @@ class TestCsvParsing(object):
         conflict = "%s, %s" % (BackupOptions.EXCLUSIVE_BACKUP,
                                BackupOptions.CONCURRENT_BACKUP)
         # add backup_options to minimal configuration string
-        fp = _build_config({'backup_options': conflict}, None)
-        # parse configuration from string
-        c = Config(fp)
+        c = build_config_from_dicts(
+            {'backup_options': conflict},
+            None)
         main = c.get_server('main')
         # create the expected dictionary
         expected = dict(config=c)
@@ -348,10 +308,9 @@ class TestCsvParsing(object):
         'exclusive_backup' value
         """
         # add backup_options to minimal configuration string
-        fp = _build_config({'backup_options': BackupOptions.EXCLUSIVE_BACKUP},
-                           {'backup_options': 'none_of_your_business'})
-        # parse configuration from string
-        c = Config(fp)
+        c = build_config_from_dicts(
+            {'backup_options': BackupOptions.EXCLUSIVE_BACKUP},
+            {'backup_options': 'none_of_your_business'})
         main = c.get_server('main')
         # create the expected dictionary
         expected = dict(config=c)
@@ -381,10 +340,9 @@ class TestCsvParsing(object):
         wrong_parameters = "%s, %s" % (BackupOptions.EXCLUSIVE_BACKUP,
                                        'none_of_your_business')
         # add backup_options to minimal configuration string
-        fp = _build_config({'backup_options': BackupOptions.CONCURRENT_BACKUP},
-                           {'backup_options': wrong_parameters})
-        # parse configuration from string
-        c = Config(fp)
+        c = build_config_from_dicts(
+            {'backup_options': BackupOptions.CONCURRENT_BACKUP},
+            {'backup_options': wrong_parameters})
         main = c.get_server('main')
         # create the expected dictionary
         expected = dict(config=c)
@@ -410,10 +368,9 @@ class TestCsvParsing(object):
         Simple test for concurrent_backup option parsing
         """
         # add backup_options to minimal configuration string
-        fp = _build_config({'backup_options': BackupOptions.CONCURRENT_BACKUP},
-                           None)
-        # parse the configuration from string
-        c = Config(fp)
+        c = build_config_from_dicts(
+            {'backup_options': BackupOptions.CONCURRENT_BACKUP},
+            None)
         main = c.get_server('main')
 
         expected = dict(config=c)
@@ -453,10 +410,9 @@ class TestCsvParsing(object):
         """
         # build a configuration with a a server and a global unknown vale. then
         # add them to the minimal configuration.
-        fp = _build_config({'test_global_option': 'invalid_value'},
-                           {'test_server_option': 'invalid_value'})
-        # parse configuration from string
-        c = Config(fp)
+        c = build_config_from_dicts(
+            {'test_global_option': 'invalid_value'},
+            {'test_server_option': 'invalid_value'})
         c.validate_global_config()
         # use the mocked output class to verify the presence of the warning
         # for a unknown configuration parameter in the barman subsection
