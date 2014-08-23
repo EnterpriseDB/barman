@@ -12,9 +12,9 @@
 %global __python_ver python
 %endif
 
-%global main_version 1.3.3
-# comment out the next line if not a pre-release
-#%%global extra_version alpha.1
+%global main_version 1.3.4
+# comment out the next line if not a pre-release (use '#%')
+%global extra_version alpha.1
 # Usually 1 - unique sequence for all pre-release version
 %global package_release 1
 
