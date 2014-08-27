@@ -26,9 +26,12 @@ from barman.hooks import HookScriptRunner
 class HooksUnitTest(unittest.TestCase):
     @staticmethod
     def build_backup_manager(server_name, script_file):
+        server = MagicMock(name='server')
+        server.config.config.config_file = script_file
+        server.config.name = server_name
         backup_manager = MagicMock(name='backup_manager')
-        backup_manager.config.config.config_file = script_file
-        backup_manager.config.name = server_name
+        backup_manager.server = server
+        backup_manager.config = server.config
         return backup_manager
 
     @patch('barman.hooks.Command')
@@ -242,14 +245,14 @@ class HooksUnitTest(unittest.TestCase):
         # WalFileInfo mock
         wal_info = MagicMock(name='wal_info')
         wal_info.name = 'XXYYZZAABBCC'
-        wal_info.full_path = '/incoming/directory'
         wal_info.size = 1234567
         wal_info.time = 1337133713
         wal_info.compression = 'gzip'
+        wal_info.fullpath.return_value = '/incoming/directory'
 
         # the actual test
         script = HookScriptRunner(backup_manager, 'test_hook', 'pre')
-        script.env_from_wal_info(wal_info)
+        script.env_from_wal_info(backup_manager.server, wal_info)
         expected_env = {
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
@@ -276,14 +279,14 @@ class HooksUnitTest(unittest.TestCase):
         timestamp = time.time()
         wal_info = MagicMock(name='wal_info')
         wal_info.name = 'XXYYZZAABBCC'
-        wal_info.full_path = '/incoming/directory'
         wal_info.size = 1234567
         wal_info.time = timestamp
         wal_info.compression = None
+        wal_info.fullpath.return_value = '/incoming/directory'
 
         # the actual test
         script = HookScriptRunner(backup_manager, 'test_hook', 'pre')
-        script.env_from_wal_info(wal_info)
+        script.env_from_wal_info(None, wal_info)
         expected_env = {
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,

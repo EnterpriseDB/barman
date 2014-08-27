@@ -769,9 +769,9 @@ class BackupManager(object):
         """
 
         try:
-            os.unlink(wal_info.full_path)
+            os.unlink(wal_info.fullpath(self.server))
             try:
-                os.removedirs(os.path.dirname(wal_info.full_path))
+                os.removedirs(os.path.dirname(wal_info.fullpath(self.server)))
             except OSError:
                 # This is not an error condition
                 # We always try to remove the the trailing directories,
@@ -1154,7 +1154,7 @@ class BackupManager(object):
 
         # Run the pre_archive_script if present.
         script = HookScriptRunner(self, 'archive_script', 'pre')
-        script.env_from_wal_info(wal_info)
+        script.env_from_wal_info(self.server, wal_info)
         script.run()
 
         mkpath(destdir)
@@ -1180,7 +1180,7 @@ class BackupManager(object):
 
         # Run the post_archive_script if present.
         script = HookScriptRunner(self, 'archive_script', 'post')
-        script.env_from_wal_info(wal_info)
+        script.env_from_wal_info(self.server, wal_info)
         script.run()
 
         return wal_info

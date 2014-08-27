@@ -123,7 +123,7 @@ class TestFieldListFile(object):
 # noinspection PyMethodMayBeStatic
 class TestWallFileInfo(object):
     def test_from_file_no_compression(self, tmpdir):
-        tmp_file = tmpdir.join("test_file")
+        tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write('dummy_content\n')
         stat = os.stat(tmp_file.strpath)
         wfile_info = WalFileInfo.from_file(tmp_file.strpath)
@@ -131,13 +131,14 @@ class TestWallFileInfo(object):
         assert wfile_info.size == stat.st_size
         assert wfile_info.time == stat.st_mtime
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
+        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_compression(self, id_compression, tmpdir):
         #prepare
         id_compression.return_value = 'test_compression'
 
-        tmp_file = tmpdir.join("test_file")
+        tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write('dummy_content\n')
         wfile_info = WalFileInfo.from_file(tmp_file.strpath)
         assert wfile_info.name == tmp_file.basename
@@ -145,13 +146,14 @@ class TestWallFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression == 'test_compression'
+        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_default_compression(self, id_compression, tmpdir):
         #prepare
         id_compression.return_value = None
 
-        tmp_file = tmpdir.join("test_file")
+        tmp_file = tmpdir.join("00000001000000E500000064")
         tmp_file.write('dummy_content\n')
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
@@ -161,13 +163,14 @@ class TestWallFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression == 'test_default_compression'
+        assert wfile_info.relpath() == '00000001000000E5/00000001000000E500000064'
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_override_compression(self, id_compression, tmpdir):
         #prepare
         id_compression.return_value = None
 
-        tmp_file = tmpdir.join("test_file")
+        tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write('dummy_content\n')
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
@@ -178,23 +181,25 @@ class TestWallFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression == 'test_override_compression'
+        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_override(self, id_compression, tmpdir):
         #prepare
         id_compression.return_value = None
 
-        tmp_file = tmpdir.join("test_file")
+        tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write('dummy_content\n')
 
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
-            name='test_override_name')
-        assert wfile_info.name == 'test_override_name'
+            name="000000000000000000000002")
+        assert wfile_info.name == '000000000000000000000002'
         assert wfile_info.size == tmp_file.size()
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression is None
+        assert wfile_info.relpath() == '0000000000000000/000000000000000000000002'
 
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
@@ -204,6 +209,7 @@ class TestWallFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression is None
+        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
 
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
@@ -213,15 +219,17 @@ class TestWallFileInfo(object):
         assert wfile_info.time == 43
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression is None
+        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
 
     def test_to_xlogdb_line(self):
         wfile_info = WalFileInfo()
-        wfile_info.name = 'test_name'
+        wfile_info.name = '000000000000000000000002'
         wfile_info.size = 42
         wfile_info.time = 43
         wfile_info.compression = None
+        assert wfile_info.relpath() == '0000000000000000/000000000000000000000002'
 
-        assert wfile_info.to_xlogdb_line() == 'test_name\t42\t43\tNone\n'
+        assert wfile_info.to_xlogdb_line() == '000000000000000000000002\t42\t43\tNone\n'
 
     def test_from_xlogdb_line(self):
         """
@@ -233,17 +241,18 @@ class TestWallFileInfo(object):
         wfile_info.size = 42
         wfile_info.time = 43
         wfile_info.compression = None
-        wfile_info.full_path = '/tmp/0000000000000000/000000000000000000000001'
+        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
+
         # mock a server object
         server = mock.Mock(name='server')
-        server.get_wal_full_path.return_value = wfile_info.full_path
+        server.config.wals_directory = '/tmp/wals'
+        server.get_wal_full_path.return_value = wfile_info.fullpath(server)
         # parse the string
         info_file = wfile_info.from_xlogdb_line(server,
                                                '000000000000000000000001\t'
                                                '42\t43\tNone\n')
 
         assert list(wfile_info.items()) == list(info_file.items())
-        server.get_wal_full_path.assert_called_with(wfile_info.name)
 
     def test_timezone_aware_parser(self):
         """

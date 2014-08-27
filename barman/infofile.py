@@ -288,7 +288,6 @@ class WalFileInfo(FieldListFile):
     __slots__ = ()
 
     name = Field('name', doc='base name of WAL file')
-    full_path = Field('full_path', doc='complete path of the file')
     size = Field('size', load=int, doc='WAL file size after compression')
     time = Field('time', load=float, doc='WAL file modification time '
                                          '(seconds since epoch)')
@@ -309,7 +308,6 @@ class WalFileInfo(FieldListFile):
         """
         stat = os.stat(filename)
         kwargs.setdefault('name', os.path.basename(filename))
-        kwargs.setdefault('full_path', os.path.abspath(filename))
         kwargs.setdefault('size', stat.st_size)
         kwargs.setdefault('time', stat.st_mtime)
         if 'compression' not in kwargs:
@@ -350,10 +348,9 @@ class WalFileInfo(FieldListFile):
         # The to_xlogdb_line method writes None values as literal 'None'
         if compression == 'None':
             compression = None
-        full_path = server.get_wal_full_path(name)
         size = int(size)
         time = float(time)
-        return cls(name=name, full_path=full_path, size=size, time=time,
+        return cls(name=name, size=size, time=time,
                    compression=compression)
 
     def to_json(self):
@@ -361,6 +358,19 @@ class WalFileInfo(FieldListFile):
         Return an equivalent dictionary that can be encoded in json
         """
         return dict(self.items())
+
+    def relpath(self):
+        """
+        Returns the WAL file path relative to the server's wals_directory
+        """
+        return os.path.join(xlog.hash_dir(self.name), self.name)
+
+    def fullpath(self, server):
+        """
+        Returns the WAL file full path
+        """
+        return os.path.join(server.config.wals_directory, self.relpath())
+
 
 
 class UnknownBackupIdException(Exception):
@@ -485,7 +495,7 @@ class BackupInfo(FieldListFile):
                 yield self.server.get_wal_full_path(x)
         if target in ('wal', 'full'):
             for wal_info in self.server.get_wal_until_next_backup(self):
-                yield wal_info.full_path
+                yield wal_info.fullpath(self.server)
 
     def detect_backup_id(self):
         """
