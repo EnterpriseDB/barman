@@ -759,6 +759,8 @@ class Server(object):
             # lock acquisition and backup execution
             with LockFile(filename, raise_if_fail=True):
                 self.backup_manager.backup()
+            # Archive incoming WALs and update WAL catalogue through cron
+            self.cron(verbose=False)
 
         except LockFileBusy:
             output.error("Another backup process is running")

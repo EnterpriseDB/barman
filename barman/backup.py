@@ -706,8 +706,10 @@ class BackupManager(object):
                 output.info("Processing xlog segments for %s",
                             self.config.name,
                             log=False)
-            available_backups = self.get_available_backups(
-                BackupInfo.STATUS_ALL)
+            # Get the first available backup
+            first_backup_id = self.get_first_backup(BackupInfo.STATUS_ALL)
+            first_backup = self.server.get_backup(first_backup_id) \
+                    if first_backup_id else None
             for filename in sorted(glob(
                     os.path.join(self.config.incoming_wals_directory, '*'))):
                 if not found and not verbose:
@@ -715,22 +717,36 @@ class BackupManager(object):
                                 self.config.name,
                                 log=False)
                 found = True
-                # Delete xlog segments only if the backup is exclusive
-                if (not len(available_backups) and
-                        (BackupOptions.CONCURRENT_BACKUP not in
-                             self.config.backup_options)):
-                    output.info("\tNo base backup available. Trashing file %s"
+
+                # Create WAL Info object
+                wal_info = WalFileInfo.from_file(filename, compression=None)
+
+                # If there are no available backups ...
+                if first_backup is None:
+                    # ... delete xlog segments only for exclusive backups
+                    if BackupOptions.CONCURRENT_BACKUP not in self.config.backup_options:
+                        output.info("\tNo base backup available. Trashing file %s"
                                 " from server %s",
-                                os.path.basename(filename), self.config.name)
-                    os.unlink(filename)
-                    continue
+                                wal_info.name, self.config.name)
+                        os.unlink(filename)
+                        continue
+                # ... otherwise
+                else:
+                    # ... delete xlog segments older than the first backup
+                    if wal_info.name < first_backup.begin_wal:
+                        output.info("\tOlder than first backup. Trashing file %s"
+                                " from server %s",
+                                wal_info.name, self.config.name)
+                        os.unlink(filename)
+                        continue
+
                 # Report to the user the WAL file we are archiving
                 output.info("\t%s", os.path.basename(filename), log=False)
                 _logger.info("Archiving %s/%s",
                              self.config.name,
                              os.path.basename(filename))
                 # Archive the WAL file
-                wal_info = self.cron_wal_archival(compressor, filename)
+                self.cron_wal_archival(compressor, wal_info)
 
                 # Updates the information of the WAL archive with
                 # the latest segments
@@ -1137,36 +1153,34 @@ class BackupManager(object):
         if compressor and remote_command:
             shutil.rmtree(xlog_spool)
 
-    def cron_wal_archival(self, compressor, filename):
+    def cron_wal_archival(self, compressor, wal_info):
         """
         Archive a WAL segment from the incoming directory.
         This function returns a WalFileInfo object.
 
         :param compressor: the compressor for the file (if any)
-        :param filename: the name of the WAL file is being processed
-        :return WalFileInfo:
+        :param wal_info: WalFileInfo of the WAL file is being processed
         """
-        basename = os.path.basename(filename)
-        destdir = os.path.join(self.config.wals_directory, xlog.hash_dir(basename))
-        destfile = os.path.join(destdir, basename)
-
-        wal_info = WalFileInfo.from_file(filename, compression=None)
+        destfile = wal_info.fullpath(self.server)
+        destdir = os.path.dirname(destfile)
+        srcfile = os.path.join(self.config.incoming_wals_directory,
+                wal_info.name)
 
         # Run the pre_archive_script if present.
         script = HookScriptRunner(self, 'archive_script', 'pre')
-        script.env_from_wal_info(wal_info)
+        script.env_from_wal_info(wal_info, srcfile)
         script.run()
 
         mkpath(destdir)
         if compressor:
-            compressor.compress(filename, destfile)
-            shutil.copystat(filename, destfile)
-            os.unlink(filename)
+            compressor.compress(srcfile, destfile)
+            shutil.copystat(srcfile, destfile)
+            os.unlink(srcfile)
         else:
-            shutil.move(filename, destfile)
+            shutil.move(srcfile, destfile)
 
         # execute fsync() on the archived WAL containing directory
-        dir_fd = os.open(os.path.dirname(destfile), os.O_DIRECTORY)
+        dir_fd = os.open(destdir, os.O_DIRECTORY)
         os.fsync(dir_fd)
         os.close(dir_fd)
         # execute fsync() on the archived WAL file
@@ -1174,16 +1188,14 @@ class BackupManager(object):
         os.fsync(file_fd)
         os.close(file_fd)
 
-        wal_info = WalFileInfo.from_file(
-            destfile,
-            compression=compressor and compressor.compression)
+        stat = os.stat(destfile)
+        wal_info.size = stat.st_size
+        wal_info.compression = compressor and compressor.compression
 
         # Run the post_archive_script if present.
         script = HookScriptRunner(self, 'archive_script', 'post')
         script.env_from_wal_info(wal_info)
         script.run()
-
-        return wal_info
 
     def check(self):
         """
