@@ -1025,7 +1025,7 @@ class Server(object):
         xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
 
         xlogdb_lock = xlogdb + ".lock"
-        with LockFile(xlogdb_lock, wait=True):
+        with LockFile(xlogdb_lock, raise_if_fail=True, wait=True):
             # If the file doesn't exist and it is required to read it,
             # we open it in a+ mode, to be sure it will be created
             if not os.path.exists(xlogdb) and mode.startswith('r'):

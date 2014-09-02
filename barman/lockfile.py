@@ -68,7 +68,7 @@ class LockFile(object):
 
     """
 
-    def __init__(self, filename, raise_if_fail=False, wait=False):
+    def __init__(self, filename, raise_if_fail=True, wait=False):
         self.filename = os.path.abspath(filename)
         self.fd = None
         self.raise_if_fail = raise_if_fail
