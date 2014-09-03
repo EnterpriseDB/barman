@@ -953,8 +953,11 @@ class Server(object):
                 wal_info['wal_last'] = item.name
                 wal_info['wal_last_timestamp'] = item.time
 
-        # Estimate WAL ratio
-        if wal_info['wal_last_timestamp']:
+        # Calculate statistics only for complete backups
+        # If the cron is not running for any reason, the required
+        # WAL files could be missing
+        if wal_info['wal_first'] and wal_info['wal_last']:
+            # Estimate WAL ratio
             # Calculate the difference between the timestamps of
             # the first WAL (begin of backup) and the last WAL
             # associated to the current backup
@@ -964,25 +967,25 @@ class Server(object):
                 wal_info['wals_per_second'] = (float(wal_info['wal_num']) /
                                                wal_info['wal_total_seconds'])
 
-        # evaluation of compression ratio for basebackup WAL files
-        wal_info['wal_theoretical_size'] = \
-            wal_info['wal_num'] * float(xlog.XLOG_SEG_SIZE)
-        try:
-            wal_info['wal_compression_ratio'] = 1 - (
-                wal_info['wal_size'] /
-                wal_info['wal_theoretical_size'])
-        except ZeroDivisionError:
-            wal_info['wal_compression_ratio'] = 0.0
+            # evaluation of compression ratio for basebackup WAL files
+            wal_info['wal_theoretical_size'] = \
+                wal_info['wal_num'] * float(xlog.XLOG_SEG_SIZE)
+            try:
+                wal_info['wal_compression_ratio'] = 1 - (
+                    wal_info['wal_size'] /
+                    wal_info['wal_theoretical_size'])
+            except ZeroDivisionError:
+                wal_info['wal_compression_ratio'] = 0.0
 
-        # evaluation of compression ratio of WAL files
-        wal_info['wal_until_next_theoretical_size'] = \
-            wal_info['wal_until_next_num'] * float(xlog.XLOG_SEG_SIZE)
-        try:
-            wal_info['wal_until_next_compression_ratio'] = 1 - (
-                wal_info['wal_until_next_size'] /
-                wal_info['wal_until_next_theoretical_size'])
-        except ZeroDivisionError:
-            wal_info['wal_until_next_compression_ratio'] = 0.0
+            # evaluation of compression ratio of WAL files
+            wal_info['wal_until_next_theoretical_size'] = \
+                wal_info['wal_until_next_num'] * float(xlog.XLOG_SEG_SIZE)
+            try:
+                wal_info['wal_until_next_compression_ratio'] = 1 - (
+                    wal_info['wal_until_next_size'] /
+                    wal_info['wal_until_next_theoretical_size'])
+            except ZeroDivisionError:
+                wal_info['wal_until_next_compression_ratio'] = 0.0
 
         return wal_info
 
