@@ -26,12 +26,10 @@ from barman.hooks import HookScriptRunner
 class HooksUnitTest(unittest.TestCase):
     @staticmethod
     def build_backup_manager(server_name, script_file):
-        server = MagicMock(name='server')
-        server.config.config.config_file = script_file
-        server.config.name = server_name
         backup_manager = MagicMock(name='backup_manager')
-        backup_manager.server = server
-        backup_manager.config = server.config
+        backup_manager.server.config.config.config_file = script_file
+        backup_manager.server.config.name = server_name
+        backup_manager.config = backup_manager.server.config
         return backup_manager
 
     @patch('barman.hooks.Command')
@@ -252,7 +250,7 @@ class HooksUnitTest(unittest.TestCase):
 
         # the actual test
         script = HookScriptRunner(backup_manager, 'test_hook', 'pre')
-        script.env_from_wal_info(backup_manager.server, wal_info)
+        script.env_from_wal_info(wal_info)
         expected_env = {
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
@@ -286,7 +284,7 @@ class HooksUnitTest(unittest.TestCase):
 
         # the actual test
         script = HookScriptRunner(backup_manager, 'test_hook', 'pre')
-        script.env_from_wal_info(None, wal_info)
+        script.env_from_wal_info(wal_info)
         expected_env = {
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,

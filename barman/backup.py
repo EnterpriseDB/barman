@@ -1154,7 +1154,7 @@ class BackupManager(object):
 
         # Run the pre_archive_script if present.
         script = HookScriptRunner(self, 'archive_script', 'pre')
-        script.env_from_wal_info(self.server, wal_info)
+        script.env_from_wal_info(wal_info)
         script.run()
 
         mkpath(destdir)
@@ -1180,7 +1180,7 @@ class BackupManager(object):
 
         # Run the post_archive_script if present.
         script = HookScriptRunner(self, 'archive_script', 'post')
-        script.env_from_wal_info(self.server, wal_info)
+        script.env_from_wal_info(wal_info)
         script.run()
 
         return wal_info

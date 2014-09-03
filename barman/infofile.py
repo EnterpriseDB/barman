@@ -368,6 +368,8 @@ class WalFileInfo(FieldListFile):
     def fullpath(self, server):
         """
         Returns the WAL file full path
+
+        :param barman.server.Server server: the server that owns the wal file
         """
         return os.path.join(server.config.wals_directory, self.relpath())
 

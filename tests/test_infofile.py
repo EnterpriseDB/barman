@@ -246,7 +246,7 @@ class TestWallFileInfo(object):
         # mock a server object
         server = mock.Mock(name='server')
         server.config.wals_directory = '/tmp/wals'
-        server.get_wal_full_path.return_value = wfile_info.fullpath(server)
+
         # parse the string
         info_file = wfile_info.from_xlogdb_line(server,
                                                '000000000000000000000001\t'
