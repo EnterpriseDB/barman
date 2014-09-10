@@ -26,9 +26,6 @@ import logging
 from contextlib import contextmanager
 
 import psycopg2
-import sys
-import shutil
-from datetime import timedelta
 
 from barman import output
 from barman.config import BackupOptions
@@ -996,12 +993,16 @@ class Server(object):
     def cron(self, verbose=True):
         """
         Maintenance operations
+
+        :param bool verbose: report even if no actions
         """
         filename = os.path.join(self.config.barman_home,
                                 '.%s-cron.lock' % self.config.name)
         try:
             with LockFile(filename, raise_if_fail=True, wait=True):
-                return self.backup_manager.cron(verbose=verbose)
+                self.backup_manager.cron(verbose=verbose)
+                # Retention policy management
+                self.backup_manager.cron_retention_policy()
         except LockFilePermissionDenied, e:
             output.error("Permission denied, unable to access '%s'" % e)
         except (OSError, IOError), e:

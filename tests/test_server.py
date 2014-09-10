@@ -15,8 +15,9 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from mock import patch, Mock
 import os
+
+from mock import patch, Mock
 import pytest
 
 from barman.server import Server
@@ -85,7 +86,7 @@ class TestServer(object):
         """
         # unpatch os.path
         os_mock.path = os.path
-        #Setup temp dir and server
+        # Setup temp dir and server
         server = Server(self.build_config(tmpdir))
         # Test the execution of the fsync on xlogdb file
         with server.xlogdb('w') as fxlogdb:
@@ -116,4 +117,4 @@ class TestServer(object):
         server = Server(self.build_config(tmpdir))
         full_path = server.get_wal_full_path(wal_name)
         assert full_path == \
-               str(tmpdir.join('wals').join(wal_hash).join(wal_name))
+            str(tmpdir.join('wals').join(wal_hash).join(wal_name))

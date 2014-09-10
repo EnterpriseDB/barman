@@ -754,7 +754,10 @@ class BackupManager(object):
         if not found and verbose:
             output.info("\tno file found", log=False)
 
-        # Retention policy management
+    def cron_retention_policy(self):
+        """
+        Retention policy management
+        """
         if (self.server.enforce_retention_policies
                 and self.config.retention_policy_mode == 'auto'):
             available_backups = self.get_available_backups(
