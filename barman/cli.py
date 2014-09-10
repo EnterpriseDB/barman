@@ -18,19 +18,21 @@
 """
 This module implements the interface with the command line and the logger.
 """
+import logging
+import os
+import sys
 
 from argh import ArghParser, named, arg, expects_obj
 from argparse import SUPPRESS, ArgumentTypeError
+
 from barman import output
 from barman.infofile import BackupInfo
 from barman import lockfile
 from barman.server import Server
 import barman.diagnose
 import barman.config
-import logging
-import os
-import sys
 from barman.utils import drop_privileges, configure_logging, parse_log_level
+
 
 _logger = logging.getLogger(__name__)
 
@@ -88,21 +90,18 @@ def cron():
 def server_completer(prefix, parsed_args, **kwargs):
     global_config(parsed_args)
     for conf in barman.__config__.servers():
-        if conf.name.startswith(prefix) \
-                and conf.name not in parsed_args.server_name:
+        if conf.name.startswith(prefix):
             yield conf.name
 
 
 # noinspection PyUnusedLocal
 def server_completer_all(prefix, parsed_args, **kwargs):
     global_config(parsed_args)
+    current_list = getattr(parsed_args, 'server_name', None) or ()
     for conf in barman.__config__.servers():
-        if conf.name.startswith(prefix) \
-                and conf.name not in parsed_args.server_name:
+        if conf.name.startswith(prefix) and conf.name not in current_list:
             yield conf.name
-    if 'server_name' in parsed_args \
-            and parsed_args.server_name is None \
-            and 'all'.startswith(prefix):
+    if len(current_list) == 0 and 'all'.startswith(prefix):
         yield 'all'
 
 
@@ -110,17 +109,15 @@ def server_completer_all(prefix, parsed_args, **kwargs):
 def backup_completer(prefix, parsed_args, **kwargs):
     global_config(parsed_args)
     server = get_server(parsed_args)
-    if server and len(parsed_args.backup_id) == 0:
-        for backup_id in sorted(server.get_available_backups().iterkeys(),
-                                reverse=True):
+    backup_name = getattr(parsed_args, 'backup_id', None) or ''
+    if server:
+        backups = server.get_available_backups()
+        for backup_id in sorted(backups, reverse=True):
             if backup_id.startswith(prefix):
                 yield backup_id
         for special_id in ('latest', 'last', 'oldest', 'first'):
-            if len(server.get_available_backups()) > 0 \
-                    and special_id.startswidth(prefix):
+            if len(backups) > 0 and special_id.startswith(prefix):
                 yield special_id
-    else:
-        return
 
 
 @arg('server_name', nargs='+',
@@ -250,6 +247,7 @@ def rebuild_xlogdb(args):
           'to be launched on a remote host. It is the equivalent of the "ssh_command" server'
           'option in the configuration file for remote recovery. Example: "ssh postgres@db2"')
 @arg('backup_id',
+     completer=backup_completer,
      help='specifies the backup ID to recover')
 @arg('destination_directory',
      help='the directory where the new server is created')
@@ -631,6 +629,7 @@ if __name__ == '__main__':
     # This code requires the mock module and allow us to test
     # bash completion inside the IDE debugger
     try:
+        # noinspection PyUnresolvedReferences
         import mock
         sys.stdout = mock.Mock(wraps=sys.stdout)
         sys.stdout.isatty.return_value = True

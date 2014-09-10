@@ -129,7 +129,7 @@ TEST_CONFIG_WEB = {
     'post_archive_script': None,
     'pre_archive_script': None,
     'last_backup_maximum_age': timedelta(1),
-    }
+}
 
 MINIMAL_CONFIG = """
 [barman]
@@ -235,6 +235,7 @@ class Test(object):
         with pytest.raises(ValueError):
             parse_time_interval('test_string')
 
+# noinspection PyMethodMayBeStatic
 class TestCsvParsing(object):
     """
     Csv parser test class

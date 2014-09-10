@@ -693,8 +693,6 @@ class Server(object):
         """
         stop backup wrapper
 
-        :param backup_label: label for the backup
-        :param immediate_checkpoint: Boolean for immediate checkpoint execution
         :param backup_info: backup_info object
         :return:
         """
@@ -738,8 +736,6 @@ class Server(object):
     def backup(self):
         """
         Performs a backup for the server
-
-        :param immediate_checkpoint: Boolean for immediate checkpoint execution
         """
         try:
             # check required backup directories exist
