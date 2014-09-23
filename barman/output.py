@@ -125,6 +125,21 @@ def _dispatch(obj, prefix, name, *args, **kwargs):
         raise ValueError("The object %r does not have the %r method" % (
             obj, method_name))
 
+def is_quiet():
+    """
+    Calls the "is_quiet" method, accessing the protected parameter _quiet
+    of the instanced OutputWriter
+    :return bool: the _quiet parameter value
+    """
+    return _writer.is_quiet()
+
+def is_debug():
+    """
+    Calls the "is_debug" method, accessing the protected parameter _debug
+    of the instanced OutputWriter
+    :return bool: the _debug parameter value
+    """
+    return _writer.is_debug()
 
 def debug(message, *args, **kwargs):
     """
@@ -310,6 +325,22 @@ class ConsoleOutputWriter(object):
         Print a message on standard error
         """
         print >> sys.stderr, _format_message(message, args)
+
+    def is_quiet(self):
+        """
+        Access the quiet property of the OutputWriter instance
+
+        :return bool: if the writer is quiet or not
+        """
+        return self._quiet
+
+    def is_debug(self):
+        """
+        Access the debug property of the OutputWriter instance
+
+        :return bool: if the writer is in debug mode or not
+        """
+        return self._debug
 
     def debug(self, message, *args):
         """
