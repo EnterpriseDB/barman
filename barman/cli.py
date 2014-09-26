@@ -214,18 +214,14 @@ def rebuild_xlogdb(args):
     Rebuild the WAL file database guessing it from the disk content.
     """
     servers = get_server_list(args)
-    ok = True
     for name in sorted(servers):
         server = servers[name]
         if server is None:
-            yield "Unknown server '%s'" % (name)
-            ok = False
+            output.error("Unknown server '%s'", name)
             continue
-        for line in server.rebuild_xlogdb():
-            yield line
-        yield ''
-    if not ok:
-        raise SystemExit(1)
+        server.rebuild_xlogdb()
+    output.close_and_exit()
+
 
 @arg('server_name',
      completer=server_completer,
@@ -266,12 +262,14 @@ def recover(args):
     """
     server = get_server(args)
     if server is None:
-        raise SystemExit("ERROR: unknown server '%s'" % (args.server_name))
+        output.error("Unknown server '%s'", args.server_name)
+        output.close_and_exit()
     # Retrieves the backup
     backup = parse_backup_id(server, args)
     if backup is None or backup.status != BackupInfo.DONE:
-        raise SystemExit("ERROR: unknown backup '%s' for server '%s'" % (
-            args.backup_id, args.server_name))
+        output.error("Unknown backup '%s' for server '%s'",
+                     args.backup_id, args.server_name)
+        output.close_and_exit()
 
     # decode the tablespace relocation rules
     tablespaces = {}
@@ -280,41 +278,45 @@ def recover(args):
             try:
                 tablespaces.update([rule.split(':', 1)])
             except ValueError:
-                raise SystemExit(
-                    "ERROR: invalid tablespace relocation rule '%s'\n"
-                    "HINT: the valid syntax for a relocation rule is "
-                    "NAME:LOCATION" % rule)
+                output.error("Invalid tablespace relocation rule '%s'\n"
+                    "HINT: The valid syntax for a relocation rule is "
+                    "NAME:LOCATION", rule)
+                output.close_and_exit()
 
     # validate the rules against the tablespace list
     valid_tablespaces = [tablespace_data.name for tablespace_data in
                          backup.tablespaces] if backup.tablespaces else []
     for item in tablespaces:
         if item not in valid_tablespaces:
-            raise SystemExit("ERROR: invalid tablespace name '%s'\n"
-                             "HINT: please use any of the following "
-                             "tablespaces: %s"
-                             % (item, ', '.join(valid_tablespaces)))
+            output.error("Invalid tablespace name '%s'\n"
+                         "HINT: Please use any of the following "
+                         "tablespaces: %s",
+                         item, ', '.join(valid_tablespaces))
+            output.close_and_exit()
 
     # explicitly disallow the rsync remote syntax (common mistake)
     if ':' in args.destination_directory:
-        raise SystemExit(
-            "ERROR: the destination directory parameter cannot contain the ':' character\n"
-            "HINT: if you want to do a remote recovery you have to use the --remote-ssh-command option")
+        output.error(
+            "The destination directory parameter "
+            "cannot contain the ':' character\n"
+            "HINT: If you want to do a remote recovery you have to use "
+            "the --remote-ssh-command option")
+        output.close_and_exit()
     if args.retry_sleep is not None:
         server.config.basebackup_retry_sleep = args.retry_sleep
     if args.retry_times is not None:
         server.config.basebackup_retry_times = args.retry_times
-    for line in server.recover(backup,
-                               args.destination_directory,
-                               tablespaces=tablespaces,
-                               target_tli=args.target_tli,
-                               target_time=args.target_time,
-                               target_xid=args.target_xid,
-                               target_name=args.target_name,
-                               exclusive=args.exclusive,
-                               remote_command=args.remote_ssh_command):
+    server.recover(backup,
+                   args.destination_directory,
+                   tablespaces=tablespaces,
+                   target_tli=args.target_tli,
+                   target_time=args.target_time,
+                   target_xid=args.target_xid,
+                   target_name=args.target_name,
+                   exclusive=args.exclusive,
+                   remote_command=args.remote_ssh_command)
 
-        yield line
+    output.close_and_exit()
 
 
 @named('show-server')
@@ -418,16 +420,17 @@ def list_files(args):
     """
     server = get_server(args)
     if server is None:
-        yield "Unknown server '%s'" % (args.server_name)
-        return
+        output.error("Unknown server '%s'", args.server_name)
+        output.close_and_exit()
     # Retrieves the backup
     backup = parse_backup_id(server, args)
     if backup is None:
-        yield "Unknown backup '%s' for server '%s'" % (
-            args.backup_id, args.server_name)
-        return
+        output.error("Unknown backup '%s' for server '%s'", args.backup_id,
+                     args.server_name)
+        output.close_and_exit()
     for line in backup.get_list_of_files(args.target):
-        yield line
+        output.info(line, log=False)
+    output.close_and_exit()
 
 
 @arg('server_name',
@@ -442,16 +445,16 @@ def delete(args):
     """
     server = get_server(args)
     if server is None:
-        yield "Unknown server '%s'" % (args.server_name)
-        return
+        output.error("Unknown server '%s'", args.server_name)
+        output.close_and_exit()
     # Retrieves the backup
     backup = parse_backup_id(server, args)
     if backup is None:
-        yield "Unknown backup '%s' for server '%s'" % (
-            args.backup_id, args.server_name)
-        return
-    for line in server.delete_backup(backup):
-        yield line
+        output.error("Unknown backup '%s' for server '%s'", args.backup_id,
+                     args.server_name)
+        output.close_and_exit()
+    server.delete_backup(backup)
+    output.close_and_exit()
 
 
 class stream_wrapper(object):

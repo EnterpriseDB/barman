@@ -36,7 +36,8 @@ import dateutil.tz
 from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
 from barman.fs import UnixLocalCommand, UnixRemoteCommand, FsOperationFailed
 from barman import xlog, output
-from barman.command_wrappers import Rsync, RsyncPgData, CommandFailedException
+from barman.command_wrappers import Rsync, RsyncPgData, \
+    CommandFailedException, Command
 from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
 from barman.utils import human_readable_timedelta, mkpath
@@ -173,14 +174,19 @@ class BackupManager(object):
         """
         available_backups = self.get_available_backups()
         # Honour minimum required redundancy
-        if backup.status == BackupInfo.DONE and self.server.config.minimum_redundancy >= len(available_backups):
-            yield "Skipping delete of backup %s for server %s due to minimum redundancy requirements (%s)" % (
-                backup.backup_id, self.config.name, self.server.config.minimum_redundancy)
-            _logger.warning("Could not delete backup %s for server %s - minimum redundancy = %s, current size = %s"
-                % (backup.backup_id, self.config.name, self.server.config.minimum_redundancy, len(available_backups)))
+        if backup.status == BackupInfo.DONE and \
+                self.server.config.minimum_redundancy >= len(available_backups):
+            output.warning("Skipping delete of backup %s for server %s due to "
+                           "minimum redundancy requirements "
+                           "(minimum redundancy = %s, current redundancy = %s)",
+                           backup.backup_id,
+                           self.config.name,
+                           len(available_backups),
+                           self.server.config.minimum_redundancy)
             return
 
-        yield "Deleting backup %s for server %s" % (backup.backup_id, self.config.name)
+        output.info("Deleting backup %s for server %s",
+                    backup.backup_id, self.config.name)
         previous_backup = self.get_previous_backup(backup.backup_id)
         next_backup = self.get_next_backup(backup.backup_id)
         # remove the backup
@@ -198,10 +204,10 @@ class BackupManager(object):
                 remove_until = next_backup
             elif BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
                 remove_until = backup
-            yield "Delete associated WAL segments:"
+            output.info("Delete associated WAL segments:")
             for name in self._remove_unused_wal_files(remove_until):
-                yield "\t%s" % name
-        yield "Done"
+                output.info("\t%s", name)
+        output.info("Done")
 
     def retry_backup_copy(self, target_function, *args, **kwargs):
         """
@@ -372,31 +378,25 @@ class BackupManager(object):
             except FsOperationFailed:
                 output.error(
                     "Unable to connect to the target host using the command "
-                    "'%s'" % remote_command
-                )
-                return
+                    "'%s'" % remote_command)
+                output.close_and_exit()
         else:
             # if is a local recovery create a UnixLocalCommand
             cmd = UnixLocalCommand()
             # silencing static analysis tools
             rsync = None
-        msg = "Starting %s restore for server %s using backup %s " % (
-            recovery_dest, self.config.name, backup.backup_id)
-        yield msg
-        _logger.info(msg)
+        output.info("Starting %s restore for server %s using backup %s ",
+                    recovery_dest, self.config.name, backup.backup_id)
 
         # check destination directory. If doesn't exist create it
         try:
             cmd.create_dir_if_not_exists(dest)
         except FsOperationFailed, e:
-            msg = ("unable to initialize destination directory "
-                   "'%s': %s" % (dest, e))
-            _logger.exception(msg)
-            raise SystemExit(msg)
+            output.exception("unable to initialize destination directory "
+                             "'%s': %s", dest, e)
+            output.close_and_exit()
 
-        msg = "Destination directory: %s" % dest
-        yield msg
-        _logger.info(msg)
+        output.info("Destination directory: %s", dest)
 
         # initialize tablespace structure
         if backup.tablespaces:
@@ -406,10 +406,9 @@ class BackupManager(object):
                 # if does not exists, create it
                 cmd.create_dir_if_not_exists(tblspc_dir)
             except FsOperationFailed, e:
-                msg = ("unable to initialize tablespace directory "
-                       "'%s': %s" % (tblspc_dir, e))
-                _logger.exception(msg)
-                raise SystemExit(msg)
+                output.exception("unable to initialize tablespace directory "
+                                 "'%s': %s", tblspc_dir, e)
+                output.close_and_exit()
 
             for item in backup.tablespaces:
 
@@ -437,33 +436,32 @@ class BackupManager(object):
                     # create symlink between tablespace and recovery folder
                     cmd.create_symbolic_link(location, pg_tblspc_file)
                 except FsOperationFailed, e:
-                    msg = ("unable to prepare '%s' tablespace "
-                           "(destination '%s'): %s" %
-                           (item.name, location, e))
-                    _logger.exception(msg)
-                    raise SystemExit(msg)
+                    output.exception("unable to prepare '%s' tablespace "
+                                     "(destination '%s'): %s",
+                                     item.name, location, e)
+                    output.close_and_exit()
 
-                yield "\t%s, %s, %s" % (item.oid, item.name, location)
+                output.info("\t%s, %s, %s", item.oid, item.name, location)
 
         wal_dest = os.path.join(dest, 'pg_xlog')
         target_epoch = None
         target_datetime = None
         if target_time:
+            # noinspection PyBroadException
             try:
                 target_datetime = dateutil.parser.parse(target_time)
             except ValueError as e:
-                msg = "unable to parse the target time parameter %r: %s" % (
-                      target_time, e)
-                _logger.exception(msg)
-                raise SystemExit(msg)
+                output.exception("unable to parse the target time parameter "
+                                 "%r: %s", target_time, e)
+                output.close_and_exit()
             except Exception:
                 # this should not happen, but there is a known bug in
                 # dateutil.parser.parse() implementation
                 # ref: https://bugs.launchpad.net/dateutil/+bug/1247643
-                msg = "unable to parse the target time parameter %r" % (
-                      target_time)
-                _logger.exception(msg)
-                raise SystemExit(msg)
+                output.exception("unable to parse the target time parameter "
+                                 "%r", target_time)
+                output.close_and_exit()
+
             target_epoch = time.mktime(target_datetime.timetuple()) + (
                 target_datetime.microsecond / 1000000.)
         if target_time or target_xid or (
@@ -477,8 +475,9 @@ class BackupManager(object):
                 targets['timeline'] = str(target_tli)
             if target_name:
                 targets['name'] = str(target_name)
-            yield "Doing PITR. Recovery target %s" % \
-                (", ".join(["%s: %r" % (k, v) for k, v in targets.items()]))
+            output.info(
+                "Doing PITR. Recovery target %s",
+                (", ".join(["%s: %r" % (k, v) for k, v in targets.items()])))
             wal_dest = os.path.join(dest, 'barman_xlog')
 
         # Retrieve the safe_horizon for smart copy
@@ -526,20 +525,17 @@ class BackupManager(object):
             self.retry_backup_copy(self.recover_basebackup_copy, backup, dest,
                                    tablespaces, remote_command, safe_horizon)
         except DataTransferFailure, e:
-            raise SystemExit("Failure copying base backup: %s" % (e,))
-        _logger.info("Base backup copied.")
+            output.exception("Failure copying base backup: %s", e)
+            output.close_and_exit()
 
         # Prepare WAL segments local directory
-        msg = "Copying required wal segments."
-        _logger.info(msg)
-        yield msg
+        output.info("Copying required wal segments.")
 
         # Retrieve the list of required WAL segments
         # according to recovery options
         xlogs = {}
         required_xlog_files = tuple(
-            self.server.get_required_xlog_files(backup, target_tli,
-                                                target_epoch))
+            self.server.get_required_xlog_files(backup, target_tli, target_epoch))
         for filename in required_xlog_files:
             hashdir = xlog.hash_dir(filename)
             if hashdir not in xlogs:
@@ -552,14 +548,13 @@ class BackupManager(object):
         try:
             self.recover_xlog_copy(compressor, xlogs, wal_dest, remote_command)
         except DataTransferFailure, e:
-            raise SystemExit("Failure copying WAL files: %s" % (e,))
+            output.exception("Failure copying WAL files: %s", e)
+            output.close_and_exit()
 
         # Generate recovery.conf file (only if needed by PITR)
         if target_time or target_xid or (
                 target_tli and target_tli != backup.timeline) or target_name:
-            msg = "Generating recovery.conf"
-            yield msg
-            _logger.info(msg)
+            output.info("Generating recovery.conf")
             if remote_command:
                 tempdir = tempfile.mkdtemp(prefix='barman_recovery-')
                 recovery = open(os.path.join(tempdir, 'recovery.conf'), 'w')
@@ -590,15 +585,14 @@ class BackupManager(object):
                     plain_rsync.from_file_list(['recovery.conf'],
                                               tempdir, ':%s' % dest)
                 except CommandFailedException, e:
-                    msg = (
-                        'remote copy of recovery.conf failed: %s' % (e,))
-                    _logger.exception(msg)
-                    raise SystemExit(msg)
+                    output.exception(
+                        'remote copy of recovery.conf failed: %s', e)
+                    output.close_and_exit()
 
                 shutil.rmtree(tempdir)
-            _logger.info('recovery.conf generated')
         else:
             # avoid shipping of just recovered pg_xlog files
+            output.info("Generating archive status files")
             if remote_command:
                 status_dir = tempfile.mkdtemp(prefix='barman_xlog_status-')
             else:
@@ -613,12 +607,15 @@ class BackupManager(object):
                     rsync('%s/' % status_dir,
                           ':%s' % os.path.join(wal_dest, 'archive_status'))
                 except CommandFailedException:
-                    msg = "unable to populate pg_xlog/archive_status directory"
-                    _logger.warning(msg, exc_info=1)
-                    raise SystemExit(msg)
+                    output.exception(
+                        "unable to populate pg_xlog/archive_status directory",
+                        e)
+                    output.close_and_exit()
+
                 shutil.rmtree(status_dir)
 
         # Disable dangerous setting in the target data dir
+        output.info("Disabling dangerous settings in destination directory.")
         if remote_command:
             tempdir = tempfile.mkdtemp(prefix='barman_recovery-')
             pg_config = os.path.join(tempdir, 'postgresql.conf')
@@ -630,10 +627,8 @@ class BackupManager(object):
         if self.pg_config_mangle(pg_config,
                                  {'archive_command': 'false'},
                                  "%s.origin" % pg_config):
-            msg = "The archive_command was set to 'false' to prevent data " \
-                  "losses."
-            yield msg
-            _logger.info(msg)
+            output.info("The archive_command was set to 'false' "
+                        "to prevent data losses.")
 
         # Find dangerous options in the configuration file (locations)
         clashes = self.pg_config_detect_possible_issues(pg_config)
@@ -644,9 +639,9 @@ class BackupManager(object):
                     ['postgresql.conf', 'postgresql.conf.origin'], tempdir,
                     ':%s' % dest)
             except CommandFailedException, e:
-                msg = 'remote copy of configuration files failed: %s' % (e,)
-                _logger.error(msg)
-                raise SystemExit(msg)
+                output.exception(
+                    'remote copy of configuration files failed: %s', e)
+                output.close_and_exit()
             shutil.rmtree(tempdir)
 
         # Copy the backup.info file to the destination as ".barman-recover.info"
@@ -654,42 +649,44 @@ class BackupManager(object):
             try:
                 rsync(backup.filename, ':%s/.barman-recover.info' % dest)
             except CommandFailedException, e:
-                    msg = 'copy of recovery metadata file failed: %s' % (e,)
-                    _logger.error(msg)
-                    raise SystemExit(msg)
+                    output.exception(
+                        'copy of recovery metadata file failed: %s', e)
+                    output.close_and_exit()
         else:
             backup.save(os.path.join(dest, '.barman-recover.info'))
 
-        yield ""
-        yield "Your PostgreSQL server has been successfully prepared for " \
-              "recovery!"
-        yield ""
-        yield "Please review network and archive related settings in the " \
-              "PostgreSQL"
-        yield "configuration file before starting the just recovered instance."
-        yield ""
+        output.info("", log=False)
+        output.info("Your PostgreSQL server has been successfully prepared for "
+              "recovery!", log=False)
+        output.info("", log=False)
+        output.info("Please review network and archive related settings in the "
+              "PostgreSQL", log=False)
+        output.info("configuration file before starting the just recovered "
+                    "instance.", log=False)
+        output.info("", log=False)
         # With a PostgreSQL version older than 8.4, it is the user's
         # responsibility to delete the "barman_xlog" directory as the
         # restore_command option in recovery.conf is not supported
         if backup.version < 80400 and (target_time or target_xid or (
                 target_tli and target_tli != backup.timeline) or target_name):
-            yield "After the recovery, please remember to remove the " \
-                  "\"barman_xlog\" directory"
-            yield "inside the PostgreSQL data directory."
-            yield ""
+            output.info("After the recovery, please remember to remove the "
+                  "\"barman_xlog\" directory", log=False)
+            output.info("inside the PostgreSQL data directory.", log=False)
+            output.info("", log=False)
         if clashes:
-            yield "WARNING: Before starting up the recovered PostgreSQL server,"
-            yield "please review also the settings of the following " \
-                  "configuration"
-            yield "options as they might interfere with your current " \
-                  "recovery attempt:"
-            yield ""
+            output.info("WARNING: Before starting up the recovered PostgreSQL "
+                        "server,", log=False)
+            output.info("please review also the settings of the following "
+                        "configuration", log=False)
+            output.info("options as they might interfere with your current "
+                        "recovery attempt:", log=False)
+            output.info("", log=False)
 
             for name, value in sorted(clashes.items()):
-                yield "    %s = %s" % (name, value)
+                output.info("    %s = %s", name, value, log=False)
 
-            yield ""
-        _logger.info("Recovery completed successful.")
+            output.info("", log=False)
+        output.info("Recovery completed successful.")
 
     def cron(self, verbose=True):
         """
@@ -778,7 +775,7 @@ class BackupManager(object):
 
         :param backup: the backup to delete
         '''
-        backup_dir = backup.get_basebackup_directory();
+        backup_dir = backup.get_basebackup_directory()
         shutil.rmtree(backup_dir)
 
     def delete_wal(self, wal_info):
@@ -807,12 +804,13 @@ class BackupManager(object):
 
         :param BackupInfo backup_info: the backup information
         """
-        self.current_action = "connecting to database (%s)" % self.config.conninfo
-        _logger.debug(self.current_action)
+        self.current_action = "connecting to database (%s)" % \
+                              self.config.conninfo
+        output.debug(self.current_action)
 
         # Set the PostgreSQL data directory
         self.current_action = "detecting data directory"
-        _logger.debug(self.current_action)
+        output.debug(self.current_action)
         data_directory = self.server.get_pg_setting('data_directory')
         backup_info.set_attribute('pgdata', data_directory)
 
@@ -827,7 +825,7 @@ class BackupManager(object):
 
         # Get tablespaces information
         self.current_action = "detecting tablespaces"
-        _logger.debug(self.current_action)
+        output.debug(self.current_action)
         tablespaces = self.server.get_pg_tablespaces()
         if tablespaces and len(tablespaces) > 0:
             backup_info.set_attribute("tablespaces", tablespaces)
@@ -1140,7 +1138,13 @@ class BackupManager(object):
 
                     # Cleanup files after the transfer
                     for segment in xlogs[prefix]:
-                        os.unlink(os.path.join(xlog_spool, segment))
+                        file_name = os.path.join(xlog_spool, segment)
+                        try:
+                            os.unlink(file_name)
+                        except OSError as e:
+                            output.warning(
+                                "Error removing temporary file '%s': %s",
+                                file_name, e)
                 else:
                     # decompress directly to the right place
                     for segment in xlogs[prefix]:
@@ -1339,7 +1343,7 @@ class BackupManager(object):
         """
         from os.path import isdir, join
 
-        yield "Rebuilding xlogdb for server %s" % self.config.name
+        output.info("Rebuilding xlogdb for server %s", self.config.name)
         root = self.config.wals_directory
         default_compression = self.config.compression
         wal_count = label_count = history_count = 0
@@ -1389,9 +1393,9 @@ class BackupManager(object):
                             'rebuilding the wal database: %s',
                             fullname)
 
-        yield 'Done rebuilding xlogdb for server %s ' \
-            '(history: %s, backup_labels: %s, wal_file: %s)' % (
-                self.config.name, history_count, label_count, wal_count)
+        output.info('Done rebuilding xlogdb for server %s '
+                    '(history: %s, backup_labels: %s, wal_file: %s)',
+                    self.config.name, history_count, label_count, wal_count)
 
     def _write_backup_label(self, backup_info):
         """
