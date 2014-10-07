@@ -21,6 +21,7 @@ This module represents a backup.
 
 from glob import glob
 import datetime
+import errno
 from io import StringIO
 import logging
 import os
@@ -976,7 +977,13 @@ class BackupManager(object):
         for dirpath, _, filenames in os.walk(backup_dest):
             # execute fsync() on the containing directory
             dir_fd = os.open(dirpath, os.O_DIRECTORY)
-            os.fsync(dir_fd)
+            try:
+                os.fsync(dir_fd)
+            except OSError, e:
+                # On some filesystem doing a fsync on a directory
+                # raises an EINVAL error. Ignoring it is usually safe.
+                if e.errno != errno.EINVAL:
+                    raise
             os.close(dir_fd)
             # execute fsync() on all the contained files
             for filename in filenames:
@@ -1184,7 +1191,13 @@ class BackupManager(object):
 
         # execute fsync() on the archived WAL containing directory
         dir_fd = os.open(destdir, os.O_DIRECTORY)
-        os.fsync(dir_fd)
+        try:
+            os.fsync(dir_fd)
+        except OSError, e:
+            # On some filesystem doing a fsync on a directory
+            # raises an EINVAL error. Ignoring it is usually safe.
+            if e.errno != errno.EINVAL:
+                raise
         os.close(dir_fd)
         # execute fsync() on the archived WAL file
         file_fd = os.open(destfile, os.O_RDONLY)
