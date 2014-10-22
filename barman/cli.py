@@ -457,24 +457,6 @@ def delete(args):
     output.close_and_exit()
 
 
-class stream_wrapper(object):
-    """ This class represents a wrapper for a stream
-    """
-
-    def __init__(self, stream):
-        self.stream = stream
-
-    def set_stream(self, stream):
-        ''' Set the stream as stream argument '''
-        self.stream = stream
-
-    def __getattr__(self, attr):
-        return getattr(self.stream, attr)
-
-
-_output_stream = stream_wrapper(sys.stdout)
-
-
 def global_config(args):
     """ Set the configuration file """
     if hasattr(args, 'config'):
@@ -520,10 +502,6 @@ def global_config(args):
 
     _logger.debug('Initialized Barman version %s (config: %s)',
                   barman.__version__, config.config_file)
-    if hasattr(args, 'quiet') and args.quiet:
-        _logger.debug("Replacing output stream")
-        global _output_stream
-        _output_stream.set_stream(open(os.devnull, 'w'))
 
 
 def get_server(args):
@@ -615,7 +593,7 @@ def main():
     )
     # noinspection PyBroadException
     try:
-        p.dispatch(pre_call=global_config, output_file=_output_stream)
+        p.dispatch(pre_call=global_config)
     except KeyboardInterrupt:
         msg = "Process interrupted by user (KeyboardInterrupt)"
         output.exception(msg)
