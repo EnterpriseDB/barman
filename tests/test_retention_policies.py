@@ -21,6 +21,7 @@ from barman.retention_policies import RetentionPolicyFactory, \
     RedundancyRetentionPolicy, RecoveryWindowRetentionPolicy
 from mock import Mock
 from dateutil.tz import tzlocal
+from barman.testing_helpers import build_test_backup_info
 
 
 class TestRetentionPolicies(object):
@@ -63,9 +64,13 @@ class TestRetentionPolicies(object):
         rp = self.build_redundancy_retention()
         assert isinstance(rp, RedundancyRetentionPolicy)
 
-        # use a Mock class as BackupInfo with status to DONE
-        backup_info = Mock(name='backup_info')
-        backup_info.status = BackupInfo.DONE
+        # Build a BackupInfo object with status to DONE
+        # The basebackup_directory is not used, but if unset BackupInfo will
+        # yield an error
+        rp.server.config.basebackups_directory = "/some/directory"
+        backup_info = build_test_backup_info(rp.server,
+                                 backup_id='test1',
+                                 end_time=datetime.now(tzlocal()))
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
@@ -92,10 +97,13 @@ class TestRetentionPolicies(object):
         rp = self.build_recovery_window_retention()
         assert isinstance(rp, RecoveryWindowRetentionPolicy)
 
-        # use a Mock class as BackupInfo with status to DONE and end_time = now
-        backup_info = Mock(name='backup_info')
-        backup_info.status = BackupInfo.DONE
-        backup_info.end_time = datetime.now(tzlocal())
+        # Build a BackupInfo object with status to DONE
+        # The basebackup_directory is not used, but if unset BackupInfo will
+        # yield an error
+        rp.server.config.basebackups_directory = "/some/directory"
+        backup_info = build_test_backup_info(rp.server,
+                                 backup_id='test1',
+                                 end_time=datetime.now(tzlocal()))
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1

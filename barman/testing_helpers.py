@@ -75,6 +75,12 @@ def mock_backup_info(backup_id='1234567890',
     return bi_mock
 
 
+def build_test_backup_info(server, **kwargs):
+    # build a backup info mock and use it to feed a real BackupInfo object
+    bi_dict = mock_backup_info(**kwargs).to_dict()
+    return BackupInfo(server, **bi_dict)
+
+
 def mock_backup_ext_info(backup_info=None,
                           previous_backup_id=None,
                           next_backup_id=None,
