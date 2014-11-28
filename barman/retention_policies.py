@@ -48,12 +48,15 @@ class RetentionPolicy(object):
         self._first_backup = None
         self._first_wal = None
 
-    def report(self, context=None):
+    def report(self, source=None, context=None):
         '''Report obsolete/valid objects according to the retention policy'''
-        if context == None:
+        if context is None:
             context = self.context
+        # Overrides the list of available backups
+        if source is None:
+            source = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
         if context == 'BASE':
-            return self._backup_report()
+            return self._backup_report(source)
         elif context == 'WAL':
             return self._wal_report()
         else:
@@ -89,7 +92,7 @@ class RetentionPolicy(object):
         pass
 
     @abstractmethod
-    def _backup_report(self):
+    def _backup_report(self, source):
         '''Report obsolete/valid backups according to the retention policy'''
         pass
 
@@ -136,10 +139,10 @@ class RedundancyRetentionPolicy(RetentionPolicy):
     def debug(self):
         return "Redundancy: %s (%s)" % (self.value, self.context)
 
-    def _backup_report(self):
+    def _backup_report(self, source):
         '''Report obsolete/valid backups according to the retention policy'''
         report = dict()
-        backups = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
+        backups = source
         # Normalise the redundancy value (according to minimum redundancy)
         redundancy = self.value
         if redundancy < self.server.config.minimum_redundancy:
@@ -230,10 +233,10 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         '''
         return datetime.now(tz.tzlocal()) - self.timedelta
 
-    def _backup_report(self):
+    def _backup_report(self, source):
         '''Report obsolete/valid backups according to the retention policy'''
         report = dict()
-        backups = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
+        backups = source
         # Map as VALID all DONE backups having end time lower than
         # the point of recoverability. The older ones
         # are classified as OBSOLETE.
