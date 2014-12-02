@@ -536,11 +536,11 @@ class BackupManager(object):
         xlogs = {}
         required_xlog_files = tuple(
             self.server.get_required_xlog_files(backup, target_tli, target_epoch))
-        for filename in required_xlog_files:
-            hashdir = xlog.hash_dir(filename)
+        for wal_info in required_xlog_files:
+            hashdir = xlog.hash_dir(wal_info.name)
             if hashdir not in xlogs:
                 xlogs[hashdir] = []
-            xlogs[hashdir].append(filename)
+            xlogs[hashdir].append(wal_info.name)
         # Check decompression options
         compressor = self.compression_manager.get_compressor()
 
@@ -598,8 +598,8 @@ class BackupManager(object):
             else:
                 status_dir = os.path.join(wal_dest, 'archive_status')
                 mkpath(status_dir)
-            for filename in required_xlog_files:
-                with open(os.path.join(status_dir, "%s.done" % filename),
+            for wal_info in required_xlog_files:
+                with open(os.path.join(status_dir, "%s.done" % wal_info.name),
                           'a') as f:
                     f.write('')
             if remote_command:

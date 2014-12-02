@@ -853,12 +853,17 @@ class Server(object):
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
                 wal_info = WalFileInfo.from_xlogdb_line(self, line)
+                # Handle .history files: add all of them to the output,
+                # regardless of their age
+                if xlog.is_history_file(wal_info.name):
+                    yield wal_info
+                    continue
                 if wal_info.name < begin:
                     continue
                 tli, _, _ = xlog.decode_segment_name(wal_info.name)
                 if tli > target_tli:
                     continue
-                yield wal_info.name
+                yield wal_info
                 if wal_info.name > end:
                     end = wal_info.name
                     if target_time and target_time < wal_info.time:
@@ -867,15 +872,17 @@ class Server(object):
             for line in fxlogdb:
                 wal_info = WalFileInfo.from_xlogdb_line(self, line)
                 if xlog.is_history_file(wal_info.name):
-                    yield wal_info.name
+                    yield wal_info
 
     # TODO: merge with the previous
-    def get_wal_until_next_backup(self, backup):
+    def get_wal_until_next_backup(self, backup, include_history=False):
         """
         Get the xlog files between backup and the next
 
         :param BackupInfo backup: a backup object, the starting point
             to retrieve WALs
+        :param bool include_history: option for the inclusion of
+            include_history files into the output
         """
         begin = backup.begin_wal
         next_end = None
@@ -886,6 +893,13 @@ class Server(object):
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
                 wal_info = WalFileInfo.from_xlogdb_line(self, line)
+                # Handle .history files: add all of them to the output,
+                # regardless of their age, if requested (the 'include_history'
+                # parameter is True)
+                if xlog.is_history_file(wal_info.name):
+                    if include_history:
+                        yield wal_info
+                    continue
                 if wal_info.name < begin:
                     continue
                 tli, _, _ = xlog.decode_segment_name(wal_info.name)

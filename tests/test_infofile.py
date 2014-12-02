@@ -16,6 +16,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 from datetime import datetime
 import os
+from barman.testing_helpers import mock_backup_info
 import mock
 import pytest
 from dateutil.tz import tzoffset, tzlocal

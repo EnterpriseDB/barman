@@ -16,9 +16,11 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+from barman.testing_helpers import mock_backup_info
 
 from mock import patch, Mock
 import pytest
+from barman.infofile import WalFileInfo
 
 from barman.server import Server
 
@@ -118,3 +120,44 @@ class TestServer(object):
         full_path = server.get_wal_full_path(wal_name)
         assert full_path == \
             str(tmpdir.join('wals').join(wal_hash).join(wal_name))
+
+    @patch("barman.server.Server.get_next_backup")
+    def test_get_wal_until_next_backup(self, get_backup_mock, tmpdir):
+        """
+        Simple test for the management of .history files
+        """
+        # build a WalFileInfo object
+        wfile_info = WalFileInfo()
+        wfile_info.name = '000000010000000000000003'
+        wfile_info.size = 42
+        wfile_info.time = 43
+        wfile_info.compression = None
+
+        # build a WalFileInfo history object
+        history_info = WalFileInfo()
+        history_info.name = '00000001.history'
+        history_info.size = 42
+        history_info.time = 43
+        history_info.compression = None
+
+        # create a xlog.db and add the 2 entries
+        xlog = tmpdir.mkdir("wals").join("xlog.db")
+        xlog.write(wfile_info.to_xlogdb_line() + history_info.to_xlogdb_line())
+        # facke backup
+        backup = mock_backup_info(begin_wal='000000010000000000000001',
+                                  end_wal='000000010000000000000004'
+                                  )
+
+        # mock a server object and mock a return call to get_next_backup method
+        server = Server(self.build_config(tmpdir))
+        get_backup_mock.return_value = mock_backup_info(backup_id="1234567899",
+                                        begin_wal='000000010000000000000005',
+                                        end_wal='000000010000000000000009')
+
+        wals = []
+        for wal_file in server.get_wal_until_next_backup(backup,
+                                                         include_history=True):
+            # get the result of the xlogdb read
+            wals.append(wal_file.name)
+        # check for the presence of the .history file
+        assert history_info.name in wals

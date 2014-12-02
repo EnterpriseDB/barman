@@ -496,7 +496,8 @@ class BackupInfo(FieldListFile):
             for x in self.get_required_wal_segments():
                 yield self.server.get_wal_full_path(x)
         if target in ('wal', 'full'):
-            for wal_info in self.server.get_wal_until_next_backup(self):
+            for wal_info in self.server.get_wal_until_next_backup(self,
+                                                          include_history=True):
                 yield wal_info.fullpath(self.server)
 
     def detect_backup_id(self):
