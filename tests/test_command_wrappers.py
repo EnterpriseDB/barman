@@ -18,7 +18,9 @@
 import unittest
 import mock
 from subprocess import PIPE
+import pytest
 from barman import command_wrappers
+from barman.command_wrappers import CommandFailedException
 
 try:
     from StringIO import StringIO
@@ -320,17 +322,19 @@ class RsyncUnitTest(unittest.TestCase):
         assert cmd.out == out
         assert cmd.err == err
 
-    def test_custom_ssh_invocation(self, popen):
+    @mock.patch("barman.utils.which")
+    def test_custom_ssh_invocation(self, mock_which, popen):
         ret = 0
         out = 'out'
         err = 'err'
 
         pipe = _mock_pipe(popen, ret, out, err)
-
+        mock_which.return_value = True
         cmd = command_wrappers.Rsync('/custom/rsync', ssh='/custom/ssh',
                                      ssh_options=['-c', 'arcfour'])
         result = cmd('src', 'dst')
 
+        mock_which.assert_called_with('/custom/rsync')
         popen.assert_called_with(
             ['/custom/rsync', '-e', "/custom/ssh '-c' 'arcfour'", 'src', 'dst'],
             shell=False, env=None,
@@ -342,6 +346,23 @@ class RsyncUnitTest(unittest.TestCase):
         assert cmd.ret == ret
         assert cmd.out == out
         assert cmd.err == err
+
+    def test_rsync_build_failure(self, popen):
+        """
+        Simple test that checks if a CommandFailedException is raised
+        when Rsync object is build with an invalid path or rsync
+        is not in system path
+        """
+        # Pass an invalid path to Rsync class constructor.
+        # Expect a CommandFailedException
+        with pytest.raises(CommandFailedException):
+            command_wrappers.Rsync('/invalid/path/rsync')
+        # Force the which method to return false, simulating rsync command not
+        # present in system PATH. Expect a CommandFailedExceptiomn
+        with mock.patch("barman.utils.which") as mock_which:
+            mock_which.return_value = False
+            with pytest.raises(CommandFailedException):
+                command_wrappers.Rsync(ssh_options=['-c', 'arcfour'])
 
     def test_protect_ssh_invocation(self, popen):
         ret = 0

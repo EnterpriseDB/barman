@@ -29,6 +29,7 @@ import logging
 import re
 import collections
 import tempfile
+import barman.utils
 import dateutil.parser
 import dateutil.tz
 
@@ -204,6 +205,14 @@ class Rsync(Command):
                  network_compression=None, check=True, allowed_retval=(0, 24),
                  **kwargs):
         options = []
+        # Try to find rsync in system PATH using the which method.
+        # If not found, rsync is not installed and this class cannot
+        # work properly.
+        # Raise CommandFailedException warning the user
+        rsync_path = barman.utils.which(rsync)
+        if not rsync_path:
+            raise CommandFailedException('rsync not in system PATH: '
+                                         'is rsync installed?')
         if ssh:
             options += ['-e', self._cmd_quote(ssh, ssh_options)]
         if network_compression:

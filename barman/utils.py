@@ -183,6 +183,25 @@ def human_readable_timedelta(timedelta):
     return human
 
 
+def which(executable):
+    """
+    This method is useful to find if a executable is present into the
+    os PATH
+
+    :param str executable: The name of the executable to find
+    :return str|None: the path of the executable or None
+    """
+    # Get the system path and split.
+    path = os.getenv('PATH')
+    for file_path in path.split(os.path.pathsep):
+        file_path = os.path.join(file_path, executable)
+        # if the file exists return the full path.
+        if os.path.exists(file_path) and os.access(file_path, os.X_OK):
+            return file_path
+    # If the file is not present on the system return None
+    return None
+
+
 class BarmanEncoder(json.JSONEncoder):
     """
     Custom JSON encoder used for BackupInfo encoding
