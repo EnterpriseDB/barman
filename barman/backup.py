@@ -964,9 +964,19 @@ class BackupManager(object):
                             rsync(':%s' % cf[key], backup_dest)
 
                         except CommandFailedException, e:
+                            ret_code = e.args[0]['ret']
                             msg = "data transfer failure on file '%s'" % \
                                   cf[key]
-                            self._raise_rsync_error(e, msg)
+                            if 'ident_file' == key and ret_code == 23:
+                                # if the ident file is not present
+                                # it is not a blocking error, so,
+                                # we need to track why the exception is raised.
+                                # if ident file is missing, warn the user, log
+                                # the data transfer but continue the backup
+                                output.warning(msg, log=True)
+                                continue
+                            else:
+                                self._raise_rsync_error(e, msg)
 
         # Calculate the base backup size
         self.current_action = "calculating backup size"
