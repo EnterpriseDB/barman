@@ -44,6 +44,18 @@ import xlog
 _logger = logging.getLogger(__name__)
 
 
+class SshCommandException(Exception):
+    """
+    Error parsing ssh_command parameter
+    """
+
+
+class ConninfoException(Exception):
+    """
+    Error parsing conninfo parameter
+    """
+
+
 class Server(object):
     """
     This class represents a server to backup
@@ -51,17 +63,27 @@ class Server(object):
     XLOG_DB = "xlog.db"
 
     def __init__(self, config):
-        ''' The Constructor.
+        """ The Constructor.
 
         :param config: the server configuration
-        '''
+        """
         self.config = config
         self.conn = None
         self.server_txt_version = None
         self.server_version = None
-        self.ssh_options = config.ssh_command.split()
+        try:
+            self.ssh_options = config.ssh_command.split()
+        except AttributeError:
+            raise SshCommandException(
+                'Missing or invalid ssh_command in barman configuration '
+                'for server %s' % config.name)
         self.ssh_command = self.ssh_options.pop(0)
-        self.ssh_options.extend("-o BatchMode=yes -o StrictHostKeyChecking=no".split())
+        self.ssh_options.extend("-o BatchMode=yes "
+                                "-o StrictHostKeyChecking=no".split())
+        if self.config.conninfo is None:
+            raise ConninfoException(
+                'Missing conninfo parameter in barman configuration '
+                'for server %s' % config.name)
         self.backup_manager = BackupManager(self)
         self.configuration_files = None
         self.enforce_retention_policies = False
@@ -105,7 +127,6 @@ class Server(object):
 
         # Initialise retention policies
         self._init_retention_policies()
-
 
     def _init_retention_policies(self):
 
@@ -565,7 +586,7 @@ class Server(object):
         """
         A generic function to connect to Postgres using Psycopg2
         """
-        myconn = self.conn == None
+        myconn = self.conn is None
         if myconn:
             self.conn = psycopg2.connect(self.config.conninfo)
             self.server_version = self.conn.server_version
