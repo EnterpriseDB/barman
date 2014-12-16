@@ -766,8 +766,7 @@ class BackupManager(object):
                     output.info(
                         "Enforcing retention policy: removing backup %s for "
                         "server %s" % (bid, self.config.name))
-                    for line in self.delete_backup(available_backups[bid]):
-                        output.info(line)
+                    self.delete_backup(available_backups[bid])
 
     def delete_basebackup(self, backup):
         '''
