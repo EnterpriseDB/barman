@@ -16,9 +16,11 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import datetime
+from collections import defaultdict
 from barman.testing_helpers import mock_backup_info
 
-from mock import patch, Mock
+from mock import patch, Mock, MagicMock
 import pytest
 from barman.infofile import WalFileInfo
 
@@ -46,6 +48,7 @@ class TestServer(object):
         config.retention_policy = None
         if tmpdir:
             config.wals_directory = str(tmpdir.ensure('wals', dir=True))
+            config.data_directory = str(tmpdir.ensure('data_directory', dir=True))
         return config
 
     def test_init(self):
@@ -161,3 +164,69 @@ class TestServer(object):
             wals.append(wal_file.name)
         # check for the presence of the .history file
         assert history_info.name in wals
+
+    @patch('barman.server.Server.get_remote_status')
+    def test_pg_stat_archiver_output(self, remote_mock,
+                                     tmpdir, capsys):
+        """
+        Test management of pg_stat_archiver view output
+
+        :param MagicMock connect_mock: mock the database connection
+        :param capsys: retrieve output from consolle
+
+        """
+        stats = {
+            "failed_count": "2",
+            "last_archived_wal": "000000010000000000000006",
+            "last_archived_time": datetime.datetime.now(),
+            "last_failed_wal": "000000010000000000000005",
+            "last_failed_time": datetime.datetime.now(),
+            "current_archived_wals_per_second": 1.0002,
+        }
+        remote_mock.return_value = dict(stats)
+
+        server = Server(self.build_config(tmpdir))
+        server.config.description = None
+        server.config.KEYS = []
+        server.server_version = 90400
+        server.config.last_backup_maximum_age = datetime.timedelta(days=1)
+
+        # testing for show-server command.
+        # Expecting in the output the same values present into the stats dict
+        server.show()
+        (out, err) = capsys.readouterr()
+        assert err == ''
+        result = dict(item.strip('\t\n\r').split(": ")
+                      for item in out.split("\n") if item != '')
+        assert result['failed_count'] == stats['failed_count']
+        assert result['last_archived_wal'] == stats['last_archived_wal']
+        assert result['last_archived_time'] == str(stats['last_archived_time'])
+        assert result['last_failed_wal'] == stats['last_failed_wal']
+        assert result['last_failed_time'] == str(stats['last_failed_time'])
+        assert result['current_archived_wals_per_second'] == \
+            str(stats['current_archived_wals_per_second'])
+
+        # test output for status
+        # Expecting:
+        # Last archived WAL:
+        #   <last_archived_wal>, at <last_archived_time>
+        # Failures of WAL archiver:
+        #   <failed_count> (<last_failed wal>, at <last_failed_time>)
+        remote_mock.return_value = defaultdict(lambda: None,
+                                               server_txt_version=1,
+                                               **stats)
+        server.status()
+        (out, err) = capsys.readouterr()
+        # clean the output
+        result = dict(item.strip('\t\n\r').split(": ")
+                      for item in out.split("\n") if item != '')
+        assert err == ''
+        # check the result
+        assert result['Last archived WAL'] == '%s, at %s' % (
+            stats['last_archived_wal'], stats['last_archived_time'].ctime()
+        )
+        assert result['Failures of WAL archiver'] == '%s (%s at %s)' % (
+            stats['failed_count'],
+            stats['last_failed_wal'],
+            stats['last_failed_time'].ctime()
+        )

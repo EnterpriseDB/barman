@@ -26,6 +26,7 @@ import logging
 from contextlib import contextmanager
 
 import psycopg2
+from psycopg2.extras import RealDictCursor
 
 from barman import output
 from barman.config import BackupOptions
@@ -212,9 +213,17 @@ class Server(object):
         else:
             output.result('check', self.config.name, 'archive_mode', False,
                           "please set it to 'on'")
-        if remote_status['archive_command'] and\
+        if remote_status['archive_command'] and \
                 remote_status['archive_command'] != '(disabled)':
             output.result('check', self.config.name, 'archive_command', True)
+            # Report if the archiving process works without issues.
+            # Skip if the archive_command check fails
+            # It can be None if PostgreSQL is older than 9.4
+            if remote_status.get('is_archiving') is not None:
+                output.result('check',
+                              self.config.name,
+                              'continuous archiving',
+                              remote_status['is_archiving'])
         else:
             output.result('check', self.config.name, 'archive_command', False,
                           'please set it accordingly to documentation')
@@ -259,7 +268,7 @@ class Server(object):
         """
         # first check: check backup maximum age
         if self.config.last_backup_maximum_age is not None:
-            # get maximum age informations
+            # get maximum age information
             backup_age = self.backup_manager.validate_last_backup_maximum_age(
                 self.config.last_backup_maximum_age)
 
@@ -309,17 +318,36 @@ class Server(object):
                       "PostgreSQL 'archive_command' setting",
                       remote_status['archive_command']
                       or "FAILED (please set it accordingly to documentation)")
+        last_wal = str(remote_status['last_archived_wal'])
+        # If PostgreSQL is >= 9.4 we have the last_archived_time
+        if remote_status.get('last_archived_time'):
+                last_wal += ", at %s" % (
+                    remote_status['last_archived_time'].ctime())
         output.result('status', self.config.name,
-                      "last_shipped_wal",
-                      "Archive status",
-                      "last shipped WAL segment %s" %
-                      remote_status['last_shipped_wal']
-                      or "No WAL segment shipped yet")
+                      "last_archived_wal",
+                      "Last archived WAL",
+                      last_wal or "No WAL segment shipped yet")
         if remote_status['current_xlog']:
             output.result('status', self.config.name,
                           "current_xlog",
                           "Current WAL segment",
                           remote_status['current_xlog'])
+        # Set output for WAL archive failures (PostgreSQL >= 9.4)
+        if remote_status.get('failed_count') is not None:
+            remote_fail = str(remote_status['failed_count'])
+            if int(remote_status['failed_count']) > 0:
+                remote_fail += " (%s at %s)" % (
+                    remote_status['last_failed_wal'],
+                    remote_status['last_failed_time'].ctime())
+            output.result('status', self.config.name, 'failed_count',
+                          'Failures of WAL archiver', remote_fail)
+        # Add hourly archive rate if available (PostgreSQL >= 9.4) and > 0
+        if remote_status.get('current_archived_wals_per_second'):
+            output.result(
+                'status', self.config.name,
+                'server_archived_wals_per_hour',
+                'Server WAL archiving rate', '%0.2f/hour' % (
+                    3600 * remote_status['current_archived_wals_per_second']))
 
     def status_retention_policies(self):
         """
@@ -374,6 +402,42 @@ class Server(object):
             _logger.debug("Error retrieving pgespresso information: %s", e)
             return False
 
+    def get_pg_stat_archiver(self):
+        """
+        This method gathers statistics from pg_stat_archiver
+        (postgres 9.4+ or greater required)
+
+        :return dict|None: a dictionary containing Postgres statistics from
+            pg_stat_archiver or None
+        """
+        try:
+            with self.pg_connect() as conn:
+                # pg_stat_archiver is only available from Postgres 9.4+
+                if self.server_version < 90400:
+                    return None
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                # Select from pg_stat_archiver statistics view,
+                # retrieving statistics about WAL archiver process activity,
+                # also evaluating if the server is archiving without issues
+                # and the archived WALs per second rate
+                cur.execute(
+                    "SELECT *, current_setting('archive_mode')::BOOLEAN "
+                    "AND (last_failed_wal IS NULL "
+                    "OR last_failed_wal <= last_archived_wal) "
+                    "AS is_archiving, "
+                    "CAST (archived_count AS NUMERIC) "
+                    "/ EXTRACT (EPOCH FROM age(now(), stats_reset)) "
+                    "AS current_archived_wals_per_second "
+                    "FROM pg_stat_archiver")
+                q_result = cur.fetchone()
+                if q_result:
+                    return q_result
+                else:
+                    return None
+        except psycopg2.Error, e:
+            _logger.debug("Error retrieving pg_stat_archive data: %s", e)
+            return None
+
     def pg_is_in_recovery(self):
         """
         Returns true if PostgreSQL server is in recovery mode
@@ -421,7 +485,6 @@ class Server(object):
                     _logger.debug(
                         "Error retrieving PostgreSQL version: %s", e)
 
-
                 result['pgespresso_installed'] = self.pg_espresso_installed()
 
                 try:
@@ -435,13 +498,21 @@ class Server(object):
                     _logger.debug("Error retrieving current xlog: %s", e)
 
                 result.update(self.get_pg_configuration_files())
+
+                # Add pg_stat_archiver statistics if the view is supported
+                pg_stat_archiver = self.get_pg_stat_archiver()
+                if pg_stat_archiver is not None:
+                    result.update(pg_stat_archiver)
+
         except psycopg2.Error, e:
             _logger.warn("Error retrieving PostgreSQL status: %s", e)
-
-        # TODO: replace with RemoteUnixCommand
-        cmd = Command(self.ssh_command, self.ssh_options)
-        result['last_shipped_wal'] = None
-        if result['data_directory'] and result['archive_command']:
+        # If last_archived_wal is not available from pg_stat_archiver
+        # retrieve it listing the $PGDATa/pg_xlog/archive_status directory
+        if result.get('last_archived_wal') is None \
+                and result['data_directory'] \
+                and result['archive_command']:
+            # TODO: replace with RemoteUnixCommand
+            cmd = Command(self.ssh_command, self.ssh_options)
             archive_dir = os.path.join(result['data_directory'],
                                        'pg_xlog', 'archive_status')
             out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
@@ -449,25 +520,25 @@ class Server(object):
                 if line.endswith('.done'):
                     name = line[:-5]
                     if xlog.is_wal_file(name):
-                        result['last_shipped_wal'] = line[:-5]
+                        result['last_archived_wal'] = line[:-5]
         return result
 
     def show(self):
         """
         Shows the server configuration
         """
-        #Populate result map with all the required keys
+        # Populate result map with all the required keys
         result = dict([
             (key, getattr(self.config, key))
             for key in self.config.KEYS
         ])
         remote_status = self.get_remote_status()
         result.update(remote_status)
-        # backup maximum age section
+        # Backup maximum age section
         if self.config.last_backup_maximum_age is not None:
             age = self.backup_manager.validate_last_backup_maximum_age(
                 self.config.last_backup_maximum_age)
-            # if latest backup is between the limits of the
+            # If latest backup is between the limits of the
             # last_backup_maximum_age configuration, display how old is
             # the latest backup.
             if age[0]:
@@ -476,7 +547,7 @@ class Server(object):
                         self.config.last_backup_maximum_age),
                      age[1])
             else:
-                # if latest backup is outside the limits of the
+                # If latest backup is outside the limits of the
                 # last_backup_maximum_age configuration (or the configuration
                 # value is none), warn the user.
                 msg = "%s (WARNING! latest backup is %s old)" % \
