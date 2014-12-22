@@ -19,7 +19,30 @@ import os
 import mock
 import pytest
 from dateutil.tz import tzoffset, tzlocal
-from barman.infofile import Field, FieldListFile, WalFileInfo, load_datetime_tz
+from barman.infofile import Field, FieldListFile, WalFileInfo, \
+    load_datetime_tz, BackupInfo
+
+BASE_BACKUP_INFO = """backup_label=None
+begin_offset=40
+begin_time=2014-12-22 09:25:22.561207+01:00
+begin_wal=000000010000000000000004
+begin_xlog=0/4000028
+config_file=/fakepath/postgresql.conf
+end_offset=184
+end_time=2014-12-22 09:25:27.410470+01:00
+end_wal=000000010000000000000004
+end_xlog=0/40000B8
+error=None
+hba_file=/fakepath/pg_hba.conf
+ident_file=/fakepath/pg_ident.conf
+mode=default
+pgdata=/fakepath/data
+server_name=fake-9.4-server
+size=20935690
+status=DONE
+tablespaces=[('fake_tbs', 16384, '/fake_tmp/tbs')]
+timeline=1
+version=90400"""
 
 
 #noinspection PyMethodMayBeStatic
@@ -280,3 +303,69 @@ class TestWallFileInfo(object):
         tz_string = '16:08:12 05/08/03 AEST'
         result = load_datetime_tz(tz_string)
         assert result.tzinfo == tzlocal()
+
+    def test_backup_info_from_file(self, tmpdir):
+        """
+        Test the initialization of a BackupInfo object
+        loading data from a backup.info file
+        """
+        # we want to test the loading of BackupInfo data from local file.
+        # So we create a file into the tmpdir containing a
+        # valid BackupInfo dump
+        infofile = tmpdir.join("backup.info")
+        infofile.write(BASE_BACKUP_INFO)
+        # Mock the server, we don't need it at the moment
+        server = mock.MagicMock()
+        # load the data from the backup.info file
+        b_info = BackupInfo(server, info_file=infofile.strpath)
+        assert b_info
+        assert b_info.begin_offset == '40'
+        assert b_info.begin_wal == '000000010000000000000004'
+        assert b_info.timeline == 1
+        assert isinstance(b_info.tablespaces, list)
+        assert b_info.tablespaces[0].name == 'fake_tbs'
+        assert b_info.tablespaces[0].oid == 16384
+        assert b_info.tablespaces[0].location == '/fake_tmp/tbs'
+
+    def test_backup_info_from_backup_id(self, tmpdir):
+        """
+        Test the initialization of a BackupInfo object
+        using a backup_id as argument
+        """
+        # We want to test the loading system using a backup_id.
+        # So we create a backup.info file into the tmpdir then
+        # we instruct the configuration on the position of the
+        # testing backup.info file
+        server = mock.MagicMock()
+        server.config.basebackups_directory = tmpdir.strpath
+        infofile = tmpdir.mkdir('fake_name').join('backup.info')
+        infofile.write(BASE_BACKUP_INFO)
+        # Load the backup.info file using the backup_id
+        b_info = BackupInfo(server, backup_id="fake_name")
+        assert b_info
+        assert b_info.begin_offset == '40'
+        assert b_info.begin_wal == '000000010000000000000004'
+        assert b_info.timeline == 1
+        assert isinstance(b_info.tablespaces, list)
+        assert b_info.tablespaces[0].name == 'fake_tbs'
+        assert b_info.tablespaces[0].oid == 16384
+        assert b_info.tablespaces[0].location == '/fake_tmp/tbs'
+
+    def test_backup_info_save(self, tmpdir):
+        """
+        Test the save method of a BackupInfo object
+        """
+        # Check the saving method.
+        # Load a backup.info file, modify the BackupInfo object
+        # then save it.
+        server = mock.MagicMock()
+        server.config.basebackups_directory = tmpdir.strpath
+        backup_dir = tmpdir.mkdir('fake_name')
+        infofile = backup_dir.join('backup.info')
+        b_info = BackupInfo(server, backup_id="fake_name")
+        b_info.status = BackupInfo.FAILED
+        b_info.save()
+        # read the file looking for the modified line
+        for line in infofile.readlines():
+            if line.startswith("status"):
+                assert line.strip() == "status=FAILED"
