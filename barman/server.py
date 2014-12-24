@@ -540,7 +540,7 @@ class Server(object):
             for line in out.splitlines():
                 if line.endswith('.done'):
                     name = line[:-5]
-                    if xlog.is_wal_file(name):
+                    if xlog.is_any_xlog_file(name):
                         result['last_archived_wal'] = line[:-5]
         return result
 

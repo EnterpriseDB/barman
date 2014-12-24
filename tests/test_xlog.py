@@ -114,7 +114,7 @@ class Test(object):
         assert xlog.hash_dir(
             '000000010000000000000002') == '0000000100000000'
         assert xlog.hash_dir(
-            '000000020000000100000000') == '0000000200000001'
+            'test/000000020000000100000000') == '0000000200000001'
         assert xlog.hash_dir(
             '00000001.history') == ''
         assert xlog.hash_dir(
@@ -129,3 +129,74 @@ class Test(object):
             xlog.hash_dir('0000000000000000000000000')
         with pytest.raises(xlog.BadXlogSegmentName):
             xlog.hash_dir('000000000000X00000000000')
+
+    def test_is_any_xlog_file(self):
+        assert xlog.is_any_xlog_file('000000000000000200000001')
+        assert xlog.is_any_xlog_file('test1/000000000000000200000001')
+        assert xlog.is_any_xlog_file(
+            '00000001000000000000000A.00000020.backup')
+        assert xlog.is_any_xlog_file(
+            'test2/00000001000000000000000A.00000020.backup')
+        assert xlog.is_any_xlog_file('00000002.history')
+        assert xlog.is_any_xlog_file('test3/00000002.history')
+        assert not xlog.is_any_xlog_file('00000000000000000000000')
+        assert not xlog.is_any_xlog_file('0000000000000000000000000')
+        assert not xlog.is_any_xlog_file('000000000000X00000000000')
+        assert not xlog.is_any_xlog_file('00000001000000000000000A.backup')
+        assert not xlog.is_any_xlog_file(
+            'test.00000001000000000000000A.00000020.backup')
+        assert not xlog.is_any_xlog_file('00000001000000000000000A.history')
+
+    def test_history_file(self):
+        assert not xlog.is_history_file('000000000000000200000001')
+        assert not xlog.is_history_file(
+            '00000001000000000000000A.00000020.backup')
+        assert xlog.is_history_file('00000002.history')
+        assert xlog.is_history_file('test/00000002.history')
+        assert not xlog.is_history_file('00000000000000000000000')
+        assert not xlog.is_history_file('0000000000000000000000000')
+        assert not xlog.is_history_file('000000000000X00000000000')
+        assert not xlog.is_history_file('00000001000000000000000A.backup')
+        assert not xlog.is_any_xlog_file(
+            'test.00000001000000000000000A.00000020.backup')
+        assert not xlog.is_history_file('00000001000000000000000A.history')
+
+    def test_backup_file(self):
+        assert not xlog.is_backup_file('000000000000000200000001')
+        assert xlog.is_backup_file(
+            '00000001000000000000000A.00000020.backup')
+        assert xlog.is_backup_file(
+            'test/00000001000000000000000A.00000020.backup')
+        assert not xlog.is_backup_file('00000002.history')
+        assert not xlog.is_backup_file('00000000000000000000000')
+        assert not xlog.is_backup_file('0000000000000000000000000')
+        assert not xlog.is_backup_file('000000000000X00000000000')
+        assert not xlog.is_backup_file('00000001000000000000000A.backup')
+        assert not xlog.is_any_xlog_file(
+            'test.00000001000000000000000A.00000020.backup')
+        assert not xlog.is_backup_file('00000001000000000000000A.history')
+
+    def test_is_wal_file(self):
+        assert xlog.is_wal_file('000000000000000200000001')
+        assert xlog.is_wal_file('test/000000000000000200000001')
+        assert not xlog.is_wal_file('00000001000000000000000A.00000020.backup')
+        assert not xlog.is_wal_file('00000002.history')
+        assert not xlog.is_wal_file('00000000000000000000000')
+        assert not xlog.is_wal_file('0000000000000000000000000')
+        assert not xlog.is_wal_file('000000000000X00000000000')
+        assert not xlog.is_wal_file('00000001000000000000000A.backup')
+        assert not xlog.is_any_xlog_file(
+            'test.00000001000000000000000A.00000020.backup')
+        assert not xlog.is_wal_file('00000001000000000000000A.history')
+
+    def test_encode_history_filename(self):
+        assert xlog.encode_history_file_name(1) == '00000001.history'
+        assert xlog.encode_history_file_name(10) == '0000000A.history'
+        assert xlog.encode_history_file_name(33) == '00000021.history'
+        assert xlog.encode_history_file_name(328) == '00000148.history'
+
+    def test_get_offset_from_location(self):
+        assert xlog.get_offset_from_location('0/1B0C7A0') == 11585440
+        assert xlog.get_offset_from_location('9AFB/5B13FD70') == 1310064
+        assert xlog.get_offset_from_location('9B02/29883178') == 8925560
+        assert xlog.get_offset_from_location('BLAH') is None
