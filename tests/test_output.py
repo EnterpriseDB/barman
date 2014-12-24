@@ -20,7 +20,7 @@ import pytest
 
 from barman import output
 from barman.infofile import BackupInfo
-from barman.testing_helpers import mock_backup_info, mock_backup_ext_info
+from barman.testing_helpers import build_test_backup_info, mock_backup_ext_info
 from barman.utils import pretty_size
 
 
@@ -858,7 +858,7 @@ class TestConsoleWriter(object):
 
     def test_result_list_backup(self, capsys):
         # mock the backup info
-        bi = mock_backup_info()
+        bi = build_test_backup_info()
         backup_size = 12345
         wal_size = 54321
         retention_status = 'test status'
@@ -890,7 +890,7 @@ class TestConsoleWriter(object):
         assert err == ''
 
         # test status = FAILED output
-        bi = mock_backup_info(status=BackupInfo.FAILED)
+        bi = build_test_backup_info(status=BackupInfo.FAILED)
         writer.init_list_backup(bi.server_name, False)
         writer.result_list_backup(bi, backup_size, wal_size, retention_status)
         writer.close()

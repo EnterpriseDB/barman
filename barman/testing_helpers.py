@@ -28,30 +28,63 @@ from barman.config import Config
 from barman.infofile import BackupInfo, Tablespace
 
 
-def mock_backup_info(backup_id='1234567890',
-                     begin_offset=40,
-                     begin_time=None,
-                     begin_wal='000000010000000000000002',
-                     begin_xlog='0/2000028',
-                     config_file='/pgdata/location/postgresql.conf',
-                     end_offset=184,
-                     end_time=None,
-                     end_wal='000000010000000000000002',
-                     end_xlog='0/20000B8',
-                     error=None,
-                     hba_file='/pgdata/location/pg_hba.conf',
-                     ident_file='/pgdata/location/pg_ident.conf',
-                     mode='default',
-                     pgdata='/pgdata/location',
-                     server_name='test_server',
-                     size=12345,
-                     status=BackupInfo.DONE,
-                     tablespaces=[
-                         ['tbs1', 16387, '/fake/location'],
-                         ['tbs2', 16405, '/another/location'],
-                     ],
-                     timeline=1,
-                     version=90302):
+def build_test_backup_info(
+        backup_id='1234567890',
+        begin_offset=40,
+        begin_time=None,
+        begin_wal='000000010000000000000002',
+        begin_xlog='0/2000028',
+        config_file='/pgdata/location/postgresql.conf',
+        end_offset=184,
+        end_time=None,
+        end_wal='000000010000000000000002',
+        end_xlog='0/20000B8',
+        error=None,
+        hba_file='/pgdata/location/pg_hba.conf',
+        ident_file='/pgdata/location/pg_ident.conf',
+        mode='default',
+        pgdata='/pgdata/location',
+        server_name='test_server',
+        size=12345,
+        status=BackupInfo.DONE,
+        tablespaces=(
+            ('tbs1', 16387, '/fake/location'),
+            ('tbs2', 16405, '/another/location'),
+        ),
+        timeline=1,
+        version=90302,
+        server=None):
+    """
+    Create an 'Ad Hoc' BackupInfo object for testing purposes.
+
+    A BackupInfo object is the barman representation of a physical backup,
+    for testing purposes is necessary to build a BackupInfo avoiding the usage
+    of Mock/MagicMock classes as much as possible.
+
+    :param str backup_id: the id of the backup
+    :param int begin_offset: begin_offset of the backup
+    :param datetime.datetime|None begin_time: begin_time of the backup
+    :param str begin_wal: begin_wal of the backup
+    :param str begin_xlog: begin_xlog of the backup
+    :param str config_file: config file of the backup
+    :param int end_offset: end_offset of the backup
+    :param datetime.datetime|None end_time: end_time of the backup
+    :param str end_wal: begin_xlog of the backup
+    :param str end_xlog: end_xlog of the backup
+    :param str|None error: error message for the backup
+    :param str hba_file: hba_file for the backup
+    :param str ident_file: ident_file for the backup
+    :param str mode: mode of execution of the backup
+    :param str pgdata: pg_data dir of the backup
+    :param str server_name: server name for the backup
+    :param int size: dimension of the backup
+    :param str status: status of the execution of the backup
+    :param list|tuple|None tablespaces: a list of tablespaces for the backup
+    :param int timeline: timeline of the backup
+    :param int version: postgres version of the backup
+    :param barman.server.Server|None server: Server object for the backup
+    :rtype: barman.infofile.BackupInfo
+    """
     if begin_time is None:
         begin_time = datetime.now(tz.tzlocal()) - timedelta(minutes=10)
     if end_time is None:
@@ -59,51 +92,44 @@ def mock_backup_info(backup_id='1234567890',
 
     # Generate a list of tablespace objects (don't use a list comprehension
     # or in python 2.x the 'item' variable will leak to the main context)
-    tablespaces = list(Tablespace._make(item) for item in tablespaces)
+    if tablespaces is not None:
+        tablespaces = list(Tablespace._make(item) for item in tablespaces)
 
-    # make a dictionary with all the arguments
-    to_dict = dict(locals())
+    # Manage the server for the Backup info: if no server is provided
+    # by the caller use a Mock with a basic configuration
+    if server is None:
+        server = mock.Mock(name=server_name)
+        server.config = build_config_from_dicts().get_server('main')
+        server.backup_manager.name = 'default'
 
-    # generate a property on the mock for every key in to_dict
-    bi_mock = mock.Mock()
-    for key in to_dict:
-        setattr(bi_mock, key, to_dict[key])
-
-    bi_mock.to_dict.return_value = to_dict
-    bi_mock.to_json.return_value = to_dict
-
-    return bi_mock
+    backup_info = BackupInfo(**locals())
+    return backup_info
 
 
-def build_test_backup_info(server, **kwargs):
-    # build a backup info mock and use it to feed a real BackupInfo object
-    bi_dict = mock_backup_info(**kwargs).to_dict()
-    return BackupInfo(server, **bi_dict)
-
-
-def mock_backup_ext_info(backup_info=None,
-                          previous_backup_id=None,
-                          next_backup_id=None,
-                          wal_num=1,
-                          wal_size=123456,
-                          wal_until_next_num=18,
-                          wal_until_next_size=2345678,
-                          wals_per_second=0.01,
-                          wal_first='000000010000000000000014',
-                          wal_first_timestamp=None,
-                          wal_last='000000010000000000000014',
-                          wal_last_timestamp=None,
-                          retention_policy_status=None,
-                          wal_compression_ratio=0.0,
-                          wal_until_next_compression_ratio=0.0,
-                          **kwargs):
+def mock_backup_ext_info(
+        backup_info=None,
+        previous_backup_id=None,
+        next_backup_id=None,
+        wal_num=1,
+        wal_size=123456,
+        wal_until_next_num=18,
+        wal_until_next_size=2345678,
+        wals_per_second=0.01,
+        wal_first='000000010000000000000014',
+        wal_first_timestamp=None,
+        wal_last='000000010000000000000014',
+        wal_last_timestamp=None,
+        retention_policy_status=None,
+        wal_compression_ratio=0.0,
+        wal_until_next_compression_ratio=0.0,
+        **kwargs):
 
     # make a dictionary with all the arguments
     ext_info = dict(locals())
     del ext_info['backup_info']
 
     if backup_info is None:
-        backup_info = mock_backup_info(**kwargs)
+        backup_info = build_test_backup_info(**kwargs)
 
     # merge the backup_info values
     ext_info.update(backup_info.to_dict())
@@ -125,15 +151,15 @@ def build_config_from_dicts(global_conf=None, main_conf=None):
     """
     # base barman section
     base_barman = {
-        'barman_home': '/srv/barman',
+        'barman_home': '/some/barman/home',
         'barman_user': '{USER}',
         'log_file': '%(barman_home)s/log/barman.log'
     }
     # base main section
     base_main = {
         'description': '" Text with quotes "',
-        'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01',
-        'conninfo': 'host=pg01 user=postgres port=5432'
+        'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere',
+        'conninfo': 'host=pg01.nowhere user=postgres port=5432'
     }
     # update map values of the two sections
     if global_conf is not None:

@@ -18,7 +18,7 @@
 import os
 import datetime
 from collections import defaultdict
-from barman.testing_helpers import mock_backup_info
+from barman.testing_helpers import build_test_backup_info
 
 from mock import patch, Mock, MagicMock
 import pytest
@@ -147,15 +147,16 @@ class TestServer(object):
         xlog = tmpdir.mkdir("wals").join("xlog.db")
         xlog.write(wfile_info.to_xlogdb_line() + history_info.to_xlogdb_line())
         # facke backup
-        backup = mock_backup_info(begin_wal='000000010000000000000001',
-                                  end_wal='000000010000000000000004'
-                                  )
+        backup = build_test_backup_info(
+            begin_wal='000000010000000000000001',
+            end_wal='000000010000000000000004')
 
         # mock a server object and mock a return call to get_next_backup method
         server = Server(self.build_config(tmpdir))
-        get_backup_mock.return_value = mock_backup_info(backup_id="1234567899",
-                                        begin_wal='000000010000000000000005',
-                                        end_wal='000000010000000000000009')
+        get_backup_mock.return_value = build_test_backup_info(
+            backup_id="1234567899",
+            begin_wal='000000010000000000000005',
+            end_wal='000000010000000000000009')
 
         wals = []
         for wal_file in server.get_wal_until_next_backup(backup,

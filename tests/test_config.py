@@ -34,18 +34,18 @@ from mock import patch
 
 TEST_CONFIG = """
 [barman]
-barman_home = /srv/barman
+barman_home = /some/barman/home
 barman_user = {USER}
 compression = gzip
-log_file = /srv/barman/log/barman.log
+log_file = /some/barman/home/log/barman.log
 log_level = INFO
 retention_policy = redundancy 2
 wal_retention_policy = base
 [main]
 active = true
 description = Main PostgreSQL Database
-ssh_command = ssh -c arcfour -p 22 postgres@pg01
-conninfo = host=pg01 user=postgres port=5432
+ssh_command = ssh -c arcfour -p 22 postgres@pg01.nowhere
+conninfo = host=pg01.nowhere user=postgres port=5432
 backup_directory = main
 basebackups_directory = base
 wals_directory = wals
@@ -71,10 +71,10 @@ TEST_CONFIG_MAIN = {
     'backup_directory': 'main',
     'backup_options': BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", ""),
     'bandwidth_limit': None,
-    'barman_home': '/srv/barman',
+    'barman_home': '/some/barman/home',
     'basebackups_directory': 'base',
     'compression': 'gzip',
-    'conninfo': 'host=pg01 user=postgres port=5432',
+    'conninfo': 'host=pg01.nowhere user=postgres port=5432',
     'custom_compression_filter': None,
     'custom_decompression_filter': None,
     'description': 'Main PostgreSQL Database',
@@ -89,7 +89,7 @@ TEST_CONFIG_MAIN = {
     'retention_policy': 'redundancy 3',
     'retention_policy_mode': 'auto',
     'reuse_backup': 'link',
-    'ssh_command': 'ssh -c arcfour -p 22 postgres@pg01',
+    'ssh_command': 'ssh -c arcfour -p 22 postgres@pg01.nowhere',
     'tablespace_bandwidth_limit': None,
     'wal_retention_policy': 'base',
     'wals_directory': 'wals',
@@ -102,19 +102,19 @@ TEST_CONFIG_MAIN = {
 
 TEST_CONFIG_WEB = {
     'active': True,
-    'backup_directory': '/srv/barman/web',
+    'backup_directory': '/some/barman/home/web',
     'backup_options': BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", ""),
     'bandwidth_limit': None,
-    'barman_home': '/srv/barman',
-    'basebackups_directory': '/srv/barman/web/base',
+    'barman_home': '/some/barman/home',
+    'basebackups_directory': '/some/barman/home/web/base',
     'compression': None,
     'conninfo': 'host=web01 user=postgres port=5432',
     'custom_compression_filter': None,
     'custom_decompression_filter': None,
     'description': 'Web applications database',
     'immediate_checkpoint': False,
-    'incoming_wals_directory': '/srv/barman/web/incoming',
-    'lock_file': '/srv/barman/web/web.lock',
+    'incoming_wals_directory': '/some/barman/home/web/incoming',
+    'lock_file': '/some/barman/home/web/web.lock',
     'minimum_redundancy': '0',
     'name': 'web',
     'network_compression': False,
@@ -126,7 +126,7 @@ TEST_CONFIG_WEB = {
     'ssh_command': 'ssh -I ~/.ssh/web01_rsa -c arcfour -p 22 postgres@web01',
     'tablespace_bandwidth_limit': None,
     'wal_retention_policy': 'base',
-    'wals_directory': '/srv/barman/web/wals',
+    'wals_directory': '/some/barman/home/web/wals',
     'basebackup_retry_sleep': 30,
     'basebackup_retry_times': 0,
     'post_archive_script': None,
@@ -136,27 +136,27 @@ TEST_CONFIG_WEB = {
 
 MINIMAL_CONFIG = """
 [barman]
-barman_home = /srv/barman
+barman_home = /some/barman/home
 barman_user = {USER}
 log_file = %(barman_home)s/log/barman.log
 [main]
 description = " Text with quotes "
-ssh_command = ssh -c "arcfour" -p 22 postgres@pg01
-conninfo = host=pg01 user=postgres port=5432
+ssh_command = ssh -c "arcfour" -p 22 postgres@pg01.nowhere
+conninfo = host=pg01.nowhere user=postgres port=5432
 """
 
 MINIMAL_CONFIG_MAIN = {
-    'barman_home': '/srv/barman',
+    'barman_home': '/some/barman/home',
     'name': 'main',
     'active': True,
     'description': ' Text with quotes ',
-    'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01',
-    'conninfo': 'host=pg01 user=postgres port=5432',
-    'backup_directory': '/srv/barman/main',
-    'basebackups_directory': '/srv/barman/main/base',
-    'wals_directory': '/srv/barman/main/wals',
-    'incoming_wals_directory': '/srv/barman/main/incoming',
-    'lock_file': '/srv/barman/main/main.lock',
+    'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere',
+    'conninfo': 'host=pg01.nowhere user=postgres port=5432',
+    'backup_directory': '/some/barman/home/main',
+    'basebackups_directory': '/some/barman/home/main/base',
+    'wals_directory': '/some/barman/home/main/wals',
+    'incoming_wals_directory': '/some/barman/home/main/incoming',
+    'lock_file': '/some/barman/home/main/main.lock',
     'compression': None,
     'custom_compression_filter': None,
     'custom_decompression_filter': None,
@@ -208,7 +208,7 @@ class Test(object):
         c = Config(fp)
         main = c.get_server('main')
         assert main.description == ' Text with quotes '
-        assert main.ssh_command == 'ssh -c "arcfour" -p 22 postgres@pg01'
+        assert main.ssh_command == 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere'
 
     def test_interpolation(self):
         fp = StringIO(MINIMAL_CONFIG.format(**os.environ))

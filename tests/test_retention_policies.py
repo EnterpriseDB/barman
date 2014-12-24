@@ -27,31 +27,18 @@ from barman.testing_helpers import build_test_backup_info
 class TestRetentionPolicies(object):
 
     @staticmethod
-    def build_redundancy_retention():
+    def build_server():
         """
-        Build RedundancyRetentionPolicy with redundancy 2
+        Build a server object
 
-        :return RedundancyRetentionPolicy: a RedundancyRetentionPolicy instance
+        :rtype: barman.server.Server
         """
         # instantiate a retention policy object using mocked parameters
         server = Mock(name='server')
-        rp = RetentionPolicyFactory.create(server, 'retention_policy',
-                                           'REDUNDANCY 2')
-        return rp
-
-    @staticmethod
-    def build_recovery_window_retention():
-        """
-        Build RecoveryWindowRetentionPolicy with recovery window of 4 weeks
-
-        :return RecoveryWindowRetentionPolicy: a RecoveryWindowRetentionPolicy
-            instance
-        """
-        # instantiate a retention policy object using mocked parameters
-        server = Mock(name='server')
-        rp = RetentionPolicyFactory.create(server, 'retention_policy',
-                                           'RECOVERY WINDOW OF 4 WEEKS')
-        return rp
+        # The basebackup_directory is not used, but if unset BackupInfo will
+        # yield an error
+        server.config.basebackups_directory = "/some/directory"
+        return server
 
     def test_redundancy_report(self):
         """
@@ -61,16 +48,18 @@ class TestRetentionPolicies(object):
         the report method of the RedundancyRetentionPolicy class must mark
         it as valid
         """
-        rp = self.build_redundancy_retention()
+        server = self.build_server()
+        rp = RetentionPolicyFactory.create(
+            server,
+            'retention_policy',
+            'REDUNDANCY 2')
         assert isinstance(rp, RedundancyRetentionPolicy)
 
         # Build a BackupInfo object with status to DONE
-        # The basebackup_directory is not used, but if unset BackupInfo will
-        # yield an error
-        rp.server.config.basebackups_directory = "/some/directory"
-        backup_info = build_test_backup_info(rp.server,
-                                 backup_id='test1',
-                                 end_time=datetime.now(tzlocal()))
+        backup_info = build_test_backup_info(
+            server=rp.server,
+            backup_id='test1',
+            end_time=datetime.now(tzlocal()))
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
@@ -94,16 +83,18 @@ class TestRetentionPolicies(object):
         the report method of the RecoveryWindowRetentionPolicy class must mark
         it as valid
         """
-        rp = self.build_recovery_window_retention()
+        server = self.build_server()
+        rp = RetentionPolicyFactory.create(
+            server,
+            'retention_policy',
+            'RECOVERY WINDOW OF 4 WEEKS')
         assert isinstance(rp, RecoveryWindowRetentionPolicy)
 
         # Build a BackupInfo object with status to DONE
-        # The basebackup_directory is not used, but if unset BackupInfo will
-        # yield an error
-        rp.server.config.basebackups_directory = "/some/directory"
-        backup_info = build_test_backup_info(rp.server,
-                                 backup_id='test1',
-                                 end_time=datetime.now(tzlocal()))
+        backup_info = build_test_backup_info(
+            server=rp.server,
+            backup_id='test1',
+            end_time=datetime.now(tzlocal()))
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
