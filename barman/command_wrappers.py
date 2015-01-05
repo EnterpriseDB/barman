@@ -357,16 +357,16 @@ class Rsync(Command):
                 (item.path, item)
                 for item in self.list_files(ref)
                 if item.mode[0] != 'd'))
-        except (CommandFailedException, RsyncListFilesFailure):
+        except (CommandFailedException, RsyncListFilesFailure) as e:
             # Here we set ref_hash to None, thus disable the code that marks as
             # "safe matching" those destination files with different time or
             # size, even if newer than "safe_horizon". As a result, all files
             # newer than "safe_horizon" will be checked through checksums.
             ref_hash = None
-            _logger.exception(
+            _logger.error(
                 "Unable to retrieve destination file list. "
                 "Using only source file information to decide which files need "
-                "to be copied with checksums enabled")
+                "to be copied with checksums enabled: %s" % e)
 
         # We need a temporary directory to store the files containing the lists
         # we are building in order to instruct rsync about which files need to
