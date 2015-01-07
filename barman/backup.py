@@ -322,7 +322,7 @@ class BackupManager(object):
                     "failure %s (%s)" % (
                         self.current_action, msg_lines[0]))
 
-            output.exception("Backup failed %s: %s\n%s",
+            output.error("Backup failed %s: %s\n%s",
                          self.current_action, msg_lines[0],
                          '\n'.join(msg_lines[1:]))
 
