@@ -24,7 +24,7 @@ from mock import patch, Mock, MagicMock
 import pytest
 from barman.infofile import WalFileInfo
 
-from barman.server import Server
+from barman.server import Server, PostgresConnectionError
 
 
 class ExceptionTest(Exception):
@@ -231,3 +231,16 @@ class TestServer(object):
             stats['last_failed_wal'],
             stats['last_failed_time'].ctime()
         )
+
+    def test_pg_connect_error(self, tmpdir):
+        """
+        Check pg_connect method beaviour on error
+        """
+        # Setup temp dir and server
+        server = Server(self.build_config(tmpdir))
+        # Set an invalid conninfo parameter.
+        server.config.conninfo = "not valid conninfo"
+        # expect pg_connect to raise a PostgresConnectionError
+        with pytest.raises(PostgresConnectionError):
+            with server.pg_connect():
+                assert False  # should never get here

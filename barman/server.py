@@ -56,6 +56,12 @@ class ConninfoException(Exception):
     """
 
 
+class PostgresConnectionError(Exception):
+    """
+    Error connecting to PostgreSQL server.
+    """
+
+
 class Server(object):
     """
     This class represents a server to backup
@@ -212,8 +218,11 @@ class Server(object):
         """
         Checks PostgreSQL connection
         """
-        remote_status = self.get_remote_status()
-        if remote_status['server_txt_version']:
+        try:
+            remote_status = self.get_remote_status()
+        except PostgresConnectionError as e:
+            remote_status = None
+        if remote_status is not None and remote_status['server_txt_version']:
             output.result('check', self.config.name, 'PostgreSQL', True)
         else:
             output.result('check', self.config.name, 'PostgreSQL', False)
@@ -419,7 +428,7 @@ class Server(object):
                     return True
                 else:
                     return False
-        except psycopg2.Error, e:
+        except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving pgespresso information: %s", e)
             return False
 
@@ -455,7 +464,7 @@ class Server(object):
                     return q_result
                 else:
                     return None
-        except psycopg2.Error, e:
+        except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving pg_stat_archive data: %s", e)
             return None
 
@@ -475,7 +484,7 @@ class Server(object):
                     return True
                 else:
                     return False
-        except psycopg2.Error, e:
+        except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error calling pg_is_in_recovery() function: %s", e)
             return None
 
@@ -525,7 +534,7 @@ class Server(object):
                 if pg_stat_archiver is not None:
                     result.update(pg_stat_archiver)
 
-        except psycopg2.Error, e:
+        except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.warn("Error retrieving PostgreSQL status: %s", e)
         # If last_archived_wal is not available from pg_stat_archiver
         # retrieve it listing the $PGDATa/pg_xlog/archive_status directory
@@ -588,13 +597,19 @@ class Server(object):
         """
         myconn = self.conn is None
         if myconn:
-            self.conn = psycopg2.connect(self.config.conninfo)
-            self.server_version = self.conn.server_version
-            if (self.server_version >= 90000
-                    and 'application_name=' not in self.config.conninfo):
-                cur = self.conn.cursor()
-                cur.execute('SET application_name TO barman')
-                cur.close()
+            try:
+                self.conn = psycopg2.connect(self.config.conninfo)
+                self.server_version = self.conn.server_version
+                if (self.server_version >= 90000
+                        and 'application_name=' not in self.config.conninfo):
+                    cur = self.conn.cursor()
+                    cur.execute('SET application_name TO barman')
+                    cur.close()
+            # If psycopg2 fails to connect to the host,
+            # raise the appropriate exception
+            except psycopg2.DatabaseError as e:
+                raise PostgresConnectionError("Cannot connect to postgres: %s"
+                                              % e)
         try:
             yield self.conn
         finally:
@@ -608,22 +623,24 @@ class Server(object):
 
         :param name: a parameter name
         """
-        with self.pg_connect() as conn:
-            try:
+
+        try:
+            with self.pg_connect() as conn:
                 cur = conn.cursor()
                 cur.execute('SHOW "%s"' % name.replace('"', '""'))
                 return cur.fetchone()[0]
-            except psycopg2.Error, e:
-                _logger.debug("Error retrieving PostgreSQL setting '%s': %s",
-                              name.replace('"', '""'), e)
-                return None
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error retrieving PostgreSQL setting '%s': %s",
+                          name.replace('"', '""'), e)
+            return None
 
     def get_pg_tablespaces(self):
         """
         Returns a list of tablespaces or None if not present
         """
-        with self.pg_connect() as conn:
-            try:
+
+        try:
+            with self.pg_connect() as conn:
                 cur = conn.cursor()
                 if self.server_version >= 90200:
                     cur.execute(
@@ -637,9 +654,9 @@ class Server(object):
                         "FROM pg_tablespace WHERE spclocation != ''")
                 # Generate a list of tablespace objects
                 return [Tablespace._make(item) for item in cur.fetchall()]
-            except psycopg2.Error, e:
-                _logger.debug("Error retrieving PostgreSQL tablespaces: %s", e)
-                return None
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error retrieving PostgreSQL tablespaces: %s", e)
+            return None
 
     def get_pg_configuration_files(self):
         """
@@ -647,8 +664,8 @@ class Server(object):
         """
         if self.configuration_files:
             return self.configuration_files
-        with self.pg_connect() as conn:
-            try:
+        try:
+            with self.pg_connect() as conn:
                 cur = conn.cursor()
                 cur.execute("SELECT name, setting FROM pg_settings "
                             "WHERE name IN ("
@@ -657,10 +674,10 @@ class Server(object):
                 for cname, cpath in cur.fetchall():
                     self.configuration_files[cname] = cpath
                 return self.configuration_files
-            except psycopg2.Error, e:
-                _logger.debug("Error retrieving PostgreSQL configuration files "
-                              "location: %s", e)
-                return {}
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error retrieving PostgreSQL configuration files "
+                          "location: %s", e)
+            return {}
 
     def pg_start_backup(self, backup_label):
         """
