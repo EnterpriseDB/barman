@@ -64,8 +64,9 @@ class RetentionPolicy(object):
 
     def backup_status(self, backup_id):
         '''Report the status of a backup according to the retention policy'''
+        source = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
         if self.context == 'BASE':
-            return self._backup_report()[backup_id]
+            return self._backup_report(source)[backup_id]
         else:
             return BackupInfo.NONE
 
