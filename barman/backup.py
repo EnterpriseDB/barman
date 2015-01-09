@@ -927,10 +927,14 @@ class BackupManager(object):
                     network_compression=self.config.network_compression,
                     check=True)
                 try:
+                    tablespace_dest = os.path.join(backup_dest, tablespace_dir)
+                    # make sure the destination directory exists in order for
+                    # smart copy to detect that no file is present there
+                    mkpath(tablespace_dest)
                     tb_rsync.smart_copy(
                         ':%s/' % os.path.join(backup_info.pgdata,
                                               tablespace_dir),
-                        os.path.join(backup_dest, tablespace_dir),
+                        tablespace_dest,
                         safe_horizon,
                         ref_dir)
                 except CommandFailedException, e:

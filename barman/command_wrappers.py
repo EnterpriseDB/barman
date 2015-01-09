@@ -318,13 +318,17 @@ class Rsync(Command):
         modified during the backup - and we do not reply WAL files to update
         them.
 
+        The "dst" directory must exist.
+
         If the "safe_horizon" parameter is None, we cannot make any
         assumptions about what can be considered "safe", so we must check
         everything with checksums enabled.
 
         If "ref" parameter is provided and is not None, it is looked up
-        instead of the dst dir. This is useful when we are copying files using
-        '--link-dest' and '--copy-dest' rsync options
+        instead of the "dst" dir. This is useful when we are copying files using
+        '--link-dest' and '--copy-dest' rsync options.
+        In this case, both the "dst" and "ref" dir must exist and
+        the "dst" dir must be empty.
 
         If "src" or "dst" content begin with a ':' character, it is a remote
         path. Only local paths are supported in "ref" argument.
@@ -364,7 +368,7 @@ class Rsync(Command):
             # newer than "safe_horizon" will be checked through checksums.
             ref_hash = None
             _logger.error(
-                "Unable to retrieve destination file list. "
+                "Unable to retrieve reference directory file list. "
                 "Using only source file information to decide which files need "
                 "to be copied with checksums enabled: %s" % e)
 
