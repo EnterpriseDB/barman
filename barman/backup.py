@@ -37,10 +37,10 @@ from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
 from barman.fs import UnixLocalCommand, UnixRemoteCommand, FsOperationFailed
 from barman import xlog, output
 from barman.command_wrappers import Rsync, RsyncPgData, \
-    CommandFailedException, Command
+    CommandFailedException
 from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
-from barman.utils import human_readable_timedelta, mkpath
+from barman.utils import human_readable_timedelta, mkpath, pretty_size
 from barman.config import BackupOptions
 
 
@@ -288,10 +288,26 @@ class BackupManager(object):
                 self.current_action = "copying files"
                 output.info("Copying files.")
                 # perform the backup copy, honouring the retry option if set
-                backup_size = self.retry_backup_copy(self.backup_copy,
-                                                     backup_info)
-                backup_info.set_attribute("size", backup_size)
+                self.retry_backup_copy(self.backup_copy, backup_info)
+                # Calculate deduplication ratio
+                if backup_info.size > 0:
+                    deduplication_ratio = 1 - (backup_info.deduplicated_size /
+                                               backup_info.size)
+                else:
+                    deduplication_ratio = 0
+
                 output.info("Copy done.")
+                if self.config.reuse_backup == 'link':
+                    output.info(
+                        "Backup size: %s. Actual size on disk: %s"
+                        " (-%s deduplication ratio)." % (
+                        pretty_size(backup_info.size),
+                        pretty_size(backup_info.deduplicated_size),
+                        '{percent:.2%}'.format(percent=deduplication_ratio)
+                        ))
+                else:
+                    output.info("Backup size: %s" %
+                                pretty_size(backup_info.size))
             except:
                 # we do not need to do anything here besides re-throwin the
                 # exception. It will be handled in the external try block.
@@ -1009,6 +1025,7 @@ class BackupManager(object):
         self.current_action = "calculating backup size"
         _logger.debug(self.current_action)
         backup_size = 0
+        deduplicated_size = 0
         for dirpath, _, filenames in os.walk(backup_dest):
             # execute fsync() on the containing directory
             dir_fd = os.open(dirpath, os.O_DIRECTORY)
@@ -1024,10 +1041,16 @@ class BackupManager(object):
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
                 file_fd = os.open(file_path, os.O_RDONLY)
-                backup_size += os.fstat(file_fd).st_size
+                file_stat = os.fstat(file_fd)
+                backup_size += file_stat.st_size
+                # Excludes hard links from real backup size
+                if file_stat.st_nlink == 1:
+                    deduplicated_size += file_stat.st_size
                 os.fsync(file_fd)
                 os.close(file_fd)
-        return backup_size
+        # Save size into BackupInfo object
+        backup_info.set_attribute('size', backup_size)
+        backup_info.set_attribute('deduplicated_size', deduplicated_size)
 
     def reuse_dir(self, previous_backup_info, path=None):
         """

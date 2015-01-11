@@ -417,6 +417,7 @@ class BackupInfo(FieldListFile):
     begin_wal = Field('begin_wal')
     begin_offset = Field('begin_offset')
     size = Field('size', load=int)
+    deduplicated_size = Field('deduplicated_size', load=int)
     end_time = Field('end_time', load=load_datetime_tz)
     end_xlog = Field('end_xlog')
     end_wal = Field('end_wal')

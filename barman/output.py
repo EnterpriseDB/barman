@@ -506,9 +506,17 @@ class ConsoleOutputWriter(object):
                               item.name, item.location, item.oid)
             self.info("")
             self.info("  Base backup information:")
-            self.info("    Disk usage           : %s",
+            self.info("    Disk usage           : %s (%s with WALs)",
+                      pretty_size(data['size']),
                       pretty_size(data['size'] + data[
                           'wal_size']))
+            if data['deduplicated_size'] is not None and data['size'] > 0:
+                deduplication_ratio = 1 - (data['deduplicated_size'] /
+                                           data['size'])
+                self.info("    Incremental size     : %s (-%s)",
+                          pretty_size(data['deduplicated_size']),
+                          '{percent:.2%}'.format(percent=deduplication_ratio)
+                          )
             self.info("    Timeline             : %s", data['timeline'])
             self.info("    Begin WAL            : %s",
                       data['begin_wal'])
