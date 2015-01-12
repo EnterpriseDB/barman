@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 08/13/2014
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 01/11/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "08/13/2014" "\ \&" "\ \&"
+.TH "BARMAN" "5" "01/11/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -226,6 +226,47 @@ Number of retries of data copy during base backup after an error\&. Positive int
 .RS 4
 Number of seconds of wait after a failed copy, before retrying Positive integer, default 30\&. Global/Server\&.
 .RE
+.PP
+\fBreuse_backup\fR
+.RS 4
+This option controls incremental backup support\&. Global/Server\&. Possible values are:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+None
+\- disabled (default);
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+copy
+\- reuse the last available backup for a server and create a copy of the unchanged files (reduce backup time);
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+link
+\- reuse the last available backup for a server and create a hard link of the unchanged files (reduce backup time and space)\&. Requires operating system and file system support for hard links\&.
+.RE
+.RE
 .SH "HOOK SCRIPTS"
 .sp
 The script definition is passed to a shell and can return any exit code\&.
@@ -246,7 +287,6 @@ phase)
 .PP
 BARMAN_PHASE
 .RS 4
-
 \fIpre\fR
 or
 \fIpost\fR
@@ -332,6 +372,9 @@ log_file = /var/log/barman/barman\&.log
 
 ; Default compression level
 ;compression = gzip
+
+; Incremental backup
+reuse_backup = link
 
 ; \*(Aqmain\*(Aq PostgreSQL Server configuration
 [main]

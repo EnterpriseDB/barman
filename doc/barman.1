@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.76.1 <http://docbook.sf.net/>
-.\"      Date: 08/13/2014
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 01/11/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "08/13/2014" "\ \&" "\ \&"
+.TH "BARMAN" "1" "01/11/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -155,6 +155,57 @@ forces to wait for the checkpoint\&. Overrides value of the parameter
 immediate_checkpoint, if present in the configuration file\&.
 .RE
 .PP
+\fB\-\-reuse\-backup [INCREMENTAL_TYPE]\fR
+.RS 4
+Overrides
+reuse_backup
+option behavious\&. Possible values for
+INCREMENTAL_TYPE
+are:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBoff\fR
+\- do not reuse the last available backup;
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBcopy\fR
+\- reuse the last available backup for a server and create a copy of the unchanged files (reduce backup time);
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+\fBlink\fR
+\- reuse the last available backup for a server and create a hard link of the unchanged files (reduce backup time and space);
+link
+is the default target if
+\-\-reuse\-backup
+is used and
+INCREMENTAL_TYPE
+is not explicited\&.
+.RE
+.RE
+.PP
 \fB\-\-retry\-times\fR
 .RS 4
 Number of retries of data copy during base backup after an error\&. Overrides value of the parameter
@@ -171,12 +222,6 @@ Same as
 .RS 4
 Number of seconds of wait after a failed copy, before retrying\&. Overrides value of the parameter
 basebackup_retry_sleep, if present in the configuration file\&.
-.RE
-.PP
-\fB\-\-no\-immediate\-checkpoint\fR
-.RS 4
-Forces the number of retries of data copy to 0\&. Overrides value of the parameter
-basebackup_retry_times, if present in the configuration file\&.
 .RE
 .RE
 .PP
@@ -279,7 +324,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBdata\fR
 \- lists just the data files;
 .RE
@@ -292,7 +336,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBstandalone\fR
 \- lists the base backup files, including required WAL files;
 .RE
@@ -305,7 +348,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBwal\fR
 \- lists all the WAL files between the start of the base backup and the end of the log / the start of the following base backup (depending on whether the specified base backup is the most recent one available);
 .RE
@@ -318,7 +360,6 @@ Possible values for TARGET_TYPE are:
 .sp -1
 .IP \(bu 2.3
 .\}
-
 \fBfull\fR
 \- same as data + wal\&. Defaults to standalone
 .RE

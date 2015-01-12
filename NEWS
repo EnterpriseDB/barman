@@ -1,6 +1,30 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2015 2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.4.0 - DD Mon 2015
+
+* Incremental base backup implementation through the reuse_backup
+  global/server option. Possible values are off (disabled,
+  default), copy (preventing unmodified files from being
+  transferred) and link (allowing for deduplication through hard
+  links).
+* Store and show deduplication effects when using reuse_backup=
+  link.
+* Added transparent support of pg_stat_archiver (PostgreSQL 9.4) in
+  check, show-server and status commands.
+* Improved administration by invoking WAL maintenance at the end of
+  a successful backup.
+* Changed the way unused WAL files are trashed, by differentiating
+  between concurrent and exclusive backup cases.
+* Improved performance of WAL statistics calculation.
+* Treat a missing pg_ident.conf as a WARNING rather than an error.
+* Refactored output layer by removing remaining yield calls.
+* Check that rsync is in the system path.
+* Include history files in WAL management.
+* Improved robustness through more unit tests.
+* Fixed bug #55: Ignore fsync EINVAL errors on directories.
+* Fixed bug #58: retention policies delete.
+
 Version 1.3.3 - 21 Aug 2014
 
 * Added "last_backup_max_age", a new global/server option that

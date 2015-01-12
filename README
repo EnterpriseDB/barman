@@ -5,7 +5,7 @@
    perform remote backups of multiple servers in business critical
    environments, and helps DBAs during the recovery phase.
 
-   Barman’s most wanted features include: backup catalogues, retention
+   Barman's most wanted features include: backup catalogues, retention
    policies, remote recovery, archiving and compression of WAL files and
    of backups. Barman is written and maintained by PostgreSQL
    professionals 2ndQuadrant.
@@ -96,19 +96,19 @@ Before you start
      * rsync >= 3.0.4
 
    Important
-            The same major version of PostgreSQL should be installed on both
-            servers.
+   The same major version of PostgreSQL should be installed on both
+   servers.
 
    Tip
-      Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
-      advised to install the Extra Packages Enterprise Linux (EPEL)
-      repository.
-      [Further information at [1]http://fedoraproject.org/wiki/EPEL]
+   Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
+   advised to install the Extra Packages Enterprise Linux (EPEL)
+   repository.
+   [Further information at [1]http://fedoraproject.org/wiki/EPEL]
 
    Note
-       Version 1.2.3 of Barman has been refactored for Python 3 support.
-       Please consider it as experimental now and report any bug through the
-       ticketing system on SourceForge or mailing list.
+   Version 1.2.3 of Barman has been refactored for Python 3 support.
+   Please consider it as experimental now and report any bug through the
+   ticketing system on SourceForge or mailing list.
      __________________________________________________________________
 
 Installation
@@ -133,13 +133,13 @@ Installation
    packages.
 
    It is available in the official repository for Debian Sid (unstable)
-   and Ubuntu 12.10 (Quantal Quetzal).
+   and Ubuntu 14.04 (Trusty Tahr).
 
    Note
-       You can install an up-to-date version of Barman on many Debian and
-       Ubuntu releases using the PostgreSQL Community APT repository at
-       [3]http://apt.postgresql.org/. Instructions can be found at
-       [4]https://wiki.postgresql.org/wiki/Apt.
+   You can install an up-to-date version of Barman on many Debian and
+   Ubuntu releases using the PostgreSQL Community APT repository at
+   [3]http://apt.postgresql.org/. Instructions can be found at
+   [4]https://wiki.postgresql.org/wiki/Apt.
 
    Installing Barman is as simple as typing as root user:
 
@@ -161,7 +161,7 @@ udo
      barman@backup$ ./setup.py install --user
 
    Important
-            The --user option works only with python-distribute
+   The --user option works only with python-distribute
 
    barman will be installed in your user directory (make sure that your
    PATH environment variable is set properly).
@@ -206,8 +206,8 @@ Getting started
      barman@backup$ psql -c 'SELECT version()' -U postgres -h pg
 
    Note
-       As of version 1.1.2, Barman honours the application_name connection
-       option for PostgreSQL servers 9.0 or higher.
+   As of version 1.1.2, Barman honours the application_name connection
+   option for PostgreSQL servers 9.0 or higher.
 
     Backup directory
 
@@ -222,12 +222,12 @@ Getting started
    all your backups by default. We choose /var/lib/barman as home
    directory for Barman:
 
-     barman@backup$ sudo mkdir /var/lib/barman
-     barman@backup$ sudo chown barman:barman /var/lib/barman
+  barman@backup$ sudo mkdir /var/lib/barman
+  barman@backup$ sudo chown barman:barman /var/lib/barman
 
-Important
-         We assume that you have enough space, and that you have already thought
-         about redundancy and safety of your disks.
+   Important
+   We assume that you have enough space, and that you have already thought
+   about redundancy and safety of your disks.
 
   Basic configuration
 
@@ -250,6 +250,25 @@ Important
        [all and barman are reserved words and cannot be used as server
        labels]
 
+    Global/server options
+
+   Every option in the configuration file has a scope:
+     * global
+     * server
+     * global/server
+
+   Global options can be present in the general section (identified by
+   barman). Server options can only be specified in a server section.
+
+   Some options can be defined at global level and overridden at server
+   level, allowing users to specify a generic behaviour and refine it for
+   one or more servers. For a list of all the available configurations and
+   their scope, please refer to [6]section 5 of the man page:
+
+     man 5 barman
+
+    Configuration files directory
+
    As of version 1.1.2, you can now specify a directory for configuration
    files similarly to other Linux applications, using the
    configuration_files_directory option (empty by default). If the value
@@ -259,8 +278,10 @@ Important
    placing each section in a separate .conf file inside the /etc/barman.d
    folder.
 
-   Otherwise, you can use Barman’s standard way of specifying sections
+   Otherwise, you can use Barman's standard way of specifying sections
    within the main configuration file.
+
+    Example of configuration
 
   ; Barman, Backup and Recovery Manager for PostgreSQL
   ; http://www.pgbarman.org/ - http://www.2ndQuadrant.com/
@@ -280,6 +301,9 @@ Important
   ; Default compression level: possible values are None (default), bzip2, gzip o
 r custom
   ;compression = gzip
+
+  ; Incremental backup support: possible values are None (default), link or copy
+  ;reuse_backup = link
 
   ; Pre/post backup hook scripts
   ;pre_backup_script = env | grep ^BARMAN
@@ -351,27 +375,30 @@ r custom
   ;; ; Retention policy (based on recovery window)
   ;; ; retention_policy = RECOVERY WINDOW OF 4 WEEKS
 
-   You can now test the configuration by executing:
+    Initial checks
 
-     barman@backup$ barman show-server main
-     barman@backup$ barman check main
+   Once you have created your configuration file (or files), you can now
+   test Barman's configuration by executing:
+
+  barman@backup$ barman show-server main
+  barman@backup$ barman check main
 
    Write down the incoming_wals_directory, as printed by the barman
    show-server main command, because you will need it to setup continuous
    WAL archiving.
 
-Important
-         The barman check main command automatically creates all the directories
-         for the continuous backup of the main server.
+   Important
+   The barman check main command automatically creates all the directories
+   for the continuous backup of the main server.
 
     Continuous WAL archiving
 
    Edit the postgresql.conf file of the PostgreSQL instance on the pg
    database and activate the archive mode:
 
-     wal_level = 'archive' # For PostgreSQL >= 9.0
-     archive_mode = on
-     archive_command = 'rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
+  wal_level = 'archive' # For PostgreSQL >= 9.0
+  archive_mode = on
+  archive_command = 'rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
 
    Make sure you change the INCOMING_WALS_DIRECTORY placeholder with the
    value returned by the barman show-server main command above.
@@ -463,19 +490,19 @@ Important
      barman@backup$ pg_ctl -D /path/to/recover/directory start
 
    Important
-            If you run this command as user barman, it will become the database
-            superuser.
+   If you run this command as user barman, it will become the database
+   superuser.
 
    You can retrieve a list of backup IDs for a specific server with:
 
      barman@backup$ barman list-backup srvpgsql
 
- Important
-          Barman does not currently keep track of symbolic links inside PGDATA
-          (except for tablespaces inside pg_tblspc). We encourage system
-          administrators to keep track of symbolic links and to add them to the
-          disaster recovery plans/procedures in case they need to be restored in
-          their original location.
+   Important
+   Barman does not currently keep track of symbolic links inside PGDATA
+   (except for tablespaces inside pg_tblspc). We encourage system
+   administrators to keep track of symbolic links and to add them to the
+   disaster recovery plans/procedures in case they need to be restored in
+   their original location.
 
   Remote recovery
 
@@ -486,7 +513,7 @@ Important
    host.
 
    Note
-       The postgres user is normally used to recover on a remote host.
+   The postgres user is normally used to recover on a remote host.
 
    There are some limitations when using remote recovery. It is important
    to be aware that:
@@ -501,9 +528,9 @@ Important
 
   Relocating one or more tablespaces
 
- Important
-          As of version 1.3.0, it is possible to relocate a tablespace both with
-          local and remote recovery.
+   Important
+   As of version 1.3.0, it is possible to relocate a tablespace both with
+   local and remote recovery.
 
    Barman is able to automatically relocate one or more tablespaces using
    the recover command with the --tablespace option. The option accepts a
@@ -516,7 +543,7 @@ Important
 
   Restoring to a given point in time
 
-   Barman employs PostgreSQL’s Point-in-Time Recovery (PITR) by allowing
+   Barman employs PostgreSQL's Point-in-Time Recovery (PITR) by allowing
    DBAs to specify a recovery target, either as a timestamp or as a
    transaction ID; you can also specify whether the recovery target should
    be included or not in the recovery.
@@ -535,7 +562,7 @@ Important
    Barman allows you to specify a target timeline for recovery, using the
    target-tli option. The notion of timeline goes beyond the scope of this
    document; you can find more details in the PostgreSQL documentation, or
-   in one of 2ndQuadrant’s Recovery training courses.
+   in one of 2ndQuadrant's Recovery training courses.
 
   Retry of copy in backup/recovery operations
 
@@ -559,257 +586,6 @@ Important
      * --no-retry (same as --retry-times 0)
      * --retry-sleep <number_of_seconds> (same logic as
        basebackup_retry_sleep)
-     __________________________________________________________________
-
-WAL compression
-
-   The barman cron command (see below) will compress WAL files if the
-   compression option is set in the configuration file. This option allows
-   three values:
-     * gzip: for Gzip compression (requires gzip)
-     * bzip2: for Bzip2 compression (requires bzip2)
-     * custom: for custom compression, which requires you to set the
-       following options as well:
-          + custom_compression_filter: a compression filter
-          + custom_decompression_filter: a decompression filter
-     __________________________________________________________________
-
-Limiting bandwidth usage
-
-   From version 1.2.1, it is possible to limit the usage of I/O bandwidth
-   through the bandwidth_limit option (global/per server), by specifying
-   the maximum number of kilobytes per second. By default it is set to 0,
-   meaning no limit.
-
-   In case you have several tablespaces and you prefer to limit the I/O
-   workload of your backup procedures on one or more tablespaces, you can
-   use the tablespace_bandwidth_limit option (global/per server):
-
-     tablespace_bandwidth_limit = tbname:bwlimit[, tbname:bwlimit, ...]
-
-   The option accepts a comma separated list of pairs made up of the
-   tablespace name and the bandwidth limit (in kilobytes per second).
-
-   When backing up a server, Barman will try and locate any existing
-   tablespace in the above option. If found, the specified bandwidth limit
-   will be enforced. If not, the default bandwidth limit for that server
-   will be applied.
-     __________________________________________________________________
-
-Network Compression
-
-   From version 1.3.0 it is possible to reduce the size of transferred
-   data using compression. It can be enabled using the network_compression
-   option (global/per server):
-
-     network_compression = true|false
-
-   Setting this option to true will enable data compression during network
-   transfers (for both backup and recovery). By default it is set to
-   false.
-     __________________________________________________________________
-
-Backup ID shortcuts
-
-   As of version 1.1.2, you can use any of the following shortcuts to
-   identify a particular backup for a given server:
-     * latest: the latest available backup for that server, in
-       chronological order. You can also use the last synonym.
-     * oldest: the oldest available backup for that server, in
-       chronological order. You can also use the first synonym.
-
-   These aliases can be used with any of the following commands:
-   show-backup, delete, list-files and recover.
-     __________________________________________________________________
-
-Minimum redundancy safety
-
-   From version 1.2.0, you can define the minimum number of periodical
-   backups for a PostgreSQL server.
-
-   You can use the global/per server configuration option called
-   minimum_redundancy for this purpose, by default set to 0.
-
-   By setting this value to any number greater than 0, Barman makes sure
-   that at any time you will have at least that number of backups in a
-   server catalogue.
-
-   This will protect you from accidental barman delete operations.
-
-   Important
-            Make sure that your policy retention settings do not collide with
-            minimum redundancy requirements. Regularly check Barman’s log for
-            messages on this topic.
-     __________________________________________________________________
-
-Retention policies
-
-   From version 1.2.0, Barman supports retention policies for backups.
-
-   A backup retention policy is an user-defined policy that determines how
-   long backups and related archive logs (Write Ahead Log segments) need
-   to be retained for recovery procedures.
-
-   Based on the user’s request, Barman retains the periodical backups
-   required to satisfy the current retention policy, and any archived WAL
-   files required for the complete recovery of those backups.
-
-   Barman users can define a retention policy in terms of backup
-   redundancy (how many periodical backups) or a recovery window (how
-   long).
-
-   Retention policy based on redundancy
-          In a retention policy, the setting that determines how many
-          periodical backups to keep. A redundancy-based retention policy
-          is contrasted with retention policy that uses a recovery window.
-
-   Retention policy based on recovery window
-          A recovery window is one type of Barman backup retention policy,
-          in which the DBA specifies a period of time and Barman ensures
-          retention of backups and/or archived WAL files required for
-          point-in-time recovery to any time during the recovery window.
-          The interval always ends with the current time and extends back
-          in time for the number of days specified by the user. For
-          example, if the retention policy is set for a recovery window of
-          seven days, and the current time is 9:30 AM on Friday, Barman
-          retains the backups required to allow point-in-time recovery
-          back to 9:30 AM on the previous Friday.
-
-  Scope
-
-   Retention policies can be defined for:
-     * PostgreSQL periodical base backups: through the retention_policy
-       configuration option;
-     * Archive logs, for Point-In-Time-Recovery: through the
-       wal_retention_policy configuration option.
-
-   Important
-            In a temporal dimension, archive logs must be included in the time
-            window of periodical backups.
-
-   There are two typical use cases here: full or partial point-in-time
-   recovery.
-
-   Full point in time recovery scenario
-          Base backups and archive logs share the same retention policy,
-          allowing DBAs to recover at any point in time from the first
-          available backup.
-
-   Partial point in time recovery scenario
-          Base backup retention policy is wider than that of archive logs,
-          allowing users for example to keep full weekly backups of the
-          last 6 months, but archive logs for the last 4 weeks (granting
-          to recover at any point in time starting from the last 4
-          periodical weekly backups).
-
-   Important
-            Currently, Barman implements only the full point in time recovery
-            scenario, by constraining the wal_retention_policy option to main.
-
-  How they work
-
-   Retention policies in Barman can be:
-     * automated: enforced by barman cron;
-     * manual: Barman simply reports obsolete backups and allows DBAs to
-       delete them.
-
-   Important
-            Currently Barman does not implement manual enforcement. This feature
-            will be available in future versions.
-
-  Configuration and syntax
-
-   Retention policies can be defined through the following configuration
-   options:
-     * retention_policy: for base backup retention;
-     * wal_retention_policy: for archive logs retention;
-     * retention_policy_mode: can only be set to auto (retention policies
-       are automatically enforced by the barman cron command).
-
-   These configuration options can be defined both at a global level and a
-   server level, allowing users maximum flexibility on a multi-server
-   environment.
-
-    Syntax for retention_policy
-
-   The general syntax for a base backup retention policy through
-   retention_policy is the following:
-
-   retention_policy = {REDUNDANCY value | RECOVERY WINDOW OF value {DAYS | WEEKS
- | MONTHS}}
-
-   Where:
-     * syntax is case insensitive;
-     * value is an integer and is > 0;
-     * in case of redundancy retention policy:
-          + value must be greater than or equal to the server minimum
-            redundancy level (if not is is assigned to that value and a
-            warning is generated);
-          + the first valid backup is the value-th backup in a reverse
-            ordered time series;
-     * in case of recovery window policy:
-          + the point of recoverability is: current time - window;
-          + the first valid backup is the first available backup before
-            the point of recoverability; its value in a reverse ordered
-            time series must be greater than or equal to the server
-            minimum redundancy level (if not is is assigned to that value
-            and a warning is generated).
-
-   By default, retention_policy is empty (no retention enforced).
-
-    Syntax for wal_retention_policy
-
-   Currently, the only allowed value for wal_retention_policy is the
-   special value main, that maps the retention policy of archive logs to
-   that of base backups.
-     __________________________________________________________________
-
-Concurrent Backup and backup from a standby
-
-   Normally, during backup operations, Barman uses PostgreSQL native
-   functions pg_start_backup and pg_stop_backup for exclusive backup.
-   These operations are not allowed on a read-only standby server.
-
-   As of version 1.3.1, Barman is also capable of performing backups of
-   PostgreSQL 9.2/9.3 database servers in a concurrent way, primarily
-   through the backup_options configuration parameter.
-   [Concurrent backup is a technology that has been available in
-   PostgreSQL since version 9.1, through the streaming replication
-   protocol (using, for example, a tool like pg_basebackup).]
-   This introduces a new architecture scenario with Barman: backup from a
-   standby server, using rsync.
-
-Important
-         Concurrent backup requires users of PostgreSQL 9.2 and 9.3 to install
-         the pgespresso open source extension on the PostgreSQL server. Detailed
-         information as well as the source code of pgespresso can be found at
-         [6]https://github.com/2ndquadrant-it/pgespresso.
-
-   By default, backup_options is transparently set to exclusive_backup
-   (the only supported method by any Barman version prior to 1.3.1).
-
-   When backup_options is set to concurrent_backup, Barman activates the
-   concurrent backup mode for a server and follows these two simple rules:
-     * ssh_command must point to the destination Postgres server;
-     * conninfo must point to a database on the destination Postgres 9.2
-       or 9.3 server where pgespresso is correctly installed through
-       CREATE EXTENSION.
-
-   The destination Postgres server can be either the master or a streaming
-   replicated standby server.
-
-   Note
-       When backing up from a standby server, continuous archiving of WAL
-       files must be configured on the master to ship files to the Barman
-       server (as outlined in the "Continuous WAL archiving" section above).
-       [ In case of concurrent backup, currently Barman does not have a way to
-       determine that the closing WAL file of a full backup has actually been
-       shipped - opposite to the case of an exclusive backup where it is
-       Postgres itself that makes sure that the WAL file is correctly
-       archived. Be aware that the full backup cannot be considered consistent
-       until that WAL file has been received and archived by Barman. We
-       encourage Barman users to wait to delete the previous backup - at least
-       until that moment. ]
      __________________________________________________________________
 
 Available commands
@@ -845,7 +621,8 @@ Available commands
      * retention_policy_mode set to auto.
 
    Note
-       This command should be executed in a cron script.
+   This command should be executed in a cron script. Our recommendation is
+   to schedule barman cron to run every minute.
 
   Server commands
 
@@ -862,8 +639,8 @@ Available commands
      barman backup [--immediate-checkpoint] <server_name>
 
    Tip
-      You can use barman backup all to sequentially backup all your
-      configured servers.
+   You can use barman backup all to sequentially backup all your
+   configured servers.
 
     Show available backups for a server
 
@@ -880,7 +657,7 @@ Available commands
      barman check <server_name>
 
    Tip
-      You can use barman check all to check all your configured servers.
+   You can use barman check all to check all your configured servers.
 
    From version 1.3.3, you can automatically be notified if the latest
    backup of a given server is older than, for example, 7 days.
@@ -906,9 +683,9 @@ Available commands
    well as current configuration and status of all servers.
 
    Tip
-      You can use barman diagnose when you want to ask questions or report
-      errors to Barman developers, providing them with all the information
-      about your issue.
+   You can use barman diagnose when you want to ask questions or report
+   errors to Barman developers, providing them with all the information
+   about your issue.
 
     Rebuild the WAL archive
 
@@ -919,17 +696,18 @@ Available commands
    with the rebuild-xlogdb command. This will scan all the archived WAL
    files and regenerate the metadata for the archive.
 
-  Important
-           Users of Barman < 1.2.3 might have suffered from a bug due to bad
-           locking in highly concurrent environments. You can now regenerate the
-           WAL archive using the rebuild-xlogdb command.
+   Important
+   Users of Barman < 1.2.3 might have suffered from a bug due to bad
+   locking in highly concurrent environments. You can now regenerate the
+   WAL archive using the rebuild-xlogdb command.
 
      barman rebuild-xlogdb <server_name>
 
   Backup commands
 
    Note
-       Remember: a backup ID can be retrieved with server list <server_name>
+   Remember: a backup ID can be retrieved with barman list-backup
+   <server_name>
 
     Show backup information
 
@@ -954,9 +732,9 @@ Available commands
      barman delete <server_name> oldest
 
    Warning
-          Until retention policies are natively supported, you must use the
-          oldest shortcut with extreme care and caution. Iteratively executing
-          this command can easily wipe out your backup archive.
+   Until retention policies are natively supported, you must use the
+   oldest shortcut with extreme care and caution. Iteratively executing
+   this command can easily wipe out your backup archive.
 
     List backup files
 
@@ -978,24 +756,320 @@ Available commands
 
    The default value for TARGET_TYPE is standalone.
 
-Important
-         The list-files command facilitates interaction with external tools, and
-         therefore can be extremely useful to integrate Barman into your
-         archiving procedures.
+   Important
+   The list-files command facilitates interaction with external tools, and
+   therefore can be extremely useful to integrate Barman into your
+   archiving procedures.
      __________________________________________________________________
 
-Hook scripts
+Main features
+
+  Incremental backup
+
+   From version 1.4.0, Barman implements file-level incremental backup.
+   Incremental backup is a kind of full periodical backup which saves only
+   data changes from the latest full backup available in the catalogue for
+   a specific PostgreSQL server. It must not be confused with differential
+   backup, which is implemented by WAL continuous archiving.
+
+   The main goals of incremental backup in Barman are:
+     * Reduce the time taken for the full backup process
+     * Reduce the disk space occupied by several periodical backups (data
+       deduplication)
+
+   This feature heavily relies on rysnc and [7]hard links, which must be
+   therefore supported by both the underlying operating system and the
+   file system where the backup data resides.
+
+   The main concept is that two periodical base backups will share those
+   files that have not changed, leading to relevant savings in disk usage.
+   This is particularly true of VLDB contexts and, more in general, of
+   those databases containing a high percentage of read-only historical
+   tables.
+
+   Barman implements incremental backup through a global/server option,
+   called reuse_backup, that transparently manage the barman backup
+   command. It accepts three values:
+     * off: standard full backup (default)
+     * link: incremental backup, by reusing the last backup for a server
+       and creating a hard link of the unchanged files (for backup space
+       and time reduction)
+     * copy: incremental backup, by reusing the last backup for a server
+       and creating a copy of the unchanged files (just for backup time
+       reduction)
+
+   The most common scenario is to set reuse_backup to link, as follows:
+
+     reuse_backup = link
+
+   Setting this at global level will automatically enable incremental
+   backup for all your servers.
+
+   As a final note, users can override the setting of the reuse_backup
+   option through the --reuse-backup runtime option for the barman backup
+   command. Similarly, the runtime option accepts three values: off, link
+   and copy. For example, you can run a one-off incremental backup as
+   follows:
+
+     barman backup --reuse-backup=link <server_name>
+
+  WAL compression
+
+   The barman cron command (see below) will compress WAL files if the
+   compression option is set in the configuration file. This option allows
+   three values:
+     * gzip: for Gzip compression (requires gzip)
+     * bzip2: for Bzip2 compression (requires bzip2)
+     * custom: for custom compression, which requires you to set the
+       following options as well:
+          + custom_compression_filter: a compression filter
+          + custom_decompression_filter: a decompression filter
+
+  Limiting bandwidth usage
+
+   From version 1.2.1, it is possible to limit the usage of I/O bandwidth
+   through the bandwidth_limit option (global/per server), by specifying
+   the maximum number of kilobytes per second. By default it is set to 0,
+   meaning no limit.
+
+   In case you have several tablespaces and you prefer to limit the I/O
+   workload of your backup procedures on one or more tablespaces, you can
+   use the tablespace_bandwidth_limit option (global/per server):
+
+     tablespace_bandwidth_limit = tbname:bwlimit[, tbname:bwlimit, ...]
+
+   The option accepts a comma separated list of pairs made up of the
+   tablespace name and the bandwidth limit (in kilobytes per second).
+
+   When backing up a server, Barman will try and locate any existing
+   tablespace in the above option. If found, the specified bandwidth limit
+   will be enforced. If not, the default bandwidth limit for that server
+   will be applied.
+
+  Network Compression
+
+   From version 1.3.0 it is possible to reduce the size of transferred
+   data using compression. It can be enabled using the network_compression
+   option (global/per server):
+
+     network_compression = true|false
+
+   Setting this option to true will enable data compression during network
+   transfers (for both backup and recovery). By default it is set to
+   false.
+
+  Backup ID shortcuts
+
+   As of version 1.1.2, you can use any of the following shortcuts to
+   identify a particular backup for a given server:
+     * latest: the latest available backup for that server, in
+       chronological order. You can also use the last synonym.
+     * oldest: the oldest available backup for that server, in
+       chronological order. You can also use the first synonym.
+
+   These aliases can be used with any of the following commands:
+   show-backup, delete, list-files and recover.
+
+  Minimum redundancy safety
+
+   From version 1.2.0, you can define the minimum number of periodical
+   backups for a PostgreSQL server.
+
+   You can use the global/per server configuration option called
+   minimum_redundancy for this purpose, by default set to 0.
+
+   By setting this value to any number greater than 0, Barman makes sure
+   that at any time you will have at least that number of backups in a
+   server catalogue.
+
+   This will protect you from accidental barman delete operations.
+
+   Important
+   Make sure that your policy retention settings do not collide with
+   minimum redundancy requirements. Regularly check Barman's log for
+   messages on this topic.
+
+  Retention policies
+
+   From version 1.2.0, Barman supports retention policies for backups.
+
+   A backup retention policy is an user-defined policy that determines how
+   long backups and related archive logs (Write Ahead Log segments) need
+   to be retained for recovery procedures.
+
+   Based on the user's request, Barman retains the periodical backups
+   required to satisfy the current retention policy, and any archived WAL
+   files required for the complete recovery of those backups.
+
+   Barman users can define a retention policy in terms of backup
+   redundancy (how many periodical backups) or a recovery window (how
+   long).
+
+   Retention policy based on redundancy
+          In a redundancy based retention policy, the user determines how
+          many periodical backups to keep. A redundancy-based retention
+          policy is contrasted with retention policies that use a recovery
+          window.
+
+   Retention policy based on recovery window
+          A recovery window is one type of Barman backup retention policy,
+          in which the DBA specifies a period of time and Barman ensures
+          retention of backups and/or archived WAL files required for
+          point-in-time recovery to any time during the recovery window.
+          The interval always ends with the current time and extends back
+          in time for the number of days specified by the user. For
+          example, if the retention policy is set for a recovery window of
+          seven days, and the current time is 9:30 AM on Friday, Barman
+          retains the backups required to allow point-in-time recovery
+          back to 9:30 AM on the previous Friday.
+
+    Scope
+
+   Retention policies can be defined for:
+     * PostgreSQL periodical base backups: through the retention_policy
+       configuration option;
+     * Archive logs, for Point-In-Time-Recovery: through the
+       wal_retention_policy configuration option.
+
+   Important
+   In a temporal dimension, archive logs must be included in the time
+   window of periodical backups.
+
+   There are two typical use cases here: full or partial point-in-time
+   recovery.
+
+   Full point in time recovery scenario
+          Base backups and archive logs share the same retention policy,
+          allowing DBAs to recover at any point in time from the first
+          available backup.
+
+   Partial point in time recovery scenario
+          Base backup retention policy is wider than that of archive logs,
+          allowing users for example to keep full weekly backups of the
+          last 6 months, but archive logs for the last 4 weeks (granting
+          to recover at any point in time starting from the last 4
+          periodical weekly backups).
+
+   Important
+   Currently, Barman implements only the full point in time recovery
+   scenario, by constraining the wal_retention_policy option to main.
+
+    How they work
+
+   Retention policies in Barman can be:
+     * automated: enforced by barman cron;
+     * manual: Barman simply reports obsolete backups and allows DBAs to
+       delete them.
+
+   Important
+   Currently Barman does not implement manual enforcement. This feature
+   will be available in future versions.
+
+    Configuration and syntax
+
+   Retention policies can be defined through the following configuration
+   options:
+     * retention_policy: for base backup retention;
+     * wal_retention_policy: for archive logs retention;
+     * retention_policy_mode: can only be set to auto (retention policies
+       are automatically enforced by the barman cron command).
+
+   These configuration options can be defined both at a global level and a
+   server level, allowing users maximum flexibility on a multi-server
+   environment.
+
+      Syntax for retention_policy
+
+   The general syntax for a base backup retention policy through
+   retention_policy is the following:
+
+  retention_policy = {REDUNDANCY value | RECOVERY WINDOW OF value {DAYS | WEEKS
+| MONTHS}}
+
+   Where:
+     * syntax is case insensitive;
+     * value is an integer and is > 0;
+     * in case of redundancy retention policy:
+          + value must be greater than or equal to the server minimum
+            redundancy level (if not is is assigned to that value and a
+            warning is generated);
+          + the first valid backup is the value-th backup in a reverse
+            ordered time series;
+     * in case of recovery window policy:
+          + the point of recoverability is: current time - window;
+          + the first valid backup is the first available backup before
+            the point of recoverability; its value in a reverse ordered
+            time series must be greater than or equal to the server
+            minimum redundancy level (if not is is assigned to that value
+            and a warning is generated).
+
+   By default, retention_policy is empty (no retention enforced).
+
+      Syntax for wal_retention_policy
+
+   Currently, the only allowed value for wal_retention_policy is the
+   special value main, that maps the retention policy of archive logs to
+   that of base backups.
+
+  Concurrent Backup and backup from a standby
+
+   Normally, during backup operations, Barman uses PostgreSQL native
+   functions pg_start_backup and pg_stop_backup for exclusive backup.
+   These operations are not allowed on a read-only standby server.
+
+   As of version 1.3.1, Barman is also capable of performing backups of
+   PostgreSQL 9.2/9.3 database servers in a concurrent way, primarily
+   through the backup_options configuration parameter.
+   [Concurrent backup is a technology that has been available in
+   PostgreSQL since version 9.1, through the streaming replication
+   protocol (using, for example, a tool like pg_basebackup).]
+   This introduces a new architecture scenario with Barman: backup from a
+   standby server, using rsync.
+
+   Important
+   Concurrent backup requires users of PostgreSQL 9.2 and 9.3 to install
+   the pgespresso open source extension on the PostgreSQL server. Detailed
+   information as well as the source code of pgespresso can be found at
+   [8]https://github.com/2ndquadrant-it/pgespresso.
+
+   By default, backup_options is transparently set to exclusive_backup
+   (the only supported method by any Barman version prior to 1.3.1).
+
+   When backup_options is set to concurrent_backup, Barman activates the
+   concurrent backup mode for a server and follows these two simple rules:
+     * ssh_command must point to the destination Postgres server;
+     * conninfo must point to a database on the destination Postgres 9.2
+       or 9.3 server where pgespresso is correctly installed through
+       CREATE EXTENSION.
+
+   The destination Postgres server can be either the master or a streaming
+   replicated standby server.
+
+   Note
+   When backing up from a standby server, continuous archiving of WAL
+   files must be configured on the master to ship files to the Barman
+   server (as outlined in the "Continuous WAL archiving" section above).
+   [ In case of concurrent backup, currently Barman does not have a way to
+   determine that the closing WAL file of a full backup has actually been
+   shipped - opposite to the case of an exclusive backup where it is
+   Postgres itself that makes sure that the WAL file is correctly
+   archived. Be aware that the full backup cannot be considered consistent
+   until that WAL file has been received and archived by Barman. We
+   encourage Barman users to wait to delete the previous backup - at least
+   until that moment. ]
+
+  Hook scripts
 
    Barman allows a database administrator to run hook scripts on these two
    events:
      * before and after a backup
      * before and after a WAL file is archived
 
- Important
-          No check is performed on the exit code of a script. The result will be
-          simply written in the log file.
+   Important
+   No check is performed on the exit code of a script. The result will be
+   simply written in the log file.
 
-  Backup scripts
+    Backup scripts
 
    Version 1.1.0 introduced backup scripts.
 
@@ -1018,7 +1092,7 @@ Hook scripts
      * BARMAN_STATUS: status of the backup
      * BARMAN_VERSION: version of Barman (from 1.2.1)
 
-  WAL archive scripts
+    WAL archive scripts
 
    Version 1.3.0 introduced WAL archive hook scripts.
 
@@ -1055,18 +1129,19 @@ Support and sponsor opportunities
    as open source.
 
    For further information, please visit our websites:
-     * Barman website: [7]http://www.pgbarman.org/
-     * Support section on the website: [8]http://www.pgbarman.org/support/
-     * 2ndQuadrant website: [9]http://www.2ndquadrant.com/
+     * Barman website: [9]http://www.pgbarman.org/
+     * Support section on the website:
+       [10]http://www.pgbarman.org/support/
+     * 2ndQuadrant website: [11]http://www.2ndquadrant.com/
 
    Useful information can be found in:
-     * the FAQ section of the website: [10]http://www.pgbarman.org/faq/
-     * the "Barman" category of 2ndQuadrant’s blog:
-       [11]http://blog.2ndquadrant.com/tag/barman/
+     * the FAQ section of the website: [12]http://www.pgbarman.org/faq/
+     * the "Barman" category of 2ndQuadrant's blog:
+       [13]http://blog.2ndquadrant.com/tag/barman/
 
- Important
-          When submitting requests on the mailing list, please always report the
-          output of the barman diagnose command.
+   Important
+   When submitting requests on the mailing list, please always report the
+   output of the barman diagnose command.
      __________________________________________________________________
 
 Submitting a bug
@@ -1084,15 +1159,15 @@ Submitting a bug
 Authors
 
    In alphabetical order:
-     * Gabriele Bartolini <[12]gabriele.bartolini@2ndquadrant.it> (core
+     * Gabriele Bartolini <[14]gabriele.bartolini@2ndquadrant.it> (core
        team, project leader)
-     * Giuseppe Broccolo <[13]giuseppe.broccolo@2ndquadrant.it> (core
+     * Giuseppe Broccolo <[15]giuseppe.broccolo@2ndquadrant.it> (core
        team, QA/testing)
-     * Giulio Calacoci <[14]giulio.calacoci@2ndquadrant.it> (core team,
+     * Giulio Calacoci <[16]giulio.calacoci@2ndquadrant.it> (core team,
        developer)
-     * Francesco Canovai <[15]francesco.canovai@2ndquadrant.it> (core
+     * Francesco Canovai <[17]francesco.canovai@2ndquadrant.it> (core
        team, QA/testing)
-     * Marco Nenciarini <[16]marco.nenciarini@2ndquadrant.it> (core team,
+     * Marco Nenciarini <[18]marco.nenciarini@2ndquadrant.it> (core team,
        team leader)
 
    Past contributors:
@@ -1102,9 +1177,9 @@ Authors
 Links
 
      * check-barman: a Nagios plugin for Barman, written by Holger Hamann
-       ([17]https://github.com/hamann/check-barman, MIT license)
+       ([19]https://github.com/hamann/check-barman, MIT license)
      * puppet-barman: Barman module for Puppet
-       ([18]https://github.com/2ndquadrant-it/puppet-barman, GPL)
+       ([20]https://github.com/2ndquadrant-it/puppet-barman, GPL)
      __________________________________________________________________
 
 License and Contributions
@@ -1113,19 +1188,19 @@ License and Contributions
    distributed under GNU General Public License 3.
    Copyright © 2011-2015 2ndQuadrant.it.
 
-   Barman has been partially funded through [19]4CaaSt, a research project
-   funded by the European Commission’s Seventh Framework programme.
+   Barman has been partially funded through [21]4CaaSt, a research project
+   funded by the European Commission's Seventh Framework programme.
 
    Contributions to Barman are welcome, and will be listed in the file
    AUTHORS. 2ndQuadrant Italia requires that any contributions provide a
    copyright assignment and a disclaimer of any work-for-hire ownership
    claims from the employer of the developer. This lets us make sure that
    all of the Barman distribution remains free code. Please contact
-   [20]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
+   [22]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
    Form.
      __________________________________________________________________
 
-   Last updated 2014-08-13 17:03:43 CEST
+   Last updated 2015-01-12 14:33:11 CET
 
 References
 
@@ -1134,18 +1209,20 @@ References
    3. http://apt.postgresql.org/
    4. https://wiki.postgresql.org/wiki/Apt
    5. http://www.postgresql.org/docs/current/static/client-authentication.html
-   6. https://github.com/2ndquadrant-it/pgespresso
-   7. http://www.pgbarman.org/
-   8. http://www.pgbarman.org/support/
-   9. http://www.2ndquadrant.com/
-  10. http://www.pgbarman.org/faq/
-  11. http://blog.2ndquadrant.com/tag/barman/
-  12. mailto:gabriele.bartolini@2ndquadrant.it
-  13. mailto:giuseppe.broccolo@2ndquadrant.it
-  14. mailto:giulio.calacoci@2ndquadrant.it
-  15. mailto:francesco.canovai@2ndquadrant.it
-  16. mailto:marco.nenciarini@2ndquadrant.it
-  17. https://github.com/hamann/check-barman
-  18. https://github.com/2ndquadrant-it/puppet-barman
-  19. http://4caast.morfeo-project.org/
-  20. mailto:info@2ndQuadrant.it
+   6. http://docs.pgbarman.org/barman.5.html
+   7. http://en.wikipedia.org/wiki/Hard_link
+   8. https://github.com/2ndquadrant-it/pgespresso
+   9. http://www.pgbarman.org/
+  10. http://www.pgbarman.org/support/
+  11. http://www.2ndquadrant.com/
+  12. http://www.pgbarman.org/faq/
+  13. http://blog.2ndquadrant.com/tag/barman/
+  14. mailto:gabriele.bartolini@2ndquadrant.it
+  15. mailto:giuseppe.broccolo@2ndquadrant.it
+  16. mailto:giulio.calacoci@2ndquadrant.it
+  17. mailto:francesco.canovai@2ndquadrant.it
+  18. mailto:marco.nenciarini@2ndquadrant.it
+  19. https://github.com/hamann/check-barman
+  20. https://github.com/2ndquadrant-it/puppet-barman
+  21. http://4caast.morfeo-project.org/
+  22. mailto:info@2ndQuadrant.it
