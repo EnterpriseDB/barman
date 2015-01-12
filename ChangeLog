@@ -1,3 +1,209 @@
+2015-01-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Update the ChangeLog file
+
+	Prepared documentation for version 1.4.0-alpha1
+
+2015-01-11  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Store deduplication effects for incremental backup
+	When incremental backup is enabled and uses hard links
+	(reuse_backup = link), output of 'backup' command reports
+	the effects of deduplication. The metrict is stored along
+	the backup.info file in the 'deduplicated_size' field.
+
+	IMPORTANT: this metric refers to the increment in size
+	of the current backup from the previous backup and reflects
+	only the situation at backup time.
+
+2015-01-10  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Prepared version 1.4.0-alpha1
+
+	Updated copyright to 2015
+
+2015-01-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix smart_copy of tablespaces when using bwlimit option
+
+2015-01-07  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Add dedicated exception for PostgreSQL connection errors
+
+2015-01-08  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Fix missing argument error in retention policies backup_status method
+	Improve test coverage for retention_policy.py module
+
+2015-01-07  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Remove logging of tracebacks on error during backup
+
+2015-01-05  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Avoid logging of tracebacks during smart copy
+	While retrieving the list of files on destination for smart copy, log
+	any failure as error instead of exception
+
+2014-12-22  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Unit tests for BackupInfo object
+
+2014-12-24  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Change the way BackupInfo are created for testing
+	Merge the method build_test_backup_info and the mock_backup_info.
+	Now we use real BackupInfo objects instead of a Mock
+
+2011-12-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Incremental base backup implementation
+	Add support for reuse_backup global/server option, accepting
+	three possible values:
+
+	* off:  no incremental backup support (default)
+	* copy: uses the last available backup as source (preventing unmodified
+	        files from being copied)
+	* link: same as copy but uses hard links on destination, if the filesystem
+	        on the backup server allows it (reducing the occupied space)
+
+	Add support for command line '--reuse-backup' option (default: link).
+
+2014-12-24  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Allow last_archived_wal to be any xlog file
+	Correctly show any xlog file as last_archived_wal for
+	pre-pg_stat_archiver cases.
+	Improve testing and docstrings for barman/xlog.py module.
+
+2014-12-09  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Improve robustness of ssh_command and conninfo options
+
+2014-12-18  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	pg_stat_archiver support for PostgreSQL 9.4
+	Integrate pg_stat_archiver with PostgreSQL 9.4 servers for
+	the barman check, show-server and status commands.
+
+2014-11-28  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Improve robustness of retention policy unit tests
+
+2014-12-16  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Fixes retention policies delete bug (#58)
+	The method responsible for deleting obsolete backup in
+	retention policies enforement, will not raise anymore
+	the 'NoneType object is not iterable'. This prevents
+	barman from terminating abruptly.
+
+2014-11-28  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Pass list of available backups to retention policy code
+
+2014-12-02  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Include history files in WAL management
+
+2014-12-04  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Added a util method to find an executable in system path.
+	If rsync is not present on system, a proper error message is
+	displayed to the user when a command using rsync is issued
+
+2014-12-09  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Changed behaviour if pg_ident.conf is missing from an error to a warning
+
+2014-10-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Remove code to replace output stream when quiet
+	Previously the '-q' option was handled replacing the standard output
+	stream with one which trows away averything it gets. Now it is not
+	needed anymore because we haver a proper output module.
+
+2014-09-26  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Remove all remaining output done by yield
+	Migrate all the remaining part using yeld to do output to using the new
+	output module.
+
+2014-10-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Ignore fsync EINVAL errors on directories (#55)
+	On some filesystem doing a fsync on a directory raises an EINVAL error.
+	Ignoring it is usually safe.
+
+2014-09-23  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Modified output module to access protected properties: quiet and debug
+
+2014-09-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix bash autocompleter
+	Minor changes:
+	* Some code formatting adjustments
+
+	Move cron retention policy management to a separate method
+
+2014-09-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix dates in rpm changelog
+
+2014-09-03  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Calculate backup WAL statistics only if the WALs are already processed
+
+2014-09-02  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Change default LockFile behaviour to raise if fails acquisition
+
+2014-09-01  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Invoke WAL maintenance after a successful backup
+	* At the end of the 'barman backup' command, maintenance operations
+	  are automatically started for successful backups (equivalent to
+	  manually executing a 'barman cron' command, just for that server)
+
+	* Trashing of unuseful WALs (part of 'barman cron') has been changed
+	  as follows:
+
+	  * in case of one or more backups, delete WAL files older than
+	    the start WAL of the first backup
+	  * otherwise, trash WAL files in case of exclusive backup server
+	    (that is, not concurrent)
+
+2014-09-03  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Remove redundant server argument from HookScriptRunner.env_from_wal_info()
+
+2014-08-27  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Add relpath() and fullpath() methods in WalInfoFile
+	* Remove 'full_path' attribute in WalInfoFile
+	* Add 'relpath()' method to WalInfoFile, which returns the
+	  relative path of a WAL file within the 'wals_directory' directory
+	* Add 'fullpath()' method to WalInfoFile, which returns the
+	  full path of a WAL file within a server installation (requires
+	  a server object)
+
+2014-08-23  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated version in .spec file
+
+2014-08-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add build_config_from_dicts to testing_helpers module
+
+	Make Config.Server, WalFileInfo and BackupInfo objects json encodable
+
+2014-08-20  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Added unit to JSON representation of a retention policy
+
+	Started version 1.3.4-alpha.1
+
 2014-08-18  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Update the ChangeLog file
