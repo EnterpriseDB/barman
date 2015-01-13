@@ -323,7 +323,7 @@ class SimpleWALRetentionPolicy(RetentionPolicy):
     def debug(self):
         return "Simple WAL Retention Policy (%s)" % (self.policy)
 
-    def _backup_report(self):
+    def _backup_report(self, source):
         '''Report obsolete/valid backups according to the retention policy'''
         pass
 
