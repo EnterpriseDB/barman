@@ -291,7 +291,7 @@ class BackupManager(object):
                 self.retry_backup_copy(self.backup_copy, backup_info)
                 # Calculate deduplication ratio
                 if backup_info.size > 0:
-                    deduplication_ratio = 1 - (backup_info.deduplicated_size /
+                    deduplication_ratio = 1 - (float(backup_info.deduplicated_size) /
                                                backup_info.size)
                 else:
                     deduplication_ratio = 0

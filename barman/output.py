@@ -511,7 +511,7 @@ class ConsoleOutputWriter(object):
                       pretty_size(data['size'] + data[
                           'wal_size']))
             if data['deduplicated_size'] is not None and data['size'] > 0:
-                deduplication_ratio = 1 - (data['deduplicated_size'] /
+                deduplication_ratio = 1 - (float(data['deduplicated_size']) /
                                            data['size'])
                 self.info("    Incremental size     : %s (-%s)",
                           pretty_size(data['deduplicated_size']),
