@@ -189,8 +189,8 @@ class BackupManager(object):
                     backup.backup_id, self.config.name)
         previous_backup = self.get_previous_backup(backup.backup_id)
         next_backup = self.get_next_backup(backup.backup_id)
-        # remove the backup
-        self.delete_basebackup(backup)
+        # Remove the pgdata directory of the backup
+        self.delete_pgdata(backup)
         # We are deleting the first available backup
         if not previous_backup:
             # In the case of exclusive backup (default), removes any WAL
@@ -207,6 +207,9 @@ class BackupManager(object):
             output.info("Delete associated WAL segments:")
             for name in self._remove_unused_wal_files(remove_until):
                 output.info("\t%s", name)
+        # As last action, remove the basebackup directory,
+        # ending the delete operation
+        self.delete_basebackup(backup)
         output.info("Done")
 
     def retry_backup_copy(self, target_function, *args, **kwargs):
@@ -785,13 +788,25 @@ class BackupManager(object):
                     self.delete_backup(available_backups[bid])
 
     def delete_basebackup(self, backup):
-        '''
-        Delete the given base backup
+        """
+        Delete the basebackup dir of a given backup.
 
-        :param backup: the backup to delete
-        '''
+        :param barman.infofile.BackupInfo backup: the backup to delete
+        """
         backup_dir = backup.get_basebackup_directory()
+        _logger.debug("Deleting base backup directory: %s" % backup_dir)
         shutil.rmtree(backup_dir)
+
+    def delete_pgdata(self, backup):
+        """
+        Delete the pgdata dir of a given backup.
+
+        :param barman.infofile.BackupInfo backup: the backup to delete
+        """
+        backup_dir = backup.get_basebackup_directory()
+        pg_data = os.path.join(backup_dir, 'pgdata')
+        _logger.debug("Deleting PGDATA directory: %s" % pg_data)
+        shutil.rmtree(pg_data)
 
     def delete_wal(self, wal_info):
         """
