@@ -1,4 +1,8 @@
+%if 0%{?rhel} == 7
+%global pybasever 2.7
+%else
 %global pybasever 2.6
+%endif
 
 %if 0%{?rhel} == 5
 %global with_python26 1

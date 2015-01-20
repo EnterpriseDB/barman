@@ -3,7 +3,7 @@
 
 Summary: 	A simple argparse wrapper
 Name: 		python-argh
-Version: 	0.23.0
+Version: 	0.26.1
 Release: 	1%{?dist}
 License: 	LGPLv3
 Group: 		Development/Libraries
@@ -38,16 +38,20 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc README
-%{python_sitelib}/argh-%{version}-py2.6.egg-info
+%doc README.rst
+%{python_sitelib}/argh-%{version}-py2.7.egg-info
 %{python_sitelib}/argh/
 
 %changelog
-* Thu Jan 31 2013 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 0.23.0-1
+
+* Tue Jan 20 2015 - Francesco Canovai <francesco.canovai@2ndquadrant.it> 0.26.1-1
+- Update to version 0.26.1
+
+* Thu Jan 31 2013 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 0.23.0-1
 - Update to version 0.23.0
 
-* Wed May 9 2012 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 0.15.0-1
+* Wed May 9 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 0.15.0-1
 - Update to version 0.15.0
 
-* Sat Dec 4 2011 - Marco Neciarini <marco.nenciarini@2ndquadrant.it> 0.14.2-1
+* Sat Dec 3 2011 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 0.14.2-1
 - Initial packaging.
