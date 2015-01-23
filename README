@@ -5,10 +5,10 @@
    perform remote backups of multiple servers in business critical
    environments, and helps DBAs during the recovery phase.
 
-   Barman's most wanted features include: backup catalogues, retention
-   policies, remote recovery, archiving and compression of WAL files and
-   of backups. Barman is written and maintained by PostgreSQL
-   professionals 2ndQuadrant.
+   Barman's most wanted features include: backup catalogues, incremental
+   backup, retention policies, remote recovery, archiving and compression
+   of WAL files and of backups. Barman is written and maintained by
+   PostgreSQL professionals 2ndQuadrant.
      __________________________________________________________________
 
 Introduction
@@ -96,12 +96,12 @@ Before you start
      * rsync >= 3.0.4
 
    Important
-   The same major version of PostgreSQL should be installed on both
-   servers.
+   PostgreSQL's Point-In-Time-Recovery requires the same major version of
+   the source PostgreSQL server to be installed on the backup server.
 
-   Tip
+   Important
    Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
-   advised to install the Extra Packages Enterprise Linux (EPEL)
+   required to install the Extra Packages Enterprise Linux (EPEL)
    repository.
    [Further information at [1]http://fedoraproject.org/wiki/EPEL]
 
@@ -113,39 +113,59 @@ Before you start
 
 Installation
 
+   Important
+   The recommended way to install Barman is by using the available
+   packages for your GNU/Linux distribution.
+
   On RedHat/CentOS using RPM packages
 
-   Barman can be installed on RHEL5 and RHEL6 Linux systems using RPM
-   packages.
+   Barman can be installed on RHEL7, RHEL6 and RHEL5 Linux systems using
+   RPM packages. It is required to install the Extra Packages Enterprise
+   Linux (EPEL) repository beforehand.
 
-   Barman is available through the PostgreSQL Global Development Group RPM
-   repository with Yum. You need to follow the instructions for your
-   distribution (RedHat, CentOS, Fedora, etc.) and architecture that you
-   can find at [2]http://yum.postgresql.org/.
+   RPM packages for Barman are available via Yum through the PostgreSQL
+   Global Development Group RPM repository. You need to follow the
+   instructions for your distribution (RedHat, CentOS, Fedora, etc.) and
+   architecture as detailed at [2]http://yum.postgresql.org/.
 
    Then, as root simply type:
 
      yum install barman
+
+   2ndQuadrant also maintains RPM packages for Barman and distributes them
+   through Sourceforge.net at
+   [3]https://sourceforge.net/projects/pgbarman/files/.
 
   On Debian/Ubuntu using packages
 
    Barman can be installed on Debian and Ubuntu Linux systems using
    packages.
 
-   It is available in the official repository for Debian Sid (unstable)
-   and Ubuntu 14.04 (Trusty Tahr).
+   It is directly available in the official repository for Debian Sid
+   (unstable) and Ubuntu 14.04 (Trusty Tahr).
+
+   However, the recommended method for installing Barman on Debian and
+   Ubuntu is through the PostgreSQL Community APT repository at
+   [4]http://apt.postgresql.org/. Instructions can be found at
+   [5]https://wiki.postgresql.org/wiki/Apt.
 
    Note
-   You can install an up-to-date version of Barman on many Debian and
-   Ubuntu releases using the PostgreSQL Community APT repository at
-   [3]http://apt.postgresql.org/. Instructions can be found at
-   [4]https://wiki.postgresql.org/wiki/Apt.
+   Thanks to the direct involvement of Barman developers in the PostgreSQL
+   Community APT repository project, you will have access to the most
+   updated versions of Barman.
 
-   Installing Barman is as simple as typing as root user:
+   Installing Barman is as simple as typing, as root user:
 
      apt-get install barman
 
   From sources
+
+   Warning
+   Manual installation of Barman from sources should only be performed by
+   expert GNU/Linux users. Installing Barman this way requires system
+   administration activities such as dependencies management, barman user
+   creation, configuration of the barman.conf file, cron setup for the
+   barman cron command, log management, etc.
 
    Create a system user called barman on the backup server. As barman
    user, download the sources and uncompress them.
@@ -153,8 +173,8 @@ Installation
    For a system-wide installation, type:
 
   barman@backup$ ./setup.py build
-  barman@backup# ./setup.py install # run this command with root privileges or s
-udo
+  # run this command with root privileges or through sudo
+  barman@backup# ./setup.py install
 
    For a local installation, type:
 
@@ -200,7 +220,7 @@ Getting started
 
    You can choose your favourite client authentication method among those
    offered by PostgreSQL. More information can be found here:
-   [5]http://www.postgresql.org/docs/current/static/client-authentication.
+   [6]http://www.postgresql.org/docs/current/static/client-authentication.
    html
 
      barman@backup$ psql -c 'SELECT version()' -U postgres -h pg
@@ -263,7 +283,7 @@ Getting started
    Some options can be defined at global level and overridden at server
    level, allowing users to specify a generic behaviour and refine it for
    one or more servers. For a list of all the available configurations and
-   their scope, please refer to [6]section 5 of the man page:
+   their scope, please refer to [7]section 5 of the man page:
 
      man 5 barman
 
@@ -438,14 +458,14 @@ r custom
    As of version 1.3.0, it is possible to use the immediate_checkpoint
    configuration global/server option (set to false by default).
 
-   When issuing a backup, Barman normally waits for the checkpoint to
-   happen on the PostgreSQL server (depending on the configuration
-   settings for workload or time checkpoint control). This might take
-   longer for a backup to start.
+   Before starting a backup, Barman requests a checkpoint, which generates
+   additional workload. Normally that checkpoint is throttled according to
+   the settings for workload control on the PostgreSQL server, which means
+   that the backup could be delayed.
 
-   By setting immediate_checkpoint to true, you can force the checkpoint
-   on the Postgres server to happen immediately and start your backup copy
-   process as soon as possible:
+   If immediate_checkpoint is set to true, PostgreSQL will not try to
+   limit the workload, and the checkpoint will happen at maximum speed,
+   starting the backup as soon as possible.
 
    At any time, you can override the configuration option behaviour, by
    issuing barman backup with any of these two options:
@@ -767,28 +787,28 @@ Main features
   Incremental backup
 
    From version 1.4.0, Barman implements file-level incremental backup.
-   Incremental backup is a kind of full periodical backup which saves only
+   Incremental backup is a kind of full periodic backup which saves only
    data changes from the latest full backup available in the catalogue for
    a specific PostgreSQL server. It must not be confused with differential
    backup, which is implemented by WAL continuous archiving.
 
    The main goals of incremental backup in Barman are:
      * Reduce the time taken for the full backup process
-     * Reduce the disk space occupied by several periodical backups (data
+     * Reduce the disk space occupied by several periodic backups (data
        deduplication)
 
-   This feature heavily relies on rysnc and [7]hard links, which must be
+   This feature heavily relies on rysnc and [8]hard links, which must be
    therefore supported by both the underlying operating system and the
    file system where the backup data resides.
 
-   The main concept is that two periodical base backups will share those
+   The main concept is that two periodic base backups will share those
    files that have not changed, leading to relevant savings in disk usage.
    This is particularly true of VLDB contexts and, more in general, of
    those databases containing a high percentage of read-only historical
    tables.
 
    Barman implements incremental backup through a global/server option,
-   called reuse_backup, that transparently manage the barman backup
+   called reuse_backup, that transparently manages the barman backup
    command. It accepts three values:
      * off: standard full backup (default)
      * link: incremental backup, by reusing the last backup for a server
@@ -872,7 +892,7 @@ Main features
 
   Minimum redundancy safety
 
-   From version 1.2.0, you can define the minimum number of periodical
+   From version 1.2.0, you can define the minimum number of periodic
    backups for a PostgreSQL server.
 
    You can use the global/per server configuration option called
@@ -897,17 +917,16 @@ Main features
    long backups and related archive logs (Write Ahead Log segments) need
    to be retained for recovery procedures.
 
-   Based on the user's request, Barman retains the periodical backups
+   Based on the user's request, Barman retains the periodic backups
    required to satisfy the current retention policy, and any archived WAL
    files required for the complete recovery of those backups.
 
    Barman users can define a retention policy in terms of backup
-   redundancy (how many periodical backups) or a recovery window (how
-   long).
+   redundancy (how many periodic backups) or a recovery window (how long).
 
    Retention policy based on redundancy
           In a redundancy based retention policy, the user determines how
-          many periodical backups to keep. A redundancy-based retention
+          many periodic backups to keep. A redundancy-based retention
           policy is contrasted with retention policies that use a recovery
           window.
 
@@ -926,14 +945,14 @@ Main features
     Scope
 
    Retention policies can be defined for:
-     * PostgreSQL periodical base backups: through the retention_policy
+     * PostgreSQL periodic base backups: through the retention_policy
        configuration option;
      * Archive logs, for Point-In-Time-Recovery: through the
        wal_retention_policy configuration option.
 
    Important
    In a temporal dimension, archive logs must be included in the time
-   window of periodical backups.
+   window of periodic backups.
 
    There are two typical use cases here: full or partial point-in-time
    recovery.
@@ -948,7 +967,7 @@ Main features
           allowing users for example to keep full weekly backups of the
           last 6 months, but archive logs for the last 4 weeks (granting
           to recover at any point in time starting from the last 4
-          periodical weekly backups).
+          periodic weekly backups).
 
    Important
    Currently, Barman implements only the full point in time recovery
@@ -1030,7 +1049,7 @@ Main features
    Concurrent backup requires users of PostgreSQL 9.2 and 9.3 to install
    the pgespresso open source extension on the PostgreSQL server. Detailed
    information as well as the source code of pgespresso can be found at
-   [8]https://github.com/2ndquadrant-it/pgespresso.
+   [9]https://github.com/2ndquadrant-it/pgespresso.
 
    By default, backup_options is transparently set to exclusive_backup
    (the only supported method by any Barman version prior to 1.3.1).
@@ -1129,15 +1148,15 @@ Support and sponsor opportunities
    as open source.
 
    For further information, please visit our websites:
-     * Barman website: [9]http://www.pgbarman.org/
+     * Barman website: [10]http://www.pgbarman.org/
      * Support section on the website:
-       [10]http://www.pgbarman.org/support/
-     * 2ndQuadrant website: [11]http://www.2ndquadrant.com/
+       [11]http://www.pgbarman.org/support/
+     * 2ndQuadrant website: [12]http://www.2ndquadrant.com/
 
    Useful information can be found in:
-     * the FAQ section of the website: [12]http://www.pgbarman.org/faq/
+     * the FAQ section of the website: [13]http://www.pgbarman.org/faq/
      * the "Barman" category of 2ndQuadrant's blog:
-       [13]http://blog.2ndquadrant.com/tag/barman/
+       [14]http://blog.2ndquadrant.com/tag/barman/
 
    Important
    When submitting requests on the mailing list, please always report the
@@ -1159,15 +1178,15 @@ Submitting a bug
 Authors
 
    In alphabetical order:
-     * Gabriele Bartolini <[14]gabriele.bartolini@2ndquadrant.it> (core
+     * Gabriele Bartolini <[15]gabriele.bartolini@2ndquadrant.it> (core
        team, project leader)
-     * Giuseppe Broccolo <[15]giuseppe.broccolo@2ndquadrant.it> (core
+     * Giuseppe Broccolo <[16]giuseppe.broccolo@2ndquadrant.it> (core
        team, QA/testing)
-     * Giulio Calacoci <[16]giulio.calacoci@2ndquadrant.it> (core team,
+     * Giulio Calacoci <[17]giulio.calacoci@2ndquadrant.it> (core team,
        developer)
-     * Francesco Canovai <[17]francesco.canovai@2ndquadrant.it> (core
+     * Francesco Canovai <[18]francesco.canovai@2ndquadrant.it> (core
        team, QA/testing)
-     * Marco Nenciarini <[18]marco.nenciarini@2ndquadrant.it> (core team,
+     * Marco Nenciarini <[19]marco.nenciarini@2ndquadrant.it> (core team,
        team leader)
 
    Past contributors:
@@ -1177,9 +1196,9 @@ Authors
 Links
 
      * check-barman: a Nagios plugin for Barman, written by Holger Hamann
-       ([19]https://github.com/hamann/check-barman, MIT license)
+       ([20]https://github.com/hamann/check-barman, MIT license)
      * puppet-barman: Barman module for Puppet
-       ([20]https://github.com/2ndquadrant-it/puppet-barman, GPL)
+       ([21]https://github.com/2ndquadrant-it/puppet-barman, GPL)
      __________________________________________________________________
 
 License and Contributions
@@ -1188,7 +1207,7 @@ License and Contributions
    distributed under GNU General Public License 3.
    Copyright © 2011-2015 2ndQuadrant.it.
 
-   Barman has been partially funded through [21]4CaaSt, a research project
+   Barman has been partially funded through [22]4CaaSt, a research project
    funded by the European Commission's Seventh Framework programme.
 
    Contributions to Barman are welcome, and will be listed in the file
@@ -1196,33 +1215,34 @@ License and Contributions
    copyright assignment and a disclaimer of any work-for-hire ownership
    claims from the employer of the developer. This lets us make sure that
    all of the Barman distribution remains free code. Please contact
-   [22]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
+   [23]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
    Form.
      __________________________________________________________________
 
-   Last updated 2015-01-12 14:33:11 CET
+   Last updated 2015-01-23 16:26:51 CET
 
 References
 
    1. http://fedoraproject.org/wiki/EPEL
    2. http://yum.postgresql.org/
-   3. http://apt.postgresql.org/
-   4. https://wiki.postgresql.org/wiki/Apt
-   5. http://www.postgresql.org/docs/current/static/client-authentication.html
-   6. http://docs.pgbarman.org/barman.5.html
-   7. http://en.wikipedia.org/wiki/Hard_link
-   8. https://github.com/2ndquadrant-it/pgespresso
-   9. http://www.pgbarman.org/
-  10. http://www.pgbarman.org/support/
-  11. http://www.2ndquadrant.com/
-  12. http://www.pgbarman.org/faq/
-  13. http://blog.2ndquadrant.com/tag/barman/
-  14. mailto:gabriele.bartolini@2ndquadrant.it
-  15. mailto:giuseppe.broccolo@2ndquadrant.it
-  16. mailto:giulio.calacoci@2ndquadrant.it
-  17. mailto:francesco.canovai@2ndquadrant.it
-  18. mailto:marco.nenciarini@2ndquadrant.it
-  19. https://github.com/hamann/check-barman
-  20. https://github.com/2ndquadrant-it/puppet-barman
-  21. http://4caast.morfeo-project.org/
-  22. mailto:info@2ndQuadrant.it
+   3. https://sourceforge.net/projects/pgbarman/files/
+   4. http://apt.postgresql.org/
+   5. https://wiki.postgresql.org/wiki/Apt
+   6. http://www.postgresql.org/docs/current/static/client-authentication.html
+   7. http://docs.pgbarman.org/barman.5.html
+   8. http://en.wikipedia.org/wiki/Hard_link
+   9. https://github.com/2ndquadrant-it/pgespresso
+  10. http://www.pgbarman.org/
+  11. http://www.pgbarman.org/support/
+  12. http://www.2ndquadrant.com/
+  13. http://www.pgbarman.org/faq/
+  14. http://blog.2ndquadrant.com/tag/barman/
+  15. mailto:gabriele.bartolini@2ndquadrant.it
+  16. mailto:giuseppe.broccolo@2ndquadrant.it
+  17. mailto:giulio.calacoci@2ndquadrant.it
+  18. mailto:francesco.canovai@2ndquadrant.it
+  19. mailto:marco.nenciarini@2ndquadrant.it
+  20. https://github.com/hamann/check-barman
+  21. https://github.com/2ndquadrant-it/puppet-barman
+  22. http://4caast.morfeo-project.org/
+  23. mailto:info@2ndQuadrant.it

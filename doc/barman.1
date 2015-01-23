@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 01/11/2015
+.\"      Date: 01/23/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "1" "01/11/2015" "\ \&" "\ \&"
+.TH "BARMAN" "1" "01/26/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -208,7 +208,7 @@ is not explicited\&.
 .PP
 \fB\-\-retry\-times\fR
 .RS 4
-Number of retries of data copy during base backup after an error\&. Overrides value of the parameter
+Number of retries of base backup copy, after an error\&. Used during both backup and recovery operations\&. Overrides value of the parameter
 basebackup_retry_times, if present in the configuration file\&.
 .RE
 .PP
@@ -220,7 +220,7 @@ Same as
 .PP
 \fB\-\-retry\-sleep\fR
 .RS 4
-Number of seconds of wait after a failed copy, before retrying\&. Overrides value of the parameter
+Number of seconds of wait after a failed copy, before retrying\&. Used during both backup and recovery operations\&. Overrides value of the parameter
 basebackup_retry_sleep, if present in the configuration file\&.
 .RE
 .RE
@@ -427,16 +427,16 @@ Number of retries of data copy during base backup after an error\&. Overrides va
 basebackup_retry_times, if present in the configuration file\&.
 .RE
 .PP
+\fB\-\-no\-retry\fR
+.RS 4
+Same as
+\-\-retry\-times 0
+.RE
+.PP
 \fB\-\-retry\-sleep\fR
 .RS 4
 Number of seconds of wait after a failed copy, before retrying\&. Overrides value of the parameter
 basebackup_retry_sleep, if present in the configuration file\&.
-.RE
-.PP
-\fB\-\-no\-immediate\-checkpoint\fR
-.RS 4
-Forces the number of retries of data copy to 0\&. Overrides value of the parameter
-basebackup_retry_times, if present in the configuration file\&.
 .RE
 .RE
 .PP

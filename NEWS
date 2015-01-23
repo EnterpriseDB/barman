@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2015 2ndQuadrant Italia (Devise.IT S.r.l.)
 
-Version 1.4.0 - DD Mon 2015
+Version 1.4.0 - 26 Jan 2015
 
 * Incremental base backup implementation through the reuse_backup
   global/server option. Possible values are off (disabled,

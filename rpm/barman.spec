@@ -18,7 +18,7 @@
 
 %global main_version 1.4.0
 # comment out the next line if not a pre-release (use '#%')
-%global extra_version alpha.1
+#%global extra_version alpha.1
 # Usually 1 - unique sequence for all pre-release version
 %global package_release 1
 
@@ -42,13 +42,13 @@ Requires:	/usr/sbin/useradd
 Requires:	rsync >= 3.0.4
 
 %description
-Barman (backup and recovery manager) is an administration
+Barman (Backup and Recovery Manager) is an open source administration
 tool for disaster recovery of PostgreSQL servers written in Python.
-It allows to perform remote backups of multiple servers
+It allows your organisation to perform remote backups of multiple servers
 in business critical environments and help DBAs during the recovery phase.
-Barman's most wanted features include backup catalogs, retention policies,
-remote recovery, archiving and compression of WAL files and backups.
-Barman is written and maintained by PostgreSQL professionals 2ndQuadrant.
+Barman's most requested features include backup catalogues, incremental backup,
+retention policies, remote backup and recovery, archiving and compression
+of WAL files and backups. Barman is distributed under GNU GPL 3.
 
 %prep
 %setup -n barman-%{version}%{?extra_version:-%{extra_version}} -q
@@ -105,6 +105,12 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
+* Mon Jan 26 2015 - Francesco Canovai <francesco.canovai@2ndquadrant.it> 1.4.0-1
+- New release 1.4.0
+
+* Mon Jan 12 2015 - Francesco Canovai <francesco.canovai@2ndquadrant.it> 1.4.0-0.1.alpha.1
+- New release 1.4.0-alpha.1
+
 * Thu Aug 21 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.3-1
 - New release 1.3.3
 
