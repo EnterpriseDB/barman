@@ -19,17 +19,21 @@
 
 """Backup and Recovery Manager for PostgreSQL
 
-Barman (backup and recovery manager) is an administration
+Barman (Backup and Recovery Manager) is an open source administration
 tool for disaster recovery of PostgreSQL servers written in Python.
-It allows to perform remote backups of multiple servers
-in business critical environments and help DBAs during the recovery phase.
-Barman's most wanted features include backup catalogs, retention policies,
-remote recovery, archiving and compression of WAL files and backups.
+It allows your organisation to perform remote backups of multiple servers
+in business critical environments and help DBAs during the recovery
+phase. Barman's most requested features include backup catalogues,
+incremental backup, retention policies, remote backup and recovery,
+archiving and compression of WAL files and backups.
+
 Barman is written and maintained by PostgreSQL professionals 2ndQuadrant.
 """
 
 import sys
 
+# support fo running test through setup.py
+# requires recent setuptools library
 try:
     from setuptools import setup
     from setuptools.command.test import test as TestCommand
@@ -95,6 +99,7 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.2',
         'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.4',
     ],
     tests_require=['pytest', 'mock', 'pytest-capturelog', 'pytest-timeout'],
     cmdclass=cmdclass,
