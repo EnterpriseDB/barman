@@ -1,3 +1,27 @@
+2015-01-23  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Update the ChangeLog file
+
+	Prepared version 1.4.0
+
+2015-01-20  Francesco Canovai  <francesco.canovai@2ndquadrant.it>
+
+	Updated spec files for RHEL7
+
+2015-01-16  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Delete basebackup dir as last action of a delete.
+	Split the delete operation: remove the PGDATA directory first,
+	then the related WAL files and, at last, the basebackup directory.
+
+2015-01-13  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Add minimum_redundancy tests in test_retention_policy.py
+
+2015-01-13  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Fix calculation of deduplication ratio
+
 2015-01-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Update the ChangeLog file
