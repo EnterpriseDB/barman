@@ -17,7 +17,7 @@
 %endif
 
 %global main_version 1.4.1
-# comment out the next line if not a pre-release (use '#%')
+# comment out the next line if not a pre-release (use '#%%global ...')
 %global extra_version alpha.1
 # Usually 1 - unique sequence for all pre-release version
 %global package_release 1
