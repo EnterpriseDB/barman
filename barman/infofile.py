@@ -20,12 +20,15 @@ import os
 import dateutil.parser
 import dateutil.tz
 import collections
+import logging
 from barman import xlog
 from barman.compression import identify_compression
 
 # create a namedtuple object called Tablespace with 'name' 'oid' and 'location'
 # as property.
 Tablespace = collections.namedtuple('Tablespace', 'name oid location')
+
+_logger = logging.getLogger(__name__)
 
 
 def output_tablespace_list(tablespaces):
@@ -431,7 +434,8 @@ class BackupInfo(FieldListFile):
     ident_file = Field('ident_file')
     backup_label = Field('backup_label', load=ast.literal_eval, dump=repr)
 
-    __slots__ = ('server', 'config', 'backup_manager', 'backup_id')
+    __slots__ = ('server', 'config', 'backup_manager',
+                 'backup_id', 'backup_version')
 
     def __init__(self, server, info_file=None, backup_id=None, **kwargs):
         # Initialises the attributes for the object based on the predefined keys
@@ -475,6 +479,16 @@ class BackupInfo(FieldListFile):
         elif not info_file:
             raise BackupInfoBadInitialisation(
                 'backup_id and info_file parameters are both unset')
+        # Manage backup version for new backup structure
+        self.backup_version = 2
+        try:
+            # the presence of pgdata directory is the marker of version 1
+            if self.backup_id is not None and os.path.exists(
+                    os.path.join(self.get_basebackup_directory(), 'pgdata')):
+                self.backup_version = 1
+        except Exception as e:
+            _logger.warning("Error detecting backup_version, use default: 2.\n "
+                            "Failure reason: %s", e)
 
     def get_required_wal_segments(self):
         """
@@ -497,8 +511,9 @@ class BackupInfo(FieldListFile):
             for x in self.get_required_wal_segments():
                 yield self.server.get_wal_full_path(x)
         if target in ('wal', 'full'):
-            for wal_info in self.server.get_wal_until_next_backup(self,
-                                                          include_history=True):
+            for wal_info in self.server.get_wal_until_next_backup(
+                    self,
+                    include_history=True):
                 yield wal_info.fullpath(self.server)
 
     def detect_backup_id(self):
@@ -517,6 +532,42 @@ class BackupInfo(FieldListFile):
         """
         return os.path.join(self.config.basebackups_directory,
                             self.backup_id)
+
+    def get_data_directory(self, tablespace_oid=None):
+        """
+        Get path to the backup data dir according with the backup version
+
+        If tablespace_oid is passed, build the path to the tablespace
+        base directory, according with the backup version
+
+        :param str tablespace_oid: the oid of a valid tablespace
+        """
+        # Check if a tablespace oid is passed and if is a valid oid
+        if tablespace_oid is not None and (
+                self.tablespaces is None or
+                all(str(tablespace_oid) != str(tablespace.oid)
+                    for tablespace in self.tablespaces)):
+            raise ValueError("Invalid tablespace OID %s" % tablespace_oid)
+        # Build the requested path according to backup_version value
+        path = [self.get_basebackup_directory()]
+        # Check te version of the backup
+        if self.backup_version == 2:
+            # If an oid has been provided, we are looking for a tablespace
+            if tablespace_oid is not None:
+                # Append the oid to the basedir of the backup
+                path.append(str(tablespace_oid))
+            else:
+                # Looking for the data dir
+                path.append('data')
+        else:
+            # Backup v1, use pgdata as base
+            path.append('pgdata')
+            # If a oid has been provided, we are looking for a tablespace.
+            if tablespace_oid is not None:
+                # Append the path to pg_tblspc/oid folder inside pgdata
+                path.extend(('pg_tblspc', str(tablespace_oid)))
+        # Return the built path
+        return os.path.join(*path)
 
     def get_filename(self):
         """

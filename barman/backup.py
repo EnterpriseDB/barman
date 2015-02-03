@@ -189,14 +189,14 @@ class BackupManager(object):
                     backup.backup_id, self.config.name)
         previous_backup = self.get_previous_backup(backup.backup_id)
         next_backup = self.get_next_backup(backup.backup_id)
-        # Remove the pgdata directory of the backup
+        # Delete all the data contained in the backup
         try:
-            self.delete_pgdata(backup)
+            self.delete_backup_data(backup)
         except OSError as e:
             output.error("Failure deleting backup %s for server %s.\n%s",
                          backup.backup_id, self.config.name, e)
             return
-        # We are deleting the first available backup
+        # Check if we are deleting the first available backup
         if not previous_backup:
             # In the case of exclusive backup (default), removes any WAL
             # files associated to the backup being deleted.
@@ -212,7 +212,7 @@ class BackupManager(object):
             output.info("Delete associated WAL segments:")
             for name in self._remove_unused_wal_files(remove_until):
                 output.info("\t%s", name)
-        # As last action, remove the basebackup directory,
+        # As last action, remove the backup directory,
         # ending the delete operation
         try:
             self.delete_basebackup(backup)
@@ -374,21 +374,21 @@ class BackupManager(object):
 
         output.result('backup', backup_info)
 
-    def recover(self, backup, dest, tablespaces, target_tli, target_time,
+    def recover(self, backup_info, dest, tablespaces, target_tli, target_time,
                 target_xid, target_name, exclusive, remote_command):
         """
         Performs a recovery of a backup
 
-        :param backup: the backup to recover
-        :param dest: the destination directory
-        :param tablespaces: a dictionary of tablespaces (for relocation)
-        :param target_tli: the target timeline
-        :param target_time: the target time
-        :param target_xid: the target xid
-        :param target_name: the target name created previously with
+        :param barman.infofile.BackupInfo backup_info: the backup to recover
+        :param str dest: the destination directory
+        :param dict tablespaces: a dictionary of tablespaces (for relocation)
+        :param str target_tli: the target timeline
+        :param str target_time: the target time
+        :param str target_xid: the target xid
+        :param str target_name: the target name created previously with
                             pg_create_restore_point() function call
-        :param exclusive: whether the recovery is exclusive or not
-        :param remote_command: default None. The remote command to recover
+        :param bool exclusive: whether the recovery is exclusive or not
+        :param str remote_command: default None. The remote command to recover
                                the base backup, in case of remote backup.
         """
 
@@ -417,7 +417,7 @@ class BackupManager(object):
             # silencing static analysis tools
             rsync = None
         output.info("Starting %s restore for server %s using backup %s ",
-                    recovery_dest, self.config.name, backup.backup_id)
+                    recovery_dest, self.config.name, backup_info.backup_id)
 
         # check destination directory. If doesn't exist create it
         try:
@@ -430,7 +430,7 @@ class BackupManager(object):
         output.info("Destination directory: %s", dest)
 
         # initialize tablespace structure
-        if backup.tablespaces:
+        if backup_info.tablespaces:
             tblspc_dir = os.path.join(dest, 'pg_tblspc')
             try:
                 # check for pg_tblspc dir into recovery destination folder.
@@ -441,7 +441,7 @@ class BackupManager(object):
                                  "'%s': %s", tblspc_dir, e)
                 output.close_and_exit()
 
-            for item in backup.tablespaces:
+            for item in backup_info.tablespaces:
 
                 # build the filename of the link under pg_tblspc directory
                 pg_tblspc_file = os.path.join(tblspc_dir, str(item.oid))
@@ -496,13 +496,14 @@ class BackupManager(object):
             target_epoch = time.mktime(target_datetime.timetuple()) + (
                 target_datetime.microsecond / 1000000.)
         if target_time or target_xid or (
-                target_tli and target_tli != backup.timeline) or target_name:
+                target_tli and
+                target_tli != backup_info.timeline) or target_name:
             targets = {}
             if target_time:
                 targets['time'] = str(target_datetime)
             if target_xid:
                 targets['xid'] = str(target_xid)
-            if target_tli and target_tli != backup.timeline:
+            if target_tli and target_tli != backup_info.timeline:
                 targets['timeline'] = str(target_tli)
             if target_name:
                 targets['name'] = str(target_name)
@@ -519,7 +520,7 @@ class BackupManager(object):
         #
         # noinspection PyBroadException
         try:
-            backup_begin_time = backup.begin_time
+            backup_begin_time = backup_info.begin_time
             # Retrieve previously recovered backup metadata (if available)
             dest_info_txt = cmd.get_file_content(
                 os.path.join(dest, '.barman-recover.info'))
@@ -553,8 +554,9 @@ class BackupManager(object):
         output.info("Copying the base backup.")
         try:
             # perform the backup copy, honoring the retry option if set
-            self.retry_backup_copy(self.recover_basebackup_copy, backup, dest,
-                                   tablespaces, remote_command, safe_horizon)
+            self.retry_backup_copy(self.recover_basebackup_copy, backup_info,
+                                   dest, tablespaces, remote_command,
+                                   safe_horizon)
         except DataTransferFailure, e:
             output.exception("Failure copying base backup: %s", e)
             output.close_and_exit()
@@ -566,7 +568,8 @@ class BackupManager(object):
         # according to recovery options
         xlogs = {}
         required_xlog_files = tuple(
-            self.server.get_required_xlog_files(backup, target_tli, target_epoch))
+            self.server.get_required_xlog_files(backup_info, target_tli,
+                                                target_epoch))
         for wal_info in required_xlog_files:
             hashdir = xlog.hash_dir(wal_info.name)
             if hashdir not in xlogs:
@@ -584,7 +587,8 @@ class BackupManager(object):
 
         # Generate recovery.conf file (only if needed by PITR)
         if target_time or target_xid or (
-                target_tli and target_tli != backup.timeline) or target_name:
+                target_tli and target_tli != backup_info.timeline) or \
+                target_name:
             output.info("Generating recovery.conf")
             if remote_command:
                 tempdir = tempfile.mkdtemp(prefix='barman_recovery-')
@@ -592,7 +596,7 @@ class BackupManager(object):
             else:
                 recovery = open(os.path.join(dest, 'recovery.conf'), 'w')
             print >> recovery, "restore_command = 'cp barman_xlog/%f %p'"
-            if backup.version >= 80400:
+            if backup_info.version >= 80400:
                 print >> recovery, "recovery_end_command = 'rm -fr barman_xlog'"
             if target_time:
                 print >> recovery, "recovery_target_time = '%s'" % target_time
@@ -651,7 +655,7 @@ class BackupManager(object):
             tempdir = tempfile.mkdtemp(prefix='barman_recovery-')
             pg_config = os.path.join(tempdir, 'postgresql.conf')
             shutil.copy2(
-                os.path.join(backup.get_basebackup_directory(), 'pgdata',
+                os.path.join(backup_info.get_data_directory(),
                              'postgresql.conf'), pg_config)
         else:
             pg_config = os.path.join(dest, 'postgresql.conf')
@@ -678,13 +682,13 @@ class BackupManager(object):
         # Copy the backup.info file to the destination as ".barman-recover.info"
         if remote_command:
             try:
-                rsync(backup.filename, ':%s/.barman-recover.info' % dest)
+                rsync(backup_info.filename, ':%s/.barman-recover.info' % dest)
             except CommandFailedException, e:
                     output.exception(
                         'copy of recovery metadata file failed: %s', e)
                     output.close_and_exit()
         else:
-            backup.save(os.path.join(dest, '.barman-recover.info'))
+            backup_info.save(os.path.join(dest, '.barman-recover.info'))
 
         output.info("", log=False)
         output.info("Your PostgreSQL server has been successfully prepared for "
@@ -698,8 +702,9 @@ class BackupManager(object):
         # With a PostgreSQL version older than 8.4, it is the user's
         # responsibility to delete the "barman_xlog" directory as the
         # restore_command option in recovery.conf is not supported
-        if backup.version < 80400 and (target_time or target_xid or (
-                target_tli and target_tli != backup.timeline) or target_name):
+        if backup_info.version < 80400 and (target_time or target_xid or (
+                target_tli and
+                target_tli != backup_info.timeline) or target_name):
             output.info("After the recovery, please remember to remove the "
                   "\"barman_xlog\" directory", log=False)
             output.info("inside the PostgreSQL data directory.", log=False)
@@ -809,23 +814,33 @@ class BackupManager(object):
         _logger.debug("Deleting base backup directory: %s" % backup_dir)
         shutil.rmtree(backup_dir)
 
-    def delete_pgdata(self, backup):
+    def delete_backup_data(self, backup):
         """
-        Delete the pgdata dir of a given backup.
+        Delete the data contained in a given backup.
 
         :param barman.infofile.BackupInfo backup: the backup to delete
         """
-        backup_dir = backup.get_basebackup_directory()
-        pg_data = os.path.join(backup_dir, 'pgdata')
+        if backup.tablespaces:
+            if backup.backup_version == 2:
+                tbs_dir = backup.get_basebackup_directory()
+            else:
+                tbs_dir = os.path.join(backup.get_data_directory(), 'pg_tblspc')
+            for tablespace in backup.tablespaces:
+                rm_dir = os.path.join(tbs_dir, str(tablespace.oid))
+                _logger.debug("Deleting tablespace %s directory: %s" %
+                              (tablespace.name, rm_dir))
+                shutil.rmtree(rm_dir)
+
+        pg_data = backup.get_data_directory()
         if os.path.exists(pg_data):
             _logger.debug("Deleting PGDATA directory: %s" % pg_data)
             shutil.rmtree(pg_data)
 
     def delete_wal(self, wal_info):
         """
-        Delete a WAL segment, with the given name
+        Delete a WAL segment, with the given WalFileInfo
 
-        :param name: the name of the WAL to delete
+        :param barman.infofile.WalFileInfo wal_info: the WAL to delete
         """
 
         try:
@@ -904,39 +919,12 @@ class BackupManager(object):
         Perform the copy of the backup.
         This function returns the size of the backup (in bytes)
 
-        :param backup_info: the backup information structure
+        :param barman.infofile.BackupInfo backup_info: the backup information
+            structure
         """
 
         # paths to be ignored from rsync
         exclude_and_protect = []
-
-        # validate the bandwidth rules against the tablespace list
-        tablespaces_bwlimit = {}
-
-        if self.config.tablespace_bandwidth_limit and backup_info.tablespaces:
-            valid_tablespaces = dict([
-                (tablespace_data.name, tablespace_data.oid)
-                for tablespace_data in backup_info.tablespaces])
-            for tablespace, bwlimit in \
-                    self.config.tablespace_bandwidth_limit.items():
-                if tablespace in valid_tablespaces:
-                    tablespace_dir = "pg_tblspc/%s" % (
-                                     valid_tablespaces[tablespace],)
-                    tablespaces_bwlimit[tablespace_dir] = bwlimit
-                    exclude_and_protect.append(tablespace_dir)
-
-        backup_dest = os.path.join(
-            backup_info.get_basebackup_directory(), 'pgdata')
-
-        # find tablespaces which need to be excluded from rsync command
-        if backup_info.tablespaces is not None:
-            exclude_and_protect += [
-                # removes tablespaces that are located within PGDATA
-                # as they are already being copied along with it
-                tablespace_data.location[len(backup_info.pgdata):]
-                for tablespace_data in backup_info.tablespaces
-                if tablespace_data.location.startswith(backup_info.pgdata)
-            ]
 
         # Retrieve the previous backup metadata and set the safe_horizon
         # accordingly
@@ -949,20 +937,37 @@ class BackupManager(object):
             # If no previous backup is present, the safe horizon is set to None
             safe_horizon = None
 
-        # Make sure the destination directory exists in order for smart copy
-        # to detect that no file is present there
-        mkpath(backup_dest)
-
-        # deal with tablespaces with a different bwlimit
-        if len(tablespaces_bwlimit) > 0:
-            # we are copying the tablespaces before the data directory,
-            # so we need to create the 'pg_tblspc' directory
-            mkpath(os.path.join(backup_dest, 'pg_tblspc'))
-            for tablespace_dir, bwlimit in tablespaces_bwlimit.items():
-                self.current_action = "copying tablespace '%s' with bwlimit " \
-                                      "%d" % (tablespace_dir, bwlimit)
+        # Copy tablespaces applying bwlimit when necessary
+        if backup_info.tablespaces:
+            tablespaces_bw_limit = self.config.tablespace_bandwidth_limit
+            # Copy a tablespace at a time
+            for tablespace in backup_info.tablespaces:
+                self.current_action = "copying tablespace '%s'" \
+                                      % tablespace.name
+                # Apply bandwidth limit if requested
+                bwlimit = self.config.bandwidth_limit
+                if tablespaces_bw_limit and \
+                        tablespace.name in tablespaces_bw_limit:
+                    bwlimit = tablespaces_bw_limit[tablespace.name]
+                if bwlimit:
+                    self.current_action += (" with bwlimit '%d'" % bwlimit)
                 _logger.debug(self.current_action)
-                ref_dir = self.reuse_dir(previous_backup, tablespace_dir)
+                # If the tablespace location is inside the data directory,
+                # exclude and protect it from being copied twice during
+                # the data directory copy
+                if tablespace.location.startswith(backup_info.pgdata):
+                    exclude_and_protect.append(
+                        tablespace.location[len(backup_info.pgdata):])
+                # Make sure the destination directory exists in order for
+                # smart copy to detect that no file is present there
+                tablespace_dest = backup_info.get_data_directory(tablespace.oid)
+                mkpath(tablespace_dest)
+                # Exclude and protect the tablespace from being copied again
+                # during the data directory copy
+                exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
+                # Copy the backup using smart_copy trying to reuse the
+                # tablespace of the previous backup if incremental is active
+                ref_dir = self.reuse_dir(previous_backup, tablespace.oid)
                 tb_rsync = RsyncPgData(
                     ssh=self.server.ssh_command,
                     ssh_options=self.server.ssh_options,
@@ -971,21 +976,23 @@ class BackupManager(object):
                     network_compression=self.config.network_compression,
                     check=True)
                 try:
-                    tablespace_dest = os.path.join(backup_dest, tablespace_dir)
-                    # make sure the destination directory exists in order for
-                    # smart copy to detect that no file is present there
-                    mkpath(tablespace_dest)
                     tb_rsync.smart_copy(
-                        ':%s/' % os.path.join(backup_info.pgdata,
-                                              tablespace_dir),
+                        ':%s/' % tablespace.location,
                         tablespace_dest,
                         safe_horizon,
                         ref_dir)
                 except CommandFailedException, e:
                     msg = "data transfer failure on directory '%s'" % \
-                          os.path.join(backup_info.pgdata, tablespace_dir)
+                          backup_info.get_data_directory(tablespace.oid)
                     self._raise_rsync_error(e, msg)
 
+        # Make sure the destination directory exists in order for smart copy
+        # to detect that no file is present there
+        backup_dest = backup_info.get_data_directory()
+        mkpath(backup_dest)
+
+        # Copy the pgdata, trying to reuse the data dir
+        # of the previous backup if incremental is active
         ref_dir = self.reuse_dir(previous_backup)
         rsync = RsyncPgData(
             ssh=self.server.ssh_command,
@@ -1080,25 +1087,26 @@ class BackupManager(object):
         backup_info.set_attribute('size', backup_size)
         backup_info.set_attribute('deduplicated_size', deduplicated_size)
 
-    def reuse_dir(self, previous_backup_info, path=None):
+    def reuse_dir(self, previous_backup_info, oid=None):
         """
         If reuse_backup is 'copy' or 'link', builds the path of the directory
         to reuse, otherwise always returns None.
 
-        If path is None, it returns the full path of pgdata directory of
-        the previous_backup otherwise it returns the specified path inside the
-        data directory.
+        If oid is None, it returns the full path of pgdata directory of
+        the previous_backup otherwise it returns the path to the specified
+        tablespace using it's oid.
 
-        :param BackupInfo previous_backup_info: backup to be reused
-        :param str path: path inside the data directory to be reused
+        :param barman.infofile.BackupInfo previous_backup_info: backup to be
+            reused
+        :param str oid: oid of the tablespace to be reused
         :return str: the local path with data to be reused
         """
-        if self.config.reuse_backup in ('copy', 'link') and previous_backup_info is not None:
-            last_backup_dir = previous_backup_info.get_basebackup_directory()
-            reuse_dir = os.path.join(last_backup_dir, 'pgdata')
-            if path is not None:
-                reuse_dir = os.path.join(reuse_dir, path)
-            return reuse_dir
+        if self.config.reuse_backup in ('copy', 'link') and \
+                        previous_backup_info is not None:
+            try:
+                return previous_backup_info.get_data_directory(oid)
+            except ValueError:
+                return None
 
     def reuse_args(self, reuse_dir):
         """
@@ -1108,7 +1116,8 @@ class BackupManager(object):
         :param str|None reuse_dir: the local path with data to be reused
         :return list: the argument list for rsync
         """
-        if self.config.reuse_backup in ('copy', 'link') and reuse_dir is not None:
+        if self.config.reuse_backup in ('copy', 'link') and\
+                        reuse_dir is not None:
             return ['--%s-dest=%s' % (self.config.reuse_backup, reuse_dir)]
         else:
             return []
@@ -1121,87 +1130,81 @@ class BackupManager(object):
         '''
         self.server.stop_backup(backup_info)
 
-    def recover_basebackup_copy(self, backup, dest, tablespaces,
+    def recover_basebackup_copy(self, backup_info, dest, tablespaces,
                                 remote_command=None, safe_horizon=None):
         """
         Perform the actual copy of the base backup for recovery purposes
 
-        :param backup: the backup to recover
-        :param dest: the destination directory
-        :param tablespaces: tablespace relocation options
-        :param remote_command: default None. The remote command to recover
+        :param barman.infofile.BackupInfo backup_info: the backup to recover
+        :param str dest: the destination directory
+        :param str remote_command: default None. The remote command to recover
                                the base backup, in case of remote backup.
         :param datetime.datetime safe_horizon: anything after this time
             has to be checked with checksums
         """
 
-        sourcedir = os.path.join(backup.get_basebackup_directory(), 'pgdata')
-
         # Dictionary for paths to be excluded from rsync
         exclude_and_protect = []
-        # Dictionary for tablespace bandwith limit settings
-        tablespaces_bwlimit = {}
 
-        # find tablespaces which need to be excluded from rsync command
-        if backup.tablespaces is not None:
-            # Look for tablespaces that will be recovered
-            # inside the destination PGDATA directory (including
-            # relocated ones) and add them to the excluded files list
-            for item in backup.tablespaces:
-                # by default a tablespace goes in the same location where
+        # Set a ':' prefix to remote destinations
+        dest_prefix = ''
+        if remote_command:
+            dest_prefix = ':'
+
+        # Copy tablespaces applying bwlimit when necessary
+        if backup_info.tablespaces:
+            tablespaces_bw_limit = self.config.tablespace_bandwidth_limit
+            # Copy a tablespace at a time
+            for tablespace in backup_info.tablespaces:
+                # Apply bandwidth limit if requested
+                bwlimit = self.config.bandwidth_limit
+                if tablespaces_bw_limit and \
+                        tablespace.name in tablespaces_bw_limit:
+                    bwlimit = tablespaces_bw_limit[tablespace.name]
+                # By default a tablespace goes in the same location where
                 # it was on the source server when the backup was taken
-                location = item.location
-
-                # if a relocation has been requested for this tablespace
+                location = tablespace.location
+                # If a relocation has been requested for this tablespace
                 # use the user provided target directory
-                if item.name in tablespaces:
-                    location = tablespaces[item.name]
-
+                if tablespace.name in tablespaces:
+                    location = tablespaces[tablespace.name]
+                # If the tablespace location is inside the data directory,
+                # exclude and protect it from being deleted during
+                # the data directory copy
                 if location.startswith(dest):
                     exclude_and_protect.append(location[len(dest):])
+                # Exclude and protect the tablespace from being deleted during
+                # the data directory copy
+                exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
+                # Copy the tablespace using smart copy
+                tb_rsync = RsyncPgData(
+                    ssh=remote_command,
+                    bwlimit=bwlimit,
+                    network_compression=self.config.network_compression,
+                    check=True)
+                try:
+                    tb_rsync.smart_copy(
+                        '%s/' % backup_info.get_data_directory(tablespace.oid),
+                        dest_prefix + location,
+                        safe_horizon)
+                except CommandFailedException, e:
+                    msg = "data transfer failure on directory '%s'" % location
+                    self._raise_rsync_error(e, msg)
 
-        if remote_command:
-            dest = ':%s' % dest
-
-            # validate the bandwidth rules against the tablespace list
-            if self.config.tablespace_bandwidth_limit and backup.tablespaces:
-                # create a map containing the tablespace name as key and the
-                # tablespace oid as value
-                valid_tablespaces = dict([(tablespace_data.name, tablespace_data.oid)
-                                          for tablespace_data in backup.tablespaces])
-                for item, bwlimit in self.config.tablespace_bandwidth_limit.items():
-                    if item in valid_tablespaces:
-                        tablespace_dir = "pg_tblspc/%s" % (valid_tablespaces[item],)
-                        tablespaces_bwlimit[tablespace_dir] = bwlimit
-                        exclude_and_protect.append(tablespace_dir)
-
+        # Copy the pgdata directory
         rsync = RsyncPgData(
             ssh=remote_command,
             bwlimit=self.config.bandwidth_limit,
             exclude_and_protect=exclude_and_protect,
             network_compression=self.config.network_compression)
         try:
-            rsync.smart_copy('%s/' % (sourcedir,), dest, safe_horizon)
+            rsync.smart_copy(
+                '%s/' % backup_info.get_data_directory(),
+                dest_prefix + dest,
+                safe_horizon)
         except CommandFailedException, e:
-            msg = "data transfer failure on directory '%s'" % (dest[1:],)
+            msg = "data transfer failure on directory '%s'" % dest
             self._raise_rsync_error(e, msg)
-
-        if remote_command and len(tablespaces_bwlimit) > 0:
-            for tablespace_dir, bwlimit in tablespaces_bwlimit.items():
-                _logger.debug(self.current_action)
-                tb_rsync = RsyncPgData(
-                    ssh=remote_command,
-                    bwlimit=bwlimit,
-                    network_compression=self.config.network_compression)
-                try:
-                    tb_rsync.smart_copy(
-                        '%s/' % os.path.join(sourcedir, tablespace_dir),
-                        os.path.join(dest, tablespace_dir),
-                        safe_horizon)
-                except CommandFailedException, e:
-                    msg = "data transfer failure on directory '%s'" % (
-                        tablespace_dir[1:],)
-                    self._raise_rsync_error(e, msg)
 
         # TODO: Manage different location for configuration files
         # TODO: that were not within the data directory
@@ -1524,9 +1527,9 @@ class BackupManager(object):
 
         :param backup_info: the backup information structure
         """
-        label_file = os.path.join(backup_info.get_basebackup_directory(),
-                                  'pgdata/backup_label')
-
+        label_file = os.path.join(backup_info.get_data_directory(),
+                                  'backup_label')
+        output.debug("Writing backup label: %s" % label_file)
         with open(label_file, 'w') as f:
             f.write(backup_info.backup_label)
 

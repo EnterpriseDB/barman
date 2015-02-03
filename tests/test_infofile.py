@@ -330,6 +330,10 @@ class TestWallFileInfo(object):
         result = load_datetime_tz(tz_string)
         assert result.tzinfo == tzlocal()
 
+
+# noinspection PyMethodMayBeStatic
+class TestBackupInfo(object):
+
     def test_backup_info_from_file(self, tmpdir):
         """
         Test the initialization of a BackupInfo object
@@ -395,3 +399,70 @@ class TestWallFileInfo(object):
         for line in infofile.readlines():
             if line.startswith("status"):
                 assert line.strip() == "status=FAILED"
+
+    def test_backup_info_version(self, tmpdir):
+        """
+        Simple test for backup_version management.
+        """
+        server = mock.MagicMock()
+        server.config.basebackups_directory = tmpdir.strpath
+
+        # new version
+        backup_dir = tmpdir.mkdir('fake_backup_id')
+        backup_dir.mkdir('data')
+        backup_dir.join('backup.info')
+        b_info = BackupInfo(server, backup_id="fake_backup_id")
+        assert b_info.backup_version == 2
+
+        # old version
+        backup_dir = tmpdir.mkdir('another_fake_backup_id')
+        backup_dir.mkdir('pgdata')
+        backup_dir.join('backup.info')
+        b_info = BackupInfo(server, backup_id="another_fake_backup_id")
+        assert b_info.backup_version == 1
+
+    def test_data_dir(self, tmpdir):
+        """
+        Simple test for the method that is responsible of the build of the
+        path to the datadir and to the tablespaces dir according
+        with backup_version
+        """
+        server = mock.MagicMock()
+        server.config.basebackups_directory = tmpdir.strpath
+
+        # Build a fake v2 backup
+        backup_dir = tmpdir.mkdir('fake_backup_id')
+        data_dir = backup_dir.mkdir('data')
+        info_file = backup_dir.join('backup.info')
+        info_file.write(BASE_BACKUP_INFO)
+        b_info = BackupInfo(server, backup_id="fake_backup_id")
+
+        # Check that the paths are built according with version
+        assert b_info.backup_version == 2
+        assert b_info.get_data_directory() == data_dir.strpath
+        assert b_info.get_data_directory(16384) == backup_dir.strpath + '/16384'
+
+        # Build a fake v2 backup
+        backup_dir = tmpdir.mkdir('another_fake_backup_id')
+        pgdata_dir = backup_dir.mkdir('pgdata')
+        info_file = backup_dir.join('backup.info')
+        info_file.write(BASE_BACKUP_INFO)
+        b_info = BackupInfo(server, backup_id="another_fake_backup_id")
+
+        # Check that the paths are built according with version
+        assert b_info.backup_version == 1
+        assert b_info.get_data_directory(16384) == \
+               backup_dir.strpath + '/pgdata/pg_tblspc/16384'
+        assert b_info.get_data_directory() == pgdata_dir.strpath
+
+        # Check that an exception is raised if an invalid oid
+        # is provided to the method
+        with pytest.raises(ValueError):
+            b_info.get_data_directory(12345)
+
+        # Check that a ValueError exception is raised with an
+        # invalid oid when the tablespaces list is None
+        b_info.tablespaces = None
+        # and expect a value error
+        with pytest.raises(ValueError):
+            b_info.get_data_directory(16384)
