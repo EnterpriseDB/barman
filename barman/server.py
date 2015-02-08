@@ -862,7 +862,7 @@ class Server(object):
             with LockFile(filename, raise_if_fail=True):
                 self.backup_manager.backup()
             # Archive incoming WALs and update WAL catalogue through cron
-            self.cron(verbose=False)
+            self.cron(verbose=False, retention_policies=False)
 
         except LockFileBusy:
             output.error("Another backup process is running")
@@ -1109,19 +1109,24 @@ class Server(object):
         '''Performs a recovery of a backup'''
         return self.backup_manager.recover(backup, dest, tablespaces, target_tli, target_time, target_xid, target_name, exclusive, remote_command)
 
-    def cron(self, verbose=True):
+    def cron(self, verbose=True, wals=True, retention_policies=True):
         """
         Maintenance operations
 
         :param bool verbose: report even if no actions
+        :param bool wals: WAL archive maintenance
+        :param bool retention_policies: retention policy maintenance
         """
         filename = os.path.join(self.config.barman_home,
                                 '.%s-cron.lock' % self.config.name)
         try:
             with LockFile(filename, raise_if_fail=True, wait=True):
-                self.backup_manager.cron(verbose=verbose)
+                # Standard maintenance (WAL archive)
+                if wals:
+                    self.backup_manager.cron(verbose=verbose)
                 # Retention policy management
-                self.backup_manager.cron_retention_policy()
+                if retention_policies:
+                    self.backup_manager.cron_retention_policy()
         except LockFilePermissionDenied, e:
             output.error("Permission denied, unable to access '%s'" % e)
         except (OSError, IOError), e:
