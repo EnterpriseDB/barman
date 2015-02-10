@@ -14,13 +14,17 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+
 from datetime import datetime
 import os
+
 import mock
 import pytest
 from dateutil.tz import tzoffset, tzlocal
+
 from barman.infofile import Field, FieldListFile, WalFileInfo, \
     load_datetime_tz, BackupInfo
+
 
 BASE_BACKUP_INFO = """backup_label=None
 begin_offset=40
@@ -43,6 +47,28 @@ status=DONE
 tablespaces=[('fake_tbs', 16384, '/fake_tmp/tbs')]
 timeline=1
 version=90400"""
+
+
+def test_load_datetime_tz():
+    """
+    Unit test for load_datetime_tz function
+
+    This test covers all load_datetime_tz code with correct parameters
+    and checks that a ValueError is raised when called with a bad parameter.
+    """
+    # try to load a tz-less timestamp
+    assert load_datetime_tz("2012-12-15 10:14:51.898000") == \
+        datetime(2012, 12, 15, 10, 14, 51, 898000,
+                 tzinfo=tzlocal())
+
+    # try to load a tz-aware timestamp
+    assert load_datetime_tz("2012-12-15 10:14:51.898000 +0100") == \
+        datetime(2012, 12, 15, 10, 14, 51, 898000,
+                 tzinfo=tzoffset('GMT+1', 3600))
+
+    # try to load an incorrect date
+    with pytest.raises(ValueError):
+        load_datetime_tz("Invalid datetime")
 
 
 #noinspection PyMethodMayBeStatic

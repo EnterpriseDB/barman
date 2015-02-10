@@ -15,10 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import unittest
-import mock
+from datetime import datetime
 from subprocess import PIPE
+import unittest
+
+import dateutil.tz
+import mock
 import pytest
+
 from barman import command_wrappers
 from barman.command_wrappers import CommandFailedException
 
@@ -279,7 +283,7 @@ class CommandUnitTest(unittest.TestCase):
 
 
 @mock.patch('barman.command_wrappers.subprocess.Popen')
-class RsyncUnitTest(unittest.TestCase):
+class TestRsync(object):
     def test_simple_invocation(self, popen):
         ret = 0
         out = 'out'
@@ -433,6 +437,55 @@ class RsyncUnitTest(unittest.TestCase):
         assert cmd.out == out
         assert cmd.err == err
 
+    def test_invocation_list_file(self, popen):
+        """
+        Unit test for dateutil package in list_file
+
+        This test cover all list_file's code with correct parameters
+
+        :param tmpdir: temporary folder
+        :param popen: mock popen
+        """
+        # variables to be tested
+        ret = 0
+        out = 'drwxrwxrwt       69632 2015/02/09 15:01:00 tmp\n' \
+              'drwxrwxrwt       69612 2015/02/19 15:01:22 tmp2'
+        err = 'err'
+        # created mock pipe
+        pipe = _mock_pipe(popen, ret, out, err)
+        # created rsync and launched list_files
+        cmd = command_wrappers.Rsync()
+        return_values = list(cmd.list_files('some/path'))
+
+        # returned list must contain two elements
+        assert len(return_values) == 2
+
+        # assert call
+        popen.assert_called_with(
+            ['rsync', '--no-human-readable', '--list-only', '-r', 'some/path'],
+            shell=False, env=None,
+            stdout=PIPE, stderr=PIPE, stdin=PIPE,
+            preexec_fn=mock.ANY, close_fds=True
+        )
+
+        # Rsync pipe must be called with no input
+        pipe.communicate.assert_called_with(None)
+
+        # assert tmp and tmp2 in test_list
+        assert return_values[0] == cmd.FileItem(
+            'drwxrwxrwt',
+            69632,
+            datetime(year=2015, month=2, day=9,
+                     hour=15, minute=1, second=0,
+                     tzinfo=dateutil.tz.tzlocal()),
+            'tmp')
+        assert return_values[1] == cmd.FileItem(
+            'drwxrwxrwt',
+            69612,
+            datetime(year=2015, month=2, day=19,
+                     hour=15, minute=1, second=22,
+                     tzinfo=dateutil.tz.tzlocal()),
+            'tmp2')
 
 @mock.patch('barman.command_wrappers.subprocess.Popen')
 class RsyncPgdataUnitTest(unittest.TestCase):

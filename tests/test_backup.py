@@ -15,19 +15,25 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+from datetime import timedelta, datetime
+
+import dateutil.parser
+import dateutil.tz
 from mock import patch, Mock, call
 import pytest
-from datetime import timedelta, datetime
+
 from barman.backup import BackupManager, DataTransferFailure
+from barman.testing_helpers import build_test_backup_info
 import barman.utils
 
 
 class TestBackup(object):
     @staticmethod
-    def build_backup_manager():
+    def build_backup_manager(server=None):
         # instantiate a BackupManager object using mocked parameters
-        server = Mock(name='server')
-        server.config = Mock(name='config')
+        if server is None:
+            server = Mock(name='server')
+            server.config = Mock(name='config')
         with patch("barman.backup.CompressionManager"):
             return BackupManager(server=server)
 
@@ -65,7 +71,6 @@ class TestBackup(object):
     @patch('barman.backup.BackupManager.get_last_backup')
     def test_backup_maximum_age(self, backup_id_mock, infofile_mock,
                                 datetime_mock):
-
         # BackupManager setup
         backup_manager = self.build_backup_manager()
         # setting basic configuration for this test
@@ -88,7 +93,7 @@ class TestBackup(object):
         backup_id_mock.return_value = "Mock_backup"
         # simulate an existing backup using a mock obj
         instance = infofile_mock.return_value
-        #force the backup end date over 1 day over the limit
+        # force the backup end date over 1 day over the limit
         instance.end_time = now - timedelta(days=8)
         # build the expected message
         msg = barman.utils.human_readable_timedelta(now - instance.end_time)
@@ -113,7 +118,7 @@ class TestBackup(object):
     @patch('barman.backup.BackupInfo')
     def test_keyboard_interrupt(self, mock_infofile, mock_start):
         """
-        Integration test for a quick check on exception catching
+        Unit test for a quick check on exception catching
         during backup operations
 
         Test case 1: raise a general exception, backup status in
@@ -139,3 +144,45 @@ class TestBackup(object):
         # verify that mock status is FAILED
         assert call.set_attribute('status', 'FAILED') in instance.mock_calls
 
+    def test_dateutil_parser(self, tmpdir, capsys):
+        """
+        Unit test for dateutil package during recovery.
+        This test checks that a SystemExit error is raised when a wrong
+        target_time parameter is passed in a recover invocation.
+
+        This test doesn't cover all the recover code
+
+        :param tmpdir: temporary folder
+        """
+        # test dir
+        test_dir = tmpdir.mkdir("recover")
+        # BackupInfo setup
+        backup_info = build_test_backup_info(tablespaces=None)
+        # BackupManager setup
+        backup_manager = self.build_backup_manager(backup_info.server)
+
+        # test 1
+        # use dateutil to parse a date in our desired format
+        assert dateutil.parser.parse("2015-02-13 11:44:22.123") == \
+            datetime(year=2015, month=2, day=13,
+                     hour=11, minute=44, second=22, microsecond=123000)
+
+        # test 2: parse the ctime output
+        test_date = datetime.now()
+        # remove microseconds as ctime() doesn't output them
+        test_date = test_date.replace(microsecond=0)
+        assert dateutil.parser.parse(test_date.ctime()) == test_date
+
+        # test 3: parse the str output on local timezone
+        test_date = datetime.now(dateutil.tz.tzlocal())
+        assert dateutil.parser.parse(str(test_date)) == test_date
+
+        # test 4: check behaviour with a bad date
+        # capture ValueError because target_time = 'foo bar'
+        with pytest.raises(SystemExit):
+            backup_manager.recover(backup_info,
+                                   test_dir.strpath, None, None,
+                                   'foo bar', None, "name", True, None)
+        # checked that the raised error is the correct error
+        (out, err) = capsys.readouterr()
+        assert "unable to parse the target time parameter " in err
