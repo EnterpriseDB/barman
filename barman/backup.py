@@ -190,7 +190,12 @@ class BackupManager(object):
         previous_backup = self.get_previous_backup(backup.backup_id)
         next_backup = self.get_next_backup(backup.backup_id)
         # Remove the pgdata directory of the backup
-        self.delete_pgdata(backup)
+        try:
+            self.delete_pgdata(backup)
+        except OSError as e:
+            output.error("Failure deleting backup %s for server %s.\n%s",
+                         backup.backup_id, self.config.name, e)
+            return
         # We are deleting the first available backup
         if not previous_backup:
             # In the case of exclusive backup (default), removes any WAL
@@ -199,7 +204,7 @@ class BackupManager(object):
             # prior to the start of the backup being deleted, as they
             # might be useful to any concurrent backup started immediately
             # after.
-            remove_until = None # means to remove all WAL files
+            remove_until = None  # means to remove all WAL files
             if next_backup:
                 remove_until = next_backup
             elif BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
@@ -209,7 +214,14 @@ class BackupManager(object):
                 output.info("\t%s", name)
         # As last action, remove the basebackup directory,
         # ending the delete operation
-        self.delete_basebackup(backup)
+        try:
+            self.delete_basebackup(backup)
+        except OSError as e:
+            output.error("Failure deleting backup %s for server %s.\n%s\n"
+                         "Please manually remove the '%s' directory",
+                         backup.backup_id, self.config.name, e,
+                         backup.get_basebackup_directory())
+            return
         output.info("Done")
 
     def retry_backup_copy(self, target_function, *args, **kwargs):
@@ -805,8 +817,9 @@ class BackupManager(object):
         """
         backup_dir = backup.get_basebackup_directory()
         pg_data = os.path.join(backup_dir, 'pgdata')
-        _logger.debug("Deleting PGDATA directory: %s" % pg_data)
-        shutil.rmtree(pg_data)
+        if os.path.exists(pg_data):
+            _logger.debug("Deleting PGDATA directory: %s" % pg_data)
+            shutil.rmtree(pg_data)
 
     def delete_wal(self, wal_info):
         """

@@ -15,12 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from datetime import timedelta, datetime
 
+from datetime import timedelta, datetime
+import os
+
+import pytest
 import dateutil.parser
 import dateutil.tz
 from mock import patch, Mock, call
-import pytest
 
 from barman.backup import BackupManager, DataTransferFailure
 from barman.testing_helpers import build_test_backup_info
@@ -186,3 +188,51 @@ class TestBackup(object):
         # checked that the raised error is the correct error
         (out, err) = capsys.readouterr()
         assert "unable to parse the target time parameter " in err
+
+    @patch('barman.backup.BackupManager.get_available_backups')
+    def test_delete_backup(self, mock_available_backups, tmpdir, caplog):
+        """
+        Simple test for the deletion of a backup.
+        We want to test the behaviour of the delete_backup method
+        """
+        # Setup of the test backup_manager
+        backup_manager = self.build_backup_manager()
+        backup_manager.server.config.name = 'TestServer'
+        backup_manager.server.config.basebackups_directory = tmpdir.strpath
+        # Create a fake backup directory inside tmpdir
+        backup_dir = tmpdir.mkdir('fake_backup_id')
+        pg_data = backup_dir.mkdir('pgdata')
+        b_info = build_test_backup_info(backup_id='fake_backup_id',
+                                        server=backup_manager.server)
+
+        # Test 1: minimum redundancy not satisfied
+        backup_manager.server.config.minimum_redundancy = 1
+        del caplog.records()[:]  # remove previous messages from caplog
+        backup_manager.delete_backup(b_info)
+        assert 'WARNING  Skipping delete of backup ' in caplog.text()
+
+        # Test 2: normal delete expecting no errors
+        backup_manager.server.config.minimum_redundancy = 0
+        mock_available_backups.return_value = {"fake_backup_id": None,
+                                               "fake_backup":
+                                               build_test_backup_info(
+                                                   server=backup_manager.server)
+                                               }
+        backup_manager.server.config.backup_options = []
+        backup_manager.delete_backup(b_info)
+        # the backup must not exists on disk anymore
+        assert not os.path.exists(pg_data.strpath)
+
+        # Test 3: delete the backup again, expect a failure in log
+        del caplog.records()[:]  # remove previous messages from caplog
+        backup_manager.delete_backup(b_info)
+        assert 'Failure deleting backup fake_backup_id' in caplog.text()
+
+        # Test 4: simulate and error deleting the the backup.
+        with patch('barman.backup.BackupManager.delete_pgdata')\
+                as mock_delete_pgdata:
+            # We force delete_pgdata method to raise an exception.
+            mock_delete_pgdata.side_effect = OSError('TestError')
+            del caplog.records()[:]  # remove previous messages from caplog
+            backup_manager.delete_backup(b_info)
+            assert 'TestError' in caplog.text()
