@@ -67,8 +67,7 @@ def exec_diagnose(servers):
         # barman statuts information for the server
         diagnosis['servers'][name]['status'] = server.get_remote_status()
         # backup list
-        status_filter = BackupInfo.STATUS_NOT_EMPTY
-        backups = server.get_available_backups(status_filter)
+        backups = server.get_available_backups(BackupInfo.STATUS_ALL)
         diagnosis['servers'][name]['backups'] = backups
     output.info(json.dumps(diagnosis, sys.stdout, cls=BarmanEncoder, indent=4,
                            sort_keys=True))

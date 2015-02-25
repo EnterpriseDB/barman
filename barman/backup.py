@@ -741,9 +741,8 @@ class BackupManager(object):
                             self.config.name,
                             log=False)
             # Get the first available backup
-            first_backup_id = self.get_first_backup(BackupInfo.STATUS_ALL)
-            first_backup = self.server.get_backup(first_backup_id) \
-                    if first_backup_id else None
+            first_backup_id = self.get_first_backup(BackupInfo.STATUS_NOT_EMPTY)
+            first_backup = self.server.get_backup(first_backup_id)
             for filename in sorted(glob(
                     os.path.join(self.config.incoming_wals_directory, '*'))):
                 if not found and not verbose:

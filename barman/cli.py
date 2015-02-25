@@ -557,8 +557,7 @@ def parse_backup_id(server, args):
         backup_id = server.get_first_backup()
     else:
         backup_id = args.backup_id
-    backup_info = server.get_backup(backup_id) if backup_id else None
-    return backup_info
+    return server.get_backup(backup_id)
 
 
 def main():

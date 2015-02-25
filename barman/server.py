@@ -895,9 +895,8 @@ class Server(object):
         """
         Lists all the available backups for the server
         """
-        status_filter = BackupInfo.STATUS_NOT_EMPTY
         retention_status = self.report_backups()
-        backups = self.get_available_backups(status_filter)
+        backups = self.get_available_backups(BackupInfo.STATUS_ALL)
         for key in sorted(backups.iterkeys(), reverse=True):
             backup = backups[key]
 
@@ -915,20 +914,25 @@ class Server(object):
 
     def get_backup(self, backup_id):
         """
-        Return the backup information for the given backup,
-        or None if its status is not empty
+        Return the backup information for the given backup id.
 
-        :param backup_id: the ID of the backup to return
+        If the backup_id is None or backup.info file doesn't exists,
+        it returns None.
+
+        :param str|None backup_id: the ID of the backup to return
+        :rtype: BackupInfo|None
         """
-        try:
-            backup = BackupInfo(self, backup_id=backup_id)
-            if backup.status in BackupInfo.STATUS_NOT_EMPTY:
-                return backup
+        if backup_id is None:
             return None
+        try:
+            backup_info = BackupInfo(self, backup_id=backup_id)
         except Exception, e:
             _logger.debug("Error reading backup information for %s %s: %s",
                           self.config.name, backup_id, e, exc_info=1)
             return None
+        if not os.path.exists(backup_info.filename):
+            return None
+        return backup_info
 
     def get_previous_backup(self, backup_id):
         """
