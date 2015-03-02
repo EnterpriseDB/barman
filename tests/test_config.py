@@ -21,7 +21,7 @@ from datetime import timedelta
 import mock
 import pytest
 
-from barman.testing_helpers import build_config_from_dicts
+from testing_helpers import build_config_from_dicts
 
 
 try:

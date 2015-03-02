@@ -24,8 +24,10 @@ except ImportError:
 import mock
 from dateutil import tz
 
+from barman.backup import BackupManager
 from barman.config import Config
 from barman.infofile import BackupInfo, Tablespace
+from barman.server import Server
 
 
 def build_test_backup_info(
@@ -137,16 +139,17 @@ def mock_backup_ext_info(
     return ext_info
 
 
-def build_config_from_dicts(global_conf=None, main_conf=None):
+def build_config_from_dicts(global_conf=None, main_conf=None, config_name=None):
     """
     Utility method, generate a barman.config.Config object
 
     It has  a minimal configuration and a single server called "main".
     All options can be override using the optional arguments
-    :param dict|None global_conf: using this dictionary is possible
-        to override/add new values to the [barman] section
-    :param dict|None main_conf: using this dictionary is possible
-        to override/add new values to the [main] section
+
+    :param dict[str,str|None]|None global_conf: using this dictionary
+        it is possible to override or add new values to the [barman] section
+    :param dict[str,str|None]|None main_conf: using this dictionary
+        it is possible to override/add new values to the [main] section
     :return barman.config.Config: a barman configuration object
     """
     # base barman section
@@ -178,4 +181,60 @@ def build_config_from_dicts(global_conf=None, main_conf=None):
         config_file.write('%s = %s\n' % (key, base_main[key]))
     config_file.seek(0)
     config = Config(config_file)
+    config.config_file = config_name or 'build_config_from_dicts'
     return config
+
+
+def build_real_server(global_conf=None, main_conf=None):
+    """
+    Build a real Server object built from a real configuration
+
+    :param dict[str,str|None]|None global_conf: using this dictionary
+        it is possible to override or add new values to the [barman] section
+    :param dict[str,str|None]|None main_conf: using this dictionary
+        it is possible to override/add new values to the [main] section
+    :return barman.server.Server: a barman Server object
+    """
+    return Server(build_config_from_dicts(
+        global_conf=global_conf, main_conf=main_conf).get_server('main'))
+
+
+def build_mocked_server(name=None, config=None,
+                        global_conf=None, main_conf=None):
+    """
+    Build a mock server object
+    :param barman.config.Server config: use this object to build the server
+    :param dict[str,str|None]|None global_conf: using this dictionary
+        it is possible to override or add new values to the [barman] section
+    :param dict[str,str|None]|None main_conf: using this dictionary
+        it is possible to override/add new values to the [main] section
+    :rtype: barman.server.Server
+    """
+    # instantiate a retention policy object using mocked parameters
+    server = mock.MagicMock(name='barman.server.Server')
+
+    if not config:
+        server.config = build_config_from_dicts(
+            global_conf=global_conf,
+            main_conf=main_conf).get_server('main')
+    else:
+        server.config = config
+    server.config.name = name or 'main'
+    return server
+
+
+def build_backup_manager(server=None, name=None, config=None,
+                         global_conf=None, main_conf=None):
+    """
+    Instantiate a BackupManager object using mocked parameters
+
+    The compression_manager member is mocked
+
+    :param barman.server.Server|None server: Optionsl Server object
+    :rtype: barman.backup.BackupManager
+    """
+    if server is None:
+        server = build_mocked_server(name, config, global_conf, main_conf)
+    with mock.patch("barman.backup.CompressionManager"):
+        manager = BackupManager(server=server)
+    return manager

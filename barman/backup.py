@@ -21,7 +21,6 @@ This module represents a backup.
 
 from glob import glob
 import datetime
-import errno
 from io import StringIO
 import logging
 import os
@@ -37,31 +36,27 @@ from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
 from barman.fs import UnixLocalCommand, UnixRemoteCommand, FsOperationFailed
 from barman import xlog, output
 from barman.command_wrappers import Rsync, RsyncPgData, \
-    CommandFailedException
+    CommandFailedException, DataTransferFailure
 from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
 from barman.utils import human_readable_timedelta, mkpath, pretty_size, \
     fsync_dir
 from barman.config import BackupOptions
+from barman.backup_executor import RsyncBackupExecutor
 
 
 _logger = logging.getLogger(__name__)
 
 
-class DataTransferFailure(Exception):
-    """
-    Used to pass rsync failure details
-    """
-
-
 class BackupManager(object):
-    '''Manager of the backup archive for a server'''
+    """Manager of the backup archive for a server"""
 
     DEFAULT_STATUS_FILTER = (BackupInfo.DONE,)
     DANGEROUS_OPTIONS = ['data_directory', 'config_file', 'hba_file',
             'ident_file', 'external_pid_file', 'ssl_cert_file',
             'ssl_key_file', 'ssl_ca_file', 'ssl_crl_file',
             'unix_socket_directory']
+
     def __init__(self, server):
         """
         Constructor
@@ -71,16 +66,14 @@ class BackupManager(object):
         self.config = server.config
         self.available_backups = {}
         self.compression_manager = CompressionManager(self.config)
-
-        # used for error messages
-        self.current_action = None
+        self.executor = RsyncBackupExecutor(self)
 
     def get_available_backups(self, status_filter=DEFAULT_STATUS_FILTER):
-        '''
+        """
         Get a list of available backups
 
         :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup list returned
-        '''
+        """
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter,)
         if status_filter not in self.available_backups:
@@ -88,7 +81,7 @@ class BackupManager(object):
             for filename in glob("%s/*/backup.info" % self.config.basebackups_directory):
                 backup = BackupInfo(self.server, filename)
                 if backup.status not in status_filter:
-                        continue
+                    continue
                 available_backups[backup.backup_id] = backup
             self.available_backups[status_filter] = available_backups
             return available_backups
@@ -96,11 +89,11 @@ class BackupManager(object):
             return self.available_backups[status_filter]
 
     def get_previous_backup(self, backup_id, status_filter=DEFAULT_STATUS_FILTER):
-        '''
+        """
         Get the previous backup (if any) in the catalog
 
         :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
-        '''
+        """
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
         backup = BackupInfo(self.server, backup_id=backup_id)
@@ -113,17 +106,16 @@ class BackupManager(object):
                 if res.status in status_filter:
                     return res
                 current -= 1
-            else:
-                return None
+            return None
         except ValueError:
             raise UnknownBackupIdException('Could not find backup_id %s' % backup_id)
 
     def get_next_backup(self, backup_id, status_filter=DEFAULT_STATUS_FILTER):
-        '''
+        """
         Get the next backup (if any) in the catalog
 
         :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
-        '''
+        """
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
         backup = BackupInfo(self.server, backup_id=backup_id)
@@ -136,17 +128,16 @@ class BackupManager(object):
                 if res.status in status_filter:
                     return res
                 current += 1
-            else:
-                return None
+            return None
         except ValueError:
             raise UnknownBackupIdException('Could not find backup_id %s' % backup_id)
 
     def get_last_backup(self, status_filter=DEFAULT_STATUS_FILTER):
-        '''
+        """
         Get the last backup (if any) in the catalog
 
         :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
-        '''
+        """
         available_backups = self.get_available_backups(status_filter)
         if len(available_backups) == 0:
             return None
@@ -155,11 +146,11 @@ class BackupManager(object):
         return ids[-1]
 
     def get_first_backup(self, status_filter=DEFAULT_STATUS_FILTER):
-        '''
+        """
         Get the first backup (if any) in the catalog
 
         :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
-        '''
+        """
         available_backups = self.get_available_backups(status_filter)
         if len(available_backups) == 0:
             return None
@@ -211,7 +202,7 @@ class BackupManager(object):
             elif BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
                 remove_until = backup
             output.info("Delete associated WAL segments:")
-            for name in self._remove_unused_wal_files(remove_until):
+            for name in self.remove_wal_before_backup(remove_until):
                 output.info("\t%s", name)
         # As last action, remove the backup directory,
         # ending the delete operation
@@ -265,9 +256,10 @@ class BackupManager(object):
         Performs a backup for the server
         """
         _logger.debug("initialising backup information")
-        self.current_action = "starting backup"
+        self.executor.init()
         backup_info = None
         try:
+            # Create the BackupInfo object representing the backup
             backup_info = BackupInfo(
                 self.server,
                 backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'))
@@ -282,61 +274,13 @@ class BackupManager(object):
             script.env_from_backup_info(backup_info)
             script.run()
 
-            # Start the backup, all the subsequent code must be wrapped in a
-            # try except block which finally issue a backup_stop command
-            self.backup_start(backup_info)
-            try:
-                # save any metadata changed by backup_start() call
-                # This must be inside the try-except, because it could fail
-                backup_info.save()
+            # Do the backup using the BackupExecutor
+            self.executor.backup(backup_info)
 
-                # If we are the first backup, purge unused WAL files
-                previous_backup = self.get_previous_backup(backup_info.backup_id)
-                if not previous_backup:
-                    self._remove_unused_wal_files(backup_info)
+            # Compute backup size and fsync it on disk
+            self.backup_fsync_and_set_sizes(backup_info)
 
-                output.info("Backup start at xlog location: %s (%s, %08X)",
-                            backup_info.begin_xlog,
-                            backup_info.begin_wal,
-                            backup_info.begin_offset)
-
-                # Start the copy
-                self.current_action = "copying files"
-                output.info("Copying files.")
-                # perform the backup copy, honouring the retry option if set
-                self.retry_backup_copy(self.backup_copy, backup_info)
-                # Calculate deduplication ratio
-                if backup_info.size > 0:
-                    deduplication_ratio = 1 - (float(backup_info.deduplicated_size) /
-                                               backup_info.size)
-                else:
-                    deduplication_ratio = 0
-
-                output.info("Copy done.")
-                if self.config.reuse_backup == 'link':
-                    output.info(
-                        "Backup size: %s. Actual size on disk: %s"
-                        " (-%s deduplication ratio)." % (
-                        pretty_size(backup_info.size),
-                        pretty_size(backup_info.deduplicated_size),
-                        '{percent:.2%}'.format(percent=deduplication_ratio)
-                        ))
-                else:
-                    output.info("Backup size: %s" %
-                                pretty_size(backup_info.size))
-            except:
-                # we do not need to do anything here besides re-throwin the
-                # exception. It will be handled in the external try block.
-                raise
-            else:
-                self.current_action = "issuing stop of the backup"
-                output.info("Asking PostgreSQL server to finalize the backup.")
-            finally:
-                self.backup_stop(backup_info)
-
-            if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
-                self.current_action = "writing backup label"
-                self._write_backup_label(backup_info)
+            # Mark the backup as DONE
             backup_info.set_attribute("status", "DONE")
         # Use BaseException instead of Exception to catch events like
         # KeyboardInterrupt (e.g.: CRTL-C)
@@ -352,17 +296,17 @@ class BackupManager(object):
                 backup_info.set_attribute(
                     "error",
                     "failure %s (%s)" % (
-                        self.current_action, msg_lines[0]))
+                        self.executor.current_action, msg_lines[0]))
 
             output.error("Backup failed %s.\nDETAILS: %s\n%s",
-                         self.current_action, msg_lines[0],
+                         self.executor.current_action, msg_lines[0],
                          '\n'.join(msg_lines[1:]))
 
         else:
             output.info("Backup end at xlog location: %s (%s, %08X)",
-                            backup_info.end_xlog,
-                            backup_info.end_wal,
-                            backup_info.end_offset)
+                        backup_info.end_xlog,
+                        backup_info.end_wal,
+                        backup_info.end_offset)
             output.info("Backup completed")
         finally:
             if backup_info:
@@ -375,21 +319,23 @@ class BackupManager(object):
 
         output.result('backup', backup_info)
 
-    def recover(self, backup_info, dest, tablespaces, target_tli, target_time,
-                target_xid, target_name, exclusive, remote_command):
+    def recover(self, backup_info, dest, tablespaces=None, target_tli=None,
+                target_time=None, target_xid=None, target_name=None,
+                exclusive=False, remote_command=None):
         """
         Performs a recovery of a backup
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
-        :param dict tablespaces: a dictionary of tablespaces (for relocation)
-        :param str target_tli: the target timeline
-        :param str target_time: the target time
-        :param str target_xid: the target xid
-        :param str target_name: the target name created previously with
+        :param dict[str,str]|None tablespaces: a tablespace name -> location map
+            (for relocation)
+        :param str|None target_tli: the target timeline
+        :param str|None target_time: the target time
+        :param str|None target_xid: the target xid
+        :param str|None target_name: the target name created previously with
                             pg_create_restore_point() function call
         :param bool exclusive: whether the recovery is exclusive or not
-        :param str remote_command: default None. The remote command to recover
+        :param str|None remote_command: default None. The remote command to recover
                                the base backup, in case of remote backup.
         """
 
@@ -453,7 +399,7 @@ class BackupManager(object):
 
                 # if a relocation has been requested for this tablespace
                 # use the user provided target directory
-                if item.name in tablespaces:
+                if tablespaces and item.name in tablespaces:
                     location = tablespaces[item.name]
 
                 try:
@@ -685,18 +631,18 @@ class BackupManager(object):
             try:
                 rsync(backup_info.filename, ':%s/.barman-recover.info' % dest)
             except CommandFailedException, e:
-                    output.exception(
-                        'copy of recovery metadata file failed: %s', e)
-                    output.close_and_exit()
+                output.exception(
+                    'copy of recovery metadata file failed: %s', e)
+                output.close_and_exit()
         else:
             backup_info.save(os.path.join(dest, '.barman-recover.info'))
 
         output.info("", log=False)
         output.info("Your PostgreSQL server has been successfully prepared for "
-              "recovery!", log=False)
+                    "recovery!", log=False)
         output.info("", log=False)
         output.info("Please review network and archive related settings in the "
-              "PostgreSQL", log=False)
+                    "PostgreSQL", log=False)
         output.info("configuration file before starting the just recovered "
                     "instance.", log=False)
         output.info("", log=False)
@@ -707,7 +653,7 @@ class BackupManager(object):
                 target_tli and
                 target_tli != backup_info.timeline) or target_name):
             output.info("After the recovery, please remember to remove the "
-                  "\"barman_xlog\" directory", log=False)
+                        "\"barman_xlog\" directory", log=False)
             output.info("inside the PostgreSQL data directory.", log=False)
             output.info("", log=False)
         if clashes:
@@ -793,8 +739,8 @@ class BackupManager(object):
         """
         Retention policy management
         """
-        if (self.server.enforce_retention_policies
-                and self.config.retention_policy_mode == 'auto'):
+        if (self.server.enforce_retention_policies and
+                self.config.retention_policy_mode == 'auto'):
             available_backups = self.get_available_backups(
                 BackupInfo.STATUS_ALL)
             retention_status = self.config.retention_policy.report()
@@ -857,282 +803,18 @@ class BackupManager(object):
             _logger.warning('Expected WAL file %s not found during delete',
                             wal_info.name, exc_info=1)
 
-    def backup_start(self, backup_info):
-        """
-        Start of the backup
-
-        :param BackupInfo backup_info: the backup information
-        """
-        self.current_action = "connecting to database (%s)" % \
-                              self.config.conninfo
-        output.debug(self.current_action)
-
-        # Set the PostgreSQL data directory
-        self.current_action = "detecting data directory"
-        output.debug(self.current_action)
-        data_directory = self.server.get_pg_setting('data_directory')
-        backup_info.set_attribute('pgdata', data_directory)
-
-        # Set server version
-        backup_info.set_attribute('version', self.server.server_version)
-
-        # Set configuration files location
-        cf = self.server.get_pg_configuration_files()
-        if cf:
-            for key in sorted(cf.keys()):
-                backup_info.set_attribute(key, cf[key])
-
-        # Get tablespaces information
-        self.current_action = "detecting tablespaces"
-        output.debug(self.current_action)
-        tablespaces = self.server.get_pg_tablespaces()
-        if tablespaces and len(tablespaces) > 0:
-            backup_info.set_attribute("tablespaces", tablespaces)
-            for item in tablespaces:
-                msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
-                _logger.info(msg)
-
-        # Issue pg_start_backup on the PostgreSQL server
-        self.current_action = "issuing start backup command"
-        _logger.debug(self.current_action)
-        label = "Barman backup %s %s" % (
-            backup_info.server_name, backup_info.backup_id)
-        self.server.start_backup(label, backup_info)
-
-    def _raise_rsync_error(self, e, msg):
-        """
-        This method raises an exception and report the provided message to the
-        user (both console and log file) along with the output of
-        the failed rsync command.
-
-        :param CommandFailedException e: The exception we are handling
-        :param msg: a descriptive message on what we are trying to do
-        :raise Exception: will contain the message provided in msg
-        """
-        details = msg
-        details += "\nrsync error:\n"
-        details += e.args[0]['out']
-        details += e.args[0]['err']
-        raise DataTransferFailure(details)
-
-    def backup_copy(self, backup_info):
-        """
-        Perform the copy of the backup.
-        This function returns the size of the backup (in bytes)
-
-        :param barman.infofile.BackupInfo backup_info: the backup information
-            structure
-        """
-
-        # paths to be ignored from rsync
-        exclude_and_protect = []
-
-        # Retrieve the previous backup metadata and set the safe_horizon
-        # accordingly
-        previous_backup = self.get_previous_backup(backup_info.backup_id)
-        if previous_backup:
-            # safe_horizon is a tz-aware timestamp because BackupInfo class
-            # ensures it
-            safe_horizon = previous_backup.begin_time
-        else:
-            # If no previous backup is present, the safe horizon is set to None
-            safe_horizon = None
-
-        # Copy tablespaces applying bwlimit when necessary
-        if backup_info.tablespaces:
-            tablespaces_bw_limit = self.config.tablespace_bandwidth_limit
-            # Copy a tablespace at a time
-            for tablespace in backup_info.tablespaces:
-                self.current_action = "copying tablespace '%s'" \
-                                      % tablespace.name
-                # Apply bandwidth limit if requested
-                bwlimit = self.config.bandwidth_limit
-                if tablespaces_bw_limit and \
-                        tablespace.name in tablespaces_bw_limit:
-                    bwlimit = tablespaces_bw_limit[tablespace.name]
-                if bwlimit:
-                    self.current_action += (" with bwlimit '%d'" % bwlimit)
-                _logger.debug(self.current_action)
-                # If the tablespace location is inside the data directory,
-                # exclude and protect it from being copied twice during
-                # the data directory copy
-                if tablespace.location.startswith(backup_info.pgdata):
-                    exclude_and_protect.append(
-                        tablespace.location[len(backup_info.pgdata):])
-                # Make sure the destination directory exists in order for
-                # smart copy to detect that no file is present there
-                tablespace_dest = backup_info.get_data_directory(tablespace.oid)
-                mkpath(tablespace_dest)
-                # Exclude and protect the tablespace from being copied again
-                # during the data directory copy
-                exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
-                # Copy the backup using smart_copy trying to reuse the
-                # tablespace of the previous backup if incremental is active
-                ref_dir = self.reuse_dir(previous_backup, tablespace.oid)
-                tb_rsync = RsyncPgData(
-                    ssh=self.server.ssh_command,
-                    ssh_options=self.server.ssh_options,
-                    args=self.reuse_args(ref_dir),
-                    bwlimit=bwlimit,
-                    network_compression=self.config.network_compression,
-                    check=True)
-                try:
-                    tb_rsync.smart_copy(
-                        ':%s/' % tablespace.location,
-                        tablespace_dest,
-                        safe_horizon,
-                        ref_dir)
-                except CommandFailedException, e:
-                    msg = "data transfer failure on directory '%s'" % \
-                          backup_info.get_data_directory(tablespace.oid)
-                    self._raise_rsync_error(e, msg)
-
-        # Make sure the destination directory exists in order for smart copy
-        # to detect that no file is present there
-        backup_dest = backup_info.get_data_directory()
-        mkpath(backup_dest)
-
-        # Copy the pgdata, trying to reuse the data dir
-        # of the previous backup if incremental is active
-        ref_dir = self.reuse_dir(previous_backup)
-        rsync = RsyncPgData(
-            ssh=self.server.ssh_command,
-            ssh_options=self.server.ssh_options,
-            args=self.reuse_args(ref_dir),
-            bwlimit=self.config.bandwidth_limit,
-            exclude_and_protect=exclude_and_protect,
-            network_compression=self.config.network_compression)
-        try:
-            rsync.smart_copy(':%s/' % backup_info.pgdata, backup_dest,
-                             safe_horizon,
-                             ref_dir)
-        except CommandFailedException, e:
-            msg = "data transfer failure on directory '%s'" % \
-                  backup_info.pgdata
-            self._raise_rsync_error(e, msg)
-
-        # at last copy pg_control
-        try:
-            rsync(':%s/global/pg_control' % (backup_info.pgdata,),
-                  '%s/global/pg_control' % (backup_dest,))
-        except CommandFailedException, e:
-            msg = "data transfer failure on file '%s/global/pg_control'" % \
-                  backup_info.pgdata
-            self._raise_rsync_error(e, msg)
-
-        # Copy configuration files (if not inside PGDATA)
-        self.current_action = "copying configuration files"
-        _logger.debug(self.current_action)
-        cf = self.server.get_pg_configuration_files()
-        if cf:
-            for key in sorted(cf.keys()):
-                # Consider only those that reside outside of the original PGDATA
-                if cf[key]:
-                    if cf[key].find(backup_info.pgdata) == 0:
-                        self.current_action = \
-                            "skipping %s as contained in %s directory" % (
-                                key, backup_info.pgdata)
-                        _logger.debug(self.current_action)
-                        continue
-                    else:
-                        self.current_action = \
-                            "copying %s as outside %s directory" % (
-                                key, backup_info.pgdata)
-                        _logger.info(self.current_action)
-                        try:
-                            rsync(':%s' % cf[key], backup_dest)
-
-                        except CommandFailedException, e:
-                            ret_code = e.args[0]['ret']
-                            msg = "data transfer failure on file '%s'" % \
-                                  cf[key]
-                            if 'ident_file' == key and ret_code == 23:
-                                # if the ident file is not present
-                                # it is not a blocking error, so,
-                                # we need to track why the exception is raised.
-                                # if ident file is missing, warn the user, log
-                                # the data transfer but continue the backup
-                                output.warning(msg, log=True)
-                                continue
-                            else:
-                                self._raise_rsync_error(e, msg)
-
-        # Calculate the base backup size
-        self.current_action = "calculating backup size"
-        _logger.debug(self.current_action)
-        backup_size = 0
-        deduplicated_size = 0
-        for dirpath, _, filenames in os.walk(backup_dest):
-            # execute fsync() on the containing directory
-            fsync_dir(dirpath)
-            # execute fsync() on all the contained files
-            for filename in filenames:
-                file_path = os.path.join(dirpath, filename)
-                file_fd = os.open(file_path, os.O_RDONLY)
-                file_stat = os.fstat(file_fd)
-                backup_size += file_stat.st_size
-                # Excludes hard links from real backup size
-                if file_stat.st_nlink == 1:
-                    deduplicated_size += file_stat.st_size
-                os.fsync(file_fd)
-                os.close(file_fd)
-        # Save size into BackupInfo object
-        backup_info.set_attribute('size', backup_size)
-        backup_info.set_attribute('deduplicated_size', deduplicated_size)
-
-    def reuse_dir(self, previous_backup_info, oid=None):
-        """
-        If reuse_backup is 'copy' or 'link', builds the path of the directory
-        to reuse, otherwise always returns None.
-
-        If oid is None, it returns the full path of pgdata directory of
-        the previous_backup otherwise it returns the path to the specified
-        tablespace using it's oid.
-
-        :param barman.infofile.BackupInfo previous_backup_info: backup to be
-            reused
-        :param str oid: oid of the tablespace to be reused
-        :return str: the local path with data to be reused
-        """
-        if self.config.reuse_backup in ('copy', 'link') and \
-                        previous_backup_info is not None:
-            try:
-                return previous_backup_info.get_data_directory(oid)
-            except ValueError:
-                return None
-
-    def reuse_args(self, reuse_dir):
-        """
-        If reuse_backup is 'copy' or 'link', build the rsync option to enable
-        the reuse, otherwise returns an empty list
-
-        :param str|None reuse_dir: the local path with data to be reused
-        :return list: the argument list for rsync
-        """
-        if self.config.reuse_backup in ('copy', 'link') and\
-                        reuse_dir is not None:
-            return ['--%s-dest=%s' % (self.config.reuse_backup, reuse_dir)]
-        else:
-            return []
-
-    def backup_stop(self, backup_info):
-        '''
-        Stop the backup
-
-        :param backup_info: the backup information structure
-        '''
-        self.server.stop_backup(backup_info)
-
-    def recover_basebackup_copy(self, backup_info, dest, tablespaces,
+    def recover_basebackup_copy(self, backup_info, dest, tablespaces=None,
                                 remote_command=None, safe_horizon=None):
         """
         Perform the actual copy of the base backup for recovery purposes
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
-        :param str remote_command: default None. The remote command to recover
-                               the base backup, in case of remote backup.
-        :param datetime.datetime safe_horizon: anything after this time
+        :param dict[str,str]|None tablespaces: a tablespace name -> location map
+            (for relocation)
+        :param str|None remote_command: default None. The remote command to
+            recover the base backup, in case of remote backup.
+        :param datetime.datetime|None safe_horizon: anything after this time
             has to be checked with checksums
         """
 
@@ -1159,7 +841,7 @@ class BackupManager(object):
                 location = tablespace.location
                 # If a relocation has been requested for this tablespace
                 # use the user provided target directory
-                if tablespace.name in tablespaces:
+                if tablespace and tablespace.name in tablespaces:
                     location = tablespaces[tablespace.name]
                 # If the tablespace location is inside the data directory,
                 # exclude and protect it from being deleted during
@@ -1182,7 +864,7 @@ class BackupManager(object):
                         safe_horizon)
                 except CommandFailedException, e:
                     msg = "data transfer failure on directory '%s'" % location
-                    self._raise_rsync_error(e, msg)
+                    raise DataTransferFailure.from_rsync_error(e, msg)
 
         # Copy the pgdata directory
         rsync = RsyncPgData(
@@ -1197,7 +879,7 @@ class BackupManager(object):
                 safe_horizon)
         except CommandFailedException, e:
             msg = "data transfer failure on directory '%s'" % dest
-            self._raise_rsync_error(e, msg)
+            raise DataTransferFailure.from_rsync_error(e, msg)
 
         # TODO: Manage different location for configuration files
         # TODO: that were not within the data directory
@@ -1251,7 +933,7 @@ class BackupManager(object):
                     except CommandFailedException, e:
                         msg = "data transfer failure while copying WAL files " \
                               "to directory '%s'" % (wal_dest[1:],)
-                        self._raise_rsync_error(e, msg)
+                        raise DataTransferFailure.from_rsync_error(e, msg)
 
                     # Cleanup files after the transfer
                     for segment in xlogs[prefix]:
@@ -1277,7 +959,7 @@ class BackupManager(object):
                 except CommandFailedException, e:
                     msg = "data transfer failure while copying WAL files " \
                           "to directory '%s'" % (wal_dest[1:],)
-                    self._raise_rsync_error(e, msg)
+                    raise DataTransferFailure.from_rsync_error(e, msg)
 
         _logger.info("Finished copying %s WAL files.", total_wals)
 
@@ -1329,7 +1011,7 @@ class BackupManager(object):
     def check(self):
         """
         This function performs some checks on the server.
-        Returns 0 if all went well, 1 if any of the checks fails
+        Set error code to 1 if any of the checks fails
         """
         if self.config.compression and not self.compression_manager.check():
             output.result('check', self.config.name,
@@ -1356,11 +1038,14 @@ class BackupManager(object):
                       'have %s backups, expected at least %s' %
                       (no_backups, self.config.minimum_redundancy))
 
+        # Execute additional checks defined by the BackupExecutor
+        self.executor.check()
+
     def status(self):
         """
         This function show the server status
         """
-        #get number of backups
+        # get number of backups
         no_backups = len(self.get_available_backups())
         output.result('status', self.config.name,
                       "backups_number",
@@ -1390,8 +1075,20 @@ class BackupManager(object):
                               no_backups,
                               self.config.minimum_redundancy))
 
+        # Output additional status defined by the BackupExecutor
+        self.executor.status()
+
+    def get_remote_status(self):
+        """
+        Build additional remote status lines defined by the BackupManager.
+
+        :rtype: dict[str, None]
+        """
+        return self.executor.get_remote_status()
+
     def pg_config_mangle(self, filename, settings, backup_filename=None):
-        '''This method modifies the postgres configuration file,
+        """
+        This method modifies the postgres configuration file,
         commenting settings passed as argument, and adding the barman ones.
 
         If backup_filename is True, it writes on a backup copy.
@@ -1399,7 +1096,7 @@ class BackupManager(object):
         :param filename: the Postgres configuration file
         :param settings: settings to mangle dictionary
         :param backup_filename: default False. If True, work on a copy
-        '''
+        """
         if backup_filename:
             shutil.copy2(filename, backup_filename)
 
@@ -1424,12 +1121,13 @@ class BackupManager(object):
         return mangled
 
     def pg_config_detect_possible_issues(self, filename):
-        '''This method looks for any possible issue with PostgreSQL
+        """
+        This method looks for any possible issue with PostgreSQL
         location options such as data_directory, config_file, etc.
         It returns a dictionary with the dangerous options that have been found.
 
         :param filename: the Postgres configuration file
-        '''
+        """
 
         clashes = {}
 
@@ -1510,26 +1208,14 @@ class BackupManager(object):
                     '(history: %s, backup_labels: %s, wal_file: %s)',
                     self.config.name, history_count, label_count, wal_count)
 
-    def _write_backup_label(self, backup_info):
-        """
-        Write backup_label file inside pgdata folder
-
-        :param backup_info: the backup information structure
-        """
-        label_file = os.path.join(backup_info.get_data_directory(),
-                                  'backup_label')
-        output.debug("Writing backup label: %s" % label_file)
-        with open(label_file, 'w') as f:
-            f.write(backup_info.backup_label)
-
-    def _remove_unused_wal_files(self, backup_info):
+    def remove_wal_before_backup(self, backup_info):
         """
         Remove WAL files which have been archived before the start of
         the provided backup.
 
         If no backup_info is provided delete all available WAL files
 
-        :param backup_info: the backup information structure
+        :param BackupInfo|None backup_info: the backup information structure
         :return list: a list of removed WAL files
         """
         removed = []
@@ -1537,7 +1223,7 @@ class BackupManager(object):
             xlogdb_new = fxlogdb.name + ".new"
             with open(xlogdb_new, 'w') as fxlogdb_new:
                 for line in fxlogdb:
-                    wal_info = WalFileInfo.from_xlogdb_line(self.server, line)
+                    wal_info = WalFileInfo.from_xlogdb_line(line)
                     if backup_info and wal_info.name >= backup_info.begin_wal:
                         fxlogdb_new.write(wal_info.to_xlogdb_line())
                         continue
@@ -1583,3 +1269,53 @@ class BackupManager(object):
         else:
             # If no backup is available return false
             return False, "No available backups"
+
+    def backup_fsync_and_set_sizes(self, backup_info):
+        """
+        Fsync all files in a backup and set the actual size on disk of a backup.
+
+        Also evaluate the deduplication ratio and the deduplicated size if
+        applicable.
+
+        :param barman.infofile.BackupInfo backup_info: the backup to update
+        """
+        # Calculate the base backup size
+        self.executor.current_action = "calculating backup size"
+        _logger.debug(self.executor.current_action)
+        backup_size = 0
+        deduplicated_size = 0
+        backup_dest = backup_info.get_data_directory()
+        for dir_path, _, file_names in os.walk(backup_dest):
+            # execute fsync() on the containing directory
+            fsync_dir(dir_path)
+            # execute fsync() on all the contained files
+            for filename in file_names:
+                file_path = os.path.join(dir_path, filename)
+                file_fd = os.open(file_path, os.O_RDONLY)
+                file_stat = os.fstat(file_fd)
+                backup_size += file_stat.st_size
+                # Excludes hard links from real backup size
+                if file_stat.st_nlink == 1:
+                    deduplicated_size += file_stat.st_size
+                os.fsync(file_fd)
+                os.close(file_fd)
+        # Save size into BackupInfo object
+        backup_info.set_attribute('size', backup_size)
+        backup_info.set_attribute('deduplicated_size', deduplicated_size)
+        if backup_info.size > 0:
+            deduplication_ratio = 1 - (float(
+                backup_info.deduplicated_size) / backup_info.size)
+        else:
+            deduplication_ratio = 0
+
+        if self.config.reuse_backup == 'link':
+            output.info(
+                "Backup size: %s. Actual size on disk: %s"
+                " (-%s deduplication ratio)." % (
+                pretty_size(backup_info.size),
+                pretty_size(backup_info.deduplicated_size),
+                '{percent:.2%}'.format(percent=deduplication_ratio)
+                ))
+        else:
+            output.info("Backup size: %s" %
+                        pretty_size(backup_info.size))

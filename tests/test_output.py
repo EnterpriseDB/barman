@@ -20,7 +20,7 @@ import pytest
 
 from barman import output
 from barman.infofile import BackupInfo
-from barman.testing_helpers import build_test_backup_info, mock_backup_ext_info
+from testing_helpers import build_test_backup_info, mock_backup_ext_info
 from barman.utils import pretty_size
 
 

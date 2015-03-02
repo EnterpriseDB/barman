@@ -17,30 +17,18 @@
 
 from datetime import datetime, timedelta
 import logging
+
 import pytest
+from dateutil.tz import tzlocal
+
 from barman.infofile import BackupInfo
 from barman.retention_policies import RetentionPolicyFactory, \
     RedundancyRetentionPolicy, RecoveryWindowRetentionPolicy
-from mock import Mock
-from dateutil.tz import tzlocal
-from barman.testing_helpers import build_test_backup_info
+from testing_helpers import build_test_backup_info, build_mocked_server
 
 
 class TestRetentionPolicies(object):
 
-    @staticmethod
-    def build_server():
-        """
-        Build a server object
-
-        :rtype: barman.server.Server
-        """
-        # instantiate a retention policy object using mocked parameters
-        server = Mock(name='server')
-        # The basebackup_directory is not used, but if unset BackupInfo will
-        # yield an error
-        server.config.basebackups_directory = "/some/directory"
-        return server
 
     def test_redundancy_report(self, caplog):
         """
@@ -48,7 +36,7 @@ class TestRetentionPolicies(object):
         into the backup_report method of the RedundancyRetentionPolicy class
 
         """
-        server = self.build_server()
+        server = build_mocked_server()
         rp = RetentionPolicyFactory.create(
             server,
             'retention_policy',
@@ -102,7 +90,7 @@ class TestRetentionPolicies(object):
         the report method of the RecoveryWindowRetentionPolicy class must mark
         it as valid
         """
-        server = self.build_server()
+        server = build_mocked_server()
         rp = RetentionPolicyFactory.create(
             server,
             'retention_policy',
@@ -162,7 +150,7 @@ class TestRetentionPolicies(object):
         RedundancyRetentionPolicy and RecoveryWindowRetentionPolicy
         """
 
-        server = self.build_server()
+        server = build_mocked_server()
         rp = RetentionPolicyFactory.create(
             server,
             'retention_policy',
@@ -223,7 +211,7 @@ class TestRetentionPolicies(object):
         assert empty_report == BackupInfo.NONE
 
     def test_first_backup(self):
-        server = self.build_server()
+        server = build_mocked_server()
         rp = RetentionPolicyFactory.create(
             server,
             'retention_policy',

@@ -21,21 +21,15 @@ import time
 from barman.infofile import UnknownBackupIdException
 from barman.version import __version__ as version
 from barman.hooks import HookScriptRunner
+from testing_helpers import build_backup_manager
 
 
 class HooksUnitTest(unittest.TestCase):
-    @staticmethod
-    def build_backup_manager(server_name, script_file):
-        backup_manager = MagicMock(name='backup_manager')
-        backup_manager.server.config.config.config_file = script_file
-        backup_manager.server.config.name = server_name
-        backup_manager.config = backup_manager.server.config
-        return backup_manager
 
     @patch('barman.hooks.Command')
     def test_general(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
         backup_manager.config.pre_test_hook = 'not_existent_script'
 
         # Command mock executed by HookScriptRunner
@@ -47,7 +41,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
             'BARMAN_SERVER': 'test_server',
-            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
         }
         assert script.run() == 0
@@ -57,7 +51,7 @@ class HooksUnitTest(unittest.TestCase):
     @patch('barman.hooks.Command')
     def test_general_error(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
         backup_manager.config.pre_test_hook = 'not_existent_script'
 
         # Command mock executed by HookScriptRunner
@@ -70,7 +64,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
             'BARMAN_SERVER': 'test_server',
-            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
             'BARMAN_ERROR': 'Generic Failure',
         }
@@ -81,7 +75,7 @@ class HooksUnitTest(unittest.TestCase):
     @patch('barman.hooks.Command')
     def test_general_no_phase(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
         backup_manager.config.test_hook = 'not_existent_script'
 
         # Command mock executed by HookScriptRunner
@@ -92,7 +86,7 @@ class HooksUnitTest(unittest.TestCase):
         expected_env = {
             'BARMAN_VERSION': version,
             'BARMAN_SERVER': 'test_server',
-            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
         }
         assert script.run() == 0
@@ -102,10 +96,12 @@ class HooksUnitTest(unittest.TestCase):
     @patch('barman.hooks.Command')
     def test_missing_config(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
 
-        # if configuration line is missing then the script is disabled
-        del backup_manager.config.pre_test_hook
+        # Make sure 'pre_test_hook' doesn't exists in configuration
+        # (it should not happen)
+        if hasattr(backup_manager.config, 'pre_test_hook'):
+            del backup_manager.config.pre_test_hook
 
         # Command mock executed by HookScriptRunner
         command_mock.side_effect = Exception('Test error')
@@ -120,7 +116,7 @@ class HooksUnitTest(unittest.TestCase):
     @patch('barman.hooks.Command')
     def test_no_exception(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
         backup_manager.config.pre_test_hook = 'not_existent_script'
 
         # Command mock executed by HookScriptRunner
@@ -137,8 +133,9 @@ class HooksUnitTest(unittest.TestCase):
     @patch('barman.hooks.Command')
     def test_backup_info(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
         backup_manager.config.pre_test_hook = 'not_existent_script'
+        backup_manager.get_previous_backup = MagicMock()
         backup_manager.get_previous_backup.return_value.backup_id = '987654321'
 
         # BackupInfo mock
@@ -155,7 +152,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
             'BARMAN_SERVER': 'test_server',
-            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
             'BARMAN_BACKUP_DIR': 'backup_directory',
             'BARMAN_BACKUP_ID': '123456789XYZ',
@@ -170,8 +167,9 @@ class HooksUnitTest(unittest.TestCase):
     @patch('barman.hooks.Command')
     def test_backup_info_corner_cases(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
         backup_manager.config.post_test_hook = 'not_existent_script'
+        backup_manager.get_previous_backup = MagicMock()
         backup_manager.get_previous_backup.return_value = None
 
         # BackupInfo mock
@@ -188,7 +186,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_PHASE': 'post',
             'BARMAN_VERSION': version,
             'BARMAN_SERVER': 'test_server',
-            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
             'BARMAN_BACKUP_DIR': 'backup_directory',
             'BARMAN_BACKUP_ID': '123456789XYZ',
@@ -203,8 +201,9 @@ class HooksUnitTest(unittest.TestCase):
     @patch('barman.hooks.Command')
     def test_backup_info_exception(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
         backup_manager.config.pre_test_hook = 'not_existent_script'
+        backup_manager.get_previous_backup = MagicMock()
         backup_manager.get_previous_backup.side_effect = \
             UnknownBackupIdException()
 
@@ -222,7 +221,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
             'BARMAN_SERVER': 'test_server',
-            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
             'BARMAN_BACKUP_DIR': 'backup_directory',
             'BARMAN_BACKUP_ID': '123456789XYZ',
@@ -237,7 +236,7 @@ class HooksUnitTest(unittest.TestCase):
     @patch('barman.hooks.Command')
     def test_wal_info(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
         backup_manager.config.pre_test_hook = 'not_existent_script'
 
         # WalFileInfo mock
@@ -255,7 +254,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
             'BARMAN_SERVER': 'test_server',
-            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
             'BARMAN_SEGMENT': 'XXYYZZAABBCC',
             'BARMAN_FILE': '/incoming/directory',
@@ -270,7 +269,7 @@ class HooksUnitTest(unittest.TestCase):
     @patch('barman.hooks.Command')
     def test_wal_info_corner_cases(self, command_mock):
         # BackupManager mock
-        backup_manager = self.build_backup_manager('test_server', 'test_file')
+        backup_manager = build_backup_manager(name='test_server')
         backup_manager.config.pre_test_hook = 'not_existent_script'
 
         # WalFileInfo mock
@@ -289,7 +288,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
             'BARMAN_SERVER': 'test_server',
-            'BARMAN_CONFIGURATION': 'test_file',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
             'BARMAN_SEGMENT': 'XXYYZZAABBCC',
             'BARMAN_FILE': '/incoming/directory',

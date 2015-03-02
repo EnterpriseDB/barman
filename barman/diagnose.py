@@ -62,8 +62,9 @@ def exec_diagnose(servers):
         diagnosis['servers'][name]['config'] = vars(server.config)
         del diagnosis['servers'][name]['config']['config']
         # server system info
-        command = fs.UnixRemoteCommand(ssh_command=server.config.ssh_command)
-        diagnosis['servers'][name]['system_info'] = command.get_system_info()
+        if server.config.ssh_command:
+            command = fs.UnixRemoteCommand(ssh_command=server.config.ssh_command)
+            diagnosis['servers'][name]['system_info'] = command.get_system_info()
         # barman statuts information for the server
         diagnosis['servers'][name]['status'] = server.get_remote_status()
         # backup list

@@ -20,35 +20,26 @@ This module represents a Server.
 Barman is able to manage multiple servers.
 """
 
-import os
-import re
-import logging
 from contextlib import contextmanager
+import logging
+import os
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 from barman import output
+from barman.backup import BackupManager
 from barman.config import BackupOptions
 from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace, \
     WalFileInfo
-from barman.lockfile import LockFile, LockFileBusy, \
-    LockFilePermissionDenied, ServerBackupLock, ServerCronLock, \
-    ServerXLOGDBLock
-from barman.backup import BackupManager
-from barman.command_wrappers import Command
+from barman.lockfile import LockFileBusy, LockFilePermissionDenied, \
+    ServerBackupLock, ServerCronLock, ServerXLOGDBLock
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta
-import xlog
+import barman.xlog as xlog
 
 
 _logger = logging.getLogger(__name__)
-
-
-class SshCommandException(Exception):
-    """
-    Error parsing ssh_command parameter
-    """
 
 
 class ConninfoException(Exception):
@@ -70,23 +61,15 @@ class Server(object):
     XLOG_DB = "xlog.db"
 
     def __init__(self, config):
-        """ The Constructor.
+        """
+        Server constructor.
 
-        :param config: the server configuration
+        :param barman.config.Server config: the server configuration
         """
         self.config = config
-        self.conn = None
+        self._conn = None
         self.server_txt_version = None
         self.server_version = None
-        try:
-            self.ssh_options = config.ssh_command.split()
-        except AttributeError:
-            raise SshCommandException(
-                'Missing or invalid ssh_command in barman configuration '
-                'for server %s' % config.name)
-        self.ssh_command = self.ssh_options.pop(0)
-        self.ssh_options.extend("-o BatchMode=yes "
-                                "-o StrictHostKeyChecking=no".split())
         if self.config.conninfo is None:
             raise ConninfoException(
                 'Missing conninfo parameter in barman configuration '
@@ -100,8 +83,10 @@ class Server(object):
             try:
                 self.config.bandwidth_limit = int(self.config.bandwidth_limit)
             except ValueError:
-                _logger.warning('Invalid bandwidth_limit "%s" for server "%s" (fallback to "0")'
-                                % (self.config.bandwidth_limit, self.config.name))
+                _logger.warning('Invalid bandwidth_limit "%s" for server "%s" '
+                                '(fallback to "0")' % (
+                                    self.config.bandwidth_limit,
+                                    self.config.name))
                 self.config.bandwidth_limit = None
 
         # set tablespace_bandwidth_limit
@@ -114,7 +99,8 @@ class Server(object):
                     if value != self.config.bandwidth_limit:
                         rules[key] = value
                 except ValueError:
-                    _logger.warning("Invalid tablespace_bandwidth_limit rule '%s'" % (rule,))
+                    _logger.warning(
+                        "Invalid tablespace_bandwidth_limit rule '%s'" % rule)
             if len(rules) > 0:
                 self.config.tablespace_bandwidth_limit = rules
             else:
@@ -124,12 +110,16 @@ class Server(object):
         if self.config.minimum_redundancy.isdigit():
             self.config.minimum_redundancy = int(self.config.minimum_redundancy)
             if self.config.minimum_redundancy < 0:
-                _logger.warning('Negative value of minimum_redundancy "%s" for server "%s" (fallback to "0")'
-                            % (self.config.minimum_redundancy, self.config.name))
+                _logger.warning('Negative value of minimum_redundancy "%s" '
+                                'for server "%s" (fallback to "0")' % (
+                                    self.config.minimum_redundancy,
+                                    self.config.name))
                 self.config.minimum_redundancy = 0
         else:
-            _logger.warning('Invalid minimum_redundancy "%s" for server "%s" (fallback to "0")'
-                            % (self.config.minimum_redundancy, self.config.name))
+            _logger.warning('Invalid minimum_redundancy "%s" for server "%s" '
+                            '(fallback to "0")' % (
+                                self.config.minimum_redundancy,
+                                self.config.name))
             self.config.minimum_redundancy = 0
 
         # Initialise retention policies
@@ -193,7 +183,6 @@ class Server(object):
         connections work properly. It checks also that backup directories exist
         (and if not, it creates them).
         """
-        self.check_ssh()
         self.check_postgres()
         self.check_directories()
         # Check retention policies
@@ -203,25 +192,13 @@ class Server(object):
         # Executes the backup manager set of checks
         self.backup_manager.check()
 
-    def check_ssh(self):
-        """
-        Checks SSH connection
-        """
-        cmd = Command(self.ssh_command, self.ssh_options)
-        ret = cmd("true")
-        if ret == 0:
-            output.result('check', self.config.name, 'ssh', True)
-        else:
-            output.result('check', self.config.name, 'ssh', False,
-                          'return code: %s' % ret)
-
     def check_postgres(self):
         """
         Checks PostgreSQL connection
         """
         try:
             remote_status = self.get_remote_status()
-        except PostgresConnectionError as e:
+        except PostgresConnectionError:
             remote_status = None
         if remote_status is not None and remote_status['server_txt_version']:
             output.result('check', self.config.name, 'PostgreSQL', True)
@@ -347,11 +324,11 @@ class Server(object):
         output.result('status', self.config.name,
                       "archive_command",
                       "PostgreSQL 'archive_command' setting",
-                      remote_status['archive_command']
-                      or "FAILED (please set it accordingly to documentation)")
-        last_wal = str(remote_status['last_archived_wal'])
+                      remote_status['archive_command'] or
+                      "FAILED (please set it accordingly to documentation)")
+        last_wal = remote_status.get('last_archived_wal')
         # If PostgreSQL is >= 9.4 we have the last_archived_time
-        if remote_status.get('last_archived_time'):
+        if last_wal and remote_status.get('last_archived_time'):
                 last_wal += ", at %s" % (
                     remote_status['last_archived_time'].ctime())
         output.result('status', self.config.name,
@@ -493,7 +470,7 @@ class Server(object):
         """
         Get the status of the remote server
 
-        :return: result of the server status query
+        :return dict[str, None]: result of the server status query
         """
 
         pg_settings = (
@@ -535,23 +512,11 @@ class Server(object):
                 if pg_stat_archiver is not None:
                     result.update(pg_stat_archiver)
 
+                # Merge additional status defined by the BackupManager
+                result.update(self.backup_manager.get_remote_status())
+
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.warn("Error retrieving PostgreSQL status: %s", e)
-        # If last_archived_wal is not available from pg_stat_archiver
-        # retrieve it listing the $PGDATa/pg_xlog/archive_status directory
-        if result.get('last_archived_wal') is None \
-                and result['data_directory'] \
-                and result['archive_command']:
-            # TODO: replace with RemoteUnixCommand
-            cmd = Command(self.ssh_command, self.ssh_options)
-            archive_dir = os.path.join(result['data_directory'],
-                                       'pg_xlog', 'archive_status')
-            out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
-            for line in out.splitlines():
-                if line.endswith('.done'):
-                    name = line[:-5]
-                    if xlog.is_any_xlog_file(name):
-                        result['last_archived_wal'] = line[:-5]
         return result
 
     def show(self):
@@ -588,7 +553,6 @@ class Server(object):
             result['last_backup_maximum_age'] = msg
         else:
             result['last_backup_maximum_age'] = "None"
-
         output.result('show_server', self.config.name, result)
 
     @contextmanager
@@ -596,27 +560,27 @@ class Server(object):
         """
         A generic function to connect to Postgres using Psycopg2
         """
-        myconn = self.conn is None
+        myconn = self._conn is None
         if myconn:
             try:
-                self.conn = psycopg2.connect(self.config.conninfo)
-                self.server_version = self.conn.server_version
-                if (self.server_version >= 90000
-                        and 'application_name=' not in self.config.conninfo):
-                    cur = self.conn.cursor()
+                self._conn = psycopg2.connect(self.config.conninfo)
+                self.server_version = self._conn.server_version
+                if (self.server_version >= 90000 and
+                        'application_name=' not in self.config.conninfo):
+                    cur = self._conn.cursor()
                     cur.execute('SET application_name TO barman')
                     cur.close()
             # If psycopg2 fails to connect to the host,
             # raise the appropriate exception
             except psycopg2.DatabaseError as e:
-                raise PostgresConnectionError("Cannot connect to postgres: %s"
-                                              % e)
+                raise PostgresConnectionError(
+                    "Cannot connect to postgres: %s" % e)
         try:
-            yield self.conn
+            yield self._conn
         finally:
             if myconn:
-                self.conn.close()
-                self.conn = None
+                self._conn.close()
+                self._conn = None
 
     def get_pg_setting(self, name):
         """
@@ -679,162 +643,6 @@ class Server(object):
             _logger.debug("Error retrieving PostgreSQL configuration files "
                           "location: %s", e)
             return {}
-
-    def pg_start_backup(self, backup_label):
-        """
-        Execute a pg_start_backup
-
-        :param str backup_label: label for the backup
-        """
-        with self.pg_connect() as conn:
-            if (BackupOptions.CONCURRENT_BACKUP not in
-                    self.config.backup_options and self.pg_is_in_recovery()):
-                raise Exception(
-                    'Unable to start a backup because of server recovery state')
-            try:
-                cur = conn.cursor()
-                if self.server_version < 80400:
-                    cur.execute(
-                        'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
-                        'now() FROM pg_start_backup(%s) as xlog_loc',
-                        (backup_label,))
-                else:
-                    cur.execute(
-                        'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
-                        'now() FROM pg_start_backup(%s,%s) as xlog_loc',
-                        (backup_label, self.config.immediate_checkpoint))
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                msg = "pg_start_backup(): %s" % e
-                _logger.debug(msg)
-                raise Exception(msg)
-
-    def pgespresso_start_backup(self, backup_label):
-        """
-        Execute a pgespresso_start_backup
-
-        :param str backup_label: label for the backup
-        """
-        with self.pg_connect() as conn:
-
-            if (BackupOptions.CONCURRENT_BACKUP in self.config.backup_options
-                and not self.pg_espresso_installed()):
-                raise Exception(
-                    'pgespresso extension required for concurrent_backup')
-            try:
-                cur = conn.cursor()
-                cur.execute('SELECT pgespresso_start_backup(%s,%s), now()',
-                            (backup_label, self.config.immediate_checkpoint))
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                msg = "pgexpresso_start_backup(): %s" % e
-                _logger.debug(msg)
-                raise Exception(msg)
-
-    def start_backup(self, label, backup_info):
-        """
-        start backup wrapper
-
-        :param str label: label for the backup
-        :param BackupInfo backup_info: backup information object
-        :return:
-        """
-        if BackupOptions.CONCURRENT_BACKUP not in self.config.backup_options:
-            start_row = self.pg_start_backup(label)
-            start_xlog, start_file_name, start_file_offset, start_time = \
-                start_row
-            backup_info.set_attribute("status", "STARTED")
-            backup_info.set_attribute("timeline",
-                                      int(start_file_name[0:8], 16))
-            backup_info.set_attribute("begin_xlog", start_xlog)
-            backup_info.set_attribute("begin_wal", start_file_name)
-            backup_info.set_attribute("begin_offset", start_file_offset)
-            backup_info.set_attribute("begin_time", start_time)
-
-        else:
-            start_row = self.pgespresso_start_backup(label)
-            backup_data, start_time = start_row
-            wal_re = re.compile(
-                '^START WAL LOCATION: (.*) \(file (.*)\)',
-                re.MULTILINE)
-            wal_info = wal_re.search(backup_data)
-            backup_info.set_attribute("status", "STARTED")
-            backup_info.set_attribute("timeline",
-                                      int(wal_info.group(2)[0:8], 16))
-            backup_info.set_attribute("begin_xlog", wal_info.group(1))
-            backup_info.set_attribute("begin_wal", wal_info.group(2))
-            backup_info.set_attribute("begin_offset",
-                                      xlog.get_offset_from_location(
-                                          wal_info.group(1)))
-            backup_info.set_attribute("backup_label", backup_data)
-            backup_info.set_attribute("begin_time", start_time)
-
-    def pg_stop_backup(self):
-        """
-        Execute a pg_stop_backup
-        """
-        with self.pg_connect() as conn:
-            try:
-                cur = conn.cursor()
-                cur.execute(
-                    'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
-                    'now() FROM pg_stop_backup() as xlog_loc')
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                _logger.debug("Error issuing pg_stop_backup() command: %s", e)
-                return None
-
-    def pgespresso_stop_backup(self, backup_label):
-        """
-        Execute a pgespresso_stop_backup
-        """
-        with self.pg_connect() as conn:
-            try:
-                cur = conn.cursor()
-                cur.execute('SELECT pgespresso_stop_backup(%s), now()',
-                            (backup_label,))
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                _logger.debug(
-                    "Error issuing pgespresso_stop_backup() command: %s", e)
-                return None
-
-    def stop_backup(self, backup_info):
-        """
-        stop backup wrapper
-
-        :param backup_info: backup_info object
-        :return:
-        """
-        if BackupOptions.CONCURRENT_BACKUP not in self.config.backup_options:
-            stop_row = self.pg_stop_backup()
-            if stop_row:
-                stop_xlog, stop_file_name, stop_file_offset, stop_time = \
-                    stop_row
-                backup_info.set_attribute("end_time", stop_time)
-                backup_info.set_attribute("end_xlog", stop_xlog)
-                backup_info.set_attribute("end_wal", stop_file_name)
-                backup_info.set_attribute("end_offset", stop_file_offset)
-            else:
-                raise Exception('Cannot terminate exclusive backup. You might '
-                        'have to manually execute pg_stop_backup() on your '
-                        'Postgres server')
-        else:
-            stop_row = self.pgespresso_stop_backup(backup_info.backup_label)
-            if stop_row:
-                end_wal, stop_time = stop_row
-                decoded_segment = xlog.decode_segment_name(end_wal)
-                backup_info.set_attribute("end_time", stop_time)
-                backup_info.set_attribute("end_xlog",
-                                          "%X/%X" % (decoded_segment[1],
-                                                     (decoded_segment[
-                                                          2] + 1) << 24))
-                backup_info.set_attribute("end_wal", end_wal)
-                backup_info.set_attribute("end_offset", 0)
-            else:
-                raise Exception('Cannot terminate exclusive backup. You might '
-                        'have to manually execute pg_espresso_abort_backup() '
-                        'on your Postgres server')
 
     def delete_backup(self, backup):
         '''Deletes a backup
@@ -1110,9 +918,28 @@ class Server(object):
 
         return wal_info
 
-    def recover(self, backup, dest, tablespaces=[], target_tli=None, target_time=None, target_xid=None, target_name=None, exclusive=False, remote_command=None):
-        '''Performs a recovery of a backup'''
-        return self.backup_manager.recover(backup, dest, tablespaces, target_tli, target_time, target_xid, target_name, exclusive, remote_command)
+    def recover(self, backup_info, dest, tablespaces=None, target_tli=None,
+                target_time=None, target_xid=None, target_name=None,
+                exclusive=False, remote_command=None):
+        """
+        Performs a recovery of a backup
+
+        :param barman.infofile.BackupInfo backup_info: the backup to recover
+        :param str dest: the destination directory
+        :param dict[str,str]|None tablespaces: a tablespace name -> location map
+            (for relocation)
+        :param str|None target_tli: the target timeline
+        :param str|None target_time: the target time
+        :param str|None target_xid: the target xid
+        :param str|None target_name: the target name created previously with
+                            pg_create_restore_point() function call
+        :param bool exclusive: whether the recovery is exclusive or not
+        :param str|None remote_command: default None. The remote command to recover
+                               the base backup, in case of remote backup.
+        """
+        return self.backup_manager.recover(
+            backup_info, dest, tablespaces, target_tli, target_time, target_xid,
+            target_name, exclusive, remote_command)
 
     def cron(self, verbose=True, wals=True, retention_policies=True):
         """

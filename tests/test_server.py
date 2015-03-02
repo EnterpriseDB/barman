@@ -15,16 +15,17 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import datetime
 from collections import defaultdict
-from barman.testing_helpers import build_test_backup_info
+import datetime
+import os
 
-from mock import patch, Mock, MagicMock
+from mock import patch, MagicMock
 import pytest
-from barman.infofile import WalFileInfo
 
+from barman.infofile import WalFileInfo
 from barman.server import Server, PostgresConnectionError
+from testing_helpers import build_test_backup_info, build_config_from_dicts, \
+    build_real_server
 
 
 class ExceptionTest(Exception):
@@ -34,31 +35,14 @@ class ExceptionTest(Exception):
     pass
 
 
+# noinspection PyMethodMayBeStatic
 class TestServer(object):
-    @staticmethod
-    def build_config(tmpdir=None):
-        """
-        Build a server instance
-        """
-        # Instantiate a Server object using mocked configuration file
-        config = Mock(name='config')
-        config.name = 'test'
-        config.bandwidth_limit = None
-        config.tablespace_bandwidth_limit = None
-        config.minimum_redundancy = '0'
-        config.retention_policy = None
-        if tmpdir:
-            config.wals_directory = tmpdir.ensure('wals', dir=True).strpath
-            config.data_directory = tmpdir.ensure('data_directory',
-                                                  dir=True).strpath
-            config.barman_lock_directory = tmpdir.strpath
-        return config
 
     def test_init(self):
         """
         Basic initialization test with minimal parameters
         """
-        Server(self.build_config())
+        Server(build_config_from_dicts().get_server('main'))
 
     @patch('barman.server.os')
     def test_xlogdb_with_exception(self, os_mock, tmpdir):
@@ -71,8 +55,13 @@ class TestServer(object):
         # unpatch os.path
         os_mock.path = os.path
         # Setup temp dir and server
-        server = Server(self.build_config(tmpdir))
-
+        server = build_real_server(
+            global_conf={
+                "barman_lock_directory": tmpdir.mkdir('lock').strpath
+            },
+            main_conf={
+                "wals_directory": tmpdir.mkdir('wals').strpath
+            })
         # Test the execution of the fsync on xlogdb file forcing an exception
         with pytest.raises(ExceptionTest):
             with server.xlogdb('w') as fxlogdb:
@@ -95,7 +84,13 @@ class TestServer(object):
         # unpatch os.path
         os_mock.path = os.path
         # Setup temp dir and server
-        server = Server(self.build_config(tmpdir))
+        server = build_real_server(
+            global_conf={
+                "barman_lock_directory": tmpdir.mkdir('lock').strpath
+            },
+            main_conf={
+                "wals_directory": tmpdir.mkdir('wals').strpath
+            })
         # Test the execution of the fsync on xlogdb file
         with server.xlogdb('w') as fxlogdb:
             fxlogdb.write("00000000000000000000")
@@ -122,7 +117,13 @@ class TestServer(object):
         """
         wal_name = '0000000B00000A36000000FF'
         wal_hash = wal_name[:16]
-        server = Server(self.build_config(tmpdir))
+        server = build_real_server(
+            global_conf={
+                "barman_lock_directory": tmpdir.mkdir('lock').strpath
+            },
+            main_conf={
+                "wals_directory": tmpdir.mkdir('wals').strpath
+            })
         full_path = server.get_wal_full_path(wal_name)
         assert full_path == \
             str(tmpdir.join('wals').join(wal_hash).join(wal_name))
@@ -147,7 +148,8 @@ class TestServer(object):
         history_info.compression = None
 
         # create a xlog.db and add the 2 entries
-        xlog = tmpdir.mkdir("wals").join("xlog.db")
+        wals_dir = tmpdir.mkdir("wals")
+        xlog = wals_dir.join("xlog.db")
         xlog.write(wfile_info.to_xlogdb_line() + history_info.to_xlogdb_line())
         # facke backup
         backup = build_test_backup_info(
@@ -155,7 +157,13 @@ class TestServer(object):
             end_wal='000000010000000000000004')
 
         # mock a server object and mock a return call to get_next_backup method
-        server = Server(self.build_config(tmpdir))
+        server = build_real_server(
+            global_conf={
+                "barman_lock_directory": tmpdir.mkdir('lock').strpath
+            },
+            main_conf={
+                "wals_directory": wals_dir.strpath
+            })
         get_backup_mock.return_value = build_test_backup_info(
             backup_id="1234567899",
             begin_wal='000000010000000000000005',
@@ -170,8 +178,7 @@ class TestServer(object):
         assert history_info.name in wals
 
     @patch('barman.server.Server.get_remote_status')
-    def test_pg_stat_archiver_output(self, remote_mock,
-                                     tmpdir, capsys):
+    def test_pg_stat_archiver_output(self, remote_mock, capsys):
         """
         Test management of pg_stat_archiver view output
 
@@ -189,11 +196,14 @@ class TestServer(object):
         }
         remote_mock.return_value = dict(stats)
 
-        server = Server(self.build_config(tmpdir))
+        server = build_real_server()
+        server.server_version = 90400
         server.config.description = None
         server.config.KEYS = []
-        server.server_version = 90400
         server.config.last_backup_maximum_age = datetime.timedelta(days=1)
+        # Mock the BackupExecutor.get_remote_status() method
+        server.backup_manager.executor.get_remote_status = MagicMock(
+            return_value={})
 
         # testing for show-server command.
         # Expecting in the output the same values present into the stats dict
@@ -235,12 +245,12 @@ class TestServer(object):
             stats['last_failed_time'].ctime()
         )
 
-    def test_pg_connect_error(self, tmpdir):
+    def test_pg_connect_error(self):
         """
         Check pg_connect method beaviour on error
         """
         # Setup temp dir and server
-        server = Server(self.build_config(tmpdir))
+        server = build_real_server()
         # Set an invalid conninfo parameter.
         server.config.conninfo = "not valid conninfo"
         # expect pg_connect to raise a PostgresConnectionError

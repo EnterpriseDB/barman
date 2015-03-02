@@ -50,6 +50,28 @@ class RsyncListFilesFailure(Exception):
     pass
 
 
+class DataTransferFailure(Exception):
+    """
+    Used to pass rsync failure details
+    """
+
+    @classmethod
+    def from_rsync_error(cls, e, msg):
+        """
+        This method build a DataTransferFailure exception and report the
+        provided message to the user (both console and log file) along with
+        the output of the failed rsync command.
+
+        :param CommandFailedException e: The exception we are handling
+        :param str msg: a descriptive message on what we are trying to do
+        :return DataTransferFailure: will contain the message provided in msg
+        """
+        details = msg
+        details += "\nrsync error:\n"
+        details += e.args[0]['out']
+        details += e.args[0]['err']
+        return cls(details)
+
 class Command(object):
     """
     Simple wrapper for a shell command

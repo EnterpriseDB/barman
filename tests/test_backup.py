@@ -24,25 +24,22 @@ import dateutil.parser
 import dateutil.tz
 from mock import patch, Mock, call
 
-from barman.backup import BackupManager, DataTransferFailure
-from barman.testing_helpers import build_test_backup_info
+from barman.command_wrappers import DataTransferFailure
+from testing_helpers import build_test_backup_info, build_backup_manager
 import barman.utils
 
 
 class TestBackup(object):
-    @staticmethod
-    def build_backup_manager(server=None):
-        # instantiate a BackupManager object using mocked parameters
-        if server is None:
-            server = Mock(name='server')
-            server.config = Mock(name='config')
-        with patch("barman.backup.CompressionManager"):
-            return BackupManager(server=server)
 
     @patch('time.sleep')
     def test_retry(self, sleep_moc):
+        """
+        Test the retry method
+
+        :param sleep_moc: mimic the sleep timer
+        """
         # BackupManager setup
-        backup_manager = self.build_backup_manager()
+        backup_manager = build_backup_manager()
         backup_manager.config.basebackup_retry_times = 5
         backup_manager.config.basebackup_retry_sleep = 10
         f = Mock()
@@ -74,7 +71,7 @@ class TestBackup(object):
     def test_backup_maximum_age(self, backup_id_mock, infofile_mock,
                                 datetime_mock):
         # BackupManager setup
-        backup_manager = self.build_backup_manager()
+        backup_manager = build_backup_manager()
         # setting basic configuration for this test
         backup_manager.config.last_backup_maximum_age = timedelta(days=7)
         # force the tests to use the same values for the now() method,
@@ -116,9 +113,8 @@ class TestBackup(object):
             backup_manager.config.last_backup_maximum_age)
         assert (r[0], r[1]) == (True, msg)
 
-    @patch('barman.backup.BackupManager.backup_start')
     @patch('barman.backup.BackupInfo')
-    def test_keyboard_interrupt(self, mock_infofile, mock_start):
+    def test_keyboard_interrupt(self, mock_infofile ):
         """
         Unit test for a quick check on exception catching
         during backup operations
@@ -131,16 +127,18 @@ class TestBackup(object):
         backup status in BackupInfo should be FAILED.
         """
         # BackupManager setup
-        backup_manager = self.build_backup_manager()
+        backup_manager = build_backup_manager()
         instance = mock_infofile.return_value
         # Instruct the patched method to raise a general exception
-        mock_start.side_effect = Exception('abc')
+        backup_manager.executor.start_backup = Mock(
+            side_effect=Exception('abc'))
         # invoke backup method
         backup_manager.backup()
         # verify that mock status is FAILED
         assert call.set_attribute('status', 'FAILED') in instance.mock_calls
         # Instruct the patched method to raise a KeyboardInterrupt
-        mock_start.side_effect = KeyboardInterrupt()
+        backup_manager.executor.start_backup = Mock(
+            side_effect=KeyboardInterrupt())
         # invoke backup method
         backup_manager.backup()
         # verify that mock status is FAILED
@@ -161,7 +159,7 @@ class TestBackup(object):
         # BackupInfo setup
         backup_info = build_test_backup_info(tablespaces=None)
         # BackupManager setup
-        backup_manager = self.build_backup_manager(backup_info.server)
+        backup_manager = build_backup_manager(backup_info.server)
 
         # test 1
         # use dateutil to parse a date in our desired format
@@ -196,7 +194,7 @@ class TestBackup(object):
         We want to test the behaviour of the delete_backup method
         """
         # Setup of the test backup_manager
-        backup_manager = self.build_backup_manager()
+        backup_manager = build_backup_manager()
         backup_manager.server.config.name = 'TestServer'
         backup_manager.server.config.basebackups_directory = tmpdir.strpath
         backup_manager.server.config.backup_options = []
