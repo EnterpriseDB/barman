@@ -33,7 +33,8 @@ from barman.config import BackupOptions
 from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace, \
     WalFileInfo
 from barman.lockfile import LockFile, LockFileBusy, \
-    LockFilePermissionDenied
+    LockFilePermissionDenied, ServerBackupLock, ServerCronLock, \
+    ServerXLOGDBLock
 from barman.backup import BackupManager
 from barman.command_wrappers import Command
 from barman.retention_policies import RetentionPolicyFactory
@@ -854,12 +855,9 @@ class Server(object):
                          e.filename, e.strerror)
             return
 
-        filename = os.path.join(
-            self.config.barman_home, '.%s-backup.lock' % self.config.name)
-
         try:
             # lock acquisition and backup execution
-            with LockFile(filename, raise_if_fail=True):
+            with ServerBackupLock(self.config.barman_lock_directory, self.config.name):
                 self.backup_manager.backup()
             # Archive incoming WALs and update WAL catalogue through cron
             self.cron(verbose=False, retention_policies=False)
@@ -1117,10 +1115,8 @@ class Server(object):
         :param bool wals: WAL archive maintenance
         :param bool retention_policies: retention policy maintenance
         """
-        filename = os.path.join(self.config.barman_home,
-                                '.%s-cron.lock' % self.config.name)
         try:
-            with LockFile(filename, raise_if_fail=True, wait=True):
+            with ServerCronLock(self.config.barman_lock_directory, self.config.name):
                 # Standard maintenance (WAL archive)
                 if wals:
                     self.backup_manager.cron(verbose=verbose)
@@ -1152,8 +1148,7 @@ class Server(object):
             os.makedirs(self.config.wals_directory)
         xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
 
-        xlogdb_lock = xlogdb + ".lock"
-        with LockFile(xlogdb_lock, raise_if_fail=True, wait=True):
+        with ServerXLOGDBLock(self.config.barman_lock_directory, self.config.name):
             # If the file doesn't exist and it is required to read it,
             # we open it in a+ mode, to be sure it will be created
             if not os.path.exists(xlogdb) and mode.startswith('r'):

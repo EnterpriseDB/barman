@@ -21,7 +21,8 @@ import fcntl
 from mock import patch, ANY
 import pytest
 
-from barman.lockfile import LockFile, LockFileBusy, LockFilePermissionDenied
+from barman.lockfile import LockFile, LockFileBusy, LockFilePermissionDenied, \
+    GlobalCronLock, ServerBackupLock, ServerCronLock, ServerXLOGDBLock
 
 
 def _prepare_fnctl_mock(fcntl_mock, exception=None):
@@ -89,6 +90,17 @@ class TestLockFileBehavior(object):
         fcntl_mock.flock.assert_called_once_with(
             ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB)
 
+        # set flock to raise an unexpected OSError exception (errno = EINVAL)
+        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EINVAL, '', ''))
+        # Expect the acquire method to pass teh raised exception.
+        # This is the expected behaviour if the raise_if_fail flag is set to
+        # True and an unexpected exception is raised
+        with pytest.raises(OSError):
+            lock_file.acquire(raise_if_fail=True)
+        # Check for the call at flock method
+        fcntl_mock.flock.assert_called_once_with(
+            ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB)
+
         # it should not raise if not raise_if_fail, but return False
         _prepare_fnctl_mock(fcntl_mock, OSError(errno.EWOULDBLOCK, '', ''))
         assert not lock_file.acquire(raise_if_fail=False)
@@ -149,8 +161,11 @@ class TestLockFileBehavior(object):
 
     def test_release(self, fcntl_mock, tmpdir):
         """
-        Try to release an already released LockFile object
+        Tests for release method
         """
+
+        # Test 1: normal release
+
         # Use a lock file inside the testing tempdir
         lock_file_path = tmpdir.join("test_lock_file1")
         # set flock to not raise
@@ -167,12 +182,31 @@ class TestLockFileBehavior(object):
         # Check that the fcntl.flock() have been called using the flag LOCK_UN
         fcntl_mock.flock.assert_called_once_with(ANY, fcntl.LOCK_UN)
 
+        # Test 2: release an already released lock
+
         # set flock to not raise
         _prepare_fnctl_mock(fcntl_mock)
         # Try to release the lock again
         lock_file.release()
         # The release method should not have called fcntl.flock()
         assert not fcntl_mock.flock.called
+
+        # Test 3: exceptions during release
+
+        # set flock to not raise
+        _prepare_fnctl_mock(fcntl_mock)
+        lock_file = LockFile(lock_file_path.strpath,
+                             raise_if_fail=False,
+                             wait=False)
+        assert lock_file.acquire()
+
+        # set flock to raise an OSError (no matter what)
+        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EBADF, '', ''))
+        # Release the lock (should not raise any error)
+        lock_file.release()
+        # Check that the fcntl.flock() have been called using the flag LOCK_UN
+        fcntl_mock.flock.assert_called_once_with(ANY, fcntl.LOCK_UN)
+
 
 
 # noinspection PyMethodMayBeStatic
@@ -261,3 +295,43 @@ class TestLockFile(object):
         # The second LockFile is now able to acquire the lock
         assert second_lock_file.acquire()
         second_lock_file.release()
+
+
+# noinspection PyMethodMayBeStatic
+class TestLockFileSubclasses(object):
+
+    def test_global_cron_lock(self, tmpdir):
+        """
+        Tests for GlobalCronLock class
+        """
+        lock = GlobalCronLock(tmpdir.strpath)
+        assert lock.filename == tmpdir.join('.cron.lock')
+        assert lock.raise_if_fail
+        assert not lock.wait
+
+    def test_server_backup_lock(self, tmpdir):
+        """
+        Tests for ServerBackupLock class
+        """
+        lock = ServerBackupLock(tmpdir.strpath, 'server_name')
+        assert lock.filename == tmpdir.join('.server_name-backup.lock')
+        assert lock.raise_if_fail
+        assert not lock.wait
+
+    def test_server_cron_lock(self, tmpdir):
+        """
+        Tests for ServerCronLock class
+        """
+        lock = ServerCronLock(tmpdir.strpath, 'server_name')
+        assert lock.filename == tmpdir.join('.server_name-cron.lock')
+        assert lock.raise_if_fail
+        assert lock.wait
+
+    def test_server_xlogdb_lock(self, tmpdir):
+        """
+        Tests for ServerCronLock class
+        """
+        lock = ServerXLOGDBLock(tmpdir.strpath, 'server_name')
+        assert lock.filename == tmpdir.join('.server_name-xlogdb.lock')
+        assert lock.raise_if_fail
+        assert lock.wait

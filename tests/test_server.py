@@ -42,13 +42,16 @@ class TestServer(object):
         """
         # Instantiate a Server object using mocked configuration file
         config = Mock(name='config')
+        config.name = 'test'
         config.bandwidth_limit = None
         config.tablespace_bandwidth_limit = None
         config.minimum_redundancy = '0'
         config.retention_policy = None
         if tmpdir:
-            config.wals_directory = str(tmpdir.ensure('wals', dir=True))
-            config.data_directory = str(tmpdir.ensure('data_directory', dir=True))
+            config.wals_directory = tmpdir.ensure('wals', dir=True).strpath
+            config.data_directory = tmpdir.ensure('data_directory',
+                                                  dir=True).strpath
+            config.barman_lock_directory = tmpdir.strpath
         return config
 
     def test_init(self):
@@ -80,7 +83,7 @@ class TestServer(object):
         assert os_mock.fsync.called
 
     @patch('barman.server.os')
-    @patch('barman.server.LockFile')
+    @patch('barman.server.ServerXLOGDBLock')
     def test_xlogdb(self, lock_file_mock, os_mock, tmpdir):
         """
         Testing the normal execution of xlog-db operations.

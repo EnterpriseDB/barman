@@ -50,7 +50,7 @@ backup_directory = main
 basebackups_directory = base
 wals_directory = wals
 incoming_wals_directory = incoming
-lock_file = main.lock
+barman_lock_directory = None
 compression_filter = bzip2 -c -9
 decompression_filter = bzip2 -c -d
 reuse_backup = link
@@ -73,6 +73,7 @@ TEST_CONFIG_MAIN = {
     'bandwidth_limit': None,
     'barman_home': '/some/barman/home',
     'basebackups_directory': 'base',
+    'barman_lock_directory': '/some/barman/home',
     'compression': 'gzip',
     'conninfo': 'host=pg01.nowhere user=postgres port=5432',
     'custom_compression_filter': None,
@@ -80,7 +81,6 @@ TEST_CONFIG_MAIN = {
     'description': 'Main PostgreSQL Database',
     'immediate_checkpoint': False,
     'incoming_wals_directory': 'incoming',
-    'lock_file': 'main.lock',
     'minimum_redundancy': '0',
     'name': 'main',
     'network_compression': False,
@@ -107,6 +107,7 @@ TEST_CONFIG_WEB = {
     'bandwidth_limit': None,
     'barman_home': '/some/barman/home',
     'basebackups_directory': '/some/barman/home/web/base',
+    'barman_lock_directory': '/some/barman/home',
     'compression': None,
     'conninfo': 'host=web01 user=postgres port=5432',
     'custom_compression_filter': None,
@@ -114,7 +115,6 @@ TEST_CONFIG_WEB = {
     'description': 'Web applications database',
     'immediate_checkpoint': False,
     'incoming_wals_directory': '/some/barman/home/web/incoming',
-    'lock_file': '/some/barman/home/web/web.lock',
     'minimum_redundancy': '0',
     'name': 'web',
     'network_compression': False,
@@ -154,9 +154,9 @@ MINIMAL_CONFIG_MAIN = {
     'conninfo': 'host=pg01.nowhere user=postgres port=5432',
     'backup_directory': '/some/barman/home/main',
     'basebackups_directory': '/some/barman/home/main/base',
+    'barman_lock_directory': '/some/barman/home',
     'wals_directory': '/some/barman/home/main/wals',
     'incoming_wals_directory': '/some/barman/home/main/incoming',
-    'lock_file': '/some/barman/home/main/main.lock',
     'compression': None,
     'custom_compression_filter': None,
     'custom_decompression_filter': None,

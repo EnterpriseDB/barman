@@ -48,6 +48,7 @@ _TIME_INTERVAL_RE = re.compile(r"""
 
 REUSE_BACKUP_VALUES = ('copy', 'link', 'off')
 
+
 class CsvOption(set):
 
     """
@@ -221,7 +222,7 @@ class Server(object):
     KEYS = [
         'active', 'description', 'ssh_command', 'conninfo',
         'backup_directory', 'basebackups_directory',
-        'wals_directory', 'incoming_wals_directory', 'lock_file',
+        'wals_directory', 'incoming_wals_directory',
         'compression', 'custom_compression_filter',
         'custom_decompression_filter', 'retention_policy_mode',
         'retention_policy',
@@ -254,7 +255,6 @@ class Server(object):
         'basebackups_directory': r'%(backup_directory)s/base',
         'wals_directory': r'%(backup_directory)s/wals',
         'incoming_wals_directory': r'%(backup_directory)s/incoming',
-        'lock_file': r'%(backup_directory)s/%(name)s.lock',
         'retention_policy_mode': 'auto',
         'wal_retention_policy': 'main',
         'minimum_redundancy': '0',
@@ -322,7 +322,8 @@ class Server(object):
     def __init__(self, config, name):
         self.config = config
         self.name = name
-        self.barman_home = config.get('barman', 'barman_home')
+        self.barman_home = config.barman_home
+        self.barman_lock_directory = config.barman_lock_directory
         config.validate_server_config(self.name)
         for key in Server.KEYS:
             value = None
@@ -413,15 +414,18 @@ class Config(object):
             return None
 
     def _parse_global_config(self):
-        """This method parses the configuration file"""
+        """
+        This method parses the global [barman] section
+        """
         self.barman_home = self.get('barman', 'barman_home')
-        self.user = self.get('barman', 'barman_user') \
-            or DEFAULT_USER
+        self.barman_lock_directory = self.get(
+            'barman', 'barman_lock_directory') or self.barman_home
+        self.user = self.get('barman', 'barman_user') or DEFAULT_USER
         self.log_file = self.get('barman', 'log_file')
-        self.log_format = self.get('barman', 'log_format') \
-            or DEFAULT_LOG_FORMAT
-        self.log_level = self.get('barman', 'log_level') \
-            or DEFAULT_LOG_LEVEL
+        self.log_format = self.get('barman', 'log_format') or DEFAULT_LOG_FORMAT
+        self.log_level = self.get('barman', 'log_level') or DEFAULT_LOG_LEVEL
+        # save the raw barman section to be compared later in
+        # _is_global_config_changed() method
         self._global_config = set(self._config.items('barman'))
 
     def _is_global_config_changed(self):
@@ -506,6 +510,7 @@ class Config(object):
         # Check for the existence of unexpected parameters in the
         # global section of the configuration file
         keys = ['barman_home',
+                'barman_lock_directory',
                 'barman_user',
                 'log_file',
                 'log_level',

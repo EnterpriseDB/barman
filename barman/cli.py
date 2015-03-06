@@ -71,18 +71,16 @@ def cron():
     """
     Run maintenance tasks
     """
-    lockname = os.path.join(barman.__config__.barman_home, '.cron.lock')
     try:
-        with lockfile.LockFile(lockname, raise_if_fail=True):
+        with lockfile.GlobalCronLock(barman.__config__.barman_lock_directory):
             servers = [Server(conf) for conf in barman.__config__.servers()]
             for server in servers:
                 server.cron()
     except lockfile.LockFileBusy:
         output.info("Another cron is running")
 
-    except lockfile.LockFilePermissionDenied:
-        output.error("Permission denied, unable to access '%s'",
-                     lockname)
+    except lockfile.LockFilePermissionDenied, e:
+        output.error("Permission denied, unable to access '%s'", e)
     output.close_and_exit()
 
 

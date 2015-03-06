@@ -108,7 +108,7 @@ class LockFile(object):
             return True
         except (OSError, IOError), e:
             if fd:
-                os.close(fd)   # let's not leak  file descriptors
+                os.close(fd)  # let's not leak  file descriptors
             if raise_if_fail:
                 if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
                     raise LockFileBusy(self.filename)
@@ -147,3 +147,58 @@ class LockFile(object):
 
     def __exit__(self, exception_type, value, traceback):
         self.release()
+
+
+class GlobalCronLock(LockFile):
+    """
+    This lock protects cron from multiple executions.
+
+    Creates a global '.cron.lock' lock file under the given lock_directory.
+    """
+
+    def __init__(self, lock_directory):
+        super(GlobalCronLock, self).__init__(
+            os.path.join(lock_directory, '.cron.lock'),
+            raise_if_fail=True)
+
+
+class ServerBackupLock(LockFile):
+    """
+    This lock protects a server from multiple executions of backup command
+
+    Creates a '.<SERVER>-backup.lock' lock file under the given lock_directory
+    for the named SERVER.
+    """
+
+    def __init__(self, lock_directory, server_name):
+        super(ServerBackupLock, self).__init__(
+            os.path.join(lock_directory, '.%s-backup.lock' % server_name),
+            raise_if_fail=True)
+
+
+class ServerCronLock(LockFile):
+    """
+    This lock protects a server from multiple executions of cron command
+
+    Creates a '.<SERVER>-cron.lock' lock file under the given lock_directory
+    for the named SERVER.
+    """
+
+    def __init__(self, lock_directory, server_name):
+        super(ServerCronLock, self).__init__(
+            os.path.join(lock_directory, '.%s-cron.lock' % server_name),
+            raise_if_fail=True, wait=True)
+
+
+class ServerXLOGDBLock(LockFile):
+    """
+    This lock protects a server's xlogdb access
+
+    Creates a '.<SERVER>-xlogdb.lock' lock file under the given lock_directory
+    for the named SERVER.
+    """
+
+    def __init__(self, lock_directory, server_name):
+        super(ServerXLOGDBLock, self).__init__(
+            os.path.join(lock_directory, '.%s-xlogdb.lock' % server_name),
+            raise_if_fail=True, wait=True)
