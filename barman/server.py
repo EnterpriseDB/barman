@@ -1061,17 +1061,17 @@ class Server(object):
         wal_info['wals_per_second'] = 0.0
 
         for item in self.get_wal_until_next_backup(backup_info):
-                if item.name == begin:
-                    wal_info['wal_first'] = item.name
-                    wal_info['wal_first_timestamp'] = item.time
-                if item.name <= end:
-                    wal_info['wal_num'] += 1
-                    wal_info['wal_size'] += item.size
-                else:
-                    wal_info['wal_until_next_num'] += 1
-                    wal_info['wal_until_next_size'] += item.size
-                wal_info['wal_last'] = item.name
-                wal_info['wal_last_timestamp'] = item.time
+            if item.name == begin:
+                wal_info['wal_first'] = item.name
+                wal_info['wal_first_timestamp'] = item.time
+            if item.name <= end:
+                wal_info['wal_num'] += 1
+                wal_info['wal_size'] += item.size
+            else:
+                wal_info['wal_until_next_num'] += 1
+                wal_info['wal_until_next_size'] += item.size
+            wal_info['wal_last'] = item.name
+            wal_info['wal_last_timestamp'] = item.time
 
         # Calculate statistics only for complete backups
         # If the cron is not running for any reason, the required
@@ -1081,11 +1081,14 @@ class Server(object):
             # Calculate the difference between the timestamps of
             # the first WAL (begin of backup) and the last WAL
             # associated to the current backup
-            wal_info['wal_total_seconds'] = (wal_info['wal_last_timestamp'] -
-                                             wal_info['wal_first_timestamp'])
+            wal_info['wal_total_seconds'] = (
+                wal_info['wal_last_timestamp'] -
+                wal_info['wal_first_timestamp'])
             if wal_info['wal_total_seconds'] > 0:
-                wal_info['wals_per_second'] = (float(wal_info['wal_num']) /
-                                               wal_info['wal_total_seconds'])
+                wal_info['wals_per_second'] = (
+                    float(wal_info['wal_num'] +
+                          wal_info['wal_until_next_size']) /
+                    wal_info['wal_total_seconds'])
 
             # evaluation of compression ratio for basebackup WAL files
             wal_info['wal_theoretical_size'] = \

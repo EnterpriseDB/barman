@@ -546,7 +546,7 @@ class ConsoleOutputWriter(object):
             # Output WAL rate
             if data['wals_per_second'] > 0:
                 self.info("    WAL rate             : %0.2f/hour",
-                          data['wals_per_second']*3600)
+                          data['wals_per_second'] * 3600)
             # Output WAL compression ratio for archived WAL files
             if data['wal_until_next_compression_ratio'] > 0:
                 self.info("    Compression ratio    : %s",
