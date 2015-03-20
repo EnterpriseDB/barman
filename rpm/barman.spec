@@ -18,7 +18,7 @@
 
 %global main_version 1.4.1
 # comment out the next line if not a pre-release (use '#%%global ...')
-%global extra_version alpha.1
+%global extra_version a1
 # Usually 1 - unique sequence for all pre-release version
 %global package_release 1
 
@@ -33,7 +33,7 @@ Release:	%{?extra_version:0.}%{package_release}%{?extra_version:.%{extra_version
 License:	GPLv3
 Group:		Applications/Databases
 Url:		http://www.pgbarman.org/
-Source0:	%{name}-%{version}%{?extra_version:-%{extra_version}}.tar.gz
+Source0:	%{name}-%{version}%{?extra_version:%{extra_version}}.tar.gz
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-buildroot-%(%{__id_u} -n)
 BuildArch:	noarch
 Vendor:		2ndQuadrant Italia (Devise.IT S.r.l.) <info@2ndquadrant.it>
@@ -51,7 +51,7 @@ retention policies, remote backup and recovery, archiving and compression
 of WAL files and backups. Barman is distributed under GNU GPL 3.
 
 %prep
-%setup -n barman-%{version}%{?extra_version:-%{extra_version}} -q
+%setup -n barman-%{version}%{?extra_version:%{extra_version}} -q
 
 %build
 %{__python} setup.py build
@@ -86,7 +86,7 @@ rm -rf %{buildroot}
 %files
 %defattr(-,root,root)
 %doc INSTALL NEWS README
-%{python_sitelib}/%{name}-%{version}%{?extra_version:_%{extra_version}}-py%{pybasever}.egg-info/
+%{python_sitelib}/%{name}-%{version}%{?extra_version:%{extra_version}}-py%{pybasever}.egg-info/
 %{python_sitelib}/%{name}/
 %{_bindir}/%{name}
 %doc %{_mandir}/man1/%{name}.1.gz
