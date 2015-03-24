@@ -237,4 +237,5 @@ def build_backup_manager(server=None, name=None, config=None,
         server = build_mocked_server(name, config, global_conf, main_conf)
     with mock.patch("barman.backup.CompressionManager"):
         manager = BackupManager(server=server)
+    server.backup_manager = manager
     return manager

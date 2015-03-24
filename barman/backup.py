@@ -64,7 +64,7 @@ class BackupManager(object):
         self.name = "default"
         self.server = server
         self.config = server.config
-        self.available_backups = {}
+        self._backup_cache = None
         self.compression_manager = CompressionManager(self.config)
         self.executor = RsyncBackupExecutor(self)
 
@@ -72,32 +72,94 @@ class BackupManager(object):
         """
         Get a list of available backups
 
-        :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup list returned
+        :param status_filter: default DEFAULT_STATUS_FILTER. The status of
+            the backup list returned
         """
+        # If the filter is not a tuple, create a tuple using the filter
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter,)
-        if status_filter not in self.available_backups:
-            available_backups = {}
-            for filename in glob("%s/*/backup.info" % self.config.basebackups_directory):
-                backup = BackupInfo(self.server, filename)
-                if backup.status not in status_filter:
-                    continue
-                available_backups[backup.backup_id] = backup
-            self.available_backups[status_filter] = available_backups
-            return available_backups
-        else:
-            return self.available_backups[status_filter]
+        # Load the cache if necessary
+        if self._backup_cache is None:
+            self._load_backup_cache()
+        # Filter the cache using the status filter tuple
+        backups = {}
+        for key, value in self._backup_cache.iteritems():
+            if value.status in status_filter:
+                backups[key] = value
+        return backups
+
+    def _load_backup_cache(self):
+        """
+        Populate the cache of the available backups, reading information
+        from disk.
+        """
+        self._backup_cache = {}
+        # Load all the backups from disk reading the backup.info files
+        for filename in glob("%s/*/backup.info" %
+                             self.config.basebackups_directory):
+            backup = BackupInfo(self.server, filename)
+            self._backup_cache[backup.backup_id] = backup
+
+    def backup_cache_add(self, backup_info):
+        """
+        Register a BackupInfo object to the backup cache.
+
+        NOTE: Initialise the cache - in case it has not been done yet
+
+        :param barman.infofile.BackupInfo backup_info: the object we want to
+            register in the cache
+        """
+        # Load the cache if needed
+        if self._backup_cache is None:
+            self._load_backup_cache()
+        # Insert the BackupInfo object into the cache
+        self._backup_cache[backup_info.backup_id] = backup_info
+
+    def backup_cache_remove(self, backup_info):
+        """
+        Remove a BackupInfo object from the backup cache
+
+        This method _must_ be called after removing the object from disk.
+
+        :param barman.infofile.BackupInfo backup_info: the object we want to
+            remove from the cache
+        """
+        # Nothing to do if the cache is not loaded
+        if self._backup_cache is None:
+            return
+        # Remove the BackupInfo object from the backups cache
+        del self._backup_cache[backup_info.backup_id]
+
+    def get_backup(self, backup_id):
+        """
+        Return the backup information for the given backup id.
+
+        If the backup_id is None or backup.info file doesn't exists,
+        it returns None.
+
+        :param str|None backup_id: the ID of the backup to return
+        :rtype: BackupInfo|None
+        """
+        if backup_id is not None:
+            # Get all the available backups from the cache
+            available_backups = self.get_available_backups(
+                BackupInfo.STATUS_ALL)
+            # Return the BackupInfo if present, or None
+            return available_backups.get(backup_id)
+        return None
 
     def get_previous_backup(self, backup_id, status_filter=DEFAULT_STATUS_FILTER):
         """
         Get the previous backup (if any) in the catalog
 
-        :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
+        :param status_filter: default DEFAULT_STATUS_FILTER. The status of
+            the backup returned
         """
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
         backup = BackupInfo(self.server, backup_id=backup_id)
-        available_backups = self.get_available_backups(status_filter + (backup.status,))
+        available_backups = self.get_available_backups(status_filter +
+                                                       (backup.status,))
         ids = sorted(available_backups.keys())
         try:
             current = ids.index(backup_id)
@@ -108,18 +170,21 @@ class BackupManager(object):
                 current -= 1
             return None
         except ValueError:
-            raise UnknownBackupIdException('Could not find backup_id %s' % backup_id)
+            raise UnknownBackupIdException('Could not find backup_id %s' %
+                                           backup_id)
 
     def get_next_backup(self, backup_id, status_filter=DEFAULT_STATUS_FILTER):
         """
         Get the next backup (if any) in the catalog
 
-        :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
+        :param status_filter: default DEFAULT_STATUS_FILTER. The status of
+            the backup returned
         """
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
         backup = BackupInfo(self.server, backup_id=backup_id)
-        available_backups = self.get_available_backups(status_filter + (backup.status,))
+        available_backups = self.get_available_backups(status_filter +
+                                                       (backup.status,))
         ids = sorted(available_backups.keys())
         try:
             current = ids.index(backup_id)
@@ -214,6 +279,7 @@ class BackupManager(object):
                          backup.backup_id, self.config.name, e,
                          backup.get_basebackup_directory())
             return
+        self.backup_cache_remove(backup)
         output.info("Done")
 
     def retry_backup_copy(self, target_function, *args, **kwargs):
@@ -264,6 +330,7 @@ class BackupManager(object):
                 self.server,
                 backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'))
             backup_info.save()
+            self.backup_cache_add(backup_info)
             output.info(
                 "Starting backup for server %s in %s",
                 self.config.name,

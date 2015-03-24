@@ -19,16 +19,18 @@
 from datetime import timedelta, datetime
 import os
 
-import pytest
 import dateutil.parser
 import dateutil.tz
 from mock import patch, Mock, call
+import pytest
 
 from barman.command_wrappers import DataTransferFailure
-from testing_helpers import build_test_backup_info, build_backup_manager
+from barman.infofile import BackupInfo
 import barman.utils
+from testing_helpers import build_test_backup_info, build_backup_manager
 
 
+# noinspection PyMethodMayBeStatic
 class TestBackup(object):
 
     @patch('time.sleep')
@@ -260,3 +262,166 @@ class TestBackup(object):
             del caplog.records()[:]  # remove previous messages from caplog
             backup_manager.delete_backup(b_info)
             assert 'TestError' in caplog.text()
+
+    def test_available_backups(self, tmpdir):
+        """
+        Test the get_available_backups that retrieves all the
+        backups from the backups_cache using a set of backup status as filter
+        """
+        # build a backup_manager and setup a basic configuration
+        backup_manager = build_backup_manager(
+            name='TestServer',
+            global_conf={
+                'barman_home': tmpdir.strpath
+            })
+
+        # BackupInfo object with status DONE
+        b_info = build_test_backup_info(
+            backup_id='fake_backup_id',
+            server=backup_manager.server,
+            status=BackupInfo.DONE
+        )
+        b_info.save()
+
+        # Create a BackupInfo object with status FAILED
+        failed_b_info = build_test_backup_info(
+            backup_id='failed_backup_id',
+            server=backup_manager.server,
+            status=BackupInfo.FAILED
+        )
+        failed_b_info.save()
+
+        assert backup_manager._backup_cache is None
+
+        available_backups = backup_manager.get_available_backups(
+            (BackupInfo.DONE,))
+
+        assert available_backups[b_info.backup_id].to_dict() == b_info.to_dict()
+        # Check that the  failed backup have been filtered from the result
+        assert failed_b_info.backup_id not in available_backups
+        assert len(available_backups) == 1
+
+    def test_load_backup_cache(self, tmpdir):
+        """
+        Check the loading of backups inside the backup_cache
+        """
+        # build a backup_manager and setup a basic configuration
+        backup_manager = build_backup_manager(
+            name='TestServer',
+            global_conf={
+                'barman_home': tmpdir.strpath
+            })
+
+        # Make sure the cache is uninitialized
+        assert backup_manager._backup_cache is None
+
+        # Create a BackupInfo object with status DONE
+        b_info = build_test_backup_info(
+            backup_id='fake_backup_id',
+            server=backup_manager.server,
+        )
+        b_info.save()
+
+        # Load backups inside the cache
+        backup_manager._load_backup_cache()
+
+        # Check that the test backup is inside the backups_cache
+        assert backup_manager._backup_cache[b_info.backup_id].to_dict() == \
+               b_info.to_dict()
+
+    def test_backup_cache_add(self, tmpdir):
+        """
+        Check the method responsible for the registration of a BackupInfo obj
+        into the backups cache
+        """
+        # build a backup_manager and setup a basic configuration
+        backup_manager = build_backup_manager(
+            name='TestServer',
+            global_conf={
+                'barman_home': tmpdir.strpath
+            })
+
+
+        # Create a BackupInfo object with status DONE
+        b_info = build_test_backup_info(
+            backup_id='fake_backup_id',
+            server=backup_manager.server,
+        )
+        b_info.save()
+
+        assert backup_manager._backup_cache is None
+
+        # Register the object to cache. The cache is not initialized, so it
+        # must load the cache from disk.
+        backup_manager.backup_cache_add(b_info)
+        # Check that the test backup is in the cache
+        assert backup_manager.get_backup(b_info.backup_id) is b_info
+
+        # Initialize an empty cache
+        backup_manager._backup_cache = {}
+        # Add the backup again
+        backup_manager.backup_cache_add(b_info)
+        assert backup_manager.get_backup(b_info.backup_id) is b_info
+
+    def test_backup_cache_remove(self, tmpdir):
+        """
+        Check the method responsible for the removal of a BackupInfo object from
+        the backups cache
+        """
+        # build a backup_manager and setup a basic configuration
+        backup_manager = build_backup_manager(
+            name='TestServer',
+            global_conf={
+                'barman_home': tmpdir.strpath
+            })
+
+        assert backup_manager._backup_cache is None
+
+        # Create a BackupInfo object with status DONE
+        b_info = build_test_backup_info(
+            backup_id='fake_backup_id',
+            server=backup_manager.server,
+        )
+
+        # Remove the backup from the uninitialized cache
+        backup_manager.backup_cache_remove(b_info)
+        # Check that the test backup is still not initialized
+        assert backup_manager._backup_cache is None
+
+        # Initialize the cache
+        backup_manager._backup_cache = {b_info.backup_id: b_info}
+        # Remove the backup from the cache
+        backup_manager.backup_cache_remove(b_info)
+        assert b_info.backup_id not in backup_manager._backup_cache
+
+    def test_get_backup(self, tmpdir):
+        """
+        Check the get_backup method that uses the backups cache to retrieve
+        a backup using the id
+        """
+        # Setup temp dir and server
+        # build a backup_manager and setup a basic configuration
+        backup_manager = build_backup_manager(
+            name='TestServer',
+            global_conf={
+                'barman_home': tmpdir.strpath
+            })
+
+        # Create a BackupInfo object with status DONE
+        b_info = build_test_backup_info(
+            backup_id='fake_backup_id',
+            server=backup_manager.server,
+        )
+        b_info.save()
+
+        assert backup_manager._backup_cache is None
+
+        # Check that the backup returned is the same
+        assert backup_manager.get_backup(b_info.backup_id).to_dict() == \
+            b_info.to_dict()
+
+        # Empty the backup manager cache
+        backup_manager._backup_cache = {}
+
+        # Check that the backup returned is None
+        assert backup_manager.get_backup(b_info.backup_id) is None

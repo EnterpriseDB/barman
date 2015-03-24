@@ -349,7 +349,7 @@ class TestBackupInfo(object):
         # load the data from the backup.info file
         b_info = BackupInfo(server, info_file=infofile.strpath)
         assert b_info
-        assert b_info.begin_offset == '40'
+        assert b_info.begin_offset == 40
         assert b_info.begin_wal == '000000010000000000000004'
         assert b_info.timeline == 1
         assert isinstance(b_info.tablespaces, list)
@@ -373,7 +373,7 @@ class TestBackupInfo(object):
         # Load the backup.info file using the backup_id
         b_info = BackupInfo(server, backup_id="fake_name")
         assert b_info
-        assert b_info.begin_offset == '40'
+        assert b_info.begin_offset == 40
         assert b_info.begin_wal == '000000010000000000000004'
         assert b_info.timeline == 1
         assert isinstance(b_info.tablespaces, list)

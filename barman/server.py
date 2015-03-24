@@ -730,17 +730,7 @@ class Server(object):
         :param str|None backup_id: the ID of the backup to return
         :rtype: BackupInfo|None
         """
-        if backup_id is None:
-            return None
-        try:
-            backup_info = BackupInfo(self, backup_id=backup_id)
-        except Exception, e:
-            _logger.debug("Error reading backup information for %s %s: %s",
-                          self.config.name, backup_id, e, exc_info=1)
-            return None
-        if not os.path.exists(backup_info.filename):
-            return None
-        return backup_info
+        return self.backup_manager.get_backup(backup_id)
 
     def get_previous_backup(self, backup_id):
         """
