@@ -53,6 +53,7 @@ def check_positive(value):
         raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
     return int_value
 
+
 @named('list-server')
 @arg('--minimal', help='machine readable output')
 def list_server(minimal=False):
@@ -73,7 +74,8 @@ def cron():
     """
     try:
         with lockfile.GlobalCronLock(barman.__config__.barman_lock_directory):
-            servers = [Server(conf) for conf in barman.__config__.servers()]
+            servers = [Server(conf) for conf in barman.__config__.servers()
+                       if conf.active]
             for server in servers:
                 server.cron()
     except lockfile.LockFileBusy:
@@ -150,11 +152,19 @@ def backup(args):
     """
     Perform a full backup for the given server
     """
-    servers = get_server_list(args)
+    servers = get_server_list(args, skip_disabled=True)
     for name in sorted(servers):
         server = servers[name]
         if server is None:
             output.error("Unknown server '%s'" % name)
+            continue
+        # If the server is disabled return an error message
+        if not server.config.active:
+            output.error(
+                "Server '%s' is disabled.\n"
+                "HINT: remove 'active=False' from server configuration "
+                "to enable it.",
+                name)
             continue
         if args.reuse_backup is not None:
             server.config.reuse_backup = args.reuse_backup
@@ -264,7 +274,7 @@ def recover(args):
     """
     Recover a server at a given time or xid
     """
-    server = get_server(args)
+    server = get_server(args, active_only=True)
     if server is None:
         output.error("Unknown server '%s'", args.server_name)
         output.close_and_exit()
@@ -282,7 +292,8 @@ def recover(args):
             try:
                 tablespaces.update([rule.split(':', 1)])
             except ValueError:
-                output.error("Invalid tablespace relocation rule '%s'\n"
+                output.error(
+                    "Invalid tablespace relocation rule '%s'\n"
                     "HINT: The valid syntax for a relocation rule is "
                     "NAME:LOCATION", rule)
                 output.close_and_exit()
@@ -358,24 +369,28 @@ def check(args):
     """
     if args.nagios:
         output.set_output_writer(output.NagiosOutputWriter())
-    servers = get_server_list(args)
+    servers = get_server_list(args, skip_disabled=True)
     for name in sorted(servers):
         server = servers[name]
         if server is None:
             output.error("Unknown server '%s'" % name)
             continue
+        # If the server is disabled add '(disabled)' next to the name
+        if not server.config.active:
+            name += ' (disabled)'
         output.init('check', name)
         server.check()
     output.close_and_exit()
 
-@expects_obj
-def diagnose(args):
+
+def diagnose():
     """
     Diagnostic command (for support and problems detection purpose)
     """
     servers = get_server_list(None)
     barman.diagnose.exec_diagnose(servers)
     output.close_and_exit()
+
 
 @named('show-backup')
 @arg('server_name',
@@ -420,7 +435,8 @@ def show_backup(args):
 )
 @expects_obj
 def list_files(args):
-    """ List all the files for a single backup
+    """
+    List all the files for a single backup
     """
     server = get_server(args)
     if server is None:
@@ -445,7 +461,8 @@ def list_files(args):
      help='specifies the backup ID')
 @expects_obj
 def delete(args):
-    """ Delete a backup
+    """
+    Delete a backup
     """
     server = get_server(args)
     if server is None:
@@ -462,7 +479,9 @@ def delete(args):
 
 
 def global_config(args):
-    """ Set the configuration file """
+    """
+    Set the configuration file
+    """
     if hasattr(args, 'config'):
         filename = args.config
     else:
@@ -508,19 +527,28 @@ def global_config(args):
                   barman.__version__, config.config_file)
 
 
-def get_server(args):
+def get_server(args, active_only=False):
     """
     Get a single server from the configuration
 
     :param args: an argparse namespace containing a single server_name parameter
+    :param bool active_only: Exit with error if the server is disabled
     """
     config = barman.__config__.get_server(args.server_name)
     if not config:
         return None
+    # If the server is disabled exit with error
+    if active_only and not config.active:
+        output.error(
+            "Server '%s' is disabled.\n"
+            "HINT: remove 'active=False' from server configuration "
+            "to enable it.",
+            config.name)
+        output.close_and_exit()
     return Server(config)
 
 
-def get_server_list(args=None):
+def get_server_list(args=None, skip_disabled=False):
     """
     Get the server list from the configuration
 
@@ -528,19 +556,25 @@ def get_server_list(args=None):
     returns all defined servers
 
     :param args: an argparse namespace containing a list server_name parameter
+    :param bool skip_disabled: skip disabled servers when 'all' is required
     """
+    server_dict = {}
     if args is None or args.server_name[0] == 'all':
-        return dict(
-            (conf.name, Server(conf)) for conf in barman.__config__.servers())
+        for conf in barman.__config__.servers():
+            server = Server(conf)
+            if skip_disabled and not conf.active:
+                output.info("Skipping disabled server '%s'",
+                            conf.name)
+                continue
+            server_dict[conf.name] = server
     else:
-        server_dict = {}
         for server in args.server_name:
             conf = barman.__config__.get_server(server)
-            if conf == None:
+            if conf is None:
                 server_dict[server] = None
             else:
                 server_dict[server] = Server(conf)
-        return server_dict
+    return server_dict
 
 
 def parse_backup_id(server, args):
