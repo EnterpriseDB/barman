@@ -40,7 +40,8 @@ from barman.command_wrappers import Rsync, RsyncPgData, \
     CommandFailedException
 from barman.compression import CompressionManager, CompressionIncompatibility
 from barman.hooks import HookScriptRunner
-from barman.utils import human_readable_timedelta, mkpath, pretty_size
+from barman.utils import human_readable_timedelta, mkpath, pretty_size, \
+    fsync_dir
 from barman.config import BackupOptions
 
 
@@ -784,6 +785,7 @@ class BackupManager(object):
                 # Updates the information of the WAL archive with
                 # the latest segments
                 fxlogdb.write(wal_info.to_xlogdb_line())
+            os.fsync(fxlogdb.fileno())
         if not found and verbose:
             output.info("\tno file found", log=False)
 
@@ -1062,15 +1064,7 @@ class BackupManager(object):
         deduplicated_size = 0
         for dirpath, _, filenames in os.walk(backup_dest):
             # execute fsync() on the containing directory
-            dir_fd = os.open(dirpath, os.O_DIRECTORY)
-            try:
-                os.fsync(dir_fd)
-            except OSError, e:
-                # On some filesystem doing a fsync on a directory
-                # raises an EINVAL error. Ignoring it is usually safe.
-                if e.errno != errno.EINVAL:
-                    raise
-            os.close(dir_fd)
+            fsync_dir(dirpath)
             # execute fsync() on all the contained files
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
@@ -1317,15 +1311,7 @@ class BackupManager(object):
             shutil.move(srcfile, destfile)
 
         # execute fsync() on the archived WAL containing directory
-        dir_fd = os.open(destdir, os.O_DIRECTORY)
-        try:
-            os.fsync(dir_fd)
-        except OSError, e:
-            # On some filesystem doing a fsync on a directory
-            # raises an EINVAL error. Ignoring it is usually safe.
-            if e.errno != errno.EINVAL:
-                raise
-        os.close(dir_fd)
+        fsync_dir(destdir)
         # execute fsync() on the archived WAL file
         file_fd = os.open(destfile, os.O_RDONLY)
         os.fsync(file_fd)
@@ -1472,50 +1458,54 @@ class BackupManager(object):
         wal_count = label_count = history_count = 0
         # lock the xlogdb as we are about replacing it completely
         with self.server.xlogdb('w') as fxlogdb:
-            for name in sorted(os.listdir(root)):
-                # ignore the xlogdb and its lockfile
-                if name.startswith(self.server.XLOG_DB):
-                    continue
-                fullname = join(root, name)
-                if isdir(fullname):
-                    # all relevant files are in subdirectories
-                    hash_dir = fullname
-                    for wal_name in sorted(os.listdir(hash_dir)):
-                        fullname = join(hash_dir, wal_name)
-                        if isdir(fullname):
-                            _logger.warning(
-                                'unexpected directory '
-                                'rebuilding the wal database: %s',
-                                fullname)
-                        else:
-                            if xlog.is_wal_file(fullname):
-                                wal_count += 1
-                            elif xlog.is_backup_file(fullname):
-                                label_count += 1
-                            else:
+            xlogdb_new = fxlogdb.name + ".new"
+            with open(xlogdb_new, 'w') as fxlogdb_new:
+                for name in sorted(os.listdir(root)):
+                    # ignore the xlogdb and its lockfile
+                    if name.startswith(self.server.XLOG_DB):
+                        continue
+                    fullname = join(root, name)
+                    if isdir(fullname):
+                        # all relevant files are in subdirectories
+                        hash_dir = fullname
+                        for wal_name in sorted(os.listdir(hash_dir)):
+                            fullname = join(hash_dir, wal_name)
+                            if isdir(fullname):
                                 _logger.warning(
-                                    'unexpected file '
+                                    'unexpected directory '
                                     'rebuilding the wal database: %s',
                                     fullname)
-                                continue
+                            else:
+                                if xlog.is_wal_file(fullname):
+                                    wal_count += 1
+                                elif xlog.is_backup_file(fullname):
+                                    label_count += 1
+                                else:
+                                    _logger.warning(
+                                        'unexpected file '
+                                        'rebuilding the wal database: %s',
+                                        fullname)
+                                    continue
+                                wal_info = WalFileInfo.from_file(
+                                    fullname,
+                                    default_compression=default_compression)
+                                fxlogdb_new.write(wal_info.to_xlogdb_line())
+                    else:
+                        # only history files are here
+                        if xlog.is_history_file(fullname):
+                            history_count += 1
                             wal_info = WalFileInfo.from_file(
                                 fullname,
                                 default_compression=default_compression)
-                            fxlogdb.write(wal_info.to_xlogdb_line())
-                else:
-                    # only history files are here
-                    if xlog.is_history_file(fullname):
-                        history_count += 1
-                        wal_info = WalFileInfo.from_file(
-                            fullname,
-                            default_compression=default_compression)
-                        fxlogdb.write(wal_info.to_xlogdb_line())
-                    else:
-                        _logger.warning(
-                            'unexpected file '
-                            'rebuilding the wal database: %s',
-                            fullname)
-
+                            fxlogdb_new.write(wal_info.to_xlogdb_line())
+                        else:
+                            _logger.warning(
+                                'unexpected file '
+                                'rebuilding the wal database: %s',
+                                fullname)
+                os.fsync(fxlogdb_new.fileno())
+            shutil.move(xlogdb_new, fxlogdb.name)
+            fsync_dir(os.path.dirname(fxlogdb.name))
         output.info('Done rebuilding xlogdb for server %s '
                     '(history: %s, backup_labels: %s, wal_file: %s)',
                     self.config.name, history_count, label_count, wal_count)
@@ -1555,7 +1545,10 @@ class BackupManager(object):
                         # Delete the WAL segment
                         self.delete_wal(wal_info)
                         removed.append(wal_info.name)
+                fxlogdb_new.flush()
+                os.fsync(fxlogdb_new.fileno())
             shutil.move(xlogdb_new, fxlogdb.name)
+            fsync_dir(os.path.dirname(fxlogdb.name))
         return removed
 
     def validate_last_backup_maximum_age(self, last_backup_maximum_age):
