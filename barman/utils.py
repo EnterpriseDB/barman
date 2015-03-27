@@ -19,13 +19,14 @@
 This module contains utility functions used in Barman.
 """
 
+import datetime
+import errno
+import grp
+import json
 import logging
 import logging.handlers
 import os
 import pwd
-import grp
-import json
-import datetime
 
 
 _logger = logging.getLogger(__name__)
@@ -229,3 +230,21 @@ class BarmanEncoder(json.JSONEncoder):
             return obj.decode('utf-8', 'replace')
         # Let the base class default method raise the TypeError
         return super(BarmanEncoder, self).default(obj)
+
+
+def fsync_dir(dir_path):
+    """
+    Execute fsync on a directory ensuring it is synced to disk
+
+    :param str dir_path: The directory to sync
+    :raise OSError: If fail opening the directory
+    """
+    dir_fd = os.open(dir_path, os.O_DIRECTORY)
+    try:
+        os.fsync(dir_fd)
+    except OSError, e:
+        # On some filesystem doing a fsync on a directory
+        # raises an EINVAL error. Ignoring it is usually safe.
+        if e.errno != errno.EINVAL:
+            raise
+    os.close(dir_fd)
