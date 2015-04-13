@@ -297,9 +297,8 @@ class TestWallFileInfo(object):
         server.config.wals_directory = '/tmp/wals'
 
         # parse the string
-        info_file = wfile_info.from_xlogdb_line(server,
-                                               '000000000000000000000001\t'
-                                               '42\t43\tNone\n')
+        info_file = wfile_info.from_xlogdb_line(
+            '000000000000000000000001\t42\t43\tNone\n')
 
         assert list(wfile_info.items()) == list(info_file.items())
 

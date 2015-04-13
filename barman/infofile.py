@@ -331,7 +331,7 @@ class WalFileInfo(FieldListFile):
             self.compression)
 
     @classmethod
-    def from_xlogdb_line(cls, server, line):
+    def from_xlogdb_line(cls, line):
         """
         Parse a line from xlog catalogue
 

@@ -761,7 +761,7 @@ class Server(object):
             target_tli, _, _ = xlog.decode_segment_name(end)
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
-                wal_info = WalFileInfo.from_xlogdb_line(self, line)
+                wal_info = WalFileInfo.from_xlogdb_line(line)
                 # Handle .history files: add all of them to the output,
                 # regardless of their age
                 if xlog.is_history_file(wal_info.name):
@@ -779,7 +779,7 @@ class Server(object):
                         break
             # return all the remaining history files
             for line in fxlogdb:
-                wal_info = WalFileInfo.from_xlogdb_line(self, line)
+                wal_info = WalFileInfo.from_xlogdb_line(line)
                 if xlog.is_history_file(wal_info.name):
                     yield wal_info
 
@@ -801,7 +801,7 @@ class Server(object):
 
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
-                wal_info = WalFileInfo.from_xlogdb_line(self, line)
+                wal_info = WalFileInfo.from_xlogdb_line(line)
                 # Handle .history files: add all of them to the output,
                 # regardless of their age, if requested (the 'include_history'
                 # parameter is True)
