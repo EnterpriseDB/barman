@@ -410,7 +410,7 @@ class BackupManager(object):
             except FsOperationFailed:
                 output.error(
                     "Unable to connect to the target host using the command "
-                    "'%s'" % remote_command)
+                    "'%s'", remote_command)
                 output.close_and_exit()
         else:
             # if is a local recovery create a UnixLocalCommand
@@ -640,8 +640,8 @@ class BackupManager(object):
                           ':%s' % os.path.join(wal_dest, 'archive_status'))
                 except CommandFailedException:
                     output.exception(
-                        "unable to populate pg_xlog/archive_status directory",
-                        e)
+                        "unable to populate pg_xlog/archive_status"
+                        "directory: %s", e)
                     output.close_and_exit()
 
                 shutil.rmtree(status_dir)
