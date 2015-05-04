@@ -433,6 +433,12 @@ r custom
    and the backup server (in particular, that the WAL files are collected
    in the destination directory).
 
+   Warning
+   It currently is a requirement that WAL files from PostgreSQL are
+   shipped to the Barman server. Without archive_command being properly
+   set in PostgreSQL to send WAL files to Barman, full backups cannot be
+   taken.
+
   Listing the servers
 
    The following command displays the list of all the available servers:
@@ -801,11 +807,11 @@ Main features
    therefore supported by both the underlying operating system and the
    file system where the backup data resides.
 
-   The main concept is that two periodic base backups will share those
-   files that have not changed, leading to relevant savings in disk usage.
-   This is particularly true of VLDB contexts and, more in general, of
-   those databases containing a high percentage of read-only historical
-   tables.
+   The main concept is that a subsequent base backup will share those
+   files that have not changed since the previous backup, leading to
+   relevant savings in disk usage. This is particularly true of VLDB
+   contexts and, more in general, of those databases containing a high
+   percentage of read-only historical tables.
 
    Barman implements incremental backup through a global/server option,
    called reuse_backup, that transparently manages the barman backup
@@ -1137,6 +1143,15 @@ Main features
      * BARMAN_SIZE: size of the WAL file
      * BARMAN_TIMESTAMP: WAL file timestamp
      * BARMAN_COMPRESSION: type of compression used for the WAL file
+
+  Integration with standby servers
+
+   Barman has been designed for integration with standby servers (with
+   streaming replication or traditional file based log shipping) and high
+   availability tools like [10]repmgr.
+
+   From an architectural point of view, PostgreSQL must be configured to
+   archive WAL files directly to the Barman server.
      __________________________________________________________________
 
 Support and sponsor opportunities
@@ -1148,15 +1163,15 @@ Support and sponsor opportunities
    as open source.
 
    For further information, please visit our websites:
-     * Barman website: [10]http://www.pgbarman.org/
+     * Barman website: [11]http://www.pgbarman.org/
      * Support section on the website:
-       [11]http://www.pgbarman.org/support/
-     * 2ndQuadrant website: [12]http://www.2ndquadrant.com/
+       [12]http://www.pgbarman.org/support/
+     * 2ndQuadrant website: [13]http://www.2ndquadrant.com/
 
    Useful information can be found in:
-     * the FAQ section of the website: [13]http://www.pgbarman.org/faq/
+     * the FAQ section of the website: [14]http://www.pgbarman.org/faq/
      * the "Barman" category of 2ndQuadrant's blog:
-       [14]http://blog.2ndquadrant.com/tag/barman/
+       [15]http://blog.2ndquadrant.com/tag/barman/
 
    Important
    When submitting requests on the mailing list, please always report the
@@ -1178,15 +1193,15 @@ Submitting a bug
 Authors
 
    In alphabetical order:
-     * Gabriele Bartolini <[15]gabriele.bartolini@2ndquadrant.it> (core
+     * Gabriele Bartolini <[16]gabriele.bartolini@2ndquadrant.it> (core
        team, project leader)
-     * Giuseppe Broccolo <[16]giuseppe.broccolo@2ndquadrant.it> (core
+     * Giuseppe Broccolo <[17]giuseppe.broccolo@2ndquadrant.it> (core
        team, QA/testing)
-     * Giulio Calacoci <[17]giulio.calacoci@2ndquadrant.it> (core team,
+     * Giulio Calacoci <[18]giulio.calacoci@2ndquadrant.it> (core team,
        developer)
-     * Francesco Canovai <[18]francesco.canovai@2ndquadrant.it> (core
+     * Francesco Canovai <[19]francesco.canovai@2ndquadrant.it> (core
        team, QA/testing)
-     * Marco Nenciarini <[19]marco.nenciarini@2ndquadrant.it> (core team,
+     * Marco Nenciarini <[20]marco.nenciarini@2ndquadrant.it> (core team,
        team leader)
 
    Past contributors:
@@ -1196,9 +1211,9 @@ Authors
 Links
 
      * check-barman: a Nagios plugin for Barman, written by Holger Hamann
-       ([20]https://github.com/hamann/check-barman, MIT license)
+       ([21]https://github.com/hamann/check-barman, MIT license)
      * puppet-barman: Barman module for Puppet
-       ([21]https://github.com/2ndquadrant-it/puppet-barman, GPL)
+       ([22]https://github.com/2ndquadrant-it/puppet-barman, GPL)
      __________________________________________________________________
 
 License and Contributions
@@ -1207,7 +1222,7 @@ License and Contributions
    distributed under GNU General Public License 3.
    Copyright © 2011-2015 2ndQuadrant.it.
 
-   Barman has been partially funded through [22]4CaaSt, a research project
+   Barman has been partially funded through [23]4CaaSt, a research project
    funded by the European Commission's Seventh Framework programme.
 
    Contributions to Barman are welcome, and will be listed in the file
@@ -1215,11 +1230,11 @@ License and Contributions
    copyright assignment and a disclaimer of any work-for-hire ownership
    claims from the employer of the developer. This lets us make sure that
    all of the Barman distribution remains free code. Please contact
-   [23]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
+   [24]info@2ndQuadrant.it for a copy of the relevant Copyright Assignment
    Form.
      __________________________________________________________________
 
-   Last updated 2015-01-23 16:26:51 CET
+   Last updated 2015-05-04 15:08:16 CEST
 
 References
 
@@ -1232,17 +1247,18 @@ References
    7. http://docs.pgbarman.org/barman.5.html
    8. http://en.wikipedia.org/wiki/Hard_link
    9. https://github.com/2ndquadrant-it/pgespresso
-  10. http://www.pgbarman.org/
-  11. http://www.pgbarman.org/support/
-  12. http://www.2ndquadrant.com/
-  13. http://www.pgbarman.org/faq/
-  14. http://blog.2ndquadrant.com/tag/barman/
-  15. mailto:gabriele.bartolini@2ndquadrant.it
-  16. mailto:giuseppe.broccolo@2ndquadrant.it
-  17. mailto:giulio.calacoci@2ndquadrant.it
-  18. mailto:francesco.canovai@2ndquadrant.it
-  19. mailto:marco.nenciarini@2ndquadrant.it
-  20. https://github.com/hamann/check-barman
-  21. https://github.com/2ndquadrant-it/puppet-barman
-  22. http://4caast.morfeo-project.org/
-  23. mailto:info@2ndQuadrant.it
+  10. http://www.repmgr.org/
+  11. http://www.pgbarman.org/
+  12. http://www.pgbarman.org/support/
+  13. http://www.2ndquadrant.com/
+  14. http://www.pgbarman.org/faq/
+  15. http://blog.2ndquadrant.com/tag/barman/
+  16. mailto:gabriele.bartolini@2ndquadrant.it
+  17. mailto:giuseppe.broccolo@2ndquadrant.it
+  18. mailto:giulio.calacoci@2ndquadrant.it
+  19. mailto:francesco.canovai@2ndquadrant.it
+  20. mailto:marco.nenciarini@2ndquadrant.it
+  21. https://github.com/hamann/check-barman
+  22. https://github.com/2ndquadrant-it/puppet-barman
+  23. http://4caast.morfeo-project.org/
+  24. mailto:info@2ndQuadrant.it
