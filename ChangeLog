@@ -1,4 +1,78 @@
+2015-05-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Prepared version 1.4.1
+
+2015-05-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Prepared documentation for version 1.4.1
+
+2015-04-13  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Fix exception during error handling in barman recovery (Closes: #65)
+
+2015-03-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improved management of xlogb file
+	The xlogdb file is now correctly fsynced when updated.
+	Also, the rebuild-xlogdb command now operates on a temporary
+	new file, which overwrites the main one when finished.
+
+2015-03-20  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Modified Barman version following PEP 440 rules.
+	Changed Barman version from 1.4.1-alpha1 to 1.4.1a1
+	following PEP 440 rules.
+	Adapted RPM build scripts to produce packages with
+	the correct names.
+
+2015-03-17  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Fix computation of WAL production ratio
+	The WAL file ratio reported in the 'show-backup' command output was wrong
+	because it was considering only the number of WALS produced during the
+	backup instead of the number of WALs produced until next backup.
+
+2015-02-25  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Fix for WAL archival stop working if first backup is EMPTY
+	In some rare cases, if an empty backup has left by a failure during a
+	backup, the cron could start trashing WAL files, as if there is no
+	available backups.
+
+	Closes: #64
+
+2015-02-12  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Improve backup delete command
+	Improve robustness and error reporting of backup delete command
+
+2015-02-10  Stefano Bianucci  <stefano.bianucci@2ndquadrant.it>
+
+	Add unit tests for dateutil module compatibility
+
+2015-02-08  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	After a backup, limit cron activity to WAL archiving only (#62)
+
+2015-01-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Clarify rpm spec comments about pre-releases
+
+2015-01-28  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Updated backlog (TODO list)
+
+2015-01-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update metadata in setup.py
+	- Improve barman description
+	- Add Python 3.4
+
 2015-01-23  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Started version 1.4.1-alpha.1
 
 	Update the ChangeLog file
 
