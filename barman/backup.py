@@ -798,7 +798,9 @@ class BackupManager(object):
                 # Updates the information of the WAL archive with
                 # the latest segments
                 fxlogdb.write(wal_info.to_xlogdb_line())
-            os.fsync(fxlogdb.fileno())
+                # flush and fsync for every line
+                fxlogdb.flush()
+                os.fsync(fxlogdb.fileno())
         if not found and verbose:
             output.info("\tno file found", log=False)
 
@@ -1061,6 +1063,8 @@ class BackupManager(object):
 
         # execute fsync() on the archived WAL containing directory
         fsync_dir(destdir)
+        # execute fsync() also on the incoming directory
+        fsync_dir(self.config.incoming_wals_directory)
         # execute fsync() on the archived WAL file
         file_fd = os.open(destfile, os.O_RDONLY)
         os.fsync(file_fd)
