@@ -356,6 +356,26 @@ class TestBackupInfo(object):
         assert b_info.tablespaces[0].oid == 16384
         assert b_info.tablespaces[0].location == '/fake_tmp/tbs'
 
+    def test_backup_info_from_empty_file(self, tmpdir):
+        """
+        Test the initialization of a BackupInfo object
+        loading data from a backup.info file
+        """
+        # we want to test the loading of BackupInfo data from local file.
+        # So we create a file into the tmpdir containing a
+        # valid BackupInfo dump
+        infofile = tmpdir.join("backup.info")
+        infofile.write('')
+        # Mock the server, we don't need it at the moment
+        server = mock.MagicMock()
+        server.config.name = 'test_server'
+        server.backup_manager.name = 'test_mode'
+        # load the data from the backup.info file
+        b_info = BackupInfo(server, info_file=infofile.strpath)
+        assert b_info
+        assert b_info.server_name == 'test_server'
+        assert b_info.mode == 'test_mode'
+
     def test_backup_info_from_backup_id(self, tmpdir):
         """
         Test the initialization of a BackupInfo object

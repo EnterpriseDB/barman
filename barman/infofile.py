@@ -454,6 +454,8 @@ class BackupInfo(FieldListFile):
         self.server = server
         self.config = server.config
         self.backup_manager = self.server.backup_manager
+        self.server_name = self.config.name
+        self.mode = self.backup_manager.name
         if backup_id:
             # Cannot pass both info_file and backup_id
             if info_file:
@@ -462,11 +464,8 @@ class BackupInfo(FieldListFile):
             self.backup_id = backup_id
             self.filename = self.get_filename()
             # Check if a backup info file for a given server and a given ID
-            # already exists. If not, create it from scratch
-            if not os.path.exists(self.filename):
-                self.server_name = self.config.name
-                self.mode = self.backup_manager.name
-            else:
+            # already exists. If so load the values from the file.
+            if os.path.exists(self.filename):
                 self.load(filename=self.filename)
         elif info_file:
             if hasattr(info_file, 'read'):
