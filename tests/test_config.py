@@ -179,9 +179,44 @@ MINIMAL_CONFIG_MAIN = {
     'last_backup_maximum_age': None,
 }
 
+# error is in basebackups_directory: duplicate wals_directory
+MINIMAL_ERROR_CONFIG_MAIN = {
+    'barman_home': '/some/barman/home',
+    'name': 'main',
+    'active': True,
+    'description': 'Text with quotes',
+    'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere',
+    'conninfo': 'host=pg01.nowhere user=postgres port=5432',
+    'backup_directory': '/some/barman/home/main',
+    'basebackups_directory': '/some/barman/home/main/wals',
+    'barman_lock_directory': '/some/barman/home',
+    'wals_directory': '/some/barman/home/main/wals',
+    'incoming_wals_directory': '/some/barman/home/main/incoming',
+    'compression': None,
+    'custom_compression_filter': None,
+    'custom_decompression_filter': None,
+    'retention_policy': None,
+    'wal_retention_policy': 'main',
+    'post_backup_script': None,
+    'pre_backup_script': None,
+    'minimum_redundancy': '0',
+    'retention_policy_mode': 'auto',
+    'bandwidth_limit': None,
+    'tablespace_bandwidth_limit': None,
+    'reuse_backup': None,
+    'immediate_checkpoint': False,
+    'network_compression': False,
+    'backup_options': BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", ""),
+    'basebackup_retry_sleep': 30,
+    'basebackup_retry_times': 0,
+    'post_archive_script': None,
+    'pre_archive_script': None,
+    'last_backup_maximum_age': None,
+}
+
 
 # noinspection PyMethodMayBeStatic
-class Test(object):
+class TestConfig(object):
 
     def test_server_list(self):
         fp = StringIO(TEST_CONFIG.format(**os.environ))
@@ -196,11 +231,18 @@ class Test(object):
         main = c.get_server('main')
         expected = dict(config=c)
         expected.update(TEST_CONFIG_MAIN)
+        # add 'disabled': None, 'msg_list': []
+        expected['disabled'] = False
+        expected['msg_list'] = []
         assert main.__dict__ == expected
 
         web = c.get_server('web')
         expected = dict(config=c)
         expected.update(TEST_CONFIG_WEB)
+        # add 'disabled': None, 'msg_list': []
+        expected['disabled'] = False
+        expected['msg_list'] = []
+        # del web.msg_list
         assert web.__dict__ == expected
 
     def test_quotes(self):
@@ -217,6 +259,10 @@ class Test(object):
 
         expected = dict(config=c)
         expected.update(MINIMAL_CONFIG_MAIN)
+        # add 'disabled': None, 'msg_list': []
+        expected['disabled'] = False
+        expected['msg_list'] = []
+        # del main.msg_list
         assert main.__dict__ == expected
 
     def test_parse_time_interval(self):
@@ -238,6 +284,44 @@ class Test(object):
         # so we expect a ValueError exception
         with pytest.raises(ValueError):
             parse_time_interval('test_string')
+
+    def test_server_conflict_paths(self):
+        """
+        Test for the presence of conflicting paths for a server
+        """
+        # Build a configuration with conflicts:
+        # basebackups_directory = /some/barman/home/main/wals
+        # wals_directory = /some/barman/home/main/wals
+        c = build_config_from_dicts(main_conf=MINIMAL_ERROR_CONFIG_MAIN)
+        main = c.get_server('main')
+
+        # create the expected dictionary
+        expected = dict(config=c)
+        expected.update(MINIMAL_ERROR_CONFIG_MAIN)
+        # expect:
+        # disabled=True
+        # msg_list not empty
+        expected['disabled'] = True
+        expected['msg_list'] = [
+            'Conflicting path: wals_directory=/some/barman/home/main/wals '
+            'conflicts with \'basebackups_directory\' for server \'main\'']
+        assert main.__dict__ == expected
+
+    def test_populate_servers(self):
+        """
+        Test for the presence of conflicting paths in configuration between all
+        the servers
+        """
+        c = build_config_from_dicts(main_conf=MINIMAL_CONFIG_MAIN,
+                                    test_conf=MINIMAL_CONFIG_MAIN)
+        # attribute servers_msg_list not exists before _populate_server()
+        with pytest.raises(AttributeError):
+            c.servers_msg_list
+        c._populate_servers()
+        # after _populate_servers() if there is a global paths error
+        # servers_msg_list is created in configuration
+        assert c.servers_msg_list
+        assert len(c.servers_msg_list) == 4
 
 # noinspection PyMethodMayBeStatic
 class TestCsvParsing(object):
@@ -265,6 +349,11 @@ class TestCsvParsing(object):
         expected = dict(config=c)
         expected.update(MINIMAL_CONFIG_MAIN)
 
+        # add 'disabled': None, 'msg_list': []
+        expected['disabled'] = False
+        expected['msg_list'] = []
+
+        # del main.msg_list
         assert main.__dict__ == expected
 
     @patch('barman.config.output')
@@ -290,7 +379,11 @@ class TestCsvParsing(object):
         main = c.get_server('main')
         # create the expected dictionary
         expected = dict(config=c)
+        # add 'disabled': None, 'msg_list': []
+        expected['disabled'] = False
+        expected['msg_list'] = []
         expected.update(MINIMAL_CONFIG_MAIN)
+        # del main.msg_list
         assert main.__dict__ == expected
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
@@ -320,6 +413,11 @@ class TestCsvParsing(object):
         # create the expected dictionary
         expected = dict(config=c)
         expected.update(MINIMAL_CONFIG_MAIN)
+        # add 'disabled': None, 'msg_list': []
+        expected['disabled'] = False
+        expected['msg_list'] = []
+
+        # del main.msg_list
         assert main.__dict__ == expected
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
@@ -355,7 +453,10 @@ class TestCsvParsing(object):
         # override the backup_options value in the expected dictionary
         expected['backup_options'] = BackupOptions(
             BackupOptions.CONCURRENT_BACKUP, "", "")
-
+        # add 'disabled': None, 'msg_list': []
+        expected['disabled'] = False
+        expected['msg_list'] = []
+        # del main.msg_list
         assert main.__dict__ == expected
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
@@ -383,7 +484,10 @@ class TestCsvParsing(object):
         # override the backup_options value in the expected dictionary
         expected['backup_options'] = BackupOptions(
             BackupOptions.CONCURRENT_BACKUP, "", "")
-
+        # add 'disabled': None, 'msg_list': []
+        expected['disabled'] = False
+        expected['msg_list'] = []
+        # del main.msg_list
         assert main.__dict__ == expected
 
     def test_backup_option_parser(self):

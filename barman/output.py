@@ -703,6 +703,9 @@ class NagiosOutputWriter(ConsoleOutputWriter):
 
         Also set the exit code as 2 (CRITICAL) in case of errors
         """
+
+        global error_occurred, error_exit_code
+
         # List of all servers that have been checked
         servers = []
         # List of servers reporting issues
@@ -714,6 +717,13 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             # Keep track of the servers with issues
             if not item['status'] and item['server_name'] not in issues:
                 issues.append(item['server_name'])
+
+        # Global error (detected at configuration level)
+        if len(issues) == 0 and error_occurred:
+            print "BARMAN CRITICAL - Global configuration errors"
+            error_exit_code = 2
+            return
+
         if len(issues) > 0:
             fail_summary = []
             details = []
@@ -757,7 +767,6 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             # add the detailed list to the output
             for issue in details:
                 print issue
-            global error_exit_code
             error_exit_code = 2
         else:
             # No issues, all good!

@@ -20,6 +20,7 @@ This module is responsible for all the things related to
 Barman configuration, such as parsing configuration file.
 """
 import inspect
+import collections
 
 import os
 import re
@@ -28,6 +29,9 @@ import logging.handlers
 from glob import iglob
 from barman import output
 import datetime
+
+# create a namedtuple object called PathConflict with 'label' and 'server'
+PathConflict = collections.namedtuple('PathConflict', 'label server')
 
 _logger = logging.getLogger(__name__)
 
@@ -221,7 +225,7 @@ class ServerConfig(object):
 
     KEYS = [
         'active', 'description', 'ssh_command', 'conninfo',
-        'backup_directory', 'basebackups_directory',
+        'backup_directory', 'basebackups_directory', 'disabled',
         'wals_directory', 'incoming_wals_directory',
         'compression', 'custom_compression_filter',
         'custom_decompression_filter', 'retention_policy_mode',
@@ -251,6 +255,7 @@ class ServerConfig(object):
 
     DEFAULTS = {
         'active': 'true',
+        'disabled': 'false',
         'backup_directory': r'%(barman_home)s/%(name)s',
         'basebackups_directory': r'%(backup_directory)s/base',
         'wals_directory': r'%(backup_directory)s/wals',
@@ -265,8 +270,13 @@ class ServerConfig(object):
         'basebackup_retry_sleep': '30',
     }
 
+    FIXED = [
+        'disabled',
+    ]
+
     PARSERS = {
         'active': parse_boolean,
+        'disabled': parse_boolean,
         'immediate_checkpoint': parse_boolean,
         'network_compression': parse_boolean,
         'backup_options': BackupOptions,
@@ -320,6 +330,7 @@ class ServerConfig(object):
         return value
 
     def __init__(self, config, name):
+        self.msg_list = []
         self.config = config
         self.name = name
         self.barman_home = config.barman_home
@@ -327,20 +338,22 @@ class ServerConfig(object):
         config.validate_server_config(self.name)
         for key in ServerConfig.KEYS:
             value = None
-            # Get the setting from the [name] section of config file
-            # A literal None value is converted to an empty string
-            new_value = config.get(name, key, self.__dict__, none_value='')
-            source = '[%s] section' % name
-            value = self.invoke_parser(key, source, value, new_value)
-            # If the setting isn't present in [name] section of config file
-            # check if it has to be inherited from the [barman] section
-            if value is None and key in ServerConfig.BARMAN_KEYS:
-                new_value = config.get('barman',
-                                       key,
-                                       self.__dict__,
-                                       none_value='')
-                source = '[barman] section'
+            # Skip parameters that cannot be configured by users
+            if key not in ServerConfig.FIXED:
+                # Get the setting from the [name] section of config file
+                # A literal None value is converted to an empty string
+                new_value = config.get(name, key, self.__dict__, none_value='')
+                source = '[%s] section' % name
                 value = self.invoke_parser(key, source, value, new_value)
+                # If the setting isn't present in [name] section of config file
+                # check if it has to be inherited from the [barman] section
+                if value is None and key in ServerConfig.BARMAN_KEYS:
+                    new_value = config.get('barman',
+                                           key,
+                                           self.__dict__,
+                                           none_value='')
+                    source = '[barman] section'
+                    value = self.invoke_parser(key, source, value, new_value)
             # If the setting isn't present in [name] section of config file
             # and is not inherited from global section use its default
             # (if present)
@@ -470,19 +483,85 @@ class Config(object):
                              filename)
 
     def _populate_servers(self):
-        """Populate server list from configuration file"""
+        """
+        Populate server list from configuration file
+
+        Also check for paths errors in configuration.
+        If two or more paths overlap in
+        a single server, that server is disabled.
+        If two or more directory paths overlap between
+        different servers an error is raised.
+        """
+
+        # Populate servers
         if self._servers is not None:
             return
         self._servers = {}
+        # Cycle all the available configurations sections
         for section in self._config.sections():
             if section == 'barman':
-                continue  # skip global settings
+                # skip global settings
+                continue
+            # Exit if the section has a reserved name
             if section in FORBIDDEN_SERVER_NAMES:
-                msg = "the reserved word '%s' is not allowed as server name. " \
+                msg = "the reserved word '%s' is not allowed as server name." \
                       "Please rename it." % section
                 _logger.fatal(msg)
                 raise SystemExit("FATAL: %s" % msg)
+            # Create a ServerConfig object
             self._servers[section] = ServerConfig(self, section)
+
+        # Check for conflicting paths in Barman configuration
+        self._check_conflicting_paths()
+
+    def _check_conflicting_paths(self):
+        """
+        Look for conflicting paths intra-server and inter-server
+        """
+
+        # All paths in configuration
+        servers_paths = {}
+        # Global errors list
+        self.servers_msg_list = []
+
+        # Cycle all the available configurations sections
+        for section in self._config.sections():
+            if section == 'barman':
+                # skip global settings
+                continue
+
+            # Paths map
+            config_paths = {
+                    'backup_directory': self._servers[section].backup_directory,
+                    'basebackups_directory': self._servers[section].basebackups_directory,
+                    'wals_directory': self._servers[section].wals_directory,
+                    'incoming_wals_directory': self._servers[section].incoming_wals_directory,
+            }
+
+            # Check for path errors
+            for label, path in config_paths.iteritems():
+                # If the path does not conflict with the others, add it to the
+                # paths map
+                if path not in servers_paths:
+                    servers_paths[path] = PathConflict._make([label, section])
+                else:
+                    if section == servers_paths[path][1]:
+                        # Internal path error.
+                        # Insert the error message into the server.msg_list
+                        self._servers[section].msg_list.append(
+                            "Conflicting path: %s=%s conflicts with "
+                            "'%s' for server '%s'" % (label, path,
+                            servers_paths[path].label, servers_paths[path].server))
+                        # Disable the server
+                        self._servers[section].disabled = True
+                    else:
+                        # Global path error.
+                        # Insert the error message into the global msg_list
+                        self.servers_msg_list.append(
+                            "Conflicting path: %s=%s for server '%s' conflicts with "
+                            "'%s' for server '%s'" %
+                            (label, path, section, servers_paths[path].label,
+                             servers_paths[path].server))
 
     def server_names(self):
         """This method returns a list of server names"""

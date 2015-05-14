@@ -139,7 +139,9 @@ def mock_backup_ext_info(
     return ext_info
 
 
-def build_config_from_dicts(global_conf=None, main_conf=None, config_name=None):
+def build_config_from_dicts(global_conf=None, main_conf=None,
+                            test_conf=None,
+                            config_name=None):
     """
     Utility method, generate a barman.config.Config object
 
@@ -164,11 +166,19 @@ def build_config_from_dicts(global_conf=None, main_conf=None, config_name=None):
         'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere',
         'conninfo': 'host=pg01.nowhere user=postgres port=5432'
     }
+    # base test section
+    base_test = {
+        'description': '" Text with quotes "',
+        'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg02.nowhere',
+        'conninfo': 'host=pg02.nowhere user=postgres port=5433'
+    }
     # update map values of the two sections
     if global_conf is not None:
         base_barman.update(global_conf)
     if main_conf is not None:
         base_main.update(main_conf)
+    if test_conf is not None:
+        base_test.update(test_conf)
 
     # writing the StringIO obj with the barman and main sections
     config_file = StringIO()
@@ -179,6 +189,11 @@ def build_config_from_dicts(global_conf=None, main_conf=None, config_name=None):
     config_file.write('[main]\n')
     for key in base_main.keys():
         config_file.write('%s = %s\n' % (key, base_main[key]))
+
+    config_file.write('[test]\n')
+    for key in base_test.keys():
+        config_file.write('%s = %s\n' % (key, base_main[key]))
+
     config_file.seek(0)
     config = Config(config_file)
     config.config_file = config_name or 'build_config_from_dicts'

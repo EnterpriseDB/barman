@@ -56,7 +56,7 @@ class PostgresConnectionError(Exception):
 
 class Server(object):
     """
-    This class represents an instance of a PostgreSQL server to be backed up.
+    This class represents the PostgreSQL server to backup.
     """
     XLOG_DB = "xlog.db"
 
@@ -251,13 +251,19 @@ class Server(object):
         """
         Checks backup directories and creates them if they do not exist
         """
-        try:
-            self._make_directories()
-        except OSError, e:
-            output.result('check', self.config.name, 'directories', False,
-                          "%s: %s" % (e.filename, e.strerror))
+
+        if self.config.disabled:
+            output.result('check', self.config.name, 'directories', False)
+            for conflict_paths in self.config.msg_list:
+                output.info("\t%s" % conflict_paths)
         else:
-            output.result('check', self.config.name, 'directories', True)
+            try:
+                self._make_directories()
+            except OSError, e:
+                output.result('check', self.config.name, 'directories', False,
+                              "%s: %s" % (e.filename, e.strerror))
+            else:
+                output.result('check', self.config.name, 'directories', True)
 
     def check_retention_policy_settings(self):
         """
@@ -384,6 +390,12 @@ class Server(object):
             output.result('status', self.config.name,
                           "description",
                           "Description", self.config.description)
+        output.result('status', self.config.name,
+                      "active",
+                      "Active", self.config.active)
+        output.result('status', self.config.name,
+                      "disabled",
+                      "Disabled", self.config.disabled)
         self.status_postgres()
         self.status_retention_policies()
         # Executes the backup manager status info method

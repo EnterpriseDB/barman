@@ -32,14 +32,15 @@ from barman.utils import BarmanEncoder
 _logger = logging.getLogger(__name__)
 
 
-def exec_diagnose(servers):
+def exec_diagnose(servers, errors_list):
     """
     Diagnostic command: gathers information from backup server
     and from all the configured servers.
 
     Gathered information should be used for support and problems detection
 
-    :param servers: list of configured servers
+    :param list servers: list of configured servers
+    :param list errors_list: list of global errors
     """
     # global section. info about barman server
     diagnosis = {}
@@ -47,6 +48,7 @@ def exec_diagnose(servers):
     diagnosis['servers'] = {}
     # barman global config
     diagnosis['global']['config'] = dict(barman.__config__._global_config)
+    diagnosis['global']['config']['errors_list'] = errors_list
     command = fs.UnixLocalCommand()
     # basic system info
     diagnosis['global']['system_info'] = command.get_system_info()
@@ -72,5 +74,4 @@ def exec_diagnose(servers):
         diagnosis['servers'][name]['backups'] = backups
     output.info(json.dumps(diagnosis, sys.stdout, cls=BarmanEncoder, indent=4,
                            sort_keys=True))
-
 
