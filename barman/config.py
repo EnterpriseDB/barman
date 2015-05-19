@@ -214,9 +214,9 @@ def parse_reuse_backup(value):
             "', '".join(REUSE_BACKUP_VALUES[:-1]), REUSE_BACKUP_VALUES[-1]))
 
 
-class Server(object):
+class ServerConfig(object):
     """
-    This class represents a server.
+    This class represents the configuration for a specific Server instance.
     """
 
     KEYS = [
@@ -325,7 +325,7 @@ class Server(object):
         self.barman_home = config.barman_home
         self.barman_lock_directory = config.barman_lock_directory
         config.validate_server_config(self.name)
-        for key in Server.KEYS:
+        for key in ServerConfig.KEYS:
             value = None
             # Get the setting from the [name] section of config file
             # A literal None value is converted to an empty string
@@ -334,7 +334,7 @@ class Server(object):
             value = self.invoke_parser(key, source, value, new_value)
             # If the setting isn't present in [name] section of config file
             # check if it has to be inherited from the [barman] section
-            if value is None and key in Server.BARMAN_KEYS:
+            if value is None and key in ServerConfig.BARMAN_KEYS:
                 new_value = config.get('barman',
                                        key,
                                        self.__dict__,
@@ -344,8 +344,8 @@ class Server(object):
             # If the setting isn't present in [name] section of config file
             # and is not inherited from global section use its default
             # (if present)
-            if value is None and key in Server.DEFAULTS:
-                new_value = Server.DEFAULTS[key] % self.__dict__
+            if value is None and key in ServerConfig.DEFAULTS:
+                new_value = ServerConfig.DEFAULTS[key] % self.__dict__
                 source = 'DEFAULTS'
                 value = self.invoke_parser(key, source, value, new_value)
             # An empty string is a None value (bypassing inheritance
@@ -482,7 +482,7 @@ class Config(object):
                       "Please rename it." % section
                 _logger.fatal(msg)
                 raise SystemExit("FATAL: %s" % msg)
-            self._servers[section] = Server(self, section)
+            self._servers[section] = ServerConfig(self, section)
 
     def server_names(self):
         """This method returns a list of server names"""
@@ -515,7 +515,7 @@ class Config(object):
                 'log_file',
                 'log_level',
                 'configuration_files_directory']
-        keys.extend(Server.KEYS)
+        keys.extend(ServerConfig.KEYS)
         self._validate_with_keys(self._global_config,
                                  keys, 'barman')
 
@@ -528,7 +528,7 @@ class Config(object):
         # Check for the existence of unexpected parameters in the
         # server section of the configuration file
         self._validate_with_keys(self._config.items(server),
-                                 Server.KEYS, server)
+                                 ServerConfig.KEYS, server)
 
     @staticmethod
     def _validate_with_keys(config_items, allowed_keys, section):

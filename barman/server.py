@@ -56,7 +56,7 @@ class PostgresConnectionError(Exception):
 
 class Server(object):
     """
-    This class represents a server to backup
+    This class represents an instance of a PostgreSQL server to be backed up.
     """
     XLOG_DB = "xlog.db"
 
@@ -64,7 +64,7 @@ class Server(object):
         """
         Server constructor.
 
-        :param barman.config.Server config: the server configuration
+        :param barman.config.ServerConfig config: the server configuration
         """
         self.config = config
         self._conn = None

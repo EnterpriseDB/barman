@@ -203,7 +203,8 @@ def build_mocked_server(name=None, config=None,
                         global_conf=None, main_conf=None):
     """
     Build a mock server object
-    :param barman.config.Server config: use this object to build the server
+    :param barman.config.ServerConfig config: use this object to build the
+        server
     :param dict[str,str|None]|None global_conf: using this dictionary
         it is possible to override or add new values to the [barman] section
     :param dict[str,str|None]|None main_conf: using this dictionary
