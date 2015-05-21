@@ -125,6 +125,7 @@ def _dispatch(obj, prefix, name, *args, **kwargs):
         raise ValueError("The object %r does not have the %r method" % (
             obj, method_name))
 
+
 def is_quiet():
     """
     Calls the "is_quiet" method, accessing the protected parameter _quiet
@@ -133,6 +134,7 @@ def is_quiet():
     """
     return _writer.is_quiet()
 
+
 def is_debug():
     """
     Calls the "is_debug" method, accessing the protected parameter _debug
@@ -140,6 +142,7 @@ def is_debug():
     :return bool: the _debug parameter value
     """
     return _writer.is_debug()
+
 
 def debug(message, *args, **kwargs):
     """
@@ -394,6 +397,49 @@ class ConsoleOutputWriter(object):
         Nothing to do for console.
         """
         # TODO: evaluate to display something useful here
+
+    def result_recovery(self, results):
+        """
+        Render the result of a recovery.
+
+        """
+        if len(results['changes']) > 0:
+            self.info("")
+            self.info("IMPORTANT")
+            self.info("These settings have been modified to prevent "
+                      "data losses")
+            self.info("")
+
+            for assertion in results['changes']:
+                self.info("%s line %s: %s = %s",
+                          assertion.filename,
+                          assertion.line,
+                          assertion.key,
+                          assertion.value)
+
+        if len(results['warnings']) > 0:
+            self.info("")
+            self.info("WARNING")
+            self.info("You are required to review the following options"
+                      " as potentially dangerous")
+            self.info("")
+
+            for assertion in results['warnings']:
+                self.info("%s line %s: %s = %s",
+                          assertion.filename,
+                          assertion.line,
+                          assertion.key,
+                          assertion.value)
+
+        if results['delete_barman_xlog']:
+            self.info("")
+            self.info("After the recovery, please remember to remove the "
+                      "\"barman_xlog\" directory")
+            self.info("inside the PostgreSQL data directory.")
+
+        self.info("")
+        self.info("Your PostgreSQL server has been successfully "
+                  "prepared for recovery!")
 
     def _record_check(self, server_name, check, status, hint):
         """

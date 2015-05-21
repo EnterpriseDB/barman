@@ -18,7 +18,7 @@
 import datetime
 import os
 
-from mock import patch, Mock, MagicMock, call, ANY
+from mock import patch, Mock, call, ANY
 import psycopg2
 import pytest
 

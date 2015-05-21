@@ -523,7 +523,7 @@ def global_config(args):
     # both output and logging configured
     config.validate_global_config()
 
-    _logger.debug('Initialized Barman version %s (config: %s)',
+    _logger.debug('Initialised Barman version %s (config: %s)',
                   barman.__version__, config.config_file)
 
 
