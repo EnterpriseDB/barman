@@ -183,7 +183,9 @@ class Server(object):
         connections work properly. It checks also that backup directories exist
         (and if not, it creates them).
         """
+        # Check postgres configuration
         self.check_postgres()
+        # Check barman directories from barman configuration
         self.check_directories()
         # Check retention policies
         self.check_retention_policy_settings()
@@ -196,6 +198,7 @@ class Server(object):
         """
         Checks PostgreSQL connection
         """
+        # Take the status of the remote server
         try:
             remote_status = self.get_remote_status()
         except PostgresConnectionError:
@@ -215,12 +218,19 @@ class Server(object):
                           'pgespresso extension',
                           False,
                           'required for concurrent backups')
-
+        # Check archive_mode parameter: must be on
         if remote_status['archive_mode'] == 'on':
             output.result('check', self.config.name, 'archive_mode', True)
         else:
             output.result('check', self.config.name, 'archive_mode', False,
                           "please set it to 'on'")
+        # Check wal_level parameter: must be different to 'minimal'
+        if remote_status['wal_level'] != 'minimal':
+            output.result('check', self.config.name, 'wal_level', True)
+        else:
+            output.result('check', self.config.name, 'wal_level', False,
+                          "please set it to a higher level than 'minimal'")
+
         if remote_status['archive_command'] and \
                 remote_status['archive_command'] != '(disabled)':
             output.result('check', self.config.name, 'archive_command', True)
@@ -484,9 +494,9 @@ class Server(object):
 
         :return dict[str, None]: result of the server status query
         """
-
+        # PostgreSQL settings to get from the server
         pg_settings = (
-            'archive_mode', 'archive_command', 'data_directory')
+            'wal_level', 'archive_mode', 'archive_command', 'data_directory')
         pg_query_keys = (
             'server_txt_version', 'current_xlog', 'pgespresso_installed')
 

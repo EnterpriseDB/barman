@@ -257,3 +257,55 @@ class TestServer(object):
         with pytest.raises(PostgresConnectionError):
             with server.pg_connect():
                 assert False  # should never get here
+
+    @patch('barman.server.Server.get_remote_status')
+    def test_check_postgres(self, postgres_mock, capsys):
+        """
+        Test management of check_postgres view output
+
+        :param postgres_mock: mock get_remote_status function
+        :param capsys: retrieve output from consolle
+        """
+        postgres_mock.return_value = {'server_txt_version': None}
+        # Create server
+        server = build_real_server()
+        # Case: no reply by PostgreSQL
+        # Expect out: PostgreSQL: FAILED
+        server.check_postgres()
+        (out, err) = capsys.readouterr()
+        assert out == '	PostgreSQL: FAILED\n'
+        # Case: correct configuration
+        postgres_mock.return_value = {'current_xlog': None,
+                                      'archive_command': 'wal to archive',
+                                      'pgespresso_installed': None,
+                                      'server_txt_version': 'PostgresSQL 9_4',
+                                      'data_directory': '/usr/local/postgres',
+                                      'archive_mode': 'on',
+                                      'wal_level': 'archive'}
+        # Do check
+        # Expect out: all parameters: OK
+        server.check_postgres()
+        (out, err) = capsys.readouterr()
+        assert out == "\tPostgreSQL: OK\n" \
+                      "\tarchive_mode: OK\n" \
+                      "\twal_level: OK\n" \
+                      "\tarchive_command: OK\n"
+
+        # Case: wal_level and archive_command values are not acceptable
+        postgres_mock.return_value = {'current_xlog': None,
+                                      'archive_command': None,
+                                      'pgespresso_installed': None,
+                                      'server_txt_version': 'PostgresSQL 9_4',
+                                      'data_directory': '/usr/local/postgres',
+                                      'archive_mode': 'on',
+                                      'wal_level': 'minimal'}
+        # Do check
+        # Expect out: some parameters: FAILED
+        server.check_postgres()
+        (out, err) = capsys.readouterr()
+        assert out == "\tPostgreSQL: OK\n" \
+                      "\tarchive_mode: OK\n" \
+                      "\twal_level: FAILED (please set it to a higher level " \
+                      "than 'minimal')\n" \
+                      "\tarchive_command: FAILED (please set it " \
+                      "accordingly to documentation)\n"
