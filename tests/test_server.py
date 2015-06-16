@@ -309,3 +309,40 @@ class TestServer(object):
                       "than 'minimal')\n" \
                       "\tarchive_command: FAILED (please set it " \
                       "accordingly to documentation)\n"
+
+    @patch('barman.server.Server.get_wal_until_next_backup')
+    def test_get_wal_info(self, get_wal_mock, tmpdir):
+        """
+        Basic test for get_wal_info method
+        Test the wals per second and total time in seconds values.
+        :return:
+        """
+        # Build a test server with a test path
+        server = build_real_server(global_conf={
+            'barman_home': tmpdir.strpath
+        })
+        # Mock method get_wal_until_next_backup for returning a list of
+        # 3 fake WAL. the first one is the start and stop WAL of the backup
+        wal_list = [
+            WalFileInfo.from_xlogdb_line(
+                "000000010000000000000002\t16777216\t1434450086.53\tNone\n"),
+            WalFileInfo.from_xlogdb_line(
+                "000000010000000000000003\t16777216\t1434450087.54\tNone\n"),
+            WalFileInfo.from_xlogdb_line(
+                "000000010000000000000004\t16777216\t1434450088.55\tNone\n")]
+        get_wal_mock.return_value = wal_list
+        backup_info = build_test_backup_info(
+            server=server,
+            begin_wal=wal_list[0].name,
+            end_wal=wal_list[0].name)
+        backup_info.save()
+        # Evaluate total time in seconds:
+        # last_wal_timestamp - first_wal_timestamp
+        wal_total_seconds = wal_list[-1].time - wal_list[0].time
+        # Evaluate the wals_per_second value:
+        # wals_in_backup + wals_until_next_backup / total_time_in_seconds
+        wals_per_second = len(wal_list) / wal_total_seconds
+        wal_info = server.get_wal_info(backup_info)
+        assert wal_info
+        assert wal_info['wal_total_seconds'] == wal_total_seconds
+        assert wal_info['wals_per_second'] == wals_per_second

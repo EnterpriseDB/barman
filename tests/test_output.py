@@ -902,7 +902,8 @@ class TestConsoleWriter(object):
 
     def test_result_show_backup(self, capsys):
         # mock the backup ext info
-        ext_info = mock_backup_ext_info()
+        wal_per_second = 0.01
+        ext_info = mock_backup_ext_info(wals_per_second=wal_per_second)
 
         writer = output.ConsoleOutputWriter()
 
@@ -918,6 +919,8 @@ class TestConsoleWriter(object):
             assert '%s: %s' % (name, location) in out
         assert (pretty_size(ext_info['size'] + ext_info['wal_size'])) in out
         assert (pretty_size(ext_info['wal_until_next_size'])) in out
+        assert 'WAL rate             : %0.2f/hour' % \
+               (wal_per_second * 3600) in out
         # TODO: this test can be expanded
         assert err == ''
 

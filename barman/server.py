@@ -905,7 +905,7 @@ class Server(object):
             if wal_info['wal_total_seconds'] > 0:
                 wal_info['wals_per_second'] = (
                     float(wal_info['wal_num'] +
-                          wal_info['wal_until_next_size']) /
+                          wal_info['wal_until_next_num']) /
                     wal_info['wal_total_seconds'])
 
             # evaluation of compression ratio for basebackup WAL files
