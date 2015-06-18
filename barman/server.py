@@ -209,16 +209,6 @@ class Server(object):
             output.result('check', self.config.name, 'PostgreSQL', False)
             return
 
-        if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
-            if remote_status['pgespresso_installed']:
-                output.result('check', self.config.name,
-                        'pgespresso extension', True)
-            else:
-                output.result('check', self.config.name,
-                          'pgespresso extension',
-                          False,
-                          'required for concurrent backups')
-        # Check archive_mode parameter: must be on
         if remote_status['archive_mode'] == 'on':
             output.result('check', self.config.name, 'archive_mode', True)
         else:
@@ -411,7 +401,7 @@ class Server(object):
         # Executes the backup manager status info method
         self.backup_manager.status()
 
-    def pg_espresso_installed(self):
+    def pgespresso_installed(self):
         """
         Returns true if pgexpresso extension is available
         """
@@ -515,7 +505,7 @@ class Server(object):
                     _logger.debug(
                         "Error retrieving PostgreSQL version: %s", e)
 
-                result['pgespresso_installed'] = self.pg_espresso_installed()
+                result['pgespresso_installed'] = self.pgespresso_installed()
 
                 try:
                     if not self.pg_is_in_recovery():

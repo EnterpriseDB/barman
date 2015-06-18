@@ -18,10 +18,12 @@
 """
 Backup Executor module
 
-A BackupExecutor is responsible to actually execute a backup using a specific
-backup method.
+A Backup Executor is a class responsible for the execution
+of a backup. Specific implementations of backups are defined by
+classes that derive from BackupExecutor (e.g.: backup with rsync
+through Ssh).
 
-A BackupExecutor is called during a backup by the BackupManager
+A BackupExecutor is invoked by the BackupManager for backup operations.
 """
 from abc import ABCMeta, abstractmethod
 import logging
@@ -48,247 +50,166 @@ class SshCommandException(Exception):
 
 class BackupExecutor(object):
     """
-    Abstract base class for Backup Executors.
+    Abstract base class for any backup executors.
     """
+
     __metaclass__ = ABCMeta
 
     def __init__(self, backup_manager):
         """
-        Constructor
+        Base constructor
 
         :param barman.backup.BackupManager backup_manager: the BackupManager
-            owner of the executor
+            assigned to the executor
         """
         self.backup_manager = backup_manager
         self.server = backup_manager.server
         self.config = backup_manager.config
 
-        # Holds the action being executed. Used for error messages.
-        self.current_action = None
-
     def init(self):
         """
-        Initialize backup executor internal state
+        Initialise the internal state of the backup executor
         """
-        self.current_action = "starting backup"
 
     @abstractmethod
     def backup(self, backup_info):
         """
-        Performs a backup for the server
+        Perform a backup for the server - invoked by BackupManager.backup()
 
-        :param barman.infofile.BackupInfo backup_info: the object representing
-            the backup.
+        :param barman.infofile.BackupInfo backup_info: backup information
         """
 
     def check(self):
         """
-        Do additional checks defined by the BackupExecutor.
+        Perform additional checks - invoked by BackupManager.check()
         """
 
     def status(self):
         """
-        Output additional status defined by the BackupExecutor.
+        Set additional status info - invoked by BackupManager.status()
         """
 
     def get_remote_status(self):
         """
-        Build additional remote status lines defined by the BackupExecutor.
+        Get additional remote status info - invoked by
+        BackupManager.get_remote_status()
 
         :rtype: dict[str, str]
         """
         return {}
 
 
-class RsyncBackupExecutor(BackupExecutor):
+def _parse_ssh_command(ssh_command):
     """
-    Execute a backup using Rsync to transfer the files.
+    Parse a user provided ssh command to a single command and
+    a list of arguments
 
-    It invokes PostgreSQL commands to start and stop the backup.
-    The data directory is copied using rsync.
+    In case of error, the first member of the result (the command) will be None
 
-    This backup executor requires the ssh_command option to be set, or it will
-    raise a SshCommandException.
+    :param ssh_command: a ssh command provided by the user
+    :return tuple[str,list[str]]: the command and a list of options
     """
+    try:
+        ssh_options = ssh_command.split()
+    except AttributeError:
+        return None, []
+    ssh_command = ssh_options.pop(0)
+    ssh_options.extend("-o BatchMode=yes -o StrictHostKeyChecking=no".split())
+    return ssh_command, ssh_options
+
+
+class SshBackupExecutor(BackupExecutor):
+    """
+    Abstract base class for any backup executors based on Ssh
+    remote connections. This class is also a factory for
+    exclusive/concurrent backup strategy objects.
+
+    Raises a SshCommandException if 'ssh_command' is not set.
+    """
+
+    __metaclass__ = ABCMeta
+
     def __init__(self, backup_manager):
+        """
+        Constructor of the abstract class for backups via Ssh
+
+        :param barman.backup.BackupManager backup_manager: the BackupManager
+            assigned to the executor
+        """
+        super(SshBackupExecutor, self).__init__(backup_manager)
+
         # Retrieve the ssh command and the options necessary for the
-        # execution of rsync.
-        try:
-            self.ssh_options = backup_manager.config.ssh_command.split()
-        except AttributeError:
+        # remote ssh access.
+        self.ssh_command, self.ssh_options = _parse_ssh_command(
+            backup_manager.config.ssh_command)
+
+        # Requires ssh_command to be set
+        if not self.ssh_command:
             raise SshCommandException(
                 'Missing or invalid ssh_command in barman configuration '
                 'for server %s' % backup_manager.config.name)
-        self.ssh_command = self.ssh_options.pop(0)
-        self.ssh_options.extend("-o BatchMode=yes "
-                                "-o StrictHostKeyChecking=no".split())
 
-        super(RsyncBackupExecutor, self).__init__(backup_manager)
+        # Holds the action being executed. Used for error messages.
+        self.current_action = None
+        # Depending on the backup options value, create the proper strategy
+        if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
+            # Concurrent backup strategy
+            self.strategy = ConcurrentBackupStrategy(self)
+        else:
+            # Exclusive backup strategy
+            self.strategy = ExclusiveBackupStrategy(self)
 
-    def start_backup(self, backup_info):
+    def _update_action_from_strategy(self):
         """
-        Start of the backup.
-
-        The method performs all the preliminary operations required for a
-        backup to start.
-
-        :param barman.infofile.BackupInfo backup_info: the backup information
+        Update the executor's current action with the one of the strategy.
+        This is used during exception handling to let the caller know
+        where the failure occurred.
         """
-        self.current_action = "connecting to database (%s)" % \
-                              self.config.conninfo
-        output.debug(self.current_action)
-        with self.server.pg_connect():
 
-            # Get the PostgreSQL data directory location
-            self.current_action = 'detecting data directory'
-            output.debug(self.current_action)
-            data_directory = self.server.get_pg_setting('data_directory')
-            backup_info.set_attribute('pgdata', data_directory)
+        action = getattr(self.strategy, 'current_action', None)
+        if action:
+            self.current_action = action
 
-            # Set server version
-            backup_info.set_attribute('version', self.server.server_version)
-
-            # Set configuration files location
-            cf = self.server.get_pg_configuration_files()
-            if cf:
-                for key in sorted(cf.keys()):
-                    backup_info.set_attribute(key, cf[key])
-
-            # Get tablespaces information
-            self.current_action = 'detecting tablespaces'
-            output.debug(self.current_action)
-            tablespaces = self.server.get_pg_tablespaces()
-            if tablespaces and len(tablespaces) > 0:
-                backup_info.set_attribute('tablespaces', tablespaces)
-                for item in tablespaces:
-                    msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
-                    _logger.info(msg)
-
-            # Issue pg_start_backup on the PostgreSQL server
-            self.current_action = "issuing start backup command"
-            _logger.debug(self.current_action)
-            label = "Barman backup %s %s" % (
-                backup_info.server_name, backup_info.backup_id)
-
-            # Exclusive backup: issue a pg_start_Backup() command
-            if BackupOptions.CONCURRENT_BACKUP not in \
-                    self.config.backup_options:
-                start_row = self.pg_start_backup(label)
-                start_xlog, start_file_name, start_file_offset, start_time = \
-                    start_row
-                backup_info.set_attribute('status', "STARTED")
-                backup_info.set_attribute('timeline',
-                                          int(start_file_name[0:8], 16))
-                backup_info.set_attribute('begin_xlog', start_xlog)
-                backup_info.set_attribute('begin_wal', start_file_name)
-                backup_info.set_attribute('begin_offset', start_file_offset)
-                backup_info.set_attribute('begin_time', start_time)
-
-            # Concurrent backup: use pgespresso extension to start a the backup
-            else:
-                start_row = self.pgespresso_start_backup(label)
-                backup_data, start_time = start_row
-                wal_re = re.compile(
-                    '^START WAL LOCATION: (.*) \(file (.*)\)',
-                    re.MULTILINE)
-                wal_info = wal_re.search(backup_data)
-                backup_info.set_attribute('status', "STARTED")
-                backup_info.set_attribute('timeline',
-                                          int(wal_info.group(2)[0:8], 16))
-                backup_info.set_attribute('begin_xlog', wal_info.group(1))
-                backup_info.set_attribute('begin_wal', wal_info.group(2))
-                backup_info.set_attribute('begin_offset',
-                                          xlog.get_offset_from_location(
-                                              wal_info.group(1)))
-                backup_info.set_attribute('backup_label', backup_data)
-                backup_info.set_attribute('begin_time', start_time)
-
-    def pg_start_backup(self, backup_label):
+    @abstractmethod
+    def backup_copy(self, backup_info):
         """
-        Execute a pg_start_backup
+        Performs the actual copy of a backup for the server
 
-        :param str backup_label: label for the backup
+        :param barman.infofile.BackupInfo backup_info: backup information
         """
-        with self.server.pg_connect() as conn:
-            if (BackupOptions.CONCURRENT_BACKUP
-                not in self.config.backup_options and
-                    self.server.pg_is_in_recovery()):
-                raise Exception(
-                    'Unable to start a backup because of server recovery state')
-            try:
-                cur = conn.cursor()
-                if self.server.server_version < 80400:
-                    cur.execute(
-                        "SELECT xlog_loc, "
-                        "(pg_xlogfile_name_offset(xlog_loc)).*, "
-                        "now() FROM pg_start_backup(%s) as xlog_loc",
-                        (backup_label,))
-                else:
-                    cur.execute(
-                        "SELECT xlog_loc, "
-                        "(pg_xlogfile_name_offset(xlog_loc)).*, "
-                        "now() FROM pg_start_backup(%s,%s) as xlog_loc",
-                        (backup_label, self.config.immediate_checkpoint))
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                msg = "pg_start_backup(): %s" % e
-                _logger.debug(msg)
-                raise Exception(msg)
 
-    def pgespresso_start_backup(self, backup_label):
+    def init(self):
         """
-        Execute a pgespresso_start_backup
-
-        :param str backup_label: label for the backup
+        Initialise the internal state of the backup executor
         """
-        with self.server.pg_connect() as conn:
-
-            if (BackupOptions.CONCURRENT_BACKUP in
-                    self.config.backup_options and not
-                    self.server.pg_espresso_installed()):
-                raise Exception(
-                    'pgespresso extension required for concurrent_backup')
-            try:
-                cur = conn.cursor()
-                cur.execute('SELECT pgespresso_start_backup(%s,%s), now()',
-                            (backup_label, self.config.immediate_checkpoint))
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                msg = "pgespresso_start_backup(): %s" % e
-                _logger.debug(msg)
-                raise Exception(msg)
-
-    def _write_backup_label(self, backup_info):
-        """
-        Write backup_label file inside pgdata folder
-
-        :param backup_info: the backup information structure
-        """
-        label_file = os.path.join(backup_info.get_data_directory(),
-                                  'backup_label')
-        output.debug("Writing backup label: %s" % label_file)
-        with open(label_file, 'w') as f:
-            f.write(backup_info.backup_label)
+        self.current_action = "starting backup"
 
     def backup(self, backup_info):
         """
-        Implementation of the BackupExecutor.backup(backup_info) method.
-        Execute the copy of a backup from a remote server using rsync
+        Perform a backup for the server - invoked by BackupManager.backup()
+        through the generic interface of a BackupExecutor. This implementation
+        is responsible for performing a backup through a remote connection
+        to the PostgreSQL server via Ssh. The specific set of instructions
+        depends on both the specific class that derives from SshBackupExecutor
+        and the selected strategy (e.g. exclusive backup through Rsync).
 
-        :param barman.infofile.BackupInfo backup_info: the object representing
-            the backup.
-        :returns: the representation of a finalized backup.
+        :param barman.infofile.BackupInfo backup_info: backup information
         """
 
         # Start the backup, all the subsequent code must be wrapped in a
-        # try except block which finally issue a backup_stop command
-        self.start_backup(backup_info)
+        # try except block which finally issues a backup_stop command
+        try:
+            self.strategy.start_backup(backup_info)
+        except BaseException:
+            self._update_action_from_strategy()
+            raise
+
         try:
             # save any metadata changed by start_backup() call
             # This must be inside the try-except, because it could fail
             backup_info.save()
 
-            # If we are the first backup, purge unused WAL files
+            # If this is the first backup, purge unused WAL files
             previous_backup = self.backup_manager.get_previous_backup(
                 backup_info.backup_id)
             if not previous_backup:
@@ -314,29 +235,125 @@ class RsyncBackupExecutor(BackupExecutor):
             self.current_action = "issuing stop of the backup"
             output.info("Asking PostgreSQL server to finalize the backup.")
         finally:
-            self.stop_backup(backup_info)
+            try:
+                self.strategy.stop_backup(backup_info)
+            except BaseException:
+                self._update_action_from_strategy()
+                raise
 
-        if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
-            self.current_action = "writing backup label"
-            self._write_backup_label(backup_info)
+    def check(self):
+        """
+        Perform additional checks for SshBackupExecutor, including
+        Ssh connection (executing a 'true' command on the remote server)
+        and specific checks for the given backup strategy.
+        """
+
+        # Execute a 'true' command on the remote server
+        cmd = Command(self.ssh_command, self.ssh_options)
+        ret = cmd("true")
+        hint = "PostgreSQL server"
+        if ret == 0:
+            output.result('check', self.config.name, 'ssh', True,
+                          hint)
+        else:
+            output.result('check', self.config.name, 'ssh', False,
+                          '%s, return code: %s' % (hint, ret))
+
+        try:
+            # Invoke specific checks for the backup strategy
+            self.strategy.check()
+        except BaseException:
+            self._update_action_from_strategy()
+            raise
+
+    def status(self):
+        """
+        Set additional status info for SshBackupExecutor using remote
+        commands via Ssh, as well as those defined by the given backup strategy.
+        """
+        # If the PostgreSQL version is < 9.4 pg_stat_archiver is not available.
+        # Retrieve the last_archived_wal using the executor
+        remote_status = self.get_remote_status()
+        if 'last_archived_wal' in remote_status:
+            output.result('status', self.config.name,
+                          'last_archived_wal',
+                          'Last archived WAL',
+                          remote_status['last_archived_wal'] or
+                          'No WAL segment shipped yet')
+        try:
+            # Invoke the status() method for the given strategy
+            self.strategy.status()
+        except BaseException:
+            self._update_action_from_strategy()
+            raise
+
+    def get_remote_status(self):
+        """
+        Get remote information on PostgreSQL using Ssh, such as
+        last archived WAL file
+
+        :rtype: dict(str,str|None)
+        """
+        remote_status = {}
+        with self.server.pg_connect():
+            # Retrieve the last archived WAL using a Ssh connection on
+            # the remote server and executing an 'ls' command. Only
+            # for pre-9.4 versions of PostgreSQL.
+            if self.server.server_version < 90400:
+                remote_status['last_archived_wal'] = None
+                if self.server.get_pg_setting('data_directory') and \
+                        self.server.get_pg_setting('archive_command'):
+                    # TODO: replace with RemoteUnixCommand
+                    cmd = Command(self.ssh_command,
+                                  self.ssh_options)
+                    archive_dir = os.path.join(
+                        self.server.get_pg_setting('data_directory'),
+                        'pg_xlog', 'archive_status')
+                    out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
+                    for line in out.splitlines():
+                        if line.endswith('.done'):
+                            name = line[:-5]
+                            if xlog.is_any_xlog_file(name):
+                                remote_status['last_archived_wal'] = name
+                                break
+        return remote_status
+
+
+class RsyncBackupExecutor(SshBackupExecutor):
+    """
+    Concrete class for backup via Rsync+Ssh.
+
+    It invokes PostgreSQL commands to start and stop the backup, depending
+    on the defined strategy. Data files are copied using Rsync via Ssh.
+    It heavily relies on methods defined in the SshBackupExecutor class
+    from which it derives.
+    """
+
+    def __init__(self, backup_manager):
+        """
+        Constructor
+
+        :param barman.backup.BackupManager backup_manager: the BackupManager
+            assigned to the strategy
+        """
+        super(RsyncBackupExecutor, self).__init__(backup_manager)
 
     def backup_copy(self, backup_info):
         """
-        Perform the copy of the backup using Rsync, copying tablespaces,
-        and basebackup in two steps.
+        Perform the actual copy of the backup using Rsync.
+        First, it copies one tablespace at a time, then the PGDATA directory,
+        and finally configuration files (if outside PGDATA).
+        Bandwidth limitation, according to configuration, is applied in
+        the process.
+        This method is the core of base backup copy using Rsync+Ssh.
 
-        This function returns the size of the backup (in bytes)
-
-        :param barman.infofile.BackupInfo backup_info: the backup information
-            structure
-        :returns: the size of the backup (in bytes)
+        :param barman.infofile.BackupInfo backup_info: backup information
         """
 
-        # paths to be ignored from rsync
+        # List of paths to be ignored by Rsync
         exclude_and_protect = []
 
-        # Retrieve the previous backup metadata and set the safe_horizon
-        # accordingly
+        # Retrieve the previous backup metadata, then set safe_horizon
         previous_backup = self.backup_manager.get_previous_backup(
             backup_info.backup_id)
         if previous_backup:
@@ -344,7 +361,7 @@ class RsyncBackupExecutor(BackupExecutor):
             # ensures it
             safe_horizon = previous_backup.begin_time
         else:
-            # If no previous backup is present, the safe horizon is set to None
+            # If no previous backup is present, safe_horizon is set to None
             safe_horizon = None
 
         # Copy tablespaces applying bwlimit when necessary
@@ -377,11 +394,11 @@ class RsyncBackupExecutor(BackupExecutor):
                 exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
                 # Copy the backup using smart_copy trying to reuse the
                 # tablespace of the previous backup if incremental is active
-                ref_dir = self.reuse_dir(previous_backup, tablespace.oid)
+                ref_dir = self._reuse_dir(previous_backup, tablespace.oid)
                 tb_rsync = RsyncPgData(
                     ssh=self.ssh_command,
                     ssh_options=self.ssh_options,
-                    args=self.reuse_args(ref_dir),
+                    args=self._reuse_args(ref_dir),
                     bwlimit=bwlimit,
                     network_compression=self.config.network_compression,
                     check=True)
@@ -401,13 +418,13 @@ class RsyncBackupExecutor(BackupExecutor):
         backup_dest = backup_info.get_data_directory()
         mkpath(backup_dest)
 
-        # Copy the pgdata, trying to reuse the data dir
+        # Copy the PGDATA, trying to reuse the data dir
         # of the previous backup if incremental is active
-        ref_dir = self.reuse_dir(previous_backup)
+        ref_dir = self._reuse_dir(previous_backup)
         rsync = RsyncPgData(
             ssh=self.ssh_command,
             ssh_options=self.ssh_options,
-            args=self.reuse_args(ref_dir),
+            args=self._reuse_args(ref_dir),
             bwlimit=self.config.bandwidth_limit,
             exclude_and_protect=exclude_and_protect,
             network_compression=self.config.network_compression)
@@ -420,7 +437,7 @@ class RsyncBackupExecutor(BackupExecutor):
                   backup_info.pgdata
             raise DataTransferFailure.from_rsync_error(e, msg)
 
-        # at last copy pg_control
+        # At last copy pg_control
         try:
             rsync(':%s/global/pg_control' % (backup_info.pgdata,),
                   '%s/global/pg_control' % (backup_dest,))
@@ -434,43 +451,38 @@ class RsyncBackupExecutor(BackupExecutor):
         _logger.debug(self.current_action)
         for key in ('config_file', 'hba_file', 'ident_file'):
             cf = getattr(backup_info, key, None)
-            # Consider only those that reside outside of the original PGDATA
             if cf:
+                assert isinstance(cf, str)
+                # Consider only those that reside outside of the original PGDATA
                 if cf.startswith(backup_info.pgdata):
                     self.current_action = \
                         "skipping %s as contained in %s directory" % (
                             key, backup_info.pgdata)
                     _logger.debug(self.current_action)
                     continue
-                else:
-                    self.current_action = \
-                        "copying %s as outside %s directory" % (
-                            key, backup_info.pgdata)
-                    _logger.info(self.current_action)
-                    try:
-                        rsync(':%s' % cf, backup_dest)
+                self.current_action = "copying %s as outside %s directory" % (
+                    key, backup_info.pgdata)
+                _logger.info(self.current_action)
+                try:
+                    rsync(':%s' % cf, backup_dest)
+                except CommandFailedException, e:
+                    ret_code = e.args[0]['ret']
+                    msg = "data transfer failure on file '%s'" % cf
+                    if 'ident_file' == key and ret_code == 23:
+                        # If the ident file is missing,
+                        # it isn't an error condition for PostgreSQL.
+                        # Barman is consistent with this behavior.
+                        output.warning(msg, log=True)
+                        continue
+                    else:
+                        raise DataTransferFailure.from_rsync_error(e, msg)
 
-                    except CommandFailedException, e:
-                        ret_code = e.args[0]['ret']
-                        msg = "data transfer failure on file '%s'" % cf
-                        if 'ident_file' == key and ret_code == 23:
-                            # if the ident file is not present
-                            # it is not a blocking error, so,
-                            # we need to track why the exception is raised.
-                            # if ident file is missing, warn the user, log
-                            # the data transfer but continue the backup
-                            output.warning(msg, log=True)
-                            continue
-                        else:
-                            raise DataTransferFailure.from_rsync_error(
-                                e, msg)
-
-    def reuse_dir(self, previous_backup_info, oid=None):
+    def _reuse_dir(self, previous_backup_info, oid=None):
         """
         If reuse_backup is 'copy' or 'link', builds the path of the directory
         to reuse, otherwise always returns None.
 
-        If oid is None, it returns the full path of pgdata directory of
+        If oid is None, it returns the full path of PGDATA directory of
         the previous_backup otherwise it returns the path to the specified
         tablespace using it's oid.
 
@@ -479,6 +491,7 @@ class RsyncBackupExecutor(BackupExecutor):
         :param str oid: oid of the tablespace to be reused
         :returns: a string containing the local path with data to be reused
             or None
+        :rtype: str|None
         """
         if self.config.reuse_backup in ('copy', 'link') and \
                 previous_backup_info is not None:
@@ -487,7 +500,7 @@ class RsyncBackupExecutor(BackupExecutor):
             except ValueError:
                 return None
 
-    def reuse_args(self, reuse_dir):
+    def _reuse_args(self, reuse_dir):
         """
         If reuse_backup is 'copy' or 'link', build the rsync option to enable
         the reuse, otherwise returns an empty list
@@ -495,6 +508,7 @@ class RsyncBackupExecutor(BackupExecutor):
         :param str reuse_dir: the local path with data to be reused or None
         :returns: list of argument for rsync call for incremental backup
             or empty list.
+        :rtype: list(str)
         """
         if self.config.reuse_backup in ('copy', 'link') and \
                 reuse_dir is not None:
@@ -502,51 +516,154 @@ class RsyncBackupExecutor(BackupExecutor):
         else:
             return []
 
+
+class BackupStrategy(object):
+    """
+    Abstract base class for a strategy to be used by a backup executor.
+    """
+
+    __metaclass__ = ABCMeta
+
+    def __init__(self, executor):
+        """
+        Constructor
+
+        :param BackupExecutor executor: the BackupExecutor assigned
+            to the strategy
+        """
+        self.executor = executor
+
+        # Holds the action being executed. Used for error messages.
+        self.current_action = None
+
+    @abstractmethod
+    def start_backup(self, backup_info):
+        """
+        Issue a start of a backup - invoked by BackupExecutor.backup()
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+
+    @abstractmethod
     def stop_backup(self, backup_info):
         """
-        Stop backup wrapper
+        Issue a stop of a backup - invoked by BackupExecutor.backup()
 
-        :param barman.infofile.BackupInfo backup_info: backup_info object
+        :param barman.infofile.BackupInfo backup_info: backup information
         """
-        if BackupOptions.CONCURRENT_BACKUP not in self.config.backup_options:
-            stop_row = self.pg_stop_backup()
-            if stop_row:
-                stop_xlog, stop_file_name, stop_file_offset, stop_time = \
-                    stop_row
-                backup_info.set_attribute('end_time', stop_time)
-                backup_info.set_attribute('end_xlog', stop_xlog)
-                backup_info.set_attribute('end_wal', stop_file_name)
-                backup_info.set_attribute('end_offset', stop_file_offset)
-            else:
-                raise Exception('Cannot terminate exclusive backup. You might '
-                                'have to manually execute pg_stop_backup() on '
-                                'your PostgreSQL server')
-        else:
-            stop_row = self.pgespresso_stop_backup(backup_info.backup_label)
-            if stop_row:
-                end_wal, stop_time = stop_row
-                decoded_segment = xlog.decode_segment_name(end_wal)
-                backup_info.set_attribute('end_time', stop_time)
-                backup_info.set_attribute('end_xlog',
-                                          "%X/%X" % (decoded_segment[1],
-                                                     (decoded_segment[
-                                                      2] + 1) << 24))
-                backup_info.set_attribute('end_wal', end_wal)
-                backup_info.set_attribute('end_offset', 0)
-            else:
-                raise Exception('Cannot terminate exclusive backup. You might '
-                                'have to  manually execute '
-                                'pg_espresso_abort_backup() on your PostgreSQL '
-                                'server')
 
-    def pg_stop_backup(self):
+    def check(self):
         """
-        Execute a pg_stop_backup
+        Perform additional checks - invoked by BackupExecutor.check()
+        """
 
-        :returns: a string with the result of the pg_stop_backup call or None
+    # noinspection PyMethodMayBeStatic
+    def status(self):
         """
-        with self.server.pg_connect() as conn:
+        Set additional status info - invoked by BackupExecutor.status()
+        """
+
+    def _pg_get_metadata(self, backup_info):
+        """
+        Load PostgreSQL metadata into the backup_info parameter
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        server = self.executor.server
+        with server.pg_connect():
+
+            # Get the PostgreSQL data directory location
+            self.current_action = 'detecting data directory'
+            output.debug(self.current_action)
+            data_directory = server.get_pg_setting('data_directory')
+            backup_info.set_attribute('pgdata', data_directory)
+
+            # Set server version
+            backup_info.set_attribute('version', server.server_version)
+
+            # Set configuration files location
+            cf = server.get_pg_configuration_files()
+            if cf:
+                for key in sorted(cf):
+                    backup_info.set_attribute(key, cf[key])
+
+            # Get tablespaces information
+            self.current_action = 'detecting tablespaces'
+            output.debug(self.current_action)
+            tablespaces = server.get_pg_tablespaces()
+            if tablespaces and len(tablespaces) > 0:
+                backup_info.set_attribute('tablespaces', tablespaces)
+                for item in tablespaces:
+                    msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
+                    _logger.info(msg)
+
+
+class ExclusiveBackupStrategy(BackupStrategy):
+    """
+    Concrete class for exclusive backup strategy.
+
+    This strategy is for SshBackupExecutor only and is responsible for
+    coordinating Barman with PostgreSQL on standard physical backup
+    operations (known as 'exclusive' backup), such as invoking
+    pg_start_backup() and pg_stop_backup() on the master server.
+    """
+
+    def __init__(self, executor):
+        """
+        Constructor
+
+        :param BackupExecutor executor: the BackupExecutor assigned
+            to the strategy
+        """
+        super(ExclusiveBackupStrategy, self).__init__(executor)
+        # Make sure that executor is of type SshBackupExecutor
+        assert isinstance(executor, SshBackupExecutor)
+        # Make sure that backup_options does not contain 'concurrent'
+        assert (BackupOptions.CONCURRENT_BACKUP not in
+                self.executor.config.backup_options)
+
+    def _pg_start_backup(self, backup_label):
+        """
+        Calls pg_start_backup() on the PostgreSQL server
+
+        :param str backup_label: label for the backup returned by Postgres
+        :rtype: tuple
+        """
+        with self.executor.server.pg_connect() as conn:
             try:
+                # Issue a rollback to release any unneeded lock
+                conn.rollback()
+                cur = conn.cursor()
+                if self.executor.server.server_version < 80400:
+                    cur.execute(
+                        "SELECT xlog_loc, "
+                        "(pg_xlogfile_name_offset(xlog_loc)).*, "
+                        "now() FROM pg_start_backup(%s) as xlog_loc",
+                        (backup_label,))
+                else:
+                    cur.execute(
+                        "SELECT xlog_loc, "
+                        "(pg_xlogfile_name_offset(xlog_loc)).*, "
+                        "now() FROM pg_start_backup(%s,%s) as xlog_loc",
+                        (backup_label,
+                         self.executor.config.immediate_checkpoint))
+                return cur.fetchone()
+            except psycopg2.Error, e:
+                msg = "pg_start_backup(): %s" % e
+                _logger.debug(msg)
+                raise Exception(msg)
+
+    def _pg_stop_backup(self):
+        """
+        Calls pg_stop_backup() on the PostgreSQL server
+
+        :returns: a tuple with the result of the pg_stop_backup() call or None
+        :rtype: tuple|None
+        """
+        with self.executor.server.pg_connect() as conn:
+            try:
+                # Issue a rollback to release any unneeded lock
+                conn.rollback()
                 cur = conn.cursor()
                 cur.execute(
                     'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
@@ -556,16 +673,140 @@ class RsyncBackupExecutor(BackupExecutor):
                 _logger.debug('Error issuing pg_stop_backup() command: %s', e)
                 return None
 
-    def pgespresso_stop_backup(self, backup_label):
+    def start_backup(self, backup_info):
+        """
+        Manage the start of an exclusive backup
+
+        The method performs all the preliminary operations required for an
+        exclusive physical backup to start, as well as preparing the
+        information on the backup for Barman.
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        self.current_action = "connecting to database (%s)" % \
+                              self.executor.config.conninfo
+        output.debug(self.current_action)
+        server = self.executor.server
+        with server.pg_connect():
+
+            # Retrieve PostgreSQL server metadata
+            self._pg_get_metadata(backup_info)
+
+            # Issue pg_start_backup on the PostgreSQL server
+            self.current_action = "issuing start backup command"
+            _logger.debug(self.current_action)
+            label = "Barman backup %s %s" % (
+                backup_info.server_name, backup_info.backup_id)
+
+            # Exclusive backup: issue a pg_start_Backup() command
+            start_row = self._pg_start_backup(label)
+            start_xlog, start_file_name, start_file_offset, start_time = \
+                start_row
+            backup_info.set_attribute('status', "STARTED")
+            backup_info.set_attribute('timeline',
+                                      int(start_file_name[0:8], 16))
+            backup_info.set_attribute('begin_xlog', start_xlog)
+            backup_info.set_attribute('begin_wal', start_file_name)
+            backup_info.set_attribute('begin_offset', start_file_offset)
+            backup_info.set_attribute('begin_time', start_time)
+
+    def stop_backup(self, backup_info):
+        """
+        Manage the stop of an exclusive backup
+
+        The method informs the PostgreSQL server that the physical
+        exclusive backup is finished, as well as preparing the information
+        returned by PostgreSQL for Barman.
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+
+        stop_row = self._pg_stop_backup()
+        if stop_row:
+            stop_xlog, stop_file_name, stop_file_offset, stop_time = \
+                stop_row
+            backup_info.set_attribute('end_time', stop_time)
+            backup_info.set_attribute('end_xlog', stop_xlog)
+            backup_info.set_attribute('end_wal', stop_file_name)
+            backup_info.set_attribute('end_offset', stop_file_offset)
+        else:
+            raise Exception('Cannot terminate exclusive backup. You might '
+                            'have to  manually execute pg_stop_backup() '
+                            'on your PostgreSQL server')
+
+    def check(self):
+        """
+        Perform additional checks for ExclusiveBackupStrategy
+        """
+        # Make sure PostgreSQL is not in recovery (i.e. is a master)
+        is_in_recovery = self.executor.server.pg_is_in_recovery()
+        if not is_in_recovery:
+            output.result('check', self.executor.config.name,
+                          'not in recovery', True)
+        else:
+            output.result('check', self.executor.config.name,
+                          'not in recovery',
+                          False,
+                          'cannot perform exclusive backup on a standby')
+
+
+class ConcurrentBackupStrategy(BackupStrategy):
+    """
+    Concrete class for concurrent backup strategy.
+
+    This strategy is for SshBackupExecutor only and is responsible for
+    coordinating Barman with PostgreSQL on concurrent physical backup
+    operations through the pgespresso extension.
+    """
+
+    def __init__(self, executor):
+        """
+        Constructor
+
+        :param BackupExecutor executor: the BackupExecutor assigned
+            to the strategy
+        """
+        super(ConcurrentBackupStrategy, self).__init__(executor)
+        # Make sure that executor is of type SshBackupExecutor
+        assert isinstance(executor, SshBackupExecutor)
+        # Make sure that backup_options contains 'concurrent'
+        assert (BackupOptions.CONCURRENT_BACKUP in
+                self.executor.config.backup_options)
+
+    def _pgespresso_start_backup(self, backup_label):
+        """
+        Execute a pgespresso_start_backup
+
+        :param str backup_label: label for the backup
+        :rtype: tuple
+        """
+        with self.executor.server.pg_connect() as conn:
+            try:
+                # Issue a rollback to release any unneeded lock
+                conn.rollback()
+                cur = conn.cursor()
+                cur.execute(
+                    'SELECT pgespresso_start_backup(%s,%s), now()',
+                    (backup_label, self.executor.config.immediate_checkpoint))
+                return cur.fetchone()
+            except psycopg2.Error, e:
+                msg = "pgespresso_start_backup(): %s" % e
+                _logger.debug(msg)
+                raise Exception(msg)
+
+    def _pgespresso_stop_backup(self, backup_label):
         """
         Execute a pgespresso_stop_backup
 
         :param str backup_label: label of the backup
         :returns: a string containing the result of the
-            pg_espresso_stop_backup call or None
+            pgespresso_stop_backup call or None
+        :rtype: tuple|None
         """
-        with self.server.pg_connect() as conn:
+        with self.executor.server.pg_connect() as conn:
             try:
+                # Issue a rollback to release any unneeded lock
+                conn.rollback()
                 cur = conn.cursor()
                 cur.execute("SELECT pgespresso_stop_backup(%s), now()",
                             (backup_label,))
@@ -575,54 +816,94 @@ class RsyncBackupExecutor(BackupExecutor):
                     "Error issuing pgespresso_stop_backup() command: %s", e)
                 return None
 
+    # noinspection PyMethodMayBeStatic
+    def _write_backup_label(self, backup_info):
+        """
+        Write backup_label file inside PGDATA folder
+
+        :param barman.infofile.BackupInfo  backup_info: tbackup information
+        """
+        label_file = os.path.join(backup_info.get_data_directory(),
+                                  'backup_label')
+        output.debug("Writing backup label: %s" % label_file)
+        with open(label_file, 'w') as f:
+            f.write(backup_info.backup_label)
+
+    def start_backup(self, backup_info):
+        """
+        Start of the backup.
+
+        The method performs all the preliminary operations required for a
+        backup to start.
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        self.current_action = "connecting to database (%s)" % \
+                              self.executor.config.conninfo
+        output.debug(self.current_action)
+        with self.executor.server.pg_connect():
+
+            # Retrieve PostgreSQL server metadata
+            self._pg_get_metadata(backup_info)
+
+            # Issue _pg_start_backup on the PostgreSQL server
+            self.current_action = "issuing start backup command"
+            _logger.debug(self.current_action)
+            label = "Barman backup %s %s" % (
+                backup_info.server_name, backup_info.backup_id)
+
+            # Concurrent backup: issue a pgespresso_start_Backup() command
+
+            start_row = self._pgespresso_start_backup(label)
+            backup_data, start_time = start_row
+            wal_re = re.compile(
+                '^START WAL LOCATION: (.*) \(file (.*)\)',
+                re.MULTILINE)
+            wal_info = wal_re.search(backup_data)
+            backup_info.set_attribute('status', "STARTED")
+            backup_info.set_attribute('timeline',
+                                      int(wal_info.group(2)[0:8], 16))
+            backup_info.set_attribute('begin_xlog', wal_info.group(1))
+            backup_info.set_attribute('begin_wal', wal_info.group(2))
+            backup_info.set_attribute('begin_offset',
+                                      xlog.get_offset_from_location(
+                                          wal_info.group(1)))
+            backup_info.set_attribute('backup_label', backup_data)
+            backup_info.set_attribute('begin_time', start_time)
+
+    def stop_backup(self, backup_info):
+        """
+        Stop backup wrapper
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        stop_row = self._pgespresso_stop_backup(backup_info.backup_label)
+        if stop_row:
+            end_wal, stop_time = stop_row
+            decoded_segment = xlog.decode_segment_name(end_wal)
+            backup_info.set_attribute('end_time', stop_time)
+            backup_info.set_attribute('end_xlog',
+                                      "%X/%X" % (decoded_segment[1],
+                                                 (decoded_segment[
+                                                  2] + 1) << 24))
+            backup_info.set_attribute('end_wal', end_wal)
+            backup_info.set_attribute('end_offset', 0)
+        else:
+            raise Exception('Cannot terminate exclusive backup. You might '
+                            'have to  manually execute '
+                            'pgespresso_abort_backup() on your PostgreSQL '
+                            'server')
+        self.current_action = "writing backup label"
+        self._write_backup_label(backup_info)
+
     def check(self):
         """
-        Checks SSH connection trying to execute a 'true' command on the remote
-        server.
+        Perform additional checks for ConcurrentBackupStrategy
         """
-        cmd = Command(self.ssh_command, self.ssh_options)
-        ret = cmd("true")
-        if ret == 0:
-            output.result('check', self.config.name, 'ssh', True)
+        if self.executor.server.pgespresso_installed():
+            output.result('check', self.executor.config.name,
+                          'pgespresso extension', True)
         else:
-            output.result('check', self.config.name, 'ssh', False,
-                          'return code: %s' % ret)
-
-    def status(self):
-        # If the PostgreSQL version is < 9.4 pg_stat_archiver is not available.
-        # Retrieve the last_archived_wal using the executor
-        remote_status = self.get_remote_status()
-        if 'last_archived_wal' in remote_status:
-            output.result('status', self.config.name,
-                          'last_archived_wal',
-                          'Last archived WAL',
-                          remote_status['last_archived_wal'] or
-                          'No WAL segment shipped yet')
-
-    def get_remote_status(self):
-        """
-        Retrieve the last archived WAL using a ssh connection on the remote
-        server and executing an ls command.
-
-        :rtype: dict
-        """
-        remote_status = {}
-        with self.server.pg_connect():
-            if self.server.server_version < 90400:
-                remote_status['last_archived_wal'] = None
-                if self.server.get_pg_setting('data_directory') and \
-                        self.server.get_pg_setting('archive_command'):
-                    # TODO: replace with RemoteUnixCommand
-                    cmd = Command(self.ssh_command,
-                                  self.ssh_options)
-                    archive_dir = os.path.join(
-                        self.server.get_pg_setting('data_directory'),
-                        'pg_xlog', 'archive_status')
-                    out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
-                    for line in out.splitlines():
-                        if line.endswith('.done'):
-                            name = line[:-5]
-                            if xlog.is_any_xlog_file(name):
-                                remote_status['last_archived_wal'] = name
-                                break
-        return remote_status
+            output.result('check', self.executor.config.name,
+                          'pgespresso extension', False,
+                          'required for concurrent backups')

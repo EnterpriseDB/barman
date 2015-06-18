@@ -276,12 +276,13 @@ class BackupManager(object):
 
     def retry_backup_copy(self, target_function, *args, **kwargs):
         """
-        Execute the copy of a base backup, retrying a given number of times
+        Execute the target backup copy function, retrying the configured
+        number of times
 
-        :param target_function: the base backup copy function
-        :param args: args for the copy function
-        :param kwargs: kwargs of the copy function
-        :return: the result of the copy function
+        :param target_function: the base backup target function
+        :param args: args for the target function
+        :param kwargs: kwargs of the target function
+        :return: the result of the target function
         """
         attempts = 0
         while True:
@@ -289,6 +290,7 @@ class BackupManager(object):
                 # if is not the first attempt, output the retry number
                 if attempts >= 1:
                     output.warning("Copy of base backup: retry #%s", attempts)
+                # execute the target function for backup copy
                 return target_function(*args, **kwargs)
             # catch rsync errors
             except DataTransferFailure, e:
