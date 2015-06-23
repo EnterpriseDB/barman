@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 01/23/2015
+.\"      Date: 07/02/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "01/26/2015" "\ \&" "\ \&"
+.TH "BARMAN" "5" "07/02/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -94,19 +94,24 @@ Command used by Barman to login to the Postgres server via ssh\&. Server\&.
 Connection string used by Barman to connect to the Postgres server\&. Server\&.
 .RE
 .PP
+\fBbackup_directory\fR
+.RS 4
+Directory where backup data for a server will be placed\&. Server\&.
+.RE
+.PP
 \fBbasebackups_directory\fR
 .RS 4
-Directory where base backups will be placed\&. Global/Server\&.
+Directory where base backups will be placed\&. Server\&.
 .RE
 .PP
 \fBwals_directory\fR
 .RS 4
-Directory which contains WAL files\&. Global/Server\&.
+Directory which contains WAL files\&. Server\&.
 .RE
 .PP
 \fBincoming_wals_directory\fR
 .RS 4
-Directory where incoming WAL files are archived into\&. Global/Server\&.
+Directory where incoming WAL files are archived into\&. Server\&.
 .RE
 .PP
 \fBlock_file\fR
