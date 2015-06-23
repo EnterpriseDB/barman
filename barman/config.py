@@ -89,7 +89,7 @@ class CsvOption(set):
         if value == '':
             return
         values_list = value.split(',')
-        for val in values_list:
+        for val in sorted(values_list):
             val = val.strip().lower()
             if val in self.value_list:
                 # check for conflicting values. if a conflict is
@@ -408,6 +408,7 @@ class Config(object):
                     break
         self.config_file = filename
         self._servers = None
+        self.servers_msg_list = []
         self._parse_global_config()
 
     def get(self, section, option, defaults=None, none_value=None):
@@ -525,21 +526,21 @@ class Config(object):
         self.servers_msg_list = []
 
         # Cycle all the available configurations sections
-        for section in self._config.sections():
+        for section in sorted(self._config.sections()):
             if section == 'barman':
                 # skip global settings
                 continue
 
             # Paths map
             config_paths = {
-                    'backup_directory': self._servers[section].backup_directory,
-                    'basebackups_directory': self._servers[section].basebackups_directory,
-                    'wals_directory': self._servers[section].wals_directory,
-                    'incoming_wals_directory': self._servers[section].incoming_wals_directory,
+                'backup_directory': self._servers[section].backup_directory,
+                'basebackups_directory': self._servers[section].basebackups_directory,
+                'wals_directory': self._servers[section].wals_directory,
+                'incoming_wals_directory': self._servers[section].incoming_wals_directory,
             }
 
             # Check for path errors
-            for label, path in config_paths.iteritems():
+            for label, path in sorted(config_paths.iteritems()):
                 # If the path does not conflict with the others, add it to the
                 # paths map
                 if path not in servers_paths:
@@ -558,7 +559,8 @@ class Config(object):
                         # Global path error.
                         # Insert the error message into the global msg_list
                         self.servers_msg_list.append(
-                            "Conflicting path: %s=%s for server '%s' conflicts with "
+                            "Conflicting path: "
+                            "%s=%s for server '%s' conflicts with "
                             "'%s' for server '%s'" %
                             (label, path, section, servers_paths[path].label,
                              servers_paths[path].server))

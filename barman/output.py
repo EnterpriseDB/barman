@@ -317,6 +317,9 @@ class ConsoleOutputWriter(object):
         #: values.
         self.minimal = False
 
+        #: The server is active
+        self.active = True
+
     def _out(self, message, args):
         """
         Print a message on standard output
@@ -454,17 +457,19 @@ class ConsoleOutputWriter(object):
         """
         self.result_check_list.append(dict(
             server_name=server_name, check=check, status=status, hint=hint))
-        if not status:
+        if not status and self.active:
             global error_occurred
             error_occurred = True
 
-    def init_check(self, server_name):
+    def init_check(self, server_name, active):
         """
         Init the check command
 
         :param str server_name: the server we are start listing
+        :param boolean active: The server is active
         """
         self.info("Server %s:" % server_name)
+        self.active = active
 
     def result_check(self, server_name, check, status, hint=None):
         """

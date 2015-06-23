@@ -788,7 +788,7 @@ class TestConsoleWriter(object):
 
         server = 'test'
 
-        writer.init_check(server)
+        writer.init_check(server, True)
         (out, err) = capsys.readouterr()
         assert out == 'Server %s:\n' % server
         assert err == ''
@@ -832,6 +832,21 @@ class TestConsoleWriter(object):
         assert out == '\t%s: FAILED\n' % check
         assert err == ''
         assert output.error_occurred
+
+        # Test an inactive server
+        # Shows error, but does not change error_occurred
+        output.error_occurred = False
+        writer.init_check(server, False)
+        (out, err) = capsys.readouterr()
+        assert out == 'Server %s:\n' % server
+        assert err == ''
+        assert not output.error_occurred
+
+        writer.result_check(server, check, False)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: FAILED\n' % check
+        assert err == ''
+        assert not output.error_occurred
 
     def test_result_check_failed_hint(self, capsys):
         writer = output.ConsoleOutputWriter()

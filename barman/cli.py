@@ -60,32 +60,46 @@ def list_server(minimal=False):
     """
     List available servers, with useful information
     """
+    # Get every server, both inactive and temporarily disabled
     servers = get_server_list()
     for name in sorted(servers):
         server = servers[name]
+
+        # Exception: manage_server_command is not invoked here
+        # Normally you would call manage_server_command to check if the
+        # server is None and to report inactive and disabled servers, but here
+        # we want all servers and the server cannot be None
+
         output.init('list_server', name, minimal=minimal)
         description = server.config.description
-        # If server has errors
-        if server.config.disabled:
-            description += ("  (WARNING: Server temporarily disabled "
-                           "due to configuration errors)")
         # If the server has been manually disabled
-        elif not server.config.active:
-            description += "  (WARNING: Server is not active)"
+        if not server.config.active:
+            description += " (inactive)"
+        # If server has configuration errors
+        elif server.config.disabled:
+            description += " (WARNING: disabled)"
         output.result('list_server', name, description)
     output.close_and_exit()
 
 
 def cron():
     """
-    Run maintenance tasks
+    Run maintenance tasks (global command)
     """
     try:
         with lockfile.GlobalCronLock(barman.__config__.barman_lock_directory):
-            servers = get_server_list(skip_inactive=True)
-            for server in sorted(servers):
-                server_error_output(servers[server], True)
-                servers[server].cron()
+            # Skip inactive and temporarily disabled servers
+            servers = get_server_list(skip_inactive=True, skip_disabled=True)
+            for name in sorted(servers):
+                server = servers[name]
+
+                # Exception: manage_server_command is not invoked here
+                # Normally you would call manage_server_command to check if the
+                # server is None and to report inactive and disabled servers,
+                # but here we have only active and well configured servers.
+
+                server.cron()
+
     except lockfile.LockFileBusy:
         output.info("Another cron is running")
 
@@ -117,15 +131,15 @@ def server_completer_all(prefix, parsed_args, **kwargs):
 def backup_completer(prefix, parsed_args, **kwargs):
     global_config(parsed_args)
     server = get_server(parsed_args)
+
     backup_name = getattr(parsed_args, 'backup_id', None) or ''
-    if server:
-        backups = server.get_available_backups()
-        for backup_id in sorted(backups, reverse=True):
-            if backup_id.startswith(prefix):
-                yield backup_id
-        for special_id in ('latest', 'last', 'oldest', 'first'):
-            if len(backups) > 0 and special_id.startswith(prefix):
-                yield special_id
+    backups = server.get_available_backups()
+    for backup_id in sorted(backups, reverse=True):
+        if backup_id.startswith(prefix):
+            yield backup_id
+    for special_id in ('latest', 'last', 'oldest', 'first'):
+        if len(backups) > 0 and special_id.startswith(prefix):
+            yield special_id
 
 
 @arg('server_name', nargs='+',
@@ -160,12 +174,14 @@ def backup(args):
     """
     Perform a full backup for the given server (supports 'all')
     """
-    servers = get_server_list(args, skip_inactive=True, skip_disabled=True)
+    servers = get_server_list(args, skip_inactive=True)
     for name in sorted(servers):
         server = servers[name]
-        if is_unknown_server(server, name):
+
+        # Skip the server (apply general rule)
+        if not manage_server_command(server, name):
             continue
-        server_error_output(server, True)
+
         if args.reuse_backup is not None:
             server.config.reuse_backup = args.reuse_backup
         if args.retry_sleep is not None:
@@ -189,13 +205,15 @@ def list_backup(args):
     """
     List available backups for the given server (supports 'all')
     """
-    servers = get_server_list(args)
+    servers = get_server_list(args, skip_inactive=True)
     for name in sorted(servers):
         server = servers[name]
-        output.init('list_backup', name, minimal=args.minimal)
-        if is_unknown_server(server, name):
+
+        # Skip the server (apply general rule)
+        if not manage_server_command(server, name):
             continue
-        server_error_output(server)
+
+        output.init('list_backup', name, minimal=args.minimal)
         server.list_backups()
     output.close_and_exit()
 
@@ -208,12 +226,14 @@ def status(args):
     """
     Shows live information and status of the PostgreSQL server
     """
-    servers = get_server_list(args)
+    servers = get_server_list(args, skip_inactive=True)
     for name in sorted(servers):
         server = servers[name]
-        if is_unknown_server(server, name):
+
+        # Skip the server (apply general rule)
+        if not manage_server_command(server, name):
             continue
-        server_error_output(server, False)
+
         output.init('status', name)
         server.status()
     output.close_and_exit()
@@ -227,12 +247,14 @@ def rebuild_xlogdb(args):
     """
     Rebuild the WAL file database guessing it from the disk content.
     """
-    servers = get_server_list(args)
+    servers = get_server_list(args, skip_inactive=True)
     for name in sorted(servers):
         server = servers[name]
-        if is_unknown_server(server, name):
+
+        # Skip the server (apply general rule)
+        if not manage_server_command(server, name):
             continue
-        server_error_output(server, True)
+
         server.rebuild_xlogdb()
     output.close_and_exit()
 
@@ -242,10 +264,12 @@ def rebuild_xlogdb(args):
      help='specifies the server name for the command')
 @arg('--target-tli', help='target timeline', type=int)
 @arg('--target-time',
-     help='target time. You can use any valid unambiguous representation. e.g: "YYYY-MM-DD HH:MM:SS.mmm"')
+     help='target time. You can use any valid unambiguous representation. '
+          'e.g: "YYYY-MM-DD HH:MM:SS.mmm"')
 @arg('--target-xid', help='target transaction ID')
 @arg('--target-name',
-     help='target name created previously with pg_create_restore_point() function call')
+     help='target name created previously with '
+          'pg_create_restore_point() function call')
 @arg('--exclusive',
      help='set target xid to be non inclusive', action="store_true")
 @arg('--tablespace',
@@ -253,9 +277,10 @@ def rebuild_xlogdb(args):
      metavar='NAME:LOCATION', action='append')
 @arg('--remote-ssh-command',
      metavar='SSH_COMMAND',
-     help='This options activates remote recovery, by specifying the secure shell command '
-          'to be launched on a remote host. It is the equivalent of the "ssh_command" server'
-          'option in the configuration file for remote recovery. Example: "ssh postgres@db2"')
+     help='This options activates remote recovery, by specifying the secure '
+          'shell command to be launched on a remote host. It is the equivalent '
+          'of the "ssh_command" server option in the configuration file for '
+          'remote recovery. Example: "ssh postgres@db2"')
 @arg('backup_id',
      completer=backup_completer,
      help='specifies the backup ID to recover')
@@ -274,14 +299,15 @@ def recover(args):
     """
     Recover a server at a given time or xid
     """
-    server = get_server(args, True)
-    if is_unknown_server(server, args.server_name):
-        output.close_and_exit()
+    server = get_server(args)
+
     # Retrieves the backup
-    backup = parse_backup_id(server, args)
-    if backup is None or backup.status != BackupInfo.DONE:
-        output.error("Unknown backup '%s' for server '%s'",
-                     args.backup_id, args.server_name)
+    backup_id = parse_backup_id(server, args)
+    if backup_id.status != BackupInfo.DONE:
+        output.error(
+            "Cannot recover from backup '%s' of server '%s': "
+            "backup status is not DONE",
+            args.backup_id, server.config.name)
         output.close_and_exit()
 
     # decode the tablespace relocation rules
@@ -299,7 +325,7 @@ def recover(args):
 
     # validate the rules against the tablespace list
     valid_tablespaces = [tablespace_data.name for tablespace_data in
-                         backup.tablespaces] if backup.tablespaces else []
+                         backup_id.tablespaces] if backup_id.tablespaces else []
     for item in tablespaces:
         if item not in valid_tablespaces:
             output.error("Invalid tablespace name '%s'\n"
@@ -320,7 +346,7 @@ def recover(args):
         server.config.basebackup_retry_sleep = args.retry_sleep
     if args.retry_times is not None:
         server.config.basebackup_retry_times = args.retry_times
-    server.recover(backup,
+    server.recover(backup_id,
                    args.destination_directory,
                    tablespaces=tablespaces,
                    target_tli=args.target_tli,
@@ -336,18 +362,21 @@ def recover(args):
 @named('show-server')
 @arg('server_name', nargs='+',
      completer=server_completer_all,
-     help="specifies the server names to show ('all' will show all available servers)")
+     help="specifies the server names to show "
+          "('all' will show all available servers)")
 @expects_obj
 def show_server(args):
     """
     Show all configuration parameters for the specified servers
     """
-    servers = get_server_list(args)
+    servers = get_server_list(args, skip_inactive=True)
     for name in sorted(servers):
         server = servers[name]
-        if is_unknown_server(server, name):
+
+        # Skip the server (apply general rule)
+        if not manage_server_command(server, name):
             continue
-        server_error_output(server, False, False)
+
         output.init('show_server', name)
         server.show()
     output.close_and_exit()
@@ -368,15 +397,23 @@ def check(args):
     """
     if args.nagios:
         output.set_output_writer(output.NagiosOutputWriter())
-    servers = get_server_list(args, skip_inactive=True)
+    servers = get_server_list(args)
     for name in sorted(servers):
         server = servers[name]
-        if is_unknown_server(server, name):
+
+        # Validate the returned server
+        if not manage_server_command(
+                server, name, skip_inactive=False,
+                skip_disabled=False, disabled_is_error=False):
             continue
-        # If the server is not active
+
+        # If the server has been manually disabled
         if not server.config.active:
-            name += ' (not active)'
-        output.init('check', name)
+            name += " (inactive)"
+        # If server has configuration errors
+        elif server.config.disabled:
+            name += " (WARNING: disabled)"
+        output.init('check', name, server.config.active)
         server.check()
     output.close_and_exit()
 
@@ -385,11 +422,10 @@ def diagnose():
     """
     Diagnostic command (for support and problems detection purpose)
     """
+    # Get every server (both inactive and temporarily disabled)
     servers = get_server_list(on_error_stop=False, suppress_error=True)
     # errors list with duplicate paths between servers
-    errors_list = []
-    if servers:
-        errors_list = barman.__config__.servers_msg_list
+    errors_list = barman.__config__.servers_msg_list
     barman.diagnose.exec_diagnose(servers, errors_list)
     output.close_and_exit()
 
@@ -407,14 +443,10 @@ def show_backup(args):
     This method shows a single backup information
     """
     server = get_server(args)
-    if not is_unknown_server(server, args.server_name):
-        # Retrieves the backup
-        backup_info = parse_backup_id(server, args)
-        if backup_info is None:
-            output.error("Unknown backup '%s' for server '%s'" % (
-                args.backup_id, args.server_name))
-        else:
-            server.show_backup(backup_info)
+
+    # Retrieves the backup
+    backup_info = parse_backup_id(server, args)
+    server.show_backup(backup_info)
     output.close_and_exit()
 
 
@@ -428,26 +460,21 @@ def show_backup(args):
 @arg('--target', choices=('standalone', 'data', 'wal', 'full'),
      default='standalone',
      help='''
-     Possible values are: data (just the data files), standalone (base backup files, including required WAL files),
-     wal (just WAL files between the beginning of base backup and the following one (if any) or the end of the log) and
-     full (same as data + wal). Defaults to %(default)s
-     '''
-)
+         Possible values are: data (just the data files), standalone
+         (base backup files, including required WAL files),
+         wal (just WAL files between the beginning of base
+         backup and the following one (if any) or the end of the log) and
+         full (same as data + wal). Defaults to %(default)s''')
 @expects_obj
 def list_files(args):
     """
     List all the files for a single backup
     """
     server = get_server(args)
-    if is_unknown_server(server, args.server_name):
-        output.close_and_exit()
+
     # Retrieves the backup
-    backup = parse_backup_id(server, args)
-    if backup is None:
-        output.error("Unknown backup '%s' for server '%s'", args.backup_id,
-                     args.server_name)
-        output.close_and_exit()
-    for line in backup.get_list_of_files(args.target):
+    backup_id = parse_backup_id(server, args)
+    for line in backup_id.get_list_of_files(args.target):
         output.info(line, log=False)
     output.close_and_exit()
 
@@ -463,16 +490,11 @@ def delete(args):
     """
     Delete a backup
     """
-    server = get_server(args, True)
-    if is_unknown_server(server, args.server_name):
-        output.close_and_exit()
+    server = get_server(args)
+
     # Retrieves the backup
-    backup = parse_backup_id(server, args)
-    if backup is None:
-        output.error("Unknown backup '%s' for server '%s'", args.backup_id,
-                     args.server_name)
-        output.close_and_exit()
-    server.delete_backup(backup)
+    backup_id = parse_backup_id(server, args)
+    server.delete_backup(backup_id)
     output.close_and_exit()
 
 
@@ -525,80 +547,62 @@ def global_config(args):
                   barman.__version__, config.config_file)
 
 
-def get_server(args, dangerous=False):
+def get_server(args, skip_inactive=True, skip_disabled=False,
+               on_error_stop=True, suppress_error=False):
     """
-    Get a single server retrieving his configuration
+    Get a single server retrieving its configuration (wraps get_server_list())
+
+    Returns a Server object or None if the required server is unknown and
+    on_error_stop is False.
 
     :param args: an argparse namespace containing a single server_name parameter
-    :param bool dangerous: bool used to identify dangerous commands invocations
+    :param bool skip_inactive: skip inactive servers when 'all' is required
+    :param bool skip_disabled: skip disabled servers when 'all' is required
+    :param bool on_error_stop: stop if an error is found
+    :param bool suppress_error: suppress display of errors (e.g. diagnose)
+    :rtype: barman.server.Server|None
     """
-    config = barman.__config__.get_server(args.server_name)
-    # Get a list of configuration errors from all the servers
-    global_error_list = barman.__config__.servers_msg_list
+    # This function must to be called with in a single-server context
+    name = args.server_name
+    assert isinstance(name, str)
 
-    if global_error_list:
-        # Output errors
-        for conflict_paths in global_error_list:
-            output.error(conflict_paths)
+    # The 'all' special name is forbidden in this context
+    if name == 'all':
+        output.error("You cannot use 'all' in a single server context")
         output.close_and_exit()
-    else:
-        # If no configuration available for the requested server, return None
-        if not config:
-            return None
-        server = Server(config)
-        # Display errors if necessary
-        server_error_output(server, dangerous)
-        return server
+        # The following return statement will never be reached
+        # but it is here for clarity
+        return None
 
+    # Builds a list from a single given name
+    args.server_name = [name]
 
-def server_error_output(server, is_error=False, check_active=True):
-    """
-    Get a Server object, and check if is disabled.
-    If disabled display all the configuration errors.
+    # Retrieve the requested server
+    servers = get_server_list(args, skip_inactive,
+                              skip_disabled, on_error_stop,
+                              suppress_error)
 
-    :param barman.server.Server server: the server configuration that should
-        contain errors
-    :param bool is_error: identify the severity of the error
-    :param bool check_active: perform check for active parameter
-    """
+    # The requested server has been excluded from get_server_list result
+    if len(servers) == 0:
+        output.close_and_exit()
+        # The following return statement will never be reached
+        # but it is here for clarity
+        return None
 
-    # If the server is disabled, output errors
-    if server.config.disabled:
-        if is_error:
-            # Output all the messages as errors, and exit terminating the run.
-            for message in server.config.msg_list:
-                output.error(message)
-            output.close_and_exit()
-        else:
-            # Non blocking error, output as warning
-            for message in server.config.msg_list:
-                output.warning(message)
-        # Filter for active/not active messages
-        check_active = False
-    # Check if the server is active and output it's status
-    if check_active:
-        # server not active
-        if not server.config.active:
-            if is_error:
-                # Blocking error, output and terminate the run
-                output.error('Not active server: %s' % server.config.name)
-                output.close_and_exit()
-            else:
-                output.warning('Not active server: %s' % server.config.name)
+    # retrieve the server object
+    server = servers[name]
 
+    # Apply standard validation control and skips
+    # the server if inactive or disabled, displaying standard
+    # error messages. If on_error_stop (default) exits
+    if not manage_server_command(server, name) and on_error_stop:
+        output.close_and_exit()
+        # The following return statement will never be reached
+        # but it is here for clarity
+        return None
 
-def is_unknown_server(server, name):
-    """
-    Basic control Server not None
-
-    :param barman.server.Server server: the server we want to check
-    :param str name: the name of the server
-    :return: boolean
-    """
-    if server is None:
-        output.error("Unknown server '%s'" % name)
-        return True
-    return False
+    # Returns the filtered server
+    return server
 
 
 def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
@@ -606,7 +610,7 @@ def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
     """
     Get the server list from the configuration
 
-    If args the parameter is None or arg.server_name[0] is 'all'
+    If args the parameter is None or arg.server_name is ['all']
     returns all defined servers
 
     :param args: an argparse namespace containing a list server_name parameter
@@ -614,10 +618,16 @@ def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
     :param bool skip_disabled: skip disabled servers when 'all' is required
     :param bool on_error_stop: stop if an error is found
     :param bool suppress_error: suppress display of errors (e.g. diagnose)
+    :rtype: dict(str,barman.server.Server|None)
     """
     server_dict = {}
 
-    barman_config_servers = barman.__config__.servers()
+    # This function must to be called with in a multiple-server context
+    assert not args or isinstance(args.server_name, list)
+
+    # Generate the list of servers (required for global errors)
+    available_servers = barman.__config__.server_names()
+
     # Get a list of configuration errors from all the servers
     global_error_list = barman.__config__.servers_msg_list
 
@@ -625,51 +635,107 @@ def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
     if global_error_list:
         # Output the list of global errors
         if not suppress_error:
-            for conflict_paths in global_error_list:
-                output.error(conflict_paths)
+            for error in global_error_list:
+                output.error(error)
 
         # If requested, exit on first error
         if on_error_stop:
             output.close_and_exit()
-            return
+            # The following return statement will never be reached
+            # but it is here for clarity
+            return {}
 
-    # If no argument provided or server_name[0] is 'all'
-    if args is None or args.server_name[0] == 'all':
-        # Then return a list of all the configured servers
-        for conf in barman_config_servers:
+    # Handle special 'all' server cases
+    # - args is None
+    # - 'all' special name
+    if not args or 'all' in args.server_name:
+        # When 'all' is used, it must be the only specified argument
+        if args and len(args.server_name) != 1:
+            output.error("You cannot use 'all' with other server names")
+        servers = available_servers
+    else:
+        servers = args.server_name
+
+    # Loop through all the requested servers
+    for server in servers:
+        conf = barman.__config__.get_server(server)
+        if conf is None:
+            # Unknown server
+            server_dict[server] = None
+        else:
             # Skip inactive servers, if requested
             if skip_inactive and not conf.active:
                 output.info("Skipping inactive server '%s'"
                             % conf.name)
                 continue
-
             # Skip disabled servers, if requested
             if skip_disabled and conf.disabled:
                 output.info("Skipping temporarily disabled server '%s'"
                             % conf.name)
                 continue
-
-            # Create a server
-            server = Server(conf)
-            server_dict[conf.name] = server
-    else:
-        # Manage a list of servers as arguments
-        for server in args.server_name:
-            conf = barman.__config__.get_server(server)
-            if conf is None:
-                server_dict[server] = None
-            else:
-                server_dict[server] = Server(conf)
+            server_dict[server] = Server(conf)
 
     return server_dict
+
+
+def manage_server_command(server,
+                          name=None,
+                          inactive_is_error=False,
+                          disabled_is_error=True,
+                          skip_inactive=True,
+                          skip_disabled=True):
+    """
+    Standard and consistent method for managing server errors within
+    a server command execution. By default, suggests to skip any inactive
+    and disabled server; it also emits errors for disabled servers by
+    default.
+
+    Returns True if the command has to be executed for this server.
+
+    :param barman.server.Server server: server to be checked for errors
+    :param str name: name of the server, in a multi-server command
+    :param bool inactive_is_error: treat inactive server as error
+    :param bool disabled_is_error: treat disabled server as error
+    :param bool skip_inactive: skip if inactive
+    :param bool skip_disabled: skip if disabled
+    :return: True if the command has to be executed on this server
+    :rtype: boolean
+    """
+
+    # Unknown server (skip it)
+    if not server:
+        output.error("Unknown server '%s'" % name)
+        return False
+
+    if not server.config.active:
+        # Report inactive server as error
+        if inactive_is_error:
+            output.error('Inactive server: %s' % server.config.name)
+        if skip_inactive:
+            return False
+
+    # Report disabled server as error
+    if server.config.disabled:
+        # Output all the messages as errors, and exit terminating the run.
+        if disabled_is_error:
+            for message in server.config.msg_list:
+                output.error(message)
+        if skip_disabled:
+            return False
+
+    # All ok, execute the command
+    return True
+
 
 def parse_backup_id(server, args):
     """
     Parses backup IDs including special words such as latest, oldest, etc.
 
+    Exit with error if the backup id doesn't exist.
+
     :param Server server: server object to search for the required backup
     :param args: command lien arguments namespace
-    :rtype BackupInfo,None: the decoded backup_info object
+    :rtype: BackupInfo
     """
     if args.backup_id in ('latest', 'last'):
         backup_id = server.get_last_backup()
@@ -677,7 +743,13 @@ def parse_backup_id(server, args):
         backup_id = server.get_first_backup()
     else:
         backup_id = args.backup_id
-    return server.get_backup(backup_id)
+    backup_info = server.get_backup(backup_id)
+    if backup_info is None:
+        output.error(
+            "Unknown backup '%s' for server '%s'",
+            args.backup_id, server.config.name)
+        output.close_and_exit()
+    return backup_info
 
 
 def main():

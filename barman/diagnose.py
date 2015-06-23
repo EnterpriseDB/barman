@@ -39,7 +39,7 @@ def exec_diagnose(servers, errors_list):
 
     Gathered information should be used for support and problems detection
 
-    :param list servers: list of configured servers
+    :param dict(str,barman.server.Server) servers: list of configured servers
     :param list errors_list: list of global errors
     """
     # global section. info about barman server

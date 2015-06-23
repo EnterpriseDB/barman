@@ -314,10 +314,12 @@ class TestConfig(object):
         """
         c = build_config_from_dicts(main_conf=MINIMAL_CONFIG_MAIN,
                                     test_conf=MINIMAL_CONFIG_MAIN)
-        # attribute servers_msg_list not exists before _populate_server()
-        with pytest.raises(AttributeError):
-            c.servers_msg_list
+
+        # attribute servers_msg_list is empty before _populate_server()
+        assert len(c.servers_msg_list) == 0
+
         c._populate_servers()
+
         # after _populate_servers() if there is a global paths error
         # servers_msg_list is created in configuration
         assert c.servers_msg_list
