@@ -199,6 +199,7 @@ class TestBackup(object):
         backup_manager = build_backup_manager()
         backup_manager.server.config.name = 'TestServer'
         backup_manager.server.config.basebackups_directory = tmpdir.strpath
+        backup_manager.server.config.barman_lock_directory = tmpdir.strpath
         backup_manager.server.config.backup_options = []
 
         # Create a fake backup directory inside tmpdir (old format)

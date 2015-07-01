@@ -17,7 +17,7 @@
 from mock import Mock
 
 from barman.server import Server
-from testing_helpers import build_config_from_dicts
+from testing_helpers import build_config_from_dicts, build_config_dictionary
 
 
 try:
@@ -29,77 +29,125 @@ import pytest
 
 from barman.cli import get_server, get_server_list,\
     manage_server_command
-from test_config import MINIMAL_CONFIG_MAIN, MINIMAL_ERROR_CONFIG_MAIN
 import barman.config
 
 
 # noinspection PyMethodMayBeStatic
 class TestCli(object):
 
-    def test_get_server(self):
+    def test_get_server(self, monkeypatch):
         """
         Test the get_server method, providing a basic configuration
+
+        :param monkeypatch monkeypatch: pytest patcher
         """
-        #`Mock the args from argparse
+        # Mock the args from argparse
         args = Mock()
         args.server_name = 'main'
-        barman.__config__ = build_config_from_dicts(main_conf=MINIMAL_CONFIG_MAIN)
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts())
         server_main = get_server(args)
         # Expect the server to exists
         assert server_main
         # Expect the name to be the right one
         assert server_main.config.name == 'main'
 
-    # TODO: This unit test has been temporarily disabled (useless as it is)
-    #def test_get_server_with_conflicts(self, capsys):
-        #"""
-        #Test get_server method using a configuration containing errors
-        #"""
-        ##`Mock the args from argparse
-        #args = Mock()
-        #args.server_name = 'main'
-        ## Build a configuration with error
-        #barman.__config__ = build_config_from_dicts(main_conf=MINIMAL_ERROR_CONFIG_MAIN)
-        #get_server(args)
-        #out, err = capsys.readouterr()
-        #assert err
-        #assert "ERROR: Conflicting path:" in err
+    def test_get_server_with_conflicts(self, monkeypatch, capsys):
+        """
+        Test get_server method using a configuration containing errors
 
-    def test_manage_server_command(self, capsys):
+        :param monkeypatch monkeypatch: pytest patcher
+        """
+        # Mock the args from argparse
+        args = Mock()
+        # conflicting directories
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts(
+            main_conf={
+                'wals_directory': '/some/barman/home/main/wals',
+                'basebackups_directory': '/some/barman/home/main/wals',
+            }))
+        args.server_name = 'main'
+        with pytest.raises(SystemExit):
+            get_server(args, True)
+        out, err = capsys.readouterr()
+        assert err
+        assert "ERROR: Conflicting path:" in err
+
+        # conflicting directories with on_error_stop=False
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts(
+            main_conf={
+                'wals_directory': '/some/barman/home/main/wals',
+                'basebackups_directory': '/some/barman/home/main/wals',
+            }))
+        args.server_name = 'main'
+        get_server(args, on_error_stop=False)
+        # In this case the server is returned and a warning message is emitted
+        out, err = capsys.readouterr()
+        assert err
+        assert "ERROR: Conflicting path:" in err
+
+    def test_manage_server_command(self, monkeypatch, capsys):
         """
         Test manage_server_command method checking
         the various types of error output
+
+        :param monkeypatch monkeypatch: pytest patcher
         """
         # Build a server with a config with path conflicts
-        barman.__config__ = build_config_from_dicts(main_conf=MINIMAL_ERROR_CONFIG_MAIN)
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts(
+            main_conf=build_config_dictionary({
+                'wals_directory': '/some/barman/home/main/wals',
+                'basebackups_directory': '/some/barman/home/main/wals',
+            })))
         server = Server(barman.__config__.get_server('main'))
         # Test a not blocking WARNING message
         manage_server_command(server)
         out, err = capsys.readouterr()
         # Expect an ERROR message because of conflicting paths
         assert 'ERROR: Conflicting path' in err
+
         # Build a server with a config without path conflicts
-        barman.__config__ = build_config_from_dicts(main_conf=MINIMAL_CONFIG_MAIN)
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts())
         server = Server(barman.__config__.get_server('main'))
         # Set the server as not active
         server.config.active = False
+        # Request to treat inactive as errors
         to_be_executed = manage_server_command(server, inactive_is_error=True)
         out, err = capsys.readouterr()
         # Expect a ERROR message because of a not active server
         assert 'ERROR: Inactive server' in err
         assert not to_be_executed
 
-    def test_get_server_global_error_list(self, capsys):
+        # Request to treat inactive as warning
+        to_be_executed = manage_server_command(server, inactive_is_error=False)
+        out, err = capsys.readouterr()
+        # Expect no error whatsoever
+        assert err == ''
+        assert not to_be_executed
+
+    def test_get_server_global_error_list(self, monkeypatch, capsys):
         """
         Test the management of multiple servers and the
         presence of global errors
+
+        :param monkeypatch monkeypatch: pytest patcher
         """
         args = Mock()
         args.server_name = 'main'
         # Build 2 servers with shared path.
-        barman.__config__ = build_config_from_dicts(None,
-                                                    MINIMAL_CONFIG_MAIN,
-                                                    MINIMAL_CONFIG_MAIN)
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts(
+            global_conf=None,
+            main_conf={
+                'basebackups_directory': '/some/barman/home/main/base',
+                'incoming_wals_directory': '/some/barman/home/main/incoming',
+                'wals_directory': '/some/barman/home/main/wals',
+                'backup_directory': '/some/barman/home/main',
+            },
+            test_conf={
+                'basebackups_directory': '/some/barman/home/test/wals',
+                'incoming_wals_directory': '/some/barman/home/main/incoming',
+                'wals_directory': '/some/barman/home/main/wals',
+                'backup_directory': '/some/barman/home/main',
+            }))
         # Expect a conflict because of the shared paths
         with pytest.raises(SystemExit):
             get_server(args)
@@ -107,24 +155,41 @@ class TestCli(object):
         # Check for the presence of error messages
         assert err
         # Check paths in error messages
-        assert 'Conflicting path: basebackups_directory=/some/barman/home/main/base' in err
-        assert 'Conflicting path: incoming_wals_directory=/some/barman/home/main/incoming' in err
-        assert 'Conflicting path: wals_directory=/some/barman/home/main/wals' in err
-        assert 'Conflicting path: backup_directory=/some/barman/home/main' in err
+        assert 'Conflicting path: ' \
+               'basebackups_directory=/some/barman/home/main/base' in err
+        assert 'Conflicting path: ' \
+               'incoming_wals_directory=/some/barman/home/main/incoming' in err
+        assert 'Conflicting path: ' \
+               'wals_directory=/some/barman/home/main/wals' in err
+        assert 'Conflicting path: ' \
+               'backup_directory=/some/barman/home/main' in err
 
-    def test_get_server_list(self, capsys):
+    def test_get_server_list(self, monkeypatch, capsys):
         """
         Test the get_server_list method
+
+        :param monkeypatch monkeypatch: pytest patcher
         """
-        barman.__config__ = build_config_from_dicts()
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts())
         server_dict = get_server_list()
         assert server_dict
         # Expect 2 test servers Main and Test
         assert len(server_dict) == 2
         # Test the method with global errors
-        barman.__config__ = build_config_from_dicts(None,
-                                    MINIMAL_CONFIG_MAIN,
-                                    MINIMAL_CONFIG_MAIN)
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts(
+            global_conf=None,
+            main_conf={
+                'basebackups_directory': '/some/barman/home/main/base',
+                'incoming_wals_directory': '/some/barman/home/main/incoming',
+                'wals_directory': '/some/barman/home/main/wals',
+                'backup_directory': '/some/barman/home/main',
+            },
+            test_conf={
+                'basebackups_directory': '/some/barman/home/test/wals',
+                'incoming_wals_directory': '/some/barman/home/main/incoming',
+                'wals_directory': '/some/barman/home/main/wals',
+                'backup_directory': '/some/barman/home/main',
+            }))
         # Expect the method to fail and exit
         with pytest.raises(SystemExit):
             get_server_list()
@@ -132,19 +197,36 @@ class TestCli(object):
         # Check for the presence of error messages
         assert err
         # Check paths in error messages
-        assert 'Conflicting path: basebackups_directory=/some/barman/home/main/base' in err
-        assert 'Conflicting path: incoming_wals_directory=/some/barman/home/main/incoming' in err
-        assert 'Conflicting path: wals_directory=/some/barman/home/main/wals' in err
-        assert 'Conflicting path: backup_directory=/some/barman/home/main' in err
+        assert 'Conflicting path: ' \
+               'basebackups_directory=/some/barman/home/main/base' in err
+        assert 'Conflicting path: ' \
+               'incoming_wals_directory=/some/barman/home/main/incoming' in err
+        assert 'Conflicting path: ' \
+               'wals_directory=/some/barman/home/main/wals' in err
+        assert 'Conflicting path: ' \
+               'backup_directory=/some/barman/home/main' in err
 
-    def test_get_server_list_global_error_continue(self):
+    def test_get_server_list_global_error_continue(self, monkeypatch):
         """
         Test the population of the list of global errors for diagnostic purposes
         (diagnose invocation)
+
+        :param monkeypatch monkeypatch: pytest patcher
         """
-        barman.__config__ = build_config_from_dicts(None,
-                                    MINIMAL_CONFIG_MAIN,
-                                    MINIMAL_CONFIG_MAIN)
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts(
+            global_conf=None,
+            main_conf={
+                'basebackups_directory': '/some/barman/home/main/base',
+                'incoming_wals_directory': '/some/barman/home/main/incoming',
+                'wals_directory': '/some/barman/home/main/wals',
+                'backup_directory': '/some/barman/home/main',
+            },
+            test_conf={
+                'basebackups_directory': '/some/barman/home/test/wals',
+                'incoming_wals_directory': '/some/barman/home/main/incoming',
+                'wals_directory': '/some/barman/home/main/wals',
+                'backup_directory': '/some/barman/home/main',
+            }))
         server_dict = get_server_list(on_error_stop=False)
         global_error_list = barman.__config__.servers_msg_list
         # Check for the presence of servers

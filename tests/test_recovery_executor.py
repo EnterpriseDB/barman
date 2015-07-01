@@ -164,7 +164,7 @@ class TestRecoveryExecutor(object):
             'tempdir': tempdir.strpath,
             'results': {'changes': [], 'warnings': []},
             'is_pitr': False,
-            'wal_dest': wal_dest.strpath
+            'wal_dest': wal_dest.strpath,
         }
         backup_info = testing_helpers.build_test_backup_info()
         server = testing_helpers.build_mocked_server()
@@ -396,7 +396,8 @@ class TestRecoveryExecutor(object):
                 'postgresql.auto.conf'],
             'target_datetime': None,
             'safe_horizon': None,
-            'is_pitr': False}
+            'is_pitr': False,
+        }
         # test remote recovery
         rec_info = executor.recover(backup_info, dest.strpath, {}, None, None,
                                     None, None, True, "remote@command")
@@ -442,7 +443,8 @@ class TestRecoveryExecutor(object):
                 'postgresql.auto.conf'],
             'target_datetime': None,
             'safe_horizon': None,
-            'is_pitr': False}
+            'is_pitr': False,
+        }
         # test failed rsync
         rsync_pg_mock.side_effect = CommandFailedException()
         with pytest.raises(CommandFailedException):

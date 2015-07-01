@@ -555,7 +555,10 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
     Returns a Server object or None if the required server is unknown and
     on_error_stop is False.
 
+    WARNING: this function modifies the 'args' parameter
+
     :param args: an argparse namespace containing a single server_name parameter
+        WARNING: the function modifies the content of this parameter
     :param bool skip_inactive: skip inactive servers when 'all' is required
     :param bool skip_disabled: skip disabled servers when 'all' is required
     :param bool on_error_stop: stop if an error is found
@@ -578,9 +581,8 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
     args.server_name = [name]
 
     # Retrieve the requested server
-    servers = get_server_list(args, skip_inactive,
-                              skip_disabled, on_error_stop,
-                              suppress_error)
+    servers = get_server_list(args, skip_inactive, skip_disabled,
+                              on_error_stop, suppress_error)
 
     # The requested server has been excluded from get_server_list result
     if len(servers) == 0:
@@ -673,7 +675,8 @@ def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
                 output.info("Skipping temporarily disabled server '%s'"
                             % conf.name)
                 continue
-            server_dict[server] = Server(conf)
+            server_object = Server(conf)
+            server_dict[server] = server_object
 
     return server_dict
 
