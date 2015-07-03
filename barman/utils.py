@@ -121,9 +121,9 @@ def pretty_size(size, unit=1024):
     """
     This function returns a pretty representation of a size value
 
-    :param int,long,float size: the number to to prettify
+    :param int|long|float size: the number to to prettify
     :param int unit: 1000 or 1024 (the default)
-    :rtype : str
+    :rtype: str
     """
     suffixes = ["B"] + [i + {1000: "B", 1024: "iB"}[unit] for i in "KMGTPEZY"]
     if unit == 1000:

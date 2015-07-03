@@ -1,0 +1,3 @@
+_build/
+docs/*.rst
+docs/!index.rst
