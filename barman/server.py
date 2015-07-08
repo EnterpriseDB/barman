@@ -20,6 +20,7 @@ This module represents a Server.
 Barman is able to manage multiple servers.
 """
 
+from collections import namedtuple
 from contextlib import contextmanager
 import logging
 import os
@@ -29,7 +30,6 @@ from psycopg2.extras import RealDictCursor
 
 from barman import output
 from barman.backup import BackupManager
-from barman.config import BackupOptions
 from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace, \
     WalFileInfo
 from barman.lockfile import LockFileBusy, LockFilePermissionDenied, \
@@ -54,11 +54,89 @@ class PostgresConnectionError(Exception):
     """
 
 
+class CheckStrategy(object):
+    """
+    This strategy for the 'check' collects the results of
+    every check and does not print any message.
+    This basic class is also responsible for immediately
+    logging any performed check with an error in case of
+    check failure and a debug message in case of success.
+    """
+
+    # create a namedtuple object called CheckResult to manage check results
+    CheckResult = namedtuple('CheckResult', 'server_name check status')
+
+    def __init__(self):
+        """
+        Silent Strategy constructor
+        """
+        self.check_result = []
+        self.has_error = False
+
+    def result(self, server_name, check, status, hint=None):
+        """
+        Store the result of a check (with no output).
+        Log any check result (error or debug level).
+
+        :param str server_name: the server is being checked
+        :param str check: the check name
+        :param bool status: True if succeeded
+        :param str,None hint: hint to print if not None:
+        """
+        if not status:
+            self.has_error = True
+            _logger.error(
+                "Check '%s' failed for server '%s'" %
+                (check, server_name))
+        else:
+            _logger.debug(
+                "Check '%s' succeeded for server '%s'" %
+                (check, server_name))
+
+        # Store the result and does not output anything
+        result = self.CheckResult(server_name, check, status)
+        self.check_result.append(result)
+
+
+class CheckOutputStrategy(CheckStrategy):
+    """
+    This strategy for the 'check' command immediately sends
+    the result of a check to the designated output channel.
+    This class derives from the basic CheckStrategy, reuses
+    the same logic and adds output messages.
+    """
+
+    def __init__(self):
+        """
+        Output Strategy constructor
+        """
+        super(CheckOutputStrategy, self).__init__()
+
+    def result(self, server_name, check, status, hint=None):
+        """
+        Output Strategy constructor
+
+        :param str server_name: the server being checked
+        :param str check: the check name
+        :param bool status: True if succeeded
+        :param str,None hint: hint to print if not None:
+        """
+        # Call the basic method
+        super(CheckOutputStrategy, self).result(
+            server_name, check, status, hint)
+        # Send result to output
+        output.result('check', server_name, check, status, hint)
+
+
 class Server(object):
     """
     This class represents the PostgreSQL server to backup.
     """
+
     XLOG_DB = "xlog.db"
+
+    # the strategy for the management of the results of the various checks
+    __default_check_strategy = CheckOutputStrategy()
 
     def __init__(self, config):
         """
@@ -177,26 +255,32 @@ class Server(object):
                     'Invalid retention_policy setting "%s" for server "%s"' % (
                         self.config.retention_policy, self.config.name))
 
-    def check(self):
+    def check(self, check_strategy=__default_check_strategy):
         """
         Implements the 'server check' command and makes sure SSH and PostgreSQL
         connections work properly. It checks also that backup directories exist
         (and if not, it creates them).
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
         # Check postgres configuration
-        self.check_postgres()
+        self.check_postgres(check_strategy)
         # Check barman directories from barman configuration
-        self.check_directories()
+        self.check_directories(check_strategy)
         # Check retention policies
-        self.check_retention_policy_settings()
+        self.check_retention_policy_settings(check_strategy)
         # Check for backup validity
-        self.check_backup_validity()
+        self.check_backup_validity(check_strategy)
         # Executes the backup manager set of checks
-        self.backup_manager.check()
+        self.backup_manager.check(check_strategy)
 
-    def check_postgres(self):
+    def check_postgres(self, check_strategy):
         """
         Checks PostgreSQL connection
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
         # Take the status of the remote server
         try:
@@ -204,37 +288,38 @@ class Server(object):
         except PostgresConnectionError:
             remote_status = None
         if remote_status is not None and remote_status['server_txt_version']:
-            output.result('check', self.config.name, 'PostgreSQL', True)
+            check_strategy.result(self.config.name, 'PostgreSQL', True)
         else:
-            output.result('check', self.config.name, 'PostgreSQL', False)
+            check_strategy.result(self.config.name, 'PostgreSQL', False)
             return
-
+        # Check archive_mode parameter: must be on
         if remote_status['archive_mode'] == 'on':
-            output.result('check', self.config.name, 'archive_mode', True)
+            check_strategy.result(self.config.name, 'archive_mode', True)
         else:
-            output.result('check', self.config.name, 'archive_mode', False,
-                          "please set it to 'on'")
+            check_strategy.result(self.config.name, 'archive_mode', False,
+                                  "please set it to 'on'")
         # Check wal_level parameter: must be different to 'minimal'
         if remote_status['wal_level'] != 'minimal':
-            output.result('check', self.config.name, 'wal_level', True)
+            check_strategy.result(
+                self.config.name, 'wal_level', True)
         else:
-            output.result('check', self.config.name, 'wal_level', False,
-                          "please set it to a higher level than 'minimal'")
+            check_strategy.result(
+                self.config.name, 'wal_level', False,
+                "please set it to a higher level than 'minimal'")
 
         if remote_status['archive_command'] and \
                 remote_status['archive_command'] != '(disabled)':
-            output.result('check', self.config.name, 'archive_command', True)
+            check_strategy.result(self.config.name, 'archive_command', True)
+
             # Report if the archiving process works without issues.
             # Skip if the archive_command check fails
             # It can be None if PostgreSQL is older than 9.4
             if remote_status.get('is_archiving') is not None:
-                output.result('check',
-                              self.config.name,
-                              'continuous archiving',
-                              remote_status['is_archiving'])
+                check_strategy.result(self.config.name, 'continuous archiving',
+                                      remote_status['is_archiving'])
         else:
-            output.result('check', self.config.name, 'archive_command', False,
-                          'please set it accordingly to documentation')
+            check_strategy.result(self.config.name, 'archive_command', False,
+                                  'please set it accordingly to documentation')
 
     def _make_directories(self):
         """
@@ -247,38 +332,47 @@ class Server(object):
                     #noinspection PyTypeChecker
                     os.makedirs(val)
 
-    def check_directories(self):
+    def check_directories(self, check_strategy):
         """
         Checks backup directories and creates them if they do not exist
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
 
         if self.config.disabled:
-            output.result('check', self.config.name, 'directories', False)
+            check_strategy.result(self.config.name, 'directories', False)
             for conflict_paths in self.config.msg_list:
                 output.info("\t%s" % conflict_paths)
         else:
             try:
                 self._make_directories()
             except OSError, e:
-                output.result('check', self.config.name, 'directories', False,
-                              "%s: %s" % (e.filename, e.strerror))
+                check_strategy.result(self.config.name, 'directories', False,
+                                      "%s: %s" % (e.filename, e.strerror))
             else:
-                output.result('check', self.config.name, 'directories', True)
+                check_strategy.result(self.config.name, 'directories', True)
 
-    def check_retention_policy_settings(self):
+    def check_retention_policy_settings(self, check_strategy):
         """
         Checks retention policy setting
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
         if self.config.retention_policy and not self.enforce_retention_policies:
-            output.result('check', self.config.name,
-                          'retention policy settings', False, 'see log')
+            check_strategy.result(self.config.name, 'retention policy settings',
+                                  False, 'see log')
         else:
-            output.result('check', self.config.name,
-                          'retention policy settings', True)
+            check_strategy.result(self.config.name,
+                                  'retention policy settings', True)
 
-    def check_backup_validity(self):
+    def check_backup_validity(self, check_strategy):
         """
         Check if backup validity requirements are satisfied
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
         # first check: check backup maximum age
         if self.config.last_backup_maximum_age is not None:
@@ -287,18 +381,17 @@ class Server(object):
                 self.config.last_backup_maximum_age)
 
             # format the output
-            output.result('check', self.config.name,
-                          'backup maximum age', backup_age[0],
-                          "interval provided: %s, latest backup age: %s" %
-                          (human_readable_timedelta(
-                              self.config.last_backup_maximum_age),
-                           backup_age[1]))
+            check_strategy.result(
+                self.config.name, 'backup maximum age',
+                backup_age[0],
+                "interval provided: %s, latest backup age: %s" % (
+                    human_readable_timedelta(
+                        self.config.last_backup_maximum_age), backup_age[1]))
         else:
             # last_backup_maximum_age provided by the user
-            output.result('check', self.config.name,
-                          'backup maximum age',
-                          True,
-                          "no last_backup_maximum_age provided")
+            check_strategy.result(
+                self.config.name, 'backup maximum age', True,
+                "no last_backup_maximum_age provided")
 
     def status_postgres(self):
         """
@@ -657,10 +750,10 @@ class Server(object):
             return {}
 
     def delete_backup(self, backup):
-        '''Deletes a backup
+        """Deletes a backup
 
         :param backup: the backup to delete
-        '''
+        """
         return self.backup_manager.delete_backup(backup)
 
     def backup(self):
@@ -668,6 +761,15 @@ class Server(object):
         Performs a backup for the server
         """
         try:
+            # Default strategy for check in backup is CheckStrategy
+            # This strategy does not print any output - it only logs checks
+            strategy = CheckStrategy()
+            self.check(strategy)
+            if strategy.has_error:
+                output.error("Impossible to start the backup. Check the log "
+                             "for more details, or run 'barman check %s'"
+                             % self.config.name)
+                return
             # check required backup directories exist
             self._make_directories()
         except OSError, e:

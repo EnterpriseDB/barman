@@ -591,38 +591,42 @@ class BackupManager(object):
         script.env_from_wal_info(wal_info)
         script.run()
 
-    def check(self):
+    def check(self, check_strategy):
         """
-        This function performs some checks on the server.
-        Set error code to 1 if any of the checks fails
+        This function does some checks on the server.
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
+        # Check compression_setting parameter
         if self.config.compression and not self.compression_manager.check():
-            output.result('check', self.config.name,
-                          'compression settings', False)
+            check_strategy.result(self.config.name,
+                                  'compression settings', False)
         else:
             status = True
             try:
                 self.compression_manager.get_compressor()
             except CompressionIncompatibility, field:
-                output.result('check', self.config.name,
-                              '%s setting' % field, False)
+                check_strategy.result('%s setting' % field, False)
                 status = False
-            output.result('check', self.config.name,
-                          'compression settings', status)
+            check_strategy.result(self.config.name,
+                                  'compression settings', status)
 
         # Minimum redundancy checks
         no_backups = len(self.get_available_backups())
+        # Check minimum_redundancy_requirements parameter
         if no_backups < self.config.minimum_redundancy:
             status = False
         else:
             status = True
-        output.result('check', self.config.name,
-                      'minimum redundancy requirements', status,
-                      'have %s backups, expected at least %s' %
-                      (no_backups, self.config.minimum_redundancy))
+        check_strategy.result(
+            self.config.name,
+            'minimum redundancy requirements', status,
+            'have %s backups, expected at least %s' % (
+                no_backups, self.config.minimum_redundancy))
 
         # Execute additional checks defined by the BackupExecutor
-        self.executor.check()
+        self.executor.check(check_strategy)
 
     def status(self):
         """

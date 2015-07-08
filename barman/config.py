@@ -544,7 +544,7 @@ class Config(object):
                 # If the path does not conflict with the others, add it to the
                 # paths map
                 if path not in servers_paths:
-                    servers_paths[path] = PathConflict._make([label, section])
+                    servers_paths[path] = PathConflict(label, section)
                 else:
                     if section == servers_paths[path][1]:
                         # Internal path error.

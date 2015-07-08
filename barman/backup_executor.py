@@ -79,9 +79,12 @@ class BackupExecutor(object):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
 
-    def check(self):
+    def check(self, check_strategy):
         """
         Perform additional checks - invoked by BackupManager.check()
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
 
     def status(self):
@@ -241,11 +244,14 @@ class SshBackupExecutor(BackupExecutor):
                 self._update_action_from_strategy()
                 raise
 
-    def check(self):
+    def check(self, check_strategy):
         """
         Perform additional checks for SshBackupExecutor, including
         Ssh connection (executing a 'true' command on the remote server)
         and specific checks for the given backup strategy.
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
 
         # Execute a 'true' command on the remote server
@@ -253,15 +259,14 @@ class SshBackupExecutor(BackupExecutor):
         ret = cmd("true")
         hint = "PostgreSQL server"
         if ret == 0:
-            output.result('check', self.config.name, 'ssh', True,
-                          hint)
+            check_strategy.result(self.config.name, 'ssh', True,
+                                  hint)
         else:
-            output.result('check', self.config.name, 'ssh', False,
-                          '%s, return code: %s' % (hint, ret))
-
+            check_strategy.result(self.config.name, 'ssh', False,
+                                  '%s, return code: %s' % (hint, ret))
         try:
             # Invoke specific checks for the backup strategy
-            self.strategy.check()
+            self.strategy.check(check_strategy)
         except BaseException:
             self._update_action_from_strategy()
             raise
@@ -552,9 +557,12 @@ class BackupStrategy(object):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
 
-    def check(self):
+    def check(self, check_strategy):
         """
         Perform additional checks - invoked by BackupExecutor.check()
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
 
     # noinspection PyMethodMayBeStatic
@@ -734,20 +742,22 @@ class ExclusiveBackupStrategy(BackupStrategy):
                             'have to  manually execute pg_stop_backup() '
                             'on your PostgreSQL server')
 
-    def check(self):
+    def check(self, check_strategy):
         """
         Perform additional checks for ExclusiveBackupStrategy
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
         # Make sure PostgreSQL is not in recovery (i.e. is a master)
         is_in_recovery = self.executor.server.pg_is_in_recovery()
         if not is_in_recovery:
-            output.result('check', self.executor.config.name,
-                          'not in recovery', True)
+            check_strategy.result(
+                self.executor.config.name, 'not in recovery', True)
         else:
-            output.result('check', self.executor.config.name,
-                          'not in recovery',
-                          False,
-                          'cannot perform exclusive backup on a standby')
+            check_strategy.result(
+                self.executor.config.name, 'not in recovery', False,
+                'cannot perform exclusive backup on a standby')
 
 
 class ConcurrentBackupStrategy(BackupStrategy):
@@ -896,14 +906,17 @@ class ConcurrentBackupStrategy(BackupStrategy):
         self.current_action = "writing backup label"
         self._write_backup_label(backup_info)
 
-    def check(self):
+    def check(self, check_strategy):
         """
         Perform additional checks for ConcurrentBackupStrategy
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
         if self.executor.server.pgespresso_installed():
-            output.result('check', self.executor.config.name,
-                          'pgespresso extension', True)
+            check_strategy.result(self.executor.config.name,
+                                  'pgespresso extension', True)
         else:
-            output.result('check', self.executor.config.name,
-                          'pgespresso extension', False,
-                          'required for concurrent backups')
+            check_strategy.result(self.executor.config.name,
+                                  'pgespresso extension', False,
+                                  'required for concurrent backups')

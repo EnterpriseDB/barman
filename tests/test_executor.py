@@ -21,6 +21,7 @@ import os
 from mock import patch, Mock, call, ANY
 import psycopg2
 import pytest
+from barman.server import CheckOutputStrategy
 
 from barman.backup_executor import RsyncBackupExecutor, SshCommandException
 from barman.config import BackupOptions
@@ -108,14 +109,15 @@ class TestRsyncBackupExecutor(object):
 
         # Test 1: ssh ok
         command_mock.return_value.return_value = 0
-        backup_manager.executor.check()
+        check_strategy = CheckOutputStrategy()
+        backup_manager.executor.check(check_strategy)
         out, err = capsys.readouterr()
         assert err == ''
         assert 'ssh: OK' in out
 
         # Test 2: ssh failed
         command_mock.return_value.return_value = 1
-        backup_manager.executor.check()
+        backup_manager.executor.check(check_strategy)
         out, err = capsys.readouterr()
         assert err == ''
         assert 'ssh: FAILED' in out

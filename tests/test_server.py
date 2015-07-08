@@ -23,7 +23,9 @@ from mock import patch, MagicMock
 import pytest
 
 from barman.infofile import WalFileInfo
-from barman.server import Server, PostgresConnectionError
+from barman.lockfile import LockFileBusy, LockFilePermissionDenied
+from barman.server import Server, PostgresConnectionError, CheckStrategy, \
+    CheckOutputStrategy
 from testing_helpers import build_test_backup_info, build_config_from_dicts, \
     build_real_server
 
@@ -271,7 +273,8 @@ class TestServer(object):
         server = build_real_server()
         # Case: no reply by PostgreSQL
         # Expect out: PostgreSQL: FAILED
-        server.check_postgres()
+        strategy = CheckOutputStrategy()
+        server.check_postgres(strategy)
         (out, err) = capsys.readouterr()
         assert out == '	PostgreSQL: FAILED\n'
         # Case: correct configuration
@@ -284,7 +287,7 @@ class TestServer(object):
                                       'wal_level': 'archive'}
         # Do check
         # Expect out: all parameters: OK
-        server.check_postgres()
+        server.check_postgres(strategy)
         (out, err) = capsys.readouterr()
         assert out == "\tPostgreSQL: OK\n" \
                       "\tarchive_mode: OK\n" \
@@ -301,7 +304,8 @@ class TestServer(object):
                                       'wal_level': 'minimal'}
         # Do check
         # Expect out: some parameters: FAILED
-        server.check_postgres()
+        strategy = CheckOutputStrategy()
+        server.check_postgres(strategy)
         (out, err) = capsys.readouterr()
         assert out == "\tPostgreSQL: OK\n" \
                       "\tarchive_mode: OK\n" \
@@ -346,3 +350,131 @@ class TestServer(object):
         assert wal_info
         assert wal_info['wal_total_seconds'] == wal_total_seconds
         assert wal_info['wals_per_second'] == wals_per_second
+
+    @patch('barman.server.Server.check')
+    @patch('barman.server.Server._make_directories')
+    @patch('barman.backup.BackupManager.backup')
+    @patch('barman.server.Server.cron')
+    @patch('barman.server.ServerBackupLock')
+    def test_backup(self, backup_lock_mock, cron_mock, backup_manager_mock,
+                    dir_mock, check_mock, capsys):
+        """
+
+        :param backup_lock_mock: mock ServerBackupLock
+        :param cron_mock: mock cron
+        :param backup_manager_mock: mock BackupManager.backup
+        :param dir_mock: mock _make_directories
+        :param check_mock: mock check
+        """
+
+        # Create server
+        server = build_real_server()
+        dir_mock.side_effect = OSError()
+        server.backup()
+        out, err = capsys.readouterr()
+        assert 'failed to create' in err
+
+        dir_mock.side_effect = None
+        server.backup()
+        backup_manager_mock.assert_called_once_with()
+        cron_mock.assert_called_once_with(retention_policies=False,
+                                          verbose=False)
+
+        backup_manager_mock.side_effect = LockFileBusy()
+        server.backup()
+        out, err = capsys.readouterr()
+        assert 'Another backup process is running' in err
+
+        backup_manager_mock.side_effect = LockFilePermissionDenied()
+        server.backup()
+        out, err = capsys.readouterr()
+        assert 'Permission denied, unable to access' in err
+
+
+class TestCheckStrategy(object):
+    """
+    Test the different strategies for the results of the check command
+    """
+
+    def test_check_output_strategy(self, capsys):
+        """
+        Test correct output result
+        """
+        strategy = CheckOutputStrategy()
+        # Expected result OK
+        strategy.result('test_server_one', 'wal_level', True)
+        out, err = capsys.readouterr()
+        assert out == '	wal_level: OK\n'
+        # Expected result FAILED
+        strategy.result('test_server_one', 'wal_level', False)
+        out, err = capsys.readouterr()
+        assert out == '	wal_level: FAILED\n'
+
+    def test_check_output_strategy_log(self, caplog):
+        """
+        Test correct output log
+
+        :type caplog: pytest_capturelog.CaptureLogFuncArg
+        """
+        strategy = CheckOutputStrategy()
+        # Expected result OK
+        strategy.result('test_server_one', 'wal_level', True)
+        assert len(caplog.records()) == 1
+        record = caplog.records().pop()
+        assert record.msg == \
+            "Check 'wal_level' succeeded for server 'test_server_one'"
+        assert record.levelname == 'DEBUG'
+        # Expected result FAILED
+        strategy.result('test_server_one', 'wal_level', False)
+        assert len(caplog.records()) == 1
+        record = caplog.records().pop()
+        assert record.levelname == 'ERROR'
+        assert record.msg == \
+            "Check 'wal_level' failed for server 'test_server_one'"
+
+    def test_check_strategy(self, capsys):
+        """
+        Test correct values result
+
+        :type capsys: pytest
+        """
+        strategy = CheckStrategy()
+        # Expected no errors
+        strategy.result('test_server_one', 'wal_level', True)
+        strategy.result('test_server_one', 'archive mode', True)
+        assert ('', '') == capsys.readouterr()
+        assert strategy.has_error is False
+        assert strategy.check_result
+        assert len(strategy.check_result) == 2
+        # Expected two errors
+        strategy.result('test_server_one', 'wal_level', False)
+        strategy.result('test_server_one', 'archive mode', False)
+        assert ('', '') == capsys.readouterr()
+        assert strategy.has_error is True
+        assert strategy.check_result
+        assert len(strategy.check_result) == 4
+        assert len([result 
+                    for result in strategy.check_result 
+                    if not result.status]) == 2
+
+    def test_check_strategy_log(self, caplog):
+        """
+        Test correct log
+
+        :type caplog: pytest_capturelog.CaptureLogFuncArg
+        """
+        strategy = CheckStrategy()
+        # Expected result OK
+        strategy.result('test_server_one', 'wal_level', True)
+        assert len(caplog.records()) == 1
+        record = caplog.records().pop()
+        assert record.msg == \
+            "Check 'wal_level' succeeded for server 'test_server_one'"
+        assert record.levelname == 'DEBUG'
+        # Expected result FAILED
+        strategy.result('test_server_one', 'wal_level', False)
+        assert len(caplog.records()) == 1
+        record = caplog.records().pop()
+        assert record.levelname == 'ERROR'
+        assert record.msg == \
+            "Check 'wal_level' failed for server 'test_server_one'"
