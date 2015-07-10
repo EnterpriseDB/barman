@@ -16,6 +16,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 from datetime import datetime
+import json
 import os
 
 import mock
@@ -24,6 +25,7 @@ from dateutil.tz import tzoffset, tzlocal
 
 from barman.infofile import Field, FieldListFile, WalFileInfo, \
     load_datetime_tz, BackupInfo
+from testing_helpers import build_mocked_server
 
 
 BASE_BACKUP_INFO = """backup_label=None
@@ -344,7 +346,7 @@ class TestBackupInfo(object):
         infofile = tmpdir.join("backup.info")
         infofile.write(BASE_BACKUP_INFO)
         # Mock the server, we don't need it at the moment
-        server = mock.MagicMock()
+        server = build_mocked_server()
         # load the data from the backup.info file
         b_info = BackupInfo(server, info_file=infofile.strpath)
         assert b_info
@@ -367,8 +369,7 @@ class TestBackupInfo(object):
         infofile = tmpdir.join("backup.info")
         infofile.write('')
         # Mock the server, we don't need it at the moment
-        server = mock.MagicMock()
-        server.config.name = 'test_server'
+        server = build_mocked_server(name='test_server')
         server.backup_manager.name = 'test_mode'
         # load the data from the backup.info file
         b_info = BackupInfo(server, info_file=infofile.strpath)
@@ -385,8 +386,11 @@ class TestBackupInfo(object):
         # So we create a backup.info file into the tmpdir then
         # we instruct the configuration on the position of the
         # testing backup.info file
-        server = mock.MagicMock()
-        server.config.basebackups_directory = tmpdir.strpath
+        server = build_mocked_server(
+            main_conf={
+                'basebackups_directory': tmpdir.strpath
+            },
+        )
         infofile = tmpdir.mkdir('fake_name').join('backup.info')
         infofile.write(BASE_BACKUP_INFO)
         # Load the backup.info file using the backup_id
@@ -407,8 +411,11 @@ class TestBackupInfo(object):
         # Check the saving method.
         # Load a backup.info file, modify the BackupInfo object
         # then save it.
-        server = mock.MagicMock()
-        server.config.basebackups_directory = tmpdir.strpath
+        server = build_mocked_server(
+            main_conf={
+                'basebackups_directory': tmpdir.strpath
+            },
+        )
         backup_dir = tmpdir.mkdir('fake_name')
         infofile = backup_dir.join('backup.info')
         b_info = BackupInfo(server, backup_id="fake_name")
@@ -423,8 +430,11 @@ class TestBackupInfo(object):
         """
         Simple test for backup_version management.
         """
-        server = mock.MagicMock()
-        server.config.basebackups_directory = tmpdir.strpath
+        server = build_mocked_server(
+            main_conf={
+                'basebackups_directory': tmpdir.strpath
+            },
+        )
 
         # new version
         backup_dir = tmpdir.mkdir('fake_backup_id')
@@ -446,8 +456,11 @@ class TestBackupInfo(object):
         path to the datadir and to the tablespaces dir according
         with backup_version
         """
-        server = mock.MagicMock()
-        server.config.basebackups_directory = tmpdir.strpath
+        server = build_mocked_server(
+            main_conf={
+                'basebackups_directory': tmpdir.strpath
+            },
+        )
 
         # Build a fake v2 backup
         backup_dir = tmpdir.mkdir('fake_backup_id')
@@ -461,7 +474,7 @@ class TestBackupInfo(object):
         assert b_info.get_data_directory() == data_dir.strpath
         assert b_info.get_data_directory(16384) == backup_dir.strpath + '/16384'
 
-        # Build a fake v2 backup
+        # Build a fake v1 backup
         backup_dir = tmpdir.mkdir('another_fake_backup_id')
         pgdata_dir = backup_dir.mkdir('pgdata')
         info_file = backup_dir.join('backup.info')
@@ -471,7 +484,7 @@ class TestBackupInfo(object):
         # Check that the paths are built according with version
         assert b_info.backup_version == 1
         assert b_info.get_data_directory(16384) == \
-               backup_dir.strpath + '/pgdata/pg_tblspc/16384'
+            backup_dir.strpath + '/pgdata/pg_tblspc/16384'
         assert b_info.get_data_directory() == pgdata_dir.strpath
 
         # Check that an exception is raised if an invalid oid
@@ -485,3 +498,37 @@ class TestBackupInfo(object):
         # and expect a value error
         with pytest.raises(ValueError):
             b_info.get_data_directory(16384)
+
+    def test_to_json(self, tmpdir):
+        server = build_mocked_server(
+            main_conf={
+                'basebackups_directory': tmpdir.strpath
+            },
+        )
+
+        # Build a fake backup
+        backup_dir = tmpdir.mkdir('fake_backup_id')
+        info_file = backup_dir.join('backup.info')
+        info_file.write(BASE_BACKUP_INFO)
+        b_info = BackupInfo(server, backup_id="fake_backup_id")
+
+        # This call should not raise
+        assert json.dumps(b_info.to_json())
+
+    def test_from_json(self, tmpdir):
+        server = build_mocked_server(
+            main_conf={
+                'basebackups_directory': tmpdir.strpath
+            },
+        )
+
+        # Build a fake backup
+        backup_dir = tmpdir.mkdir('fake_backup_id')
+        info_file = backup_dir.join('backup.info')
+        info_file.write(BASE_BACKUP_INFO)
+        b_info = BackupInfo(server, backup_id="fake_backup_id")
+
+        # Build another BackupInfo from the json dump
+        new_binfo = BackupInfo.from_json(server, b_info.to_json())
+
+        assert b_info.to_dict() == new_binfo.to_dict()

@@ -144,6 +144,10 @@ class FieldListFile(object):
         the corresponding attribute. If a provided keyword argument doesn't
         has a corresponding attribute an AttributeError exception is raised.
 
+        The values provided to the constructor must be of the appropriate
+        type for the corresponding attribute.
+        The constructor will not attempt any validation or conversion on them.
+
         This class is meant to be an abstract base class.
 
         :raises: AttributeError
@@ -603,6 +607,36 @@ class BackupInfo(FieldListFile):
 
     def to_json(self):
         """
-        Return an equivalent dictionary that can be encoded in json
+        Return an equivalent dictionary that uses only json-supported types
         """
-        return self.to_dict()
+        data = self.to_dict()
+        # Convert fields which need special types not supported by json
+        if data.get('tablespaces') is not None:
+            data['tablespaces'] = [list(item)
+                                   for item in data['tablespaces']]
+        if data.get('begin_time') is not None:
+            data['begin_time'] = data['begin_time'].ctime()
+        if data.get('end_time') is not None:
+            data['end_time'] = data['end_time'].ctime()
+        return data
+
+    @classmethod
+    def from_json(cls, server, json_backup_info):
+        """
+        Factory method that builds a BackupInfo object
+        from a json dictionary
+
+        :param barman.Server server: the server related to the Backup
+        :param dict json_backup_info: the data set containing values from json
+        """
+        data = dict(json_backup_info)
+        # Convert fields which need special types not supported by json
+        if data.get('tablespaces') is not None:
+            data['tablespaces'] = [Tablespace._make(item)
+                                   for item in data['tablespaces']]
+        if data.get('begin_time') is not None:
+            data['begin_time'] = load_datetime_tz(data['begin_time'])
+        if data.get('end_time') is not None:
+            data['end_time'] = load_datetime_tz(data['end_time'])
+        # Instantiate a BackupInfo object using the converted fields
+        return cls(server, **data)
