@@ -17,6 +17,7 @@
 
 import os
 import shutil
+import time
 
 import dateutil
 from mock import Mock, patch
@@ -185,9 +186,13 @@ class TestRecoveryExecutor(object):
                                   '2015-06-03 16:11:03.71038+02',
                                   '2',
                                   None,)
-        assert recovery_info['target_datetime'] == dateutil.parser.parse(
-            '2015-06-03 16:11:03.710380+02:00')
-        assert recovery_info['target_epoch'] == 1433344263.7103801
+        target_datetime = dateutil.parser.parse('2015-06-03 '
+                '16:11:03.710380+02:00')
+        target_epoch = (time.mktime(target_datetime.timetuple()) +
+                    (target_datetime.microsecond / 1000000.))
+        
+        assert recovery_info['target_datetime'] == target_datetime
+        assert recovery_info['target_epoch'] == target_epoch
         assert recovery_info['wal_dest'] == dest.join('barman_xlog').strpath
 
     @patch('barman.recovery_executor.Rsync')
