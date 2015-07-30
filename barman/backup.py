@@ -446,21 +446,28 @@ class BackupManager(object):
                 # If there are no available backups ...
                 if first_backup is None:
                     # ... delete xlog segments only for exclusive backups
-                    if BackupOptions.CONCURRENT_BACKUP not in self.config.backup_options:
-                        output.info("\tNo base backup available. Trashing file %s"
-                                " from server %s",
-                                wal_info.name, self.config.name)
-                        os.unlink(filename)
-                        continue
+                    if BackupOptions.CONCURRENT_BACKUP \
+                            not in self.config.backup_options:
+                        # Skipping history files
+                        if not xlog.is_history_file(filename):
+                            output.info("\tNo base backup available."
+                                        " Trashing file %s"
+                                        " from server %s",
+                                        wal_info.name, self.config.name)
+                            os.unlink(filename)
+                            continue
                 # ... otherwise
                 else:
                     # ... delete xlog segments older than the first backup
                     if wal_info.name < first_backup.begin_wal:
-                        output.info("\tOlder than first backup. Trashing file %s"
-                                " from server %s",
-                                wal_info.name, self.config.name)
-                        os.unlink(filename)
-                        continue
+                        # Skipping history files
+                        if not xlog.is_history_file(filename):
+                            output.info("\tOlder than first backup."
+                                        " Trashing file %s"
+                                        " from server %s",
+                                        wal_info.name, self.config.name)
+                            os.unlink(filename)
+                            continue
 
                 # Report to the user the WAL file we are archiving
                 output.info("\t%s", os.path.basename(filename), log=False)
@@ -753,11 +760,13 @@ class BackupManager(object):
             with open(xlogdb_new, 'w') as fxlogdb_new:
                 for line in fxlogdb:
                     wal_info = WalFileInfo.from_xlogdb_line(line)
-                    if backup_info and wal_info.name >= backup_info.begin_wal:
-                        fxlogdb_new.write(wal_info.to_xlogdb_line())
-                        continue
+                    # Keeps the WAL segment if it is a history file or later
+                    # than the given backup (the first available)
+                    if (xlog.is_history_file(wal_info.name) or
+                        (backup_info and wal_info.name >= backup_info.begin_wal)):
+                            fxlogdb_new.write(wal_info.to_xlogdb_line())
+                            continue
                     else:
-                        # Delete the WAL segment
                         self.delete_wal(wal_info)
                         removed.append(wal_info.name)
                 fxlogdb_new.flush()
