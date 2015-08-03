@@ -102,7 +102,7 @@ class CsvOption(set):
                                      (val, key, source, val,
                                       self.conflicts[val]))
                 else:
-                    #otherwise use parsed value
+                    # otherwise use parsed value
                     self.add(val)
             else:
                 # not allowed value, reject the configuration
@@ -133,7 +133,7 @@ class BackupOptions(CsvOption):
     EXCLUSIVE_BACKUP = 'exclusive_backup'
     CONCURRENT_BACKUP = 'concurrent_backup'
 
-    #list holding all the allowed values for the BackupOption class
+    # list holding all the allowed values for the BackupOption class
     value_list = [EXCLUSIVE_BACKUP, CONCURRENT_BACKUP]
     # map holding all the possible conflicts between the allowed values
     conflicts = {
@@ -532,38 +532,62 @@ class Config(object):
                 continue
 
             # Paths map
+            section_conf = self._servers[section]
             config_paths = {
-                'backup_directory': self._servers[section].backup_directory,
-                'basebackups_directory': self._servers[section].basebackups_directory,
-                'wals_directory': self._servers[section].wals_directory,
-                'incoming_wals_directory': self._servers[section].incoming_wals_directory,
+                'backup_directory': section_conf.backup_directory,
+                'basebackups_directory': section_conf.basebackups_directory,
+                'wals_directory': section_conf.wals_directory,
+                'incoming_wals_directory': section_conf.incoming_wals_directory,
             }
 
             # Check for path errors
             for label, path in sorted(config_paths.iteritems()):
                 # If the path does not conflict with the others, add it to the
                 # paths map
-                if path not in servers_paths:
-                    servers_paths[path] = PathConflict(label, section)
+                real_path = os.path.realpath(path)
+                if real_path not in servers_paths:
+                    servers_paths[real_path] = PathConflict(label, section)
                 else:
-                    if section == servers_paths[path][1]:
+                    if section == servers_paths[real_path].server:
                         # Internal path error.
                         # Insert the error message into the server.msg_list
-                        self._servers[section].msg_list.append(
-                            "Conflicting path: %s=%s conflicts with "
-                            "'%s' for server '%s'" % (label, path,
-                            servers_paths[path].label, servers_paths[path].server))
+                        if real_path == path:
+                            self._servers[section].msg_list.append(
+                                "Conflicting path: %s=%s conflicts with "
+                                "'%s' for server '%s'" % (
+                                    label, path,
+                                    servers_paths[real_path].label,
+                                    servers_paths[real_path].server))
+                        else:
+                            # Symbolic link
+                            self._servers[section].msg_list.append(
+                                "Conflicting path: %s=%s (symlink to: %s) "
+                                "conflicts with '%s' for server '%s'" % (
+                                    label, path, real_path,
+                                    servers_paths[real_path].label,
+                                    servers_paths[real_path].server))
                         # Disable the server
                         self._servers[section].disabled = True
                     else:
                         # Global path error.
                         # Insert the error message into the global msg_list
-                        self.servers_msg_list.append(
-                            "Conflicting path: "
-                            "%s=%s for server '%s' conflicts with "
-                            "'%s' for server '%s'" %
-                            (label, path, section, servers_paths[path].label,
-                             servers_paths[path].server))
+                        if real_path == path:
+                            self.servers_msg_list.append(
+                                "Conflicting path: "
+                                "%s=%s for server '%s' conflicts with "
+                                "'%s' for server '%s'" % (
+                                    label, path, section,
+                                    servers_paths[real_path].label,
+                                    servers_paths[real_path].server))
+                        else:
+                            # Symbolic link
+                            self.servers_msg_list.append(
+                                "Conflicting path: "
+                                "%s=%s (symlink to: %s) for server '%s' "
+                                "conflicts with '%s' for server '%s'" % (
+                                    label, path, real_path, section,
+                                    servers_paths[real_path].label,
+                                    servers_paths[real_path].server))
 
     def server_names(self):
         """This method returns a list of server names"""

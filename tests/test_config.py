@@ -231,6 +231,37 @@ class TestConfig(object):
         assert c.servers_msg_list
         assert len(c.servers_msg_list) == 4
 
+    def test_populate_servers_following_symlink(self, tmpdir):
+        """
+        Test for the presence of conflicting paths in configuration between all
+        the servers
+        """
+        incoming_dir = tmpdir.mkdir("incoming")
+        wals_dir = tmpdir.join("wal")
+        wals_dir.mksymlinkto(incoming_dir.strpath)
+
+        c = build_config_from_dicts(
+            global_conf=None,
+            main_conf={
+                'basebackups_directory': incoming_dir.strpath,
+                'incoming_wals_directory': incoming_dir.strpath,
+                'wals_directory': wals_dir.strpath,
+                'backup_directory': tmpdir.strpath,
+            })
+
+        c._populate_servers()
+
+        # If there is one or more path errors are present,
+        # the msg_list of the 'main' server is populated during
+        # the creation of the server configuration object
+        assert len(c._servers['main'].msg_list) == 2
+        symlink = 0
+        for msg in c._servers['main'].msg_list:
+            # Check for symlinks presence
+            if "(symlink to: " in msg:
+                symlink += 1
+        assert symlink == 1
+
 
 # noinspection PyMethodMayBeStatic
 class TestCsvParsing(object):
