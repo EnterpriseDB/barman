@@ -22,8 +22,9 @@ import os
 from mock import patch, MagicMock
 import pytest
 
-from barman.infofile import WalFileInfo
-from barman.lockfile import LockFileBusy, LockFilePermissionDenied
+from barman.infofile import WalFileInfo, BackupInfo
+from barman.lockfile import LockFileBusy, LockFilePermissionDenied, \
+    ServerBackupLock
 from barman.server import Server, PostgresConnectionError, CheckStrategy, \
     CheckOutputStrategy
 from testing_helpers import build_test_backup_info, build_config_from_dicts, \
@@ -389,6 +390,51 @@ class TestServer(object):
         server.backup()
         out, err = capsys.readouterr()
         assert 'Permission denied, unable to access' in err
+
+    @patch('barman.server.Server.get_first_backup')
+    @patch('barman.server.BackupManager.delete_backup')
+    def test_delete_running_backup(self, delete_mock, get_first_backup_mock, tmpdir, capsys):
+        """
+        Simple test for the deletion of a running backup.
+        We want to test the behaviour of the server.delete_backup method
+        when invoked on a running backup
+        """
+        # Test the removal of a running backup. status STARTED
+        server = build_real_server({'barman_home': tmpdir.strpath})
+        backup_info_started = build_test_backup_info(
+            status=BackupInfo.STARTED,
+            server_name=server.config.name)
+        get_first_backup_mock.return_value = backup_info_started
+        with ServerBackupLock(tmpdir.strpath, server.config.name):
+            server.delete_backup(backup_info_started)
+            out, err = capsys.readouterr()
+            assert "Cannot delete a running backup (%s %s)" % (
+                       server.config.name,
+                       backup_info_started.backup_id) in err
+
+        # Test the removal of a running backup. status EMPTY
+        backup_info_empty = build_test_backup_info(
+            status=BackupInfo.EMPTY,
+            server_name=server.config.name)
+        get_first_backup_mock.return_value = backup_info_empty
+        with ServerBackupLock(tmpdir.strpath, server.config.name):
+            server.delete_backup(backup_info_empty)
+            out, err = capsys.readouterr()
+            assert "Cannot delete a running backup (%s %s)" % (
+                       server.config.name,
+                       backup_info_started.backup_id) in err
+
+        # Test the removal of a running backup. status DONE
+        backup_info_done = build_test_backup_info(
+            status=BackupInfo.DONE,
+            server_name=server.config.name)
+        with ServerBackupLock(tmpdir.strpath, server.config.name):
+            server.delete_backup(backup_info_done)
+            delete_mock.assert_called_with(backup_info_done)
+
+        # Test the removal of a backup not running. status STARTED
+        server.delete_backup(backup_info_started)
+        delete_mock.assert_called_with(backup_info_started)
 
 
 class TestCheckStrategy(object):

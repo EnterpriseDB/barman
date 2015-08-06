@@ -754,7 +754,39 @@ class Server(object):
 
         :param backup: the backup to delete
         """
-        return self.backup_manager.delete_backup(backup)
+        try:
+            # Lock acquisition: if you can acquire a ServerBackupLock
+            # it means that no backup process is running on that server,
+            # so there is no need to check the backup status.
+            # Simply proceed with the normal delete process.
+            server_backup_lock = ServerBackupLock(
+                self.config.barman_lock_directory,
+                self.config.name)
+            server_backup_lock.acquire(server_backup_lock.raise_if_fail,
+                                       server_backup_lock.wait)
+            server_backup_lock.release()
+            return self.backup_manager.delete_backup(backup)
+
+        except LockFileBusy:
+            # Otherwise if the lockfile is busy, a backup process is actually
+            # running on that server. To be sure that it's safe
+            # to delete the backup, we must check its status and its position
+            # in the catalogue.
+            # If it is the first and it is STARTED or EMPTY, we are trying to
+            # remove a running backup. This operation must be forbidden.
+            # Otherwise, normally delete the backup.
+            first_backup = self.get_first_backup(BackupInfo.STATUS_ALL)
+            if backup.backup_id == first_backup.backup_id \
+                and backup.status in (BackupInfo.STARTED, BackupInfo.EMPTY):
+                output.error("Cannot delete a running backup (%s %s)"
+                             % (self.config.name, backup.backup_id))
+            else:
+                return self.backup_manager.delete_backup(backup)
+
+        except LockFilePermissionDenied, e:
+            # We cannot access the lockfile.
+            # Exit without removing the backup.
+            output.error("Permission denied, unable to access '%s'" % e)
 
     def backup(self):
         """
