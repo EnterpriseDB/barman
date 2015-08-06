@@ -33,7 +33,7 @@ from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
 from barman import xlog, output
 from barman.command_wrappers import DataTransferFailure
 from barman.compression import CompressionManager, CompressionIncompatibility
-from barman.hooks import HookScriptRunner
+from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.utils import human_readable_timedelta, mkpath, pretty_size, \
     fsync_dir
 from barman.config import BackupOptions
@@ -335,6 +335,12 @@ class BackupManager(object):
             script.env_from_backup_info(backup_info)
             script.run()
 
+            # Run the pre-backup-retry-script if present.
+            retry_script = RetryHookScriptRunner(
+                self, 'backup_retry_script', 'pre')
+            retry_script.env_from_backup_info(backup_info)
+            retry_script.run()
+
             # Do the backup using the BackupExecutor
             self.executor.backup(backup_info)
 
@@ -372,6 +378,12 @@ class BackupManager(object):
         finally:
             if backup_info:
                 backup_info.save()
+
+                # Run the post-backup-retry-script if present.
+                retry_script = RetryHookScriptRunner(
+                    self, 'backup_retry_script', 'post')
+                retry_script.env_from_backup_info(backup_info)
+                retry_script.run()
 
                 # Run the post-backup-script if present.
                 script = HookScriptRunner(self, 'backup_script', 'post')
@@ -572,6 +584,11 @@ class BackupManager(object):
         script.env_from_wal_info(wal_info, srcfile)
         script.run()
 
+        # Run the pre_archive_retry_script if present.
+        retry_script = RetryHookScriptRunner(self, 'archive_retry_script', 'pre')
+        retry_script.env_from_wal_info(wal_info, srcfile)
+        retry_script.run()
+
         mkpath(destdir)
         if compressor:
             compressor.compress(srcfile, destfile)
@@ -592,6 +609,11 @@ class BackupManager(object):
         stat = os.stat(destfile)
         wal_info.size = stat.st_size
         wal_info.compression = compressor and compressor.compression
+
+        # Run the post_archive_retry_script if present.
+        retry_script = RetryHookScriptRunner(self, 'archive_retry_script', 'post')
+        retry_script.env_from_wal_info(wal_info, srcfile)
+        retry_script.run()
 
         # Run the post_archive_script if present.
         script = HookScriptRunner(self, 'archive_script', 'post')

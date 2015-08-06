@@ -233,6 +233,8 @@ def build_config_dictionary(config_keys=None):
         'network_compression': False,
         'post_backup_script': None,
         'pre_backup_script': None,
+        'post_backup_retry_script': None,
+        'pre_backup_retry_script': None,
         'recovery_options': set(),
         'retention_policy': None,
         'retention_policy_mode': 'auto',
@@ -245,6 +247,8 @@ def build_config_dictionary(config_keys=None):
         'basebackup_retry_times': 0,
         'post_archive_script': None,
         'pre_archive_script': None,
+        'post_archive_retry_script': None,
+        'pre_archive_retry_script': None,
         'last_backup_maximum_age': None,
         'disabled': False,
         'msg_list': []

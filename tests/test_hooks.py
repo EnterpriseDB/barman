@@ -15,16 +15,15 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import unittest
 from mock import MagicMock, patch
 import time
 from barman.infofile import UnknownBackupIdException
 from barman.version import __version__ as version
-from barman.hooks import HookScriptRunner
+from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from testing_helpers import build_backup_manager
 
 
-class HooksUnitTest(unittest.TestCase):
+class TestHooks(object):
 
     @patch('barman.hooks.Command')
     def test_general(self, command_mock):
@@ -43,6 +42,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_SERVER': 'test_server',
             'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
+            'BARMAN_RETRY': '0',
         }
         assert script.run() == 0
         assert command_mock.call_count == 1
@@ -67,6 +67,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
             'BARMAN_ERROR': 'Generic Failure',
+            'BARMAN_RETRY': '0',
         }
         assert script.run() == 0
         assert command_mock.call_count == 1
@@ -88,6 +89,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_SERVER': 'test_server',
             'BARMAN_CONFIGURATION': 'build_config_from_dicts',
             'BARMAN_HOOK': 'test_hook',
+            'BARMAN_RETRY': '0',
         }
         assert script.run() == 0
         assert command_mock.call_count == 1
@@ -159,6 +161,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_ERROR': '',
             'BARMAN_STATUS': 'OK',
             'BARMAN_PREVIOUS_ID': '987654321',
+            'BARMAN_RETRY': '0',
         }
         script.run()
         assert command_mock.call_count == 1
@@ -193,6 +196,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_ERROR': 'Test error',
             'BARMAN_STATUS': 'FAILED',
             'BARMAN_PREVIOUS_ID': '',
+            'BARMAN_RETRY': '0',
         }
         script.run()
         assert command_mock.call_count == 1
@@ -228,6 +232,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_ERROR': '',
             'BARMAN_STATUS': 'OK',
             'BARMAN_PREVIOUS_ID': '',
+            'BARMAN_RETRY': '0',
         }
         script.run()
         assert command_mock.call_count == 1
@@ -261,6 +266,7 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_SIZE': '1234567',
             'BARMAN_TIMESTAMP': '1337133713',
             'BARMAN_COMPRESSION': 'gzip',
+            'BARMAN_RETRY': '0',
         }
         script.run()
         assert command_mock.call_count == 1
@@ -295,11 +301,81 @@ class HooksUnitTest(unittest.TestCase):
             'BARMAN_SIZE': '1234567',
             'BARMAN_TIMESTAMP': str(timestamp),
             'BARMAN_COMPRESSION': '',
+            'BARMAN_RETRY': '0',
         }
         script.run()
         assert command_mock.call_count == 1
         assert command_mock.call_args[1]['env_append'] == expected_env
 
+    @patch('barman.hooks.Command')
+    def test_retry_hooks(self, command_mock):
+        # BackupManager mock
+        backup_manager = build_backup_manager(name='test_server')
+        backup_manager.config.pre_test_retry_hook = 'not_existent_script'
 
-if __name__ == '__main__':
-    unittest.main()
+        # Command mock executed by HookScriptRunner
+        command_mock.return_value.return_value = 0
+
+        # the actual test
+        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook', 'pre')
+        expected_env = {
+            'BARMAN_PHASE': 'pre',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
+            'BARMAN_HOOK': 'test_retry_hook',
+            'BARMAN_RETRY': '1',
+        }
+        assert script.run() == 0
+        assert command_mock.call_count == 1
+        assert command_mock.call_args[1]['env_append'] == expected_env
+
+    @patch('barman.hooks.Command')
+    def test_retry_hooks_with_retry(self, command_mock):
+        # BackupManager mock
+        backup_manager = build_backup_manager(name='test_server')
+        backup_manager.config.pre_test_retry_hook = 'not_existent_script'
+
+        # Command mock executed by HookScriptRunner
+        command_mock.return_value.side_effect = [
+            1, 1, 1, RetryHookScriptRunner.EXIT_SUCCESS]
+
+        # the actual test
+        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook', 'pre')
+        expected_env = {
+            'BARMAN_PHASE': 'pre',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
+            'BARMAN_HOOK': 'test_retry_hook',
+            'BARMAN_RETRY': '1',
+        }
+        # Shorten wait time after failures
+        script.ATTEMPTS_BEFORE_NAP = 2
+        script.BREAK_TIME = 1
+        script.NAP_TIME = 1
+        assert script.run() == RetryHookScriptRunner.EXIT_SUCCESS
+        assert command_mock.call_count == 4
+        assert command_mock.call_args[1]['env_append'] == expected_env
+        command_mock.reset_mock()
+        # Command mock executed by HookScriptRunner
+        command_mock.return_value.side_effect = [
+            1, 2, 3, 4, 5, 6, RetryHookScriptRunner.EXIT_ABORT]
+
+        # the actual test
+        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook', 'pre')
+        expected_env = {
+            'BARMAN_PHASE': 'pre',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
+            'BARMAN_HOOK': 'test_retry_hook',
+            'BARMAN_RETRY': '1',
+        }
+        # Shorten wait time after failures
+        script.ATTEMPTS_BEFORE_NAP = 2
+        script.BREAK_TIME = 1
+        script.NAP_TIME = 1
+        assert script.run() == RetryHookScriptRunner.EXIT_ABORT
+        assert command_mock.call_count == 7
+        assert command_mock.call_args[1]['env_append'] == expected_env

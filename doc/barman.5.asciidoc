@@ -81,14 +81,36 @@ file inside the `/etc/barman.d` folder.
 *pre_backup_script*::
     Hook script launched before a base backup. Global/Server.
 
+*pre_backup_retry_script*::
+    Hook script launched before a base backup, after 'pre_backup_script'.
+    Being this a _retry_ hook script, Barman will retry the execution of the
+    script until this either returns an SUCCESS (0) or an ABORT (63) code. Global/Server.
+
+*post_backup_retry_script*::
+    Hook script launched after a base backup.
+    Being this a _retry_ hook script, Barman will retry the execution of the
+    script until this either returns an SUCCESS (0) or an ABORT (63) code. Global/Server.
+
 *post_backup_script*::
-    Hook script launched after a base backup. Global/Server.
+    Hook script launched after a base backup, after 'post_backup_retry_script'. Global/Server.
 
 *pre_archive_script*::
-    Hook script launched before a base backup. Global/Server.
+    Hook script launched before a WAL file is archived by maintenance.
+    Global/Server.
+
+*pre_archive_retry_script*::
+    Hook script launched before a WAL file is archived by maintenance, after 'pre_archive_script'.
+    Being this a _retry_ hook script, Barman will retry the execution of the
+    script until this either returns an SUCCESS (0) or an ABORT (63) code. Global/Server.
+
+*post_archive_retry_script*::
+    Hook script launched after a WAL file is archived by maintenance.
+    Being this a _retry_ hook script, Barman will retry the execution of the
+    script until this either returns an SUCCESS (0) or an ABORT (63) code. Global/Server.
 
 *post_archive_script*::
-    Hook script launched after a base backup. Global/Server.
+    Hook script launched after a WAL file is archived by maintenance, after 'post_archive_retry_script'.
+    Global/Server.
 
 *minimum_redundancy*::
     Minimum number of backups to be retained. Default 0. Global/Server.
@@ -192,6 +214,8 @@ The shell environment will contain the following variables:
 `BARMAN_ERROR`:: error message, if any (only for the 'post' phase)
 
 `BARMAN_PHASE`:: 'pre' or 'post'
+
+`BARMAN_RETRY`:: `1` if it is a _retry script_ (from 1.5.0), `0` if not
 
 `BARMAN_SERVER`:: name of the server
 

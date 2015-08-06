@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 08/11/2015
+.\"      Date: 08/12/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "08/11/2015" "\ \&" "\ \&"
+.TH "BARMAN" "5" "08/12/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -144,19 +144,51 @@ Decompression algorithm applied to compressed WAL files; this must match the com
 Hook script launched before a base backup\&. Global/Server\&.
 .RE
 .PP
+\fBpre_backup_retry_script\fR
+.RS 4
+Hook script launched before a base backup, after
+\fIpre_backup_script\fR\&. Being this a
+\fIretry\fR
+hook script, Barman will retry the execution of the script until this either returns an SUCCESS (0) or an ABORT (63) code\&. Global/Server\&.
+.RE
+.PP
+\fBpost_backup_retry_script\fR
+.RS 4
+Hook script launched after a base backup\&. Being this a
+\fIretry\fR
+hook script, Barman will retry the execution of the script until this either returns an SUCCESS (0) or an ABORT (63) code\&. Global/Server\&.
+.RE
+.PP
 \fBpost_backup_script\fR
 .RS 4
-Hook script launched after a base backup\&. Global/Server\&.
+Hook script launched after a base backup, after
+\fIpost_backup_retry_script\fR\&. Global/Server\&.
 .RE
 .PP
 \fBpre_archive_script\fR
 .RS 4
-Hook script launched before a base backup\&. Global/Server\&.
+Hook script launched before a WAL file is archived by maintenance\&. Global/Server\&.
+.RE
+.PP
+\fBpre_archive_retry_script\fR
+.RS 4
+Hook script launched before a WAL file is archived by maintenance, after
+\fIpre_archive_script\fR\&. Being this a
+\fIretry\fR
+hook script, Barman will retry the execution of the script until this either returns an SUCCESS (0) or an ABORT (63) code\&. Global/Server\&.
+.RE
+.PP
+\fBpost_archive_retry_script\fR
+.RS 4
+Hook script launched after a WAL file is archived by maintenance\&. Being this a
+\fIretry\fR
+hook script, Barman will retry the execution of the script until this either returns an SUCCESS (0) or an ABORT (63) code\&. Global/Server\&.
 .RE
 .PP
 \fBpost_archive_script\fR
 .RS 4
-Hook script launched after a base backup\&. Global/Server\&.
+Hook script launched after a WAL file is archived by maintenance, after
+\fIpost_archive_retry_script\fR\&. Global/Server\&.
 .RE
 .PP
 \fBminimum_redundancy\fR
@@ -311,6 +343,16 @@ BARMAN_PHASE
 \fIpre\fR
 or
 \fIpost\fR
+.RE
+.PP
+BARMAN_RETRY
+.RS 4
+1
+if it is a
+\fIretry script\fR
+(from 1\&.5\&.0),
+0
+if not
 .RE
 .PP
 BARMAN_SERVER

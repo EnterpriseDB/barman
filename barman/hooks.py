@@ -20,6 +20,7 @@ This module contains the logic to run hook scripts
 """
 
 import logging
+import time
 from barman import version
 from barman.command_wrappers import Command
 from barman.infofile import UnknownBackupIdException
@@ -29,7 +30,7 @@ _logger = logging.getLogger(__name__)
 
 class HookScriptRunner(object):
     def __init__(self, backup_manager, name, phase=None, error=None,
-                 **extra_env):
+                 retry=False, **extra_env):
         """
         Execute a hook script managing its environment
         """
@@ -38,6 +39,7 @@ class HookScriptRunner(object):
         self.extra_env = extra_env
         self.phase = phase
         self.error = error
+        self.retry = retry
 
         self.environment = None
         self.exit_status = None
@@ -57,6 +59,7 @@ class HookScriptRunner(object):
             'BARMAN_SERVER': self.backup_manager.config.name,
             'BARMAN_CONFIGURATION': config_file,
             'BARMAN_HOOK': self.name,
+            'BARMAN_RETRY': str(1 if self.retry else 0),
         })
         if self.error:
             self.environment['BARMAN_ERROR'] = self.error
@@ -93,7 +96,7 @@ class HookScriptRunner(object):
             'BARMAN_ERROR': backup_info.error or '',
         })
 
-    def env_from_wal_info(self, wal_info, full_path = None):
+    def env_from_wal_info(self, wal_info, full_path=None):
         """
         Prepare the environment for executing a script
 
@@ -102,8 +105,8 @@ class HookScriptRunner(object):
         """
         self.environment.update({
             'BARMAN_SEGMENT': wal_info.name,
-            'BARMAN_FILE': str(full_path
-                               or wal_info.fullpath(self.backup_manager.server)),
+            'BARMAN_FILE': str(full_path or
+                               wal_info.fullpath(self.backup_manager.server)),
             'BARMAN_SIZE': str(wal_info.size),
             'BARMAN_TIMESTAMP': str(wal_info.time),
             'BARMAN_COMPRESSION': wal_info.compression or '',
@@ -139,3 +142,77 @@ class HookScriptRunner(object):
             _logger.exception('Exception running %s', self.name)
             self.exception = e
             return None
+
+
+class RetryHookScriptRunner(HookScriptRunner):
+
+    """
+    A 'retry' hook script is a special kind of hook script that Barman
+    tries to run indefinitely until it either returns a SUCCESS or
+    ABORT exit code.
+    Retry hook scripts are executed immediately before (pre) and after (post)
+    the command execution. Standard hook scripts are executed immediately
+    before (pre) and after (post) the retry hook scripts.
+    """
+
+    # Failed attempts before sleeping for NAP_TIME seconds
+    ATTEMPTS_BEFORE_NAP = 5
+    # Short break after a failure (in seconds)
+    BREAK_TIME = 3
+    # Long break (nap, in seconds) after ATTEMPTS_BEFORE_NAP failures
+    NAP_TIME = 60
+    # ABORT exit code
+    EXIT_ABORT = 63
+    # SUCCESS exit code
+    EXIT_SUCCESS = 0
+
+    def __init__(self, backup_manager, name, phase=None, error=None,
+                 **extra_env):
+        super(RetryHookScriptRunner, self).__init__(
+            backup_manager, name, phase, error, retry=True, **extra_env)
+
+    def run(self):
+        """
+        Run a a 'retry' hook script, if required by configuration.
+
+        Barman will retry to run the script indefinitely until it returns
+        a EXIT_SUCCESS or a EXIT_ABORT code.
+        There are BREAK_TIME seconds of sleep between every try.
+        Every ATTEMPTS_BEFORE_NAP failures, Barman will sleep
+        for NAP_TIME seconds.
+        """
+        # If there is no script, exit
+        if self.script is not None:
+            # Keep track of the number of attempts
+            attempts = 1
+            while True:
+                # Run the script using the standard hook method (inherited)
+                super(RetryHookScriptRunner, self).run()
+
+                # Run the script until it returns EXIT_ABORT or EXIT_SUCCESS
+                if self.exit_status in (self.EXIT_ABORT, self.EXIT_SUCCESS):
+                    break
+
+                # Check for the number of attempts
+                if attempts <= self.ATTEMPTS_BEFORE_NAP:
+                    attempts += 1
+                    # Take a short break
+                    _logger.debug("Retry again in %d seconds", self.BREAK_TIME)
+                    time.sleep(self.BREAK_TIME)
+                else:
+                    # Reset the attempt number and take a longer nap
+                    _logger.debug("Reached %d failures. Take a nap "
+                                  "then retry again in %d seconds",
+                                  self.ATTEMPTS_BEFORE_NAP,
+                                  self.NAP_TIME)
+                    attempts = 1
+                    time.sleep(self.NAP_TIME)
+            # Outside the loop check for the exit code.
+            if self.exit_status == self.EXIT_ABORT:
+                # Warn the user if the script exited with EXIT_ABORT code.
+                # Notify only the EXIT_ABORT exit status because success and
+                # failures are already managed in the superclass run method
+                _logger.warning("%s was aborted (got exit status %d)",
+                                self.script,
+                                self.exit_status)
+            return self.exit_status
