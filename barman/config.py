@@ -52,6 +52,9 @@ _TIME_INTERVAL_RE = re.compile(r"""
 
 REUSE_BACKUP_VALUES = ('copy', 'link', 'off')
 
+# Possible copy methods for backups (must be all lowercase)
+COPY_METHOD_VALUES = ['rsync']
+
 
 class CsvOption(set):
 
@@ -230,6 +233,24 @@ def parse_reuse_backup(value):
             "', '".join(REUSE_BACKUP_VALUES[:-1]), REUSE_BACKUP_VALUES[-1]))
 
 
+def parse_copy_method(value):
+    """
+    Parse a string to a valid copy_method value.
+
+    Valid values are contained in COPY_METHOD_VALUES list
+
+    :param str value: copy_method value
+    :raises ValueError: if the value is invalid
+    """
+    if value is None:
+        return None
+    if value.lower() in COPY_METHOD_VALUES:
+        return value.lower()
+    raise ValueError(
+        "Invalid value (must be one in: '%s')" % (
+            "', '".join(COPY_METHOD_VALUES)))
+
+
 class ServerConfig(object):
     """
     This class represents the configuration for a specific Server instance.
@@ -252,6 +273,7 @@ class ServerConfig(object):
         'recovery_options',
         'basebackup_retry_times', 'basebackup_retry_sleep',
         'last_backup_maximum_age',
+        'copy_method',
     ]
 
     BARMAN_KEYS = [
@@ -267,6 +289,7 @@ class ServerConfig(object):
         'recovery_options',
         'basebackup_retry_times', 'basebackup_retry_sleep',
         'last_backup_maximum_age',
+        'copy_method',
     ]
 
     DEFAULTS = {
@@ -285,6 +308,7 @@ class ServerConfig(object):
         'network_compression': 'false',
         'basebackup_retry_times': '0',
         'basebackup_retry_sleep': '30',
+        'copy_method': 'rsync',
     }
 
     FIXED = [
@@ -302,6 +326,7 @@ class ServerConfig(object):
         'basebackup_retry_sleep': int,
         'recovery_options': RecoveryOptions,
         'last_backup_maximum_age': parse_time_interval,
+        'copy_method': parse_copy_method,
     }
 
     def invoke_parser(self, key, source, value, new_value):
