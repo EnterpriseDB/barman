@@ -33,7 +33,8 @@ from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
 from barman import xlog, output
 from barman.command_wrappers import DataTransferFailure
 from barman.compression import CompressionManager, CompressionIncompatibility
-from barman.hooks import HookScriptRunner, RetryHookScriptRunner
+from barman.hooks import HookScriptRunner, RetryHookScriptRunner, \
+    AbortedRetryHookScript
 from barman.utils import human_readable_timedelta, mkpath, pretty_size, \
     fsync_dir
 from barman.config import BackupOptions
@@ -380,10 +381,17 @@ class BackupManager(object):
                 backup_info.save()
 
                 # Run the post-backup-retry-script if present.
-                retry_script = RetryHookScriptRunner(
-                    self, 'backup_retry_script', 'post')
-                retry_script.env_from_backup_info(backup_info)
-                retry_script.run()
+                try:
+                    retry_script = RetryHookScriptRunner(
+                        self, 'backup_retry_script', 'post')
+                    retry_script.env_from_backup_info(backup_info)
+                    retry_script.run()
+                except AbortedRetryHookScript, e:
+                    # Ignore the ABORT_STOP as it is a post-hook operation
+                    _logger.warning("Ignoring stop request after receiving "
+                                    "abort (exit code %d) from post-backup "
+                                    "retry hook script: %s",
+                                    e.hook.exit_status, e.hook.script)
 
                 # Run the post-backup-script if present.
                 script = HookScriptRunner(self, 'backup_script', 'post')
@@ -487,8 +495,15 @@ class BackupManager(object):
                              self.config.name,
                              os.path.basename(filename))
                 # Archive the WAL file
-                self.cron_wal_archival(compressor, wal_info)
-
+                try:
+                    self.cron_wal_archival(compressor, wal_info)
+                except AbortedRetryHookScript as e:
+                    _logger.warning("Archiving of %s/%s aborted by "
+                                    "pre_archive_retry_script."
+                                    "Reason: %s" % (self.config.name,
+                                                    os.path.basename(),
+                                                    e))
+                    return
                 # Updates the information of the WAL archive with
                 # the latest segments
                 fxlogdb.write(wal_info.to_xlogdb_line())
@@ -574,51 +589,73 @@ class BackupManager(object):
         :param compressor: the compressor for the file (if any)
         :param wal_info: WalFileInfo of the WAL file is being processed
         """
-        destfile = wal_info.fullpath(self.server)
-        destdir = os.path.dirname(destfile)
+
+        dest_file = wal_info.fullpath(self.server)
+        dest_dir = os.path.dirname(dest_file)
         srcfile = os.path.join(self.config.incoming_wals_directory,
-                wal_info.name)
+                               wal_info.name)
 
-        # Run the pre_archive_script if present.
-        script = HookScriptRunner(self, 'archive_script', 'pre')
-        script.env_from_wal_info(wal_info, srcfile)
-        script.run()
+        error = None
+        try:
+            # Run the pre_archive_script if present.
+            script = HookScriptRunner(self, 'archive_script', 'pre')
+            script.env_from_wal_info(wal_info, srcfile)
+            script.run()
 
-        # Run the pre_archive_retry_script if present.
-        retry_script = RetryHookScriptRunner(self, 'archive_retry_script', 'pre')
-        retry_script.env_from_wal_info(wal_info, srcfile)
-        retry_script.run()
+            # Run the pre_archive_retry_script if present.
+            retry_script = RetryHookScriptRunner(self,
+                                                 'archive_retry_script',
+                                                 'pre')
+            retry_script.env_from_wal_info(wal_info, srcfile)
+            retry_script.run()
 
-        mkpath(destdir)
-        if compressor:
-            compressor.compress(srcfile, destfile)
-            shutil.copystat(srcfile, destfile)
-            os.unlink(srcfile)
-        else:
-            shutil.move(srcfile, destfile)
+            mkpath(dest_dir)
+            if compressor:
+                compressor.compress(srcfile, dest_file)
+                shutil.copystat(srcfile, dest_file)
+                os.unlink(srcfile)
+            else:
+                shutil.move(srcfile, dest_file)
 
-        # execute fsync() on the archived WAL containing directory
-        fsync_dir(destdir)
-        # execute fsync() also on the incoming directory
-        fsync_dir(self.config.incoming_wals_directory)
-        # execute fsync() on the archived WAL file
-        file_fd = os.open(destfile, os.O_RDONLY)
-        os.fsync(file_fd)
-        os.close(file_fd)
+            # Execute fsync() on the archived WAL containing directory
+            fsync_dir(dest_dir)
+            # Execute fsync() also on the incoming directory
+            fsync_dir(self.config.incoming_wals_directory)
+            # Execute fsync() on the archived WAL file
+            file_fd = os.open(dest_file, os.O_RDONLY)
+            os.fsync(file_fd)
+            os.close(file_fd)
 
-        stat = os.stat(destfile)
-        wal_info.size = stat.st_size
-        wal_info.compression = compressor and compressor.compression
+            stat = os.stat(dest_file)
+            wal_info.size = stat.st_size
+            wal_info.compression = compressor and compressor.compression
 
-        # Run the post_archive_retry_script if present.
-        retry_script = RetryHookScriptRunner(self, 'archive_retry_script', 'post')
-        retry_script.env_from_wal_info(wal_info, srcfile)
-        retry_script.run()
+        except Exception as e:
+            # In case of failure save the exception for the post sripts
+            error = e
+            raise
 
-        # Run the post_archive_script if present.
-        script = HookScriptRunner(self, 'archive_script', 'post')
-        script.env_from_wal_info(wal_info)
-        script.run()
+        # Ensure the execution of the post_archive_retry_script and
+        # the post_archive_script
+        finally:
+            # Run the post_archive_retry_script if present.
+            try:
+                retry_script = RetryHookScriptRunner(self,
+                                                     'archive_retry_script',
+                                                     'post')
+                retry_script.env_from_wal_info(wal_info, dest_file, error)
+                retry_script.run()
+            except AbortedRetryHookScript, e:
+                # Ignore the ABORT_STOP as it is a post-hook operation
+                _logger.warning("Ignoring stop request after receiving "
+                                "abort (exit code %d) from post-archive "
+                                "retry hook script: %s",
+                                e.hook.exit_status, e.hook.script)
+
+            # Run the post_archive_script if present.
+            script = HookScriptRunner(self, 'archive_script', 'post', error)
+            script.env_from_wal_info(wal_info, dest_file)
+            script.run()
 
     def check(self, check_strategy):
         """

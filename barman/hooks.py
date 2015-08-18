@@ -96,20 +96,22 @@ class HookScriptRunner(object):
             'BARMAN_ERROR': backup_info.error or '',
         })
 
-    def env_from_wal_info(self, wal_info, full_path=None):
+    def env_from_wal_info(self, wal_info, full_path=None, error=None):
         """
         Prepare the environment for executing a script
 
         :param WalFileInfo wal_info: the backup metadata
         :param str full_path: override wal_info.fullpath() result
+        :param str|Exception error: An error message in case of failure
         """
         self.environment.update({
             'BARMAN_SEGMENT': wal_info.name,
-            'BARMAN_FILE': str(full_path or
+            'BARMAN_FILE': str(full_path if full_path is not None else
                                wal_info.fullpath(self.backup_manager.server)),
             'BARMAN_SIZE': str(wal_info.size),
             'BARMAN_TIMESTAMP': str(wal_info.time),
             'BARMAN_COMPRESSION': wal_info.compression or '',
+            'BARMAN_ERROR': str(error or '')
         })
 
     def run(self):
@@ -144,6 +146,25 @@ class HookScriptRunner(object):
             return None
 
 
+class AbortedRetryHookScript(Exception):
+    """
+    Exception for handling abort of retry hook scripts
+    """
+    def __init__(self, hook):
+        """
+        Initialise the exception with hook script info
+        """
+        self.hook = hook
+
+    def __str__(self):
+        """
+        String representation
+        """
+        return ("Abort '%s_%s' retry hook script (%s, exit code: %d)" % (
+                self.hook.phase, self.hook.name,
+                self.hook.script, self.hook.exit_status))
+
+
 class RetryHookScriptRunner(HookScriptRunner):
 
     """
@@ -161,8 +182,10 @@ class RetryHookScriptRunner(HookScriptRunner):
     BREAK_TIME = 3
     # Long break (nap, in seconds) after ATTEMPTS_BEFORE_NAP failures
     NAP_TIME = 60
-    # ABORT exit code
-    EXIT_ABORT = 63
+    # ABORT (and STOP) exit code
+    EXIT_ABORT_STOP = 63
+    # ABORT (and CONTINUE) exit code
+    EXIT_ABORT_CONTINUE = 62
     # SUCCESS exit code
     EXIT_SUCCESS = 0
 
@@ -176,7 +199,7 @@ class RetryHookScriptRunner(HookScriptRunner):
         Run a a 'retry' hook script, if required by configuration.
 
         Barman will retry to run the script indefinitely until it returns
-        a EXIT_SUCCESS or a EXIT_ABORT code.
+        a EXIT_SUCCESS, or an EXIT_ABORT_CONTINUE, or an EXIT_ABORT_STOP code.
         There are BREAK_TIME seconds of sleep between every try.
         Every ATTEMPTS_BEFORE_NAP failures, Barman will sleep
         for NAP_TIME seconds.
@@ -189,8 +212,11 @@ class RetryHookScriptRunner(HookScriptRunner):
                 # Run the script using the standard hook method (inherited)
                 super(RetryHookScriptRunner, self).run()
 
-                # Run the script until it returns EXIT_ABORT or EXIT_SUCCESS
-                if self.exit_status in (self.EXIT_ABORT, self.EXIT_SUCCESS):
+                # Run the script until it returns EXIT_ABORT_CONTINUE,
+                # or an EXIT_ABORT_STOP, or EXIT_SUCCESS
+                if self.exit_status in (self.EXIT_ABORT_CONTINUE,
+                                        self.EXIT_ABORT_STOP,
+                                        self.EXIT_SUCCESS):
                     break
 
                 # Check for the number of attempts
@@ -207,12 +233,22 @@ class RetryHookScriptRunner(HookScriptRunner):
                                   self.NAP_TIME)
                     attempts = 1
                     time.sleep(self.NAP_TIME)
+
             # Outside the loop check for the exit code.
-            if self.exit_status == self.EXIT_ABORT:
-                # Warn the user if the script exited with EXIT_ABORT code.
-                # Notify only the EXIT_ABORT exit status because success and
+            if self.exit_status == self.EXIT_ABORT_CONTINUE:
+                # Warn the user if the script exited with EXIT_ABORT_CONTINUE
+                # Notify EXIT_ABORT_CONTINUE exit status because success and
                 # failures are already managed in the superclass run method
-                _logger.warning("%s was aborted (got exit status %d)",
+                _logger.warning("%s was aborted (got exit status %d, "
+                                "Barman resumes)",
                                 self.script,
                                 self.exit_status)
+            elif self.exit_status == self.EXIT_ABORT_STOP:
+                # Log the error and raise AbortedRetryHookScript exception
+                _logger.error("%s was aborted (got exit status %d, "
+                              "Barman requested to stop)",
+                              self.script,
+                              self.exit_status)
+                raise AbortedRetryHookScript(self)
+
             return self.exit_status

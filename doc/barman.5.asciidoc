@@ -90,12 +90,16 @@ file inside the `/etc/barman.d` folder.
 *pre_backup_retry_script*::
     Hook script launched before a base backup, after 'pre_backup_script'.
     Being this a _retry_ hook script, Barman will retry the execution of the
-    script until this either returns an SUCCESS (0) or an ABORT (63) code. Global/Server.
+    script until this either returns a SUCCESS (0), an ABORT_CONTINUE (62) or an
+    ABORT_STOP (63) code. Returning ABORT_STOP will propagate the failure at
+    a higher level and interrupt the backup operation. Global/Server.
 
 *post_backup_retry_script*::
     Hook script launched after a base backup.
     Being this a _retry_ hook script, Barman will retry the execution of the
-    script until this either returns an SUCCESS (0) or an ABORT (63) code. Global/Server.
+    script until this either returns a SUCCESS (0), an ABORT_CONTINUE (62) or an
+    ABORT_STOP (63) code. In a post backup scenario, ABORT_STOP has currently
+    the same effects as ABORT_CONTINUE. Global/Server.
 
 *post_backup_script*::
     Hook script launched after a base backup, after 'post_backup_retry_script'. Global/Server.
@@ -107,12 +111,16 @@ file inside the `/etc/barman.d` folder.
 *pre_archive_retry_script*::
     Hook script launched before a WAL file is archived by maintenance, after 'pre_archive_script'.
     Being this a _retry_ hook script, Barman will retry the execution of the
-    script until this either returns an SUCCESS (0) or an ABORT (63) code. Global/Server.
+    script until this either returns a SUCCESS (0), an ABORT_CONTINUE (62) or an
+    ABORT_STOP (63) code. Returning ABORT_STOP will propagate the failure at
+    a higher level and interrupt the WAL archiving operation. Global/Server.
 
 *post_archive_retry_script*::
     Hook script launched after a WAL file is archived by maintenance.
     Being this a _retry_ hook script, Barman will retry the execution of the
-    script until this either returns an SUCCESS (0) or an ABORT (63) code. Global/Server.
+    script until this either returns a SUCCESS (0), an ABORT_CONTINUE (62) or an
+    ABORT_STOP (63) code. In a post archive scenario, ABORT_STOP has currently
+    the same effects as ABORT_CONTINUE. Global/Server.
 
 *post_archive_script*::
     Hook script launched after a WAL file is archived by maintenance, after 'post_archive_retry_script'.
