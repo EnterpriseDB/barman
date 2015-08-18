@@ -63,7 +63,8 @@ class RecoveryExecutor(object):
     DANGEROUS_OPTIONS = ['data_directory', 'config_file', 'hba_file',
                          'ident_file', 'external_pid_file', 'ssl_cert_file',
                          'ssl_key_file', 'ssl_ca_file', 'ssl_crl_file',
-                         'unix_socket_directory']
+                         'unix_socket_directory', 'include', 'include_dir',
+                         'include_if_exists']
 
     # List of options that, if present, need to be forced to a specific value
     # during recovery, to avoid data losses

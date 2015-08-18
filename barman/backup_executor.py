@@ -481,6 +481,23 @@ class RsyncBackupExecutor(SshBackupExecutor):
                         continue
                     else:
                         raise DataTransferFailure.from_rsync_error(e, msg)
+        # Check for any include directives in PostgreSQL configuration
+        # Currently, include directives are not supported for files that
+        # reside outside PGDATA. These files must be manually backed up.
+        # Barman will emit a warning and list those files
+        if backup_info.included_files:
+            filtered_files = [
+                included_file
+                for included_file in backup_info.included_files
+                if not included_file.startswith(backup_info.pgdata)
+            ]
+            if len(filtered_files) > 0:
+                output.warning(
+                    "The usage of include directives is not supported "
+                    "for files that reside outside PGDATA.\n"
+                    "Please manually backup the following files:\n"
+                    "\t%s\n",
+                    "\n\t".join(filtered_files))
 
     def _reuse_dir(self, previous_backup_info, oid=None):
         """

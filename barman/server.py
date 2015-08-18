@@ -747,6 +747,20 @@ class Server(object):
                 self.configuration_files = {}
                 for cname, cpath in cur.fetchall():
                     self.configuration_files[cname] = cpath
+
+                # Retrieve additional configuration files
+                cur.execute("SELECT DISTINCT sourcefile AS included_file "
+                            "FROM pg_settings "
+                            "WHERE sourcefile IS NOT NULL "
+                            "AND sourcefile NOT IN "
+                            "(SELECT setting FROM pg_settings "
+                            "WHERE name = 'config_file') "
+                            "ORDER BY 1")
+                included_files = [included_file
+                                  for included_file, in cur.fetchall()]
+                if len(included_files) > 0:
+                    self.configuration_files['included_files'] = included_files
+
                 return self.configuration_files
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving PostgreSQL configuration files "

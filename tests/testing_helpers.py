@@ -49,6 +49,7 @@ def build_test_backup_info(
         server_name='test_server',
         size=12345,
         status=BackupInfo.DONE,
+        included_files=None,
         tablespaces=(
             ('tbs1', 16387, '/fake/location'),
             ('tbs2', 16405, '/another/location'),
@@ -81,6 +82,7 @@ def build_test_backup_info(
     :param str server_name: server name for the backup
     :param int size: dimension of the backup
     :param str status: status of the execution of the backup
+    :param list|None included_files: a list of extra configuration files
     :param list|tuple|None tablespaces: a list of tablespaces for the backup
     :param int timeline: timeline of the backup
     :param int version: postgres version of the backup

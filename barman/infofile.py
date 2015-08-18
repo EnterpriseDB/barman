@@ -60,6 +60,16 @@ def load_tablespace_list(string):
         return None
 
 
+def null_repr(obj):
+    """
+    Return the literal representation of an object
+
+    :param object obj: object to represent
+    :return str|None: Literal representation of an object or None
+    """
+    return repr(obj) if obj else None
+
+
 def load_datetime_tz(time_str):
     """
     Load datetime and ensure the result is timezone-aware.
@@ -339,7 +349,6 @@ class WalFileInfo(FieldListFile):
         """
         Parse a line from xlog catalogue
 
-        :param Server server: server object
         :param str line: a line in the wal database to parse
         :rtype: WalFileInfo
         """
@@ -379,7 +388,6 @@ class WalFileInfo(FieldListFile):
         :param barman.server.Server server: the server that owns the wal file
         """
         return os.path.join(server.config.wals_directory, self.relpath())
-
 
 
 class UnknownBackupIdException(Exception):
@@ -436,7 +444,9 @@ class BackupInfo(FieldListFile):
     config_file = Field('config_file')
     hba_file = Field('hba_file')
     ident_file = Field('ident_file')
-    backup_label = Field('backup_label', load=ast.literal_eval, dump=repr)
+    included_files = Field('included_files',
+                           load=ast.literal_eval, dump=null_repr)
+    backup_label = Field('backup_label', load=ast.literal_eval, dump=null_repr)
 
     __slots__ = ('server', 'config', 'backup_manager',
                  'backup_id', 'backup_version')
@@ -473,7 +483,7 @@ class BackupInfo(FieldListFile):
                 self.load(filename=self.filename)
         elif info_file:
             if hasattr(info_file, 'read'):
-            # We have been given a file-like object
+                # We have been given a file-like object
                 self.load(file_object=info_file)
             else:
                 # Just a file name

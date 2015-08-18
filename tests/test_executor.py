@@ -253,6 +253,33 @@ class TestRsyncBackupExecutor(object):
                    '%s/global/pg_control' % backup_info.get_data_directory()),
             call()(':/etc/postgresql.conf', backup_info.get_data_directory())]
 
+    @patch('barman.backup_executor.RsyncPgData')
+    def test_backup_copy_with_included_files(self, rsync_moc, tmpdir, capsys):
+        backup_manager = build_backup_manager(global_conf={
+            'barman_home': tmpdir.mkdir('home').strpath
+        })
+        # Create a backup info with additional configuration files
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            pgdata="/pg/data",
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/data/pg_hba.conf",
+            ident_file="/pg/data/pg_ident.conf",
+            begin_xlog="0/2000028",
+            begin_wal="000000010000000000000002",
+            included_files=["/tmp/config/file.conf"],
+            begin_offset=28)
+        backup_info.save()
+        # This is to check that all the preparation is done correctly
+        assert os.path.exists(backup_info.filename)
+        # Execute a backup
+        backup_manager.executor.backup_copy(backup_info)
+        out, err = capsys.readouterr()
+        # check for the presence of the warning in the stderr
+        assert "WARNING: The usage of include directives is not supported" in err
+        # check that the additional configuration file is present in the output
+        assert backup_info.included_files[0] in err
+
 
 # noinspection PyMethodMayBeStatic
 class TestStrategy(object):
