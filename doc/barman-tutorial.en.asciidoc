@@ -309,6 +309,28 @@ file inside the `/etc/barman.d` folder.
 Otherwise, you can use Barman's standard way of specifying sections
 within the main configuration file.
 
+==== Lock files
+
+Since version 1.5.0, Barman allows DBAs to specify a directory
+for lock files through the `barman_lock_directory` global option.
+
+Lock files are used to coordinate concurrent work at global and
+server level (for example, cron operations, backup operations,
+access to the WAL archive, etc.).
+
+By default (for backward compatibility reasons), `barman_lock_directory`
+is set to `barman_home`.
+
+[IMPORTANT]
+This change won't affect users upgrading from a version of Barman
+older than 1.5.0, unless you have written applications that depend
+on the names of the lock files. However, this is not a typical and
+common case for Barman and most of users do not fall into this category.
+
+[TIP]
+Users are encouraged to use a directory in a volatile partition, such
+as the one dedicated to run-time variable data (e.g. `/var/run/barman`).
+
 ==== Example of configuration
 
 ----

@@ -51,6 +51,12 @@ file inside the `/etc/barman.d` folder.
 *conninfo*::
     Connection string used by Barman to connect to the Postgres server. Server.
 
+*barman_home*::
+    Main data directory for Barman. Global.
+
+*barman_lock_directory*::
+    Directory for locks. Default: +%(barman_home)s+. Global.
+
 *backup_directory*::
     Directory where backup data for a server will be placed. Server.
 

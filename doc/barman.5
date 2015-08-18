@@ -2,12 +2,12 @@
 .\"     Title: barman
 .\"    Author: [see the "AUTHORS" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 08/12/2015
+.\"      Date: 08/18/2015
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "BARMAN" "5" "08/12/2015" "\ \&" "\ \&"
+.TH "BARMAN" "5" "08/18/2015" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -92,6 +92,17 @@ Command used by Barman to login to the Postgres server via ssh\&. Server\&.
 \fBconninfo\fR
 .RS 4
 Connection string used by Barman to connect to the Postgres server\&. Server\&.
+.RE
+.PP
+\fBbarman_home\fR
+.RS 4
+Main data directory for Barman\&. Global\&.
+.RE
+.PP
+\fBbarman_lock_directory\fR
+.RS 4
+Directory for locks\&. Default:
+%(barman_home)s\&. Global\&.
 .RE
 .PP
 \fBbackup_directory\fR
