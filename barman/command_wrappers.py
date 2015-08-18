@@ -72,6 +72,7 @@ class DataTransferFailure(Exception):
         details += e.args[0]['err']
         return cls(details)
 
+
 class Command(object):
     """
     Simple wrapper for a shell command
@@ -243,11 +244,30 @@ class Rsync(Command):
             for path in exclude_and_protect:
                 options += ["--exclude=%s" % (path,), "--filter=P_%s" % (path,)]
         if args:
-            options += args
+            options += self._args_for_suse(args)
         if bwlimit is not None and bwlimit > 0:
             options += ["--bwlimit=%s" % bwlimit]
         Command.__init__(self, rsync, args=options, check=check,
                          allowed_retval=allowed_retval, **kwargs)
+
+    def _args_for_suse(self, args):
+        """
+        Mangle args for SUSE compatibility
+
+        See https://bugzilla.opensuse.org/show_bug.cgi?id=898513
+        """
+        # Prepend any argument starting with ':' with a space
+        # Workaround for SUSE rsync issue
+        return [' ' + a if a.startswith(':') else a for a in args]
+
+    def getoutput(self, *args, **kwargs):
+        """
+        Run the command and return the output and the error (if present)
+        """
+        # Prepares args for SUSE
+        args = self._args_for_suse(args)
+        # Invoke the base class method
+        return super(Rsync, self).getoutput(*args, **kwargs)
 
     def from_file_list(self, filelist, src, dst, *args, **kwargs):
         """
