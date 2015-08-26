@@ -209,7 +209,6 @@ your +PATH+ environment variable is set properly).
 
 Barman needs a bidirectional SSH connection between the +barman+ user on the +backup+ server and the +postgres+ user.
 SSH must be configured such that there is no password prompt presented when connecting.
-on the +pg+ server.
 As the +barman+ user on the +backup+ server, generate an SSH key with an empty password, and append the public key
 to the +authorized_keys+ file of the +postgres+ user on the +pg+ server.
 
