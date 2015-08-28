@@ -63,7 +63,9 @@ class TestRecoveryExecutor(object):
         postgresql_conf = tempdir.join('postgresql.conf')
         postgresql_auto = tempdir.join('postgresql.auto.conf')
         postgresql_conf.write('archive_command = something\n'
-                              'data_directory = something')
+                              'data_directory = something\n'
+                              'include = something\n'
+                              'include "without braces"')
         postgresql_auto.write('archive_command = something\n'
                               'data_directory = something')
         local_rec = tmpdir.mkdir('local_rec')
@@ -79,20 +81,14 @@ class TestRecoveryExecutor(object):
         # Identify dangerous options into config files for remote recovery
         executor.analyse_temporary_config_files(recovery_info)
         assert len(recovery_info['results']['changes']) == 2
-        assert len(recovery_info['results']['warnings']) == 2
-        # Prepare for a local recovery test
+        assert len(recovery_info['results']['warnings']) == 4
+        # Clean for a local recovery test
         recovery_info['results']['changes'] = []
         recovery_info['results']['warnings'] = []
-        postgresql_conf_local = local_rec.join('postgresql.conf')
-        postgresql_auto_local = local_rec.join('postgresql.auto.conf')
-        postgresql_conf_local.write('archive_command = something\n'
-                                    'data_directory = something')
-        postgresql_auto_local.write('archive_command = something\n'
-                                    'data_directory = something')
         # Identify dangerous options for local recovery
         executor.analyse_temporary_config_files(recovery_info)
         assert len(recovery_info['results']['changes']) == 2
-        assert len(recovery_info['results']['warnings']) == 2
+        assert len(recovery_info['results']['warnings']) == 4
 
     def test_map_temporary_config_files(self, tmpdir):
         """

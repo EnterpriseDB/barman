@@ -45,7 +45,7 @@ from barman.utils import mkpath
 _logger = logging.getLogger(__name__)
 
 # regexp matching a single value in Postgres configuration file
-PG_CONF_SETTING_RE = re.compile(r"^\s*([^\s=]+)\s*=\s*(.*)$")
+PG_CONF_SETTING_RE = re.compile(r"^\s*([^\s=]+)\s*=?\s*(.*)$")
 
 # create a namedtuple object called Assertion with 'filename', 'line', 'key' and
 # 'value' as properties
