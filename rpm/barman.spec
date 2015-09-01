@@ -1,7 +1,11 @@
 %if 0%{?rhel} == 7
-%global pybasever 2.7
+  %global pybasever 2.7
 %else
-%global pybasever 2.6
+  %if 0%{?fedora}>=21
+    %global pybasever 2.7
+  %else
+    %global pybasever 2.6
+  %endif
 %endif
 
 %if 0%{?rhel} == 5
@@ -16,7 +20,7 @@
 %global __python_ver python
 %endif
 
-%global main_version 1.4.1
+%global main_version 1.5.0
 # comment out the next line if not a pre-release (use '#%%global ...')
 %global extra_version a1
 # Usually 1 - unique sequence for all pre-release version
@@ -86,7 +90,7 @@ rm -rf %{buildroot}
 %files
 %defattr(-,root,root)
 %doc INSTALL NEWS README
-%{python_sitelib}/%{name}-%{version}%{?extra_version:%{extra_version}}-py%{pybasever}.egg-info/
+%{python_sitelib}/%{name}-%{version}%{?extra_version:%{extra_version}}-py%{pybasever}.egg-info
 %{python_sitelib}/%{name}/
 %{_bindir}/%{name}
 %doc %{_mandir}/man1/%{name}.1.gz
