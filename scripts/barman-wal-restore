@@ -1,0 +1,140 @@
+#!/bin/bash
+#
+# Copyright (C) 2011-2015 2ndQuadrant Italia (Devise.IT S.r.L.)
+#
+# This file is part of Barman.
+#
+# Barman is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Barman is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+
+VERSION=1.0
+USER='barman'
+
+usage ()
+{
+  echo "barman-wal-restore:"
+  echo "  This script will be used as a 'restore_command' based on the get-wal feature of Barman."
+  echo "  A ssh connection will be opened to the Barman host."
+  echo ""
+  echo "Usage: barman-wal-restore [-U user] <BARMANHOST> <NODEHOST> <WAL_NAME> <WAL_DEST>"
+  echo ""
+  echo "Optional:"
+  echo "  -U <user>"
+  echo "    The user used for the ssh connection to the Barman server. Defaults to 'barman'."
+  echo ""
+  echo "parameters:"
+  echo "  <BARMANHOST>"
+  echo "    The host of the Barman server (MANDATORY)."
+  echo "  <SERVERNAME>"
+  echo "    The server name configured in Barman from which WALs are taken (MANDATORY)."
+  echo "  <WAL_NAME>, <WAL_DEST>"
+  echo "    those two parameters have to be valued with the '%f' and '%p' keywords (MANDATORY)."
+  echo ""
+  echo "info:"
+  echo "  --help"
+  echo "    Display this help and exit."
+  echo "  --version"
+  echo "    Output version information and exit."
+  echo ""
+
+  exit 1
+}
+
+version (){
+  echo " barman-wal-restore: Version $VERSION"
+  echo ""
+
+  exit 1
+}
+
+exit_with_error () {
+  echo "ERROR: $1"
+  exit $2
+}
+
+opt="$1"
+case "$opt" in
+  --help )
+     usage ;;
+  --version )
+     version ;;
+esac
+
+while [ $# -gt 4 ]
+do
+    opt="$1"
+    shift; # expose next argument
+    case "$opt" in
+        -U )
+          USER="$1"; shift;;
+        --version )
+          version;;
+        * )
+          usage;;
+    esac
+done
+
+#########################################################
+# check mandatory parameter
+#########################################################
+if [ -z "$1" ]
+then
+  exit_with_error "missing barman host" 2
+fi
+
+if [ -z "$2" ]
+then
+  exit_with_error "missing server name" 2
+fi
+
+if [ -z "$3" ]
+then
+  exit_with_error "missing WAL name" 2
+fi
+
+if [ -z "$4" ]
+then
+  exit_with_error "missing WAL full path" 2
+fi
+
+BARMANHOST=$1
+NODEHOST=$2
+WAL_NAME=$3
+WAL_DEST=$4
+
+#
+# Check WAL destination is not a directory and does not exist
+#
+if [ -d $WAL_DEST ]
+then
+  exit_with_error "WAL_DEST cannot be a directory" 2
+fi
+
+#
+# EXECUTE BARMAN GET-WAL THROUGH THE SSH CONNECTION
+#
+ssh -c arcfour $USER@$BARMANHOST barman get-wal $NODEHOST $WAL_NAME > $WAL_DEST
+STATUS=$?
+
+#
+# Manage the exit status
+#
+if [ $STATUS -ne 0 ]
+then
+  if [ $STATUS -eq 255 ]
+  then
+    exit_with_error "Connection problem with ssh" 3
+  else
+    exit_with_error "barman-wal-restore has failed!" $STATUS
+  fi
+fi
