@@ -1,3 +1,7 @@
+% Backup and Recovery Manager for PostgreSQL: Tutorial
+% 2ndQuadrant Italia
+% September 28, 2015 (v1.5.0)
+
 **Barman** (backup and recovery manager) is an administration tool for
 disaster recovery of PostgreSQL servers written in Python. Barman can
 perform remote backups of multiple servers in business critical
@@ -95,23 +99,23 @@ recovery outcomes.
 - PostgreSQL >= 8.3
 - rsync >= 3.0.4
 
-> **IMPORTANT:**
+> **Important:**
 > PostgreSQL's Point-In-Time-Recovery requires the same major version
 > of the sourcePostgreSQL server to be installed on the backup server.
 
-> **IMPORTANT:**
+> **Important:**
 > Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
 > required to install the
 > [Extra Packages Enterprise Linux (EPEL) repository] [1].
 
-> **NOTE:**
+> **Note:**
 > Version 1.2.3 of Barman has been refactored for Python 3 support.
 > Please consider it as experimental now and report any bug through
 > the ticketing system on SourceForge or mailing list.
 
 # Installation
 
-> **IMPORTANT:**
+> **Important:**
 > The recommended way to install Barman is by using the available
 > packages for your GNU/Linux distribution.
 
@@ -148,7 +152,7 @@ However, the recommended method for installing Barman on Debian and
 Ubuntu is through the [PostgreSQL Community APT repository] [4].
 Instructions can be found in the [APT section of the PostgreSQL Wiki] [5].
 
-> **NOTE:**
+> **Note:**
 > Thanks to the direct involvement of Barman developers in the
 > PostgreSQL Community APT repository project, you will have access to
 > the most updated versions of Barman.
@@ -185,7 +189,7 @@ For a local installation, type:
 barman@backup$ ./setup.py install --user
 ```
 
-> **IMPORTANT:**
+> **Important:**
 > The `--user` option works only with `python-distribute`
 
 `barman` will be installed in your user directory (make sure that your
@@ -235,7 +239,7 @@ offered by PostgreSQL. More information can be found in the
 barman@backup$ psql -c 'SELECT version()' -U postgres -h pg
 ```
 
-> **NOTE:**
+> **Note:**
 > As of version 1.1.2, Barman honours the `application_name`
 > connection option for PostgreSQL servers 9.0 or higher.
 
@@ -257,7 +261,7 @@ barman@backup$ sudo mkdir /var/lib/barman
 barman@backup$ sudo chown barman:barman /var/lib/barman
 ```
 
-> **IMPORTANT:**
+> **Important:**
 > We assume that you have enough space, and that you have already
 > thought about redundancy and safety of your disks.
 
@@ -283,7 +287,7 @@ in:
 
 [^RESERVED_SECTIONS]:
   `all` and `barman` are reserved words and cannot be used as server
-  labels
+  labels.
 
 ### Global/server options
 
@@ -331,14 +335,14 @@ WAL archive, etc.).
 By default (for backward compatibility reasons),
 `barman_lock_directory` is set to `barman_home`.
 
-> **IMPORTANT:**
+> **Important:**
 > This change won't affect users upgrading from a version of Barman
 > older than 1.5.0, unless you have written applications that depend
 > on the names of the lock files. However, this is not a typical and
 > common case for Barman and most of users do not fall into this
 > category.
 
-> **TIP:**
+> **Tip:**
 > Users are encouraged to use a directory in a volatile partition,
 > such as the one dedicated to run-time variable data (e.g.
 > `/var/run/barman`).
@@ -379,7 +383,7 @@ Write down the `incoming_wals_directory`, as printed by the `barman
 show-server main` command, because you will need it to setup
 continuous WAL archiving.
 
-> **IMPORTANT:**
+> **Important:**
 > The `barman check main` command automatically creates all the
 > directories for the continuous backup of the `main` server.
 
@@ -406,7 +410,7 @@ you need to check both the PostgreSQL server and the `backup` server
 (in particular, that WAL files are correctly collected in the
 destination directory).
 
-> **WARNING:**
+> **Warning:**
 > It currently is a requirement that WAL files from PostgreSQL are
 > shipped to the Barman server. Without `archive_command` being
 > properly set in PostgreSQL to send WAL files to Barman, **full
@@ -470,12 +474,13 @@ barman@backup$ barman list-backup main
 the format of the output is as in:
 
 ``` bash
-main - 20120529T092136 - Wed May 30 15:20:25 2012 - Size: 5.0 TiB - WAL Size: 845.0 GiB (tablespaces: a:/disk1/a, t:/disk2/t)
+main - 20120529T092136 - Wed May 30 15:20:25 2012 - Size: 5.0 TiB
+ - WAL Size: 845.0 GiB (tablespaces: a:/disk1/a, t:/disk2/t)
 ```
 
 where `20120529T092136` is the ID of the backup and `Wed May 30
 15:20:25 2012` is the start time of the operation, `Size` is the size
-of the base backup and `WAL Size` is the size of WAL files archived.
+of the base backup and `WAL Size` is the size of the archived WAL files.
 
 As of version 1.1.2, you can get a listing of the available backups
 for all your servers, using the `all` target for the server:
@@ -493,7 +498,7 @@ barman@backup$ barman recover main 20110920T185953 /path/to/recover/dir
 ```
 
 where `20110920T185953` is the ID of the backup to be restored. When
-this command completes succesfully, `/path/to/recover/dir`
+this command completes successfully, `/path/to/recover/dir`
 contains a complete data directory ready to be started as a PostgreSQL
 database server.
 
@@ -503,7 +508,7 @@ Here is an example of a command that starts the server:
 barman@backup$ pg_ctl -D /path/to/recover/dir start
 ```
 
-> **IMPORTANT:**
+> **Important:**
 > If you run this command as user `barman`, it will become the
 > database superuser.
 
@@ -513,7 +518,7 @@ You can retrieve a list of backup IDs for a specific server with:
 barman@backup$ barman list-backup srvpgsql
 ```
 
-> **IMPORTANT:**
+> **Important:**
 > Barman does not currently keep track of symbolic links inside PGDATA
 > (except for tablespaces inside `pg_tblspc`). We encourage system
 > administrators to keep track of symbolic links and to add them to the
@@ -528,7 +533,7 @@ Barman is able to recover a backup on a remote server through the
 If this option is specified, barman uses `COMMAND` to connect to a
 remote host.
 
-> **NOTE:**
+> **Note:**
 > The `postgres` user is normally used to recover on a remote host.
 
 There are some limitations when using remote recovery. It is important
@@ -546,7 +551,7 @@ to be aware that:
 
 ## Relocating one or more tablespaces
 
-> **IMPORTANT:**
+> **Important:**
 > As of version 1.3.0, it is possible to relocate a tablespace both
 > with local and remote recovery.
 
@@ -577,7 +582,7 @@ exclusive options:
   previously created with the `pg_create_restore_point(name)`
   function[^POSTGRESQL0901]
 
-[^POSTGRESQL0901]: Only available for PostgreSQL 9.1 and above users
+[^POSTGRESQL0901]: Only available on PostgreSQL 9.1 and above.
 
 You can use the `--exclusive` option to specify whether to stop
 immediately before or immediately after the recovery target.
@@ -653,7 +658,7 @@ This command enforces retention policies on those servers that have:
 - `retention_policy` not empty and valid;
 - `retention_policy_mode` set to `auto`.
 
-> **NOTE:**
+> **Note:**
 > This command should be executed in a _cron script_. Our
 > recommendation is to schedule `barman cron` to run every minute.
 
@@ -675,7 +680,7 @@ You can perform a full backup (base backup) for a given server with:
 barman backup [--immediate-checkpoint] <server_name>
 ```
 
-> **TIP:**
+> **Tip:**
 > You can use `barman backup all` to sequentially backup all your
 > configured servers.
 
@@ -698,7 +703,7 @@ with:
 barman check <server_name>
 ```
 
-> **TIP:**
+> **Tip:**
 > You can use `barman check all` to check all your configured servers.
 
 From version 1.3.3, you can automatically be notified if the latest
@@ -707,7 +712,7 @@ days_.[^SMELLY_BACKUP]
   
 [^SMELLY_BACKUP]:
   This feature is commonly known among the development team members as
-  _smelly backup check_
+  _smelly backup check_.
 
 Barman introduces the option named `last_backup_maximum_age` having
 the following syntax:
@@ -732,7 +737,7 @@ The `diagnose` command also provides other useful information, such as
 global configuration, SSH version, Python version, `rsync` version, as
 well as current configuration and status of all servers.
 
-> **TIP:**
+> **Tip:**
 > You can use `barman diagnose` when you want to ask questions or
 > report errors to Barman developers, providing them with all the
 > information about your issue.
@@ -740,13 +745,13 @@ well as current configuration and status of all servers.
 ### Rebuild the WAL archive
 
 At any time, you can regenerate the content of the WAL archive for a
-specific server (or every server, using the `all` bashortcut). The WAL
+specific server (or every server, using the `all` shortcut). The WAL
 archive is contained in the `xlog.db` file, and every Barman server
 has its own copy. From version 1.2.4 you can now rebuild the `xlog.db`
 file with the `rebuild-xlogdb` command. This will scan all the
 archived WAL files and regenerate the metadata for the archive.
 
-> **IMPORTANT:**
+> **Important:**
 > Users of Barman < 1.2.3 might have suffered from a bug due to bad
 > locking in highly concurrent environments. You can now regenerate
 > the WAL archive using the `rebuild-xlogdb` command.
@@ -802,14 +807,14 @@ This is an example of a `restore_command` for a local recovery:
 restore_command = 'barman get-wal SERVER %f > %p'
 ```
 
-> **IMPORTANT:**
+> **Important:**
 > Even though `recovery_options` aims to automate the process, using
 > the `get-wal` facility requires manual intervention and proper
 > testing.
 
 ## Backup commands
 
-> **NOTE:**
+> **Note:**
 > Remember: a backup ID can be retrieved with `barman list-backup
 > <server_name>`
 
@@ -843,9 +848,9 @@ issue:
 barman delete <server_name> oldest
 ```
 
-> **WARNING:**
+> **Warning:**
 > Until retention policies are natively supported, you must use the
-> `oldest` bashortcut with extreme care and caution. Iteratively
+> `oldest` shortcut with extreme care and caution. Iteratively
 > executing this command can easily wipe out your backup archive.
 
 ### List backup files
@@ -871,7 +876,7 @@ Possible values for `TARGET_TYPE` are:
 
 The default value for `TARGET_TYPE` is `standalone`.
 
-> **IMPORTANT:**
+> **Important:**
 > The `list-files` command facilitates interaction with external
 > tools, and therefore can be extremely useful to integrate > Barman
 > into your archiving procedures.
@@ -894,7 +899,7 @@ The main goals of incremental backup in Barman are:
 - Reduce the disk space occupied by several periodic backups (**data
   deduplication**)
 
-This feature heavily relies on `rysnc` and [hard links] [8], which
+This feature heavily relies on `rsync` and [hard links] [8], which
 must be therefore supported by both the underlying operating system
 and the file system where the backup data resides.
 
@@ -1013,7 +1018,7 @@ server catalogue.
 
 This will protect you from accidental `barman delete` operations.
 
-> **IMPORTANT:**
+> **Important:**
 > Make sure that your policy retention settings do not collide with
 > minimum redundancy requirements. Regularly check Barman's log for
 > messages on this topic.
@@ -1063,7 +1068,7 @@ Retention policies can be defined for:
 - **Archive logs**, for Point-In-Time-Recovery: through the
   `wal_retention_policy` configuration option.
 
-> **IMPORTANT:**
+> **Important:**
 > In a temporal dimension, archive logs must be included in the time
 > window of periodic backups.
 
@@ -1084,7 +1089,7 @@ Partial point in time recovery scenario
     recover at any point in time starting from the last 4 periodic
     weekly backups).
 
-> **IMPORTANT:**
+> **Important:**
 > Currently, Barman implements only the **full point in time
 > recovery** scenario, by constraining the `wal_retention_policy`
 > option to `main`.
@@ -1097,7 +1102,7 @@ Retention policies in Barman can be:
 - **manual**: Barman simply reports obsolete backups and allows DBAs
   to delete them.
 
-> **IMPORTANT:**
+> **Important:**
 > Currently Barman does not implement manual enforcement. This feature
 > will be available in future versions.
 
@@ -1170,7 +1175,7 @@ parameter.[^ABOUT_CONCURRENT_BACKUP]
 This introduces a new architecture scenario with Barman: **backup from
 a standby server**, using `rsync`.
 
-> **IMPORTANT:**
+> **Important:**
 > **Concurrent backup** requires users of PostgreSQL 9.2 and 9.3 to
 > install the `pgespresso` open source extension on the PostgreSQL
 > server. For more detailed information and the source code, please
@@ -1192,7 +1197,7 @@ rules:
 The destination Postgres server can be either the master or a
 streaming replicated standby server.
 
-> **NOTE:**
+> **Note:**
 > When backing up from a standby server, continuous archiving of WAL
 > files must be configured on the master to ship files to the Barman
 > server (as outlined in the "Continuous WAL archiving" section
@@ -1249,7 +1254,7 @@ Hook scripts are executed in the following order:
 The output generated by any hook script is written in the log file of
 Barman.
 
-> **NOTE:**
+> **Note:**
 > Currently, `ABORT_STOP` is ignored by retry 'post' hook scripts. In
 > these cases, apart from lodging an additional warning, `ABORT_STOP`
 > will behave like `ABORT_CONTINUE`.
@@ -1354,7 +1359,7 @@ For further information, please visit:
 - [FAQs] [14]
 - [2ndQuadrant blog] [15]
 
-> **IMPORTANT:**
+> **Important:**
 > When submitting requests on the mailing list, please always report
 > the output of the `barman diagnose` command.
 
