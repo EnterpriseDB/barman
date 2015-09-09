@@ -1,573 +1,517 @@
-'\" t
-.\"     Title: barman
-.\"    Author: [see the "AUTHORS" section]
-.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 08/18/2015
-.\"    Manual: \ \&
-.\"    Source: \ \&
-.\"  Language: English
-.\"
-.TH "BARMAN" "5" "08/18/2015" "\ \&" "\ \&"
-.\" -----------------------------------------------------------------
-.\" * Define some portability stuff
-.\" -----------------------------------------------------------------
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.\" http://bugs.debian.org/507673
-.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
-.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.ie \n(.g .ds Aq \(aq
-.el       .ds Aq '
-.\" -----------------------------------------------------------------
-.\" * set default formatting
-.\" -----------------------------------------------------------------
-.\" disable hyphenation
-.nh
-.\" disable justification (adjust text to left margin only)
-.ad l
-.\" -----------------------------------------------------------------
-.\" * MAIN CONTENT STARTS HERE *
-.\" -----------------------------------------------------------------
-.SH "NAME"
+.TH "BARMAN" "5" "September 28, 2015" "Barman User manuals" "Version 1.5.0"
+.SH NAME
+.PP
 barman \- backup and recovery manager for PostgreSQL
-.SH "CONFIGURATION FILE LOCATIONS"
-.sp
+.SH CONFIGURATION FILE LOCATIONS
+.PP
 The system\-level Barman configuration file is located at
-.sp
-.if n \{\
-.RS 4
-.\}
+.IP
 .nf
-/etc/barman\&.conf
+\f[C]
+/etc/barman.conf
+\f[]
 .fi
-.if n \{\
-.RE
-.\}
-.sp
+.PP
 or
-.sp
-.if n \{\
-.RS 4
-.\}
+.IP
 .nf
-/etc/barman/barman\&.conf
+\f[C]
+/etc/barman/barman.conf
+\f[]
 .fi
-.if n \{\
-.RE
-.\}
-.sp
+.PP
 and is overridden on a per\-user level by
-.sp
-.if n \{\
-.RS 4
-.\}
+.IP
 .nf
-$HOME/\&.barman\&.conf
+\f[C]
+$HOME/.barman.conf
+\f[]
 .fi
-.if n \{\
-.RE
-.\}
-.SH "CONFIGURATION FILE SYNTAX"
-.sp
-The Barman configuration file is a plain INI file\&. There is a general section called [barman] and a section [servername] for each server you want to backup\&. Rows starting with ; are comments\&.
-.SH "CONFIGURATION FILE DIRECTORY"
-.sp
-Barman supports the inclusion of multiple configuration files, through the configuration_files_directory option\&. Included files must contain only server specifications, not global configurations\&. If the value of configuration_files_directory is a directory, Barman reads all files with \&.conf extension that exist in that folder\&. For example, if you set it to /etc/barman\&.d, you can specify your PostgreSQL servers placing each section in a separate \&.conf file inside the /etc/barman\&.d folder\&.
-.SH "OPTIONS"
+.SH CONFIGURATION FILE SYNTAX
 .PP
-\fBactive\fR
-.RS 4
-Ignored\&. Server\&.
-.RE
+The Barman configuration file is a plain \f[C]INI\f[] file.
+There is a general section called \f[C][barman]\f[] and a section
+\f[C][servername]\f[] for each server you want to backup.
+Rows starting with \f[C];\f[] are comments.
+.SH CONFIGURATION FILE DIRECTORY
 .PP
-\fBdescription\fR
-.RS 4
-A human readable description of a server\&. Server\&.
+Barman supports the inclusion of multiple configuration files, through
+the \f[C]configuration_files_directory\f[] option.
+Included files must contain only server specifications, not global
+configurations.
+If the value of \f[C]configuration_files_directory\f[] is a directory,
+Barman reads all files with \f[C]\&.conf\f[] extension that exist in
+that folder.
+For example, if you set it to \f[C]/etc/barman.d\f[], you can specify
+your PostgreSQL servers placing each section in a separate
+\f[C]\&.conf\f[] file inside the \f[C]/etc/barman.d\f[] folder.
+.SH OPTIONS
+.TP
+.B active
+Ignored.
+Server.
+.RS
 .RE
-.PP
-\fBssh_command\fR
-.RS 4
-Command used by Barman to login to the Postgres server via ssh\&. Server\&.
+.TP
+.B description
+A human readable description of a server.
+Server.
+.RS
 .RE
-.PP
-\fBconninfo\fR
-.RS 4
-Connection string used by Barman to connect to the Postgres server\&. Server\&.
+.TP
+.B ssh_command
+Command used by Barman to login to the Postgres server via ssh.
+Server.
+.RS
 .RE
-.PP
-\fBbarman_home\fR
-.RS 4
-Main data directory for Barman\&. Global\&.
+.TP
+.B conninfo
+Connection string used by Barman to connect to the Postgres server.
+Server.
+.RS
 .RE
-.PP
-\fBbarman_lock_directory\fR
-.RS 4
-Directory for locks\&. Default:
-%(barman_home)s\&. Global\&.
+.TP
+.B barman_home
+Main data directory for Barman.
+Global.
+.RS
 .RE
-.PP
-\fBbackup_directory\fR
-.RS 4
-Directory where backup data for a server will be placed\&. Server\&.
+.TP
+.B barman_lock_directory
+Directory for locks.
+Default: \f[C]%(barman_home)s\f[].
+Global.
+.RS
 .RE
-.PP
-\fBbasebackups_directory\fR
-.RS 4
-Directory where base backups will be placed\&. Server\&.
+.TP
+.B backup_directory
+Directory where backup data for a server will be placed.
+Server.
+.RS
 .RE
-.PP
-\fBwals_directory\fR
-.RS 4
-Directory which contains WAL files\&. Server\&.
+.TP
+.B basebackups_directory
+Directory where base backups will be placed.
+Server.
+.RS
 .RE
-.PP
-\fBincoming_wals_directory\fR
-.RS 4
-Directory where incoming WAL files are archived into\&. Server\&.
+.TP
+.B wals_directory
+Directory which contains WAL files.
+Server.
+.RS
 .RE
-.PP
-\fBlock_file\fR
-.RS 4
-Lock file for a backup in progress\&. Global/Server\&.
+.TP
+.B incoming_wals_directory
+Directory where incoming WAL files are archived into.
+Server.
+.RS
 .RE
-.PP
-\fBlog_file\fR
-.RS 4
-Location of Barman\(cqs log file\&. Global\&.
+.TP
+.B lock_file
+Lock file for a backup in progress.
+Global/Server.
+.RS
 .RE
-.PP
-\fBlog_level\fR
-.RS 4
-Level of logging (DEBUG, INFO, WARNING, ERROR, CRITICAL)\&. Global\&.
+.TP
+.B log_file
+Location of Barman\[aq]s log file.
+Global.
+.RS
 .RE
-.PP
-\fBcustom_compression_filter\fR
-.RS 4
-Compression algorithm applied to WAL files\&. Global/Server\&.
+.TP
+.B log_level
+Level of logging (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+Global.
+.RS
 .RE
-.PP
-\fBcustom_decompression_filter\fR
-.RS 4
-Decompression algorithm applied to compressed WAL files; this must match the compression algorithm\&. Global/Server\&.
+.TP
+.B custom_compression_filter
+Compression algorithm applied to WAL files.
+Global/Server.
+.RS
 .RE
-.PP
-\fBpre_backup_script\fR
-.RS 4
-Hook script launched before a base backup\&. Global/Server\&.
+.TP
+.B custom_decompression_filter
+Decompression algorithm applied to compressed WAL files; this must match
+the compression algorithm.
+Global/Server.
+.RS
 .RE
-.PP
-\fBpre_backup_retry_script\fR
-.RS 4
+.TP
+.B pre_backup_script
+Hook script launched before a base backup.
+Global/Server.
+.RS
+.RE
+.TP
+.B pre_backup_retry_script
 Hook script launched before a base backup, after
-\fIpre_backup_script\fR\&. Being this a
-\fIretry\fR
-hook script, Barman will retry the execution of the script until this either returns an SUCCESS (0) or an ABORT (63) code\&. Global/Server\&.
+\[aq]pre_backup_script\[aq].
+Being this a \f[I]retry\f[] hook script, Barman will retry the execution
+of the script until this either returns a SUCCESS (0), an ABORT_CONTINUE
+(62) or an ABORT_STOP (63) code.
+Returning ABORT_STOP will propagate the failure at a higher level and
+interrupt the backup operation.
+Global/Server.
+.RS
 .RE
-.PP
-\fBpost_backup_retry_script\fR
-.RS 4
-Hook script launched after a base backup\&. Being this a
-\fIretry\fR
-hook script, Barman will retry the execution of the script until this either returns an SUCCESS (0) or an ABORT (63) code\&. Global/Server\&.
+.TP
+.B post_backup_retry_script
+Hook script launched after a base backup.
+Being this a \f[I]retry\f[] hook script, Barman will retry the execution
+of the script until this either returns a SUCCESS (0), an ABORT_CONTINUE
+(62) or an ABORT_STOP (63) code.
+In a post backup scenario, ABORT_STOP has currently the same effects as
+ABORT_CONTINUE.
+Global/Server.
+.RS
 .RE
-.PP
-\fBpost_backup_script\fR
-.RS 4
+.TP
+.B post_backup_script
 Hook script launched after a base backup, after
-\fIpost_backup_retry_script\fR\&. Global/Server\&.
+\[aq]post_backup_retry_script\[aq].
+Global/Server.
+.RS
 .RE
-.PP
-\fBpre_archive_script\fR
-.RS 4
-Hook script launched before a WAL file is archived by maintenance\&. Global/Server\&.
+.TP
+.B pre_archive_script
+Hook script launched before a WAL file is archived by maintenance.
+Global/Server.
+.RS
 .RE
-.PP
-\fBpre_archive_retry_script\fR
-.RS 4
+.TP
+.B pre_archive_retry_script
 Hook script launched before a WAL file is archived by maintenance, after
-\fIpre_archive_script\fR\&. Being this a
-\fIretry\fR
-hook script, Barman will retry the execution of the script until this either returns an SUCCESS (0) or an ABORT (63) code\&. Global/Server\&.
+\[aq]pre_archive_script\[aq].
+Being this a \f[I]retry\f[] hook script, Barman will retry the execution
+of the script until this either returns a SUCCESS (0), an ABORT_CONTINUE
+(62) or an ABORT_STOP (63) code.
+Returning ABORT_STOP will propagate the failure at a higher level and
+interrupt the WAL archiving operation.
+Global/Server.
+.RS
 .RE
-.PP
-\fBpost_archive_retry_script\fR
-.RS 4
-Hook script launched after a WAL file is archived by maintenance\&. Being this a
-\fIretry\fR
-hook script, Barman will retry the execution of the script until this either returns an SUCCESS (0) or an ABORT (63) code\&. Global/Server\&.
+.TP
+.B post_archive_retry_script
+Hook script launched after a WAL file is archived by maintenance.
+Being this a \f[I]retry\f[] hook script, Barman will retry the execution
+of the script until this either returns a SUCCESS (0), an ABORT_CONTINUE
+(62) or an ABORT_STOP (63) code.
+In a post archive scenario, ABORT_STOP has currently the same effects as
+ABORT_CONTINUE.
+Global/Server.
+.RS
 .RE
-.PP
-\fBpost_archive_script\fR
-.RS 4
+.TP
+.B post_archive_script
 Hook script launched after a WAL file is archived by maintenance, after
-\fIpost_archive_retry_script\fR\&. Global/Server\&.
+\[aq]post_archive_retry_script\[aq].
+Global/Server.
+.RS
 .RE
+.TP
+.B minimum_redundancy
+Minimum number of backups to be retained.
+Default 0.
+Global/Server.
+.RS
+.RE
+.TP
+.B retention_policy
+Policy for retention of periodic backups and archive logs.
+If left empty, retention policies are not enforced.
+For redundancy based retention policy use "REDUNDANCY i" (where i is an
+integer > 0 and defines the number of backups to retain).
+For recovery window retention policy use "RECOVERY WINDOW OF i DAYS" or
+"RECOVERY WINDOW OF i WEEKS" or "RECOVERY WINDOW OF i MONTHS" where i is
+a positive integer representing, specifically, the number of days, weeks
+or months to retain your backups.
+For more detailed information, refer to the official documentation.
+Default value is empty.
+Global/Server.
+.RS
+.RE
+.TP
+.B wal_retention_policy
+Policy for retention of archive logs (WAL files).
+Currently only "MAIN" is available.
+Global/Server.
+.RS
+.RE
+.TP
+.B retention_policy_mode
+Currently only "auto" is implemented.
+Global/Server.
+.RS
+.RE
+.TP
+.B bandwidth_limit
+This option allows you to specify a maximum transfer rate in kilobytes
+per second.
+A value of zero specifies no limit (default).
+Global/Server.
+.RS
+.RE
+.TP
+.B tablespace_bandwidth_limit
+This option allows you to specify a maximum transfer rate in kilobytes
+per second, by specifying a comma separated list of tablespaces (pairs
+TBNAME:BWLIMIT).
+A value of zero specifies no limit (default).
+Global/Server.
+.RS
+.RE
+.TP
+.B immediate_checkpoint
+This option allows you to control the way PostgreSQL handles checkpoint
+at the start of the backup.
+If set to \f[C]false\f[] (default), the I/O workload for the checkpoint
+will be limited, according to the \f[C]checkpoint_completion_target\f[]
+setting on the PostgreSQL server.
+If set to \f[C]true\f[], an immediate checkpoint will be requested,
+meaning that PostgreSQL will complete the checkpoint as soon as
+possible.
+Global/Server.
+.RS
+.RE
+.TP
+.B network_compression
+This option allows you to enable data compression for network transfers.
+If set to \f[C]false\f[] (default), no compression is used.
+If set to \f[C]true\f[], compression is enabled, reducing network usage.
+Global/Server.
+.RS
+.RE
+.TP
+.B backup_options
+This option allows you to control the way Barman interacts with
+PostgreSQL for backups.
+If set to \f[C]exclusive_backup\f[] (default), \f[C]barman\ backup\f[]
+executes backup operations using the standard exclusive backup approach
+(technically through pg_start_backup/pg_stop_backup).
+If set to \f[C]concurrent_backup\f[], Barman requires the
+\f[C]pgespresso\f[] module to be installed on the PostgreSQL server
+(this allows you to perform a backup from a standby server).
+Global/Server.
+.RS
+.RE
+.TP
+.B last_backup_maximum_age
+This option identifies a time frame that must contain the latest backup.
+If the latest backup is older than the time frame, barman check command
+will report an error to the user.
+If empty (default), latest backup is always considered valid.
+Syntax for this option is: "i (DAYS | WEEKS | MONTHS)" where i is a
+integer greater than zero, representing the number of days | weeks |
+months of the time frame.
+Global/Server.
+.RS
+.RE
+.TP
+.B basebackup_retry_times
+Number of retries of base backup copy, after an error.
+Used during both backup and recovery operations.
+Positive integer, default 0.
+Global/Server.
+.RS
+.RE
+.TP
+.B basebackup_retry_sleep
+Number of seconds of wait after a failed copy, before retrying Used
+during both backup and recovery operations.
+Positive integer, default 30.
+Global/Server.
+.RS
+.RE
+.TP
+.B reuse_backup
+This option controls incremental backup support.
+Global/Server.
+Possible values are: * \f[C]off\f[]: disabled (default); *
+\f[C]copy\f[]: reuse the last available backup for a server and create a
+copy of the unchanged files (reduce backup time); * \f[C]link\f[]: reuse
+the last available backup for a server and create a hard link of the
+unchanged files (reduce backup time and space).
+Requires operating system and file system support for hard links.
+.RS
+.RE
+.TP
+.B recovery_options
+Options for recovery operations.
+Currently only supports \f[C]get\-wal\f[].
+\f[C]get\-wal\f[] activates generation of a basic
+\f[C]restore_command\f[] in the resulting \f[C]recovery.conf\f[] file
+that uses the \f[C]barman\ get\-wal\f[] command to fetch WAL files
+directly from Barman\[aq]s archive of WALs.
+Comma separated list of values, default empty.
+Global/Server.
+.RS
+.RE
+.SH HOOK SCRIPTS
 .PP
-\fBminimum_redundancy\fR
-.RS 4
-Minimum number of backups to be retained\&. Default 0\&. Global/Server\&.
-.RE
+The script definition is passed to a shell and can return any exit code.
 .PP
-\fBretention_policy\fR
-.RS 4
-Policy for retention of periodic backups and archive logs\&. If left empty, retention policies are not enforced\&. For redundancy based retention policy use "REDUNDANCY i" (where i is an integer > 0 and defines the number of backups to retain)\&. For recovery window retention policy use "RECOVERY WINDOW OF i DAYS" or "RECOVERY WINDOW OF i WEEKS" or "RECOVERY WINDOW OF i MONTHS" where i is a positive integer representing, specifically, the number of days, weeks or months to retain your backups\&. For more detailed information, refer to the official documentation\&. Default value is empty\&. Global/Server\&.
-.RE
-.PP
-\fBwal_retention_policy\fR
-.RS 4
-Policy for retention of archive logs (WAL files)\&. Currently only "MAIN" is available\&. Global/Server\&.
-.RE
-.PP
-\fBretention_policy_mode\fR
-.RS 4
-Currently only "auto" is implemented\&. Global/Server\&.
-.RE
-.PP
-\fBbandwidth_limit\fR
-.RS 4
-This option allows you to specify a maximum transfer rate in kilobytes per second\&. A value of zero specifies no limit (default)\&. Global/Server\&.
-.RE
-.PP
-\fBtablespace_bandwidth_limit\fR
-.RS 4
-This option allows you to specify a maximum transfer rate in kilobytes per second, by specifying a comma separated list of tablespaces (pairs TBNAME:BWLIMIT)\&. A value of zero specifies no limit (default)\&. Global/Server\&.
-.RE
-.PP
-\fBimmediate_checkpoint\fR
-.RS 4
-This option allows you to control the way PostgreSQL handles checkpoint at the start of the backup\&. If set to
-false
-(default), the I/O workload for the checkpoint will be limited, according to the
-checkpoint_completion_target
-setting on the PostgreSQL server\&. If set to
-true, an immediate checkpoint will be requested, meaning that PostgreSQL will complete the checkpoint as soon as possible\&. Global/Server\&.
-.RE
-.PP
-\fBnetwork_compression\fR
-.RS 4
-This option allows you to enable data compression for network transfers\&. If set to
-false
-(default), no compression is used\&. If set to
-true, compression is enabled, reducing network usage\&. Global/Server\&.
-.RE
-.PP
-\fBbackup_options\fR
-.RS 4
-This option allows you to control the way Barman interacts with PostgreSQL for backups\&. If set to
-exclusive_backup
-(default),
-barman backup
-executes backup operations using the standard exclusive backup approach (technically through pg_start_backup/pg_stop_backup)\&. If set to
-concurrent_backup, Barman requires the
-pgespresso
-module to be installed on the PostgreSQL server (this allows you to perform a backup from a standby server)\&. Global/Server\&.
-.RE
-.PP
-\fBlast_backup_maximum_age\fR
-.RS 4
-This option identifies a time frame that must contain the latest backup\&. If the latest backup is older than the time frame, barman check command will report an error to the user\&. If empty (default), latest backup is always considered valid\&. Syntax for this option is: "i (DAYS | WEEKS | MONTHS)" where i is a integer greater than zero, representing the number of days | weeks | months of the time frame\&. Global/Server\&.
-.RE
-.PP
-\fBbasebackup_retry_times\fR
-.RS 4
-Number of retries of base backup copy, after an error\&. Used during both backup and recovery operations\&. Positive integer, default 0\&. Global/Server\&.
-.RE
-.PP
-\fBbasebackup_retry_sleep\fR
-.RS 4
-Number of seconds of wait after a failed copy, before retrying Used during both backup and recovery operations\&. Positive integer, default 30\&. Global/Server\&.
-.RE
-.PP
-\fBreuse_backup\fR
-.RS 4
-This option controls incremental backup support\&. Global/Server\&. Possible values are:
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-off
-\- disabled (default);
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-copy
-\- reuse the last available backup for a server and create a copy of the unchanged files (reduce backup time);
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-link
-\- reuse the last available backup for a server and create a hard link of the unchanged files (reduce backup time and space)\&. Requires operating system and file system support for hard links\&.
-.RE
-.RE
-.PP
-\fBrecovery_options\fR
-.RS 4
-Options for recovery operations\&. Currently only supports
-get\-wal\&.
-get\-wal
-activates generation of a basic
-restore_command
-in the resulting
-recovery\&.conf
-file that uses the
-barman get\-wal
-command to fetch WAL files directly from Barman\(cqs archive of WALs\&. Comma separated list of values, default empty\&. Global/Server\&.
-.RE
-.SH "HOOK SCRIPTS"
-.sp
-The script definition is passed to a shell and can return any exit code\&.
-.sp
 The shell environment will contain the following variables:
-.PP
-BARMAN_CONFIGURATION
-.RS 4
+.TP
+.B \f[C]BARMAN_CONFIGURATION\f[]
 configuration file used by barman
+.RS
 .RE
-.PP
-BARMAN_ERROR
-.RS 4
-error message, if any (only for the
-\fIpost\fR
-phase)
+.TP
+.B \f[C]BARMAN_ERROR\f[]
+error message, if any (only for the \[aq]post\[aq] phase)
+.RS
 .RE
-.PP
-BARMAN_PHASE
-.RS 4
-\fIpre\fR
-or
-\fIpost\fR
+.TP
+.B \f[C]BARMAN_PHASE\f[]
+\[aq]pre\[aq] or \[aq]post\[aq]
+.RS
 .RE
-.PP
-BARMAN_RETRY
-.RS 4
-1
-if it is a
-\fIretry script\fR
-(from 1\&.5\&.0),
-0
-if not
+.TP
+.B \f[C]BARMAN_RETRY\f[]
+\f[C]1\f[] if it is a \f[I]retry script\f[] (from 1.5.0), \f[C]0\f[] if
+not
+.RS
 .RE
-.PP
-BARMAN_SERVER
-.RS 4
+.TP
+.B \f[C]BARMAN_SERVER\f[]
 name of the server
+.RS
 .RE
-.sp
+.PP
 Backup scripts specific variables:
-.PP
-BARMAN_BACKUP_DIR
-.RS 4
+.TP
+.B \f[C]BARMAN_BACKUP_DIR\f[]
 backup destination directory
+.RS
 .RE
-.PP
-BARMAN_BACKUP_ID
-.RS 4
+.TP
+.B \f[C]BARMAN_BACKUP_ID\f[]
 ID of the backup
+.RS
 .RE
-.PP
-BARMAN_PREVIOUS_ID
-.RS 4
+.TP
+.B \f[C]BARMAN_PREVIOUS_ID\f[]
 ID of the previous backup (if present)
+.RS
 .RE
-.PP
-BARMAN_STATUS
-.RS 4
+.TP
+.B \f[C]BARMAN_STATUS\f[]
 status of the backup
+.RS
 .RE
-.PP
-BARMAN_VERSION
-.RS 4
+.TP
+.B \f[C]BARMAN_VERSION\f[]
 version of Barman
+.RS
 .RE
-.sp
+.PP
 Archive scripts specific variables:
-.PP
-BARMAN_SEGMENT
-.RS 4
+.TP
+.B \f[C]BARMAN_SEGMENT\f[]
 name of the WAL file
+.RS
 .RE
-.PP
-BARMAN_FILE
-.RS 4
+.TP
+.B \f[C]BARMAN_FILE\f[]
 full path of the WAL file
+.RS
 .RE
-.PP
-BARMAN_SIZE
-.RS 4
+.TP
+.B \f[C]BARMAN_SIZE\f[]
 size of the WAL file
+.RS
 .RE
-.PP
-BARMAN_TIMESTAMP
-.RS 4
+.TP
+.B \f[C]BARMAN_TIMESTAMP\f[]
 WAL file timestamp
+.RS
+.RE
+.TP
+.B \f[C]BARMAN_COMPRESSION\f[]
+type of compression used for the WAL file
+.RS
 .RE
 .PP
-BARMAN_COMPRESSION
-.RS 4
-type of compression used for the WAL file
-.RE
-.sp
-No check is performed on the exit code of the script\&. The result will be simply written in the log file\&.
-.SH "EXAMPLE"
-.sp
-Example of the configuration file:
-.sp
-.if n \{\
-.RS 4
-.\}
+Only in case of retry hook scripts, the exit code of the script is
+checked by Barman.
+Output of hook scripts is simply written in the log file.
+.SH EXAMPLE
+.PP
+Here is an example of configuration file:
+.IP
 .nf
+\f[C]
 [barman]
-; Main directory
-barman_home = /var/lib/barman
+;\ Main\ directory
+barman_home\ =\ /var/lib/barman
 
-; System user
-barman_user = barman
+;\ System\ user
+barman_user\ =\ barman
 
-; Log location
-log_file = /var/log/barman/barman\&.log
+;\ Log\ location
+log_file\ =\ /var/log/barman/barman.log
 
-; Default compression level
-;compression = gzip
+;\ Default\ compression\ level
+;compression\ =\ gzip
 
-; Incremental backup
-reuse_backup = link
+;\ Incremental\ backup
+reuse_backup\ =\ link
 
-; \*(Aqmain\*(Aq PostgreSQL Server configuration
+;\ \[aq]main\[aq]\ PostgreSQL\ Server\ configuration
 [main]
-; Human readable description
-description =  "Main PostgreSQL Database"
+;\ Human\ readable\ description
+description\ =\ \ "Main\ PostgreSQL\ Database"
 
-; SSH options
-ssh_command = ssh postgres@pg
+;\ SSH\ options
+ssh_command\ =\ ssh\ postgres\@pg
 
-; PostgreSQL connection string
-conninfo = host=pg user=postgres
+;\ PostgreSQL\ connection\ string
+conninfo\ =\ host=pg\ user=postgres
 
-; Minimum number of required backups (redundancy)
-minimum_redundancy = 1
+;\ Minimum\ number\ of\ required\ backups\ (redundancy)
+minimum_redundancy\ =\ 1
 
-; Retention policy (based on redundancy)
-retention_policy = REDUNDANCY 2
+;\ Retention\ policy\ (based\ on\ redundancy)
+retention_policy\ =\ REDUNDANCY\ 2
+\f[]
 .fi
-.if n \{\
-.RE
-.\}
-.SH "AUTHORS"
-.sp
+.SH SEE ALSO
+.PP
+\f[C]barman\f[] (1).
+.SH AUTHORS
+.PP
 In alphabetical order:
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Gabriele Bartolini <gabriele\&.bartolini@2ndquadrant\&.it> (core team, project leader)
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Giuseppe Broccolo <giuseppe\&.broccolo@2ndquadrant\&.it> (core team, QA/testing)
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Giulio Calacoci <giulio\&.calacoci@2ndquadrant\&.it> (core team, developer)
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Francesco Canovai <francesco\&.canovai@2ndquadrant\&.it> (core team, QA/testing)
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Marco Nenciarini <marco\&.nenciarini@2ndquadrant\&.it> (core team, team leader)
-.RE
-.sp
+.IP \[bu] 2
+Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> (project leader)
+.IP \[bu] 2
+Stefano Bianucci <stefano.bianucci@2ndquadrant.it> (developer)
+.IP \[bu] 2
+Giuseppe Broccolo <giuseppe.broccolo@2ndquadrant.it> (QA/testing)
+.IP \[bu] 2
+Giulio Calacoci <giulio.calacoci@2ndquadrant.it> (developer)
+.IP \[bu] 2
+Francesco Canovai <francesco.canovai@2ndquadrant.it> (QA/testing)
+.IP \[bu] 2
+Gianni Ciolli <gianni.ciolli@2ndquadrant.it> (QA/testing)
+.IP \[bu] 2
+Marco Nenciarini <marco.nenciarini@2ndquadrant.it> (lead developer)
+.PP
 Past contributors:
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
+.IP \[bu] 2
 Carlo Ascani
-.RE
-.SH "RESOURCES"
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Homepage:
-http://www\&.pgbarman\&.org/
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-Documentation:
-http://docs\&.pgbarman\&.org/
-.RE
-.SH "COPYING"
-.sp
-Barman is the exclusive property of 2ndQuadrant Italia and its code is distributed under GNU General Public License v3\&.
-.sp
-Copyright \(co 2011\-2015 2ndQuadrant Italia (Devise\&.IT S\&.r\&.l\&.) \- http://www\&.2ndQuadrant\&.it/\&.
+.SH RESOURCES
+.IP \[bu] 2
+Homepage: <http://www.pgbarman.org/>
+.IP \[bu] 2
+Documentation: <http://docs.pgbarman.org/>
+.SH COPYING
+.PP
+Barman is the exclusive property of 2ndQuadrant Italia and its code is
+distributed under GNU General Public License v3.
+.PP
+Copyright (C) 2011\-2015 2ndQuadrant Italia (Devise.IT S.r.l.) \-
+http://www.2ndQuadrant.it/.
+.SH AUTHORS
+2ndQuadrant Italy <http://www.2ndQuadrant.it>.
