@@ -1,6 +1,62 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2015 2ndQuadrant Italia (Devise.IT S.r.l.)
 
+Version 1.5.0 alpha 1 - 15 Sep 2015
+
+-   Add support for the get-wal command which allows users to fetch any
+    WAL file from the archive of a specific server
+-   Add support for retry hook scripts, a special kind of hook scripts
+    that Barman tries to run until they succeed
+-   Add active configuration option for a server to temporarily disable
+    the server by setting it to False
+-   Add barman_lock_directory global option to change the location of
+    lock files (by default: 'barman_home')
+-   Execute the full suite of checks before starting a backup, and skip
+    it in case one or more checks fail
+-   Forbid to delete a running backup
+-   Analyse include directives of a PostgreSQL server during backup and
+    recover operations
+-   Add check for conflicting paths in the configuration of Barman, both
+    intra (by temporarily disabling a server) and inter-server (by
+    refusing any command, to any server).
+-   Add check for wal_level
+-   Add barman-wal-restore script to be used as restore_command on a
+    standby server, in conjunction with barman get-wal
+-   Implement a standard and consistent policy for error management
+-   Improved cache management of backups
+-   Improved management of configuration in unit tests
+-   Tutorial and man page sources have been converted to Markdown format
+-   Add code documentation through Sphinx
+-   Complete refactor of the code responsible for managing the backup
+    and the recover commands
+-   Changed internal directory structure of a backup
+-   Introduce copy_method option (currently fixed to rsync)
+-   Bug fixes:
+    -   Manage options without '=' in PostgreSQL configuration files
+    -   Preserve Timeline history files (Fixes: #70)
+    -   Workaround for rsync on SUSE Linux (Closes: #13 and #26)
+    -   Disables dangerous settings in postgresql.auto.conf
+        (Closes: #68)
+
+Version 1.4.1 - 05 May 2015
+
+* Fix for WAL archival stop working if first backup is EMPTY
+  (Closes: #64)
+* Fix exception during error handling in Barman recovery
+  (Closes: #65)
+* After a backup, limit cron activity to WAL archiving only
+  (Closes: #62)
+* Improved robustness and error reporting of the backup delete
+  command (Closes: #63)
+* Fix computation of WAL production ratio as reported in the
+  show-backup command
+* Improved management of xlogb file, which is now correctly fsynced
+  when updated. Also, the rebuild-xlogdb command now operates on a
+  temporary new file, which overwrites the main one when finished.
+* Add unit tests for dateutil module compatibility
+* Modified Barman version following PEP 440 rules and added support
+  of tests in Python 3.4
+
 Version 1.4.0 - 26 Jan 2015
 
 * Incremental base backup implementation through the reuse_backup

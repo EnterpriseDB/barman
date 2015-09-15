@@ -1,6 +1,6 @@
-% BARMAN(5) Barman User manuals | Version 1.5.0
+% BARMAN(5) Barman User manuals | Version 1.5.0 alpha 1
 % 2ndQuadrant Italy <http://www.2ndQuadrant.it>
-% September 28, 2015
+% September 15, 2015
 
 # NAME
 barman - backup and recovery manager for PostgreSQL
