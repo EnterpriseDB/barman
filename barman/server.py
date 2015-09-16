@@ -70,10 +70,17 @@ class CheckStrategy(object):
     # create a namedtuple object called CheckResult to manage check results
     CheckResult = namedtuple('CheckResult', 'server_name check status')
 
-    def __init__(self):
+    # Default list used as a filter to identify non-critical checks
+    NON_CRITICAL_CHECKS = ['minimum redundancy requirements',
+                         'backup maximum age']
+
+    def __init__(self, ignore_checks=NON_CRITICAL_CHECKS):
         """
         Silent Strategy constructor
+
+        :param list ignore_checks: list of checks that can be ignored
         """
+        self.ignore_list = ignore_checks
         self.check_result = []
         self.has_error = False
 
@@ -88,10 +95,19 @@ class CheckStrategy(object):
         :param str,None hint: hint to print if not None:
         """
         if not status:
-            self.has_error = True
-            _logger.error(
-                "Check '%s' failed for server '%s'" %
-                (check, server_name))
+            # If the name of the check is not in the filter list,
+            # treat it as a blocking error, then notify the error
+            # and change the status of the strategy
+            if check not in self.ignore_list:
+                self.has_error = True
+                _logger.error(
+                    "Check '%s' failed for server '%s'" %
+                    (check, server_name))
+            else:
+                # otherwise simply log the error (as info)
+                _logger.info(
+                    "Ignoring failed check '%s' for server '%s'" %
+                    (check, server_name))
         else:
             _logger.debug(
                 "Check '%s' succeeded for server '%s'" %
@@ -114,7 +130,7 @@ class CheckOutputStrategy(CheckStrategy):
         """
         Output Strategy constructor
         """
-        super(CheckOutputStrategy, self).__init__()
+        super(CheckOutputStrategy, self).__init__(ignore_checks=())
 
     def result(self, server_name, check, status, hint=None):
         """

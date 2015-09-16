@@ -471,8 +471,14 @@ class TestCheckStrategy(object):
             "Check 'wal_level' succeeded for server 'test_server_one'"
         assert record.levelname == 'DEBUG'
         # Expected result FAILED
+        strategy = CheckOutputStrategy()
         strategy.result('test_server_one', 'wal_level', False)
-        assert len(caplog.records()) == 1
+        strategy.result('test_server_one', 'backup maximum age', False)
+        assert len(caplog.records()) == 2
+        record = caplog.records().pop()
+        assert record.levelname == 'ERROR'
+        assert record.msg == \
+            "Check 'backup maximum age' failed for server 'test_server_one'"
         record = caplog.records().pop()
         assert record.levelname == 'ERROR'
         assert record.msg == \
@@ -493,14 +499,38 @@ class TestCheckStrategy(object):
         assert strategy.check_result
         assert len(strategy.check_result) == 2
         # Expected two errors
+        strategy = CheckStrategy()
         strategy.result('test_server_one', 'wal_level', False)
         strategy.result('test_server_one', 'archive mode', False)
         assert ('', '') == capsys.readouterr()
         assert strategy.has_error is True
         assert strategy.check_result
-        assert len(strategy.check_result) == 4
+        assert len(strategy.check_result) == 2
         assert len([result 
                     for result in strategy.check_result 
+                    if not result.status]) == 2
+        # Test Non blocking error behaviour (one non blocking error)
+        strategy = CheckStrategy()
+        strategy.result('test_server_one', 'backup maximum age', False)
+        strategy.result('test_server_one', 'archive mode', True)
+        assert ('', '') == capsys.readouterr()
+        assert strategy.has_error is False
+        assert strategy.check_result
+        assert len(strategy.check_result) == 2
+        assert len([result
+                    for result in strategy.check_result
+                    if not result.status]) == 1
+
+        # Test Non blocking error behaviour (2 errors one is non blocking)
+        strategy = CheckStrategy()
+        strategy.result('test_server_one', 'backup maximum age', False)
+        strategy.result('test_server_one', 'archive mode', False)
+        assert ('', '') == capsys.readouterr()
+        assert strategy.has_error is True
+        assert strategy.check_result
+        assert len(strategy.check_result) == 2
+        assert len([result
+                    for result in strategy.check_result
                     if not result.status]) == 2
 
     def test_check_strategy_log(self, caplog):
