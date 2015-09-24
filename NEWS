@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2015 2ndQuadrant Italia (Devise.IT S.r.l.)
 
-Version 1.5.0 alpha 1 - 15 Sep 2015
+Version 1.5.0 - 28 Sep 2015
 
 -   Add support for the get-wal command which allows users to fetch any
     WAL file from the archive of a specific server
