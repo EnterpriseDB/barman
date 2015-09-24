@@ -16,7 +16,8 @@
 /.settings
 
 # tox testing
-.tox
+.tox/
+.cache/
 
 # setuptools
 /MANIFEST
