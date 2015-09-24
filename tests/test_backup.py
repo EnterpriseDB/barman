@@ -21,13 +21,15 @@ import os
 
 import dateutil.parser
 import dateutil.tz
-from mock import patch, Mock, call, MagicMock
+from mock import patch, Mock
+import mock
 import pytest
 
 from barman.command_wrappers import DataTransferFailure
 from barman.infofile import BackupInfo
 import barman.utils
 from testing_helpers import build_test_backup_info, build_backup_manager
+
 
 
 # noinspection PyMethodMayBeStatic
@@ -137,14 +139,14 @@ class TestBackup(object):
         # invoke backup method
         backup_manager.backup()
         # verify that mock status is FAILED
-        assert call.set_attribute('status', 'FAILED') in instance.mock_calls
+        assert mock.call.set_attribute('status', 'FAILED') in instance.mock_calls
         # Instruct the patched method to raise a KeyboardInterrupt
         backup_manager.executor.start_backup = Mock(
             side_effect=KeyboardInterrupt())
         # invoke backup method
         backup_manager.backup()
         # verify that mock status is FAILED
-        assert call.set_attribute('status', 'FAILED') in instance.mock_calls
+        assert mock.call.set_attribute('status', 'FAILED') in instance.mock_calls
 
     def test_dateutil_parser(self, tmpdir, capsys):
         """

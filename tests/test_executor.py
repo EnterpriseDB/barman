@@ -18,7 +18,8 @@
 import datetime
 import os
 
-from mock import patch, Mock, call, ANY
+from mock import patch, Mock, ANY
+import mock
 import psycopg2
 import pytest
 from barman.server import CheckOutputStrategy
@@ -224,34 +225,34 @@ class TestRsyncBackupExecutor(object):
         backup_manager.executor.backup_copy(backup_info)
 
         assert rsync_mock.mock_calls == [
-            call(check=True, network_compression=False, args=[], bwlimit=None,
+            mock.call(check=True, network_compression=False, args=[], bwlimit=None,
                  ssh='ssh', ssh_options=['-c', '"arcfour"', '-p', '22',
                                          'postgres@pg01.nowhere', '-o',
                                          'BatchMode=yes', '-o',
                                          'StrictHostKeyChecking=no']),
-            call().smart_copy(':/fake/location/',
+            mock.call().smart_copy(':/fake/location/',
                               backup_info.get_data_directory(16387),
                               None, None),
-            call(check=True, network_compression=False, args=[], bwlimit=None,
+            mock.call(check=True, network_compression=False, args=[], bwlimit=None,
                  ssh='ssh', ssh_options=['-c', '"arcfour"', '-p', '22',
                                          'postgres@pg01.nowhere', '-o',
                                          'BatchMode=yes', '-o',
                                          'StrictHostKeyChecking=no']),
-            call().smart_copy(':/another/location/',
+            mock.call().smart_copy(':/another/location/',
                               backup_info.get_data_directory(16405),
                               None, None),
-            call(network_compression=False,
+            mock.call(network_compression=False,
                  exclude_and_protect=['/pg_tblspc/16387', '/pg_tblspc/16405'],
                  args=[], bwlimit=None, ssh='ssh',
                  ssh_options=['-c', '"arcfour"', '-p', '22',
                               'postgres@pg01.nowhere', '-o', 'BatchMode=yes',
                               '-o', 'StrictHostKeyChecking=no']),
-            call().smart_copy(':/pg/data/',
+            mock.call().smart_copy(':/pg/data/',
                               backup_info.get_data_directory(),
                               None, None),
-            call()(':/pg/data/global/pg_control',
+            mock.call()(':/pg/data/global/pg_control',
                    '%s/global/pg_control' % backup_info.get_data_directory()),
-            call()(':/etc/postgresql.conf', backup_info.get_data_directory())]
+            mock.call()(':/etc/postgresql.conf', backup_info.get_data_directory())]
 
     @patch('barman.backup_executor.RsyncPgData')
     def test_backup_copy_with_included_files(self, rsync_moc, tmpdir, capsys):
@@ -304,7 +305,7 @@ class TestStrategy(object):
         backup_manager.server.server_version = 90300
         backup_manager.executor.strategy._pg_start_backup(backup_label)
 
-        pg_connect = call.pg_connect()
+        pg_connect = mock.call.pg_connect()
         with_pg_connect = pg_connect.__enter__()
         cursor = with_pg_connect.cursor()
         assert backup_manager.server.mock_calls == [
@@ -355,7 +356,7 @@ class TestStrategy(object):
         backup_manager.executor.server.pgespresso_installed.return_value = True
         backup_manager.executor.strategy._pgespresso_start_backup(backup_label)
 
-        pg_connect = call.pg_connect()
+        pg_connect = mock.call.pg_connect()
         with_pg_connect = pg_connect.__enter__()
         cursor = with_pg_connect.cursor()
         assert backup_manager.server.mock_calls == [
@@ -484,7 +485,7 @@ class TestStrategy(object):
         # Test 1: Expect no error and the correct call sequence
         backup_manager.executor.strategy._pg_stop_backup()
 
-        pg_connect = call.pg_connect()
+        pg_connect = mock.call.pg_connect()
         with_pg_connect = pg_connect.__enter__()
         cursor = with_pg_connect.cursor()
         assert backup_manager.server.mock_calls == [
@@ -526,7 +527,7 @@ class TestStrategy(object):
         # Test 1: Expect no error and the correct call sequence
         backup_manager.executor.strategy._pgespresso_stop_backup('test_label')
 
-        pg_connect = call.pg_connect()
+        pg_connect = mock.call.pg_connect()
         with_pg_connect = pg_connect.__enter__()
         cursor = with_pg_connect.cursor()
         assert backup_manager.server.mock_calls == [
