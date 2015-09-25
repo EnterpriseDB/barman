@@ -848,11 +848,6 @@ issue:
 barman delete <server_name> oldest
 ```
 
-> **Warning:**
-> Until retention policies are natively supported, you must use the
-> `oldest` shortcut with extreme care and caution. Iteratively
-> executing this command can easily wipe out your backup archive.
-
 ### List backup files
 
 You can list the files (base backup and required WAL files) for a
