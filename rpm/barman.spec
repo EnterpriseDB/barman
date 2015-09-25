@@ -40,7 +40,7 @@ Url:		http://www.pgbarman.org/
 Source0:	%{name}-%{version}%{?extra_version:%{extra_version}}.tar.gz
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-buildroot-%(%{__id_u} -n)
 BuildArch:	noarch
-Vendor:		2ndQuadrant Italia (Devise.IT S.r.l.) <info@2ndquadrant.it>
+Vendor:		2ndQuadrant Italia Srl <info@2ndquadrant.it>
 Requires:	python-abi = %{pybasever}, %{__python_ver}-psycopg2, %{__python_ver}-argh >= 0.21.2, %{__python_ver}-argcomplete, %{__python_ver}-dateutil
 Requires:	/usr/sbin/useradd
 Requires:	rsync >= 3.0.4

@@ -45,7 +45,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Barman'
-copyright = u'2013-2015 2ndQuadrant Italia (Devise.IT S.r.L.)]'
+copyright = u'2013-2015 2ndQuadrant Italia Srl]'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

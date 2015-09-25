@@ -1,5 +1,5 @@
 
-..  Copyright (C) 2011-2015 2ndQuadrant Italia (Devise.IT S.r.L.)
+..  Copyright (C) 2011-2015 2ndQuadrant Italia Srl
     Barman is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -48,7 +48,7 @@ Web resources
 Licence
 =======
 
-Copyright (C) 2011-2015 2ndQuadrant Italia (Devise.IT S.r.L.)
+Copyright (C) 2011-2015 2ndQuadrant Italia Srl
 
 Barman is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

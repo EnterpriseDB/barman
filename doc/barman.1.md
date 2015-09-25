@@ -338,4 +338,4 @@ Past contributors:
 Barman is the exclusive property of 2ndQuadrant Italia
 and its code is distributed under GNU General Public License v3.
 
-Copyright (C) 2011-2015 2ndQuadrant Italia (Devise.IT S.r.l.) - <http://www.2ndQuadrant.it/>.
+Copyright (C) 2011-2015 2ndQuadrant Italia Srl - <http://www.2ndQuadrant.it/>.
