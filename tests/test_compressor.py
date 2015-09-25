@@ -23,26 +23,26 @@ from barman.compression import identify_compression, Compressor, \
 
 class TestCompressionManager(object):
     def test_compression_manager_creation(self):
-        #prepare mock obj
+        # prepare mock obj
         config_mock = mock.Mock()
         comp_manager = CompressionManager(config_mock)
         assert comp_manager
 
     def test_check_compression_none(self):
-        #prepare mock obj
+        # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "custom"
         comp_manager = CompressionManager(config_mock)
         assert comp_manager.check() is True
 
     def test_check_with_compression(self):
-        #prepare mock obj
+        # prepare mock obj
         config_mock = mock.Mock()
         comp_manager = CompressionManager(config_mock)
         assert comp_manager.check('test_compression') is False
 
     def test_get_compressor_custom(self):
-        #prepare mock obj
+        # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "custom"
         config_mock.custom_compression_filter = "test_custom_compression_filter"
@@ -54,7 +54,7 @@ class TestCompressionManager(object):
         assert comp_manager.get_compressor() is not None
 
     def test_get_compressor_gzip(self):
-        #prepare mock obj
+        # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "gzip"
 
@@ -63,7 +63,7 @@ class TestCompressionManager(object):
         assert comp_manager.get_compressor() is not None
 
     def test_get_compressor_bzip2(self):
-        #prepare mock obj
+        # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "bzip2"
 
@@ -72,7 +72,7 @@ class TestCompressionManager(object):
         assert comp_manager.get_compressor() is not None
 
     def test_get_compressor_invalid(self):
-        #prepare mock obj
+        # prepare mock obj
         config_mock = mock.Mock()
 
         # check custom compression method creation
@@ -104,7 +104,7 @@ class TestIdentifyCompression(object):
 
 class TestCompressor(object):
     def test_compressor_creation(self):
-        #prepare mock obj
+        # prepare mock obj
         config_mock = mock.Mock()
 
         compressor = Compressor(config=config_mock,
@@ -119,7 +119,7 @@ class TestCompressor(object):
         assert compressor.decompres is None
 
     def test_build_command(self):
-        #prepare mock obj
+        # prepare mock obj
         config_mock = mock.Mock()
 
         compressor = Compressor(config=config_mock,
@@ -159,7 +159,7 @@ class TestCustomCompressor(object):
         config_mock.custom_decompression_filter = 'dummy_decompression_filter'
 
         compressor = CustomCompressor(config=config_mock,
-                                    compression="custom")
+                                      compression="custom")
 
         validate = compressor.validate('custom')
 

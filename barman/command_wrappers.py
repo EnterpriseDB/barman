@@ -462,9 +462,9 @@ class Rsync(Command):
                 # destination, rsync will discover the difference in any case.
                 # It is then safe to skip checksum check here.
                 dst_item = ref_hash.get(item.path, None)
-                if (dst_item is None
-                        or dst_item.size != item.size
-                        or dst_item.date != item.date):
+                if (dst_item is None or
+                        dst_item.size != item.size or
+                        dst_item.date != item.date):
                     safe_list.write(item.path + '\n')
                     continue
 

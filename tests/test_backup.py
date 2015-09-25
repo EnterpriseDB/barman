@@ -31,7 +31,6 @@ import barman.utils
 from testing_helpers import build_test_backup_info, build_backup_manager
 
 
-
 # noinspection PyMethodMayBeStatic
 class TestBackup(object):
 
@@ -118,7 +117,7 @@ class TestBackup(object):
         assert (r[0], r[1]) == (True, msg)
 
     @patch('barman.backup.BackupInfo')
-    def test_keyboard_interrupt(self, mock_infofile ):
+    def test_keyboard_interrupt(self, mock_infofile):
         """
         Unit test for a quick check on exception catching
         during backup operations
@@ -217,10 +216,11 @@ class TestBackup(object):
         wal_history_file02.ensure()
         wal_history_file03.ensure()
         xlog_db = wal_dir.join('xlog.db')
-        xlog_db.write('000000000000000000000001\t42\t43\tNone\n'
-        '00000001.history\t42\t43\tNone\n'
-        '00000002.history\t42\t43\tNone\n'
-        '00000003.history\t42\t43\tNone\n')
+        xlog_db.write(
+            '000000000000000000000001\t42\t43\tNone\n'
+            '00000001.history\t42\t43\tNone\n'
+            '00000002.history\t42\t43\tNone\n'
+            '00000003.history\t42\t43\tNone\n')
         backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open()
         backup_manager.server.config.basebackups_directory = base_dir.strpath
         backup_manager.server.config.wals_directory = wal_dir.strpath
@@ -388,7 +388,7 @@ class TestBackup(object):
 
         # Check that the test backup is inside the backups_cache
         assert backup_manager._backup_cache[b_info.backup_id].to_dict() == \
-               b_info.to_dict()
+            b_info.to_dict()
 
     def test_backup_cache_add(self, tmpdir):
         """
@@ -401,7 +401,6 @@ class TestBackup(object):
             global_conf={
                 'barman_home': tmpdir.strpath
             })
-
 
         # Create a BackupInfo object with status DONE
         b_info = build_test_backup_info(

@@ -45,17 +45,17 @@ try:
             self.test_suite = True
 
         def run_tests(self):
-            #import here, cause outside the eggs aren't loaded
+            # import here, cause outside the eggs aren't loaded
             import pytest
 
             errno = pytest.main(self.test_args)
             sys.exit(errno)
-    cmdclass={'test': PyTest}
+    cmdclass = {'test': PyTest}
 
 
 except ImportError:
     from distutils.core import setup
-    cmdclass={}
+    cmdclass = {}
 
 if sys.version_info < (2, 6):
     raise SystemExit('ERROR: Barman needs at least python 2.6 to work')

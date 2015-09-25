@@ -202,14 +202,14 @@ def exception(message, *args, **kwargs):
     """
     # ignore and raise_exception are keyword-only parameters
     ignore = kwargs.pop('ignore', False)
-    #noinspection PyNoneFunctionAssignment
+    # noinspection PyNoneFunctionAssignment
     raise_exception = kwargs.pop('raise_exception', None)
     if not ignore:
         kwargs.setdefault('is_error', True)
     _put('exception', message, *args, **kwargs)
     if raise_exception:
         if callable(raise_exception):
-            #noinspection PyCallingNonCallable
+            # noinspection PyCallingNonCallable
             raise raise_exception(message)
         elif isinstance(raise_exception, BaseException):
             raise raise_exception
@@ -616,14 +616,14 @@ class ConsoleOutputWriter(object):
             self.info("")
             self.info("  Catalog information:")
             self.info("    Retention Policy     : %s",
-                      data['retention_policy_status']
-                      or 'not enforced')
+                      data['retention_policy_status'] or
+                      'not enforced')
             self.info("    Previous Backup      : %s",
-                      data.setdefault('previous_backup_id', 'not available')
-                      or '- (this is the oldest base backup)')
+                      data.setdefault('previous_backup_id', 'not available') or
+                      '- (this is the oldest base backup)')
             self.info("    Next Backup          : %s",
-                      data.setdefault('next_backup_id', 'not available')
-                      or '- (this is the latest base backup)')
+                      data.setdefault('next_backup_id', 'not available') or
+                      '- (this is the latest base backup)')
         else:
             if data['error']:
                 self.info("  Error:            : %s",

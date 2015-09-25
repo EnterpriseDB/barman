@@ -21,7 +21,7 @@ import mock
 import barman.utils
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 class TestDropPrivileges(object):
     def mock_pwd_entry(self, user, home, uid, gid):
         pwd_entry = mock.MagicMock(name='pwd_entry_%s' % uid)
@@ -112,7 +112,7 @@ class TestDropPrivileges(object):
         assert not os.environ.__setitem__.called
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 class TestParseLogLevel(object):
     def test_int_to_int(self):
         assert barman.utils.parse_log_level(1) == 1
@@ -130,7 +130,7 @@ class TestParseLogLevel(object):
         assert barman.utils.parse_log_level('unknown') is None
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 @mock.patch('barman.utils.os')
 class TestMkpath(object):
     def test_path_exists(self, mock_os):
@@ -158,7 +158,7 @@ class TestMkpath(object):
         mock_os.makedirs.assert_called_with(test_path)
 
 
-#noinspection PyMethodMayBeStatic,PyUnresolvedReferences
+# noinspection PyMethodMayBeStatic,PyUnresolvedReferences
 @mock.patch.multiple('barman.utils', logging=mock.DEFAULT, mkpath=mock.DEFAULT,
                      _logger=mock.DEFAULT)
 class TestConfigureLogging(object):
@@ -271,7 +271,7 @@ class TestConfigureLogging(object):
         mocks['_logger'].warn.assert_called_with(mock.ANY)
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 class TestPrettySize(object):
 
     def test_1000(self):
@@ -323,12 +323,12 @@ class TestPrettySize(object):
     def test_float(self):
 
         assert barman.utils.pretty_size(1234, 1000) == \
-               barman.utils.pretty_size(1234.0, 1000)
+            barman.utils.pretty_size(1234.0, 1000)
         assert barman.utils.pretty_size(1234, 1024) == \
-               barman.utils.pretty_size(1234.0, 1024)
+            barman.utils.pretty_size(1234.0, 1024)
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 class TestHumanReadableDelta(object):
     """
     Test class for the utility method human_readable_timedelta.
@@ -399,10 +399,10 @@ class TestHumanReadableDelta(object):
         assert barman.utils.human_readable_timedelta(td) == '180 days, ' \
                                                             '3 hours, ' \
                                                             '4 minutes'
+
     def test_seven_days(self):
         """
         Test output for a 1 week timedelta.
         """
         td = timedelta(weeks=1)
         assert barman.utils.human_readable_timedelta(td) == '7 days'
-

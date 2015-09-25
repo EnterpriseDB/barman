@@ -14,16 +14,16 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
-''' 
+"""
 This module defines backup retention policies. A backup retention
 policy in Barman is a user-defined policy for determining how long
 backups and archived logs (WAL segments) need to be retained for media recovery.
-You can define a retention policy in terms of backup redundancy 
+You can define a retention policy in terms of backup redundancy
 or a recovery window.
-Barman retains the periodical backups required to satisfy 
+Barman retains the periodical backups required to satisfy
 the current retention policy, and any archived WAL files required for complete
 recovery of those backups.
-'''
+"""
 
 from abc import ABCMeta, abstractmethod
 from datetime import datetime, timedelta
@@ -34,12 +34,13 @@ from dateutil import tz
 
 _logger = logging.getLogger(__name__)
 
+
 class RetentionPolicy(object):
-    '''Abstract base class for retention policies'''
+    """Abstract base class for retention policies"""
     __metaclass__ = ABCMeta
 
     def __init__(self, mode, unit, value, context, server):
-        '''Constructor of the retention policy base class'''
+        """Constructor of the retention policy base class"""
         self.mode = mode
         self.unit = unit
         self.value = int(value)
@@ -49,7 +50,7 @@ class RetentionPolicy(object):
         self._first_wal = None
 
     def report(self, source=None, context=None):
-        '''Report obsolete/valid objects according to the retention policy'''
+        """Report obsolete/valid objects according to the retention policy"""
         if context is None:
             context = self.context
         # Overrides the list of available backups
@@ -63,7 +64,7 @@ class RetentionPolicy(object):
             raise ValueError('Invalid context %s', context)
 
     def backup_status(self, backup_id):
-        '''Report the status of a backup according to the retention policy'''
+        """Report the status of a backup according to the retention policy"""
         source = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
         if self.context == 'BASE':
             return self._backup_report(source)[backup_id]
@@ -71,43 +72,43 @@ class RetentionPolicy(object):
             return BackupInfo.NONE
 
     def first_backup(self):
-        '''Returns the first valid backup according to retention policies'''
+        """Returns the first valid backup according to retention policies"""
         if not self._first_backup:
             self.report(context='BASE')
         return self._first_backup
 
     def first_wal(self):
-        '''Returns the first valid WAL according to retention policies'''
+        """Returns the first valid WAL according to retention policies"""
         if not self._first_wal:
             self.report(context='WAL')
         return self._first_wal
 
     @abstractmethod
     def __str__(self):
-        '''String representation'''
+        """String representation"""
         pass
 
     @abstractmethod
     def debug(self):
-        '''Debug information'''
+        """Debug information"""
         pass
 
     @abstractmethod
     def _backup_report(self, source):
-        '''Report obsolete/valid backups according to the retention policy'''
+        """Report obsolete/valid backups according to the retention policy"""
         pass
 
     @abstractmethod
     def _wal_report(self):
-        '''Report obsolete/valid WALs according to the retention policy'''
+        """Report obsolete/valid WALs according to the retention policy"""
         pass
 
     @classmethod
     def create(cls, server, option, value):
-        '''
+        """
         If given option and value from the configuration file match,
         creates the retention policy object for the given server
-        '''
+        """
         # using @abstractclassmethod from python3 would be better here
         raise NotImplementedError(
             'The class %s must override the create() class method',
@@ -121,11 +122,11 @@ class RetentionPolicy(object):
 
 
 class RedundancyRetentionPolicy(RetentionPolicy):
-    '''
+    """
     Retention policy based on redundancy, the setting that determines
     many periodical backups to keep. A redundancy-based retention polic
     yis contrasted with retention policy that uses a recovery window.
-    '''
+    """
 
     _re = re.compile(r'^\s*redundancy\s+(\d+)\s*$', re.IGNORECASE)
 
@@ -135,20 +136,21 @@ class RedundancyRetentionPolicy(RetentionPolicy):
         assert (value >= 0)
 
     def __str__(self):
-        return "REDUNDANCY %s" % (self.value)
+        return "REDUNDANCY %s" % self.value
 
     def debug(self):
         return "Redundancy: %s (%s)" % (self.value, self.context)
 
     def _backup_report(self, source):
-        '''Report obsolete/valid backups according to the retention policy'''
+        """Report obsolete/valid backups according to the retention policy"""
         report = dict()
         backups = source
         # Normalise the redundancy value (according to minimum redundancy)
         redundancy = self.value
         if redundancy < self.server.config.minimum_redundancy:
-            _logger.warning("Retention policy redundancy (%s) is lower than "
-                            "the required minimum redundancy (%s). Enforce %s.",
+            _logger.warning(
+                "Retention policy redundancy (%s) is lower than "
+                "the required minimum redundancy (%s). Enforce %s.",
                 redundancy, self.server.config.minimum_redundancy,
                 self.server.config.minimum_redundancy)
             redundancy = self.server.config.minimum_redundancy
@@ -171,7 +173,7 @@ class RedundancyRetentionPolicy(RetentionPolicy):
         return report
 
     def _wal_report(self):
-        '''Report obsolete/valid WALs according to the retention policy'''
+        """Report obsolete/valid WALs according to the retention policy"""
         pass
 
     @classmethod
@@ -183,8 +185,9 @@ class RedundancyRetentionPolicy(RetentionPolicy):
         value = int(mtch.groups()[0])
         return cls(context, value, server)
 
+
 class RecoveryWindowRetentionPolicy(RetentionPolicy):
-    '''
+    """
     Retention policy based on recovery window. The DBA specifies a period of
     time and Barman ensures retention of backups and archived WAL files required
     for point-in-time recovery to any time during the recovery window.
@@ -193,16 +196,17 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
     For example, if the retention policy is set for a recovery window of seven days,
     and the current time is 9:30 AM on Friday, Barman retains the backups required
     to allow point-in-time recovery back to 9:30 AM on the previous Friday.
-    '''
+    """
 
-    _re = re.compile(r"""
-      ^\s*
-      recovery\s+window\s+of\s+   # recovery window of
-      (\d+)\s+(day|month|week)s?  # N (day|month|week) with optional 's'
-      \s*$
-      """,
-      re.IGNORECASE | re.VERBOSE)
-    _kw = {'d':'DAYS', 'm':'MONTHS', 'w':'WEEKS'}
+    _re = re.compile(
+        r"""
+        ^\s*
+        recovery\s+window\s+of\s+   # recovery window of
+        (\d+)\s+(day|month|week)s?  # N (day|month|week) with optional 's'
+        \s*$
+        """,
+        re.IGNORECASE | re.VERBOSE)
+    _kw = {'d': 'DAYS', 'm': 'MONTHS', 'w': 'WEEKS'}
 
     def __init__(self, context, value, unit, server):
         super(RecoveryWindowRetentionPolicy, self
@@ -211,11 +215,11 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         assert (unit == 'd' or unit == 'm' or unit == 'w')
         assert (context == 'WAL' or context == 'BASE')
         # Calculates the time delta
-        if (unit == 'd'):
-            self.timedelta = timedelta(days=(self.value))
-        elif (unit == 'w'):
-            self.timedelta = timedelta(weeks=(self.value))
-        elif (unit == 'm'):
+        if unit == 'd':
+            self.timedelta = timedelta(days=self.value)
+        elif unit == 'w':
+            self.timedelta = timedelta(weeks=self.value)
+        elif unit == 'm':
             self.timedelta = timedelta(days=(31 * self.value))
 
     def __str__(self):
@@ -227,15 +231,15 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
             self._point_of_recoverability())
 
     def _point_of_recoverability(self):
-        '''
+        """
         Based on the current time and the window, calculate the point
         of recoverability, which will be then used to define the first
         backup or the first WAL
-        '''
+        """
         return datetime.now(tz.tzlocal()) - self.timedelta
 
     def _backup_report(self, source):
-        '''Report obsolete/valid backups according to the retention policy'''
+        """Report obsolete/valid backups according to the retention policy"""
         report = dict()
         backups = source
         # Map as VALID all DONE backups having end time lower than
@@ -291,7 +295,7 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         return report
 
     def _wal_report(self):
-        '''Report obsolete/valid WALs according to the retention policy'''
+        """Report obsolete/valid WALs according to the retention policy"""
         pass
 
     @classmethod
@@ -299,14 +303,14 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         # Detect Recovery Window retention type
         match = cls._re.match(optval)
         if not match:
-            return  None
+            return None
         value = int(match.groups()[0])
         unit = match.groups()[1][0].lower()
         return cls(context, value, unit, server)
 
 
 class SimpleWALRetentionPolicy(RetentionPolicy):
-    '''Simple retention policy for WAL files (identical to the main one)'''
+    """Simple retention policy for WAL files (identical to the main one)"""
     _re = re.compile(r'^\s*main\s*$', re.IGNORECASE)
 
     def __init__(self, context, policy, server):
@@ -321,18 +325,18 @@ class SimpleWALRetentionPolicy(RetentionPolicy):
         return "MAIN"
 
     def debug(self):
-        return "Simple WAL Retention Policy (%s)" % (self.policy)
+        return "Simple WAL Retention Policy (%s)" % self.policy
 
     def _backup_report(self, source):
-        '''Report obsolete/valid backups according to the retention policy'''
+        """Report obsolete/valid backups according to the retention policy"""
         pass
 
     def _wal_report(self):
-        '''Report obsolete/valid backups according to the retention policy'''
+        """Report obsolete/valid backups according to the retention policy"""
         self.policy.report(context='WAL')
 
     def first_wal(self):
-        '''Returns the first valid WAL according to retention policies'''
+        """Returns the first valid WAL according to retention policies"""
         return self.policy.first_wal()
 
     @classmethod
@@ -345,7 +349,7 @@ class SimpleWALRetentionPolicy(RetentionPolicy):
 
 
 class RetentionPolicyFactory(object):
-    '''Factory for retention policy objects'''
+    """Factory for retention policy objects"""
 
     # Available retention policy types
     policy_classes = [
@@ -356,18 +360,18 @@ class RetentionPolicyFactory(object):
 
     @classmethod
     def create(cls, server, option, value):
-        '''
+        """
         Based on the given option and value from the configuration
-        file, creates the appropriate retention policy object 
+        file, creates the appropriate retention policy object
         for the given server
-        '''
+        """
         if option == 'wal_retention_policy':
             context = 'WAL'
         elif option == 'retention_policy':
             context = 'BASE'
         else:
             raise ValueError('Unknown option for retention policy: %s' %
-                             (option))
+                             option)
 
         # Look for the matching rule
         for policy_class in cls.policy_classes:
@@ -376,4 +380,3 @@ class RetentionPolicyFactory(object):
                 return policy
 
         raise ValueError('Cannot parse option %s: %s' % (option, value))
-

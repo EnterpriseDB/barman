@@ -38,6 +38,7 @@ def _mock_pipe(popen, ret=0, out='', err=''):
     pipe.returncode = ret
     return pipe
 
+
 @mock.patch('barman.command_wrappers.subprocess.Popen')
 class CommandUnitTest(unittest.TestCase):
     def test_simple_invocation(self, popen):
@@ -486,6 +487,7 @@ class TestRsync(object):
                      hour=15, minute=1, second=22,
                      tzinfo=dateutil.tz.tzlocal()),
             'tmp2')
+
 
 @mock.patch('barman.command_wrappers.subprocess.Popen')
 class RsyncPgdataUnitTest(unittest.TestCase):

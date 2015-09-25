@@ -29,7 +29,6 @@ from testing_helpers import build_test_backup_info, build_mocked_server
 
 class TestRetentionPolicies(object):
 
-
     def test_redundancy_report(self, caplog):
         """
         Test of the management of the minimum_redundancy parameter

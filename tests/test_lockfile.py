@@ -208,7 +208,6 @@ class TestLockFileBehavior(object):
         fcntl_mock.flock.assert_called_once_with(ANY, fcntl.LOCK_UN)
 
 
-
 # noinspection PyMethodMayBeStatic
 @pytest.mark.timeout(1)
 class TestLockFile(object):

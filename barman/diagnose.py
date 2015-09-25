@@ -74,4 +74,3 @@ def exec_diagnose(servers, errors_list):
         diagnosis['servers'][name]['backups'] = backups
     output.info(json.dumps(diagnosis, sys.stdout, cls=BarmanEncoder, indent=4,
                            sort_keys=True))
-

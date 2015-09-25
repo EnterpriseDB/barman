@@ -409,8 +409,8 @@ class TestServer(object):
             server.delete_backup(backup_info_started)
             out, err = capsys.readouterr()
             assert "Cannot delete a running backup (%s %s)" % (
-                       server.config.name,
-                       backup_info_started.backup_id) in err
+                server.config.name,
+                backup_info_started.backup_id) in err
 
         # Test the removal of a running backup. status EMPTY
         backup_info_empty = build_test_backup_info(
@@ -421,8 +421,8 @@ class TestServer(object):
             server.delete_backup(backup_info_empty)
             out, err = capsys.readouterr()
             assert "Cannot delete a running backup (%s %s)" % (
-                       server.config.name,
-                       backup_info_started.backup_id) in err
+                server.config.name,
+                backup_info_started.backup_id) in err
 
         # Test the removal of a running backup. status DONE
         backup_info_done = build_test_backup_info(
@@ -506,8 +506,8 @@ class TestCheckStrategy(object):
         assert strategy.has_error is True
         assert strategy.check_result
         assert len(strategy.check_result) == 2
-        assert len([result 
-                    for result in strategy.check_result 
+        assert len([result
+                    for result in strategy.check_result
                     if not result.status]) == 2
         # Test Non blocking error behaviour (one non blocking error)
         strategy = CheckStrategy()

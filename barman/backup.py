@@ -822,9 +822,10 @@ class BackupManager(object):
                     # Keeps the WAL segment if it is a history file or later
                     # than the given backup (the first available)
                     if (xlog.is_history_file(wal_info.name) or
-                        (backup_info and wal_info.name >= backup_info.begin_wal)):
-                            fxlogdb_new.write(wal_info.to_xlogdb_line())
-                            continue
+                            (backup_info and
+                                wal_info.name >= backup_info.begin_wal)):
+                        fxlogdb_new.write(wal_info.to_xlogdb_line())
+                        continue
                     else:
                         self.delete_wal(wal_info)
                         removed.append(wal_info.name)
@@ -909,9 +910,9 @@ class BackupManager(object):
             output.info(
                 "Backup size: %s. Actual size on disk: %s"
                 " (-%s deduplication ratio)." % (
-                pretty_size(backup_info.size),
-                pretty_size(backup_info.deduplicated_size),
-                '{percent:.2%}'.format(percent=deduplication_ratio)
+                    pretty_size(backup_info.size),
+                    pretty_size(backup_info.deduplicated_size),
+                    '{percent:.2%}'.format(percent=deduplication_ratio)
                 ))
         else:
             output.info("Backup size: %s" %

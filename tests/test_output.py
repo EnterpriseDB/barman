@@ -31,7 +31,7 @@ def teardown_module(module):
     output.set_output_writer(output.DEFAULT_WRITER)
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 class TestOutputAPI(object):
     @staticmethod
     def _mock_writer():
@@ -42,7 +42,7 @@ class TestOutputAPI(object):
         output.error_occurred = False
         return writer
 
-    #noinspection PyProtectedMember,PyUnresolvedReferences
+    # noinspection PyProtectedMember,PyUnresolvedReferences
     @mock.patch.dict(output.AVAILABLE_WRITERS, mock=mock.Mock())
     def test_set_output_writer_close(self):
 
@@ -570,7 +570,7 @@ class TestOutputAPI(object):
         assert exit_mock.call_args[0] != 0
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 class TestConsoleWriter(object):
 
     def test_debug(self, capsys):
@@ -994,7 +994,7 @@ class TestConsoleWriter(object):
         assert err == ''
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 class TestNagiosWriter(object):
 
     def test_debug(self, capsys):

@@ -72,7 +72,7 @@ class CheckStrategy(object):
 
     # Default list used as a filter to identify non-critical checks
     NON_CRITICAL_CHECKS = ['minimum redundancy requirements',
-                         'backup maximum age']
+                           'backup maximum age']
 
     def __init__(self, ignore_checks=NON_CRITICAL_CHECKS):
         """
@@ -349,7 +349,7 @@ class Server(object):
             if key.endswith('_directory') and hasattr(self.config, key):
                 val = getattr(self.config, key)
                 if val is not None and not os.path.isdir(val):
-                    #noinspection PyTypeChecker
+                    # noinspection PyTypeChecker
                     os.makedirs(val)
 
     def check_directories(self, check_strategy):
@@ -811,7 +811,7 @@ class Server(object):
             # Otherwise, normally delete the backup.
             first_backup = self.get_first_backup(BackupInfo.STATUS_ALL)
             if backup.backup_id == first_backup.backup_id \
-                and backup.status in (BackupInfo.STARTED, BackupInfo.EMPTY):
+                    and backup.status in (BackupInfo.STARTED, BackupInfo.EMPTY):
                 output.error("Cannot delete a running backup (%s %s)"
                              % (self.config.name, backup.backup_id))
             else:
@@ -857,26 +857,26 @@ class Server(object):
             output.error("Permission denied, unable to access '%s'" % e)
 
     def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
-        '''Get a list of available backups
+        """Get a list of available backups
 
         param: status_filter: the status of backups to return, default to BackupManager.DEFAULT_STATUS_FILTER
-        '''
+        """
         return self.backup_manager.get_available_backups(status_filter)
 
     def get_last_backup(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
-        '''
+        """
         Get the last backup (if any) in the catalog
 
         :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
-        '''
+        """
         return self.backup_manager.get_last_backup(status_filter)
 
     def get_first_backup(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
-        '''
+        """
         Get the first backup (if any) in the catalog
 
         :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
-        '''
+        """
         return self.backup_manager.get_first_backup(status_filter)
 
     def list_backups(self):

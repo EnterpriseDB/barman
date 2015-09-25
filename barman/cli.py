@@ -132,7 +132,6 @@ def backup_completer(prefix, parsed_args, **kwargs):
     global_config(parsed_args)
     server = get_server(parsed_args)
 
-    backup_name = getattr(parsed_args, 'backup_id', None) or ''
     backups = server.get_available_backups()
     for backup_id in sorted(backups, reverse=True):
         if backup_id.startswith(prefix):

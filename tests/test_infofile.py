@@ -73,7 +73,7 @@ def test_load_datetime_tz():
         load_datetime_tz("Invalid datetime")
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 class TestField(object):
     def test_field_creation(self):
         field = Field('test_field')
@@ -110,7 +110,7 @@ class DummyFieldListFile(FieldListFile):
     dummy = Field('dummy', dump=str, load=int, default=12, doc='dummy_field')
 
 
-#noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic
 class TestFieldListFile(object):
     def test_field_list_file_creation(self):
         with pytest.raises(AttributeError):
@@ -186,7 +186,7 @@ class TestWallFileInfo(object):
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_compression(self, id_compression, tmpdir):
-        #prepare
+        # prepare
         id_compression.return_value = 'test_compression'
 
         tmp_file = tmpdir.join("000000000000000000000001")
@@ -201,7 +201,7 @@ class TestWallFileInfo(object):
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_default_compression(self, id_compression, tmpdir):
-        #prepare
+        # prepare
         id_compression.return_value = None
 
         tmp_file = tmpdir.join("00000001000000E500000064")
@@ -218,7 +218,7 @@ class TestWallFileInfo(object):
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_override_compression(self, id_compression, tmpdir):
-        #prepare
+        # prepare
         id_compression.return_value = None
 
         tmp_file = tmpdir.join("000000000000000000000001")
@@ -236,7 +236,7 @@ class TestWallFileInfo(object):
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_override(self, id_compression, tmpdir):
-        #prepare
+        # prepare
         id_compression.return_value = None
 
         tmp_file = tmpdir.join("000000000000000000000001")
