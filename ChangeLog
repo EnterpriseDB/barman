@@ -1,3 +1,40 @@
+2015-09-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Update Copyright notice
+
+2015-09-25  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Remove obsolete section from tutorial
+	Removed a section in the tutorial regarding the 'delete'
+	command, as pointed out by Ian Barwick.
+
+2015-09-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Enable flake8 in every tox run
+
+2015-09-24  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Prepared version 1.5.0 for final release
+
+2015-09-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update tox.ini to allow specifying a target test
+	Also add .cache directory, which is created by latest tox, to .gitignore
+
+2015-09-24  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Changed import of call() method.
+	Now is compatible with all versions of py.test libraries
+
+2015-09-16  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Support for non-critical checks during backup
+	Add a filter for non-critical checks during backup operations.
+	This patch fixes a bug that prevented users from taking a new
+	backup when minimum redundancy or smelly backup checks failed.
+
 2015-09-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
