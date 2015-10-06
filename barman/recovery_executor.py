@@ -799,31 +799,48 @@ class RecoveryExecutor(object):
         :param remote_command: default None. The remote command to recover
                the xlog, in case of remote backup.
         """
-        # Retrieve the list of required WAL segments
-        # according to recovery options
-        xlogs = {}
+        # List of required WAL files partitioned by containing directory
+        xlogs = collections.defaultdict(list)
+        # Map of every compressor used with any WAL file in the archive,
+        # to be used during this recovery
+        compressors = {}
+        compression_manager = self.backup_manager.compression_manager
+        # Fill xlogs and compressors maps from required_xlog_files
         for wal_info in required_xlog_files:
             hashdir = xlog.hash_dir(wal_info.name)
-            if hashdir not in xlogs:
-                xlogs[hashdir] = []
-            xlogs[hashdir].append(wal_info.name)
-        # Check decompression options
-        compressor = self.backup_manager.compression_manager.get_compressor()
+            xlogs[hashdir].append(wal_info)
+            # If a compressor is required, make sure it exists in the cache
+            if wal_info.compression is not None and \
+                    wal_info.compression not in compressors:
+                compressors[wal_info.compression] = \
+                    compression_manager.get_compressor(
+                        compression=wal_info.compression)
 
         rsync = RsyncPgData(
             ssh=remote_command,
             bwlimit=self.config.bandwidth_limit,
             network_compression=self.config.network_compression)
+        # If compression is used and this is a remote recovery, we need a
+        # temporary directory where to spool uncompressed files,
+        # otherwise we either decompress every WAL file in the local
+        # destination, or we ship the uncompressed file remotely
+        if compressors:
+            if remote_command:
+                # Decompress to a temporary spool directory
+                wal_decompression_dest = tempfile.mkdtemp(prefix='barman_xlog-')
+            else:
+                # Decompress directly to the destination directory
+                wal_decompression_dest = wal_dest
+            # Make sure wal_decompression_dest exists
+            mkpath(wal_decompression_dest)
+        else:
+            # If no compression
+            wal_decompression_dest = None
         if remote_command:
             # If remote recovery tell rsync to copy them remotely
             # add ':' prefix to mark it as remote
             # add '/' suffix to ensure it is a directory
             wal_dest = ':%s/' % wal_dest
-        else:
-            # we will not use rsync: destdir must exists
-            mkpath(wal_dest)
-        if compressor and remote_command:
-            xlog_spool = tempfile.mkdtemp(prefix='barman_xlog-')
         total_wals = sum(map(len, xlogs.values()))
         partial_count = 0
         for prefix in sorted(xlogs):
@@ -837,46 +854,56 @@ class RecoveryExecutor(object):
                 total_wals,
                 xlogs[prefix][0],
                 xlogs[prefix][-1])
-            if compressor:
+            # If at least one compressed file has been found, activate
+            # compression check and decompression for each WAL files
+            if compressors:
+                for segment in xlogs[prefix]:
+                    dst_file = os.path.join(wal_decompression_dest,
+                                            segment.name)
+                    if segment.compression is not None:
+                        compressors[segment.compression].decompress(
+                            os.path.join(source_dir, segment.name),
+                            dst_file)
+                    else:
+                        shutil.copy2(os.path.join(source_dir, segment.name),
+                                     dst_file)
                 if remote_command:
-                    for segment in xlogs[prefix]:
-                        compressor.decompress(os.path.join(source_dir, segment),
-                                              os.path.join(xlog_spool, segment))
                     try:
-                        rsync.from_file_list(xlogs[prefix],
-                                             xlog_spool, wal_dest)
-                    except CommandFailedException, e:
+                        # Transfer the WAL files
+                        rsync.from_file_list(
+                            list(segment.name for segment in xlogs[prefix]),
+                            wal_decompression_dest, wal_dest)
+                    except CommandFailedException as e:
                         msg = "data transfer failure while copying WAL files " \
                               "to directory '%s'" % (wal_dest[1:],)
                         raise DataTransferFailure.from_rsync_error(e, msg)
 
                     # Cleanup files after the transfer
                     for segment in xlogs[prefix]:
-                        file_name = os.path.join(xlog_spool, segment)
+                        file_name = os.path.join(wal_decompression_dest,
+                                                 segment.name)
                         try:
                             os.unlink(file_name)
                         except OSError as e:
                             output.warning(
                                 "Error removing temporary file '%s': %s",
                                 file_name, e)
-                else:
-                    # decompress directly to the right place
-                    for segment in xlogs[prefix]:
-                        compressor.decompress(os.path.join(source_dir, segment),
-                                              os.path.join(wal_dest, segment))
             else:
                 try:
                     rsync.from_file_list(
-                        xlogs[prefix],
-                        "%s/" % os.path.join(
-                            self.config.wals_directory, prefix),
+                        list(segment.name for segment in xlogs[prefix]),
+                        "%s/" % os.path.join(self.config.wals_directory,
+                                             prefix),
                         wal_dest)
-                except CommandFailedException, e:
+                except CommandFailedException as e:
                     msg = "data transfer failure while copying WAL files " \
                           "to directory '%s'" % (wal_dest[1:],)
                     raise DataTransferFailure.from_rsync_error(e, msg)
 
         _logger.info("Finished copying %s WAL files.", total_wals)
 
-        if compressor and remote_command:
-            shutil.rmtree(xlog_spool)
+        # Remove local decompression target directory if different from the
+        # destination directory (it happens when compression is in use during a
+        # remote recovery
+        if wal_decompression_dest and wal_decompression_dest != wal_dest:
+            shutil.rmtree(wal_decompression_dest)

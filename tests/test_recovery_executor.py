@@ -20,7 +20,7 @@ import shutil
 import time
 
 import dateutil
-from mock import Mock, patch
+from mock import Mock, patch, ANY
 import pytest
 
 from barman import xlog
@@ -261,8 +261,9 @@ class TestRecoveryExecutor(object):
             '/some/barman/home/main/base/1234567890/data/',
             dest.strpath, None)
 
+    @patch('barman.backup.CompressionManager')
     @patch('barman.recovery_executor.RsyncPgData')
-    def test_recover_xlog(self, rsync_pg_mock, tmpdir):
+    def test_recover_xlog(self, rsync_pg_mock, cm_mock, tmpdir):
         """
         Test the recovery of the xlogs of a backup
         :param rsync_pg_mock: Mock rsync object for the purpose if this test
@@ -270,31 +271,69 @@ class TestRecoveryExecutor(object):
         # Build basic folders/files structure
         dest = tmpdir.mkdir('destination')
         wals = tmpdir.mkdir('wals')
+        # Create 3 WAL files with different compressions
         xlog_dir = wals.mkdir(xlog.hash_dir('000000000000000000000002'))
-        xlog_file = xlog_dir.join('000000000000000000000002')
-        xlog_file.write('dummy content')
+        xlog_plain = xlog_dir.join('000000000000000000000001')
+        xlog_gz = xlog_dir.join('000000000000000000000002')
+        xlog_bz2 = xlog_dir.join('000000000000000000000003')
+        xlog_plain.write('dummy content')
+        xlog_gz.write('dummy content gz')
+        xlog_bz2.write('dummy content bz2')
         server = testing_helpers.build_real_server(
             main_conf={'wals_directory': wals.strpath})
-        # build executor
+        # Prepare compressors mock
+        c = {
+            'gzip': Mock(name='gzip'),
+            'bzip2': Mock(name='bzip2'),
+        }
+        cm_mock.return_value.get_compressor = \
+            lambda compression=None: c[compression]
+        # touch destination files to avoid errors on cleanup
+        c['gzip'].decompress.side_effect = lambda src, dst: open(dst, 'w')
+        c['bzip2'].decompress.side_effect = lambda src, dst: open(dst, 'w')
+        # Build executor
         executor = RecoveryExecutor(server.backup_manager)
-        required_wals = (WalFileInfo.from_xlogdb_line(
-            '000000000000000000000002\t42\t43\tNone\n'),)
+
+        # Test: local copy
+        required_wals = (
+            WalFileInfo.from_xlogdb_line(
+                '000000000000000000000001\t42\t43\tNone\n'),
+            WalFileInfo.from_xlogdb_line(
+                '000000000000000000000002\t42\t43\tgzip\n'),
+            WalFileInfo.from_xlogdb_line(
+                '000000000000000000000003\t42\t43\tbzip2\n'),
+        )
         executor.xlog_copy(required_wals, dest.strpath, None)
-        # check for a correct invocation of rsync using local paths
-        rsync_pg_mock.from_file_list.assert_called_once(
-            ['000000000000000000000002'],
-            xlog_dir.strpath,
-            dest.strpath)
-        # reset mock calls
+        # Check for a correct invocation of rsync using local paths
+        rsync_pg_mock.assert_called_once_with(
+            network_compression=False,
+            bwlimit=None,
+            ssh=None)
+        assert not rsync_pg_mock.return_value.from_file_list.called
+        c['gzip'].decompress.assert_called_once_with(xlog_gz.strpath, ANY)
+        c['bzip2'].decompress.assert_called_once_with(xlog_bz2.strpath, ANY)
+
+        # Reset mock calls
         rsync_pg_mock.reset_mock()
-        required_wals = (WalFileInfo.from_xlogdb_line(
-            '000000000000000000000002\t42\t43\tNone\n'),)
-        executor.backup_manager.compression_manager = Mock()
+        c['gzip'].reset_mock()
+        c['bzip2'].reset_mock()
+
+        # Test: remote copy
         executor.xlog_copy(required_wals, dest.strpath, 'remote_command')
-        # check for the invocation of rsync on a remote call
-        rsync_pg_mock.assert_called_once(network_compression=False,
-                                         bwlimit=None,
-                                         ssh='remote_command')
+        # Check for the invocation of rsync on a remote call
+        rsync_pg_mock.assert_called_once_with(
+            network_compression=False,
+            bwlimit=None,
+            ssh='remote_command')
+        rsync_pg_mock.return_value.from_file_list.assert_called_once_with(
+            [
+                '000000000000000000000001',
+                '000000000000000000000002',
+                '000000000000000000000003'],
+            ANY,
+            ANY)
+        c['gzip'].decompress.assert_called_once_with(xlog_gz.strpath, ANY)
+        c['bzip2'].decompress.assert_called_once_with(xlog_bz2.strpath, ANY)
 
     def test_prepare_tablespaces(self, tmpdir):
         """
