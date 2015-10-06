@@ -32,6 +32,7 @@ from barman.server import Server
 import barman.diagnose
 import barman.config
 from barman.utils import drop_privileges, configure_logging, parse_log_level
+from barman.xlog import BadXlogSegmentName
 
 
 _logger = logging.getLogger(__name__)
@@ -473,9 +474,16 @@ def list_files(args):
 
     # Retrieves the backup
     backup_id = parse_backup_id(server, args)
-    for line in backup_id.get_list_of_files(args.target):
-        output.info(line, log=False)
-    output.close_and_exit()
+    try:
+        for line in backup_id.get_list_of_files(args.target):
+            output.info(line, log=False)
+    except BadXlogSegmentName as e:
+        output.error(
+            "invalid xlog segment name %r\n"
+            "HINT: Please run \"barman rebuild-xlogdb %s\" "
+            "to solve this issue",
+            str(e), server.config.name)
+        output.close_and_exit()
 
 
 @arg('server_name',

@@ -888,13 +888,20 @@ class Server(object):
         for key in sorted(backups.iterkeys(), reverse=True):
             backup = backups[key]
 
-            backup_size = 0
+            backup_size = backup.size or 0
             wal_size = 0
             rstatus = None
             if backup.status == BackupInfo.DONE:
-                wal_info = self.get_wal_info(backup)
-                backup_size = backup.size or 0 + wal_info['wal_size']
-                wal_size = wal_info['wal_until_next_size']
+                try:
+                    wal_info = self.get_wal_info(backup)
+                    backup_size += wal_info['wal_size']
+                    wal_size = wal_info['wal_until_next_size']
+                except xlog.BadXlogSegmentName as e:
+                    output.error(
+                        "invalid xlog segment name %r\n"
+                        "HINT: Please run \"barman rebuild-xlogdb %s\" "
+                        "to solve this issue",
+                        str(e), self.config.name)
                 if self.enforce_retention_policies and \
                         retention_status[backup.backup_id] != BackupInfo.VALID:
                     rstatus = retention_status[backup.backup_id]
@@ -1323,5 +1330,13 @@ class Server(object):
 
         :param backup_info: the target backup
         """
-        backup_ext_info = self.get_backup_ext_info(backup_info)
-        output.result('show_backup', backup_ext_info)
+        try:
+            backup_ext_info = self.get_backup_ext_info(backup_info)
+            output.result('show_backup', backup_ext_info)
+        except xlog.BadXlogSegmentName as e:
+            output.error(
+                "invalid xlog segment name %r\n"
+                "HINT: Please run \"barman rebuild-xlogdb %s\" "
+                "to solve this issue" %
+                str(e), self.config.name)
+            output.close_and_exit()

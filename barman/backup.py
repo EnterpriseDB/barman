@@ -819,6 +819,13 @@ class BackupManager(object):
             with open(xlogdb_new, 'w') as fxlogdb_new:
                 for line in fxlogdb:
                     wal_info = WalFileInfo.from_xlogdb_line(line)
+                    if not xlog.is_any_xlog_file(wal_info.name):
+                        output.error(
+                            "invalid xlog segment name %r\n"
+                            "HINT: Please run \"barman rebuild-xlogdb %s\" "
+                            "to solve this issue",
+                            wal_info.name, self.config.name)
+                        continue
                     # Keeps the WAL segment if it is a history file or later
                     # than the given backup (the first available)
                     if (xlog.is_history_file(wal_info.name) or

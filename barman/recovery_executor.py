@@ -649,23 +649,28 @@ class RecoveryExecutor(object):
         # Restore the WAL segments. If GET_WAL option is set, skip this phase
         # as they will be retrieved using the wal-get command.
         if not recovery_info['get_wal']:
-            # Prepare WAL segments local directory
             output.info("Copying required WAL segments.")
 
-            required_xlog_files = tuple(
-                self.server.get_required_xlog_files(backup_info,
-                                                    target_tli,
-                                                    recovery_info['target_epoch']))
-
-            # Restore WAL segments into the wal_dest directory
             try:
+                # Retrieve a list of required log files
+                required_xlog_files = tuple(
+                    self.server.get_required_xlog_files(
+                        backup_info, target_tli, recovery_info['target_epoch']))
+
+                # Restore WAL segments into the wal_dest directory
                 self.xlog_copy(required_xlog_files,
                                recovery_info['wal_dest'],
                                remote_command)
-            except DataTransferFailure, e:
+            except DataTransferFailure as e:
                 output.exception("Failure copying WAL files: %s", e)
                 output.close_and_exit()
-
+            except xlog.BadXlogSegmentName as e:
+                output.error(
+                    "invalid xlog segment name %r\n"
+                    "HINT: Please run \"barman rebuild-xlogdb %s\" "
+                    "to solve this issue" %
+                    str(e), self.config.name)
+                output.close_and_exit()
             # If WAL files are put directly in the pg_xlog directory,
             # avoid shipping of just recovered files
             # by creating the corresponding archive status file

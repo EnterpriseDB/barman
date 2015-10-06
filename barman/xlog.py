@@ -122,9 +122,10 @@ def decode_segment_name(path):
     :param str path: the file name to decode
     :rtype: list[int]
     """
-    match = _xlog_re.match(os.path.basename(path))
+    name = os.path.basename(path)
+    match = _xlog_re.match(name)
     if not match:
-        raise BadXlogSegmentName("invalid xlog segment name '%s'" % path)
+        raise BadXlogSegmentName(name)
     return [int(x, 16) if x else None for x in match.groups()]
 
 
