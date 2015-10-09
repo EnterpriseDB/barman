@@ -1220,6 +1220,9 @@ class Server(object):
                 # Retention policy management
                 if retention_policies:
                     self.backup_manager.cron_retention_policy()
+        except LockFileBusy:
+            output.info("Another cron process is already running on server %s. "
+                        "Skipping to the next server" % self.config.name)
         except LockFilePermissionDenied, e:
             output.error("Permission denied, unable to access '%s'" % e)
         except (OSError, IOError), e:

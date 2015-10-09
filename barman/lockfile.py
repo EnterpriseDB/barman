@@ -187,7 +187,7 @@ class ServerCronLock(LockFile):
     def __init__(self, lock_directory, server_name):
         super(ServerCronLock, self).__init__(
             os.path.join(lock_directory, '.%s-cron.lock' % server_name),
-            raise_if_fail=True, wait=True)
+            raise_if_fail=True, wait=False)
 
 
 class ServerXLOGDBLock(LockFile):

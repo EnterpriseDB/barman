@@ -324,7 +324,7 @@ class TestLockFileSubclasses(object):
         lock = ServerCronLock(tmpdir.strpath, 'server_name')
         assert lock.filename == tmpdir.join('.server_name-cron.lock')
         assert lock.raise_if_fail
-        assert lock.wait
+        assert not lock.wait
 
     def test_server_xlogdb_lock(self, tmpdir):
         """

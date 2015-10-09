@@ -27,7 +27,6 @@ from argparse import SUPPRESS, ArgumentTypeError
 
 from barman import output
 from barman.infofile import BackupInfo
-from barman import lockfile
 from barman.server import Server
 import barman.diagnose
 import barman.config
@@ -87,25 +86,18 @@ def cron():
     """
     Run maintenance tasks (global command)
     """
-    try:
-        with lockfile.GlobalCronLock(barman.__config__.barman_lock_directory):
-            # Skip inactive and temporarily disabled servers
-            servers = get_server_list(skip_inactive=True, skip_disabled=True)
-            for name in sorted(servers):
-                server = servers[name]
+    # Skip inactive and temporarily disabled servers
+    servers = get_server_list(skip_inactive=True, skip_disabled=True)
+    for name in sorted(servers):
+        server = servers[name]
 
-                # Exception: manage_server_command is not invoked here
-                # Normally you would call manage_server_command to check if the
-                # server is None and to report inactive and disabled servers,
-                # but here we have only active and well configured servers.
+        # Exception: manage_server_command is not invoked here
+        # Normally you would call manage_server_command to check if the
+        # server is None and to report inactive and disabled servers,
+        # but here we have only active and well configured servers.
 
-                server.cron()
+        server.cron()
 
-    except lockfile.LockFileBusy:
-        output.info("Another cron is running")
-
-    except lockfile.LockFilePermissionDenied, e:
-        output.error("Permission denied, unable to access '%s'", e)
     output.close_and_exit()
 
 
