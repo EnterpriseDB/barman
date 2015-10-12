@@ -171,7 +171,7 @@ class TestConfigureLogging(object):
         # check if root has an handler and a level
         logging_mock = mocks['logging']
         logging_mock.root.setLevel.assert_called_with(logging.INFO)
-        logging_mock.root.addHandler.assert_called(mock.ANY)
+        logging_mock.root.addHandler.assert_called_with(mock.ANY)
 
         # check if the handler has a formatter
         handler_mock = logging_mock.root.addHandler.call_args[0][0]
@@ -186,7 +186,7 @@ class TestConfigureLogging(object):
         # check if root has an handler and a level
         logging_mock = mocks['logging']
         logging_mock.root.setLevel.assert_called_with(logging.INFO)
-        logging_mock.root.addHandler.assert_called(mock.ANY)
+        logging_mock.root.addHandler.assert_called_with(mock.ANY)
 
         # check if the handler has a formatter
         handler_mock = logging_mock.root.addHandler.call_args[0][0]
@@ -203,7 +203,7 @@ class TestConfigureLogging(object):
         # check if root has an handler and a level
         logging_mock = mocks['logging']
         logging_mock.root.setLevel.assert_called_with(test_level)
-        logging_mock.root.addHandler.assert_called(mock.ANY)
+        logging_mock.root.addHandler.assert_called_with(mock.ANY)
 
     def test_file_format_call(self, **mocks):
         test_file = '/test/log/file.log'
@@ -216,7 +216,7 @@ class TestConfigureLogging(object):
         # check if root has an handler and a level
         logging_mock = mocks['logging']
         logging_mock.root.setLevel.assert_called_with(logging.INFO)
-        logging_mock.root.addHandler.assert_called(mock.ANY)
+        logging_mock.root.addHandler.assert_called_with(mock.ANY)
 
         # check if the handler has a formatter
         handler_mock = logging_mock.root.addHandler.call_args[0][0]
@@ -239,7 +239,7 @@ class TestConfigureLogging(object):
         # check if root has an handler and a level
         logging_mock = mocks['logging']
         logging_mock.root.setLevel.assert_called_with(logging.INFO)
-        logging_mock.root.addHandler.assert_called(mock.ANY)
+        logging_mock.root.addHandler.assert_called_with(mock.ANY)
 
         # check if the handler has a formatter
         handler_mock = logging_mock.root.addHandler.call_args[0][0]
@@ -261,7 +261,7 @@ class TestConfigureLogging(object):
 
         # check if root has an handler and a level
         logging_mock.root.setLevel.assert_called_with(logging.INFO)
-        logging_mock.root.addHandler.assert_called(mock.ANY)
+        logging_mock.root.addHandler.assert_called_with(mock.ANY)
 
         # check if the handler has a formatter
         handler_mock = logging_mock.root.addHandler.call_args[0][0]

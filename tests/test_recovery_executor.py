@@ -257,7 +257,10 @@ class TestRecoveryExecutor(object):
             exclude_and_protect=['/pg_tblspc/16387'])
         rsync_pg_mock.assert_any_call(
             network_compression=False, bwlimit='', ssh=None, check=True)
-        rsync_pg_mock.smart_copy.assert_called_once(
+        rsync_pg_mock.return_value.smart_copy.assert_any_call(
+            '/some/barman/home/main/base/1234567890/16387/',
+            '/fake/location', None)
+        rsync_pg_mock.return_value.smart_copy.assert_called_with(
             '/some/barman/home/main/base/1234567890/data/',
             dest.strpath, None)
 
@@ -351,11 +354,13 @@ class TestRecoveryExecutor(object):
         # use a mock as cmd obj
         cmd_mock = Mock()
         executor.prepare_tablespaces(backup_info, cmd_mock, dest.strpath, {})
-        cmd_mock.create_dir_if_not_exists.assert_called_once(
+        cmd_mock.create_dir_if_not_exists.assert_any_call(
             dest.join('pg_tblspc').strpath)
-        cmd_mock.delete_if_exists.assert_called_once(
+        cmd_mock.create_dir_if_not_exists.assert_any_call(
+            '/fake/location')
+        cmd_mock.delete_if_exists.assert_called_once_with(
             dest.join('pg_tblspc').join('16387').strpath)
-        cmd_mock.create_symbolic_link.assert_called_once(
+        cmd_mock.create_symbolic_link.assert_called_once_with(
             '/fake/location',
             dest.join('pg_tblspc').join('16387').strpath)
 

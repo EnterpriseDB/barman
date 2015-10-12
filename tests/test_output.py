@@ -495,7 +495,7 @@ class TestOutputAPI(object):
 
         # writer test
         writer.error_occurred.assert_called_once_with()
-        writer.exception.assert_called_once()
+        assert writer.exception.call_count == 1
 
         # exit with error
         assert exit_mock.called
@@ -531,7 +531,7 @@ class TestOutputAPI(object):
 
         # writer test
         writer.error_occurred.assert_called_once_with()
-        writer.exception.assert_called_once()
+        assert writer.exception.call_count == 1
 
         # exit with error
         assert exit_mock.called
