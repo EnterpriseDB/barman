@@ -420,9 +420,8 @@ class BackupManager(object):
                                the base backup, in case of remote backup.
         """
 
-        # Run the cron to be sure the wal catalog is up to date.
-        # Do not check the retention policies here.
-        self.server.cron(verbose=False, retention_policies=False)
+        # Archive every WAL files in the incoming directory of the server
+        self.server.archive_wal(verbose=False)
         # Delegate the recovery operation to a RecoveryExecutor object
         executor = RecoveryExecutor(self)
         recovery_info = executor.recover(backup_info,
@@ -434,9 +433,9 @@ class BackupManager(object):
         # Output recovery results
         output.result('recovery', recovery_info['results'])
 
-    def cron(self, verbose=True):
+    def archive_wal(self, verbose=True):
         """
-        Executes maintenance operations, such as WAL trashing.
+        Executes WAL maintenance operations, such as archiving and compression
 
         If verbose is set to False, outputs something only if there is
         at least one file

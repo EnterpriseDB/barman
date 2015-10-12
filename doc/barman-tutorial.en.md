@@ -646,21 +646,49 @@ barman list-server
 
 ### Maintenance mode
 
-You can perform maintenance operations, like compressing WAL files and
-moving them from the _incoming directory_ to the archived one, with:
+#### Cron command
+
+You can perform maintenance operations, on both WAL files and backups,
+using the command:
+
 
 ``` bash
 barman cron
 ```
 
-This command enforces retention policies on those servers that have:
+
+As of version 1.5.1 `barman cron` executes WAL archiving operations 
+concurrently on a server basis.
+
+This also enforces retention policies on those servers that have:
+
 
 - `retention_policy` not empty and valid;
 - `retention_policy_mode` set to `auto`.
 
+
 > **Note:**
 > This command should be executed in a _cron script_. Our
 > recommendation is to schedule `barman cron` to run every minute.
+
+
+#### Archive-wal command
+
+As of version 1.5.1, Barman introduces the `archive-wal` command:
+
+
+``` bash
+barman archive-wal <server_name>
+```
+
+This is the command responsible for WAL maintenance operations,
+like compressing WAL files and moving them from the _incoming directory_ 
+into the archive.
+
+Although it can be manually executed, the majority of users will not
+need to do it, given that it is transparently invoked as a subprocess
+by the `cron` command, as part of the standard maintenance operations
+for every server.
 
 ## Server commands
 

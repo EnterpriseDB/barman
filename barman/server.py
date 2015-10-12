@@ -30,6 +30,7 @@ from tempfile import NamedTemporaryFile
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import subprocess
 
 from barman import output
 from barman.backup import BackupManager
@@ -37,7 +38,7 @@ from barman.compression import identify_compression
 from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace, \
     WalFileInfo
 from barman.lockfile import LockFileBusy, LockFilePermissionDenied, \
-    ServerBackupLock, ServerCronLock, ServerXLOGDBLock
+    ServerBackupLock, ServerCronLock, ServerXLOGDBLock, ServerWalArchiveLock
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta
 import barman.xlog as xlog
@@ -850,7 +851,7 @@ class Server(object):
             with ServerBackupLock(self.config.barman_lock_directory, self.config.name):
                 self.backup_manager.backup()
             # Archive incoming WALs and update WAL catalogue through cron
-            self.cron(verbose=False, retention_policies=False)
+            self.archive_wal(verbose=False)
 
         except LockFileBusy:
             output.error("Another backup process is running")
@@ -1206,20 +1207,46 @@ class Server(object):
         if compressed_file is not None:
             compressed_file.close()
 
-    def cron(self, verbose=True, wals=True, retention_policies=True):
+    def cron(self, wals=True, retention_policies=True):
         """
         Maintenance operations
 
-        :param bool verbose: report even if no actions
         :param bool wals: WAL archive maintenance
         :param bool retention_policies: retention policy maintenance
         """
         try:
-            with ServerCronLock(self.config.barman_lock_directory, self.config.name):
+            # Actually this is the highest level of locking in the cron,
+            # this stops the execution of multiple cron on the same server
+            with ServerCronLock(self.config.barman_lock_directory,
+                                self.config.name):
                 # Standard maintenance (WAL archive)
                 if wals:
-                    self.backup_manager.cron(verbose=verbose)
-                # Retention policy management
+                    try:
+                        # Try to acquire ServerWalArchiveLock, if the lock is
+                        # available, no other processes are running on this
+                        # server.
+                        # There is no possible race condition here because
+                        # we are protected by ServerCronLock.
+                        with ServerWalArchiveLock(
+                                self.config.barman_lock_directory,
+                                self.config.name):
+                            # Output and release the lock immediately
+                            output.info("Starting WAL archiving for server %s",
+                                        self.config.name)
+                    except LockFileBusy:
+                        # Another archive process is running for the server,
+                        # warn the user and skip to the next sever.
+                        output.info(
+                            "Another archive-wal process is already running "
+                            "on server %s. Skipping to the next server"
+                            % self.config.name)
+                        return
+
+                    command = ['barman', '-q', 'archive-wal', self.config.name]
+                    _logger.debug("Starting subprocess with for WAL ARCHIVE")
+                    subprocess.Popen(command, preexec_fn=os.setsid)
+
+                # Retention policies execution
                 if retention_policies:
                     self.backup_manager.cron_retention_policy()
         except LockFileBusy:
@@ -1229,6 +1256,29 @@ class Server(object):
             output.error("Permission denied, unable to access '%s'" % e)
         except (OSError, IOError), e:
             output.error("%s", e)
+
+    def archive_wal(self, verbose=True):
+        """
+        Perform the WAL archiving operations.
+
+        Usually run as subprocess of the barman cron command,
+        but can be executed manually using the barman archive-wal command
+
+        :param bool verbose: if false outputs something only if there is
+            at least one file
+        """
+        try:
+            # Take care of the archive lock.
+            # Only one archive job per server is admitted
+            with ServerWalArchiveLock(self.config.barman_lock_directory,
+                                      self.config.name):
+                self.backup_manager.archive_wal(verbose)
+        except LockFileBusy:
+            # If another process is running for this server,
+            # warn the user and skip to the next server
+            output.info("Another archive-wal process is already running "
+                        "on server %s. Skipping to the next server"
+                        % self.config.name)
 
     @contextmanager
     def xlogdb(self, mode='r'):

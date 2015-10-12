@@ -531,6 +531,43 @@ def get_wal(args):
     output.close_and_exit()
 
 
+@named('archive-wal')
+@arg('server_name',
+     completer=server_completer,
+     help='specifies the server name for the command')
+@expects_obj
+def archive_wal(args):
+    """
+    Execute maintenance operations on WAL files for a given server.
+    This command processes any incoming WAL files for the server
+    and archives them along the catalogue.
+
+    """
+    server = get_server(args)
+    output.debug("Starting archive-wal for server %s", server.config.name)
+    server.archive_wal()
+    output.close_and_exit()
+
+
+def pretty_args(args):
+    """
+    Prettify the given argh namespace to be human readable
+
+    :type args: argh.dispatching.ArghNamespace
+    :return: the human readable content of the namespace
+    """
+    values = dict(vars(args))
+    # Retrieve the command name with recent argh versions
+    if '_functions_stack' in values:
+        values['command'] = values['_functions_stack'][0].func_name
+        del values['_functions_stack']
+    # Older argh versions only have the matching function in the namespace
+    elif 'function' in values:
+        values['command'] = values['function'].func_name
+        del values['function']
+    return "%r" % values
+
+
 def global_config(args):
     """
     Set the configuration file
@@ -570,14 +607,13 @@ def global_config(args):
                                  debug=args.debug)
 
     # Load additional configuration files
-    _logger.debug('Loading additional configuration files')
     config.load_configuration_files_directory()
     # We must validate the configuration here in order to have
     # both output and logging configured
     config.validate_global_config()
 
-    _logger.debug('Initialised Barman version %s (config: %s)',
-                  barman.__version__, config.config_file)
+    _logger.debug('Initialised Barman version %s (config: %s, args: %s)',
+                  barman.__version__, config.config_file, pretty_args(args))
 
 
 def get_server(args, skip_inactive=True, skip_disabled=False,
@@ -807,6 +843,7 @@ def main():
                    default=output.DEFAULT_WRITER)
     p.add_commands(
         [
+            archive_wal,
             cron,
             list_server,
             show_server,

@@ -24,7 +24,7 @@ import pytest
 
 from barman.infofile import WalFileInfo, BackupInfo
 from barman.lockfile import LockFileBusy, LockFilePermissionDenied, \
-    ServerBackupLock
+    ServerBackupLock, ServerCronLock, ServerWalArchiveLock
 from barman.server import Server, PostgresConnectionError, CheckStrategy, \
     CheckOutputStrategy
 from testing_helpers import build_test_backup_info, build_config_from_dicts, \
@@ -368,14 +368,14 @@ class TestServer(object):
     @patch('barman.server.Server.check')
     @patch('barman.server.Server._make_directories')
     @patch('barman.backup.BackupManager.backup')
-    @patch('barman.server.Server.cron')
+    @patch('barman.server.Server.archive_wal')
     @patch('barman.server.ServerBackupLock')
-    def test_backup(self, backup_lock_mock, cron_mock, backup_manager_mock,
+    def test_backup(self, backup_lock_mock, archive_wal_mock, backup_manager_mock,
                     dir_mock, check_mock, capsys):
         """
 
         :param backup_lock_mock: mock ServerBackupLock
-        :param cron_mock: mock cron
+        :param archive_wal_mock: mock archive_wal server method
         :param backup_manager_mock: mock BackupManager.backup
         :param dir_mock: mock _make_directories
         :param check_mock: mock check
@@ -391,8 +391,7 @@ class TestServer(object):
         dir_mock.side_effect = None
         server.backup()
         backup_manager_mock.assert_called_once_with()
-        cron_mock.assert_called_once_with(retention_policies=False,
-                                          verbose=False)
+        archive_wal_mock.assert_called_once_with(verbose=False)
 
         backup_manager_mock.side_effect = LockFileBusy()
         server.backup()
@@ -448,6 +447,39 @@ class TestServer(object):
         # Test the removal of a backup not running. status STARTED
         server.delete_backup(backup_info_started)
         delete_mock.assert_called_with(backup_info_started)
+
+    @patch("subprocess.Popen")
+    def test_archive_wal_lock_acquisition(self, subprocess_mock, tmpdir, capsys):
+        """
+        Basic test for archive-wal lock acquisition
+        """
+        server = build_real_server({'barman_home': tmpdir.strpath})
+
+        with ServerWalArchiveLock(tmpdir.strpath, server.config.name):
+            server.archive_wal()
+            out, err = capsys.readouterr()
+            assert ("Another archive-wal process is already running "
+                    "on server %s. Skipping to the next server"
+                    % server.config.name) in out
+
+    @patch("subprocess.Popen")
+    def test_cron_lock_acquisition(self, subprocess_mock, tmpdir, capsys):
+        """
+        Basic test for cron process lock acquisition
+        """
+        server = build_real_server({'barman_home': tmpdir.strpath})
+        with ServerCronLock(tmpdir.strpath, server.config.name):
+            server.cron(wals=True, retention_policies=False)
+            out, err = capsys.readouterr()
+            assert ("Another cron process is already running on server "
+                    "%s. Skipping to the next server\n" % server.config.name) in out
+
+        with ServerWalArchiveLock(tmpdir.strpath, server.config.name):
+            server.cron(wals=True, retention_policies=False)
+            out, err = capsys.readouterr()
+            assert ("Another archive-wal process is already running "
+                    "on server %s. Skipping to the next server"
+                    % server.config.name) in out
 
 
 class TestCheckStrategy(object):

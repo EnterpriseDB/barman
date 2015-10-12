@@ -37,9 +37,15 @@ Use the specified configuration file.
 .PP
 Important: every command has a help option
 .TP
+.B archive\-wal \f[I]SERVER_NAME\f[]
+Archive the incoming WAL files for \f[C]SERVER_NAME\f[], moving them in
+the archive, while applying compression if requested.
+.RS
+.RE
+.TP
 .B cron
-Perform maintenance tasks, such as moving incoming WAL files to the
-appropriate directory.
+Perform maintenance tasks, such as enforcing retention policies or WAL
+files management.
 .RS
 .RE
 .TP

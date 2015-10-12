@@ -37,9 +37,13 @@ recovery phase.
 
 Important: every command has a help option
 
+archive-wal *SERVER_NAME*
+:   Archive the incoming WAL files for `SERVER_NAME`, moving them
+    in the archive, while applying compression if requested.
+
 cron
-:   Perform maintenance tasks, such as moving incoming WAL files
-    to the appropriate directory.
+:   Perform maintenance tasks, such as enforcing retention policies or
+    WAL files management.
 
 list-server
 :   Show all the configured servers, and their descriptions.
