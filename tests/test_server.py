@@ -288,6 +288,19 @@ class TestServer(object):
                                       'wal_level': 'archive'}
         # Do check
         # Expect out: all parameters: OK
+        server = build_real_server()
+
+        # Postgres version < 9.0 - avoid wal_level check
+        server.server_version = 80400
+        server.check_postgres(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == "\tPostgreSQL: OK\n" \
+                      "\tarchive_mode: OK\n" \
+                      "\tarchive_command: OK\n"
+
+        # Postgres version >= 9.0 - check wal_level
+        server = build_real_server()
+        server.server_version = 90000
         server.check_postgres(strategy)
         (out, err) = capsys.readouterr()
         assert out == "\tPostgreSQL: OK\n" \

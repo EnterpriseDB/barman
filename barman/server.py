@@ -318,14 +318,16 @@ class Server(object):
         else:
             check_strategy.result(self.config.name, 'archive_mode', False,
                                   "please set it to 'on'")
-        # Check wal_level parameter: must be different to 'minimal'
-        if remote_status['wal_level'] != 'minimal':
-            check_strategy.result(
-                self.config.name, 'wal_level', True)
-        else:
-            check_strategy.result(
-                self.config.name, 'wal_level', False,
-                "please set it to a higher level than 'minimal'")
+        # Check wal_level parameter: must be different from 'minimal'
+        # the parameter has been introduced in postgres >= 9.0
+        if self.server_version >= 90000:
+            if remote_status['wal_level'] != 'minimal':
+                check_strategy.result(
+                    self.config.name, 'wal_level', True)
+            else:
+                check_strategy.result(
+                    self.config.name, 'wal_level', False,
+                    "please set it to a higher level than 'minimal'")
 
         if remote_status['archive_command'] and \
                 remote_status['archive_command'] != '(disabled)':
