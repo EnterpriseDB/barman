@@ -114,7 +114,7 @@ class TestOutputAPI(object):
         assert msg in caplog.text()
 
         # writer test
-        writer.error_occurred.called_once_with()
+        writer.error_occurred.assert_called_once_with()
         writer.debug.assert_called_once_with(msg)
 
         # global status test
@@ -544,7 +544,7 @@ class TestOutputAPI(object):
 
         output.close()
 
-        writer.close.called_once_with()
+        writer.close.assert_called_once_with()
 
     @mock.patch('sys.exit')
     def test_close_and_exit(self, exit_mock):
@@ -553,7 +553,7 @@ class TestOutputAPI(object):
 
         output.close_and_exit()
 
-        writer.close.called_once_with()
+        writer.close.assert_called_once_with()
         exit_mock.assert_called_once_with(0)
 
     @mock.patch('sys.exit')
@@ -564,7 +564,7 @@ class TestOutputAPI(object):
 
         output.close_and_exit()
 
-        writer.close.called_once_with()
+        writer.close.assert_called_once_with()
         assert exit_mock.called
         assert exit_mock.call_count == 1
         assert exit_mock.call_args[0] != 0
