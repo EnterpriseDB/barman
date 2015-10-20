@@ -420,8 +420,9 @@ class BackupManager(object):
                                the base backup, in case of remote backup.
         """
 
-        # Run the cron to be sure the wal catalog is up to date
-        self.server.cron(verbose=False)
+        # Run the cron to be sure the wal catalog is up to date.
+        # Do not check the retention policies here.
+        self.server.cron(verbose=False, retention_policies=False)
         # Delegate the recovery operation to a RecoveryExecutor object
         executor = RecoveryExecutor(self)
         recovery_info = executor.recover(backup_info,
@@ -552,9 +553,10 @@ class BackupManager(object):
                 tbs_dir = os.path.join(backup.get_data_directory(), 'pg_tblspc')
             for tablespace in backup.tablespaces:
                 rm_dir = os.path.join(tbs_dir, str(tablespace.oid))
-                _logger.debug("Deleting tablespace %s directory: %s" %
-                              (tablespace.name, rm_dir))
-                shutil.rmtree(rm_dir)
+                if os.path.exists(rm_dir):
+                    _logger.debug("Deleting tablespace %s directory: %s" %
+                                  (tablespace.name, rm_dir))
+                    shutil.rmtree(rm_dir)
 
         pg_data = backup.get_data_directory()
         if os.path.exists(pg_data):
