@@ -1,6 +1,18 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2015 2ndQuadrant Italia Srl
 
+Version 1.5.1a1 - 22 Oct 2015
+
+-   Add support for the 'archive-wal' command which performs WAL
+    maintenance operations on a given server
+-   Add support for "per-server" concurrency of the 'cron' command
+-   Improved management of xlog.db errors
+-   Add support for mixed compression types in WAL files (SF.net#61)
+-   Bug fixes:
+    -   Avoid retention policy checks during the recovery
+    -   Avoid 'wal_level' check on PostgreSQL version < 9.0 (#3)
+    -   Fix backup size calculation (#5)
+
 Version 1.5.0 - 28 Sep 2015
 
 -   Add support for the get-wal command which allows users to fetch any
