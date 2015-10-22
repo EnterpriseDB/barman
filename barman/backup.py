@@ -889,7 +889,7 @@ class BackupManager(object):
         _logger.debug(self.executor.current_action)
         backup_size = 0
         deduplicated_size = 0
-        backup_dest = backup_info.get_data_directory()
+        backup_dest = backup_info.get_basebackup_directory()
         for dir_path, _, file_names in os.walk(backup_dest):
             # execute fsync() on the containing directory
             fsync_dir(dir_path)
