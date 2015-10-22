@@ -1,3 +1,85 @@
+2015-10-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2015-10-22  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	NEWS for 1.5.1a1
+
+	Set version to 1.5.1a1
+	Revert version to 1.5 branch due to relevant bug fixing
+
+2015-10-12  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add the 'archive-wal' command
+	The 'archive-wal' command executes the WAL maintenance operations on a
+	given server.
+
+	This command is automatically executed as a subprocess by the cron
+	command, allowing the parallel execution of WAL archiving on
+	different servers.
+
+2015-10-20  Giuseppe Broccolo  <giuseppe.broccolo@2ndQuadrant.it>
+
+	Avoid 'wal_level' check on PostgreSQL version < 9.0
+	Conditionally skip 'wal_level' check in PostgreSQL
+	versions prior to 9.0.
+
+	Fixes #3
+
+	Avoid retention policy checks during the recovery
+	Additionally, skip any missing tablespace directory during the deletion
+	of a backup (like we already do with missing pgdata directory)
+
+2015-10-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix more incorrect mock assert calls in unit tests
+	Add flake8-mock plugin in flake8 tox environment to make sure it will
+	not happen again.
+
+	Some more cleanup of testing infrastructure has been done:
+
+	* Switch from pytest-capturelog (unresponsive upstream) to
+	  pytest-catchlog.
+	* Remove the version pinning from mock as 1.3.0 supports py2.6 again.
+	* Add flake8-copyright and flake8-string-format plugins.
+
+2015-10-09  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Allow parallel cron execution for different servers
+	Allow the execution of multiple 'barman cron' processes, each one
+	handling a different server. Servers will be handled sequentially,
+	skipping those that are already being served by another cron process.
+
+2015-10-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix calculation of backup size
+	In Barman 1.5.0 the internal directory structure of a backup has been
+	changed, moving tablespaces from being inside the data directory to
+	being inside the backup directory. The method backup_fsync_and_set_sizes()
+	now takes that into account by running against the whole backup directory.
+
+	Fixes #5
+
+2015-10-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix some incorrect mock assert calls in unit tests
+
+2015-10-06  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Support for mixed compression types in WAL files (#61)
+	Decompress each WAL file using the specific algorithm
+	reported in the XLOG archive (xlogdb).
+
+	Improve management of xlog.db errors
+	Better management of errors during the decoding of the name
+	of an xlog segment. Added a hint that suggests to run
+	"barman rebuild-xlogdb" to fix corruptions in the xlogdb file.
+
+2015-10-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Started version 1.6.0a1
+
 2015-09-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
