@@ -80,8 +80,8 @@ class TestField(object):
         assert field
 
     def test_field_with_arguments(self):
-        dump_function = lambda x: str(x)
-        load_function = lambda x: int(x)
+        dump_function = str
+        load_function = int
         default = 10
         docstring = 'Test Docstring'
         field = Field('test_field', dump_function, load_function, default,
@@ -95,13 +95,13 @@ class TestField(object):
 
     def test_field_dump_decorator(self):
         test_field = Field('test_field')
-        dump_function = lambda x: str(x)
+        dump_function = str
         test_field = test_field.dump(dump_function)
         assert test_field.to_str == dump_function
 
     def test_field_load_decorator(self):
         test_field = Field('test_field')
-        load_function = lambda x: int(x)
+        load_function = int
         test_field = test_field.dump(load_function)
         assert test_field.to_str == load_function
 
