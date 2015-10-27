@@ -321,7 +321,7 @@ class Server(object):
                                   "please set it to 'on'")
         # Check wal_level parameter: must be different from 'minimal'
         # the parameter has been introduced in postgres >= 9.0
-        if self.server_version >= 90000:
+        if 'wal_level' in remote_status:
             if remote_status['wal_level'] != 'minimal':
                 check_strategy.result(
                     self.config.name, 'wal_level', True)
@@ -601,15 +601,23 @@ class Server(object):
         :return dict[str, None]: result of the server status query
         """
         # PostgreSQL settings to get from the server
-        pg_settings = (
-            'wal_level', 'archive_mode', 'archive_command', 'data_directory')
-        pg_query_keys = (
-            'server_txt_version', 'current_xlog', 'pgespresso_installed')
-
+        pg_settings = [
+            'archive_mode',
+            'archive_command',
+            'data_directory']
+        pg_query_keys = [
+            'server_txt_version',
+            'current_xlog',
+            'pgespresso_installed']
         # Initialise the result dictionary setting all the values to None
         result = dict.fromkeys(pg_settings + pg_query_keys, None)
         try:
             with self.pg_connect() as conn:
+
+                # check for wal_level only if the version is >= 9.0
+                if self.server_version >= 90000:
+                    pg_settings.append('wal_level')
+
                 for name in pg_settings:
                     result[name] = self.get_pg_setting(name)
 
