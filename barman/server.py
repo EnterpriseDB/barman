@@ -794,6 +794,42 @@ class Server(object):
                           "location: %s", e)
             return {}
 
+    def pg_create_restore_point(self, target_name):
+        """
+        Create a restore point with the given target name
+
+        The method executes the pg_create_restore_point() function through
+        a PostgreSQL connection. Only for Postgres versions >= 9.1 when not
+        in replication.
+
+        If requirements are not met, the operation is skipped.
+
+        :param str target_name: name of the restore point
+        :returns: the restore point LSN
+        :rtype: str|None
+        """
+        with self.pg_connect() as conn:
+            # Not possible on pg < 9.1
+            # This must be called inside the pg_connect context to have the
+            # property set
+            if self.server_version < 90100:
+                return None
+
+            # Not possible if on a standby
+            # Called inside the pg_connect context to reuse the connection
+            if self.pg_is_in_recovery():
+                return None
+
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT pg_create_restore_point(%s)", [target_name])
+                return cur.fetchone()[0]
+            except psycopg2.Error, e:
+                _logger.debug('Error issuing pg_create_restore_point()'
+                              'command: %s', e)
+                return None
+
     def delete_backup(self, backup):
         """Deletes a backup
 

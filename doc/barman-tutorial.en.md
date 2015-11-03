@@ -442,6 +442,22 @@ barman@backup$ barman backup all
 This will iterate through your available servers and sequentially take
 a backup for each of them.
 
+### Implicit restore point
+
+As of version 1.5.1, at the end of a successful backup Barman
+automatically creates a restore point that can be used jointly
+with `--target-name` during recovery.
+
+By default, the restore point name uses the following convention:
+`barman_<backup_id>`.
+
+Barman internally uses the PostgreSQL function called `pg_create_restore_point`:
+for further information, please refer to the
+[PostgreSQL documentation on system administration functions] [20].
+
+> **Important:**
+> This feature is only available for PostgreSQL 9.1 or above.
+
 ### Immediate Checkpoint
 
 As of version 1.3.0, it is possible to use the `immediate_checkpoint`
@@ -1462,3 +1478,4 @@ Assignment Form.
   [17]: https://github.com/2ndquadrant-it/puppet-barman
   [18]: http://4caast.morfeo-project.org/
   [19]: http://www.2ndquadrant.it/
+  [20]: http://www.postgresql.org/docs/current/static/functions-admin.html

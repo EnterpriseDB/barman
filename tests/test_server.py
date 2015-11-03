@@ -482,6 +482,34 @@ class TestServer(object):
                     "on server %s. Skipping to the next server"
                     % server.config.name) in out
 
+    @patch('barman.server.Server.pg_connect')
+    @patch('barman.server.Server.pg_is_in_recovery')
+    def test_pg_create_restore_point(self, pg_is_in_recovery_mock,
+                                     pg_connect_mock, tmpdir):
+        """
+        Basic test for the _restore_point method
+        """
+        # Build a backup info and configure the mocks
+
+        # Simulate a master connection
+        pg_is_in_recovery_mock.return_value = False
+
+        server = build_real_server({'barman_home': tmpdir.strpath})
+        # Test 1: Postgres 9.0 expect None as result
+        server.server_version = 90000
+
+        restore_point = server.pg_create_restore_point("Test_20151026T092241")
+        assert restore_point is None
+
+        # Test 1: Postgres 9.1 check mock calls
+        server.server_version = 90100
+
+        server.pg_create_restore_point("Test_20151026T092241")
+        cur_mock = pg_connect_mock.return_value.__enter__.return_value.cursor
+        cur_mock.return_value.execute.assert_called_with(
+            "SELECT pg_create_restore_point(%s)", ['Test_20151026T092241'])
+        assert cur_mock.return_value.fetchone.called is True
+
 
 class TestCheckStrategy(object):
     """

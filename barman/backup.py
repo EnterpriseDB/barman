@@ -376,6 +376,9 @@ class BackupManager(object):
                         backup_info.end_wal,
                         backup_info.end_offset)
             output.info("Backup completed")
+            # Create a restore point after a backup
+            target_name = 'barman_%s' % backup_info.backup_id
+            self.server.pg_create_restore_point(target_name)
         finally:
             if backup_info:
                 backup_info.save()

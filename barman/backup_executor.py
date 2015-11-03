@@ -746,6 +746,7 @@ class ExclusiveBackupStrategy(BackupStrategy):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
 
+        self.current_action = "issuing stop backup command"
         stop_row = self._pg_stop_backup()
         if stop_row:
             stop_xlog, stop_file_name, stop_file_offset, stop_time = \
