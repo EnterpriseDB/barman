@@ -91,6 +91,21 @@ class TestConfig(object):
         dbs = c.server_names()
         assert set(dbs) == set(['main', 'web'])
 
+    def test_config_file_existence(self, capsys):
+        """
+        Test for the existence of a config file
+        """
+        # Check that an SystemExit is raised if no configuration
+        # file is present inside the default configuration directories
+        with patch('os.path.exists') as exists_mock:
+            exists_mock.return_value = False
+            with pytest.raises(SystemExit):
+                Config(None)
+        # Check that a SystemExit is raised if the user defined
+        # configuration file does not exists
+        with pytest.raises(SystemExit):
+            Config('/very/fake/path/to.file')
+
     def test_config(self):
         """
         Test for a basic configuration object construction

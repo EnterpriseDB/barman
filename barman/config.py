@@ -19,16 +19,17 @@
 This module is responsible for all the things related to
 Barman configuration, such as parsing configuration file.
 """
-import inspect
 import collections
-
+import datetime
+import inspect
+import logging.handlers
 import os
 import re
+import sys
 from ConfigParser import ConfigParser, NoOptionError
-import logging.handlers
 from glob import iglob
+
 from barman import output
-import datetime
 
 # create a namedtuple object called PathConflict with 'label' and 'server'
 PathConflict = collections.namedtuple('PathConflict', 'label server')
@@ -441,14 +442,24 @@ class Config(object):
             if hasattr(filename, 'read'):
                 self._config.readfp(filename)
             else:
+                # check for the existence of the user defined file
+                if not os.path.exists(filename):
+                    sys.exit("Configuration file '%s' does not exist" %
+                             filename)
                 self._config.read(os.path.expanduser(filename))
         else:
+            # Check for the presence of configuration files
+            # inside default directories
             for path in self.CONFIG_FILES:
                 full_path = os.path.expanduser(path)
                 if os.path.exists(full_path) \
                         and full_path in self._config.read(full_path):
                     filename = full_path
                     break
+            else:
+                sys.exit("Could not find any configuration file at "
+                         "default locations.\n"
+                         "Check Barman's documentation for more help.")
         self.config_file = filename
         self._servers = None
         self.servers_msg_list = []
