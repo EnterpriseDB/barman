@@ -26,7 +26,7 @@ usage ()
   echo "  This script will be used as a 'restore_command' based on the get-wal feature of Barman."
   echo "  A ssh connection will be opened to the Barman host."
   echo ""
-  echo "Usage: barman-wal-restore [-U user] <BARMANHOST> <NODEHOST> <WAL_NAME> <WAL_DEST>"
+  echo "Usage: barman-wal-restore [-U user] <BARMANHOST> <SERVERNAMET> <WAL_NAME> <WAL_DEST>"
   echo ""
   echo "Optional:"
   echo "  -U <user>"
@@ -123,7 +123,7 @@ fi
 #
 # EXECUTE BARMAN GET-WAL THROUGH THE SSH CONNECTION
 #
-ssh -c arcfour $USER@$BARMANHOST barman get-wal $NODEHOST $WAL_NAME > $WAL_DEST
+ssh $USER@$BARMANHOST barman get-wal $NODEHOST $WAL_NAME > $WAL_DEST
 STATUS=$?
 
 #
