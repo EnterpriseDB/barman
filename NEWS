@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2015 2ndQuadrant Italia Srl
 
-Version 1.5.1a1 - 22 Oct 2015
+Version 1.5.1b1 - 4 Nov 2015
 
 -   Add support for the 'archive-wal' command which performs WAL
     maintenance operations on a given server

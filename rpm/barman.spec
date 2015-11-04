@@ -22,9 +22,9 @@
 
 %global main_version 1.5.1
 # comment out the next line if not a pre-release (use '#%%global ...')
-%global extra_version a1
+%global extra_version b1
 # Usually 1 - unique sequence for all pre-release version
-%global package_release 1
+%global package_release 2
 
 %{!?pybasever: %define pybasever %(%{__python} -c "import sys;print(sys.version[0:3])")}
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
