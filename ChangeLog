@@ -1,3 +1,35 @@
+2015-11-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Avoid forcing arcfour cypher in barman-wal-restore
+	OpenSSH 6.7 dropped many low security algorithms, and arcfour is one of
+	them. So we stop forcing it in the script, allowing the user to define
+	the wanted algorithm in ~/.ssh/config
+
+	Ref: http://www.openssh.com/txt/release-6.7
+
+2015-11-04  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Improve error messaging for missing config files
+
+2015-11-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Set version to 1.5.1b1
+
+2015-10-27  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Manage 'wal_level' only for PostgreSQL >= 9.0
+	Really fixes #3
+
+2015-10-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix all E731 pep8 errors
+	Always use a def statement instead of an assignment statement that binds
+	a lambda expression directly to a name.
+
+	See: https://www.python.org/dev/peps/pep-0008/#programming-recommendations
+
 2015-10-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
