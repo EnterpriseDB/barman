@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-VERSION=1.0
+VERSION=1.1
 USER='barman'
 
 usage ()
@@ -26,7 +26,7 @@ usage ()
   echo "  This script will be used as a 'restore_command' based on the get-wal feature of Barman."
   echo "  A ssh connection will be opened to the Barman host."
   echo ""
-  echo "Usage: barman-wal-restore [-U user] <BARMANHOST> <SERVERNAME> <WAL_NAME> <WAL_DEST>"
+  echo "Usage: barman-wal-restore [-U user] <BARMANHOST> <SERVERNAME> <WAL_NAME> <WAL_DEST> [<SLEEPTIME>]"
   echo ""
   echo "Optional:"
   echo "  -U <user>"
@@ -39,6 +39,8 @@ usage ()
   echo "    The server name configured in Barman from which WALs are taken (MANDATORY)."
   echo "  <WAL_NAME>, <WAL_DEST>"
   echo "    those two parameters have to be valued with the '%f' and '%p' keywords (MANDATORY)."
+  echo "  <SLEEPTIME>"
+  echo "    seconds to wait between file checks (optional). Default is no-wait."
   echo ""
   echo "info:"
   echo "  --help"
@@ -50,7 +52,7 @@ usage ()
   exit 1
 }
 
-version (){
+version () {
   echo " barman-wal-restore: Version $VERSION"
   echo ""
 
@@ -70,7 +72,7 @@ case "$opt" in
      version ;;
 esac
 
-while [ $# -gt 4 ]
+while [ $# -gt 5 ]
 do
     opt="$1"
     shift; # expose next argument
@@ -111,6 +113,8 @@ BARMANHOST=$1
 NODEHOST=$2
 WAL_NAME=$3
 WAL_DEST=$4
+SLEEPTIME=${5:-0}
+SLEEPFILE="$(dirname $WAL_DEST)/.barman_wal_sleep"
 
 #
 # Check WAL destination is not a directory and does not exist
@@ -118,6 +122,24 @@ WAL_DEST=$4
 if [ -d $WAL_DEST ]
 then
   exit_with_error "WAL_DEST cannot be a directory" 2
+fi
+
+#
+# Check if last failed attempt is more than SLEEPTIME seconds ago
+#
+if [ -f $SLEEPFILE ]
+then
+  if [ $SLEEPTIME -gt 0 ]
+  then
+    let sleep_seconds="$(date +%s) - $(stat -c%Y $SLEEPFILE)"
+    if [ $sleep_seconds -lt $SLEEPTIME ]
+    then
+      # Try later
+      exit 1
+    fi
+  else
+    unlink $SLEEPFILE
+  fi
 fi
 
 #
@@ -131,6 +153,12 @@ STATUS=$?
 #
 if [ $STATUS -ne 0 ]
 then
+  if [ $STATUS -eq 1 -a $SLEEPTIME -gt 0 ]
+  then
+    # No more WAL
+    touch $SLEEPFILE
+    exit 1
+  fi
   if [ $STATUS -eq 255 ]
   then
     exit_with_error "Connection problem with ssh" 3
