@@ -64,6 +64,12 @@ backup_directory
 basebackups_directory
 :   Directory where base backups will be placed. Server.
 
+backup_method
+:   Configure the way barman executes a backup. Two possible values:
+    `rsync` and `postgres`. Default: 'rsync'. Global/Server.
+    Using 'rsync' barman will perform a backup using rsync.
+    Using 'postgres' barman will perform a backup using pg_basebackup.
+
 wals_directory
 :   Directory which contains WAL files. Server.
 

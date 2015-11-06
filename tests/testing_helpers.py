@@ -225,7 +225,7 @@ def build_config_dictionary(config_keys=None):
         'barman_lock_directory': '/some/barman/home',
         'compression': None,
         'conninfo': 'host=pg01.nowhere user=postgres port=5432',
-        'copy_method': 'rsync',
+        'backup_method': 'rsync',
         'custom_compression_filter': None,
         'custom_decompression_filter': None,
         'description': ' Text with quotes ',
