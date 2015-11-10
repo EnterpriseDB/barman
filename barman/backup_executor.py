@@ -25,19 +25,16 @@ through Ssh).
 
 A BackupExecutor is invoked by the BackupManager for backup operations.
 """
-from abc import ABCMeta, abstractmethod
 import logging
 import os
 import re
+from abc import ABCMeta, abstractmethod
 
-import psycopg2
-
-from barman.command_wrappers import RsyncPgData, CommandFailedException, \
-    Command, DataTransferFailure
-from barman.utils import mkpath
 from barman import output, xlog
+from barman.command_wrappers import (Command, CommandFailedException,
+                                     DataTransferFailure, RsyncPgData)
 from barman.config import BackupOptions
-
+from barman.utils import mkpath
 
 _logger = logging.getLogger(__name__)
 
@@ -300,27 +297,26 @@ class SshBackupExecutor(BackupExecutor):
         :rtype: dict(str,str|None)
         """
         remote_status = {}
-        with self.server.pg_connect():
-            # Retrieve the last archived WAL using a Ssh connection on
-            # the remote server and executing an 'ls' command. Only
-            # for pre-9.4 versions of PostgreSQL.
-            if self.server.server_version < 90400:
-                remote_status['last_archived_wal'] = None
-                if self.server.get_pg_setting('data_directory') and \
-                        self.server.get_pg_setting('archive_command'):
-                    # TODO: replace with RemoteUnixCommand
-                    cmd = Command(self.ssh_command,
-                                  self.ssh_options)
-                    archive_dir = os.path.join(
-                        self.server.get_pg_setting('data_directory'),
-                        'pg_xlog', 'archive_status')
-                    out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
-                    for line in out.splitlines():
-                        if line.endswith('.done'):
-                            name = line[:-5]
-                            if xlog.is_any_xlog_file(name):
-                                remote_status['last_archived_wal'] = name
-                                break
+        # Retrieve the last archived WAL using a Ssh connection on
+        # the remote server and executing an 'ls' command. Only
+        # for pre-9.4 versions of PostgreSQL.
+        if self.server.postgres.server_version < 90400:
+            remote_status['last_archived_wal'] = None
+            if self.server.postgres.get_setting('data_directory') and \
+                    self.server.postgres.get_setting('archive_command'):
+                # TODO: replace with RemoteUnixCommand
+                cmd = Command(self.ssh_command,
+                              self.ssh_options)
+                archive_dir = os.path.join(
+                    self.server.postgres.get_setting('data_directory'),
+                    'pg_xlog', 'archive_status')
+                out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
+                for line in out.splitlines():
+                    if line.endswith('.done'):
+                        name = line[:-5]
+                        if xlog.is_any_xlog_file(name):
+                            remote_status['last_archived_wal'] = name
+                            break
         return remote_status
 
 
@@ -497,7 +493,8 @@ class RsyncBackupExecutor(SshBackupExecutor):
                     "for files that reside outside PGDATA.\n"
                     "Please manually backup the following files:\n"
                     "\t%s\n",
-                    "\n\t".join(filtered_files))
+                    "\n\t".join(filtered_files)
+                )
 
     def _reuse_dir(self, previous_backup_info, oid=None):
         """
@@ -595,32 +592,31 @@ class BackupStrategy(object):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
         server = self.executor.server
-        with server.pg_connect():
 
-            # Get the PostgreSQL data directory location
-            self.current_action = 'detecting data directory'
-            output.debug(self.current_action)
-            data_directory = server.get_pg_setting('data_directory')
-            backup_info.set_attribute('pgdata', data_directory)
+        # Get the PostgreSQL data directory location
+        self.current_action = 'detecting data directory'
+        output.debug(self.current_action)
+        data_directory = server.postgres.get_setting('data_directory')
+        backup_info.set_attribute('pgdata', data_directory)
 
-            # Set server version
-            backup_info.set_attribute('version', server.server_version)
+        # Set server version
+        backup_info.set_attribute('version', server.postgres.server_version)
 
-            # Set configuration files location
-            cf = server.get_pg_configuration_files()
-            if cf:
-                for key in sorted(cf):
-                    backup_info.set_attribute(key, cf[key])
+        # Set configuration files location
+        cf = server.postgres.get_configuration_files()
+        if cf:
+            for key in sorted(cf):
+                backup_info.set_attribute(key, cf[key])
 
-            # Get tablespaces information
-            self.current_action = 'detecting tablespaces'
-            output.debug(self.current_action)
-            tablespaces = server.get_pg_tablespaces()
-            if tablespaces and len(tablespaces) > 0:
-                backup_info.set_attribute('tablespaces', tablespaces)
-                for item in tablespaces:
-                    msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
-                    _logger.info(msg)
+        # Get tablespaces information
+        self.current_action = 'detecting tablespaces'
+        output.debug(self.current_action)
+        tablespaces = server.postgres.get_tablespaces()
+        if tablespaces and len(tablespaces) > 0:
+            backup_info.set_attribute('tablespaces', tablespaces)
+            for item in tablespaces:
+                msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
+                _logger.info(msg)
 
 
 class ExclusiveBackupStrategy(BackupStrategy):
@@ -647,57 +643,6 @@ class ExclusiveBackupStrategy(BackupStrategy):
         assert (BackupOptions.CONCURRENT_BACKUP not in
                 self.executor.config.backup_options)
 
-    def _pg_start_backup(self, backup_label):
-        """
-        Calls pg_start_backup() on the PostgreSQL server
-
-        :param str backup_label: label for the backup returned by Postgres
-        :rtype: tuple
-        """
-        with self.executor.server.pg_connect() as conn:
-            try:
-                # Issue a rollback to release any unneeded lock
-                conn.rollback()
-                cur = conn.cursor()
-                if self.executor.server.server_version < 80400:
-                    cur.execute(
-                        "SELECT xlog_loc, "
-                        "(pg_xlogfile_name_offset(xlog_loc)).*, "
-                        "now() FROM pg_start_backup(%s) as xlog_loc",
-                        (backup_label,))
-                else:
-                    cur.execute(
-                        "SELECT xlog_loc, "
-                        "(pg_xlogfile_name_offset(xlog_loc)).*, "
-                        "now() FROM pg_start_backup(%s,%s) as xlog_loc",
-                        (backup_label,
-                         self.executor.config.immediate_checkpoint))
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                msg = "pg_start_backup(): %s" % e
-                _logger.debug(msg)
-                raise Exception(msg)
-
-    def _pg_stop_backup(self):
-        """
-        Calls pg_stop_backup() on the PostgreSQL server
-
-        :returns: a tuple with the result of the pg_stop_backup() call or None
-        :rtype: tuple|None
-        """
-        with self.executor.server.pg_connect() as conn:
-            try:
-                # Issue a rollback to release any unneeded lock
-                conn.rollback()
-                cur = conn.cursor()
-                cur.execute(
-                    'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
-                    'now() FROM pg_stop_backup() as xlog_loc')
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                _logger.debug('Error issuing pg_stop_backup() command: %s', e)
-                return None
-
     def start_backup(self, backup_info):
         """
         Manage the start of an exclusive backup
@@ -711,29 +656,26 @@ class ExclusiveBackupStrategy(BackupStrategy):
         self.current_action = "connecting to database (%s)" % \
                               self.executor.config.conninfo
         output.debug(self.current_action)
-        server = self.executor.server
-        with server.pg_connect():
+        # Retrieve PostgreSQL server metadata
+        self._pg_get_metadata(backup_info)
 
-            # Retrieve PostgreSQL server metadata
-            self._pg_get_metadata(backup_info)
+        # Issue pg_start_backup on the PostgreSQL server
+        self.current_action = "issuing start backup command"
+        _logger.debug(self.current_action)
+        label = "Barman backup %s %s" % (
+            backup_info.server_name, backup_info.backup_id)
 
-            # Issue pg_start_backup on the PostgreSQL server
-            self.current_action = "issuing start backup command"
-            _logger.debug(self.current_action)
-            label = "Barman backup %s %s" % (
-                backup_info.server_name, backup_info.backup_id)
-
-            # Exclusive backup: issue a pg_start_Backup() command
-            start_row = self._pg_start_backup(label)
-            start_xlog, start_file_name, start_file_offset, start_time = \
-                start_row
-            backup_info.set_attribute('status', "STARTED")
-            backup_info.set_attribute('timeline',
-                                      int(start_file_name[0:8], 16))
-            backup_info.set_attribute('begin_xlog', start_xlog)
-            backup_info.set_attribute('begin_wal', start_file_name)
-            backup_info.set_attribute('begin_offset', start_file_offset)
-            backup_info.set_attribute('begin_time', start_time)
+        # Exclusive backup: issue a pg_start_Backup() command
+        start_row = self.executor.server.postgres.start_exclusive_backup(label)
+        start_xlog, start_file_name, start_file_offset, start_time = \
+            start_row
+        backup_info.set_attribute('status', "STARTED")
+        backup_info.set_attribute('timeline',
+                                  int(start_file_name[0:8], 16))
+        backup_info.set_attribute('begin_xlog', start_xlog)
+        backup_info.set_attribute('begin_wal', start_file_name)
+        backup_info.set_attribute('begin_offset', start_file_offset)
+        backup_info.set_attribute('begin_time', start_time)
 
     def stop_backup(self, backup_info):
         """
@@ -747,7 +689,7 @@ class ExclusiveBackupStrategy(BackupStrategy):
         """
 
         self.current_action = "issuing stop backup command"
-        stop_row = self._pg_stop_backup()
+        stop_row = self.executor.server.postgres.stop_exclusive_backup()
         if stop_row:
             stop_xlog, stop_file_name, stop_file_offset, stop_time = \
                 stop_row
@@ -768,7 +710,7 @@ class ExclusiveBackupStrategy(BackupStrategy):
              of the results of the various checks
         """
         # Make sure PostgreSQL is not in recovery (i.e. is a master)
-        is_in_recovery = self.executor.server.pg_is_in_recovery()
+        is_in_recovery = self.executor.server.postgres.is_in_recovery
         if not is_in_recovery:
             check_strategy.result(
                 self.executor.config.name, 'not in recovery', True)
@@ -801,49 +743,6 @@ class ConcurrentBackupStrategy(BackupStrategy):
         assert (BackupOptions.CONCURRENT_BACKUP in
                 self.executor.config.backup_options)
 
-    def _pgespresso_start_backup(self, backup_label):
-        """
-        Execute a pgespresso_start_backup
-
-        :param str backup_label: label for the backup
-        :rtype: tuple
-        """
-        with self.executor.server.pg_connect() as conn:
-            try:
-                # Issue a rollback to release any unneeded lock
-                conn.rollback()
-                cur = conn.cursor()
-                cur.execute(
-                    'SELECT pgespresso_start_backup(%s,%s), now()',
-                    (backup_label, self.executor.config.immediate_checkpoint))
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                msg = "pgespresso_start_backup(): %s" % e
-                _logger.debug(msg)
-                raise Exception(msg)
-
-    def _pgespresso_stop_backup(self, backup_label):
-        """
-        Execute a pgespresso_stop_backup
-
-        :param str backup_label: label of the backup
-        :returns: a string containing the result of the
-            pgespresso_stop_backup call or None
-        :rtype: tuple|None
-        """
-        with self.executor.server.pg_connect() as conn:
-            try:
-                # Issue a rollback to release any unneeded lock
-                conn.rollback()
-                cur = conn.cursor()
-                cur.execute("SELECT pgespresso_stop_backup(%s), now()",
-                            (backup_label,))
-                return cur.fetchone()
-            except psycopg2.Error, e:
-                _logger.debug(
-                    "Error issuing pgespresso_stop_backup() command: %s", e)
-                return None
-
     # noinspection PyMethodMayBeStatic
     def _write_backup_label(self, backup_info):
         """
@@ -869,35 +768,34 @@ class ConcurrentBackupStrategy(BackupStrategy):
         self.current_action = "connecting to database (%s)" % \
                               self.executor.config.conninfo
         output.debug(self.current_action)
-        with self.executor.server.pg_connect():
+        # with self.executor.server.pg_connect():
+        # Retrieve PostgreSQL server metadata
+        self._pg_get_metadata(backup_info)
 
-            # Retrieve PostgreSQL server metadata
-            self._pg_get_metadata(backup_info)
+        # Issue _pg_start_backup on the PostgreSQL server
+        self.current_action = "issuing start backup command"
+        _logger.debug(self.current_action)
+        label = "Barman backup %s %s" % (
+            backup_info.server_name, backup_info.backup_id)
 
-            # Issue _pg_start_backup on the PostgreSQL server
-            self.current_action = "issuing start backup command"
-            _logger.debug(self.current_action)
-            label = "Barman backup %s %s" % (
-                backup_info.server_name, backup_info.backup_id)
+        # Concurrent backup: issue a pgespresso_start_Backup() command
 
-            # Concurrent backup: issue a pgespresso_start_Backup() command
-
-            start_row = self._pgespresso_start_backup(label)
-            backup_data, start_time = start_row
-            wal_re = re.compile(
-                '^START WAL LOCATION: (.*) \(file (.*)\)',
-                re.MULTILINE)
-            wal_info = wal_re.search(backup_data)
-            backup_info.set_attribute('status', "STARTED")
-            backup_info.set_attribute('timeline',
-                                      int(wal_info.group(2)[0:8], 16))
-            backup_info.set_attribute('begin_xlog', wal_info.group(1))
-            backup_info.set_attribute('begin_wal', wal_info.group(2))
-            backup_info.set_attribute('begin_offset',
-                                      xlog.get_offset_from_location(
-                                          wal_info.group(1)))
-            backup_info.set_attribute('backup_label', backup_data)
-            backup_info.set_attribute('begin_time', start_time)
+        start_row = self.executor.server.postgres.pgespresso_start_backup(label)
+        backup_data, start_time = start_row
+        wal_re = re.compile(
+            '^START WAL LOCATION: (.*) \(file (.*)\)',
+            re.MULTILINE)
+        wal_info = wal_re.search(backup_data)
+        backup_info.set_attribute('status', "STARTED")
+        backup_info.set_attribute('timeline',
+                                  int(wal_info.group(2)[0:8], 16))
+        backup_info.set_attribute('begin_xlog', wal_info.group(1))
+        backup_info.set_attribute('begin_wal', wal_info.group(2))
+        backup_info.set_attribute('begin_offset',
+                                  xlog.get_offset_from_location(
+                                      wal_info.group(1)))
+        backup_info.set_attribute('backup_label', backup_data)
+        backup_info.set_attribute('begin_time', start_time)
 
     def stop_backup(self, backup_info):
         """
@@ -905,7 +803,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        stop_row = self._pgespresso_stop_backup(backup_info.backup_label)
+        stop_row = self.executor.server.postgres.pgespresso_stop_backup(backup_info.backup_label)
         if stop_row:
             end_wal, stop_time = stop_row
             decoded_segment = xlog.decode_segment_name(end_wal)
@@ -931,7 +829,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        if self.executor.server.pgespresso_installed():
+        if self.executor.server.postgres.has_pgespresso:
             check_strategy.result(self.executor.config.name,
                                   'pgespresso extension', True)
         else:

@@ -19,28 +19,27 @@
 This module represents a backup.
 """
 
-from glob import glob
 import datetime
 import logging
 import os
 import shutil
 import time
+from glob import glob
 
 import dateutil.parser
 import dateutil.tz
 
-from barman.infofile import WalFileInfo, BackupInfo, UnknownBackupIdException
-from barman import xlog, output
-from barman.command_wrappers import DataTransferFailure
-from barman.compression import CompressionManager, CompressionIncompatibility
-from barman.hooks import HookScriptRunner, RetryHookScriptRunner, \
-    AbortedRetryHookScript
-from barman.utils import human_readable_timedelta, mkpath, pretty_size, \
-    fsync_dir
-from barman.config import BackupOptions
+from barman import output, xlog
 from barman.backup_executor import RsyncBackupExecutor
+from barman.command_wrappers import DataTransferFailure
+from barman.compression import CompressionIncompatibility, CompressionManager
+from barman.config import BackupOptions
+from barman.hooks import (AbortedRetryHookScript, HookScriptRunner,
+                          RetryHookScriptRunner)
+from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.recovery_executor import RecoveryExecutor
-
+from barman.utils import (fsync_dir, human_readable_timedelta, mkpath,
+                          pretty_size)
 
 _logger = logging.getLogger(__name__)
 
@@ -378,7 +377,7 @@ class BackupManager(object):
             output.info("Backup completed")
             # Create a restore point after a backup
             target_name = 'barman_%s' % backup_info.backup_id
-            self.server.pg_create_restore_point(target_name)
+            self.server.postgres.create_restore_point(target_name)
         finally:
             if backup_info:
                 backup_info.save()

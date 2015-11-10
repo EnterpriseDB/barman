@@ -18,17 +18,16 @@
 import datetime
 import os
 
-from mock import patch, Mock, ANY
 import mock
-import psycopg2
 import pytest
-from barman.server import CheckOutputStrategy
+from mock import Mock, patch
 
 from barman.backup_executor import RsyncBackupExecutor, SshCommandException
 from barman.config import BackupOptions
 from barman.infofile import BackupInfo, Tablespace
-from testing_helpers import build_backup_manager, build_mocked_server, \
-    build_test_backup_info
+from barman.server import CheckOutputStrategy
+from testing_helpers import (build_backup_manager, build_mocked_server,
+                             build_test_backup_info)
 
 
 # noinspection PyMethodMayBeStatic
@@ -293,89 +292,8 @@ class TestStrategy(object):
     """
     Testing class for backup strategies
     """
-    def test_pg_start_backup(self):
-        """
-        Simple test for pg_start_backup method of the RsyncBackupExecutor class
-        """
-        # Build and configure a server using a mock
-        backup_manager = build_backup_manager()
-        backup_label = 'test label'
 
-        # Expect an exception for a non correctly configured server
-        with pytest.raises(Exception):
-            backup_manager.executor.pg_start_backup(backup_label)
-
-        # Expect no error and the correct call sequence
-        backup_manager.server.reset_mock()
-        backup_manager.server.pg_is_in_recovery.return_value = False
-        backup_manager.server.server_version = 90300
-        backup_manager.executor.strategy._pg_start_backup(backup_label)
-
-        pg_connect = mock.call.pg_connect()
-        with_pg_connect = pg_connect.__enter__()
-        cursor = with_pg_connect.cursor()
-        assert backup_manager.server.mock_calls == [
-            pg_connect,
-            with_pg_connect,
-            pg_connect.__enter__().rollback(),
-            cursor,
-            cursor.execute(ANY, ANY),
-            cursor.fetchone(),
-            pg_connect.__exit__(None, None, None)]
-
-        # Change server version and expect no error and the correct call
-        # sequence
-        backup_manager.server.reset_mock()
-        backup_manager.server.server_version = 80300
-        backup_manager.executor.strategy._pg_start_backup(backup_label)
-
-        assert backup_manager.server.mock_calls == [
-            pg_connect,
-            with_pg_connect,
-            pg_connect.__enter__().rollback(),
-            cursor,
-            cursor.execute(ANY, ANY),
-            cursor.fetchone(),
-            pg_connect.__exit__(None, None, None)]
-
-    def test_pgespresso_start_backup(self):
-        """
-        Simple test for _pgespresso_start_backup method
-        of the RsyncBackupExecutor class
-        """
-        # Build and configure a server using a mock
-        server = build_mocked_server(main_conf={
-            'backup_options':
-            BackupOptions.CONCURRENT_BACKUP
-        })
-        backup_manager = build_backup_manager(server=server)
-        backup_label = 'test label'
-
-        # Expect an exception because pgespresso is not installed
-        backup_manager.server.pgespresso_installed.return_value = False
-        with pytest.raises(Exception):
-            backup_manager.executor.pgespresso_start_backup(backup_label)
-
-        # Report pgespresso installed. Expect no error and the correct call
-        # sequence
-        backup_manager.server.reset_mock()
-        backup_manager.executor.server.pgespresso_installed.return_value = True
-        backup_manager.executor.strategy._pgespresso_start_backup(backup_label)
-
-        pg_connect = mock.call.pg_connect()
-        with_pg_connect = pg_connect.__enter__()
-        cursor = with_pg_connect.cursor()
-        assert backup_manager.server.mock_calls == [
-            pg_connect,
-            with_pg_connect,
-            pg_connect.__enter__().rollback(),
-            cursor,
-            cursor.execute(ANY, ANY),
-            cursor.fetchone(),
-            pg_connect.__exit__(None, None, None)]
-
-    @patch('barman.backup_executor.ExclusiveBackupStrategy._pg_start_backup')
-    def test_exclusive_start_backup(self, start_mock):
+    def test_exclusive_start_backup(self):
         """
         Basic test for the start_backup method
 
@@ -390,22 +308,25 @@ class TestStrategy(object):
         backup_manager = build_backup_manager(server=server)
 
         # Mock server.get_pg_setting('data_directory') call
-        backup_manager.server.get_pg_setting.return_value = '/pg/data'
+        backup_manager.server.postgres.get_setting.return_value = '/pg/data'
         # Mock server.get_pg_configuration_files() call
-        backup_manager.server.get_pg_configuration_files.return_value = dict(
+        server.postgres.get_configuration_files.return_value = dict(
             config_file="/etc/postgresql.conf",
             hba_file="/pg/pg_hba.conf",
             ident_file="/pg/pg_ident.conf",
         )
         # Mock server.get_pg_tablespaces() call
         tablespaces = [Tablespace._make(('test_tbs', 1234, '/tbs/test'))]
-        backup_manager.server.get_pg_tablespaces.return_value = tablespaces
+        server.postgres.get_tablespaces.return_value = tablespaces
 
         # Test 1: start exclusive backup
         # Mock executor.pg_start_backup(label) call
         start_time = datetime.datetime.now()
-        start_mock.return_value = ("A257/44B4C0D8", "000000060000A25700000044",
-                                   11845848, start_time)
+        server.postgres.start_exclusive_backup.return_value = (
+            "A257/44B4C0D8",
+            "000000060000A25700000044",
+            11845848,
+            start_time)
 
         # Build a test empty backup info
         backup_info = BackupInfo(server=backup_manager.server,
@@ -426,11 +347,10 @@ class TestStrategy(object):
         assert backup_info.begin_offset == 11845848
         assert backup_info.begin_time == start_time
         # Check that the correct call to pg_start_backup has been made
-        start_mock.assert_called_with('Barman backup main fake_id')
+        server.postgres.start_exclusive_backup.assert_called_with(
+            'Barman backup main fake_id')
 
-    @patch('barman.backup_executor.ConcurrentBackupStrategy.'
-           '_pgespresso_start_backup')
-    def test_concurrent_start_backup(self, espresso_start_mock):
+    def test_concurrent_start_backup(self):
         """
 
         :param espresso_start_mock:
@@ -443,22 +363,22 @@ class TestStrategy(object):
         })
         backup_manager = build_backup_manager(server=server)
         # Mock server.get_pg_setting('data_directory') call
-        backup_manager.server.get_pg_setting.return_value = '/pg/data'
+        backup_manager.server.postgres.get_setting.return_value = '/pg/data'
         # Mock server.get_pg_configuration_files() call
-        backup_manager.server.get_pg_configuration_files.return_value = dict(
+        server.postgres.get_configuration_files.return_value = dict(
             config_file="/etc/postgresql.conf",
             hba_file="/pg/pg_hba.conf",
             ident_file="/pg/pg_ident.conf",
         )
         # Mock server.get_pg_tablespaces() call
         tablespaces = [Tablespace._make(('test_tbs', 1234, '/tbs/test'))]
-        backup_manager.server.get_pg_tablespaces.return_value = tablespaces
+        server.postgres.get_tablespaces.return_value = tablespaces
 
         # Mock executor._pgespresso_start_backup(label) call
         start_time = datetime.datetime.now()
-        espresso_start_mock.return_value = ("START WAL LOCATION: 266/4A9C1EF8 "
-                                            "(file 00000010000002660000004A)",
-                                            start_time)
+        server.postgres.pgespresso_start_backup.return_value = (
+            "START WAL LOCATION: 266/4A9C1EF8 (file 00000010000002660000004A)",
+            start_time)
         # Build a test empty backup info
         backup_info = BackupInfo(server=backup_manager.server,
                                  backup_id='fake_id2')
@@ -478,92 +398,10 @@ class TestStrategy(object):
         assert backup_info.begin_offset == 10231544
         assert backup_info.begin_time == start_time
         # Check that the correct call to pg_start_backup has been made
-        espresso_start_mock.assert_called_with(
+        server.postgres.pgespresso_start_backup.assert_called_with(
             'Barman backup main fake_id2')
 
-    def test_pg_stop_backup(self):
-        """
-        Basic test for the _pg_stop_backup method
-        """
-        # Build a backup info and configure the mocks
-        backup_manager = build_backup_manager()
-
-        # Test 1: Expect no error and the correct call sequence
-        backup_manager.executor.strategy._pg_stop_backup()
-
-        pg_connect = mock.call.pg_connect()
-        with_pg_connect = pg_connect.__enter__()
-        cursor = with_pg_connect.cursor()
-        assert backup_manager.server.mock_calls == [
-            pg_connect,
-            with_pg_connect,
-            pg_connect.__enter__().rollback(),
-            cursor,
-            cursor.execute(ANY),
-            cursor.fetchone(),
-            pg_connect.__exit__(None, None, None)]
-
-        # Test 2: Setup the mock to trigger an exception
-        backup_manager.executor.server.reset_mock()
-        backup_manager.executor.server.pg_connect.return_value. \
-            __enter__.return_value. \
-            cursor.return_value.\
-            execute.side_effect = psycopg2.Error
-
-        # Check that the method returns None as result
-        assert backup_manager.executor.strategy._pg_stop_backup() is None
-        assert backup_manager.server.mock_calls == [
-            pg_connect,
-            with_pg_connect,
-            pg_connect.__enter__().rollback(),
-            cursor,
-            cursor.execute(ANY),
-            pg_connect.__exit__(None, None, None)]
-
-    def test_pgespresso_stop_backup(self):
-        """
-        Basic test for _pgespresso_stop_backup
-        """
-        # Build a backup info and configure the mocks
-        server = build_mocked_server(main_conf={
-            'backup_options':
-            BackupOptions.CONCURRENT_BACKUP
-        })
-        backup_manager = build_backup_manager(server=server)
-        # Test 1: Expect no error and the correct call sequence
-        backup_manager.executor.strategy._pgespresso_stop_backup('test_label')
-
-        pg_connect = mock.call.pg_connect()
-        with_pg_connect = pg_connect.__enter__()
-        cursor = with_pg_connect.cursor()
-        assert backup_manager.server.mock_calls == [
-            pg_connect,
-            with_pg_connect,
-            pg_connect.__enter__().rollback(),
-            cursor,
-            cursor.execute(ANY, ('test_label',)),
-            cursor.fetchone(),
-            pg_connect.__exit__(None, None, None)]
-
-        # Test 2: Setup the mock to trigger an exception
-        backup_manager.executor.server.reset_mock()
-        backup_manager.executor.server.pg_connect.return_value. \
-            __enter__.return_value. \
-            cursor.return_value.\
-            execute.side_effect = psycopg2.Error
-
-        assert backup_manager.executor.strategy._pgespresso_stop_backup(
-            'test_label1') is None
-        assert backup_manager.server.mock_calls == [
-            pg_connect,
-            with_pg_connect,
-            pg_connect.__enter__().rollback(),
-            cursor,
-            cursor.execute(ANY, ('test_label1',)),
-            pg_connect.__exit__(None, None, None)]
-
-    @patch('barman.backup_executor.ExclusiveBackupStrategy._pg_stop_backup')
-    def test_exclusive_stop_backup(self, stop_mock):
+    def test_exclusive_stop_backup(self):
         """
         Basic test for the start_backup method
 
@@ -577,10 +415,12 @@ class TestStrategy(object):
         backup_manager = build_backup_manager(server=server)
         # Mock executor._pg_stop_backup(backup_info) call
         stop_time = datetime.datetime.now()
-        stop_mock.return_value = ("266/4A9C1EF8",
-                                  "00000010000002660000004A",
-                                  10231544,
-                                  stop_time)
+        server.postgres.stop_exclusive_backup.return_value = (
+            "266/4A9C1EF8",
+            "00000010000002660000004A",
+            10231544,
+            stop_time
+        )
 
         backup_info = build_test_backup_info()
         backup_manager.executor.strategy.stop_backup(backup_info)
@@ -592,15 +432,12 @@ class TestStrategy(object):
         assert backup_info.end_time == stop_time
 
     @patch('barman.backup_executor.ConcurrentBackupStrategy.'
-           '_pgespresso_stop_backup')
-    @patch('barman.backup_executor.ConcurrentBackupStrategy.'
            '_write_backup_label')
-    def test_concurrent_stop_backup(self, label_mock, stop_mock,):
+    def test_concurrent_stop_backup(self, label_mock,):
         """
         Basic test for the start_backup method
 
         :param label_mock: mimic the response of _write_backup_label
-        :param stop_mock: mimic the response of _pgespresso_stop_backup
         """
         # Build a backup info and configure the mocks
         server = build_mocked_server(main_conf={
@@ -611,7 +448,9 @@ class TestStrategy(object):
 
         # Mock executor._pgespresso_stop_backup(backup_info) call
         stop_time = datetime.datetime.now()
-        stop_mock.return_value = ("000000060000A25700000044", stop_time)
+        server.postgres.pgespresso_stop_backup.return_value = (
+            "000000060000A25700000044",
+            stop_time)
 
         backup_info = build_test_backup_info()
         backup_manager.executor.strategy.stop_backup(backup_info)

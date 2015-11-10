@@ -20,43 +20,28 @@ This module represents a Server.
 Barman is able to manage multiple servers.
 """
 
-from collections import namedtuple
-from contextlib import contextmanager
 import logging
 import os
 import shutil
+import subprocess
 import sys
+from collections import namedtuple
+from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import subprocess
-
+import barman.xlog as xlog
 from barman import output
 from barman.backup import BackupManager
 from barman.compression import identify_compression
-from barman.infofile import BackupInfo, UnknownBackupIdException, Tablespace, \
-    WalFileInfo
-from barman.lockfile import LockFileBusy, LockFilePermissionDenied, \
-    ServerBackupLock, ServerCronLock, ServerXLOGDBLock, ServerWalArchiveLock
+from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
+from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
+                             ServerBackupLock, ServerCronLock,
+                             ServerWalArchiveLock, ServerXLOGDBLock)
+from barman.postgres import PostgresConnectionError, PostgreSQLConnection
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta
-import barman.xlog as xlog
-
 
 _logger = logging.getLogger(__name__)
-
-
-class ConninfoException(Exception):
-    """
-    Error parsing conninfo parameter
-    """
-
-
-class PostgresConnectionError(Exception):
-    """
-    Error connecting to PostgreSQL server.
-    """
 
 
 class CheckStrategy(object):
@@ -166,15 +151,8 @@ class Server(object):
         :param barman.config.ServerConfig config: the server configuration
         """
         self.config = config
-        self._conn = None
-        self.server_txt_version = None
-        self.server_version = None
-        if self.config.conninfo is None:
-            raise ConninfoException(
-                'Missing conninfo parameter in barman configuration '
-                'for server %s' % config.name)
+        self.postgres = PostgreSQLConnection(config)
         self.backup_manager = BackupManager(self)
-        self.configuration_files = None
         self.enforce_retention_policies = False
 
         # Set bandwidth_limit
@@ -517,142 +495,15 @@ class Server(object):
         # Executes the backup manager status info method
         self.backup_manager.status()
 
-    def pgespresso_installed(self):
-        """
-        Returns true if pgexpresso extension is available
-        """
-        try:
-            with self.pg_connect() as conn:
-                # pg_extension is only available from Postgres 9.1+
-                if self.server_version < 90100:
-                    return False
-                cur = conn.cursor()
-                cur.execute("select count(*) from pg_extension "
-                            "where extname = 'pgespresso'")
-                q_result = cur.fetchone()[0]
-                if q_result > 0:
-                    return True
-                else:
-                    return False
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving pgespresso information: %s", e)
-            return False
-
-    def get_pg_stat_archiver(self):
-        """
-        This method gathers statistics from pg_stat_archiver
-        (postgres 9.4+ or greater required)
-
-        :return dict|None: a dictionary containing Postgres statistics from
-            pg_stat_archiver or None
-        """
-        try:
-            with self.pg_connect() as conn:
-                # pg_stat_archiver is only available from Postgres 9.4+
-                if self.server_version < 90400:
-                    return None
-                cur = conn.cursor(cursor_factory=RealDictCursor)
-                # Select from pg_stat_archiver statistics view,
-                # retrieving statistics about WAL archiver process activity,
-                # also evaluating if the server is archiving without issues
-                # and the archived WALs per second rate
-                cur.execute(
-                    "SELECT *, current_setting('archive_mode')::BOOLEAN "
-                    "AND (last_failed_wal IS NULL "
-                    "OR last_failed_wal <= last_archived_wal) "
-                    "AS is_archiving, "
-                    "CAST (archived_count AS NUMERIC) "
-                    "/ EXTRACT (EPOCH FROM age(now(), stats_reset)) "
-                    "AS current_archived_wals_per_second "
-                    "FROM pg_stat_archiver")
-                q_result = cur.fetchone()
-                if q_result:
-                    return q_result
-                else:
-                    return None
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving pg_stat_archive data: %s", e)
-            return None
-
-    def pg_is_in_recovery(self):
-        """
-        Returns true if PostgreSQL server is in recovery mode
-        """
-        try:
-            with self.pg_connect() as conn:
-                # pg_is_in_recovery is only available from Postgres 9.0+
-                if self.server_version < 90000:
-                    return False
-                cur = conn.cursor()
-                cur.execute("select pg_is_in_recovery()")
-                q_result = cur.fetchone()[0]
-                if q_result:
-                    return True
-                else:
-                    return False
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error calling pg_is_in_recovery() function: %s", e)
-            return None
-
     def get_remote_status(self):
         """
         Get the status of the remote server
 
         :return dict[str, None]: result of the server status query
         """
-        # PostgreSQL settings to get from the server
-        pg_settings = [
-            'archive_mode',
-            'archive_command',
-            'data_directory']
-        pg_query_keys = [
-            'server_txt_version',
-            'current_xlog',
-            'pgespresso_installed']
-        # Initialise the result dictionary setting all the values to None
-        result = dict.fromkeys(pg_settings + pg_query_keys, None)
-        try:
-            with self.pg_connect() as conn:
-
-                # check for wal_level only if the version is >= 9.0
-                if self.server_version >= 90000:
-                    pg_settings.append('wal_level')
-
-                for name in pg_settings:
-                    result[name] = self.get_pg_setting(name)
-
-                try:
-                    cur = conn.cursor()
-                    cur.execute("SELECT version()")
-                    result['server_txt_version'] = cur.fetchone()[0].split()[1]
-                except psycopg2.Error, e:
-                    _logger.debug(
-                        "Error retrieving PostgreSQL version: %s", e)
-
-                result['pgespresso_installed'] = self.pgespresso_installed()
-
-                try:
-                    if not self.pg_is_in_recovery():
-                        cur = conn.cursor()
-                        cur.execute(
-                            'SELECT pg_xlogfile_name('
-                            'pg_current_xlog_location())')
-                        result['current_xlog'] = cur.fetchone()[0]
-                except psycopg2.Error, e:
-                    _logger.debug("Error retrieving current xlog: %s", e)
-
-                result.update(self.get_pg_configuration_files())
-
-                # Add pg_stat_archiver statistics if the view is supported
-                pg_stat_archiver = self.get_pg_stat_archiver()
-                if pg_stat_archiver is not None:
-                    result.update(pg_stat_archiver)
-
-                # Merge additional status defined by the BackupManager
-                result.update(self.backup_manager.get_remote_status())
-
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.warn("Error retrieving PostgreSQL status: %s", e)
+        result = self.postgres.get_remote_status()
+        # Merge additional status defined by the BackupManager
+        result.update(self.backup_manager.get_remote_status())
         return result
 
     def show(self):
@@ -690,145 +541,6 @@ class Server(object):
         else:
             result['last_backup_maximum_age'] = "None"
         output.result('show_server', self.config.name, result)
-
-    @contextmanager
-    def pg_connect(self):
-        """
-        A generic function to connect to Postgres using Psycopg2
-        """
-        myconn = self._conn is None
-        if myconn:
-            try:
-                self._conn = psycopg2.connect(self.config.conninfo)
-                self.server_version = self._conn.server_version
-                if (self.server_version >= 90000 and
-                        'application_name=' not in self.config.conninfo):
-                    cur = self._conn.cursor()
-                    cur.execute('SET application_name TO barman')
-                    cur.close()
-            # If psycopg2 fails to connect to the host,
-            # raise the appropriate exception
-            except psycopg2.DatabaseError as e:
-                raise PostgresConnectionError(
-                    "Cannot connect to postgres: %s" % e)
-        try:
-            yield self._conn
-        finally:
-            if myconn:
-                self._conn.close()
-                self._conn = None
-
-    def get_pg_setting(self, name):
-        """
-        Get a postgres setting with a given name
-
-        :param name: a parameter name
-        """
-
-        try:
-            with self.pg_connect() as conn:
-                cur = conn.cursor()
-                cur.execute('SHOW "%s"' % name.replace('"', '""'))
-                return cur.fetchone()[0]
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL setting '%s': %s",
-                          name.replace('"', '""'), e)
-            return None
-
-    def get_pg_tablespaces(self):
-        """
-        Returns a list of tablespaces or None if not present
-        """
-
-        try:
-            with self.pg_connect() as conn:
-                cur = conn.cursor()
-                if self.server_version >= 90200:
-                    cur.execute(
-                        "SELECT spcname, oid, "
-                        "pg_tablespace_location(oid) AS spclocation "
-                        "FROM pg_tablespace "
-                        "WHERE pg_tablespace_location(oid) != ''")
-                else:
-                    cur.execute(
-                        "SELECT spcname, oid, spclocation "
-                        "FROM pg_tablespace WHERE spclocation != ''")
-                # Generate a list of tablespace objects
-                return [Tablespace._make(item) for item in cur.fetchall()]
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL tablespaces: %s", e)
-            return None
-
-    def get_pg_configuration_files(self):
-        """
-        Get postgres configuration files or an empty dictionary in case of error
-        """
-        if self.configuration_files:
-            return self.configuration_files
-        try:
-            with self.pg_connect() as conn:
-                cur = conn.cursor()
-                cur.execute("SELECT name, setting FROM pg_settings "
-                            "WHERE name IN ("
-                            "'config_file', 'hba_file', 'ident_file')")
-                self.configuration_files = {}
-                for cname, cpath in cur.fetchall():
-                    self.configuration_files[cname] = cpath
-
-                # Retrieve additional configuration files
-                cur.execute("SELECT DISTINCT sourcefile AS included_file "
-                            "FROM pg_settings "
-                            "WHERE sourcefile IS NOT NULL "
-                            "AND sourcefile NOT IN "
-                            "(SELECT setting FROM pg_settings "
-                            "WHERE name = 'config_file') "
-                            "ORDER BY 1")
-                included_files = [included_file
-                                  for included_file, in cur.fetchall()]
-                if len(included_files) > 0:
-                    self.configuration_files['included_files'] = included_files
-
-                return self.configuration_files
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL configuration files "
-                          "location: %s", e)
-            return {}
-
-    def pg_create_restore_point(self, target_name):
-        """
-        Create a restore point with the given target name
-
-        The method executes the pg_create_restore_point() function through
-        a PostgreSQL connection. Only for Postgres versions >= 9.1 when not
-        in replication.
-
-        If requirements are not met, the operation is skipped.
-
-        :param str target_name: name of the restore point
-        :returns: the restore point LSN
-        :rtype: str|None
-        """
-        with self.pg_connect() as conn:
-            # Not possible on pg < 9.1
-            # This must be called inside the pg_connect context to have the
-            # property set
-            if self.server_version < 90100:
-                return None
-
-            # Not possible if on a standby
-            # Called inside the pg_connect context to reuse the connection
-            if self.pg_is_in_recovery():
-                return None
-
-            try:
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT pg_create_restore_point(%s)", [target_name])
-                return cur.fetchone()[0]
-            except psycopg2.Error, e:
-                _logger.debug('Error issuing pg_create_restore_point()'
-                              'command: %s', e)
-                return None
 
     def delete_backup(self, backup):
         """Deletes a backup

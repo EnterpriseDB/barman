@@ -15,20 +15,20 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from collections import defaultdict
 import datetime
 import os
+from collections import defaultdict
 
-from mock import patch, MagicMock
 import pytest
+from mock import MagicMock, patch
 
-from barman.infofile import WalFileInfo, BackupInfo
-from barman.lockfile import LockFileBusy, LockFilePermissionDenied, \
-    ServerBackupLock, ServerCronLock, ServerWalArchiveLock
-from barman.server import Server, PostgresConnectionError, CheckStrategy, \
-    CheckOutputStrategy
-from testing_helpers import build_test_backup_info, build_config_from_dicts, \
-    build_real_server
+from barman.infofile import BackupInfo, WalFileInfo
+from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
+                             ServerBackupLock, ServerCronLock,
+                             ServerWalArchiveLock)
+from barman.server import CheckOutputStrategy, CheckStrategy, Server
+from testing_helpers import (build_config_from_dicts, build_real_server,
+                             build_test_backup_info)
 
 
 class ExceptionTest(Exception):
@@ -248,19 +248,6 @@ class TestServer(object):
             stats['last_failed_time'].ctime()
         )
 
-    def test_pg_connect_error(self):
-        """
-        Check pg_connect method beaviour on error
-        """
-        # Setup temp dir and server
-        server = build_real_server()
-        # Set an invalid conninfo parameter.
-        server.config.conninfo = "not valid conninfo"
-        # expect pg_connect to raise a PostgresConnectionError
-        with pytest.raises(PostgresConnectionError):
-            with server.pg_connect():
-                assert False  # should never get here
-
     @patch('barman.server.Server.get_remote_status')
     def test_check_postgres(self, postgres_mock, capsys):
         """
@@ -472,8 +459,9 @@ class TestServer(object):
         with ServerCronLock(tmpdir.strpath, server.config.name):
             server.cron(wals=True, retention_policies=False)
             out, err = capsys.readouterr()
-            assert ("Another cron process is already running on server "
-                    "%s. Skipping to the next server\n" % server.config.name) in out
+            assert ("Another cron process is already running on server %s. "
+                    "Skipping to the next server\n" %
+                    server.config.name) in out
 
         with ServerWalArchiveLock(tmpdir.strpath, server.config.name):
             server.cron(wals=True, retention_policies=False)
@@ -481,34 +469,6 @@ class TestServer(object):
             assert ("Another archive-wal process is already running "
                     "on server %s. Skipping to the next server"
                     % server.config.name) in out
-
-    @patch('barman.server.Server.pg_connect')
-    @patch('barman.server.Server.pg_is_in_recovery')
-    def test_pg_create_restore_point(self, pg_is_in_recovery_mock,
-                                     pg_connect_mock, tmpdir):
-        """
-        Basic test for the _restore_point method
-        """
-        # Build a backup info and configure the mocks
-
-        # Simulate a master connection
-        pg_is_in_recovery_mock.return_value = False
-
-        server = build_real_server({'barman_home': tmpdir.strpath})
-        # Test 1: Postgres 9.0 expect None as result
-        server.server_version = 90000
-
-        restore_point = server.pg_create_restore_point("Test_20151026T092241")
-        assert restore_point is None
-
-        # Test 1: Postgres 9.1 check mock calls
-        server.server_version = 90100
-
-        server.pg_create_restore_point("Test_20151026T092241")
-        cur_mock = pg_connect_mock.return_value.__enter__.return_value.cursor
-        cur_mock.return_value.execute.assert_called_with(
-            "SELECT pg_create_restore_point(%s)", ['Test_20151026T092241'])
-        assert cur_mock.return_value.fetchone.called is True
 
 
 class TestCheckStrategy(object):
