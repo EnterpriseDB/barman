@@ -101,7 +101,7 @@ setup(
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
     ],
-    tests_require=['pytest', 'mock', 'pytest-catchlog', 'pytest-timeout'],
+    tests_require=['pytest', 'mock', 'pytest-catchlog==1.1', 'pytest-timeout'],
     cmdclass=cmdclass,
     use_2to3=True,
 )
