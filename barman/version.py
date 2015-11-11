@@ -15,7 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-''' This module contains the current Barman version.
+'''
+This module contains the current Barman version.
 '''
 
-__version__ = '1.5.1'
+__version__ = '1.6.0a1'
