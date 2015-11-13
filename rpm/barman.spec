@@ -22,9 +22,9 @@
 
 %global main_version 1.5.1
 # comment out the next line if not a pre-release (use '#%%global ...')
-%global extra_version b1
+#%%global extra_version a1
 # Usually 1 - unique sequence for all pre-release version
-%global package_release 2
+%global package_release 1
 
 %{!?pybasever: %define pybasever %(%{__python} -c "import sys;print(sys.version[0:3])")}
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
@@ -109,6 +109,9 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
+* Mon Nov 16 2015 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.5.1-1
+- New release 1.5.1
+
 * Mon Sep 28 2015 - Francesco Canovai <francesco.canovai@2ndquadrant.it> 1.5.0-1
 - New release 1.5.0
 
