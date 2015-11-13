@@ -347,6 +347,18 @@ By default (for backward compatibility reasons),
 > such as the one dedicated to run-time variable data (e.g.
 > `/var/run/barman`).
 
+### Customisation of binary paths
+
+As of version 1.6.0, Barman allows users to specify one or more directories
+where Barman looks for executable files, using the global/server
+option `path_prefix`.
+
+If a `path_prefix` is provided, it must contain a list of one or more
+directories separated by colon. Barman will search inside these directories
+first, then in those specified by the `PATH` environment variable.
+
+By default the `path_prefix` option is empty.
+
 ### Example of configuration
 
 Here follows a basic example of PostgreSQL configuration:

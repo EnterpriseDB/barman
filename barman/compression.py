@@ -19,9 +19,9 @@
 This module is responsible to manage the compression features of Barman
 """
 
-from barman.command_wrappers import Command
-
 import logging
+
+from barman.command_wrappers import Command
 
 _logger = logging.getLogger(__name__)
 
@@ -33,11 +33,12 @@ class CompressionIncompatibility(Exception):
 
 
 class CompressionManager(object):
-    def __init__(self, config):
+    def __init__(self, config, path):
         """
         Compression manager
         """
         self.config = config
+        self.path = path
 
     def check(self, compression=None):
         """
@@ -61,7 +62,7 @@ class CompressionManager(object):
         if self.check(compression):
             return compression_registry[compression](
                 config=self.config, compression=compression,
-                remove_origin=remove_origin, debug=debug)
+                remove_origin=remove_origin, debug=debug, path=self.path)
         else:
             return None
 
@@ -88,13 +89,15 @@ class Compressor(object):
 
     MAGIC = None
 
-    def __init__(self, config, compression, remove_origin=False, debug=False):
+    def __init__(self, config, compression, remove_origin=False, debug=False,
+                 path=None):
         self.config = config
         self.compression = compression
         self.remove_origin = remove_origin
         self.debug = debug
         self.compress = None
         self.decompres = None
+        self.path = path
 
     def _build_command(self, pipe_command):
         """
@@ -109,7 +112,8 @@ class Compressor(object):
         if self.remove_origin:
             command += ' && rm -f "$1"'
         command += ';}; command'
-        return Command(command, shell=True, check=True, debug=self.debug)
+        return Command(command, shell=True, check=True, debug=self.debug,
+                       path=self.path)
 
     @classmethod
     def validate(cls, file_start):
@@ -131,9 +135,10 @@ class GZipCompressor(Compressor):
 
     MAGIC = b'\x1f\x8b\x08'
 
-    def __init__(self, config, compression, remove_origin=False, debug=False):
+    def __init__(self, config, compression, remove_origin=False, debug=False,
+                 path=None):
         super(GZipCompressor, self).__init__(
-            config, compression, remove_origin, debug)
+            config, compression, remove_origin, debug, path)
         self.compress = self._build_command('gzip -c')
         self.decompress = self._build_command('gzip -c -d')
 
@@ -145,9 +150,10 @@ class BZip2Compressor(Compressor):
 
     MAGIC = b'\x42\x5a\x68'
 
-    def __init__(self, config, compression, remove_origin=False, debug=False):
+    def __init__(self, config, compression, remove_origin=False, debug=False,
+                 path=None):
         super(BZip2Compressor, self).__init__(
-            config, compression, remove_origin, debug)
+            config, compression, remove_origin, debug, path)
         self.compress = self._build_command('bzip2 -c')
         self.decompress = self._build_command('bzip2 -c -d')
 
@@ -157,14 +163,15 @@ class CustomCompressor(Compressor):
     Custom compressor
     """
 
-    def __init__(self, config, compression, remove_origin=False, debug=False):
+    def __init__(self, config, compression, remove_origin=False, debug=False,
+                 path=None):
         if not config.custom_compression_filter:
             raise CompressionIncompatibility("custom_compression_filter")
         if not config.custom_decompression_filter:
             raise CompressionIncompatibility("custom_decompression_filter")
 
         super(CustomCompressor, self).__init__(
-            config, compression, remove_origin, debug)
+            config, compression, remove_origin, debug, path)
         self.compress = self._build_command(
             config.custom_compression_filter)
         self.decompress = self._build_command(

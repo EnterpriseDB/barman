@@ -15,9 +15,9 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import unittest
 from datetime import datetime
 from subprocess import PIPE
-import unittest
 
 import dateutil.tz
 import mock
@@ -339,7 +339,7 @@ class TestRsync(object):
                                      ssh_options=['-c', 'arcfour'])
         result = cmd('src', 'dst')
 
-        mock_which.assert_called_with('/custom/rsync')
+        mock_which.assert_called_with('/custom/rsync', None)
         popen.assert_called_with(
             ['/custom/rsync', '-e', "/custom/ssh '-c' 'arcfour'", 'src', 'dst'],
             shell=False, env=None,
@@ -376,15 +376,17 @@ class TestRsync(object):
 
         pipe = _mock_pipe(popen, ret, out, err)
 
-        cmd = command_wrappers.Rsync(exclude_and_protect=['foo', 'bar'])
-        result = cmd('src', 'dst')
+        with mock.patch('os.environ.copy') as which_mock:
+            which_mock.return_value = {}
+            cmd = command_wrappers.Rsync(exclude_and_protect=['foo', 'bar'])
+            result = cmd('src', 'dst')
 
         popen.assert_called_with(
             ['rsync',
              '--exclude=foo', '--filter=P_foo',
              '--exclude=bar', '--filter=P_bar',
              'src', 'dst'],
-            shell=False, env=None,
+            shell=False, env=mock.ANY,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
             preexec_fn=mock.ANY, close_fds=True
         )

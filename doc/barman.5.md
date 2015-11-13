@@ -92,6 +92,11 @@ custom_decompression_filter
 :   Decompression algorithm applied to compressed WAL files; this must
     match the compression algorithm. Global/Server.
 
+path_prefix
+:   One or more absolute paths, separated by colon, where Barman looks for
+    executable files. The paths specified in `path_prefix` are tried before
+    the ones specified in `PATH` environment variable. Global/server.
+
 pre_backup_script
 :   Hook script launched before a base backup. Global/Server.
 

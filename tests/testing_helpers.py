@@ -16,18 +16,19 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 from datetime import datetime, timedelta
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
 
 import mock
 from dateutil import tz
 
 from barman.backup import BackupManager
-from barman.config import Config, BackupOptions
+from barman.config import BackupOptions, Config
 from barman.infofile import BackupInfo, Tablespace
 from barman.server import Server
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 
 def build_test_backup_info(
@@ -254,7 +255,8 @@ def build_config_dictionary(config_keys=None):
         'pre_archive_retry_script': None,
         'last_backup_maximum_age': None,
         'disabled': False,
-        'msg_list': []
+        'msg_list': [],
+        'path_prefix': None,
     }
     # Check for overriding keys
     if config_keys is not None:

@@ -20,15 +20,14 @@ import shutil
 import time
 
 import dateutil
-from mock import Mock, patch, ANY
 import pytest
+from mock import ANY, Mock, patch
 
-from barman import xlog
-from barman.infofile import WalFileInfo
-from barman.recovery_executor import Assertion
-from barman.command_wrappers import CommandFailedException
-from barman.recovery_executor import RecoveryExecutor
 import testing_helpers
+from barman import xlog
+from barman.command_wrappers import CommandFailedException
+from barman.infofile import WalFileInfo
+from barman.recovery_executor import Assertion, RecoveryExecutor
 
 
 # noinspection PyMethodMayBeStatic
@@ -145,6 +144,7 @@ class TestRecoveryExecutor(object):
         assert "postgresql.auto.conf" in ret['configuration_files']
         # Receive a error if the remote command is invalid
         with pytest.raises(SystemExit):
+            executor.server.path = None
             executor.setup(backup_info, "invalid", "/tmp")
 
     def test_set_pitr_targets(self, tmpdir):
@@ -253,10 +253,11 @@ class TestRecoveryExecutor(object):
         executor.basebackup_copy(
             backup_info, dest.strpath, tablespaces=None)
         rsync_pg_mock.assert_called_with(
-            network_compression=False, bwlimit=10, ssh=None,
+            network_compression=False, bwlimit=10, ssh=None, path=None,
             exclude_and_protect=['/pg_tblspc/16387'])
         rsync_pg_mock.assert_any_call(
-            network_compression=False, bwlimit='', ssh=None, check=True)
+            network_compression=False, bwlimit='', ssh=None, path=None,
+            check=True)
         rsync_pg_mock.return_value.smart_copy.assert_any_call(
             '/some/barman/home/main/base/1234567890/16387/',
             '/fake/location', None)
@@ -290,7 +291,7 @@ class TestRecoveryExecutor(object):
             'bzip2': Mock(name='bzip2'),
         }
         cm_mock.return_value.get_compressor = \
-            lambda compression=None: c[compression]
+            lambda compression=None, path=None: c[compression]
         # touch destination files to avoid errors on cleanup
         c['gzip'].decompress.side_effect = lambda src, dst: open(dst, 'w')
         c['bzip2'].decompress.side_effect = lambda src, dst: open(dst, 'w')
@@ -310,7 +311,7 @@ class TestRecoveryExecutor(object):
         # Check for a correct invocation of rsync using local paths
         rsync_pg_mock.assert_called_once_with(
             network_compression=False,
-            bwlimit=None,
+            bwlimit=None, path=None,
             ssh=None)
         assert not rsync_pg_mock.return_value.from_file_list.called
         c['gzip'].decompress.assert_called_once_with(xlog_gz.strpath, ANY)
@@ -326,7 +327,7 @@ class TestRecoveryExecutor(object):
         # Check for the invocation of rsync on a remote call
         rsync_pg_mock.assert_called_once_with(
             network_compression=False,
-            bwlimit=None,
+            bwlimit=None, path=ANY,
             ssh='remote_command')
         rsync_pg_mock.return_value.from_file_list.assert_called_once_with(
             [

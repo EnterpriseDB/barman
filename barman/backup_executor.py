@@ -252,7 +252,9 @@ class SshBackupExecutor(BackupExecutor):
         """
 
         # Execute a 'true' command on the remote server
-        cmd = Command(self.ssh_command, self.ssh_options)
+        cmd = Command(self.ssh_command,
+                      self.ssh_options,
+                      path=self.server.path)
         ret = cmd("true")
         hint = "PostgreSQL server"
         if ret == 0:
@@ -306,7 +308,8 @@ class SshBackupExecutor(BackupExecutor):
                     self.server.postgres.get_setting('archive_command'):
                 # TODO: replace with RemoteUnixCommand
                 cmd = Command(self.ssh_command,
-                              self.ssh_options)
+                              self.ssh_options,
+                              path=self.server.path)
                 archive_dir = os.path.join(
                     self.server.postgres.get_setting('data_directory'),
                     'pg_xlog', 'archive_status')
@@ -397,6 +400,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 # tablespace of the previous backup if incremental is active
                 ref_dir = self._reuse_dir(previous_backup, tablespace.oid)
                 tb_rsync = RsyncPgData(
+                    path=self.server.path,
                     ssh=self.ssh_command,
                     ssh_options=self.ssh_options,
                     args=self._reuse_args(ref_dir),
@@ -423,6 +427,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
         # of the previous backup if incremental is active
         ref_dir = self._reuse_dir(previous_backup)
         rsync = RsyncPgData(
+            path=self.server.path,
             ssh=self.ssh_command,
             ssh_options=self.ssh_options,
             args=self._reuse_args(ref_dir),

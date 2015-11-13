@@ -21,6 +21,7 @@ This module contains the logic to run hook scripts
 
 import logging
 import time
+
 from barman import version
 from barman.command_wrappers import Command
 from barman.infofile import UnknownBackupIdException
@@ -126,6 +127,7 @@ class HookScriptRunner(object):
                 cmd = Command(
                     self.script,
                     env_append=self.environment,
+                    path=self.backup_manager.server.path,
                     shell=True, check=False)
                 self.exit_status = cmd()
                 if self.exit_status != 0:

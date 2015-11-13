@@ -57,7 +57,7 @@ class BackupManager(object):
         self.server = server
         self.config = server.config
         self._backup_cache = None
-        self.compression_manager = CompressionManager(self.config)
+        self.compression_manager = CompressionManager(self.config, server.path)
         self.executor = RsyncBackupExecutor(self)
 
     def get_available_backups(self, status_filter=DEFAULT_STATUS_FILTER):

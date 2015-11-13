@@ -28,7 +28,6 @@ import logging.handlers
 import os
 import pwd
 
-
 _logger = logging.getLogger(__name__)
 
 
@@ -184,7 +183,7 @@ def human_readable_timedelta(timedelta):
     return human
 
 
-def which(executable):
+def which(executable, path=None):
     """
     This method is useful to find if a executable is present into the
     os PATH
@@ -193,7 +192,8 @@ def which(executable):
     :return str|None: the path of the executable or None
     """
     # Get the system path and split.
-    path = os.getenv('PATH')
+    if path is None:
+        path = os.getenv('PATH')
     for file_path in path.split(os.path.pathsep):
         file_path = os.path.join(file_path, executable)
         # if the file exists return the full path.

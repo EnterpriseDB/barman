@@ -151,6 +151,7 @@ class Server(object):
         :param barman.config.ServerConfig config: the server configuration
         """
         self.config = config
+        self.path = self._build_path(self.config.path_prefix)
         self.postgres = PostgreSQLConnection(config)
         self.backup_manager = BackupManager(self)
         self.enforce_retention_policies = False
@@ -917,7 +918,7 @@ class Server(object):
         # Here we need to handle explicitly the None value because we don't
         # want it ot fallback to the configured compression
         if compression is not None:
-            out_compressor = self.backup_manager.compression_manager\
+            out_compressor = self.backup_manager.compression_manager \
                 .get_compressor(compression=compression)
         else:
             out_compressor = None
@@ -1151,3 +1152,19 @@ class Server(object):
                 "to solve this issue" %
                 str(e), self.config.name)
             output.close_and_exit()
+
+    @staticmethod
+    def _build_path(path_prefix=None):
+        """
+        If a path_prefix is provided build a string suitable to be used in
+        PATH environment variable by joining the path_prefix with the
+        current content of PATH environment variable.
+
+        If the `path_prefix` is None returns None.
+
+        :rtype: str|None
+        """
+        if not path_prefix:
+            return None
+        sys_path = os.environ.get('PATH')
+        return "%s%s%s" % (path_prefix, os.pathsep, sys_path)

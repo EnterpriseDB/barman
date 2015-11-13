@@ -16,6 +16,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+
 from barman.command_wrappers import Command
 
 _logger = logging.getLogger(__name__)
@@ -47,9 +48,9 @@ class UnixLocalCommand(object):
     This class is a wrapper for local calls for file system operations
     """
 
-    def __init__(self):
+    def __init__(self, path=None):
         # initialize a shell
-        self.cmd = Command(cmd='sh -c', shell=True)
+        self.cmd = Command(cmd='sh -c', shell=True, path=path)
 
     def create_dir_if_not_exists(self, dir_path):
         """

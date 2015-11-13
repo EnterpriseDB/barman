@@ -15,30 +15,33 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import mock
 import base64
-from barman.compression import identify_compression, Compressor, \
-    CustomCompressor, CompressionManager
+
+import mock
+
+from barman.compression import (CompressionManager, Compressor,
+                                CustomCompressor, identify_compression)
 
 
+# noinspection PyMethodMayBeStatic
 class TestCompressionManager(object):
     def test_compression_manager_creation(self):
         # prepare mock obj
         config_mock = mock.Mock()
-        comp_manager = CompressionManager(config_mock)
+        comp_manager = CompressionManager(config_mock, None)
         assert comp_manager
 
     def test_check_compression_none(self):
         # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "custom"
-        comp_manager = CompressionManager(config_mock)
+        comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.check() is True
 
     def test_check_with_compression(self):
         # prepare mock obj
         config_mock = mock.Mock()
-        comp_manager = CompressionManager(config_mock)
+        comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.check('test_compression') is False
 
     def test_get_compressor_custom(self):
@@ -50,7 +53,7 @@ class TestCompressionManager(object):
             "test_custom_decompression_filter"
 
         # check custom compression method creation
-        comp_manager = CompressionManager(config_mock)
+        comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.get_compressor() is not None
 
     def test_get_compressor_gzip(self):
@@ -59,7 +62,7 @@ class TestCompressionManager(object):
         config_mock.compression = "gzip"
 
         # check custom compression method creation
-        comp_manager = CompressionManager(config_mock)
+        comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.get_compressor() is not None
 
     def test_get_compressor_bzip2(self):
@@ -68,7 +71,7 @@ class TestCompressionManager(object):
         config_mock.compression = "bzip2"
 
         # check custom compression method creation
-        comp_manager = CompressionManager(config_mock)
+        comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.get_compressor() is not None
 
     def test_get_compressor_invalid(self):
@@ -76,10 +79,11 @@ class TestCompressionManager(object):
         config_mock = mock.Mock()
 
         # check custom compression method creation
-        comp_manager = CompressionManager(config_mock)
+        comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.get_compressor("test_compression") is None
 
 
+# noinspection PyMethodMayBeStatic
 class TestIdentifyCompression(object):
     def test_identify_compression(self, tmpdir):
         bz2_tmp_file = tmpdir.join("test_file")
@@ -102,6 +106,7 @@ class TestIdentifyCompression(object):
         assert compression_zip == "gzip"
 
 
+# noinspection PyMethodMayBeStatic
 class TestCompressor(object):
     def test_compressor_creation(self):
         # prepare mock obj
@@ -140,8 +145,9 @@ class TestCompressor(object):
                               '-f "$1";}; command'
 
 
+# noinspection PyMethodMayBeStatic
 class TestCustomCompressor(object):
-    def testCustomCompressorCreation(self):
+    def test_custom_compressor_creation(self):
         config_mock = mock.Mock()
         config_mock.custom_compression_filter = 'dummy_compression_filter'
         config_mock.custom_decompression_filter = 'dummy_decompression_filter'
@@ -150,8 +156,10 @@ class TestCustomCompressor(object):
                                       compression="custom")
 
         assert compressor is not None
-        assert compressor.compress.cmd == 'command(){ dummy_compression_filter > "$2" < "$1";}; command'
-        assert compressor.decompress.cmd == 'command(){ dummy_decompression_filter > "$2" < "$1";}; command'
+        assert compressor.compress.cmd == (
+            'command(){ dummy_compression_filter > "$2" < "$1";}; command')
+        assert compressor.decompress.cmd == (
+            'command(){ dummy_decompression_filter > "$2" < "$1";}; command')
 
     def test_validate(self):
         config_mock = mock.Mock()

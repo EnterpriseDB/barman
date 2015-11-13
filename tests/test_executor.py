@@ -208,6 +208,7 @@ class TestRsyncBackupExecutor(object):
         backup_manager = build_backup_manager(global_conf={
             'barman_home': tmpdir.mkdir('home').strpath
         })
+        backup_manager.server.path = None
         backup_info = build_test_backup_info(
             server=backup_manager.server,
             pgdata="/pg/data",
@@ -225,7 +226,7 @@ class TestRsyncBackupExecutor(object):
 
         assert rsync_mock.mock_calls == [
             mock.call(check=True, network_compression=False, args=[],
-                      bwlimit=None, ssh='ssh',
+                      bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
@@ -234,7 +235,7 @@ class TestRsyncBackupExecutor(object):
                                    backup_info.get_data_directory(16387),
                                    None, None),
             mock.call(check=True, network_compression=False, args=[],
-                      bwlimit=None, ssh='ssh',
+                      bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
@@ -245,7 +246,7 @@ class TestRsyncBackupExecutor(object):
             mock.call(network_compression=False,
                       exclude_and_protect=['/pg_tblspc/16387',
                                            '/pg_tblspc/16405'],
-                      args=[], bwlimit=None, ssh='ssh',
+                      args=[], bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
                                    'postgres@pg01.nowhere',
                                    '-o', 'BatchMode=yes',

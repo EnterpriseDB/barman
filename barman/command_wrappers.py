@@ -18,20 +18,21 @@
 """
 This module contains a wrapper for shell commands
 """
+import collections
 import inspect
+import logging
+import os
+import re
 import shutil
-
-import sys
 import signal
 import subprocess
-import os
-import logging
-import re
-import collections
+import sys
 import tempfile
-import barman.utils
+
 import dateutil.parser
 import dateutil.tz
+
+import barman.utils
 
 _logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class Command(object):
     Simple wrapper for a shell command
     """
 
-    def __init__(self, cmd, args=None, env_append=None, shell=False,
+    def __init__(self, cmd, args=None, env_append=None, path=None, shell=False,
                  check=False, allowed_retval=(0,), debug=False,
                  close_fds=True):
         self.cmd = cmd
@@ -91,6 +92,14 @@ class Command(object):
         self.ret = None
         self.out = None
         self.err = None
+        # If env_append has been provided use it or replace with an empty dict
+        env_append = env_append or {}
+        # If path has been provided, replace it in the environment
+        if path:
+            env_append['PATH'] = path
+        # If env_append contains anything, build an env dict to be used during
+        # subprocess call, otherwise set it to None and let the subprocesses
+        # inherit the parent environment
         if env_append:
             self.env = os.environ.copy()
             self.env.update(env_append)
@@ -226,13 +235,13 @@ class Rsync(Command):
     def __init__(self, rsync='rsync', args=None, ssh=None, ssh_options=None,
                  bwlimit=None, exclude_and_protect=None,
                  network_compression=None, check=True, allowed_retval=(0, 24),
-                 **kwargs):
+                 path=None, **kwargs):
         options = []
         # Try to find rsync in system PATH using the which method.
         # If not found, rsync is not installed and this class cannot
         # work properly.
         # Raise CommandFailedException warning the user
-        rsync_path = barman.utils.which(rsync)
+        rsync_path = barman.utils.which(rsync, path)
         if not rsync_path:
             raise CommandFailedException('rsync not in system PATH: '
                                          'is rsync installed?')
@@ -241,14 +250,15 @@ class Rsync(Command):
         if network_compression:
             options += ['-z']
         if exclude_and_protect:
-            for path in exclude_and_protect:
-                options += ["--exclude=%s" % (path,), "--filter=P_%s" % (path,)]
+            for exclude_path in exclude_and_protect:
+                options += ["--exclude=%s" % (exclude_path,),
+                            "--filter=P_%s" % (exclude_path,)]
         if args:
             options += self._args_for_suse(args)
         if bwlimit is not None and bwlimit > 0:
             options += ["--bwlimit=%s" % bwlimit]
         Command.__init__(self, rsync, args=options, check=check,
-                         allowed_retval=allowed_retval, **kwargs)
+                         allowed_retval=allowed_retval, path=path, **kwargs)
 
     def _args_for_suse(self, args):
         """

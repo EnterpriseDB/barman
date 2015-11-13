@@ -19,27 +19,26 @@
 This module contains the methods necessary to perform a recovery
 """
 
-from io import StringIO
+import collections
 import logging
 import os
 import re
 import shutil
+import socket
 import tempfile
 import time
+from io import StringIO
 
-import collections
 import dateutil.parser
 import dateutil.tz
-import socket
-from barman.config import RecoveryOptions
 
-from barman import xlog, output
-from barman.command_wrappers import DataTransferFailure, \
-    CommandFailedException, RsyncPgData, Rsync
-from barman.fs import FsOperationFailed, UnixRemoteCommand, UnixLocalCommand
+from barman import output, xlog
+from barman.command_wrappers import (CommandFailedException,
+                                     DataTransferFailure, Rsync, RsyncPgData)
+from barman.config import RecoveryOptions
+from barman.fs import FsOperationFailed, UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.utils import mkpath
-
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -391,6 +390,7 @@ class RecoveryExecutor(object):
         if remote_command:
             # Uses plain rsync (without exclusions) to ship recovery.conf
             plain_rsync = Rsync(
+                path=self.server.path,
                 ssh=remote_command,
                 bwlimit=self.config.bandwidth_limit,
                 network_compression=self.config.network_compression)
@@ -476,6 +476,7 @@ class RecoveryExecutor(object):
         if remote_command:
             recovery_info['recovery_dest'] = 'remote'
             recovery_info['rsync'] = RsyncPgData(
+                path=self.server.path,
                 ssh=remote_command,
                 bwlimit=self.config.bandwidth_limit,
                 network_compression=self.config.network_compression)
@@ -769,6 +770,7 @@ class RecoveryExecutor(object):
                 exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
                 # Copy the tablespace using smart copy
                 tb_rsync = RsyncPgData(
+                    path=self.server.path,
                     ssh=remote_command,
                     bwlimit=bwlimit,
                     network_compression=self.config.network_compression,
@@ -784,6 +786,7 @@ class RecoveryExecutor(object):
 
         # Copy the pgdata directory
         rsync = RsyncPgData(
+            path=self.server.path,
             ssh=remote_command,
             bwlimit=self.config.bandwidth_limit,
             exclude_and_protect=exclude_and_protect,
@@ -827,6 +830,7 @@ class RecoveryExecutor(object):
                         compression=wal_info.compression)
 
         rsync = RsyncPgData(
+            path=self.server.path,
             ssh=remote_command,
             bwlimit=self.config.bandwidth_limit,
             network_compression=self.config.network_compression)
