@@ -1,3 +1,37 @@
+2015-11-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Prepared version 1.5.1
+
+2015-11-13  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Create pg_xlog/archive_status directory at the end of recovery
+	On PostgreSQL 8.3, the pg_xlog/archive_status directory is not
+	automatically created, if missing, during the startup. To avoid errors
+	Barman now creates that directory at the end of any recovery operation.
+
+2015-11-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Converted sphinx directory README to Markdown
+
+2015-11-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Pin (temporarily) pytest-catchlog to version 1.1
+	The pytest-catchlog release 1.2.0 broke Python 2.6 compatibility, so pin
+	the 1.1 version until it will be restored.
+
+	Ref: https://github.com/eisensheng/pytest-catchlog/pull/15
+
+	In latest release of pytest-catchlog the result of caplog.records() call
+	is a copy of the event list so any modification of that has no global
+	effect. Change the code that uses caplog.records() to not rely on the
+	previous undocumented behaviour.
+
+2015-11-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix a typo in barman-wal-restore help output
+
 2015-11-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
