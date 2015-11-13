@@ -676,7 +676,8 @@ class RecoveryExecutor(object):
             # by creating the corresponding archive status file
             if not recovery_info['is_pitr']:
                 output.info("Generating archive status files")
-                self.generate_archive_status(recovery_info, remote_command,
+                self.generate_archive_status(recovery_info,
+                                             remote_command,
                                              required_xlog_files)
 
         # Generate recovery.conf file (only if needed by PITR)
@@ -685,6 +686,15 @@ class RecoveryExecutor(object):
             self.generate_recovery_conf(recovery_info, backup_info, dest,
                                         exclusive, remote_command, target_name,
                                         target_time, target_tli, target_xid)
+
+        # Create archive_status directory if necessary
+        archive_status_dir = os.path.join(dest, 'pg_xlog', 'archive_status')
+        try:
+            recovery_info['cmd'].create_dir_if_not_exists(archive_status_dir)
+        except FsOperationFailed, e:
+            output.exception("unable to create the archive_status directory "
+                             "'%s': %s", archive_status_dir, e)
+            output.close_and_exit()
 
         # As last step, analyse configuration files in order to spot
         # harmful options. Barman performs automatic conversion of
