@@ -1,31 +1,34 @@
-= Generate sphinx documentation
+# Generate sphinx documentation
 
 Generate barman code documentation using Sphinx autodoc
 
-== Prerequisites
+## Prerequisites
 
 Install the python modules required to build the documentation
 by executing, from the root directory of Barman:
 
-[source,bash]
+``` bash
 pip install -r sphinx/requirements.txt
+```
 
-== Documentation generation
+## Documentation generation
 
 From the root folder of Barman, launch:
 
-[source,bash]
+``` bash
 sphinx/generate_docs.sh
+```
 
 
-=== `generate_docs.sh` options
+### `generate_docs.sh` options
 
 Is possible to use a different path to the barman source files
-directory (default: the current barman source directory`) passing it
+directory (default: the current barman source directory) passing it
 as argument to the `generate_docs.sh` script.
 
-[source,bash]
+``` bash
 sphinx/generate_docs.sh <path_to_alternative_barman_source_dir>
+```
 
 It's also possible to pass the target format (default: `html`)
 to the generate_docs.sh script using the -t option followed by
@@ -51,7 +54,7 @@ one of the available formats:
 *  linkcheck  to check all external links for integrity
 *  doctest    to run all doctests embedded in the documentation (if enabled)
 
-== Licence
+## Licence
 
 Copyright (C) 2011-2015 2ndQuadrant Italia Srl
 
