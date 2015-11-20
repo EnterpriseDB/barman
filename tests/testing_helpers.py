@@ -250,6 +250,7 @@ def build_config_dictionary(config_keys=None):
         'basebackup_retry_sleep': 30,
         'basebackup_retry_times': 0,
         'post_archive_script': None,
+        'streaming_conninfo': None,
         'pre_archive_script': None,
         'post_archive_retry_script': None,
         'pre_archive_retry_script': None,

@@ -111,6 +111,79 @@ class PostgreSQL(object):
         return conn.server_version
 
 
+class StreamingConnection(PostgreSQL):
+    """
+    This class represents a streaming connection to a PostgreSQL server.
+    """
+
+    def __init__(self, config):
+        """
+        Streaming connection constructor
+
+        :param barman.config.ServerConfig config: the server configuration
+        """
+        if config.streaming_conninfo is None:
+            raise ConninfoException(
+                'Missing streaming_conninfo parameter in barman configuration '
+                'for server %s' % config.name
+            )
+        super(StreamingConnection, self).__init__(config,
+                                                  config.streaming_conninfo)
+        # Make sure we connect using the 'replication' option which
+        # triggers streaming replication protocol communication
+        if 'replication' not in self._conn_parameters:
+            self._conn_parameters['replication'] = 'true'
+            self.conninfo += ' replication=true'
+
+    def connect(self):
+        """
+        Connect to the PostgreSQL server. It reuses an existing connection.
+
+        :returns: the connection to the server
+        """
+        if self._conn:
+            # Return the already existing connection
+            return self._conn
+        # Build a connection and set autocommit
+        self._conn = super(StreamingConnection, self).connect()
+        self._conn.autocommit = True
+        return self._conn
+
+    def get_remote_status(self):
+        """
+        Returns the status of the connection to the PostgreSQL server.
+
+        This method does not raise exceptions in case of PostgreSQL
+        communication error, but set the missing parameters to None.
+
+        :return dict[str, None]: result of the server status query
+        """
+        result = dict.fromkeys(
+            ('streaming', 'systemid', 'timeline', 'xlogpos'),
+            None)
+        try:
+            # Execute a IDENTIFY_SYSYEM to check the connection
+            cursor = self._cursor()
+            cursor.execute("IDENTIFY_SYSTEM")
+            row = cursor.fetchone()
+            # If something has been returned, barman is connected
+            # to a replication backend
+            if row:
+                result['streaming'] = True
+                # IDENTIFY_SYSTEM always return at least two values
+                result['systemid'] = row[0]
+                result['timeline'] = row[1]
+                # PostgreSQL 9.1+ returns also the current xlog flush location
+                if len(row) > 2:
+                    result['xlogpos'] = row[2]
+        except psycopg2.ProgrammingError:
+            # This is not a streaming connection
+            result['streaming'] = False
+        except PostgresConnectionError as e:
+            _logger.warn("Error retrieving PostgreSQL status: %s", e)
+        return result
+
+
 class PostgreSQLConnection(PostgreSQL):
     """
     This class represents a standard client connection to a PostgreSQL server.
@@ -262,6 +335,9 @@ class PostgreSQLConnection(PostgreSQL):
     def get_remote_status(self):
         """
         Get the status of the PostgreSQL server
+
+        This method does not raise exceptions in case of PostgreSQL
+        communication error, but set the missing parameters to None.
 
         :return dict[str, None]: result of the server status query
         """

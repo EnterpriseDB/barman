@@ -274,7 +274,9 @@ class ServerConfig(object):
         'recovery_options',
         'basebackup_retry_times', 'basebackup_retry_sleep',
         'last_backup_maximum_age',
-        'backup_method', 'path_prefix',
+        'backup_method',
+        'path_prefix',
+        'streaming_conninfo',
     ]
 
     BARMAN_KEYS = [

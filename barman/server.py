@@ -37,7 +37,8 @@ from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerXLOGDBLock)
-from barman.postgres import PostgresConnectionError, PostgreSQLConnection
+from barman.postgres import PostgresConnectionError, PostgreSQLConnection, \
+    StreamingConnection, ConninfoException
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta
 
@@ -153,6 +154,12 @@ class Server(object):
         self.config = config
         self.path = self._build_path(self.config.path_prefix)
         self.postgres = PostgreSQLConnection(config)
+        # TODO: initialize the streaming connection only if needed
+        # TODO: then set 'streaming_conninfo' = 'conninfo' by default
+        try:
+            self.streaming = StreamingConnection(config)
+        except ConninfoException:
+            self.streaming = None
         self.backup_manager = BackupManager(self)
         self.enforce_retention_policies = False
 
@@ -292,6 +299,11 @@ class Server(object):
         else:
             check_strategy.result(self.config.name, 'PostgreSQL', False)
             return
+        if 'streaming' in remote_status:
+            # If a streaming connection is available add the status to the
+            # output of the check
+            check_strategy.result(self.config.name, 'PostgreSQL streaming',
+                                  remote_status['streaming'])
         # Check archive_mode parameter: must be on
         if remote_status['archive_mode'] == 'on':
             check_strategy.result(self.config.name, 'archive_mode', True)
@@ -503,6 +515,9 @@ class Server(object):
         :return dict[str, None]: result of the server status query
         """
         result = self.postgres.get_remote_status()
+        # Merge additional status for a streaming connection
+        if self.streaming:
+            result.update(self.streaming.get_remote_status())
         # Merge additional status defined by the BackupManager
         result.update(self.backup_manager.get_remote_status())
         return result

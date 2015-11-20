@@ -52,6 +52,10 @@ ssh_command
 conninfo
 :   Connection string used by Barman to connect to the Postgres server. Server.
 
+streaming_conninfo
+:   Connection string used by Barman to connect to the Postgres server via
+    streaming replication protocol. Server.
+
 barman_home
 :   Main data directory for Barman. Global.
 
@@ -320,6 +324,9 @@ ssh_command = ssh postgres@pg
 
 ; PostgreSQL connection string
 conninfo = host=pg user=postgres
+
+; PostgreSQL streaming connection string
+streaming_conninfo = host=pg user=postgres
 
 ; Minimum number of required backups (redundancy)
 minimum_redundancy = 1

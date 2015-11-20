@@ -243,6 +243,26 @@ barman@backup$ psql -c 'SELECT version()' -U postgres -h pg
 > As of version 1.1.2, Barman honours the `application_name`
 > connection option for PostgreSQL servers 9.0 or higher.
 
+#### Streaming connection
+
+As of version 1.6.0 Barman enables the connection to a PostgreSQL
+server using its native [streaming replication protocol] [22].
+In order to set up a streaming connection, you need to:
+
+- Properly configure PostgreSQL to accept streaming replication
+  connections from the Barman server. We encourage users to
+  read the PostgreSQL documentation, in particular:
+
+    - [Role attributes] [23]
+    - [The pg_hba.conf file] [23]
+    - [Setting up standby servers using streaming replication] [24]
+- Set the `streaming_conninfo` parameter in the Barman server configuration
+  accordingly.
+
+  > **IMPORTANT**: Setting up streaming replication is not a task
+  > that is strictly related to Barman configuration. Please refer
+  > to PostgreSQL documentation, mailing lists, and books for this activity.
+
 ### Backup directory
 
 Barman needs a main backup directory to store all the backups. Even
@@ -1491,3 +1511,7 @@ Assignment Form.
   [18]: http://4caast.morfeo-project.org/
   [19]: http://www.2ndquadrant.it/
   [20]: http://www.postgresql.org/docs/current/static/functions-admin.html
+  [21]: http://www.postgresql.org/docs/current/static/auth-pg-hba-conf.html
+  [22]: http://www.postgresql.org/docs/current/static/protocol-replication.html
+  [23]: http://www.postgresql.org/docs/current/static/role-attributes.html
+  [24]:http://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION

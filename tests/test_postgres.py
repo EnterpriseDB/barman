@@ -328,3 +328,31 @@ class TestPostgres(object):
         # test error management
         conn.return_value.cursor.return_value.execute.side_effect = psycopg2.Error
         assert server.postgres.get_configuration_files() == {}
+
+    @patch('barman.postgres.StreamingConnection.connect')
+    def test_get_streaming_remote_status(self, conn):
+        """
+        simple test for the get_configuration_files method
+        """
+        # Build a server
+        server = build_real_server(
+            main_conf={'streaming_conninfo': 'dummy=param'})
+
+        # Working streaming connection
+        result = server.streaming.get_remote_status()
+        assert result['streaming'] is True
+
+        # Working non-streaming connection
+        cursor_mock = conn.return_value.cursor.return_value
+        cursor_mock.execute.assert_called_once_with("IDENTIFY_SYSTEM")
+        conn.reset_mock()
+        cursor_mock.execute.side_effect = psycopg2.ProgrammingError
+        result = server.streaming.get_remote_status()
+        assert result['streaming'] is False
+
+        # Connection failed
+        cursor_mock.execute.assert_called_once_with("IDENTIFY_SYSTEM")
+        conn.reset_mock()
+        conn.side_effect = PostgresConnectionError
+        result = server.streaming.get_remote_status()
+        assert result['streaming'] is None
