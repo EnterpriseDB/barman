@@ -336,9 +336,12 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server(
-            main_conf={'streaming_conninfo': 'dummy=param'})
+            main_conf={
+                'streaming_archiver': True,
+                'streaming_conninfo': 'dummy=param'})
 
         # Working streaming connection
+        conn.return_value.server_version = 90300
         result = server.streaming.get_remote_status()
         assert result['streaming'] is True
 
@@ -356,3 +359,32 @@ class TestPostgres(object):
         conn.side_effect = PostgresConnectionError
         result = server.streaming.get_remote_status()
         assert result['streaming'] is None
+
+    @patch('barman.postgres.StreamingConnection.connect')
+    def test_streaming_server_txt_version(self, conn):
+        """
+        simple test for the server_txt_version property
+        """
+        # Build a server
+        server = build_real_server(
+            main_conf={
+                'streaming_archiver': True,
+                'streaming_conninfo': 'dummy=param'})
+
+        conn.return_value.server_version = 80300
+        assert server.streaming.server_txt_version == '8.3.0'
+
+        conn.return_value.server_version = 90000
+        assert server.streaming.server_txt_version == '9.0.0'
+
+        conn.return_value.server_version = 90005
+        assert server.streaming.server_txt_version == '9.0.5'
+
+        conn.return_value.server_version = 100201
+        assert server.streaming.server_txt_version == '10.2.1'
+
+        conn.return_value.server_version = 101811
+        assert server.streaming.server_txt_version == '10.18.11'
+
+        conn.return_value.server_version = 0
+        assert server.streaming.server_txt_version == '0.0.0'

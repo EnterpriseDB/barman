@@ -17,9 +17,12 @@
 
 import logging
 from abc import ABCMeta, abstractmethod
+from distutils.version import LooseVersion as Version
 
 import psycopg2
 
+from barman import utils
+from barman.command_wrappers import Command, CommandFailedException
 from barman.postgres import PostgresConnectionError
 
 _logger = logging.getLogger(__name__)
@@ -82,5 +85,76 @@ class FileWalArchiver(WalArchiver):
         pg_stat_archiver = postgres.get_archiver_stats()
         if pg_stat_archiver is not None:
             result.update(pg_stat_archiver)
+
+        return result
+
+
+class StreamingWalArchiver(WalArchiver):
+    """
+    Object used for the management of streaming WAL archive operation.
+    """
+
+    def __init__(self, backup_manager):
+        super(StreamingWalArchiver, self).__init__(backup_manager)
+
+    def get_remote_status(self):
+        """
+        Execute checks for replication-based wal archiving
+        :return dict[str]: result of archive checks
+        """
+        result = dict.fromkeys(
+            ('pg_receivexlog_compatible',
+                'pg_receivexlog_installed',
+                'pg_receivexlog_path',
+                'pg_receivexlog_version'),
+            None)
+
+        try:
+            streaming = self.backup_manager.server.streaming
+            pg_version = Version(
+                utils.simplify_version(streaming.server_txt_version))
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.warn("Error retrieving PostgreSQL version: %s", e)
+            return result
+
+        # detect if there is a pg_receivexlog executable
+        pg_receivexlog = utils.which("pg_receivexlog",
+                                     self.backup_manager.server.path)
+
+        # Test pg_receivexlog existence
+        if pg_receivexlog:
+            result["pg_receivexlog_installed"] = True
+            result["pg_receivexlog_path"] = pg_receivexlog
+        else:
+            result["pg_receivexlog_installed"] = False
+            return result
+
+        receivexlog = Command(pg_receivexlog, check=True)
+
+        # Obtain the `pg_receivexlog` version
+        try:
+            receivexlog("--version")
+            splitter_version = receivexlog.out.strip().split()
+            result["pg_receivexlog_version"] = splitter_version[-1]
+            receivexlog_version = Version(
+                utils.simplify_version(result["pg_receivexlog_version"]))
+        except CommandFailedException as e:
+            _logger.debug("Error invoking pg_receivexlog: %s", e)
+            return result
+
+        # pg_receivexlog 9.2 is compatible only with PostgreSQL 9.2.
+        if "9.2" == pg_version == receivexlog_version:
+            result["pg_receivexlog_compatible"] = True
+
+        # other versions are compatible with lesser versions of PostgreSQL
+        # WARNING: The development versions of `pg_receivexlog` are considered
+        # higher than the stable versions here, but this is not an issue
+        # because it accepts everything that is less than
+        # the `pg_receivexlog` version(e.g. '9.6' is less than '9.6devel')
+        elif "9.2" < pg_version <= receivexlog_version:
+            result["pg_receivexlog_compatible"] = True
+
+        else:
+            result["pg_receivexlog_compatible"] = False
 
         return result

@@ -149,6 +149,17 @@ class StreamingConnection(PostgreSQL):
         self._conn.autocommit = True
         return self._conn
 
+    @property
+    def server_txt_version(self):
+        """
+        Human readable version of PostgreSQL (calculated from server_version)
+        """
+        conn = self.connect()
+        major = int(conn.server_version / 10000)
+        minor = int(conn.server_version / 100 % 100)
+        patch = int(conn.server_version % 100)
+        return "%d.%d.%d" % (major, minor, patch)
+
     def get_remote_status(self):
         """
         Returns the status of the connection to the PostgreSQL server.
@@ -159,9 +170,18 @@ class StreamingConnection(PostgreSQL):
         :return dict[str, None]: result of the server status query
         """
         result = dict.fromkeys(
-            ('streaming', 'systemid', 'timeline', 'xlogpos'),
+            ('streaming_supported', 'streaming', 'systemid',
+                'timeline', 'xlogpos'),
             None)
         try:
+            # If the server is too old to support `pg_receivexlog`,
+            # exit immediately.
+            # This needs to be protected by the try/except because
+            # `self.server_version` can raise a PostgresConnectionError
+            if self.server_version < 90200:
+                result["streaming_supported"] = False
+                return result
+            result["streaming_supported"] = True
             # Execute a IDENTIFY_SYSYEM to check the connection
             cursor = self._cursor()
             cursor.execute("IDENTIFY_SYSTEM")
@@ -241,7 +261,7 @@ class PostgreSQLConnection(PostgreSQL):
     @property
     def has_pgespresso(self):
         """
-        Returns true if the 'pgexpresso' extension is available
+        Returns true if the `pgespresso` extension is available
         """
         try:
             # pg_extension is only available from Postgres 9.1+

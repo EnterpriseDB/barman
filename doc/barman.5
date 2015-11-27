@@ -273,6 +273,20 @@ Global/Server.
 .RS
 .RE
 .TP
+.B streaming_archiver
+This option allows you to use the PostgreSQL\[aq]s streaming protocol to
+receive transaction logs from a server.
+If set to \f[C]on\f[], Barman expects to find \f[C]pg_receivexlog\f[] in
+the PATH (see \f[C]path\f[] option) and that streaming connection for
+the server is working.
+This activates connection checks as well as management (including
+compression) of WAL files.
+If set to \f[C]off\f[] (default) barman will rely ony on continuous
+archiving for a server WAL archive operations.
+Global/Server.
+.RS
+.RE
+.TP
 .B wal_retention_policy
 Policy for retention of archive logs (WAL files).
 Currently only "MAIN" is available.

@@ -248,3 +248,16 @@ def fsync_dir(dir_path):
         if e.errno != errno.EINVAL:
             raise
     os.close(dir_fd)
+
+
+def simplify_version(version_string):
+    """
+    Simplify a version number using a major.minor format
+
+    :param version_string: the version number to simplify
+    :return str: the simplified version number
+    """
+    if version_string is None:
+        return None
+    version = version_string.split('.')
+    return '.'.join(version[:2])

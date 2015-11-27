@@ -20,17 +20,16 @@ from datetime import timedelta
 
 import mock
 import pytest
+from mock import patch
 
-from testing_helpers import build_config_from_dicts, build_config_dictionary
-
+from barman.config import (BackupOptions, Config, RecoveryOptions,
+                           parse_time_interval)
+from testing_helpers import build_config_dictionary, build_config_from_dicts
 
 try:
     from cStringIO import StringIO
 except ImportError:
     from io import StringIO
-from barman.config import Config, parse_time_interval, RecoveryOptions, \
-    BackupOptions
-from mock import patch
 
 MINIMAL_CONFIG = """
 [barman]
@@ -148,6 +147,7 @@ class TestConfig(object):
             'last_backup_maximum_age': timedelta(1),
             'ssh_command': 'ssh -I ~/.ssh/web01_rsa -c arcfour '
                            '-p 22 postgres@web01',
+            'streaming_conninfo': 'host=web01 user=postgres port=5432',
         })
         assert web.__dict__ == expected
 

@@ -93,10 +93,10 @@ lock_file
 
 log_file
 :   Location of Barman's log file. Global.
- 
+
 log_level
 :   Level of logging (DEBUG, INFO, WARNING, ERROR, CRITICAL). Global.
- 
+
 custom_compression_filter
 :   Compression algorithm applied to WAL files. Global/Server.
 
@@ -162,7 +162,17 @@ retention_policy
     "RECOVERY WINDOW OF i DAYS" or "RECOVERY WINDOW OF i WEEKS" or
     "RECOVERY WINDOW OF i MONTHS" where i is a positive integer representing,
     specifically, the number of days, weeks or months to retain your backups.
-    For more detailed information, refer to the official documentation. Default value is empty. Global/Server.
+    For more detailed information, refer to the official documentation.
+    Default value is empty. Global/Server.
+
+streaming_archiver
+:   This option allows you to use the PostgreSQL's streaming protocol to receive
+    transaction logs from a server. If set to `on`, Barman expects
+    to find `pg_receivexlog` in the PATH (see `path` option) and that streaming
+    connection for the server is working. This activates connection
+    checks as well as management (including compression) of WAL files.
+    If set to `off` (default) barman will rely ony on continuous archiving
+    for a server WAL archive operations. Global/Server.
 
 wal_retention_policy
 :   Policy for retention of archive logs (WAL files). Currently only "MAIN" is available. Global/Server.
@@ -211,7 +221,7 @@ last_backup_maximum_age
     report an error to the user.
     If empty (default), latest backup is always considered valid.
     Syntax for this option is: "i (DAYS | WEEKS | MONTHS)" where i is a integer
-    greater than zero, representing the number of days | weeks | months 
+    greater than zero, representing the number of days | weeks | months
     of the time frame. Global/Server.
 
 basebackup_retry_times

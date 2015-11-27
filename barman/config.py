@@ -292,6 +292,7 @@ class ServerConfig(object):
         'retention_policy_mode',
         'reuse_backup',
         'ssh_command',
+        'streaming_archiver',
         'streaming_conninfo',
         'tablespace_bandwidth_limit',
         'wal_retention_policy',
@@ -322,6 +323,7 @@ class ServerConfig(object):
         'retention_policy',
         'retention_policy_mode',
         'reuse_backup',
+        'streaming_archiver',
         'tablespace_bandwidth_limit',
         'wal_retention_policy'
     ]
@@ -342,6 +344,8 @@ class ServerConfig(object):
         'network_compression': 'false',
         'recovery_options': '',
         'retention_policy_mode': 'auto',
+        'streaming_conninfo': '%(conninfo)s',
+        'streaming_archiver': 'off',
         'wal_retention_policy': 'main',
         'wals_directory': '%(backup_directory)s/wals'
     }
@@ -363,6 +367,7 @@ class ServerConfig(object):
         'network_compression': parse_boolean,
         'recovery_options': RecoveryOptions,
         'reuse_backup': parse_reuse_backup,
+        'streaming_archiver': parse_boolean,
     }
 
     def invoke_parser(self, key, source, value, new_value):

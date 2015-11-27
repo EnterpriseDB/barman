@@ -37,11 +37,11 @@ from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerXLOGDBLock)
-from barman.postgres import (ConninfoException, PostgresConnectionError,
-                             PostgreSQLConnection, StreamingConnection)
+from barman.postgres import (PostgresConnectionError, PostgreSQLConnection,
+                             StreamingConnection)
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta
-from barman.wal_archiver import FileWalArchiver
+from barman.wal_archiver import FileWalArchiver, StreamingWalArchiver
 
 _logger = logging.getLogger(__name__)
 
@@ -155,20 +155,23 @@ class Server(object):
         self.config = config
         self.path = self._build_path(self.config.path_prefix)
         self.postgres = PostgreSQLConnection(config)
+        self.streaming = None
 
-        # TODO: initialize the streaming connection only if needed
-        # TODO: then set 'streaming_conninfo' = 'conninfo' by default
-        try:
-            self.streaming = StreamingConnection(config)
-        except ConninfoException:
-            self.streaming = None
         self.backup_manager = BackupManager(self)
         self.enforce_retention_policies = False
 
+        self.archivers = list()
         if self.config.archiver:
-            self.archiver = FileWalArchiver(self.backup_manager)
-        else:
-            raise NotImplementedError("not yet implemented")
+            self.archivers.append(FileWalArchiver(self.backup_manager))
+
+        if self.config.streaming_archiver:
+            self.streaming = StreamingConnection(config)
+            self.archivers.append(StreamingWalArchiver(self.backup_manager))
+
+        if len(self.archivers) < 1:
+            raise Exception(
+                "Missing archiver for server %s. "
+                "Enable 'archiver' and/or 'streaming_archiver'" % config.name)
 
         # Set bandwidth_limit
         if self.config.bandwidth_limit:
@@ -306,11 +309,14 @@ class Server(object):
         else:
             check_strategy.result(self.config.name, 'PostgreSQL', False)
             return
-        if 'streaming' in remote_status:
+        if 'streaming_supported' in remote_status:
             # If a streaming connection is available add the status to the
             # output of the check
+            hint = None
+            if not remote_status['streaming_supported']:
+                hint = 'Streaming connection not supported for PostgreSQL < 9.2'
             check_strategy.result(self.config.name, 'PostgreSQL streaming',
-                                  remote_status['streaming'])
+                                  remote_status.get('streaming'), hint)
         # Check archive_mode parameter: must be on
         if remote_status['archive_mode'] == 'on':
             check_strategy.result(self.config.name, 'archive_mode', True)
@@ -341,6 +347,19 @@ class Server(object):
         else:
             check_strategy.result(self.config.name, 'archive_command', False,
                                   'please set it accordingly to documentation')
+
+        if remote_status.get('streaming'):
+            check_strategy.result(self.config.name, 'pg_receivexlog',
+                                  remote_status['pg_receivexlog_installed'])
+            hint = None
+            if not remote_status['pg_receivexlog_compatible']:
+                hint = "PostgreSQL version: %s, pg_receivexlog version: %s" % (
+                    self.postgres.server_txt_version,
+                    remote_status['pg_receivexlog_version']
+                )
+            check_strategy.result(self.config.name, 'pg_receivexlog compatible',
+                                  remote_status['pg_receivexlog_compatible'],
+                                  hint=hint)
 
     def _make_directories(self):
         """
@@ -522,11 +541,12 @@ class Server(object):
         :return dict[str, None]: result of the server status query
         """
         result = self.postgres.get_remote_status()
-        # Merge additional status for the archiver
-        result.update(self.archiver.get_remote_status())
         # Merge additional status for a streaming connection
         if self.streaming:
             result.update(self.streaming.get_remote_status())
+        # Merge additional status for each archiver
+        for archiver in self.archivers:
+            result.update(archiver.get_remote_status())
         # Merge additional status defined by the BackupManager
         result.update(self.backup_manager.get_remote_status())
         return result
