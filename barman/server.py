@@ -37,10 +37,11 @@ from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerXLOGDBLock)
-from barman.postgres import PostgresConnectionError, PostgreSQLConnection, \
-    StreamingConnection, ConninfoException
+from barman.postgres import (ConninfoException, PostgresConnectionError,
+                             PostgreSQLConnection, StreamingConnection)
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta
+from barman.wal_archiver import FileWalArchiver
 
 _logger = logging.getLogger(__name__)
 
@@ -154,6 +155,7 @@ class Server(object):
         self.config = config
         self.path = self._build_path(self.config.path_prefix)
         self.postgres = PostgreSQLConnection(config)
+
         # TODO: initialize the streaming connection only if needed
         # TODO: then set 'streaming_conninfo' = 'conninfo' by default
         try:
@@ -162,6 +164,11 @@ class Server(object):
             self.streaming = None
         self.backup_manager = BackupManager(self)
         self.enforce_retention_policies = False
+
+        if self.config.archiver:
+            self.archiver = FileWalArchiver(self.backup_manager)
+        else:
+            raise NotImplementedError("not yet implemented")
 
         # Set bandwidth_limit
         if self.config.bandwidth_limit:
@@ -515,6 +522,8 @@ class Server(object):
         :return dict[str, None]: result of the server status query
         """
         result = self.postgres.get_remote_status()
+        # Merge additional status for the archiver
+        result.update(self.archiver.get_remote_status())
         # Merge additional status for a streaming connection
         if self.streaming:
             result.update(self.streaming.get_remote_status())

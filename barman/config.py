@@ -43,8 +43,8 @@ DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_LOG_FORMAT = "%(asctime)s [%(process)s] %(name)s " \
                      "%(levelname)s: %(message)s"
 
-_TRUE_RE = re.compile(r"""^(true|t|yes|1)$""", re.IGNORECASE)
-_FALSE_RE = re.compile(r"""^(false|f|no|0)$""", re.IGNORECASE)
+_TRUE_RE = re.compile(r"""^(true|t|yes|1|on)$""", re.IGNORECASE)
+_FALSE_RE = re.compile(r"""^(false|f|no|0|off)$""", re.IGNORECASE)
 _TIME_INTERVAL_RE = re.compile(r"""
       ^\s*
       (\d+)\s+(day|month|week)s?  # N (day|month|week) with optional 's'
@@ -259,6 +259,7 @@ class ServerConfig(object):
 
     KEYS = [
         'active',
+        'archiver',
         'backup_directory',
         'backup_method',
         'backup_options',
@@ -298,6 +299,7 @@ class ServerConfig(object):
     ]
 
     BARMAN_KEYS = [
+        'archiver',
         'backup_method',
         'backup_options',
         'bandwidth_limit',
@@ -326,6 +328,7 @@ class ServerConfig(object):
 
     DEFAULTS = {
         'active': 'true',
+        'archiver': 'on',
         'backup_directory': '%(barman_home)s/%(name)s',
         'backup_method': 'rsync',
         'backup_options': "%s" % BackupOptions.EXCLUSIVE_BACKUP,
@@ -349,6 +352,7 @@ class ServerConfig(object):
 
     PARSERS = {
         'active': parse_boolean,
+        'archiver': parse_boolean,
         'backup_method': parse_backup_method,
         'backup_options': BackupOptions,
         'basebackup_retry_sleep': int,

@@ -53,6 +53,19 @@ Server.
 .RS
 .RE
 .TP
+.B archiver
+This option allows you to activate log file shipping through
+PostgreSQL\[aq]s \f[C]archive_command\f[] for a server.
+If set to \f[C]true\f[] (default), Barman expects that continous
+archiving for a server is in place and will activate checks as well as
+management (including compression) of WAL files that Postgres deposits
+in the \f[I]incoming\f[] directory.
+Setting it to \f[C]false\f[], will disable standard continuous archiving
+for a server.
+Global/Server.
+.RS
+.RE
+.TP
 .B description
 A human readable description of a server.
 Server.

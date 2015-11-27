@@ -217,6 +217,7 @@ def build_config_dictionary(config_keys=None):
     # Basic dictionary
     base_config = {
         'active': True,
+        'archiver': True,
         'config': None,
         'backup_directory': '/some/barman/home/main',
         'backup_options': BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", ""),

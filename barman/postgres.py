@@ -343,8 +343,6 @@ class PostgreSQLConnection(PostgreSQL):
         """
         # PostgreSQL settings to get from the server
         pg_settings = [
-            'archive_mode',
-            'archive_command',
             'data_directory']
         pg_query_keys = [
             'server_txt_version',
@@ -365,12 +363,6 @@ class PostgreSQLConnection(PostgreSQL):
             result['current_xlog'] = self.current_xlog
 
             result.update(self.get_configuration_files())
-
-            # Add pg_stat_archiver statistics if the view is supported
-            pg_stat_archiver = self.get_archiver_stats()
-            if pg_stat_archiver is not None:
-                result.update(pg_stat_archiver)
-
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.warn("Error retrieving PostgreSQL status: %s", e)
         return result
