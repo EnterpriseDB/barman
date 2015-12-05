@@ -120,8 +120,6 @@ class TestCompressor(object):
         assert compressor.compression == "dummy_compressor"
         assert compressor.debug is False
         assert compressor.remove_origin is False
-        assert compressor.compress is None
-        assert compressor.decompres is None
 
     def test_build_command(self):
         # prepare mock obj
@@ -156,9 +154,9 @@ class TestCustomCompressor(object):
                                       compression="custom")
 
         assert compressor is not None
-        assert compressor.compress.cmd == (
+        assert compressor._compress.cmd == (
             'command(){ dummy_compression_filter > "$2" < "$1";}; command')
-        assert compressor.decompress.cmd == (
+        assert compressor._decompress.cmd == (
             'command(){ dummy_decompression_filter > "$2" < "$1";}; command')
 
     def test_validate(self):

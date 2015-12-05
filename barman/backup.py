@@ -624,10 +624,6 @@ class BackupManager(object):
             fsync_dir(dest_dir)
             # Execute fsync() also on the incoming directory
             fsync_dir(self.config.incoming_wals_directory)
-            # Execute fsync() on the archived WAL file
-            file_fd = os.open(dest_file, os.O_RDONLY)
-            os.fsync(file_fd)
-            os.close(file_fd)
 
             stat = os.stat(dest_file)
             wal_info.size = stat.st_size
