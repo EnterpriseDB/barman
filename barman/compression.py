@@ -19,9 +19,12 @@
 This module is responsible to manage the compression features of Barman
 """
 
+import bz2
+import gzip
 import logging
+import os
 
-from barman.command_wrappers import Command
+from barman.command_wrappers import Command, CommandFailedException
 
 _logger = logging.getLogger(__name__)
 
@@ -95,8 +98,6 @@ class Compressor(object):
         self.compression = compression
         self.remove_origin = remove_origin
         self.debug = debug
-        self.compress = None
-        self.decompres = None
         self.path = path
 
     def _build_command(self, pipe_command):
@@ -114,6 +115,54 @@ class Compressor(object):
         command += ';}; command'
         return Command(command, shell=True, check=True, debug=self.debug,
                        path=self.path)
+
+    def _fsync(self, filename):
+        fd = os.open(filename, os.O_RDONLY)
+        os.fsync(fd)
+        os.close(fd)
+
+    def _unlink(self, filename):
+        try:
+            os.unlink(filename)
+        except:
+            pass
+
+    def compress(self, infile, outfile):
+        try:
+            ostream = self._output(outfile)
+            istream = open(infile, 'rb')
+            ostream.write(istream.read())
+            ostream.flush()
+            # some modules claim to sync the file content on flush(),
+            # but they don't - and some need the flush() to write the
+            # last bytes from the compressor out to the filehandle
+            os.fsync(ostream.fileno())
+        except Exception as ex:
+            # you won't get more information from the compressors anyway
+            raise CommandFailedException(dict(ret=1, err=ex.string(), out=''))
+        finally:
+            ostream.close()
+            istream.close()
+        if(self.remove_origin):
+            self._unlink(infile)
+        return 0
+
+    def decompress(self, infile, outfile):
+        try:
+            ostream = open(outfile, 'wb')
+            istream = self._input(infile)
+            ostream.write(istream.read())
+            ostream.flush()
+            os.fsync(ostream.fileno())
+        except Exception as ex:
+            # you won't get more information from the compressors anyway
+            raise CommandFailedException(dict(ret=1, err=ex.string(), out=''))
+        finally:
+            istream.close()
+            ostream.close()
+        if(self.remove_origin):
+            self._unlink(infile)
+        return 0
 
     @classmethod
     def validate(cls, file_start):
@@ -139,8 +188,16 @@ class GZipCompressor(Compressor):
                  path=None):
         super(GZipCompressor, self).__init__(
             config, compression, remove_origin, debug, path)
-        self.compress = self._build_command('gzip -c')
-        self.decompress = self._build_command('gzip -c -d')
+        # Z_DEFAULT_COMPRESSION
+        self._level = -1
+
+    def _output(self, name):
+        s = gzip.GzipFile(name, mode='wb', compresslevel=self._level)
+        return s
+
+    def _input(self, name):
+        s = gzip.GzipFile(name, mode='rb', compresslevel=self._level)
+        return s
 
 
 class BZip2Compressor(Compressor):
@@ -154,8 +211,15 @@ class BZip2Compressor(Compressor):
                  path=None):
         super(BZip2Compressor, self).__init__(
             config, compression, remove_origin, debug, path)
-        self.compress = self._build_command('bzip2 -c')
-        self.decompress = self._build_command('bzip2 -c -d')
+        self._level = 9
+
+    def _output(self, name):
+        s = bz2.BZ2File(name, mode='wb', compresslevel=self._level)
+        return s
+
+    def _input(self, name):
+        s = bz2.BZ2File(name, mode='rb', compresslevel=self._level)
+        return s
 
 
 class CustomCompressor(Compressor):
@@ -172,10 +236,18 @@ class CustomCompressor(Compressor):
 
         super(CustomCompressor, self).__init__(
             config, compression, remove_origin, debug, path)
-        self.compress = self._build_command(
+        self._compress = self._build_command(
             config.custom_compression_filter)
-        self.decompress = self._build_command(
+        self._decompress = self._build_command(
             config.custom_decompression_filter)
+
+    def compress(self, srcfile, dstfile):
+        self._compress(srcfile, dstfile)
+        self._fsync(dstfile)
+
+    def decompress(self, srcfile, dstfile):
+        self._compress(srcfile, dstfile)
+        self._fsync(dstfile)
 
 
 #: a dictionary mapping all supported compression schema

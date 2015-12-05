@@ -720,10 +720,6 @@ class BackupManager(object):
             # At this point the original file has been removed
             wal_info.orig_filename = None
 
-            # Execute fsync() on the archived WAL file
-            file_fd = os.open(dst_file, os.O_RDONLY)
-            os.fsync(file_fd)
-            os.close(file_fd)
             # Execute fsync() on the archived WAL containing directory
             fsync_dir(dst_dir)
             # Execute fsync() also on the incoming directory
