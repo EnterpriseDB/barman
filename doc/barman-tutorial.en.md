@@ -1071,15 +1071,22 @@ barman backup --reuse-backup=link <server_name>
 
 The `barman cron` command (see below) will compress WAL files if the
 `compression` option is set in the configuration file. This option
-allows three values:
+allows five values:
 
-- `gzip`: for Gzip compression (requires gzip)
-- `pigz`: for Pigz compression (requires pigz)
-- `bzip2`: for Bzip2 compression (requires bzip2)
+- `bzip2`: for Bzip2 compression (requires the `bzip2` utility)
+- `gzip`: for Gzip compression (requires the `gzip` utility)
+- `pybzip2`: for Bzip2 compression (uses Python's internal compression module)
+- `pygzip`: for Gzip compression (uses Python's internal compression module)
+- `pigz`: for Pigz compression (requires the `pigz` utility)
 - `custom`: for custom compression, which requires you to set the
   following options as well:
       - `custom_compression_filter`: a compression filter
       - `custom_decompression_filter`: a decompression filter
+
+> *NOTE:* The `pybzip2`, `pygzip` and `pigz` options for standard
+> compression have been introduced in Barman 1.6.0. All methods but
+> `pybzip2` and `pygzip` require `barman archive-wal` to fork a new
+> process.
 
 ## Limiting bandwidth usage
 

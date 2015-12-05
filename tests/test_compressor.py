@@ -16,11 +16,14 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import base64
+import os
 
 import mock
 
-from barman.compression import (CompressionManager, Compressor,
-                                CustomCompressor, identify_compression)
+from barman.compression import (BZip2Compressor, CommandCompressor,
+                                CompressionManager, CustomCompressor,
+                                GZipCompressor, PyBZip2Compressor,
+                                PyGZipCompressor, identify_compression)
 
 
 # noinspection PyMethodMayBeStatic
@@ -107,42 +110,125 @@ class TestIdentifyCompression(object):
 
 
 # noinspection PyMethodMayBeStatic
-class TestCompressor(object):
-    def test_compressor_creation(self):
-        # prepare mock obj
+class TestCommandCompressors(object):
+
+    def test_creation(self):
+        # Prepare mock obj
         config_mock = mock.Mock()
 
-        compressor = Compressor(config=config_mock,
-                                compression="dummy_compressor")
+        compressor = CommandCompressor(config=config_mock,
+                                       compression="dummy_compressor")
 
         assert compressor is not None
         assert compressor.config == config_mock
         assert compressor.compression == "dummy_compressor"
         assert compressor.debug is False
         assert compressor.remove_origin is False
-        assert compressor.compress is None
-        assert compressor.decompres is None
 
     def test_build_command(self):
         # prepare mock obj
         config_mock = mock.Mock()
 
-        compressor = Compressor(config=config_mock,
-                                compression="dummy_compressor")
+        compressor = CommandCompressor(config=config_mock,
+                                       compression="dummy_compressor")
 
         command = compressor._build_command("dummy_command")
 
         assert command.cmd == 'command(){ dummy_command > "$2" < "$1";}; ' \
                               'command'
 
-        compressor = Compressor(config=config_mock,
-                                compression="dummy_compressor",
-                                remove_origin=True)
+        compressor = CommandCompressor(config=config_mock,
+                                       compression="dummy_compressor",
+                                       remove_origin=True)
 
         command = compressor._build_command("dummy_command")
 
         assert command.cmd == 'command(){ dummy_command > "$2" < "$1" && rm ' \
                               '-f "$1";}; command'
+
+    def test_gzip(self, tmpdir):
+
+        config_mock = mock.Mock()
+
+        compressor = GZipCompressor(config=config_mock, compression='gzip')
+
+        src = tmpdir.join('sourcefile')
+        src.write('content')
+
+        compressor.compress(src.strpath, '%s/zipfile.zip' % tmpdir.strpath)
+        assert os.path.exists('%s/zipfile.zip' % tmpdir.strpath)
+        compression_zip = identify_compression('%s/zipfile.zip' % tmpdir.strpath)
+        assert compression_zip == "gzip"
+
+        compressor.decompress('%s/zipfile.zip' % tmpdir.strpath,
+                              '%s/zipfile.uncompressed' % tmpdir.strpath)
+
+        f = open('%s/zipfile.uncompressed' % tmpdir.strpath).read()
+        assert f == 'content'
+
+    def test_bzip2(self, tmpdir):
+
+        config_mock = mock.Mock()
+
+        compressor = BZip2Compressor(config=config_mock, compression='bzip2')
+
+        src = tmpdir.join('sourcefile')
+        src.write('content')
+
+        compressor.compress(src.strpath, '%s/bzipfile.bz2' % tmpdir.strpath)
+        assert os.path.exists('%s/bzipfile.bz2' % tmpdir.strpath)
+        compression_zip = identify_compression('%s/bzipfile.bz2' % tmpdir.strpath)
+        assert compression_zip == "bzip2"
+
+        compressor.decompress('%s/bzipfile.bz2' % tmpdir.strpath,
+                              '%s/bzipfile.uncompressed' % tmpdir.strpath)
+
+        f = open('%s/bzipfile.uncompressed' % tmpdir.strpath).read()
+        assert f == 'content'
+
+
+# noinspection PyMethodMayBeStatic
+class TestInternalCompressors(object):
+
+    def test_gzip(self, tmpdir):
+
+        config_mock = mock.Mock()
+
+        compressor = PyGZipCompressor(config=config_mock, compression='pygzip')
+
+        src = tmpdir.join('sourcefile')
+        src.write('content')
+
+        compressor.compress(src.strpath, '%s/zipfile.zip' % tmpdir.strpath)
+        assert os.path.exists('%s/zipfile.zip' % tmpdir.strpath)
+        compression_zip = identify_compression('%s/zipfile.zip' % tmpdir.strpath)
+        assert compression_zip == "gzip"
+
+        compressor.decompress('%s/zipfile.zip' % tmpdir.strpath,
+                              '%s/zipfile.uncompressed' % tmpdir.strpath)
+
+        f = open('%s/zipfile.uncompressed' % tmpdir.strpath).read()
+        assert f == 'content'
+
+    def test_bzip2(self, tmpdir):
+
+        config_mock = mock.Mock()
+
+        compressor = PyBZip2Compressor(config=config_mock, compression='pybzip2')
+
+        src = tmpdir.join('sourcefile')
+        src.write('content')
+
+        compressor.compress(src.strpath, '%s/bzipfile.bz2' % tmpdir.strpath)
+        assert os.path.exists('%s/bzipfile.bz2' % tmpdir.strpath)
+        compression_zip = identify_compression('%s/bzipfile.bz2' % tmpdir.strpath)
+        assert compression_zip == "bzip2"
+
+        compressor.decompress('%s/bzipfile.bz2' % tmpdir.strpath,
+                              '%s/bzipfile.uncompressed' % tmpdir.strpath)
+
+        f = open('%s/bzipfile.uncompressed' % tmpdir.strpath).read()
+        assert f == 'content'
 
 
 # noinspection PyMethodMayBeStatic
@@ -156,9 +242,9 @@ class TestCustomCompressor(object):
                                       compression="custom")
 
         assert compressor is not None
-        assert compressor.compress.cmd == (
+        assert compressor._compress.cmd == (
             'command(){ dummy_compression_filter > "$2" < "$1";}; command')
-        assert compressor.decompress.cmd == (
+        assert compressor._decompress.cmd == (
             'command(){ dummy_decompression_filter > "$2" < "$1";}; command')
 
     def test_validate(self):
