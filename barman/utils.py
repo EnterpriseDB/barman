@@ -49,8 +49,6 @@ def drop_privileges(user):
     os.setgroups(groups)
     os.setgid(pw.pw_gid)
     os.setuid(pw.pw_uid)
-    os.setegid(pw.pw_gid)
-    os.seteuid(pw.pw_uid)
     os.environ['HOME'] = pw.pw_dir
 
 
