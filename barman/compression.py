@@ -74,9 +74,12 @@ def identify_compression(filename):
     :param filename: the pat of the file to identify
     :rtype: str
     """
+    # TODO: manage multiple decompression methods for the same
+    # compression algorithm (e.g. what to do when gzip is detected?
+    # should we use gzip or pigz?)
     with open(filename, 'rb') as f:
         file_start = f.read(MAGIC_MAX_LENGTH)
-    for file_type, cls in compression_registry.iteritems():
+    for file_type, cls in sorted(compression_registry.iteritems()):
         if cls.validate(file_start):
             return file_type
     return None
@@ -143,6 +146,24 @@ class GZipCompressor(Compressor):
         self.decompress = self._build_command('gzip -c -d')
 
 
+class PigzCompressor(Compressor):
+    """
+    Predefined compressor with Pigz
+
+    Note that pigz on-disk is the same as gzip, so the MAGIC value of this
+    class is the same
+    """
+
+    MAGIC = b'\x1f\x8b\x08'
+
+    def __init__(self, config, compression, remove_origin=False, debug=False,
+                 path=None):
+        super(PigzCompressor, self).__init__(
+            config, compression, remove_origin, debug, path)
+        self.compress = self._build_command('pigz -c')
+        self.decompress = self._build_command('pigz -c -d')
+
+
 class BZip2Compressor(Compressor):
     """
     Predefined compressor with BZip2
@@ -178,10 +199,13 @@ class CustomCompressor(Compressor):
             config.custom_decompression_filter)
 
 
-#: a dictionary mapping all supported compression schema
-#: to the class implementing it
+# a dictionary mapping all supported compression schema
+# to the class implementing it
+# WARNING: items in this dictionary are extracted using alphabetical order
+# It's important that gzip and bzip2 are positioned before their variants
 compression_registry = {
     'gzip': GZipCompressor,
+    'pigz': PigzCompressor,
     'bzip2': BZip2Compressor,
     'custom': CustomCompressor,
 }

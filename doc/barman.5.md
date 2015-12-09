@@ -108,12 +108,17 @@ log_file
 log_level
 :   Level of logging (DEBUG, INFO, WARNING, ERROR, CRITICAL). Global.
 
+compression
+:   Standard compression algorithm applied to WAL files. Possible values
+    are: `gzip` (requires `gzip` to be installed on the system),
+    `bzip2` (requires `bzip2`), `pigz` (requires `pigz`). Global/Server.
+
 custom_compression_filter
-:   Compression algorithm applied to WAL files. Global/Server.
+:   Customised compression algorithm applied to WAL files. Global/Server.
 
 custom_decompression_filter
-:   Decompression algorithm applied to compressed WAL files; this must
-    match the compression algorithm. Global/Server.
+:   Customised decompression algorithm applied to compressed WAL files;
+    this must match the compression algorithm. Global/Server.
 
 path_prefix
 :   One or more absolute paths, separated by colon, where Barman looks for

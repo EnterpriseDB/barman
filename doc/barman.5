@@ -176,15 +176,24 @@ Global.
 .RS
 .RE
 .TP
+.B compression
+Standard compression algorithm applied to WAL files.
+Possible values are: \f[C]gzip\f[] (requires \f[C]gzip\f[] to be
+installed on the system), \f[C]bzip2\f[] (requires \f[C]bzip2\f[]),
+\f[C]pigz\f[] (requires \f[C]pigz\f[]).
+Global/Server.
+.RS
+.RE
+.TP
 .B custom_compression_filter
-Compression algorithm applied to WAL files.
+Customised compression algorithm applied to WAL files.
 Global/Server.
 .RS
 .RE
 .TP
 .B custom_decompression_filter
-Decompression algorithm applied to compressed WAL files; this must match
-the compression algorithm.
+Customised decompression algorithm applied to compressed WAL files; this
+must match the compression algorithm.
 Global/Server.
 .RS
 .RE
