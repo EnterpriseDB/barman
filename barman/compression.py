@@ -143,6 +143,24 @@ class GZipCompressor(Compressor):
         self.decompress = self._build_command('gzip -c -d')
 
 
+class PigzCompressor(Compressor):
+    """
+    Predefined compressor with Pigz
+
+    Note that pigz on-disk is the same as gzip, so the MAGIC value of this
+    class is the same
+    """
+
+    MAGIC = b'\x1f\x8b\x08'
+
+    def __init__(self, config, compression, remove_origin=False, debug=False,
+                 path=None):
+        super(PigzCompressor, self).__init__(
+            config, compression, remove_origin, debug, path)
+        self.compress = self._build_command('pigz -c')
+        self.decompress = self._build_command('pigz -c -d')
+
+
 class BZip2Compressor(Compressor):
     """
     Predefined compressor with BZip2
@@ -182,6 +200,7 @@ class CustomCompressor(Compressor):
 #: to the class implementing it
 compression_registry = {
     'gzip': GZipCompressor,
+    'pigz': PigzCompressor,
     'bzip2': BZip2Compressor,
     'custom': CustomCompressor,
 }

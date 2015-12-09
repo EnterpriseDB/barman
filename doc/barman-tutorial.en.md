@@ -1019,6 +1019,7 @@ The `barman cron` command (see below) will compress WAL files if the
 allows three values:
 
 - `gzip`: for Gzip compression (requires gzip)
+- `pigz`: for Pigz compression (requires pigz)
 - `bzip2`: for Bzip2 compression (requires bzip2)
 - `custom`: for custom compression, which requires you to set the
   following options as well:
