@@ -389,13 +389,14 @@ class TestPostgres(object):
         assert server.postgres.get_archiver_stats() is None
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
-    def test_get_configuration_files(self, conn):
+    def test_get_configuration_files(self, conn_mock):
         """
         simple test for the get_configuration_files method
         """
         # Build a server
         server = build_real_server()
-        cursor_mock = conn.return_value.cursor.return_value
+        conn_mock.return_value.server_version = 80400
+        cursor_mock = conn_mock.return_value.cursor.return_value
         test_conf_files = [
             ("config_file", "/tmp/postgresql.conf"),
             ("hba_file", "/tmp/pg_hba.conf"),
@@ -421,13 +422,13 @@ class TestPostgres(object):
         )
 
         # Call it again, should not fetch the data twice
-        conn.reset_mock()
+        conn_mock.reset_mock()
         retval = server.postgres.get_configuration_files()
         assert retval == server.postgres.configuration_files
         assert not cursor_mock.execute.called
 
         # Reset mock and configuration files
-        conn.reset_mock()
+        conn_mock.reset_mock()
         server.postgres.configuration_files = None
 
         # Test error management

@@ -417,36 +417,43 @@ class PostgreSQLConnection(PostgreSQL):
     def get_configuration_files(self):
         """
         Get postgres configuration files or an empty dictionary in case of error
+
+        :rtype: dict
         """
         if self.configuration_files:
             return self.configuration_files
         try:
-            cur = self._cursor()
-            cur.execute("SELECT name, setting FROM pg_settings "
-                        "WHERE name IN ("
-                        "'config_file', 'hba_file', 'ident_file')")
             self.configuration_files = {}
+            cur = self._cursor()
+            cur.execute(
+                "SELECT name, setting FROM pg_settings "
+                "WHERE name IN ('config_file', 'hba_file', 'ident_file')")
             for cname, cpath in cur.fetchall():
                 self.configuration_files[cname] = cpath
 
             # Retrieve additional configuration files
-            cur.execute("SELECT DISTINCT sourcefile AS included_file "
-                        "FROM pg_settings "
-                        "WHERE sourcefile IS NOT NULL "
-                        "AND sourcefile NOT IN "
-                        "(SELECT setting FROM pg_settings "
-                        "WHERE name = 'config_file') "
-                        "ORDER BY 1")
-            included_files = [included_file
-                              for included_file, in cur.fetchall()]
-            if len(included_files) > 0:
-                self.configuration_files['included_files'] = included_files
+            # If PostgresSQL is older than 8.4 disable this check
+            if self.server_version >= 80400:
+                cur.execute(
+                    "SELECT DISTINCT sourcefile AS included_file "
+                    "FROM pg_settings "
+                    "WHERE sourcefile IS NOT NULL "
+                    "AND sourcefile NOT IN "
+                    "(SELECT setting FROM pg_settings "
+                    "WHERE name = 'config_file') "
+                    "ORDER BY 1")
+                # Extract the values from the containing single element tuples
+                included_files = [included_file
+                                  for included_file, in cur.fetchall()]
+                if len(included_files) > 0:
+                    self.configuration_files['included_files'] = included_files
 
-            return self.configuration_files
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving PostgreSQL configuration files "
                           "location: %s", e)
-            return {}
+            self.configuration_files = {}
+
+        return self.configuration_files
 
     def create_restore_point(self, target_name):
         """

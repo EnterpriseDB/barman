@@ -609,9 +609,8 @@ class BackupStrategy(object):
 
         # Set configuration files location
         cf = server.postgres.get_configuration_files()
-        if cf:
-            for key in sorted(cf):
-                backup_info.set_attribute(key, cf[key])
+        for key in cf:
+            backup_info.set_attribute(key, cf[key])
 
         # Get tablespaces information
         self.current_action = 'detecting tablespaces'
