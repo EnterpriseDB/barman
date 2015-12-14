@@ -370,6 +370,13 @@ output will be compressed using bzip2
 .RE
 .RE
 .TP
+.B receive\-wal \f[I]SERVER_NAME\f[]
+Start the stream of transaction logs for a server.
+The process relies on \f[C]pg_receivexlog\f[] to receive WAL files from
+the PostgreSQL servers through the streaming protocol.
+.RS
+.RE
+.TP
 .B delete \f[I]SERVER_NAME\f[] \f[I]BACKUP_ID\f[]
 Delete the specified backup.
 Backup ID shortcuts (#shortcuts) section below for available shortcuts.

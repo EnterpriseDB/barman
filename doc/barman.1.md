@@ -274,6 +274,11 @@ get-wal *\[OPTIONS\]* *SERVER_NAME* *WAL_ID*
     -x
     :   output will be compressed using bzip2
 
+receive-wal *SERVER_NAME*
+:   Start the stream of transaction logs for a server.
+    The process relies on `pg_receivexlog` to receive WAL files
+    from the PostgreSQL servers through the streaming protocol.
+
 delete *SERVER_NAME* *BACKUP_ID*
 :   Delete the specified backup. [Backup ID shortcuts](#shortcuts)
     section below for available shortcuts.

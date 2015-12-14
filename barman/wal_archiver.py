@@ -22,7 +22,8 @@ from distutils.version import LooseVersion as Version
 from glob import glob
 
 from barman import utils, xlog
-from barman.command_wrappers import Command, CommandFailedException
+from barman.command_wrappers import (Command, CommandFailedException,
+                                     PgReceiveXlog)
 from barman.infofile import WalFileInfo
 
 _logger = logging.getLogger(__name__)
@@ -48,6 +49,12 @@ class WalArchiverBatch(list):
             self.skip = skip
         if errors is not None:
             self.errors = errors
+
+
+class ArchiverFailure(Exception):
+    """
+    Exception representing a failure during the execution of the archive process
+    """
 
 
 class WalArchiver(object):
@@ -79,6 +86,13 @@ class WalArchiver(object):
         but set the missing values to None in the resulting dictionary.
 
         :rtype: dict[str, None|str]
+        """
+
+    def receive_wal(self):
+        """
+        Manage reception of WAL files. Does nothing by default.
+        Some archiver classes, like the StreamingWalArchiver, have a full
+        implementation.
         """
 
     @abstractmethod
@@ -229,6 +243,47 @@ class StreamingWalArchiver(WalArchiver):
             result["pg_receivexlog_compatible"] = False
 
         return result
+
+    def receive_wal(self):
+        """
+        Creates a PgReceiveXlog object and issues the pg_receivexlog command
+        for a specific server
+
+        :raise ArchiverFailure: when something goes wrong
+        """
+        # Execute basic sanity checks on PostgreSQL connection
+        postgres_status = self.server.streaming.get_remote_status()
+        if postgres_status["streaming_supported"] is None:
+            raise ArchiverFailure(
+                'failed opening the PostgreSQL streaming connection')
+        elif not postgres_status["streaming_supported"]:
+            raise ArchiverFailure(
+                'PostgreSQL version too old (%s < 9.2)' %
+                self.server.streaming.server_txt_version)
+        # Execute basic sanity checks on pg_receivexlog
+        remote_status = self.get_remote_status()
+        if not remote_status["pg_receivexlog_installed"]:
+            raise ArchiverFailure(
+                'pg_receivexlog not present in $PATH')
+        if not remote_status['pg_receivexlog_compatible']:
+            raise ArchiverFailure(
+                'pg_receivexlog version not compatible with '
+                'PostgreSQL server version')
+
+        # Make sure we are not wasting precious PostgreSQL resources
+        self.server.postgres.close()
+        self.server.streaming.close()
+
+        _logger.info('Activating WAL archiving through streaming protocol')
+        try:
+            receive = PgReceiveXlog(remote_status['pg_receivexlog_path'],
+                                    self.config.streaming_conninfo,
+                                    self.config.streaming_wals_directory)
+            receive.execute()
+        except CommandFailedException as e:
+            _logger.error(e)
+            raise ArchiverFailure("pg_receivexlog exited with an error. "
+                                  "Check the logs for more information.")
 
     def get_next_batch(self):
         """

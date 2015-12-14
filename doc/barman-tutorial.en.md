@@ -421,6 +421,8 @@ continuous WAL archiving.
 
 ### Continuous WAL archiving
 
+Barman requires that continuous WAL archiving via PostgreSQL's
+`archive_command` is properly configured on the master.
 Edit the `postgresql.conf` file of the PostgreSQL instance on the `pg`
 database and activate the archive mode:
 
@@ -443,10 +445,62 @@ you need to check both the PostgreSQL server and the `backup` server
 destination directory).
 
 > **Warning:**
-> It currently is a requirement that WAL files from PostgreSQL are
+> It is currently a requirement that WAL files from PostgreSQL are
 > shipped to the Barman server. Without `archive_command` being
 > properly set in PostgreSQL to send WAL files to Barman, **full
 > backups cannot be taken**.
+
+> **Important:**
+> PostgreSQL 9.5 introduces support for WAL file archiving using
+> `archive_command` from a standby. This feature is not yet implemented
+> in Barman.
+
+#### Reducing RPO with WAL streaming
+
+From version 1.6.0, Barman improves its Recovery Point Objective (RPO) performance by allowing users to add, on top of the standard `archive_command` strategy, continuous WAL streaming from a PostgreSQL server.
+
+Barman relies on [`pg_receivexlog`] [25], a utility that is available from PostgreSQL 9.2 which exploits the native streaming replication protocol and continuously receives transaction logs from a PostgreSQL server (be it a master or a standby).
+
+> **Important:**
+> Barman requires that `pg_receivexlog` is installed in the same server.
+> For PostgreSQL 9.2 servers, you need `pg_receivexlog` of version 9.2
+> installed alongside with Barman. For PostgreSQL 9.3 and above, it is
+> recommended to install the latest available version of `pg_receivexlog`,
+> as it is back compatible.
+> Otherwise, users can install multiple versions of `pg_receivexlog` in the
+> Barman server and properly point to the specific version for a server,
+> using the `path` option in the configuration file.
+
+In order to enable streaming of transaction logs, you need to:
+
+1. setup a streaming connection, as previously described;
+2. set the `streaming_archiver` option to `on`.
+
+The `cron` command, if the aforementioned requirements are met, transparently manages log streaming through the execution of the `receive-wal` command. This is the recommended scenario.
+
+However, users can manually execute the `receive-wal` command:
+
+``` bash
+barman receive-wal <server_name>
+```
+
+> **Note:**
+> The `receive-wal` command is a foreground process.
+
+Transaction logs are streamed directly in the directory specified by the `streaming_wal_directory` configuration option and are then archived by the `archive-wal` command.
+
+> **Important:**
+> Currently, WAL streaming is only supported in Barman as an additional
+> method for continuous archiving of transaction logs. Future versions of
+> Barman will allow users of PostgreSQL 9.4 and above to rely exclusively
+> on WAL streaming (and abandon the standard `archive_command` method),
+> thanks to _replication slots_.
+> Following our incremental development approach, version 1.6.0 aims to
+> gradually introduce support of this feature in PostgreSQL Disaster Recovery
+> solutions based on Barman. At the same time, users' feedback and production
+> adoption will allow us to improve future versions and implement a
+> "streaming-only" method of WAL archiving that is based on
+> transparent management of replication slots in Barman.
 
 ## Listing the servers
 
@@ -1515,4 +1569,5 @@ Assignment Form.
   [21]: http://www.postgresql.org/docs/current/static/auth-pg-hba-conf.html
   [22]: http://www.postgresql.org/docs/current/static/protocol-replication.html
   [23]: http://www.postgresql.org/docs/current/static/role-attributes.html
-  [24]:http://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION
+  [24]: http://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION
+  [25]: http://www.postgresql.org/docs/9.4/static/app-pgreceivexlog.html

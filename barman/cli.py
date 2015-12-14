@@ -21,18 +21,17 @@ This module implements the interface with the command line and the logger.
 import logging
 import os
 import sys
-
-from argh import ArghParser, named, arg, expects_obj
 from argparse import SUPPRESS, ArgumentTypeError
 
+from argh import ArghParser, arg, expects_obj, named
+
+import barman.config
+import barman.diagnose
 from barman import output
 from barman.infofile import BackupInfo
 from barman.server import Server
-import barman.diagnose
-import barman.config
-from barman.utils import drop_privileges, configure_logging, parse_log_level
+from barman.utils import configure_logging, drop_privileges, parse_log_level
 from barman.xlog import BadXlogSegmentName
-
 
 _logger = logging.getLogger(__name__)
 
@@ -544,8 +543,23 @@ def archive_wal(args):
 
     """
     server = get_server(args)
-    output.debug("Starting archive-wal for server %s", server.config.name)
     server.archive_wal()
+    output.close_and_exit()
+
+
+@named('receive-wal')
+@arg('server_name',
+     completer=server_completer,
+     help='specifies the server name for the command')
+@expects_obj
+def receive_wal(args):
+    """
+    Start a receive-wal process.
+    The process uses the streaming protocol to receive WAL files
+    from the PostgreSQL server.
+    """
+    server = get_server(args)
+    server.receive_wal()
     output.close_and_exit()
 
 
@@ -844,20 +858,21 @@ def main():
     p.add_commands(
         [
             archive_wal,
-            cron,
-            list_server,
-            show_server,
-            status,
-            check,
-            diagnose,
             backup,
-            list_backup,
-            show_backup,
-            list_files,
-            get_wal,
-            recover,
+            check,
+            cron,
             delete,
+            diagnose,
+            get_wal,
+            list_backup,
+            list_files,
+            list_server,
             rebuild_xlogdb,
+            receive_wal,
+            recover,
+            show_backup,
+            show_server,
+            status
         ]
     )
     # noinspection PyBroadException

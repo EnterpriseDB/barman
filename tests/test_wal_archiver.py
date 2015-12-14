@@ -15,24 +15,25 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import pytest
 from mock import ANY, patch
 
 from barman.command_wrappers import CommandFailedException
-from barman.wal_archiver import FileWalArchiver, StreamingWalArchiver
+from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
+                                 StreamingWalArchiver)
 from testing_helpers import build_backup_manager
 
 
 # noinspection PyMethodMayBeStatic
-class TestWalArchiver(object):
-
-    def test_filewalarchiver_init(self):
+class TestFileWalArchiver(object):
+    def test_init(self):
         """
         Basic init test for the FileWalArchiver class
         """
         backup_manager = build_backup_manager()
         FileWalArchiver(backup_manager)
 
-    def test_filewalarchiver_get_remote_status(self):
+    def test_get_remote_status(self):
         """
         Basic test for the check method of the FileWalArchiver class
         """
@@ -54,7 +55,10 @@ class TestWalArchiver(object):
         # Compare results of the check method
         assert archiver.get_remote_status() == result
 
-    def test_streamingwalarchiver_init(self):
+
+# noinspection PyMethodMayBeStatic
+class TestStreamingWalArchiver(object):
+    def test_init(self):
         """
         Basic init test for the StreamingWalArchiver class
         """
@@ -63,8 +67,7 @@ class TestWalArchiver(object):
 
     @patch("barman.utils.which")
     @patch("barman.wal_archiver.Command")
-    def test_streamingwalarchiver_check_receivexlog_installed(
-            self, command_mock, which_mock):
+    def test_check_receivexlog_installed(self, command_mock, which_mock):
         """
         Test for the check method of the StreamingWalArchiver class
         """
@@ -97,8 +100,7 @@ class TestWalArchiver(object):
 
     @patch("barman.utils.which")
     @patch("barman.wal_archiver.Command")
-    def test_streamingwalarchiver_check_receivexlog_is_compatible(
-            self, command_mock, which_mock):
+    def test_check_receivexlog_is_compatible(self, command_mock, which_mock):
         """
         Test for the compatibility checks between versions of pg_receivexlog
         and PostgreSQL
@@ -134,9 +136,83 @@ class TestWalArchiver(object):
         result = archiver.get_remote_status()
         assert result["pg_receivexlog_compatible"] is True
 
+    @patch("barman.wal_archiver.StreamingWalArchiver.get_remote_status")
+    @patch("barman.wal_archiver.PgReceiveXlog")
+    def test_receive_wal(self, receivexlog_mock, remote_mock):
+        backup_manager = build_backup_manager()
+        backup_manager.server.streaming.server_txt_version = "9.4.0"
+        backup_manager.server.streaming.get_remote_status.return_value = {
+            "streaming_supported": True
+        }
+
+        # Test: normal run
+        archiver = StreamingWalArchiver(backup_manager)
+        remote_mock.return_value = {
+            'pg_receivexlog_installed': True,
+            'pg_receivexlog_compatible': True,
+            'pg_receivexlog_path': 'fake/path'
+        }
+        archiver.receive_wal()
+        receivexlog_mock.assert_called_once_with(
+            'fake/path',
+            'host=pg01.nowhere user=postgres port=5432',
+            '/some/barman/home/main/streaming'
+        )
+        receivexlog_mock.return_value.execute.assert_called_once_with()
+
+        # Test: incompatible pg_receivexlog
+        with pytest.raises(ArchiverFailure):
+            remote_mock.return_value = {
+                'pg_receivexlog_installed': True,
+                'pg_receivexlog_compatible': False,
+                'pg_receivexlog_path': 'fake/path'
+            }
+            archiver.receive_wal()
+
+        # Test: missing pg_receivexlog
+        with pytest.raises(ArchiverFailure):
+            remote_mock.return_value = {
+                'pg_receivexlog_installed': False,
+                'pg_receivexlog_compatible': True,
+                'pg_receivexlog_path': 'fake/path'
+            }
+            archiver.receive_wal()
+        # Test: impossible to connect with streaming protocol
+        with pytest.raises(ArchiverFailure):
+            backup_manager.server.streaming.get_remote_status.return_value = {
+                'streaming_supported': None
+            }
+            remote_mock.return_value = {
+                'pg_receivexlog_installed': True,
+                'pg_receivexlog_compatible': True,
+                'pg_receivexlog_path': 'fake/path'
+            }
+            archiver.receive_wal()
+        # Test: PostgreSQL too old
+        with pytest.raises(ArchiverFailure):
+            backup_manager.server.streaming.get_remote_status.return_value = {
+                'streaming_supported': False
+            }
+            remote_mock.return_value = {
+                'pg_receivexlog_installed': True,
+                'pg_receivexlog_compatible': True,
+                'pg_receivexlog_path': 'fake/path'
+            }
+            archiver.receive_wal()
+        # Test: general failure executing pg_receivexlog
+        with pytest.raises(ArchiverFailure):
+            remote_mock.return_value = {
+                'pg_receivexlog_installed': True,
+                'pg_receivexlog_compatible': True,
+                'pg_receivexlog_path': 'fake/path'
+            }
+            receivexlog_mock.return_value.execute.side_effect = \
+                CommandFailedException
+            archiver.receive_wal()
+
     @patch("barman.utils.which")
     @patch("barman.wal_archiver.Command")
-    def test_streamingwalarchiver_when_streaming_connection_rejected(
+    def test_when_streaming_connection_rejected(
             self, command_mock, which_mock):
         """
         Test the StreamingWalArchiver behaviour when the streaming

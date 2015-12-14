@@ -37,11 +37,13 @@ from barman.compression import identify_compression
 from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
-                             ServerWalArchiveLock, ServerXLOGDBLock)
-from barman.postgres import (PostgreSQLConnection, StreamingConnection)
+                             ServerWalArchiveLock, ServerWalReceiveLock,
+                             ServerXLOGDBLock)
+from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta
-from barman.wal_archiver import FileWalArchiver, StreamingWalArchiver
+from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
+                                 StreamingWalArchiver)
 
 _logger = logging.getLogger(__name__)
 
@@ -1085,6 +1087,7 @@ class Server(object):
         :param bool verbose: if false outputs something only if there is
             at least one file
         """
+        output.debug("Starting archive-wal for server %s", self.config.name)
         try:
             # Take care of the archive lock.
             # Only one archive job per server is admitted
@@ -1097,6 +1100,43 @@ class Server(object):
             output.info("Another archive-wal process is already running "
                         "on server %s. Skipping to the next server"
                         % self.config.name)
+
+    def receive_wal(self):
+        """
+        Enable the reception of WAL files using streaming protocol.
+
+        Usually started by barman cron command.
+        Executing this manually, the barman process will not terminate but
+        will continuously receive WAL files from the PostgreSQL server.
+        """
+        # Execute the receive-wal command only if streaming_archiver
+        # is enabled
+        if not self.config.streaming_archiver:
+            output.error("Unable to start receive-wal process:"
+                         "streaming_archiver option set to 'off' in "
+                         "barman configuration file")
+            return
+
+        output.debug("Starting receive-wal for server %s", self.config.name)
+        try:
+            # Take care of the receive-wal lock.
+            # Only one receiving process per server is permitted
+            with ServerWalReceiveLock(self.config.barman_lock_directory,
+                                      self.config.name):
+                try:
+                    # Only the StreamingWalArchiver implementation
+                    # does something.
+                    # WARNING: This codes assumes that there is only one
+                    # StreamingWalArchiver in the archivers list.
+                    for archiver in self.archivers:
+                        archiver.receive_wal()
+                except ArchiverFailure as e:
+                    output.error("Impossible to start a receive-wal process "
+                                 "for server %s: %s" % (self.config.name, e))
+        except LockFileBusy:
+            # If another process is running for this server,
+            output.info("Another receive-wal process is already running "
+                        "for server %s." % self.config.name)
 
     @contextmanager
     def xlogdb(self, mode='r'):

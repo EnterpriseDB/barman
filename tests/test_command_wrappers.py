@@ -890,3 +890,81 @@ class TestRsyncPgdata(object):
         assert cmd.ret == ret
         assert cmd.out == out
         assert cmd.err == err
+
+
+# noinspection PyMethodMayBeStatic
+class TestReceiveXlog(object):
+    """
+    Simple class for testing of the PgReceiveXlog obj
+    """
+
+    def test_init(self):
+        """
+        Test class build
+        """
+        receivexlog = command_wrappers.PgReceiveXlog()
+        assert receivexlog.args == [
+            "--dbname=None",
+            "--verbose",
+            "--no-loop",
+            "--directory=None"
+        ]
+        assert receivexlog.cmd == 'pg_receivexlog'
+        assert receivexlog.check is True
+        assert receivexlog.close_fds is True
+        assert receivexlog.allowed_retval == (0,)
+        assert receivexlog.debug is False
+        assert receivexlog.err_handler
+        assert receivexlog.out_handler
+
+    def test_init_args(self):
+        """
+        Test class build
+        """
+        receivexlog = command_wrappers.PgReceiveXlog('/path/to/pg_receivexlog',
+                                                     args=['a', 'b'])
+        assert receivexlog.args == [
+            "--dbname=None",
+            "--verbose",
+            "--no-loop",
+            "--directory=None",
+            "a",
+            "b",
+        ]
+        assert receivexlog.cmd == '/path/to/pg_receivexlog'
+        assert receivexlog.check is True
+        assert receivexlog.close_fds is True
+        assert receivexlog.allowed_retval == (0,)
+        assert receivexlog.debug is False
+        assert receivexlog.err_handler
+        assert receivexlog.out_handler
+
+    @mock.patch('barman.command_wrappers.Command.pipe_processor_loop')
+    @mock.patch('barman.command_wrappers.subprocess.Popen')
+    def test_simple_invocation(self, popen, pipe_processor_loop, caplog):
+        ret = 0
+        out = 'out'
+        err = 'err'
+
+        pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
+
+        cmd = command_wrappers.PgReceiveXlog()
+        result = cmd.execute()
+
+        popen.assert_called_with(
+            [
+                'pg_receivexlog', '--dbname=None', '--verbose', '--no-loop',
+                '--directory=None',
+            ],
+            shell=False, env=None,
+            stdout=PIPE, stderr=PIPE, stdin=PIPE,
+            preexec_fn=mock.ANY, close_fds=True
+        )
+        assert not pipe.stdin.write.called
+        pipe.stdin.close.assert_called_once_with()
+        assert result == ret
+        assert cmd.ret == ret
+        assert cmd.out is None
+        assert cmd.err is None
+        assert ('PgReceiveXlog', INFO, out) in caplog.record_tuples
+        assert ('PgReceiveXlog', WARNING, err) in caplog.record_tuples

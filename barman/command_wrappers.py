@@ -736,3 +736,26 @@ class RsyncPgData(Rsync):
         if args:
             options += args
         Rsync.__init__(self, rsync, args=options, **kwargs)
+
+
+class PgReceiveXlog(Command):
+    """
+    Wrapper class for pg_receivexlog
+    """
+
+    def __init__(self,
+                 receivexlog='pg_receivexlog',
+                 conn_string=None,
+                 dest=None,
+                 args=None,
+                 check=True,
+                 **kwargs):
+        options = [
+            "--dbname=%s" % conn_string,
+            "--verbose",
+            "--no-loop",
+            "--directory=%s" % dest]
+        if args:
+            options += args
+        Command.__init__(self, receivexlog, args=options, check=check,
+                         **kwargs)

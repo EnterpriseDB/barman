@@ -187,17 +187,27 @@ def which(executable, path=None):
     os PATH
 
     :param str executable: The name of the executable to find
+    :param str|None path: An optional search path to override the current one.
     :return str|None: the path of the executable or None
     """
     # Get the system path and split.
     if path is None:
         path = os.getenv('PATH')
+    # If executable is an absolute path, check if it exists and is executable
+    # otherwise return failure.
+    if os.path.isabs(executable):
+        if os.path.exists(executable) and os.access(executable, os.X_OK):
+            return executable
+        else:
+            return None
+    # Search the requested executable in eery directory present in path and
+    # return the first occurrence that exists and is executable.
     for file_path in path.split(os.path.pathsep):
         file_path = os.path.join(file_path, executable)
-        # if the file exists return the full path.
+        # If the file exists and is executable return the full path.
         if os.path.exists(file_path) and os.access(file_path, os.X_OK):
             return file_path
-    # If the file is not present on the system return None
+    # If no matching file is present on the system return None
     return None
 
 

@@ -216,3 +216,17 @@ class ServerWalArchiveLock(LockFile):
         super(ServerWalArchiveLock, self).__init__(
             os.path.join(lock_directory, '.%s-archive-wal.lock' % server_name),
             raise_if_fail=True, wait=False)
+
+
+class ServerWalReceiveLock(LockFile):
+    """
+    This lock protects a server from multiple executions of receive-wal command
+
+    Creates a '.<SERVER>-receive-wal.lock' lock file under
+    the given lock_directory for the named SERVER.
+    """
+
+    def __init__(self, lock_directory, server_name):
+        super(ServerWalReceiveLock, self).__init__(
+            os.path.join(lock_directory, '.%s-receive-wal.lock' % server_name),
+            raise_if_fail=True, wait=False)

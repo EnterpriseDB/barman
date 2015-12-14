@@ -18,11 +18,13 @@
 import errno
 import fcntl
 
-from mock import patch, ANY
 import pytest
+from mock import ANY, patch
 
-from barman.lockfile import LockFile, LockFileBusy, LockFilePermissionDenied, \
-    GlobalCronLock, ServerBackupLock, ServerCronLock, ServerXLOGDBLock
+from barman.lockfile import (GlobalCronLock, LockFile, LockFileBusy,
+                             LockFilePermissionDenied, ServerBackupLock,
+                             ServerCronLock, ServerWalReceiveLock,
+                             ServerXLOGDBLock)
 
 
 def _prepare_fnctl_mock(fcntl_mock, exception=None):
@@ -92,7 +94,7 @@ class TestLockFileBehavior(object):
 
         # set flock to raise an unexpected OSError exception (errno = EINVAL)
         _prepare_fnctl_mock(fcntl_mock, OSError(errno.EINVAL, '', ''))
-        # Expect the acquire method to pass teh raised exception.
+        # Expect the acquire method to pass the raised exception.
         # This is the expected behaviour if the raise_if_fail flag is set to
         # True and an unexpected exception is raised
         with pytest.raises(OSError):
@@ -334,3 +336,12 @@ class TestLockFileSubclasses(object):
         assert lock.filename == tmpdir.join('.server_name-xlogdb.lock')
         assert lock.raise_if_fail
         assert lock.wait
+
+    def test_server_wal_receive_lock(self, tmpdir):
+        """
+        Tests for ServerCronLock class
+        """
+        lock = ServerWalReceiveLock(tmpdir.strpath, 'server_name')
+        assert lock.filename == tmpdir.join('.server_name-receive-wal.lock')
+        assert lock.raise_if_fail
+        assert not lock.wait
