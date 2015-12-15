@@ -75,7 +75,7 @@ class TestRetentionPolicies(object):
         # Check for the warning inside the log
         caplog.set_level(logging.WARNING)
 
-        log = caplog.text()
+        log = caplog.text
         assert log.find("WARNING  Retention policy redundancy (2) "
                         "is lower than the required minimum redundancy (3). "
                         "Enforce 3.")
@@ -131,7 +131,7 @@ class TestRetentionPolicies(object):
         rp.report()
         # Check for the warning inside the log
         caplog.set_level(logging.WARNING)
-        log = caplog.text()
+        log = caplog.text
         warn = "WARNING  Keeping obsolete backup test_backup2 for " \
                "server test (older than %s) due to minimum redundancy " \
                "requirements (4)\n" % rp._point_of_recoverability()

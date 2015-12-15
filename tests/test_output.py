@@ -67,10 +67,10 @@ class TestOutputAPI(object):
         output.debug(msg)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'DEBUG'
             assert record.name == __name__
-        assert msg in caplog.text()
+        assert msg in caplog.text
 
         # writer test
         assert not writer.error_occurred.called
@@ -88,10 +88,10 @@ class TestOutputAPI(object):
         output.debug(msg, *args)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'DEBUG'
             assert record.name == __name__
-        assert msg % args in caplog.text()
+        assert msg % args in caplog.text
 
         # writer test
         assert not writer.error_occurred.called
@@ -108,10 +108,10 @@ class TestOutputAPI(object):
         output.debug(msg, is_error=True)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'DEBUG'
             assert record.name == __name__
-        assert msg in caplog.text()
+        assert msg in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -135,10 +135,10 @@ class TestOutputAPI(object):
         output.info(msg)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'INFO'
             assert record.name == __name__
-        assert msg in caplog.text()
+        assert msg in caplog.text
 
         # writer test
         assert not writer.error_occurred.called
@@ -156,10 +156,10 @@ class TestOutputAPI(object):
         output.info(msg, *args)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'INFO'
             assert record.name == __name__
-        assert msg % args in caplog.text()
+        assert msg % args in caplog.text
 
         # writer test
         assert not writer.error_occurred.called
@@ -176,10 +176,10 @@ class TestOutputAPI(object):
         output.info(msg, is_error=True)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'INFO'
             assert record.name == __name__
-        assert msg in caplog.text()
+        assert msg in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -196,10 +196,10 @@ class TestOutputAPI(object):
         output.warning(msg)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'WARNING'
             assert record.name == __name__
-        assert msg in caplog.text()
+        assert msg in caplog.text
 
         # writer test
         assert not writer.error_occurred.called
@@ -217,10 +217,10 @@ class TestOutputAPI(object):
         output.warning(msg, *args)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'WARNING'
             assert record.name == __name__
-        assert msg % args in caplog.text()
+        assert msg % args in caplog.text
 
         # writer test
         assert not writer.error_occurred.called
@@ -237,10 +237,10 @@ class TestOutputAPI(object):
         output.warning(msg, is_error=True)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'WARNING'
             assert record.name == __name__
-        assert msg in caplog.text()
+        assert msg in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -257,10 +257,10 @@ class TestOutputAPI(object):
         output.error(msg)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
             assert record.name == __name__
-        assert msg in caplog.text()
+        assert msg in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -278,10 +278,10 @@ class TestOutputAPI(object):
         output.error(msg, *args)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
             assert record.name == __name__
-        assert msg % args in caplog.text()
+        assert msg % args in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -299,10 +299,10 @@ class TestOutputAPI(object):
         output.error(msg, ignore=True, *args)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
             assert record.name == __name__
-        assert msg % args in caplog.text()
+        assert msg % args in caplog.text
 
         # writer test
         assert not writer.error_occurred.called
@@ -322,11 +322,11 @@ class TestOutputAPI(object):
             output.exception(msg)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
             assert record.name == __name__
-        assert msg in caplog.text()
-        assert 'Traceback' in caplog.text()
+        assert msg in caplog.text
+        assert 'Traceback' in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -347,11 +347,11 @@ class TestOutputAPI(object):
             output.exception(msg, *args)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
             assert record.name == __name__
-        assert msg % args in caplog.text()
-        assert 'Traceback' in caplog.text()
+        assert msg % args in caplog.text
+        assert 'Traceback' in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -372,11 +372,11 @@ class TestOutputAPI(object):
             output.exception(msg, ignore=True, *args)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
             assert record.name == __name__
-        assert msg % args in caplog.text()
-        assert 'Traceback' in caplog.text()
+        assert msg % args in caplog.text
+        assert 'Traceback' in caplog.text
 
         # writer test
         assert not writer.error_occurred.called
@@ -399,11 +399,11 @@ class TestOutputAPI(object):
                 output.exception(msg, raise_exception=True, *args)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
             assert record.name == __name__
-        assert msg % args in caplog.text()
-        assert 'Traceback' in caplog.text()
+        assert msg % args in caplog.text
+        assert 'Traceback' in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -426,11 +426,11 @@ class TestOutputAPI(object):
                 output.exception(msg, raise_exception=KeyError(), *args)
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
             assert record.name == __name__
-        assert msg % args in caplog.text()
-        assert 'Traceback' in caplog.text()
+        assert msg % args in caplog.text
+        assert 'Traceback' in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -451,11 +451,11 @@ class TestOutputAPI(object):
         except ValueError:
             with pytest.raises(KeyError):
                 output.exception(msg, raise_exception=KeyError, *args)
-        assert msg % args in caplog.text()
-        assert 'Traceback' in caplog.text()
+        assert msg % args in caplog.text
+        assert 'Traceback' in caplog.text
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
             assert record.name == __name__
 
@@ -488,10 +488,10 @@ class TestOutputAPI(object):
         output.init('bad_command')
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
-        assert 'bad_command' in caplog.text()
-        assert 'Traceback' in caplog.text()
+        assert 'bad_command' in caplog.text
+        assert 'Traceback' in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -524,10 +524,10 @@ class TestOutputAPI(object):
         output.result('bad_command')
 
         # logging test
-        for record in caplog.records():
+        for record in caplog.records:
             assert record.levelname == 'ERROR'
-        assert 'bad_command' in caplog.text()
-        assert 'Traceback' in caplog.text()
+        assert 'bad_command' in caplog.text
+        assert 'Traceback' in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()

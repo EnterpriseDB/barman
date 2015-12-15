@@ -241,9 +241,9 @@ class TestBackup(object):
 
         # Test 1: minimum redundancy not satisfied
         backup_manager.server.config.minimum_redundancy = 2
-        del caplog.records()[:]  # remove previous messages from caplog
+        del caplog.records[:]  # remove previous messages from caplog
         backup_manager.delete_backup(b_info)
-        assert 'WARNING  Skipping delete of backup ' in caplog.text()
+        assert 'WARNING  Skipping delete of backup ' in caplog.text
         assert os.path.exists(wal_history_file.strpath)
         assert os.path.exists(wal_history_file02.strpath)
         assert os.path.exists(wal_history_file03.strpath)
@@ -258,9 +258,9 @@ class TestBackup(object):
         assert os.path.exists(wal_history_file03.strpath)
 
         # Test 3: delete the backup again, expect a failure in log
-        del caplog.records()[:]  # remove previous messages from caplog
+        del caplog.records[:]  # remove previous messages from caplog
         backup_manager.delete_backup(b_info)
-        assert 'Failure deleting backup fake_backup_id' in caplog.text()
+        assert 'Failure deleting backup fake_backup_id' in caplog.text
         assert os.path.exists(wal_history_file.strpath)
         assert os.path.exists(wal_history_file02.strpath)
         assert os.path.exists(wal_history_file03.strpath)
@@ -278,9 +278,9 @@ class TestBackup(object):
         )
 
         # Test 4: normal delete expecting no errors (new format)
-        del caplog.records()[:]  # remove previous messages from caplog
+        del caplog.records[:]  # remove previous messages from caplog
         backup_manager.delete_backup(b_info)
-        assert 'WARNING  Skipping delete of backup ' in caplog.text()
+        assert 'WARNING  Skipping delete of backup ' in caplog.text
         assert os.path.exists(wal_history_file.strpath)
 
         # create two backups (new format) and delete only one backup
@@ -308,7 +308,7 @@ class TestBackup(object):
 
         # Test 5: normal delete expecting no errors and no skip
         # removing one of the two backups present (new format)
-        del caplog.records()[:]  # remove previous messages from caplog
+        del caplog.records[:]  # remove previous messages from caplog
         backup_manager.delete_backup(b2_info)
         assert not os.path.exists(data_dir.strpath)
         assert os.path.exists(wal_history_file.strpath)
@@ -320,9 +320,9 @@ class TestBackup(object):
                 as mock_delete_data:
             # We force delete_pgdata method to raise an exception.
             mock_delete_data.side_effect = OSError('TestError')
-            del caplog.records()[:]  # remove previous messages from caplog
+            del caplog.records[:]  # remove previous messages from caplog
             backup_manager.delete_backup(b_info)
-            assert 'TestError' in caplog.text()
+            assert 'TestError' in caplog.text
 
     def test_available_backups(self, tmpdir):
         """

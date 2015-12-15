@@ -499,7 +499,7 @@ class TestCheckStrategy(object):
         strategy = CheckOutputStrategy()
         # Expected result OK
         strategy.result('test_server_one', 'wal_level', True)
-        records = list(caplog.records())
+        records = list(caplog.records)
         assert len(records) == 1
         record = records.pop()
         assert record.msg == \
@@ -509,7 +509,7 @@ class TestCheckStrategy(object):
         strategy = CheckOutputStrategy()
         strategy.result('test_server_one', 'wal_level', False)
         strategy.result('test_server_one', 'backup maximum age', False)
-        records = list(caplog.records())
+        records = list(caplog.records)
         assert len(records) == 3
         record = records.pop()
         assert record.levelname == 'ERROR'
@@ -578,7 +578,7 @@ class TestCheckStrategy(object):
         strategy = CheckStrategy()
         # Expected result OK
         strategy.result('test_server_one', 'wal_level', True)
-        records = list(caplog.records())
+        records = list(caplog.records)
         assert len(records) == 1
         record = records.pop()
         assert record.msg == \
@@ -586,7 +586,7 @@ class TestCheckStrategy(object):
         assert record.levelname == 'DEBUG'
         # Expected result FAILED
         strategy.result('test_server_one', 'wal_level', False)
-        records = list(caplog.records())
+        records = list(caplog.records)
         assert len(records) == 2
         record = records.pop()
         assert record.levelname == 'ERROR'
