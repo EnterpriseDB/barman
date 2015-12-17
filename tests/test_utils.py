@@ -69,8 +69,6 @@ class TestDropPrivileges(object):
 
         os.setgid.assert_called_with(gid)
         os.setuid.assert_called_with(uid)
-        os.setegid.assert_called_with(gid)
-        os.seteuid.assert_called_with(uid)
         os.setgroups.assert_called_with(
             [_id for _id in groups if groups[_id]] + [gid])
         assert os.environ['HOME'] == home
