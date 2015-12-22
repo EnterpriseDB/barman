@@ -148,6 +148,8 @@ class TestConfig(object):
             'ssh_command': 'ssh -I ~/.ssh/web01_rsa -c arcfour '
                            '-p 22 postgres@web01',
             'streaming_conninfo': 'host=web01 user=postgres port=5432',
+            'streaming_wals_directory': '/some/barman/home/web/streaming',
+            'errors_directory': '/some/barman/home/web/errors',
         })
         assert web.__dict__ == expected
 
@@ -225,15 +227,9 @@ class TestConfig(object):
         c = build_config_from_dicts(
             global_conf=None,
             main_conf={
-                'basebackups_directory': '/some/barman/home/main/base',
-                'incoming_wals_directory': '/some/barman/home/main/incoming',
-                'wals_directory': '/some/barman/home/main/wals',
                 'backup_directory': '/some/barman/home/main',
             },
             test_conf={
-                'basebackups_directory': '/some/barman/home/test/wals',
-                'incoming_wals_directory': '/some/barman/home/main/incoming',
-                'wals_directory': '/some/barman/home/main/wals',
                 'backup_directory': '/some/barman/home/main',
             })
 
@@ -245,7 +241,7 @@ class TestConfig(object):
         # after _populate_servers() if there is a global paths error
         # servers_msg_list is created in configuration
         assert c.servers_msg_list
-        assert len(c.servers_msg_list) == 4
+        assert len(c.servers_msg_list) == 6
 
     def test_populate_servers_following_symlink(self, tmpdir):
         """

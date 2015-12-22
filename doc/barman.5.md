@@ -86,7 +86,15 @@ wals_directory
 :   Directory which contains WAL files. Server.
 
 incoming_wals_directory
-:   Directory where incoming WAL files are archived into. Server.
+:   Directory where incoming WAL files are archived into. Requires `archiver` to be enabled. Server.
+
+errors_directory
+:   Directory that contains WAL files that contain an error; usually
+    this is related to a conflict with an existing WAL file (e.g. a WAL
+    file that has been archived after a streamed one).
+
+streaming_wals_directory
+:   Directory where WAL files are streamed from the PostgreSQL server to Barman. Requires `streaming_archiver` to be enabled. Server.
 
 lock_file
 :   Lock file for a backup in progress. Global/Server.

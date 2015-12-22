@@ -273,6 +273,7 @@ class ServerConfig(object):
         'custom_decompression_filter',
         'description',
         'disabled',
+        'errors_directory',
         'immediate_checkpoint',
         'incoming_wals_directory',
         'last_backup_maximum_age',
@@ -294,6 +295,7 @@ class ServerConfig(object):
         'ssh_command',
         'streaming_archiver',
         'streaming_conninfo',
+        'streaming_wals_directory',
         'tablespace_bandwidth_limit',
         'wal_retention_policy',
         'wals_directory'
@@ -338,6 +340,7 @@ class ServerConfig(object):
         'basebackup_retry_times': '0',
         'basebackups_directory': '%(backup_directory)s/base',
         'disabled': 'false',
+        'errors_directory': '%(backup_directory)s/errors',
         'immediate_checkpoint': 'false',
         'incoming_wals_directory': '%(backup_directory)s/incoming',
         'minimum_redundancy': '0',
@@ -346,6 +349,7 @@ class ServerConfig(object):
         'retention_policy_mode': 'auto',
         'streaming_conninfo': '%(conninfo)s',
         'streaming_archiver': 'off',
+        'streaming_wals_directory': '%(backup_directory)s/streaming',
         'wal_retention_policy': 'main',
         'wals_directory': '%(backup_directory)s/wals'
     }
@@ -628,10 +632,18 @@ class Config(object):
             # Paths map
             section_conf = self._servers[section]
             config_paths = {
-                'backup_directory': section_conf.backup_directory,
-                'basebackups_directory': section_conf.basebackups_directory,
-                'wals_directory': section_conf.wals_directory,
-                'incoming_wals_directory': section_conf.incoming_wals_directory,
+                'backup_directory':
+                    section_conf.backup_directory,
+                'basebackups_directory':
+                    section_conf.basebackups_directory,
+                'errors_directory':
+                    section_conf.errors_directory,
+                'incoming_wals_directory':
+                    section_conf.incoming_wals_directory,
+                'streaming_wals_directory':
+                    section_conf.streaming_wals_directory,
+                'wals_directory':
+                    section_conf.wals_directory,
             }
 
             # Check for path errors

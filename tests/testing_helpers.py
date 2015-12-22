@@ -260,6 +260,8 @@ def build_config_dictionary(config_keys=None):
         'msg_list': [],
         'path_prefix': None,
         'streaming_archiver': False,
+        'streaming_wals_directory': '/some/barman/home/main/streaming',
+        'errors_directory': '/some/barman/home/main/errors',
     }
     # Check for overriding keys
     if config_keys is not None:

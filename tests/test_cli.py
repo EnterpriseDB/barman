@@ -207,15 +207,9 @@ class TestCli(object):
         monkeypatch.setattr(barman, '__config__', build_config_from_dicts(
             global_conf=None,
             main_conf={
-                'basebackups_directory': '/some/barman/home/main/base',
-                'incoming_wals_directory': '/some/barman/home/main/incoming',
-                'wals_directory': '/some/barman/home/main/wals',
                 'backup_directory': '/some/barman/home/main',
             },
             test_conf={
-                'basebackups_directory': '/some/barman/home/test/wals',
-                'incoming_wals_directory': '/some/barman/home/main/incoming',
-                'wals_directory': '/some/barman/home/main/wals',
                 'backup_directory': '/some/barman/home/main',
             }))
         server_dict = get_server_list(on_error_stop=False)
@@ -224,4 +218,4 @@ class TestCli(object):
         assert server_dict
         # Check for the presence of global errors
         assert global_error_list
-        assert len(global_error_list) == 4
+        assert len(global_error_list) == 6
