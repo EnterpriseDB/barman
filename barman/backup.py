@@ -614,8 +614,10 @@ class BackupManager(object):
 
             mkpath(dest_dir)
             if compressor:
-                compressor.compress(srcfile, dest_file)
-                shutil.copystat(srcfile, dest_file)
+                temp_file = dest_file + '.part'
+                compressor.compress(srcfile, temp_file)
+                shutil.copystat(srcfile, temp_file)
+                shutil.move(temp_file, dest_file)
                 os.unlink(srcfile)
             else:
                 shutil.move(srcfile, dest_file)
