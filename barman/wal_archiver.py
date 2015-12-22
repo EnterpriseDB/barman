@@ -144,7 +144,7 @@ class FileWalArchiver(WalArchiver):
                 errors.append(file_name)
 
         # Build the list of WalFileInfo
-        wal_files = [WalFileInfo.from_file(f, compression=None) for f in files]
+        wal_files = [WalFileInfo.from_file(f) for f in files]
         return WalArchiverBatch(wal_files, errors=errors)
 
 

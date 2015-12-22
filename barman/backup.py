@@ -624,7 +624,8 @@ class BackupManager(object):
             retry_script.run()
 
             mkpath(dst_dir)
-            if compressor:
+            # Compress the file only if not already compressed
+            if compressor and not wal_info.compression:
                 compressor.compress(src_file, tmp_file)
                 shutil.copystat(src_file, tmp_file)
                 os.rename(tmp_file, dst_file)
