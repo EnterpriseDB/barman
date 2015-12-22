@@ -137,6 +137,10 @@ class Test(object):
             '00000001000000000000000A.00000020.backup')
         assert xlog.is_any_xlog_file(
             'test2/00000001000000000000000A.00000020.backup')
+        assert xlog.is_any_xlog_file(
+            '00000001000000000000000A.partial')
+        assert xlog.is_any_xlog_file(
+            'test2/00000001000000000000000A.partial')
         assert xlog.is_any_xlog_file('00000002.history')
         assert xlog.is_any_xlog_file('test3/00000002.history')
         assert not xlog.is_any_xlog_file('00000000000000000000000')
@@ -145,6 +149,8 @@ class Test(object):
         assert not xlog.is_any_xlog_file('00000001000000000000000A.backup')
         assert not xlog.is_any_xlog_file(
             'test.00000001000000000000000A.00000020.backup')
+        assert not xlog.is_any_xlog_file(
+            'test.00000001000000000000000A.00000020.partial')
         assert not xlog.is_any_xlog_file('00000001000000000000000A.history')
 
     def test_history_file(self):
@@ -160,6 +166,8 @@ class Test(object):
         assert not xlog.is_any_xlog_file(
             'test.00000001000000000000000A.00000020.backup')
         assert not xlog.is_history_file('00000001000000000000000A.history')
+        assert not xlog.is_history_file('00000001000000000000000A.partial')
+        assert not xlog.is_history_file('00000001.partial')
 
     def test_backup_file(self):
         assert not xlog.is_backup_file('000000000000000200000001')
@@ -175,6 +183,23 @@ class Test(object):
         assert not xlog.is_any_xlog_file(
             'test.00000001000000000000000A.00000020.backup')
         assert not xlog.is_backup_file('00000001000000000000000A.history')
+        assert not xlog.is_backup_file('00000001000000000000000A.partial')
+        assert not xlog.is_backup_file(
+            '00000001000000000000000A.00000020.partial')
+
+    def test_partial_file(self):
+        assert not xlog.is_partial_file('000000000000000200000001')
+        assert xlog.is_partial_file('00000001000000000000000A.partial')
+        assert xlog.is_partial_file('test/00000001000000000000000A.partial')
+        assert not xlog.is_partial_file('00000002.history')
+        assert not xlog.is_partial_file('00000000000000000000000.partial')
+        assert not xlog.is_partial_file('0000000000000000000000000.partial')
+        assert not xlog.is_partial_file('000000000000X00000000000.partial')
+        assert not xlog.is_partial_file(
+            '00000001000000000000000A.00000020.partial')
+        assert not xlog.is_any_xlog_file(
+            'test.00000001000000000000000A.partial')
+        assert not xlog.is_partial_file('00000001.partial')
 
     def test_is_wal_file(self):
         assert xlog.is_wal_file('000000000000000200000001')
@@ -188,6 +213,7 @@ class Test(object):
         assert not xlog.is_any_xlog_file(
             'test.00000001000000000000000A.00000020.backup')
         assert not xlog.is_wal_file('00000001000000000000000A.history')
+        assert not xlog.is_wal_file('00000001000000000000000A.partial')
 
     def test_encode_history_filename(self):
         assert xlog.encode_history_file_name(1) == '00000001.history'

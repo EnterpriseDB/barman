@@ -160,7 +160,9 @@ class Server(object):
         self.backup_manager = BackupManager(self)
         self.enforce_retention_policies = False
 
-        self.archivers = list()
+        # Order of items in self.archivers list is important!
+        # The files will be archived in that order.
+        self.archivers = []
         if self.config.archiver:
             self.archivers.append(FileWalArchiver(self.backup_manager))
 

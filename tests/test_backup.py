@@ -28,6 +28,7 @@ import pytest
 from barman.command_wrappers import DataTransferFailure
 from barman.infofile import BackupInfo
 import barman.utils
+from barman.wal_archiver import FileWalArchiver
 from testing_helpers import build_test_backup_info, build_backup_manager
 
 
@@ -519,6 +520,7 @@ class TestBackup(object):
         xlog_db.ensure()
         backup_manager.server.xlogdb.return_value.__enter__.return_value = \
             xlog_db.open(mode='a')
+        backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
 
         backup_manager.archive_wal()
         wal_path = os.path.join(archive_dir.strpath,
@@ -559,7 +561,10 @@ class TestBackup(object):
         xlog_db.ensure()
         backup_manager.server.xlogdb.return_value.__enter__.return_value = \
             xlog_db.open(mode='a')
+        backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
+
         backup_manager.archive_wal()
+
         # Check that the WAL file is not present inside the wal catalog
         with xlog_db.open() as f:
             line = str(f.readline())
@@ -606,7 +611,10 @@ class TestBackup(object):
         xlog_db.ensure()
         backup_manager.server.xlogdb.return_value.__enter__.return_value = \
             xlog_db.open(mode='a')
+        backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
+
         backup_manager.archive_wal()
+
         with xlog_db.open() as f:
             line = str(f.readline())
             assert wal_name not in line

@@ -302,7 +302,7 @@ class WalFileInfo(FieldListFile):
     Metadata of a WAL file.
     """
 
-    __slots__ = ()
+    __slots__ = ('orig_filename',)
 
     name = Field('name', doc='base name of WAL file')
     size = Field('size', load=int, doc='WAL file size after compression')
@@ -332,6 +332,7 @@ class WalFileInfo(FieldListFile):
                 or default_compression
         obj = cls(**kwargs)
         obj.filename = "%s.meta" % filename
+        obj.orig_filename = filename
         return obj
 
     def to_xlogdb_line(self):

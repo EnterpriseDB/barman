@@ -446,72 +446,82 @@ class BackupManager(object):
         """
         found = False
         compressor = self.compression_manager.get_compressor()
+        # Get the first available backup
+        first_backup_id = self.get_first_backup(BackupInfo.STATUS_NOT_EMPTY)
+        first_backup = self.server.get_backup(first_backup_id)
         with self.server.xlogdb('a') as fxlogdb:
             if verbose:
                 output.info("Processing xlog segments for %s",
                             self.config.name,
                             log=False)
-            # Get the first available backup
-            first_backup_id = self.get_first_backup(BackupInfo.STATUS_NOT_EMPTY)
-            first_backup = self.server.get_backup(first_backup_id)
-            for filename in sorted(glob(
-                    os.path.join(self.config.incoming_wals_directory, '*'))):
-                if not found and not verbose:
-                    output.info("Processing xlog segments for %s",
+            for archiver in self.server.archivers:
+                batch = archiver.get_next_batch()
+                for wal_info in batch:
+                    if not found and not verbose:
+                        output.info("Processing xlog segments for %s",
+                                    self.config.name,
+                                    log=False)
+                    found = True
+
+                    # If there are no available backups ...
+                    if first_backup is None:
+                        # ... delete xlog segments only for exclusive backups
+                        if BackupOptions.CONCURRENT_BACKUP \
+                                not in self.config.backup_options:
+                            # Skipping history files
+                            if not xlog.is_history_file(wal_info.name):
+                                output.info("\tNo base backup available."
+                                            " Trashing file %s"
+                                            " from server %s",
+                                            wal_info.name, self.config.name)
+                                os.unlink(wal_info.orig_filename)
+                                continue
+                    # ... otherwise
+                    else:
+                        # ... delete xlog segments older than the first backup
+                        if wal_info.name < first_backup.begin_wal:
+                            # Skipping history files
+                            if not xlog.is_history_file(wal_info.name):
+                                output.info("\tOlder than first backup."
+                                            " Trashing file %s"
+                                            " from server %s",
+                                            wal_info.name, self.config.name)
+                                os.unlink(wal_info.orig_filename)
+                                continue
+
+                    # Report to the user the WAL file we are archiving
+                    output.info("\t%s", wal_info.name, log=False)
+                    _logger.info("Archiving %s/%s",
+                                 self.config.name, wal_info.name)
+                    # Archive the WAL file
+                    try:
+                        self.cron_wal_archival(compressor, wal_info)
+                    except AbortedRetryHookScript as e:
+                        _logger.warning("Archiving of %s/%s aborted by "
+                                        "pre_archive_retry_script."
+                                        "Reason: %s" % (self.config.name,
+                                                        wal_info.name,
+                                                        e))
+                        return
+                    # Updates the information of the WAL archive with
+                    # the latest segments
+                    fxlogdb.write(wal_info.to_xlogdb_line())
+                    # flush and fsync for every line
+                    fxlogdb.flush()
+                    os.fsync(fxlogdb.fileno())
+                if batch.errors:
+                    output.info("Some unknown objects have been found "
+                                "processing xlog segments for %s",
                                 self.config.name,
                                 log=False)
-                found = True
-
-                # Create WAL Info object
-                wal_info = WalFileInfo.from_file(filename, compression=None)
-
-                # If there are no available backups ...
-                if first_backup is None:
-                    # ... delete xlog segments only for exclusive backups
-                    if BackupOptions.CONCURRENT_BACKUP \
-                            not in self.config.backup_options:
-                        # Skipping history files
-                        if not xlog.is_history_file(filename):
-                            output.info("\tNo base backup available."
-                                        " Trashing file %s"
-                                        " from server %s",
-                                        wal_info.name, self.config.name)
-                            os.unlink(filename)
-                            continue
-                # ... otherwise
-                else:
-                    # ... delete xlog segments older than the first backup
-                    if wal_info.name < first_backup.begin_wal:
-                        # Skipping history files
-                        if not xlog.is_history_file(filename):
-                            output.info("\tOlder than first backup."
-                                        " Trashing file %s"
-                                        " from server %s",
-                                        wal_info.name, self.config.name)
-                            os.unlink(filename)
-                            continue
-
-                # Report to the user the WAL file we are archiving
-                output.info("\t%s", os.path.basename(filename), log=False)
-                _logger.info("Archiving %s/%s",
-                             self.config.name,
-                             os.path.basename(filename))
-                # Archive the WAL file
-                try:
-                    self.cron_wal_archival(compressor, wal_info)
-                except AbortedRetryHookScript as e:
-                    _logger.warning("Archiving of %s/%s aborted by "
-                                    "pre_archive_retry_script."
-                                    "Reason: %s" % (self.config.name,
-                                                    os.path.basename(),
-                                                    e))
-                    return
-                # Updates the information of the WAL archive with
-                # the latest segments
-                fxlogdb.write(wal_info.to_xlogdb_line())
-                # flush and fsync for every line
-                fxlogdb.flush()
-                os.fsync(fxlogdb.fileno())
+                    stamp = datetime.datetime.utcnow().strftime(
+                        '%Y%m%dT%H%M%SZ')
+                    for error in batch.errors:
+                        output.info("\t%s", error)
+                        error_dst = os.path.join(
+                            self.config.errors_directory,
+                            "%s.%s.unknown" % (os.path.basename(error), stamp))
+                        shutil.move(error, error_dst)
         if not found and verbose:
             output.info("\tno file found", log=False)
 
@@ -593,8 +603,7 @@ class BackupManager(object):
         :param wal_info: WalFileInfo of the WAL file is being processed
         """
 
-        src_file = os.path.join(self.config.incoming_wals_directory,
-                                wal_info.name)
+        src_file = wal_info.orig_filename
         src_dir = os.path.dirname(src_file)
         dst_file = wal_info.fullpath(self.server)
         tmp_file = dst_file + '.tmp'
@@ -636,6 +645,8 @@ class BackupManager(object):
                     shutil.copy2(src_file, tmp_file)
                     os.rename(tmp_file, dst_file)
                     os.unlink(src_file)
+            # At this point the original file has been removed
+            wal_info.orig_filename = None
 
             # Execute fsync() on the archived WAL file
             file_fd = os.open(dst_file, os.O_RDONLY)
@@ -646,7 +657,7 @@ class BackupManager(object):
             # Execute fsync() also on the incoming directory
             fsync_dir(src_dir)
         except Exception as e:
-            # In case of failure save the exception for the post sripts
+            # In case of failure save the exception for the post scripts
             error = e
             raise
 

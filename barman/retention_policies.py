@@ -124,8 +124,8 @@ class RetentionPolicy(object):
 class RedundancyRetentionPolicy(RetentionPolicy):
     """
     Retention policy based on redundancy, the setting that determines
-    many periodical backups to keep. A redundancy-based retention polic
-    yis contrasted with retention policy that uses a recovery window.
+    many periodical backups to keep. A redundancy-based retention policy
+    is contrasted with retention policy that uses a recovery window.
     """
 
     _re = re.compile(r'^\s*redundancy\s+(\d+)\s*$', re.IGNORECASE)

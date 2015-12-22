@@ -28,7 +28,11 @@ _xlog_re = re.compile(r'''
     ([\dA-Fa-f]{8})                    # everything has a timeline
     (?:
         ([\dA-Fa-f]{8})([\dA-Fa-f]{8}) # segment name, if a wal file
-        (?:\.[\dA-Fa-f]{8}\.backup)?   # and optional offset, if a backup label
+        (?:                            # and optional
+            \.[\dA-Fa-f]{8}\.backup    # offset, if a backup label
+        |
+            \.partial                  # partial, if a partial file
+        )?
     |
         \.history                      # or only .history, if a history file
     )
@@ -96,6 +100,21 @@ def is_backup_file(path):
     return False
 
 
+def is_partial_file(path):
+    """
+    Return True if the xlog is a .partial file, False otherwise
+
+    It supports either a full file path or a simple file name.
+
+    :param str path: the file name to test
+    :rtype: bool
+    """
+    match = _xlog_re.search(os.path.basename(path))
+    if match and match.group(0).endswith('.partial'):
+        return True
+    return False
+
+
 def is_wal_file(path):
     """
     Return True if the xlog is a regular xlog file, False otherwise
@@ -106,9 +125,10 @@ def is_wal_file(path):
     :rtype: bool
     """
     match = _xlog_re.search(os.path.basename(path))
-    if match \
-            and not match.group(0).endswith('.backup')\
-            and not match.group(0).endswith('.history'):
+    if (match and
+            not match.group(0).endswith('.backup') and
+            not match.group(0).endswith('.history') and
+            not match.group(0).endswith('.partial')):
         return True
     return False
 

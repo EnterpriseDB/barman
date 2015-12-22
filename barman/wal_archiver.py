@@ -16,16 +16,41 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
 import logging
+import os
 from abc import ABCMeta, abstractmethod
 from distutils.version import LooseVersion as Version
+from glob import glob
 
 import psycopg2
 
-from barman import utils
+from barman import utils, xlog
 from barman.command_wrappers import Command, CommandFailedException
+from barman.infofile import WalFileInfo
 from barman.postgres import PostgresConnectionError
 
 _logger = logging.getLogger(__name__)
+
+
+class WalArchiverBatch(list):
+    def __init__(self, items, errors=None, skip=None):
+        """
+        A WalArchiverBatch is a list of WalFileInfo which has two extra
+        attribute list:
+
+        * errors: containing a list of unrecognized files
+        * skip: containing a list of skipped files.
+
+        :param items: iterable from which initialize the list
+        :param errors: an optional list of unrecognized files
+        :param skip: an optional list of skipped files
+        """
+        super(WalArchiverBatch, self).__init__(items)
+        self.skip = []
+        self.errors = []
+        if skip is not None:
+            self.skip = skip
+        if errors is not None:
+            self.errors = errors
 
 
 class WalArchiver(object):
@@ -50,6 +75,14 @@ class WalArchiver(object):
     def get_remote_status(self):
         """
         Execute basic checks
+        """
+
+    @abstractmethod
+    def get_next_batch(self):
+        """
+        Return a WalArchiverBatch containing the WAL files to be archived.
+
+        :rtype: WalArchiverBatch
         """
 
 
@@ -88,6 +121,32 @@ class FileWalArchiver(WalArchiver):
 
         return result
 
+    def get_next_batch(self):
+        """
+        Returns the next batch of WAL files that have been archived from
+        a PostgreSQL's 'archive_command'
+
+        :return: WalArchiverBatch: list of WAL files
+        """
+        # List and sort all files in the incoming directory
+        file_names = glob(os.path.join(
+            self.config.incoming_wals_directory, '*'))
+        file_names.sort()
+
+        # Process anything that looks like a valid WAL file. Anything
+        # else is treated like an error/anomaly
+        files = []
+        errors = []
+        for file_name in file_names:
+            if xlog.is_any_xlog_file(file_name) and os.path.isfile(file_name):
+                files.append(file_name)
+            else:
+                errors.append(file_name)
+
+        # Build the list of WalFileInfo
+        wal_files = [WalFileInfo.from_file(f, compression=None) for f in files]
+        return WalArchiverBatch(wal_files, errors=errors)
+
 
 class StreamingWalArchiver(WalArchiver):
     """
@@ -117,7 +176,7 @@ class StreamingWalArchiver(WalArchiver):
             _logger.warn("Error retrieving PostgreSQL version: %s", e)
             return result
 
-        # detect if there is a pg_receivexlog executable
+        # Detect a pg_receivexlog executable
         pg_receivexlog = utils.which("pg_receivexlog",
                                      self.backup_manager.server.path)
 
@@ -158,3 +217,44 @@ class StreamingWalArchiver(WalArchiver):
             result["pg_receivexlog_compatible"] = False
 
         return result
+
+    def get_next_batch(self):
+        """
+        Returns the next batch of WAL files that have been archived via
+        streaming replication
+
+        :return: WalArchiverBatch: list of WAL files
+        """
+        # List and sort all files in the incoming directory
+        file_names = glob(os.path.join(
+            self.config.streaming_wals_directory, '*'))
+        file_names.sort()
+
+        # Process anything that looks like a valid WAL file,
+        # including partial ones.
+        # Anything else is treated like an error/anomaly
+        files = []
+        skip = []
+        errors = []
+        for file_name in file_names:
+            if xlog.is_wal_file(file_name) and os.path.isfile(file_name):
+                files.append(file_name)
+            elif xlog.is_partial_file(file_name) and os.path.isfile(file_name):
+                skip.append(file_name)
+            else:
+                errors.append(file_name)
+        # In case of more than a partial file, keep the last
+        # and treat the rest as errors
+        if len(skip) > 1:
+            errors.extend(skip[:-1])
+            skip = skip[-1:]
+
+        # Keep the last full WAL file in case no partial file is present
+        elif len(skip) == 0 and files:
+            skip.append(files.pop())
+
+        # Build the list of WalFileInfo
+        wal_files = [WalFileInfo.from_file(f, compression=None) for f in files]
+        return WalArchiverBatch(wal_files,
+                                errors=errors,
+                                skip=skip)
