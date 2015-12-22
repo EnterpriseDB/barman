@@ -593,46 +593,58 @@ class BackupManager(object):
         :param wal_info: WalFileInfo of the WAL file is being processed
         """
 
-        dest_file = wal_info.fullpath(self.server)
-        dest_dir = os.path.dirname(dest_file)
-        srcfile = os.path.join(self.config.incoming_wals_directory,
-                               wal_info.name)
+        src_file = os.path.join(self.config.incoming_wals_directory,
+                                wal_info.name)
+        src_dir = os.path.dirname(src_file)
+        dst_file = wal_info.fullpath(self.server)
+        tmp_file = dst_file + '.tmp'
+        dst_dir = os.path.dirname(dst_file)
 
         error = None
         try:
             # Run the pre_archive_script if present.
             script = HookScriptRunner(self, 'archive_script', 'pre')
-            script.env_from_wal_info(wal_info, srcfile)
+            script.env_from_wal_info(wal_info, src_file)
             script.run()
 
             # Run the pre_archive_retry_script if present.
             retry_script = RetryHookScriptRunner(self,
                                                  'archive_retry_script',
                                                  'pre')
-            retry_script.env_from_wal_info(wal_info, srcfile)
+            retry_script.env_from_wal_info(wal_info, src_file)
             retry_script.run()
 
-            mkpath(dest_dir)
+            mkpath(dst_dir)
             if compressor:
-                compressor.compress(srcfile, dest_file)
-                shutil.copystat(srcfile, dest_file)
-                os.unlink(srcfile)
+                compressor.compress(src_file, tmp_file)
+                shutil.copystat(src_file, tmp_file)
+                os.rename(tmp_file, dst_file)
+                os.unlink(src_file)
+                # Update wal_info
+                stat = os.stat(dst_file)
+                wal_info.size = stat.st_size
+                wal_info.compression = compressor.compression
             else:
-                shutil.move(srcfile, dest_file)
+                # Try to atomically rename the file. If successful,
+                # the renaming will be an atomic operation
+                # (this is a POSIX requirement).
+                try:
+                    os.rename(src_file, dst_file)
+                except OSError:
+                    # Source and destination are probably on different
+                    # filesystems
+                    shutil.copy2(src_file, tmp_file)
+                    os.rename(tmp_file, dst_file)
+                    os.unlink(src_file)
 
-            # Execute fsync() on the archived WAL containing directory
-            fsync_dir(dest_dir)
-            # Execute fsync() also on the incoming directory
-            fsync_dir(self.config.incoming_wals_directory)
             # Execute fsync() on the archived WAL file
-            file_fd = os.open(dest_file, os.O_RDONLY)
+            file_fd = os.open(dst_file, os.O_RDONLY)
             os.fsync(file_fd)
             os.close(file_fd)
-
-            stat = os.stat(dest_file)
-            wal_info.size = stat.st_size
-            wal_info.compression = compressor and compressor.compression
-
+            # Execute fsync() on the archived WAL containing directory
+            fsync_dir(dst_dir)
+            # Execute fsync() also on the incoming directory
+            fsync_dir(src_dir)
         except Exception as e:
             # In case of failure save the exception for the post sripts
             error = e
@@ -646,7 +658,7 @@ class BackupManager(object):
                 retry_script = RetryHookScriptRunner(self,
                                                      'archive_retry_script',
                                                      'post')
-                retry_script.env_from_wal_info(wal_info, dest_file, error)
+                retry_script.env_from_wal_info(wal_info, dst_file, error)
                 retry_script.run()
             except AbortedRetryHookScript, e:
                 # Ignore the ABORT_STOP as it is a post-hook operation
@@ -657,7 +669,7 @@ class BackupManager(object):
 
             # Run the post_archive_script if present.
             script = HookScriptRunner(self, 'archive_script', 'post', error)
-            script.env_from_wal_info(wal_info, dest_file)
+            script.env_from_wal_info(wal_info, dst_file)
             script.run()
 
     def check(self, check_strategy):
