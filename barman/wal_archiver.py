@@ -60,16 +60,18 @@ class WalArchiver(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, backup_manager):
+    def __init__(self, backup_manager, name):
         """
         Base class init method.
 
-        :param backup_manager:
+        :param backup_manager: The backup manager
+        :param name: The name of this archiver
         :return:
         """
         self.backup_manager = backup_manager
         self.server = backup_manager.server
         self.config = backup_manager.config
+        self.name = name
 
     @abstractmethod
     def get_remote_status(self):
@@ -93,7 +95,7 @@ class FileWalArchiver(WalArchiver):
 
     def __init__(self, backup_manager):
 
-        super(FileWalArchiver, self).__init__(backup_manager)
+        super(FileWalArchiver, self).__init__(backup_manager, 'file archival')
 
     def get_remote_status(self):
         """
@@ -123,8 +125,8 @@ class FileWalArchiver(WalArchiver):
 
     def get_next_batch(self):
         """
-        Returns the next batch of WAL files that have been archived from
-        a PostgreSQL's 'archive_command'
+        Returns the next batch of WAL files that have been archived through
+        a PostgreSQL's 'archive_command' (in the 'incoming' directory)
 
         :return: WalArchiverBatch: list of WAL files
         """
@@ -154,7 +156,7 @@ class StreamingWalArchiver(WalArchiver):
     """
 
     def __init__(self, backup_manager):
-        super(StreamingWalArchiver, self).__init__(backup_manager)
+        super(StreamingWalArchiver, self).__init__(backup_manager, 'streaming')
 
     def get_remote_status(self):
         """
@@ -221,7 +223,11 @@ class StreamingWalArchiver(WalArchiver):
     def get_next_batch(self):
         """
         Returns the next batch of WAL files that have been archived via
-        streaming replication
+        streaming replication (in the 'streaming' directory)
+
+        This method always leaves one file in the "streaming" directory,
+        because the 'pg_receivexlog' process needs at least one file to
+        detect the current streaming position after a restart.
 
         :return: WalArchiverBatch: list of WAL files
         """
@@ -255,6 +261,4 @@ class StreamingWalArchiver(WalArchiver):
 
         # Build the list of WalFileInfo
         wal_files = [WalFileInfo.from_file(f, compression=None) for f in files]
-        return WalArchiverBatch(wal_files,
-                                errors=errors,
-                                skip=skip)
+        return WalArchiverBatch(wal_files, errors=errors, skip=skip)

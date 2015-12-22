@@ -20,6 +20,7 @@ This module represents a backup.
 """
 
 import datetime
+import filecmp
 import logging
 import os
 import shutil
@@ -42,6 +43,21 @@ from barman.utils import (fsync_dir, human_readable_timedelta, mkpath,
                           pretty_size)
 
 _logger = logging.getLogger(__name__)
+
+
+class DuplicateWalFile(Exception):
+    """
+    A duplicate WAL file has been found
+    """
+    pass
+
+
+class MatchingDuplicateWalFile(DuplicateWalFile):
+    """
+    A duplicate WAL file has been found, but it's identical to the one we
+    already have.
+    """
+    pass
 
 
 class BackupManager(object):
@@ -444,21 +460,24 @@ class BackupManager(object):
 
         :param bool verbose: report even if no actions
         """
-        found = False
         compressor = self.compression_manager.get_compressor()
         # Get the first available backup
         first_backup_id = self.get_first_backup(BackupInfo.STATUS_NOT_EMPTY)
         first_backup = self.server.get_backup(first_backup_id)
+        stamp = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
         with self.server.xlogdb('a') as fxlogdb:
-            if verbose:
-                output.info("Processing xlog segments for %s",
-                            self.config.name,
-                            log=False)
             for archiver in self.server.archivers:
+                found = False
+                if verbose:
+                    output.info("Processing xlog segments from %s for %s",
+                                archiver.name,
+                                self.config.name,
+                                log=False)
                 batch = archiver.get_next_batch()
                 for wal_info in batch:
                     if not found and not verbose:
-                        output.info("Processing xlog segments for %s",
+                        output.info("Processing xlog segments from %s for %s",
+                                    archiver.name,
                                     self.config.name,
                                     log=False)
                     found = True
@@ -496,6 +515,22 @@ class BackupManager(object):
                     # Archive the WAL file
                     try:
                         self.cron_wal_archival(compressor, wal_info)
+                    except MatchingDuplicateWalFile:
+                        # We already have this file. Simply unlink the file.
+                        os.unlink(wal_info.orig_filename)
+                        continue
+                    except DuplicateWalFile:
+                        output.info("\tError: %s is already present "
+                                    "in server %s. "
+                                    "File moved to errors directory.",
+                                    wal_info.name,
+                                    self.config.name)
+                        error_dst = os.path.join(
+                            self.config.errors_directory,
+                            "%s.%s.duplicate" % (wal_info.name,
+                                                 stamp))
+                        shutil.move(wal_info.orig_filename, error_dst)
+                        continue
                     except AbortedRetryHookScript as e:
                         _logger.warning("Archiving of %s/%s aborted by "
                                         "pre_archive_retry_script."
@@ -509,21 +544,20 @@ class BackupManager(object):
                     # flush and fsync for every line
                     fxlogdb.flush()
                     os.fsync(fxlogdb.fileno())
+                if not found and verbose:
+                    output.info("\tno file found", log=False)
                 if batch.errors:
-                    output.info("Some unknown objects have been found "
-                                "processing xlog segments for %s",
+                    output.info("Some unknown objects have been found while "
+                                "processing xlog segments for %s. "
+                                "Object moved to errors directory.",
                                 self.config.name,
                                 log=False)
-                    stamp = datetime.datetime.utcnow().strftime(
-                        '%Y%m%dT%H%M%SZ')
                     for error in batch.errors:
                         output.info("\t%s", error)
                         error_dst = os.path.join(
                             self.config.errors_directory,
                             "%s.%s.unknown" % (os.path.basename(error), stamp))
                         shutil.move(error, error_dst)
-        if not found and verbose:
-            output.info("\tno file found", log=False)
 
     def cron_retention_policy(self):
         """
@@ -622,6 +656,37 @@ class BackupManager(object):
                                                  'pre')
             retry_script.env_from_wal_info(wal_info, src_file)
             retry_script.run()
+
+            # Check if destination already exists
+            if os.path.exists(dst_file):
+                src_uncompressed = src_file
+                dst_uncompressed = dst_file
+                dst_info = WalFileInfo.from_file(dst_file)
+                try:
+                    comp_manager = self.compression_manager
+                    if dst_info.compression is not None:
+                        dst_uncompressed = dst_file + '.uncompressed'
+                        comp_manager.get_compressor(
+                            dst_info.compression).decompress(
+                                dst_file, dst_uncompressed)
+                    if wal_info.compression:
+                        src_uncompressed = src_file + '.uncompressed'
+                        comp_manager.get_compressor(
+                            wal_info.compression).decompress(
+                                src_file, src_uncompressed)
+                    # Directly compare files.
+                    # When the files are identical
+                    # raise a MatchingDuplicateWalFile exception,
+                    # otherwise raise a DuplicateWalFile exception.
+                    if filecmp.cmp(dst_uncompressed, src_uncompressed):
+                        raise MatchingDuplicateWalFile(wal_info)
+                    else:
+                        raise DuplicateWalFile(wal_info)
+                finally:
+                    if src_uncompressed != src_file:
+                        os.unlink(src_uncompressed)
+                    if dst_uncompressed != dst_file:
+                        os.unlink(dst_uncompressed)
 
             mkpath(dst_dir)
             # Compress the file only if not already compressed
