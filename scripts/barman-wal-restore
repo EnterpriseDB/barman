@@ -17,20 +17,25 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-VERSION=1.0
+VERSION=1.1
 USER='barman'
 
-usage ()
-{
+# Naptime after a get-wal failure
+declare -i SLEEP_TIME
+SLEEP_TIME=0
+
+usage () {
   echo "barman-wal-restore:"
   echo "  This script will be used as a 'restore_command' based on the get-wal feature of Barman."
   echo "  A ssh connection will be opened to the Barman host."
   echo ""
-  echo "Usage: barman-wal-restore [-U user] <BARMANHOST> <SERVERNAME> <WAL_NAME> <WAL_DEST>"
+  echo "Usage: barman-wal-restore [-U user] [-s seconds] <BARMANHOST> <SERVERNAME> <WAL_NAME> <WAL_DEST>"
   echo ""
   echo "Optional:"
   echo "  -U <user>"
   echo "    The user used for the ssh connection to the Barman server. Defaults to 'barman'."
+  echo "  -s <seconds>"
+  echo "    sleep time (in seconds) after a failure of get-wal request. Defaults to 0 (nowait)."
   echo ""
   echo "parameters:"
   echo "  <BARMANHOST>"
@@ -39,7 +44,6 @@ usage ()
   echo "    The server name configured in Barman from which WALs are taken (MANDATORY)."
   echo "  <WAL_NAME>, <WAL_DEST>"
   echo "    those two parameters have to be valued with the '%f' and '%p' keywords (MANDATORY)."
-  echo ""
   echo "info:"
   echo "  --help"
   echo "    Display this help and exit."
@@ -50,7 +54,7 @@ usage ()
   exit 1
 }
 
-version (){
+version () {
   echo " barman-wal-restore: Version $VERSION"
   echo ""
 
@@ -59,7 +63,19 @@ version (){
 
 exit_with_error () {
   echo "ERROR: $1"
-  exit $2
+  exit "$2"
+}
+
+sleep_and_exit_with_error () {
+  if [ $SLEEP_TIME -gt 0 ]
+  then
+    echo "ERROR: $1 (sleeping $SLEEP_TIME seconds)"
+    # In case of error, sleep for SLEEP_TIME seconds
+    sleep $SLEEP_TIME
+  else
+    echo "ERROR: $1"
+  fi
+  exit "$2"
 }
 
 opt="$1"
@@ -77,6 +93,8 @@ do
     case "$opt" in
         -U )
           USER="$1"; shift;;
+        -s )
+          SLEEP_TIME="$1"; shift;;
         --version )
           version;;
         * )
@@ -115,7 +133,7 @@ WAL_DEST=$4
 #
 # Check WAL destination is not a directory and does not exist
 #
-if [ -d $WAL_DEST ]
+if [ -d "$WAL_DEST" ]
 then
   exit_with_error "WAL_DEST cannot be a directory" 2
 fi
@@ -123,7 +141,7 @@ fi
 #
 # EXECUTE BARMAN GET-WAL THROUGH THE SSH CONNECTION
 #
-ssh $USER@$BARMANHOST barman get-wal $NODEHOST $WAL_NAME > $WAL_DEST
+ssh "$USER@$BARMANHOST" "barman get-wal '$NODEHOST' '$WAL_NAME'" > "$WAL_DEST"
 STATUS=$?
 
 #
@@ -133,8 +151,8 @@ if [ $STATUS -ne 0 ]
 then
   if [ $STATUS -eq 255 ]
   then
-    exit_with_error "Connection problem with ssh" 3
+    sleep_and_exit_with_error "Connection problem with ssh" 3
   else
-    exit_with_error "barman-wal-restore has failed!" $STATUS
+    sleep_and_exit_with_error "barman-wal-restore has failed!" $STATUS
   fi
 fi
