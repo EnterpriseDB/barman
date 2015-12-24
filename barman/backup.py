@@ -529,6 +529,8 @@ class BackupManager(object):
                             self.config.errors_directory,
                             "%s.%s.duplicate" % (wal_info.name,
                                                  stamp))
+                        # TODO: cover corner case of duplication (unlikely,
+                        # but theoretically possible)
                         shutil.move(wal_info.orig_filename, error_dst)
                         continue
                     except AbortedRetryHookScript as e:

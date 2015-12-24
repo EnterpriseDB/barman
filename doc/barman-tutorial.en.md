@@ -730,8 +730,9 @@ barman archive-wal <server_name>
 ```
 
 This is the command responsible for WAL maintenance operations,
-like compressing WAL files and moving them from the _incoming directory_ 
-into the archive.
+like compressing WAL files and moving them from the _incoming directory_
+(if `archiver` is enabled) or the _streaming directory_ (if
+`streaming_archiver` is enabled)  into the archive.
 
 Although it can be manually executed, the majority of users will not
 need to do it, given that it is transparently invoked as a subprocess

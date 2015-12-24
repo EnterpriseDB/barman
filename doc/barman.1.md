@@ -38,8 +38,10 @@ recovery phase.
 Important: every command has a help option
 
 archive-wal *SERVER_NAME*
-:   Archive the incoming WAL files for `SERVER_NAME`, moving them
-    in the archive, while applying compression if requested.
+:   Get any incoming xlog file (both through standard `archive_command`
+    and streaming replication, where applicable) and moves them in the
+    WAL archive for that server. If necessary, apply compression when
+    requested by the user.
 
 cron
 :   Perform maintenance tasks, such as enforcing retention policies or
