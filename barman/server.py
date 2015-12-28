@@ -29,6 +29,7 @@ from collections import namedtuple
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
+import barman
 import barman.xlog as xlog
 from barman import output
 from barman.backup import BackupManager
@@ -1045,7 +1046,19 @@ class Server(object):
                             % self.config.name)
                         return
 
-                    command = ['barman', '-q', 'archive-wal', self.config.name]
+                    # The "-c" option is needed when the user explicitly
+                    # passes a configuration file, as the child process
+                    # must know the configuration file to use.
+                    #
+                    # The "-c" is always propagated even in case of default
+                    # configuration file, as the operation is harmless.
+
+                    command = [
+                        'barman',
+                        '-c', barman.__config__.config_file,
+                        '-q',
+                        'archive-wal', self.config.name
+                    ]
                     _logger.debug("Starting subprocess with for WAL ARCHIVE")
                     subprocess.Popen(command, preexec_fn=os.setsid)
 
