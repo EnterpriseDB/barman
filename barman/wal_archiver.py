@@ -170,13 +170,15 @@ class StreamingWalArchiver(WalArchiver):
                 'pg_receivexlog_version'),
             None)
 
-        try:
-            streaming = self.backup_manager.server.streaming
-            pg_version = Version(
-                utils.simplify_version(streaming.server_txt_version))
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.warn("Error retrieving PostgreSQL version: %s", e)
+        # Check the server version from the streaming
+        # connection
+        streaming = self.backup_manager.server.streaming
+        server_txt_version = streaming.server_txt_version
+        if server_txt_version is None:
+            _logger.warn("Error retrieving PostgreSQL version")
             return result
+
+        pg_version = Version(utils.simplify_version(server_txt_version))
 
         # Detect a pg_receivexlog executable
         pg_receivexlog = utils.which("pg_receivexlog",

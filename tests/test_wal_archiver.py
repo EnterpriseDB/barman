@@ -133,3 +133,24 @@ class TestWalArchiver(object):
         command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.4.4"
         result = archiver.get_remote_status()
         assert result["pg_receivexlog_compatible"] is True
+
+    @patch("barman.utils.which")
+    @patch("barman.wal_archiver.Command")
+    def test_streamingwalarchiver_when_streaming_connection_rejected(
+            self, command_mock, which_mock):
+        """
+        Test the StreamingWalArchiver behaviour when the streaming
+        connection is rejected by the PostgreSQL server and
+        pg_receivexlog is installed.
+        """
+
+        # When the streaming connection is not available, the
+        # server_txt_version property will have a None value.
+        backup_manager = build_backup_manager()
+        backup_manager.server.streaming.server_txt_version = None
+        archiver = StreamingWalArchiver(backup_manager)
+        which_mock.return_value = '/some/path/to/pg_receivexlog'
+        command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.2"
+
+        result = archiver.get_remote_status()
+        assert result["pg_receivexlog_compatible"] is None

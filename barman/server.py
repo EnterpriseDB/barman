@@ -313,10 +313,13 @@ class Server(object):
             check_strategy.result(self.config.name, 'PostgreSQL', False)
             return
         if 'streaming_supported' in remote_status:
-            # If a streaming connection is available add the status to the
-            # output of the check
             hint = None
-            if not remote_status['streaming_supported']:
+
+            # If a streaming connection is available,
+            # add its status to the output of the check
+            if remote_status['streaming_supported'] is None:
+                hint = 'Streaming connection error'
+            elif not remote_status['streaming_supported']:
                 hint = 'Streaming connection not supported for PostgreSQL < 9.2'
             check_strategy.result(self.config.name, 'PostgreSQL streaming',
                                   remote_status.get('streaming'), hint)
