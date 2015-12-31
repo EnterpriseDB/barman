@@ -21,12 +21,9 @@ from abc import ABCMeta, abstractmethod
 from distutils.version import LooseVersion as Version
 from glob import glob
 
-import psycopg2
-
 from barman import utils, xlog
 from barman.command_wrappers import Command, CommandFailedException
 from barman.infofile import WalFileInfo
-from barman.postgres import PostgresConnectionError
 
 _logger = logging.getLogger(__name__)
 
@@ -77,6 +74,11 @@ class WalArchiver(object):
     def get_remote_status(self):
         """
         Execute basic checks
+
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+
+        :rtype: dict[str, None|str]
         """
 
     @abstractmethod
@@ -101,20 +103,17 @@ class FileWalArchiver(WalArchiver):
         """
         Returns the status of the FileWalArchiver.
 
-        This method does not raise exceptions in case of error,
-        but set the missing values to None.
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
 
-        :return dict[str, None]: component status variables
+        :rtype: dict[str, None|str]
         """
         result = dict.fromkeys(
             ['archive_mode', 'archive_command'], None)
         postgres = self.backup_manager.server.postgres
-        try:
-            # Query the database for 'archive_mode' and 'archive_command'
-            result['archive_mode'] = postgres.get_setting('archive_mode')
-            result['archive_command'] = postgres.get_setting('archive_command')
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.warn("Error retrieving PostgreSQL status: %s", e)
+        # Query the database for 'archive_mode' and 'archive_command'
+        result['archive_mode'] = postgres.get_setting('archive_mode')
+        result['archive_command'] = postgres.get_setting('archive_command')
 
         # Add pg_stat_archiver statistics if the view is supported
         pg_stat_archiver = postgres.get_archiver_stats()
@@ -161,24 +160,29 @@ class StreamingWalArchiver(WalArchiver):
     def get_remote_status(self):
         """
         Execute checks for replication-based wal archiving
-        :return dict[str]: result of archive checks
+
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+
+        :rtype: dict[str, None|str]
         """
         result = dict.fromkeys(
             ('pg_receivexlog_compatible',
-                'pg_receivexlog_installed',
-                'pg_receivexlog_path',
-                'pg_receivexlog_version'),
+             'pg_receivexlog_installed',
+             'pg_receivexlog_path',
+             'pg_receivexlog_version'),
             None)
 
         # Check the server version from the streaming
         # connection
         streaming = self.backup_manager.server.streaming
         server_txt_version = streaming.server_txt_version
-        if server_txt_version is None:
-            _logger.warn("Error retrieving PostgreSQL version")
-            return result
-
-        pg_version = Version(utils.simplify_version(server_txt_version))
+        if server_txt_version:
+            pg_version = Version(utils.simplify_version(server_txt_version))
+        else:
+            # No log here, it has already been logged in the
+            # StreamingConnection class
+            pg_version = None
 
         # Detect a pg_receivexlog executable
         pg_receivexlog = utils.which("pg_receivexlog",
@@ -202,7 +206,11 @@ class StreamingWalArchiver(WalArchiver):
             receivexlog_version = Version(
                 utils.simplify_version(result["pg_receivexlog_version"]))
         except CommandFailedException as e:
+            receivexlog_version = None
             _logger.debug("Error invoking pg_receivexlog: %s", e)
+
+        # If one of the version is unknown we cannot compare them
+        if receivexlog_version is None or pg_version is None:
             return result
 
         # pg_receivexlog 9.2 is compatible only with PostgreSQL 9.2.

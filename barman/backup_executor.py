@@ -34,6 +34,7 @@ from barman import output, xlog
 from barman.command_wrappers import (Command, CommandFailedException,
                                      DataTransferFailure, RsyncPgData)
 from barman.config import BackupOptions
+from barman.postgres import PostgresConnectionError
 from barman.utils import mkpath
 
 _logger = logging.getLogger(__name__)
@@ -94,7 +95,10 @@ class BackupExecutor(object):
         Get additional remote status info - invoked by
         BackupManager.get_remote_status()
 
-        :rtype: dict[str, str]
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+
+        :rtype: dict[str, None|str]
         """
         return {}
 
@@ -296,30 +300,36 @@ class SshBackupExecutor(BackupExecutor):
         Get remote information on PostgreSQL using Ssh, such as
         last archived WAL file
 
-        :rtype: dict(str,str|None)
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+
+        :rtype: dict[str, None|str]
         """
         remote_status = {}
         # Retrieve the last archived WAL using a Ssh connection on
         # the remote server and executing an 'ls' command. Only
         # for pre-9.4 versions of PostgreSQL.
-        if self.server.postgres.server_version < 90400:
-            remote_status['last_archived_wal'] = None
-            if self.server.postgres.get_setting('data_directory') and \
-                    self.server.postgres.get_setting('archive_command'):
-                # TODO: replace with RemoteUnixCommand
-                cmd = Command(self.ssh_command,
-                              self.ssh_options,
-                              path=self.server.path)
-                archive_dir = os.path.join(
-                    self.server.postgres.get_setting('data_directory'),
-                    'pg_xlog', 'archive_status')
-                out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
-                for line in out.splitlines():
-                    if line.endswith('.done'):
-                        name = line[:-5]
-                        if xlog.is_any_xlog_file(name):
-                            remote_status['last_archived_wal'] = name
-                            break
+        try:
+            if self.server.postgres.server_version < 90400:
+                remote_status['last_archived_wal'] = None
+                if self.server.postgres.get_setting('data_directory') and \
+                        self.server.postgres.get_setting('archive_command'):
+                    # TODO: replace with RemoteUnixCommand
+                    cmd = Command(self.ssh_command,
+                                  self.ssh_options,
+                                  path=self.server.path)
+                    archive_dir = os.path.join(
+                        self.server.postgres.get_setting('data_directory'),
+                        'pg_xlog', 'archive_status')
+                    out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
+                    for line in out.splitlines():
+                        if line.endswith('.done'):
+                            name = line[:-5]
+                            if xlog.is_any_xlog_file(name):
+                                remote_status['last_archived_wal'] = name
+                                break
+        except PostgresConnectionError as e:
+            _logger.warn("Error retrieving PostgreSQL status: %s", e)
         return remote_status
 
 

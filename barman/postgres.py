@@ -166,10 +166,10 @@ class StreamingConnection(PostgreSQL):
         """
         Returns the status of the connection to the PostgreSQL server.
 
-        This method does not raise exceptions in case of PostgreSQL
-        communication error, but set the missing parameters to None.
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
 
-        :return dict[str, None]: result of the server status query
+        :rtype: dict[str, None|str]
         """
         result = dict.fromkeys(
             ('streaming_supported', 'streaming', 'systemid',
@@ -346,10 +346,10 @@ class PostgreSQLConnection(PostgreSQL):
         """
         Get the status of the PostgreSQL server
 
-        This method does not raise exceptions in case of PostgreSQL
-        communication error, but set the missing parameters to None.
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
 
-        :return dict[str, None]: result of the server status query
+        :rtype: dict[str, None|str]
         """
         # PostgreSQL settings to get from the server
         pg_settings = [

@@ -829,7 +829,10 @@ class BackupManager(object):
         """
         Build additional remote status lines defined by the BackupManager.
 
-        :rtype: dict[str, None]
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+
+        :rtype: dict[str, None|str]
         """
         return self.executor.get_remote_status()
 

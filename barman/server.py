@@ -38,8 +38,7 @@ from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerXLOGDBLock)
-from barman.postgres import (PostgresConnectionError, PostgreSQLConnection,
-                             StreamingConnection)
+from barman.postgres import (PostgreSQLConnection, StreamingConnection)
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta
 from barman.wal_archiver import FileWalArchiver, StreamingWalArchiver
@@ -303,11 +302,8 @@ class Server(object):
              of the results of the various checks
         """
         # Take the status of the remote server
-        try:
-            remote_status = self.get_remote_status()
-        except PostgresConnectionError:
-            remote_status = None
-        if remote_status is not None and remote_status['server_txt_version']:
+        remote_status = self.get_remote_status()
+        if remote_status['server_txt_version']:
             check_strategy.result(self.config.name, 'PostgreSQL', True)
         else:
             check_strategy.result(self.config.name, 'PostgreSQL', False)
@@ -544,7 +540,10 @@ class Server(object):
         """
         Get the status of the remote server
 
-        :return dict[str, None]: result of the server status query
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+
+        :rtype: dict[str, None|str]
         """
         result = self.postgres.get_remote_status()
         # Merge additional status for a streaming connection

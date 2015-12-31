@@ -20,8 +20,7 @@ import psycopg2
 import pytest
 from mock import PropertyMock, patch
 
-from barman.postgres import ConninfoException
-from barman.server import PostgresConnectionError
+from barman.postgres import ConninfoException, PostgresConnectionError
 from testing_helpers import build_real_server
 
 
