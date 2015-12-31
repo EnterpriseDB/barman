@@ -84,7 +84,7 @@ class PostgreSQL(object):
             # raise the appropriate exception
             except psycopg2.DatabaseError as e:
                 raise PostgresConnectionError(
-                    "Cannot connect to postgres: %s" % e)
+                    "Cannot connect to postgres: %s" % str(e).strip())
         return self._conn
 
     def close(self):
@@ -159,8 +159,9 @@ class StreamingConnection(PostgreSQL):
             patch = int(conn.server_version % 100)
             return "%d.%d.%d" % (major, minor, patch)
         except PostgresConnectionError as e:
-                _logger.debug("Error retrieving PostgreSQL version: %s", e)
-                return None
+            _logger.debug("Error retrieving PostgreSQL version: %s",
+                          str(e).strip())
+            return None
 
     def get_remote_status(self):
         """
@@ -202,7 +203,8 @@ class StreamingConnection(PostgreSQL):
             # This is not a streaming connection
             result['streaming'] = False
         except PostgresConnectionError as e:
-            _logger.warn("Error retrieving PostgreSQL status: %s", e)
+            _logger.warn("Error retrieving PostgreSQL status: %s",
+                         str(e).strip())
         return result
 
 
@@ -243,7 +245,7 @@ class PostgreSQLConnection(PostgreSQL):
             # raise the appropriate exception
             except psycopg2.ProgrammingError as e:
                 raise PostgresConnectionError(
-                    "Cannot set the application name: %s" % e)
+                    "Cannot set the application name: %s" % str(e).strip())
         return self._conn
 
     @property
@@ -256,7 +258,8 @@ class PostgreSQLConnection(PostgreSQL):
             cur.execute("SELECT version()")
             return cur.fetchone()[0].split()[1]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL version: %s", e)
+            _logger.debug("Error retrieving PostgreSQL version: %s",
+                          str(e).strip())
             return None
 
     @property
@@ -274,7 +277,8 @@ class PostgreSQLConnection(PostgreSQL):
             q_result = cur.fetchone()[0]
             return q_result > 0
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving pgespresso information: %s", e)
+            _logger.debug("Error retrieving pgespresso information: %s",
+                          str(e).strip())
             return None
 
     @property
@@ -290,7 +294,8 @@ class PostgreSQLConnection(PostgreSQL):
             cur.execute("SELECT pg_is_in_recovery()")
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error calling pg_is_in_recovery() function: %s", e)
+            _logger.debug("Error calling pg_is_in_recovery() function: %s",
+                          str(e).strip())
             return None
 
     @property
@@ -308,7 +313,8 @@ class PostgreSQLConnection(PostgreSQL):
                     'pg_current_xlog_location())')
                 return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving current xlog: %s", e)
+            _logger.debug("Error retrieving current xlog: %s",
+                          str(e).strip())
             return None
 
     def get_archiver_stats(self):
@@ -339,7 +345,8 @@ class PostgreSQLConnection(PostgreSQL):
                 "FROM pg_stat_archiver")
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving pg_stat_archive data: %s", e)
+            _logger.debug("Error retrieving pg_stat_archive data: %s",
+                          str(e).strip())
             return None
 
     def get_remote_status(self):
@@ -374,7 +381,8 @@ class PostgreSQLConnection(PostgreSQL):
 
             result.update(self.get_configuration_files())
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.warn("Error retrieving PostgreSQL status: %s", e)
+            _logger.warn("Error retrieving PostgreSQL status: %s",
+                         str(e).strip())
         return result
 
     def get_setting(self, name):
@@ -389,7 +397,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving PostgreSQL setting '%s': %s",
-                          name.replace('"', '""'), e)
+                          name.replace('"', '""'), str(e).strip())
             return None
 
     def get_tablespaces(self):
@@ -411,7 +419,8 @@ class PostgreSQLConnection(PostgreSQL):
             # Generate a list of tablespace objects
             return [Tablespace._make(item) for item in cur.fetchall()]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL tablespaces: %s", e)
+            _logger.debug("Error retrieving PostgreSQL tablespaces: %s",
+                          str(e).strip())
             return None
 
     def get_configuration_files(self):
@@ -450,7 +459,7 @@ class PostgreSQLConnection(PostgreSQL):
 
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving PostgreSQL configuration files "
-                          "location: %s", e)
+                          "location: %s", str(e).strip())
             self.configuration_files = {}
 
         return self.configuration_files
@@ -485,7 +494,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug('Error issuing pg_create_restore_point()'
-                          'command: %s', e)
+                          'command: %s', str(e).strip())
             return None
 
     def start_exclusive_backup(self, backup_label):
@@ -515,7 +524,7 @@ class PostgreSQLConnection(PostgreSQL):
                      self.config.immediate_checkpoint))
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "pg_start_backup(): %s" % e
+            msg = "pg_start_backup(): %s" % str(e).strip()
             _logger.debug(msg)
             raise Exception(msg)
 
@@ -536,7 +545,8 @@ class PostgreSQLConnection(PostgreSQL):
                 'now() FROM pg_stop_backup() as xlog_loc')
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug('Error issuing pg_stop_backup() command: %s', e)
+            _logger.debug('Error issuing pg_stop_backup() command: %s',
+                          str(e).strip())
             return None
 
     def pgespresso_start_backup(self, backup_label):
@@ -556,7 +566,7 @@ class PostgreSQLConnection(PostgreSQL):
                 (backup_label, self.config.immediate_checkpoint))
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "pgespresso_start_backup(): %s" % e
+            msg = "pgespresso_start_backup(): %s" % str(e).strip()
             _logger.debug(msg)
             raise Exception(msg)
 
@@ -579,5 +589,6 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
-                "Error issuing pgespresso_stop_backup() command: %s", e)
+                "Error issuing pgespresso_stop_backup() command: %s",
+                str(e).strip())
             return None
