@@ -19,10 +19,12 @@
 This module contains a wrapper for shell commands
 """
 import collections
+import errno
 import inspect
 import logging
 import os
 import re
+import select
 import shutil
 import signal
 import subprocess
@@ -74,6 +76,61 @@ class DataTransferFailure(Exception):
         return cls(details)
 
 
+class StreamLineProcessor(object):
+    """
+    Class deputed to reading lines from a file object, using a buffered read.
+
+    NOTE: This class never call os.read() twice in a row. And is designed to
+    work with the select.select() method.
+    """
+
+    def __init__(self, fobject, handler):
+        """
+        :param file fobject: The file that is being read
+        :param callable handler: The function (taking only one unicode string
+         argument) which will be called for every line
+        """
+        self._file = fobject
+        self._handler = handler
+        self._buf = ''
+
+    def fileno(self):
+        """
+        Method used by select.select() to get the underlying file descriptor.
+
+        :rtype: the underlying file descriptor
+        """
+        return self._file.fileno()
+
+    def process(self):
+        """
+        Read the ready data from the stream and for each line found invoke the
+        handler.
+
+        :return bool: True when End Of File has been reached
+        """
+        data = os.read(self._file.fileno(), 4096)
+        # If nothing has been read, we reached the EOF
+        if not data:
+            self._file.close()
+            # Handle the last line (always incomplete, maybe empty)
+            self._handler(self._buf)
+            return True
+        self._buf += data.decode('utf-8')
+        # If no '\n' is present, we just read a part of a very long line.
+        # Nothing to do at the moment.
+        if '\n' not in self._buf:
+            return False
+        tmp = self._buf.split('\n')
+        # Leave the remainder in self._buf
+        self._buf = tmp[-1]
+        # Call the handler for each complete line.
+        lines = tmp[:-1]
+        for line in lines:
+            self._handler(line)
+        return False
+
+
 class Command(object):
     """
     Simple wrapper for a shell command
@@ -81,7 +138,7 @@ class Command(object):
 
     def __init__(self, cmd, args=None, env_append=None, path=None, shell=False,
                  check=False, allowed_retval=(0,), debug=False,
-                 close_fds=True):
+                 close_fds=True, out_handler=None, err_handler=None):
         self.cmd = cmd
         self.args = args if args is not None else []
         self.shell = shell
@@ -105,6 +162,18 @@ class Command(object):
             self.env.update(env_append)
         else:
             self.env = None
+        # If an output handler has been provided use it, otherwise log the
+        # stdout as INFO
+        if out_handler:
+            self.out_handler = out_handler
+        else:
+            self.out_handler = self.make_logging_handler(logging.INFO)
+        # If an error handler has been provided use it, otherwise log the
+        # stderr as WARNING
+        if err_handler:
+            self.err_handler = err_handler
+        else:
+            self.err_handler = self.make_logging_handler(logging.WARNING)
 
     @staticmethod
     def _restore_sigpipe():
@@ -131,41 +200,159 @@ class Command(object):
         """
         Run the command and return the output and the error (if present)
         """
-        # check keyword arguments
+        out = []
+        err = []
+        # If check is true, it must be handled here
+        check = kwargs.pop('check', self.check)
+        self.execute(out_handler=out.append, err_handler=err.append,
+                     check=False, *args, **kwargs)
+        self.out = '\n'.join(out)
+        self.err = '\n'.join(err)
+        _logger.debug("Command stdout: %s", self.out)
+        _logger.debug("Command stderr: %s", self.err)
+
+        # Raise if check and the return code is not in the allowed list
+        if check:
+            self.check_return_value()
+        return self.out, self.err
+
+    def check_return_value(self):
+        """
+        Check the current return code and raise CommandFailedException when
+        it's not in the allowed_retval list
+
+        :raises: CommandFailedException
+        """
+        if self.ret not in self.allowed_retval:
+            raise CommandFailedException(dict(
+                ret=self.ret, out=self.out, err=self.err))
+
+    def execute(self, *args, **kwargs):
+        """
+        Execute the command and pass the output to the configured handlers
+        """
+        # Check keyword arguments
         stdin = kwargs.pop('stdin', None)
         check = kwargs.pop('check', self.check)
         close_fds = kwargs.pop('close_fds', self.close_fds)
+        out_handler = kwargs.pop('out_handler', self.out_handler)
+        err_handler = kwargs.pop('err_handler', self.err_handler)
         if len(kwargs):
             raise TypeError('%s() got an unexpected keyword argument %r' %
                             (inspect.stack()[1][3], kwargs.popitem()[0]))
+
+        # Reset status
+        self.ret = None
+        self.out = None
+        self.err = None
+
+        # Create the subprocess
+        pipe = self._build_pipe(args, close_fds)
+
+        # Send the provided input and close the stdin descriptor
+        if stdin:
+            pipe.stdin.write(stdin)
+        pipe.stdin.close()
+        # Prepare the list of processors
+        processors = [
+            StreamLineProcessor(
+                pipe.stdout, out_handler),
+            StreamLineProcessor(
+                pipe.stderr, err_handler)]
+
+        # Read the streams until the subprocess exits
+        self.pipe_processor_loop(processors)
+
+        # Rape the zombie and read the exit code
+        pipe.wait()
+        self.ret = pipe.returncode
+        if self.debug:
+            print >> sys.stderr, "Command return code: %s" % self.ret
+        _logger.debug("Command return code: %s", self.ret)
+
+        # Raise if check and the return code is not in the allowed list
+        if check:
+            self.check_return_value()
+        return self.ret
+
+    def _build_pipe(self, args, close_fds):
+        """
+        Build the Pipe object used by the Command
+
+        The resulting command will be composed by:
+           self.cmd + self.args + args
+
+        :param args: extra arguments for the subprocess
+        :param close_fds: if True all file descriptors except 0, 1 and 2
+            will be closed before the child process is executed.
+        :rtype: subprocess.Popen
+        """
+        # Append the argument provided to this method ot the base argument list
         args = self.args + list(args)
+        # If shell is True, properly quote the command
         if self.shell:
             cmd = self._cmd_quote(self.cmd, args)
         else:
             cmd = [self.cmd] + args
+        # Log the command we are about to execute
         if self.debug:
             print >> sys.stderr, "Command: %r" % cmd
         _logger.debug("Command: %r", cmd)
-        pipe = subprocess.Popen(cmd, shell=self.shell, env=self.env,
+        return subprocess.Popen(cmd, shell=self.shell, env=self.env,
                                 stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
                                 preexec_fn=self._restore_sigpipe,
                                 close_fds=close_fds)
-        out, err = pipe.communicate(stdin)
-        # Convert output to a proper unicode string
-        self.out = out.decode('utf-8')
-        self.err = err.decode('utf-8')
-        self.ret = pipe.returncode
-        if self.debug:
-            print >> sys.stderr, "Command return code: %s" % self.ret
-        _logger.debug("Command return code: %s", self.ret)
-        _logger.debug("Command stdout: %s", self.out)
-        _logger.debug("Command stderr: %s", self.err)
-        if check and self.ret not in self.allowed_retval:
-            raise CommandFailedException(dict(
-                ret=self.ret, out=self.out, err=self.err))
-        return self.out, self.err
+
+    @staticmethod
+    def pipe_processor_loop(processors):
+        """
+        Process the output received through the pipe until all the provided
+        StreamLineProcessor reach the EOF.
+
+        :param list[StreamLineProcessor] processors: a list of
+            StreamLineProcessor
+        """
+        # Loop until all the streams reaches the EOF
+        while processors:
+            try:
+                ready = select.select(processors, [], [])[0]
+            except select.error as e:
+                # If the select call has been interrupted by a signal
+                # just retry
+                if e.args[0] == errno.EINTR:
+                    continue
+                raise
+
+            # For each ready StreamLineProcessor invoke the process() method
+            for stream in ready:
+                eof = stream.process()
+                # Got EOF on this stream
+                if eof:
+                    # Remove the stream from the list of valid processors
+                    processors.remove(stream)
+
+    def make_logging_handler(self, level, prefix=None):
+        """
+        Build an handler function which logs every line it receives.
+
+        The resulting function logs its input at the specified level
+        with an optional prefix.
+
+        :param level: The log level to use
+        :param prefix: An optional prefix to prepend to the line
+        :return: handler function
+        """
+        class_logger = logging.getLogger(self.__class__.__name__)
+
+        def handler(line):
+            if line:
+                if prefix:
+                    class_logger.log(level, "%s%s", prefix, line)
+                else:
+                    class_logger.log(level, "%s", line)
+        return handler
 
 
 class Rsync(Command):
@@ -223,7 +410,8 @@ class Rsync(Command):
         file\ has\ vanished:\ ".+"
         |
         # final summary
-        rsync\ error:\ .* \(code\ 23\)\ at\ main\.c\(\d+\)\ \[generator=[^\]]+\]
+        rsync\ error:\ .* \(code\ 23\)\ at\ main\.c\(\d+\)
+            \ \[generator=[^\]]+\]
         )
         $ # end of the line
     ''')
@@ -377,8 +565,8 @@ class Rsync(Command):
         everything with checksums enabled.
 
         If "ref" parameter is provided and is not None, it is looked up
-        instead of the "dst" dir. This is useful when we are copying files using
-        '--link-dest' and '--copy-dest' rsync options.
+        instead of the "dst" dir. This is useful when we are copying files
+        using '--link-dest' and '--copy-dest' rsync options.
         In this case, both the "dst" and "ref" dir must exist and
         the "dst" dir must be empty.
 
@@ -421,8 +609,8 @@ class Rsync(Command):
             ref_hash = None
             _logger.error(
                 "Unable to retrieve reference directory file list. "
-                "Using only source file information to decide which files need "
-                "to be copied with checksums enabled: %s" % e)
+                "Using only source file information to decide which files"
+                " need to be copied with checksums enabled: %s" % e)
 
         # We need a temporary directory to store the files containing the lists
         # we are building in order to instruct rsync about which files need to
@@ -439,8 +627,8 @@ class Rsync(Command):
             # The 'check.list' file will contain all files that need
             # to be copied with checksum option enabled
             check_list = open(os.path.join(temp_dir, 'check.list'), 'w+')
-            # The 'protect.list' file will contain a filter rule to protect each
-            # file present in the source tree. It will be used during
+            # The 'protect.list' file will contain a filter rule to protect
+            # each file present in the source tree. It will be used during
             # the first phase to delete all the extra files on destination.
             exclude_and_protect_filter = open(
                 os.path.join(temp_dir, 'exclude_and_protect.filter'), 'w+')
@@ -487,7 +675,7 @@ class Rsync(Command):
             check_list.close()
             exclude_and_protect_filter.close()
 
-            # TODO: remove debug output when the procedure is marked as 'stable'
+            # TODO: remove debug output
             # By adding a double '--itemize-changes' option, the rsync output
             # will contain the full list of files that have been touched, even
             # those that have not changed
@@ -522,7 +710,7 @@ class Rsync(Command):
                 src, dst,
                 check=True)
 
-            # TODO: remove debug output when the procedure is marked as 'stable'
+            # TODO: remove debug output
             # Restore the original arguments for rsync
             self.args = orig_args
         finally:
