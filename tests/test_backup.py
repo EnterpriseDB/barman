@@ -15,21 +15,20 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-
-from datetime import timedelta, datetime
 import os
+from datetime import datetime, timedelta
 
 import dateutil.parser
 import dateutil.tz
-from mock import patch, Mock
 import mock
 import pytest
+from mock import Mock, patch
 
+import barman.utils
 from barman.command_wrappers import DataTransferFailure
 from barman.infofile import BackupInfo
-import barman.utils
 from barman.wal_archiver import FileWalArchiver
-from testing_helpers import build_test_backup_info, build_backup_manager
+from testing_helpers import build_backup_manager, build_test_backup_info
 
 
 # noinspection PyMethodMayBeStatic

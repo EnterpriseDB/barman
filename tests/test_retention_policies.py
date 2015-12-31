@@ -15,16 +15,17 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 
 import pytest
 from dateutil.tz import tzlocal
 
 from barman.infofile import BackupInfo
-from barman.retention_policies import RetentionPolicyFactory, \
-    RedundancyRetentionPolicy, RecoveryWindowRetentionPolicy
-from testing_helpers import build_test_backup_info, build_mocked_server
+from barman.retention_policies import (RecoveryWindowRetentionPolicy,
+                                       RedundancyRetentionPolicy,
+                                       RetentionPolicyFactory)
+from testing_helpers import build_mocked_server, build_test_backup_info
 
 
 class TestRetentionPolicies(object):

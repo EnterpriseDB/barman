@@ -15,15 +15,15 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import errno
+import select
 from datetime import datetime
 from logging import INFO, WARNING
 from subprocess import PIPE
 
 import dateutil.tz
-import errno
 import mock
 import pytest
-import select
 
 from barman import command_wrappers
 from barman.command_wrappers import StreamLineProcessor

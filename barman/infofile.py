@@ -14,13 +14,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
-import ast
 
-import os
-import dateutil.parser
-import dateutil.tz
+import ast
 import collections
 import logging
+import os
+
+import dateutil.parser
+import dateutil.tz
+
 from barman import xlog
 from barman.compression import identify_compression
 

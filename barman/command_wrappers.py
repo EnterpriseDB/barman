@@ -18,6 +18,7 @@
 """
 This module contains a wrapper for shell commands
 """
+
 import collections
 import errno
 import inspect

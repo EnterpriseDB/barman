@@ -19,6 +19,7 @@
 This module is responsible for all the things related to
 Barman configuration, such as parsing configuration file.
 """
+
 import collections
 import datetime
 import inspect

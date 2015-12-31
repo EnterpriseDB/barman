@@ -22,9 +22,9 @@ This module control how the output of Barman will be rendered
 import inspect
 import logging
 import sys
+
 from barman.infofile import BackupInfo
 from barman.utils import pretty_size
-
 
 __all__ = [
     'error_occurred', 'debug', 'info', 'warning', 'error', 'exception',

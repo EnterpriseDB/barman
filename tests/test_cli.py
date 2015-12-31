@@ -14,13 +14,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
-from mock import Mock
-import pytest
 
-from barman.cli import get_server, get_server_list, manage_server_command
+import pytest
+from mock import Mock
+
 import barman.config
+from barman.cli import get_server, get_server_list, manage_server_command
 from barman.server import Server
-from testing_helpers import build_config_from_dicts, build_config_dictionary
+from testing_helpers import build_config_dictionary, build_config_from_dicts
 
 
 # noinspection PyMethodMayBeStatic

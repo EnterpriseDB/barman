@@ -25,12 +25,14 @@ the current retention policy, and any archived WAL files required for complete
 recovery of those backups.
 """
 
+import logging
+import re
 from abc import ABCMeta, abstractmethod
 from datetime import datetime, timedelta
-import re
-import logging
-from barman.infofile import BackupInfo
+
 from dateutil import tz
+
+from barman.infofile import BackupInfo
 
 _logger = logging.getLogger(__name__)
 

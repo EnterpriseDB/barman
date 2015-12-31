@@ -18,6 +18,7 @@
 """
 This module implements the interface with the command line and the logger.
 """
+
 import logging
 import os
 import sys

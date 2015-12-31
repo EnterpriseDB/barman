@@ -19,15 +19,14 @@
 This module represents the barman diagnostic tool.
 """
 
-import logging
 import json
+import logging
 import sys
-from barman.backup import BackupInfo
-import barman
-from barman import output
-from barman import fs
-from barman.utils import BarmanEncoder
 
+import barman
+from barman import fs, output
+from barman.backup import BackupInfo
+from barman.utils import BarmanEncoder
 
 _logger = logging.getLogger(__name__)
 

@@ -17,9 +17,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys
 import os
 import re
+import sys
+
 import sphinx_bootstrap_theme
 
 # read barman_dir from the environment

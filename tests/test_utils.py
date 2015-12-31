@@ -17,7 +17,9 @@
 
 import logging
 from datetime import timedelta
+
 import mock
+
 import barman.utils
 
 

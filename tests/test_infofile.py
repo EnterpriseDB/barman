@@ -15,16 +15,16 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from datetime import datetime
 import json
 import os
+from datetime import datetime
 
 import mock
 import pytest
-from dateutil.tz import tzoffset, tzlocal
+from dateutil.tz import tzlocal, tzoffset
 
-from barman.infofile import Field, FieldListFile, WalFileInfo, \
-    load_datetime_tz, BackupInfo
+from barman.infofile import (BackupInfo, Field, FieldListFile, WalFileInfo,
+                             load_datetime_tz)
 from testing_helpers import build_mocked_server
 
 

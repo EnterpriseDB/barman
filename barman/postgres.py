@@ -18,6 +18,7 @@
 """
 This module represents the interface towards a PostgreSQL server.
 """
+
 import logging
 from abc import ABCMeta
 

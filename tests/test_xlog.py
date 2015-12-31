@@ -16,6 +16,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import pytest
+
 from barman import xlog
 
 

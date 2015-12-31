@@ -17,13 +17,13 @@
 
 import time
 
-from mock import MagicMock, patch
 import pytest
+from mock import MagicMock, patch
 
+from barman.hooks import (AbortedRetryHookScript, HookScriptRunner,
+                          RetryHookScriptRunner)
 from barman.infofile import UnknownBackupIdException
 from barman.version import __version__ as version
-from barman.hooks import HookScriptRunner, RetryHookScriptRunner, \
-    AbortedRetryHookScript
 from testing_helpers import build_backup_manager
 
 

@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-
 import psycopg2
 import pytest
 from mock import PropertyMock, patch
