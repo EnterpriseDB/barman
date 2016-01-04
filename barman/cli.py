@@ -825,9 +825,9 @@ def parse_backup_id(server, args):
     :rtype: BackupInfo
     """
     if args.backup_id in ('latest', 'last'):
-        backup_id = server.get_last_backup()
+        backup_id = server.get_last_backup_id()
     elif args.backup_id in ('oldest', 'first'):
-        backup_id = server.get_first_backup()
+        backup_id = server.get_first_backup_id()
     else:
         backup_id = args.backup_id
     backup_info = server.get_backup(backup_id)

@@ -391,7 +391,7 @@ class TestServer(object):
         out, err = capsys.readouterr()
         assert 'Permission denied, unable to access' in err
 
-    @patch('barman.server.Server.get_first_backup')
+    @patch('barman.server.Server.get_first_backup_id')
     @patch('barman.server.BackupManager.delete_backup')
     def test_delete_running_backup(self, delete_mock, get_first_backup_mock, tmpdir, capsys):
         """

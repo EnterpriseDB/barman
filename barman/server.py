@@ -620,7 +620,7 @@ class Server(object):
             # If it is the first and it is STARTED or EMPTY, we are trying to
             # remove a running backup. This operation must be forbidden.
             # Otherwise, normally delete the backup.
-            first_backup_id = self.get_first_backup(BackupInfo.STATUS_ALL)
+            first_backup_id = self.get_first_backup_id(BackupInfo.STATUS_ALL)
             if backup.backup_id == first_backup_id \
                     and backup.status in (BackupInfo.STARTED, BackupInfo.EMPTY):
                 output.error("Cannot delete a running backup (%s %s)"
@@ -668,27 +668,33 @@ class Server(object):
             output.error("Permission denied, unable to access '%s'" % e)
 
     def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
-        """Get a list of available backups
+        """
+        Get a list of available backups
 
-        param: status_filter: the status of backups to return, default to BackupManager.DEFAULT_STATUS_FILTER
+        param: status_filter: the status of backups to return,
+            default to BackupManager.DEFAULT_STATUS_FILTER
         """
         return self.backup_manager.get_available_backups(status_filter)
 
-    def get_last_backup(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+    def get_last_backup_id(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
-        Get the last backup (if any) in the catalog
+        Get the id of the latest/last backup in the catalog (if exists)
 
-        :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
+        :param status_filter: The status of the backup to return,
+            default to DEFAULT_STATUS_FILTER.
+        :return string|None: ID of the backup
         """
-        return self.backup_manager.get_last_backup(status_filter)
+        return self.backup_manager.get_last_backup_id(status_filter)
 
-    def get_first_backup(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+    def get_first_backup_id(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
-        Get the first backup (if any) in the catalog
+        Get the id of the oldest/first backup in the catalog (if exists)
 
-        :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
+        :param status_filter: The status of the backup to return,
+            default to DEFAULT_STATUS_FILTER.
+        :return string|None: ID of the backup
         """
-        return self.backup_manager.get_first_backup(status_filter)
+        return self.backup_manager.get_first_backup_id(status_filter)
 
     def list_backups(self):
         """

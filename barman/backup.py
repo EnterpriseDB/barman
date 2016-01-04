@@ -205,11 +205,13 @@ class BackupManager(object):
         except ValueError:
             raise UnknownBackupIdException('Could not find backup_id %s' % backup_id)
 
-    def get_last_backup(self, status_filter=DEFAULT_STATUS_FILTER):
+    def get_last_backup_id(self, status_filter=DEFAULT_STATUS_FILTER):
         """
-        Get the last backup (if any) in the catalog
+        Get the id of the latest/last backup in the catalog (if exists)
 
-        :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
+        :param status_filter: The status of the backup to return,
+            default to DEFAULT_STATUS_FILTER.
+        :return string|None: ID of the backup
         """
         available_backups = self.get_available_backups(status_filter)
         if len(available_backups) == 0:
@@ -218,11 +220,13 @@ class BackupManager(object):
         ids = sorted(available_backups.keys())
         return ids[-1]
 
-    def get_first_backup(self, status_filter=DEFAULT_STATUS_FILTER):
+    def get_first_backup_id(self, status_filter=DEFAULT_STATUS_FILTER):
         """
-        Get the first backup (if any) in the catalog
+        Get the id of the oldest/first backup in the catalog (if exists)
 
-        :param status_filter: default DEFAULT_STATUS_FILTER. The status of the backup returned
+        :param status_filter: The status of the backup to return,
+            default to DEFAULT_STATUS_FILTER.
+        :return string|None: ID of the backup
         """
         available_backups = self.get_available_backups(status_filter)
         if len(available_backups) == 0:
@@ -462,7 +466,7 @@ class BackupManager(object):
         """
         compressor = self.compression_manager.get_compressor()
         # Get the first available backup
-        first_backup_id = self.get_first_backup(BackupInfo.STATUS_NOT_EMPTY)
+        first_backup_id = self.get_first_backup_id(BackupInfo.STATUS_NOT_EMPTY)
         first_backup = self.server.get_backup(first_backup_id)
         stamp = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
         with self.server.xlogdb('a') as fxlogdb:
@@ -800,11 +804,11 @@ class BackupManager(object):
         output.result('status', self.config.name,
                       "first_backup",
                       "First available backup",
-                      self.get_first_backup())
+                      self.get_first_backup_id())
         output.result('status', self.config.name,
                       "last_backup",
                       "Last available backup",
-                      self.get_last_backup())
+                      self.get_last_backup_id())
         # Minimum redundancy check. if number of backups minor than minimum
         # redundancy, fail.
         if no_backups < self.config.minimum_redundancy:
@@ -953,7 +957,7 @@ class BackupManager(object):
             auxiliary information about the last backup current age
         """
         # Get the ID of the last available backup
-        backup_id = self.get_last_backup()
+        backup_id = self.get_last_backup_id()
         if backup_id:
             # Get the backup object
             backup = BackupInfo(self.server, backup_id=backup_id)
