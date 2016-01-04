@@ -620,8 +620,8 @@ class Server(object):
             # If it is the first and it is STARTED or EMPTY, we are trying to
             # remove a running backup. This operation must be forbidden.
             # Otherwise, normally delete the backup.
-            first_backup = self.get_first_backup(BackupInfo.STATUS_ALL)
-            if backup.backup_id == first_backup.backup_id \
+            first_backup_id = self.get_first_backup(BackupInfo.STATUS_ALL)
+            if backup.backup_id == first_backup_id \
                     and backup.status in (BackupInfo.STARTED, BackupInfo.EMPTY):
                 output.error("Cannot delete a running backup (%s %s)"
                              % (self.config.name, backup.backup_id))

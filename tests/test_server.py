@@ -404,7 +404,7 @@ class TestServer(object):
         backup_info_started = build_test_backup_info(
             status=BackupInfo.STARTED,
             server_name=server.config.name)
-        get_first_backup_mock.return_value = backup_info_started
+        get_first_backup_mock.return_value = backup_info_started.backup_id
         with ServerBackupLock(tmpdir.strpath, server.config.name):
             server.delete_backup(backup_info_started)
             out, err = capsys.readouterr()
@@ -416,7 +416,7 @@ class TestServer(object):
         backup_info_empty = build_test_backup_info(
             status=BackupInfo.EMPTY,
             server_name=server.config.name)
-        get_first_backup_mock.return_value = backup_info_empty
+        get_first_backup_mock.return_value = backup_info_empty.backup_id
         with ServerBackupLock(tmpdir.strpath, server.config.name):
             server.delete_backup(backup_info_empty)
             out, err = capsys.readouterr()
