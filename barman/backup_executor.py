@@ -587,6 +587,7 @@ class BackupStrategy(object):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
 
+    @abstractmethod
     def check(self, check_strategy):
         """
         Perform additional checks - invoked by BackupExecutor.check()

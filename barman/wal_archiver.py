@@ -25,6 +25,7 @@ from barman import utils, xlog
 from barman.command_wrappers import (Command, CommandFailedException,
                                      PgReceiveXlog)
 from barman.infofile import WalFileInfo
+from barman.remote_status import RemoteStatusMixin
 
 _logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class ArchiverFailure(Exception):
     """
 
 
-class WalArchiver(object):
+class WalArchiver(RemoteStatusMixin):
     """
     Base class for WAL archiver objects
     """
@@ -76,17 +77,7 @@ class WalArchiver(object):
         self.server = backup_manager.server
         self.config = backup_manager.config
         self.name = name
-
-    @abstractmethod
-    def get_remote_status(self):
-        """
-        Execute basic checks
-
-        This method does not raise any exception in case of errors,
-        but set the missing values to None in the resulting dictionary.
-
-        :rtype: dict[str, None|str]
-        """
+        super(WalArchiver, self).__init__()
 
     def receive_wal(self):
         """
@@ -103,6 +94,16 @@ class WalArchiver(object):
         :rtype: WalArchiverBatch
         """
 
+    @abstractmethod
+    def check(self, check_strategy):
+        """
+        Perform specific checks for the archiver - invoked
+        by server.check_postgres
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+
 
 class FileWalArchiver(WalArchiver):
     """
@@ -113,7 +114,7 @@ class FileWalArchiver(WalArchiver):
 
         super(FileWalArchiver, self).__init__(backup_manager, 'file archival')
 
-    def get_remote_status(self):
+    def fetch_remote_status(self):
         """
         Returns the status of the FileWalArchiver.
 
@@ -162,6 +163,44 @@ class FileWalArchiver(WalArchiver):
         wal_files = [WalFileInfo.from_file(f) for f in files]
         return WalArchiverBatch(wal_files, errors=errors)
 
+    def check(self, check_strategy):
+        """
+        Perform additional checks for FileWalArchiver - invoked
+        by server.check_postgres
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        remote_status = self.get_remote_status()
+        # If archive_mode is None, there are issues connecting to PostgreSQL
+        if remote_status['archive_mode'] is None:
+            return
+        # Check archive_mode parameter: must be on
+        if remote_status['archive_mode'] in ('on', 'always'):
+            check_strategy.result(self.name, 'archive_mode', True)
+        else:
+            msg = "please set it to 'on'"
+            if self.server.postgres.server_version >= 90500:
+                msg += " or 'always'"
+            check_strategy.result(self.name, 'archive_mode', False, msg)
+
+        if remote_status['archive_command'] and \
+                remote_status['archive_command'] != '(disabled)':
+            check_strategy.result(self.name, 'archive_command',
+                                  True)
+
+            # Report if the archiving process works without issues.
+            # Skip if the archive_command check fails
+            # It can be None if PostgreSQL is older than 9.4
+            if remote_status.get('is_archiving') is not None:
+                check_strategy.result(
+                    self.name, 'continuous archiving',
+                    remote_status['is_archiving'])
+        else:
+            check_strategy.result(
+                self.name, 'archive_command', False,
+                'please set it accordingly to documentation')
+
 
 class StreamingWalArchiver(WalArchiver):
     """
@@ -171,7 +210,7 @@ class StreamingWalArchiver(WalArchiver):
     def __init__(self, backup_manager):
         super(StreamingWalArchiver, self).__init__(backup_manager, 'streaming')
 
-    def get_remote_status(self):
+    def fetch_remote_status(self):
         """
         Execute checks for replication-based wal archiving
 
@@ -327,3 +366,26 @@ class StreamingWalArchiver(WalArchiver):
         # Build the list of WalFileInfo
         wal_files = [WalFileInfo.from_file(f, compression=None) for f in files]
         return WalArchiverBatch(wal_files, errors=errors, skip=skip)
+
+    def check(self, check_strategy):
+        """
+        Perform additional checks for FileWalArchiver - invoked
+        by server.check_postgres
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        :param dict remote_status: remote status of the server
+        """
+        remote_status = self.get_remote_status()
+        check_strategy.result(
+            self.name, 'pg_receivexlog',
+            remote_status['pg_receivexlog_installed'])
+        hint = None
+        if not remote_status['pg_receivexlog_compatible']:
+            hint = "PostgreSQL version: %s, pg_receivexlog version: %s" % (
+                self.server.streaming.server_txt_version,
+                remote_status['pg_receivexlog_version']
+            )
+        check_strategy.result(
+            self.name, 'pg_receivexlog compatible',
+            remote_status['pg_receivexlog_compatible'], hint=hint)

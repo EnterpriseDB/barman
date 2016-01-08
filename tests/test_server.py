@@ -274,7 +274,6 @@ class TestServer(object):
                                       'archive_mode': 'on',
                                       'wal_level': 'archive'}
 
-        # Do check
         # Expect out: all parameters: OK
 
         # Postgres version >= 9.0 - check wal_level
@@ -282,8 +281,6 @@ class TestServer(object):
         server.check_postgres(strategy)
         (out, err) = capsys.readouterr()
         assert out == "\tPostgreSQL: OK\n" \
-                      "\tarchive_mode: OK\n" \
-                      "\tarchive_command: OK\n" \
                       "\twal_level: OK\n"
 
         # Postgres version < 9.0 - avoid wal_level check
@@ -292,9 +289,7 @@ class TestServer(object):
         server = build_real_server()
         server.check_postgres(strategy)
         (out, err) = capsys.readouterr()
-        assert out == "\tPostgreSQL: OK\n" \
-                      "\tarchive_mode: OK\n" \
-                      "\tarchive_command: OK\n"
+        assert out == "\tPostgreSQL: OK\n"
 
         # Case: wal_level and archive_command values are not acceptable
         postgres_mock.return_value = {'current_xlog': None,
@@ -304,15 +299,11 @@ class TestServer(object):
                                       'data_directory': '/usr/local/postgres',
                                       'archive_mode': 'on',
                                       'wal_level': 'minimal'}
-        # Do check
         # Expect out: some parameters: FAILED
         strategy = CheckOutputStrategy()
         server.check_postgres(strategy)
         (out, err) = capsys.readouterr()
         assert out == "\tPostgreSQL: OK\n" \
-                      "\tarchive_mode: OK\n" \
-                      "\tarchive_command: FAILED (please set it " \
-                      "accordingly to documentation)\n" \
                       "\twal_level: FAILED (please set it to a higher level " \
                       "than 'minimal')\n"
 

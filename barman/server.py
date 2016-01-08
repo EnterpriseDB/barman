@@ -327,6 +327,11 @@ class Server(object):
         # contains messages and output eventual failures
         self.check_configuration(check_strategy)
 
+        # Executes check() for every archiver, passing
+        # remote status information for efficiency
+        for archiver in self.archivers:
+            archiver.check(check_strategy)
+
     def check_postgres(self, check_strategy):
         """
         Checks PostgreSQL connection
@@ -353,33 +358,6 @@ class Server(object):
                         ' for PostgreSQL < 9.2')
             check_strategy.result(self.config.name, 'PostgreSQL streaming',
                                   remote_status.get('streaming'), hint)
-        # Check archive_mode parameter: must be on
-        # TODO: Move this check in the Archiver class
-        if self.config.archiver:
-            if remote_status['archive_mode'] in ('on', 'always'):
-                check_strategy.result(self.config.name, 'archive_mode', True)
-            else:
-                # TODO: warn about 'always' only for 9.5 users
-                check_strategy.result(self.config.name, 'archive_mode', False,
-                                      "please set it to 'on' or 'always'")
-
-            if remote_status['archive_command'] and \
-                    remote_status['archive_command'] != '(disabled)':
-                check_strategy.result(self.config.name, 'archive_command',
-                                      True)
-
-                # Report if the archiving process works without issues.
-                # Skip if the archive_command check fails
-                # It can be None if PostgreSQL is older than 9.4
-                if remote_status.get('is_archiving') is not None:
-                    check_strategy.result(
-                        self.config.name, 'continuous archiving',
-                        remote_status['is_archiving'])
-            else:
-                check_strategy.result(
-                    self.config.name, 'archive_command', False,
-                    'please set it accordingly to documentation')
-
         # Check wal_level parameter: must be different from 'minimal'
         # the parameter has been introduced in postgres >= 9.0
         if 'wal_level' in remote_status:
@@ -390,20 +368,6 @@ class Server(object):
                 check_strategy.result(
                     self.config.name, 'wal_level', False,
                     "please set it to a higher level than 'minimal'")
-
-        if remote_status.get('streaming'):
-            check_strategy.result(
-                self.config.name, 'pg_receivexlog',
-                remote_status['pg_receivexlog_installed'])
-            hint = None
-            if not remote_status['pg_receivexlog_compatible']:
-                hint = "PostgreSQL version: %s, pg_receivexlog version: %s" % (
-                    self.postgres.server_txt_version,
-                    remote_status['pg_receivexlog_version']
-                )
-            check_strategy.result(
-                self.config.name, 'pg_receivexlog compatible',
-                remote_status['pg_receivexlog_compatible'], hint=hint)
 
     def _make_directories(self):
         """
