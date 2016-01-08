@@ -23,7 +23,6 @@ Barman is able to manage multiple servers.
 import logging
 import os
 import shutil
-import subprocess
 import sys
 from collections import namedtuple
 from contextlib import contextmanager
@@ -34,6 +33,7 @@ import barman.xlog as xlog
 from barman import output
 from barman.backup import BackupManager
 from barman.backup_executor import SshCommandException
+from barman.command_wrappers import BarmanSubProcess
 from barman.compression import identify_compression
 from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
@@ -1045,55 +1045,102 @@ class Server(object):
             # this stops the execution of multiple cron on the same server
             with ServerCronLock(self.config.barman_lock_directory,
                                 self.config.name):
-                # Standard maintenance (WAL archive)
+                # WAL management and maintenance
                 if wals:
-                    try:
-                        # Try to acquire ServerWalArchiveLock, if the lock is
-                        # available, no other processes are running on this
-                        # server.
-                        # There is no possible race condition here because
-                        # we are protected by ServerCronLock.
-                        with ServerWalArchiveLock(
-                                self.config.barman_lock_directory,
-                                self.config.name):
-                            # Output and release the lock immediately
-                            output.info("Starting WAL archiving for server %s",
-                                        self.config.name)
-                    except LockFileBusy:
-                        # Another archive process is running for the server,
-                        # warn the user and skip to the next sever.
-                        output.info(
-                            "Another archive-wal process is already running "
-                            "on server %s. Skipping to the next server"
-                            % self.config.name)
-                        return
-
-                    # The "-c" option is needed when the user explicitly
-                    # passes a configuration file, as the child process
-                    # must know the configuration file to use.
-                    #
-                    # The "-c" is always propagated even in case of default
-                    # configuration file, as the operation is harmless.
-
-                    command = [
-                        'barman',
-                        '-c', barman.__config__.config_file,
-                        '-q',
-                        'archive-wal', self.config.name
-                    ]
-                    _logger.debug("Starting subprocess with for WAL ARCHIVE")
-                    subprocess.Popen(command, preexec_fn=os.setsid)
-
+                    # archive-wal sub-process
+                    self.cron_archive_wal()
+                    if self.config.streaming_archiver:
+                        # receive-wal sub-process
+                        self.cron_receive_wal()
                 # Retention policies execution
                 if retention_policies:
                     self.backup_manager.cron_retention_policy()
         except LockFileBusy:
-            output.info("Another cron process is already running on server %s. "
-                        "Skipping to the next server" % self.config.name)
+            output.info(
+                "Another cron process is already running on server %s. "
+                "Skipping to the next server" % self.config.name)
         except LockFilePermissionDenied, e:
             output.error("Permission denied, unable to access '%s'" % e)
         except (OSError, IOError), e:
             output.error("%s", e)
+
+    def cron_archive_wal(self):
+        """
+        Method that handles the start of an 'archive-wal' sub-process.
+
+        This method must be run protected by ServerCronLock
+        """
+        try:
+            # Try to acquire ServerWalArchiveLock, if the lock is available,
+            # no other 'archive-wal' processes are running on this server.
+            #
+            # There is a very little race condition window here because
+            # even if we are protected by ServerCronLock, the user could run
+            # another 'archive-wal' command manually. However, it would result
+            # in one of the two commands failing on lock acquisition,
+            # with no other consequence.
+            with ServerWalArchiveLock(
+                    self.config.barman_lock_directory,
+                    self.config.name):
+                # Output and release the lock immediately
+                output.info("Starting WAL archiving for server %s",
+                            self.config.name)
+
+            # Init a Barman sub-process object
+            archive_process = BarmanSubProcess(
+                subcommand='archive-wal',
+                config=barman.__config__.config_file,
+                args=[self.config.name])
+            _logger.debug("Starting subprocess for WAL ARCHIVE")
+            # Launch the sub-process
+            archive_process.execute()
+
+        except LockFileBusy:
+            # Another archive process is running for the server,
+            # warn the user and skip to the next sever.
+            output.info(
+                "Another archive-wal process is already running "
+                "on server %s. Skipping to the next server"
+                % self.config.name)
+
+    def cron_receive_wal(self):
+        """
+        Method that handles the start of a 'receive-wal' sub process
+
+        This method must be run protected by ServerCronLock
+        """
+        try:
+            # Try to acquire ServerWalReceiveLock, if the lock is available,
+            # no other 'receive-wal' processes are running on this server.
+            #
+            # There is a very little race condition window here because
+            # even if we are protected by ServerCronLock, the user could run
+            # another 'receive-wal' command manually. However, it would result
+            # in one of the two commands failing on lock acquisition,
+            # with no other consequence.
+            with ServerWalReceiveLock(
+                    self.config.barman_lock_directory,
+                    self.config.name):
+                # Output and release the lock immediately
+                output.info("Starting streaming archiver "
+                            "for server %s",
+                            self.config.name)
+
+            # Start a new receive-wal process
+            receive_process = BarmanSubProcess(
+                subcommand='receive-wal',
+                config=barman.__config__.config_file,
+                args=[self.config.name])
+            _logger.debug("Starting subprocess for "
+                          "STREAMING ARCHIVER")
+            # Launch the sub-process
+            receive_process.execute()
+
+        except LockFileBusy:
+            # Another receive-wal process is running for the server
+            # exit without message
+            _logger.debug("Another STREAMING ARCHIVER process is running for "
+                          "server %s" % self.config.name)
 
     def archive_wal(self, verbose=True):
         """

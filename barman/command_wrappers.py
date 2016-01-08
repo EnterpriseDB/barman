@@ -760,3 +760,53 @@ class PgReceiveXlog(Command):
             options += args
         Command.__init__(self, receivexlog, args=options, check=check,
                          **kwargs)
+
+
+class BarmanSubProcess(object):
+    """
+    Wrapper class for barman sub instances
+    """
+
+    def __init__(self, command=sys.argv[0], subcommand=None,
+                 config=None, args=None):
+        """
+        Build a specific wrapper for all the barman sub-commands,
+        providing an unified interface.
+
+        :param str command: path to barman
+        :param str subcommand: the barman sub-command
+        :param str config: path to the barman configuration file.
+        :param list[str] args: a list containing the sub-command args
+            like the target server name
+        """
+        # The config argument is needed when the user explicitly
+        # passes a configuration file, as the child process
+        # must know the configuration file to use.
+        #
+        # The configuration file must always be propagated,
+        # even in case of the default one.
+        if not config:
+            raise CommandFailedException(
+                "No configuration file passed to barman subprocess")
+        # Build the sub-command:
+        # * be sure to run it with the right python interpreter
+        # * pass the current configuration file with -c
+        # * set it quiet with -q
+        self.command = [sys.executable, command,
+                        '-c', config, '-q', subcommand]
+        # Handle args for the sub-command (like the server name)
+        if args:
+            self.command += args
+
+    def execute(self):
+        """
+        Execute the command and pass the output to the configured handlers
+        """
+        _logger.debug("BarmanSubProcess: %r", self.command)
+        # Redirect all descriptors to /dev/null
+        devnull = open(os.devnull, 'a+')
+        proc = subprocess.Popen(
+            self.command,
+            preexec_fn=os.setsid, close_fds=True,
+            stdin=devnull, stdout=devnull, stderr=devnull)
+        _logger.debug("BarmanSubProcess: subprocess started. pid: %s", proc.pid)

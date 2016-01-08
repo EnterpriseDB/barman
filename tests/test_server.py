@@ -25,7 +25,7 @@ from mock import MagicMock, patch
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
-                             ServerWalArchiveLock)
+                             ServerWalArchiveLock, ServerWalReceiveLock)
 from barman.server import CheckOutputStrategy, CheckStrategy, Server
 from testing_helpers import (build_config_from_dicts, build_real_server,
                              build_test_backup_info)
@@ -442,11 +442,13 @@ class TestServer(object):
                     % server.config.name) in out
 
     @patch("subprocess.Popen")
-    def test_cron_lock_acquisition(self, subprocess_mock, tmpdir, capsys):
+    def test_cron_lock_acquisition(self, subprocess_mock, tmpdir, capsys, caplog):
         """
         Basic test for cron process lock acquisition
         """
         server = build_real_server({'barman_home': tmpdir.strpath})
+
+        # Basic cron lock acquisition
         with ServerCronLock(tmpdir.strpath, server.config.name):
             server.cron(wals=True, retention_policies=False)
             out, err = capsys.readouterr()
@@ -454,12 +456,21 @@ class TestServer(object):
                     "Skipping to the next server\n" %
                     server.config.name) in out
 
+        # Lock acquisition for archive-wal
         with ServerWalArchiveLock(tmpdir.strpath, server.config.name):
             server.cron(wals=True, retention_policies=False)
             out, err = capsys.readouterr()
             assert ("Another archive-wal process is already running "
                     "on server %s. Skipping to the next server"
                     % server.config.name) in out
+        # Lock acquisition for receive-wal
+        with ServerWalArchiveLock(tmpdir.strpath, server.config.name):
+            with ServerWalReceiveLock(tmpdir.strpath, server.config.name):
+                # force the streaming_archiver to True for this test
+                server.config.streaming_archiver = True
+                server.cron(wals=True, retention_policies=False)
+                assert ("Another STREAMING ARCHIVER process is running for "
+                        "server %s" % server.config.name) in caplog.text
 
 
 class TestCheckStrategy(object):

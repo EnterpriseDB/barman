@@ -16,9 +16,11 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import errno
+import os
 import select
+import sys
 from datetime import datetime
-from logging import INFO, WARNING
+from logging import DEBUG, INFO, WARNING
 from subprocess import PIPE
 
 import dateutil.tz
@@ -26,7 +28,7 @@ import mock
 import pytest
 
 from barman import command_wrappers
-from barman.command_wrappers import StreamLineProcessor
+from barman.command_wrappers import CommandFailedException, StreamLineProcessor
 
 try:
     from StringIO import StringIO
@@ -968,3 +970,76 @@ class TestReceiveXlog(object):
         assert cmd.err is None
         assert ('PgReceiveXlog', INFO, out) in caplog.record_tuples
         assert ('PgReceiveXlog', WARNING, err) in caplog.record_tuples
+
+
+# noinspection PyMethodMayBeStatic
+class TestBarmanSubProcess(object):
+    """
+    Simple class for testing of the BarmanSubProcess obj
+    """
+
+    def test_init_minimal_cmd(self):
+        """
+        Test class build with minimal params
+        """
+        subprocess = command_wrappers.BarmanSubProcess(
+            subcommand='fake-cmd',
+            config='fake_conf')
+        assert subprocess.command == [
+            sys.executable,
+            sys.argv[0],
+            "-c", "fake_conf",
+            "-q",
+            "fake-cmd",
+        ]
+
+        # Test for missing config
+        with pytest.raises(CommandFailedException):
+            command_wrappers.BarmanSubProcess(
+                command='path/to/barman',
+                subcommand='fake_cmd')
+
+    def test_init_args(self):
+        """
+        Test class build
+        """
+        subprocess = command_wrappers.BarmanSubProcess(
+            command='path/to/barman',
+            subcommand='test-cmd',
+            config='fake_conf',
+            args=["a", "b"])
+        assert subprocess.command == [
+            sys.executable,
+            "path/to/barman",
+            "-c", "fake_conf",
+            "-q",
+            "test-cmd",
+            'a',
+            'b'
+        ]
+
+    @mock.patch('barman.command_wrappers.subprocess.Popen')
+    def test_simple_invocation(self, popen_mock, caplog):
+        popen_mock.return_value.pid = 12345
+        subprocess = command_wrappers.BarmanSubProcess(
+            command='path/to/barman',
+            subcommand='fake-cmd',
+            config='fake_conf')
+        subprocess.execute()
+
+        command = [
+            sys.executable,
+            "path/to/barman",
+            "-c", "fake_conf",
+            "-q",
+            "fake-cmd",
+        ]
+        popen_mock.assert_called_with(
+            command, preexec_fn=os.setsid,
+            close_fds=True,
+            stdin=mock.ANY, stdout=mock.ANY, stderr=mock.ANY)
+        assert ('barman.command_wrappers', DEBUG,
+                'BarmanSubProcess: ' + str(command)) in caplog.record_tuples
+        assert ('barman.command_wrappers', DEBUG,
+                'BarmanSubProcess: subprocess started. '
+                'pid: 12345') in caplog.record_tuples
