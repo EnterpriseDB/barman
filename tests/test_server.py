@@ -283,8 +283,8 @@ class TestServer(object):
         (out, err) = capsys.readouterr()
         assert out == "\tPostgreSQL: OK\n" \
                       "\tarchive_mode: OK\n" \
-                      "\twal_level: OK\n" \
-                      "\tarchive_command: OK\n"
+                      "\tarchive_command: OK\n" \
+                      "\twal_level: OK\n"
 
         # Postgres version < 9.0 - avoid wal_level check
         del postgres_mock.return_value['wal_level']
@@ -311,10 +311,10 @@ class TestServer(object):
         (out, err) = capsys.readouterr()
         assert out == "\tPostgreSQL: OK\n" \
                       "\tarchive_mode: OK\n" \
-                      "\twal_level: FAILED (please set it to a higher level " \
-                      "than 'minimal')\n" \
                       "\tarchive_command: FAILED (please set it " \
-                      "accordingly to documentation)\n"
+                      "accordingly to documentation)\n" \
+                      "\twal_level: FAILED (please set it to a higher level " \
+                      "than 'minimal')\n"
 
     @patch('barman.server.Server.get_wal_until_next_backup')
     def test_get_wal_info(self, get_wal_mock, tmpdir):

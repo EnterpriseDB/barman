@@ -33,13 +33,15 @@ import barman
 import barman.xlog as xlog
 from barman import output
 from barman.backup import BackupManager
+from barman.backup_executor import SshCommandException
 from barman.compression import identify_compression
 from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerWalReceiveLock,
                              ServerXLOGDBLock)
-from barman.postgres import PostgreSQLConnection, StreamingConnection
+from barman.postgres import (ConninfoException, PostgreSQLConnection,
+                             StreamingConnection)
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta
 from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
@@ -156,10 +158,23 @@ class Server(object):
         """
         self.config = config
         self.path = self._build_path(self.config.path_prefix)
-        self.postgres = PostgreSQLConnection(config)
+        try:
+            self.postgres = PostgreSQLConnection(config)
+        # If the PostgreSQLConnection creation fails, disable the Server
+        except ConninfoException as e:
+            self.config.disabled = True
+            self.config.msg_list.append(str(e).strip())
+
         self.streaming = None
 
-        self.backup_manager = BackupManager(self)
+        try:
+            self.backup_manager = BackupManager(self)
+        # If the BackupManage raises a SshCommandException disable the Server
+        # TODO: Evaluate the usage of a more generic exception here
+        except SshCommandException as e:
+            self.config.disabled = True
+            self.config.msg_list.append(str(e).strip())
+
         self.enforce_retention_policies = False
 
         # Order of items in self.archivers list is important!
@@ -167,13 +182,26 @@ class Server(object):
         self.archivers = []
         if self.config.archiver:
             self.archivers.append(FileWalArchiver(self.backup_manager))
+        else:
+            # Currently a server MUST have archiver set to on,
+            # otherwise disable the server.
+            self.config.disabled = True
+            self.config.msg_list.append("The option archiver = off "
+                                        "is not yet supported")
 
         if self.config.streaming_archiver:
-            self.streaming = StreamingConnection(config)
-            self.archivers.append(StreamingWalArchiver(self.backup_manager))
+            try:
+                self.streaming = StreamingConnection(config)
+                self.archivers.append(StreamingWalArchiver(
+                    self.backup_manager))
+            # If the StreamingConnection creation fails, disable the Server
+            except ConninfoException as e:
+                self.config.disabled = True
+                self.config.msg_list.append(str(e).strip())
 
         if len(self.archivers) < 1:
-            raise Exception(
+            self.config.disabled = True
+            self.config.msg_list.append(
                 "Missing archiver for server %s. "
                 "Enable 'archiver' and/or 'streaming_archiver'" % config.name)
 
@@ -295,6 +323,9 @@ class Server(object):
         self.check_backup_validity(check_strategy)
         # Executes the backup manager set of checks
         self.backup_manager.check(check_strategy)
+        # Check if the msg_list of the server
+        # contains messages and output eventual failures
+        self.check_configuration(check_strategy)
 
     def check_postgres(self, check_strategy):
         """
@@ -318,15 +349,36 @@ class Server(object):
             if remote_status['streaming_supported'] is None:
                 hint = 'Streaming connection error'
             elif not remote_status['streaming_supported']:
-                hint = 'Streaming connection not supported for PostgreSQL < 9.2'
+                hint = ('Streaming connection not supported'
+                        ' for PostgreSQL < 9.2')
             check_strategy.result(self.config.name, 'PostgreSQL streaming',
                                   remote_status.get('streaming'), hint)
         # Check archive_mode parameter: must be on
-        if remote_status['archive_mode'] == 'on':
-            check_strategy.result(self.config.name, 'archive_mode', True)
-        else:
-            check_strategy.result(self.config.name, 'archive_mode', False,
-                                  "please set it to 'on'")
+        # TODO: Move this check in the Archiver class
+        if self.config.archiver:
+            if remote_status['archive_mode'] == 'on':
+                check_strategy.result(self.config.name, 'archive_mode', True)
+            else:
+                check_strategy.result(self.config.name, 'archive_mode', False,
+                                      "please set it to 'on'")
+
+            if remote_status['archive_command'] and \
+                    remote_status['archive_command'] != '(disabled)':
+                check_strategy.result(self.config.name, 'archive_command',
+                                      True)
+
+                # Report if the archiving process works without issues.
+                # Skip if the archive_command check fails
+                # It can be None if PostgreSQL is older than 9.4
+                if remote_status.get('is_archiving') is not None:
+                    check_strategy.result(
+                        self.config.name, 'continuous archiving',
+                        remote_status['is_archiving'])
+            else:
+                check_strategy.result(
+                    self.config.name, 'archive_command', False,
+                    'please set it accordingly to documentation')
+
         # Check wal_level parameter: must be different from 'minimal'
         # the parameter has been introduced in postgres >= 9.0
         if 'wal_level' in remote_status:
@@ -338,32 +390,19 @@ class Server(object):
                     self.config.name, 'wal_level', False,
                     "please set it to a higher level than 'minimal'")
 
-        if remote_status['archive_command'] and \
-                remote_status['archive_command'] != '(disabled)':
-            check_strategy.result(self.config.name, 'archive_command', True)
-
-            # Report if the archiving process works without issues.
-            # Skip if the archive_command check fails
-            # It can be None if PostgreSQL is older than 9.4
-            if remote_status.get('is_archiving') is not None:
-                check_strategy.result(self.config.name, 'continuous archiving',
-                                      remote_status['is_archiving'])
-        else:
-            check_strategy.result(self.config.name, 'archive_command', False,
-                                  'please set it accordingly to documentation')
-
         if remote_status.get('streaming'):
-            check_strategy.result(self.config.name, 'pg_receivexlog',
-                                  remote_status['pg_receivexlog_installed'])
+            check_strategy.result(
+                self.config.name, 'pg_receivexlog',
+                remote_status['pg_receivexlog_installed'])
             hint = None
             if not remote_status['pg_receivexlog_compatible']:
                 hint = "PostgreSQL version: %s, pg_receivexlog version: %s" % (
                     self.postgres.server_txt_version,
                     remote_status['pg_receivexlog_version']
                 )
-            check_strategy.result(self.config.name, 'pg_receivexlog compatible',
-                                  remote_status['pg_receivexlog_compatible'],
-                                  hint=hint)
+            check_strategy.result(
+                self.config.name, 'pg_receivexlog compatible',
+                remote_status['pg_receivexlog_compatible'], hint=hint)
 
     def _make_directories(self):
         """
@@ -383,12 +422,7 @@ class Server(object):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-
-        if self.config.disabled:
-            check_strategy.result(self.config.name, 'directories', False)
-            for conflict_paths in self.config.msg_list:
-                output.info("\t%s" % conflict_paths)
-        else:
+        if not self.config.disabled:
             try:
                 self._make_directories()
             except OSError, e:
@@ -396,6 +430,19 @@ class Server(object):
                                       "%s: %s" % (e.filename, e.strerror))
             else:
                 check_strategy.result(self.config.name, 'directories', True)
+
+    def check_configuration(self, check_strategy):
+        """
+        Check for error messages in the message list
+        of the server and output eventual errors
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        if self.config.disabled:
+            check_strategy.result(self.config.name, 'configuration', False)
+            for conflict_paths in self.config.msg_list:
+                output.info("\t\t%s" % conflict_paths)
 
     def check_retention_policy_settings(self, check_strategy):
         """

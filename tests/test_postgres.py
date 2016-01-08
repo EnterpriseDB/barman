@@ -19,7 +19,7 @@ import psycopg2
 import pytest
 from mock import PropertyMock, patch
 
-from barman.postgres import ConninfoException, PostgresConnectionError
+from barman.postgres import PostgresConnectionError
 from testing_helpers import build_real_server
 
 
@@ -31,9 +31,10 @@ class TestPostgres(object):
         simple test for missing conninfo
         """
         # Test with wrong configuration
-        with pytest.raises(ConninfoException):
-            build_real_server(
-                main_conf={'conninfo': ''})
+        server = build_real_server(main_conf={'conninfo': ''})
+        assert server.config.msg_list
+        assert 'Missing conninfo parameter in barman ' \
+            'configuration for server main' in server.config.msg_list
 
     @patch('barman.postgres.psycopg2.connect')
     def test_connect_and_close(self, pg_connect_mock):
@@ -597,11 +598,12 @@ class TestStreamingConnection(object):
         simple test for streaming_archiver without streaming_conninfo
         """
         # Test with wrong configuration
-        with pytest.raises(ConninfoException):
-            build_real_server(
-                main_conf={
-                    'streaming_archiver': True,
-                    'streaming_conninfo': ''})
+        server = build_real_server(main_conf={
+            'streaming_archiver': True,
+            'streaming_conninfo': ''})
+        assert server.config.msg_list
+        assert 'Missing streaming_conninfo parameter in barman ' \
+            'configuration for server main' in server.config.msg_list
 
     @patch('barman.postgres.psycopg2.connect')
     def test_get_remote_status(self, conn_mock):

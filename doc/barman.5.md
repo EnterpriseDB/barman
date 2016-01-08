@@ -50,8 +50,9 @@ archiver
     checks as well as management (including compression) of WAL files that
     Postgres deposits in the *incoming* directory. Setting it to `false`,
     will disable standard continuous archiving for a server. Global/Server.
-    (Note: this option is currently required to be enabled until Barman
-    natively supports physical replication slots.)
+    (NOTE: this option is currently required to be enabled until Barman
+    natively supports physical replication slots. Setting it to `false`
+    will result in a disabled server).
 
 description
 :   A human readable description of a server. Server.
