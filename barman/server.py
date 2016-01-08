@@ -356,11 +356,12 @@ class Server(object):
         # Check archive_mode parameter: must be on
         # TODO: Move this check in the Archiver class
         if self.config.archiver:
-            if remote_status['archive_mode'] == 'on':
+            if remote_status['archive_mode'] in ('on', 'always'):
                 check_strategy.result(self.config.name, 'archive_mode', True)
             else:
+                # TODO: warn about 'always' only for 9.5 users
                 check_strategy.result(self.config.name, 'archive_mode', False,
-                                      "please set it to 'on'")
+                                      "please set it to 'on' or 'always'")
 
             if remote_status['archive_command'] and \
                     remote_status['archive_command'] != '(disabled)':
