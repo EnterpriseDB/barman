@@ -322,11 +322,11 @@ class Server(object):
             check_strategy.result(self.config.name, 'PostgreSQL streaming',
                                   remote_status.get('streaming'), hint)
         # Check archive_mode parameter: must be on
-        if remote_status['archive_mode'] == 'on':
+        if remote_status['archive_mode'] in ('on', 'always'):
             check_strategy.result(self.config.name, 'archive_mode', True)
         else:
             check_strategy.result(self.config.name, 'archive_mode', False,
-                                  "please set it to 'on'")
+                                  "please set it to 'on' or 'always'")
         # Check wal_level parameter: must be different from 'minimal'
         # the parameter has been introduced in postgres >= 9.0
         if 'wal_level' in remote_status:
