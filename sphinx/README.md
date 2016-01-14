@@ -56,7 +56,7 @@ one of the available formats:
 
 ## Licence
 
-Copyright (C) 2011-2015 2ndQuadrant Italia Srl
+Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
 Barman is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

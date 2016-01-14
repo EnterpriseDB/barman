@@ -1530,7 +1530,7 @@ Past contributors:
 Barman is the exclusive property of 2ndQuadrant Italia and its code is
 distributed under GNU General Public License 3.
 
-Copyright (C) 2011-2015 [2ndQuadrant.it] [19].
+Copyright (C) 2011-2016 [2ndQuadrant.it] [19].
 
 Barman has been partially funded through [4CaaSt] [18], a research
 project funded by the European Commission's Seventh Framework
