@@ -463,7 +463,7 @@ class BackupManager(object):
         :param bool verbose: report even if no actions
         """
         # Get the first available backup
-        first_backup_id = self.get_first_backup_id(BackupInfo.STATUS_NOT_EMPTY)
+        first_backup_id = self.get_first_backup_id(BackupInfo.STATUS_ARCHIVING)
         first_backup = self.server.get_backup(first_backup_id)
         with self.server.xlogdb('a') as fxlogdb:
             for archiver in self.server.archivers:

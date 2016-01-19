@@ -131,8 +131,8 @@ class TestFileWalArchiver(object):
         """
         Basic archiving test
 
-        Provide a WAL file and check for the correct location of the file at the
-        end of the process
+        Provide a WAL file and check for the correct location of the file at
+        the end of the process
         """
         # Build a real backup manager
         backup_manager = build_backup_manager(
@@ -246,6 +246,7 @@ class TestFileWalArchiver(object):
         backup_manager.server.get_backup.return_value = b_info
         basedir = tmpdir.join('main')
         incoming_dir = basedir.join('incoming')
+        basedir.mkdir('errors')
         archive_dir = basedir.join('wals')
         xlog_db = archive_dir.join('xlog.db')
         wal_name = '000000010000000000000001'
@@ -270,7 +271,71 @@ class TestFileWalArchiver(object):
         assert not os.path.exists(wal_path)
         # Check the output for the removal of the wal file
         out, err = capsys.readouterr()
-        assert ("Older than first backup. Trashing file %s" % wal_name) in out
+        assert (
+            "Older than first backup of server %s. "
+            "Moving the WAL file %s in the error directory" %
+            (backup_manager.config.name, wal_name)) in out
+
+    # TODO: The following test should be splitted in two
+    # the BackupManager part and the FileWalArchiver part
+    def test_archive_wal_timeline_lower_than_backup(self, tmpdir, capsys):
+        """
+        Test archive-wal command behaviour when the WAL files are older than
+        the first backup of a server.
+
+        Expect it to trash WAL files
+        """
+        # Build a real backup manager and a fake backup
+        backup_manager = build_backup_manager(
+            name='TestServer',
+            global_conf={
+                'barman_home': tmpdir.strpath
+            })
+        b_info = build_test_backup_info(
+            backup_id='fake_backup_id',
+            server=backup_manager.server,
+            begin_wal='000000020000000000000002',
+            timeline=2
+        )
+        b_info.save()
+        # Build the basic folder structure and files
+        backup_manager.compression_manager.get_compressor.return_value = None
+        backup_manager.server.get_backup.return_value = b_info
+        basedir = tmpdir.join('main')
+        incoming_dir = basedir.join('incoming')
+        basedir.mkdir('errors')
+        archive_dir = basedir.join('wals')
+        xlog_db = archive_dir.join('xlog.db')
+        wal_name = '000000010000000000000001'
+        wal_timeline = int(wal_name[0:8], 16)
+        wal_file = incoming_dir.join(wal_name)
+        wal_file.ensure()
+        archive_dir.ensure(dir=True)
+        xlog_db.ensure()
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = \
+            xlog_db.open(mode='a')
+        backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
+
+        backup_manager.archive_wal()
+
+        with xlog_db.open() as f:
+            line = str(f.readline())
+            assert wal_name not in line
+        # Check that the WAL file is not present inside the wal catalog
+        wal_path = os.path.join(archive_dir.strpath,
+                                barman.xlog.hash_dir(wal_name),
+                                wal_name)
+        # Check that the wal file have not been archived
+        assert not os.path.exists(wal_path)
+        # Check the output for the removal of the wal file
+        out, err = capsys.readouterr()
+        assert ("The timeline of the WAL file %s (%s), is lower "
+                "than the one of the oldest backup of "
+                "server %s (%s). Moving the WAL in "
+                "the error directory" %
+                (wal_name, wal_timeline,
+                 backup_manager.config.name,
+                 b_info.timeline)) in out
 
 
 # noinspection PyMethodMayBeStatic

@@ -414,6 +414,7 @@ class BackupInfo(FieldListFile):
     DONE = 'DONE'
     STATUS_ALL = (EMPTY, STARTED, DONE, FAILED)
     STATUS_NOT_EMPTY = (STARTED, DONE, FAILED)
+    STATUS_ARCHIVING = (STARTED, DONE)
 
     #: Status according to retention policies
     OBSOLETE = 'OBSOLETE'
