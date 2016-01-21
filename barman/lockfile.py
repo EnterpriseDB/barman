@@ -22,6 +22,7 @@ This module is the lock manager for Barman
 import errno
 import fcntl
 import os
+import re
 
 
 class LockFileException(Exception):
@@ -41,6 +42,13 @@ class LockFileBusy(LockFileException):
 class LockFilePermissionDenied(LockFileException):
     """
     Raised when a lock file is not accessible
+    """
+    pass
+
+
+class LockFileParsingError(LockFileException):
+    """
+    Raised when the content of the lockfile is unexpected
     """
     pass
 
@@ -68,11 +76,52 @@ class LockFile(object):
 
     """
 
+    LOCK_PATTERN = None
+    """
+    If defined in a subclass, it must be a compiled regular expression
+    which matches the lock filename.
+
+    It must provide named groups for the constructor parameters which produce
+    the same lock name. I.e.:
+
+    >>> ServerWalReceiveLock('/tmp', 'server-name').filename
+    '/tmp/.server-name-receive-wal.lock'
+    >>> ServerWalReceiveLock.LOCK_PATTERN = re.compile(
+            r'\.(?P<server_name>.+)-receive-wal\.lock')
+    >>> m = ServerWalReceiveLock.LOCK_PATTERN.match(
+            '.server-name-receive-wal.lock')
+    >>> ServerWalReceiveLock('/tmp', **(m.groupdict())).filename
+    '/tmp/.server-name-receive-wal.lock'
+
+    """
+
+    @classmethod
+    def build_if_matches(cls, path):
+        """
+        Factory method that creates a lock instance if the path matches
+        the lock filename created by the actual class
+
+        :param path: the full path of a LockFile
+        :return:
+        """
+        # If LOCK_PATTERN is not defined always return None
+        if not cls.LOCK_PATTERN:
+            return None
+        # Matches the provided path against LOCK_PATTERN
+        lock_directory = os.path.abspath(os.path.dirname(path))
+        lock_name = os.path.basename(path)
+        match = cls.LOCK_PATTERN.match(lock_name)
+        if match:
+            # Build the lock object for the provided path
+            return cls(lock_directory, **(match.groupdict()))
+        return None
+
     def __init__(self, filename, raise_if_fail=True, wait=False):
         self.filename = os.path.abspath(filename)
         self.fd = None
         self.raise_if_fail = raise_if_fail
         self.wait = wait
+        self.lock_content = None
 
     def acquire(self, raise_if_fail=None, wait=None):
         """
@@ -97,17 +146,20 @@ class LockFile(object):
             if raise_if_fail is not None else self.raise_if_fail
         wait = wait if wait is not None else self.wait
         try:
-            fd = os.open(self.filename, os.O_TRUNC | os.O_CREAT | os.O_RDWR,
-                         0600)
+            fd = os.open(self.filename, os.O_CREAT | os.O_RDWR, 0600)
             flags = fcntl.LOCK_EX
             if not wait:
                 flags |= fcntl.LOCK_NB
             fcntl.flock(fd, flags)
+            # Truncate the file only after the lock acquisition
+            os.ftruncate(fd, 0)
             os.write(fd, ("%s\n" % os.getpid()).encode('ascii'))
             self.fd = fd
             return True
         except (OSError, IOError), e:
             if fd:
+                # Read the lock content for later inspection
+                self.lock_content = os.read(fd, 1024).strip()
                 os.close(fd)  # let's not leak  file descriptors
             if raise_if_fail:
                 if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
@@ -147,6 +199,29 @@ class LockFile(object):
 
     def __exit__(self, exception_type, value, traceback):
         self.release()
+
+    def get_owner_pid(self):
+        """
+        Test whether a lock is already held by a process.
+
+        Returns the PID of the owner process or None if the lock is available.
+
+        :rtype: int|None
+        :raises LockFileParsingError: when the lock content is garbled
+        :raises LockFilePermissionDenied: when the lockfile is not accessible
+        """
+        try:
+            self.acquire(raise_if_fail=True, wait=False)
+        except LockFileBusy:
+            # read the owner pid from the class attribute
+            try:
+                return int(self.lock_content)
+            except ValueError as e:
+                # This should not happen
+                raise LockFileParsingError(e)
+        # release the lock and return None
+        self.release()
+        return None
 
 
 class GlobalCronLock(LockFile):
@@ -225,6 +300,8 @@ class ServerWalReceiveLock(LockFile):
     Creates a '.<SERVER>-receive-wal.lock' lock file under
     the given lock_directory for the named SERVER.
     """
+    # TODO: Implement on the other LockFile subclasses
+    LOCK_PATTERN = re.compile(r'\.(?P<server_name>.+)-receive-wal\.lock')
 
     def __init__(self, lock_directory, server_name):
         super(ServerWalReceiveLock, self).__init__(

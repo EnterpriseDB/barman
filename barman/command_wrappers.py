@@ -140,6 +140,7 @@ class Command(object):
     def __init__(self, cmd, args=None, env_append=None, path=None, shell=False,
                  check=False, allowed_retval=(0,), debug=False,
                  close_fds=True, out_handler=None, err_handler=None):
+        self.pipe = None
         self.cmd = cmd
         self.args = args if args is not None else []
         self.shell = shell
@@ -247,8 +248,10 @@ class Command(object):
         self.out = None
         self.err = None
 
-        # Create the subprocess
+        # Create the subprocess and save it in the current object to be usable
+        # by signal handlers
         pipe = self._build_pipe(args, close_fds)
+        self.pipe = pipe
 
         # Send the provided input and close the stdin descriptor
         if stdin:
@@ -264,9 +267,12 @@ class Command(object):
         # Read the streams until the subprocess exits
         self.pipe_processor_loop(processors)
 
-        # Rape the zombie and read the exit code
+        # Reap the zombie and read the exit code
         pipe.wait()
         self.ret = pipe.returncode
+
+        # Remove the closed pipe from the object
+        self.pipe = None
         if self.debug:
             print >> sys.stderr, "Command return code: %s" % self.ret
         _logger.debug("Command return code: %s", self.ret)
@@ -354,6 +360,33 @@ class Command(object):
                 else:
                     class_logger.log(level, "%s", line)
         return handler
+
+    def enable_signal_forwarding(self, signal_id):
+        """
+        Enable signal forwarding to the subprocess for a specified signal_id
+
+        :param signal_id: The signal id to be forwarded
+        """
+        # Get the current signal handler
+        old_handler = signal.getsignal(signal_id)
+
+        def _handler(sig, frame):
+            """
+            This signal handler forward the signal to the subprocess then
+            execute the original handler.
+            """
+            # Forward the signal to the subprocess
+            if self.pipe:
+                self.pipe.send_signal(signal_id)
+            # If the old handler is callable
+            if callable(old_handler):
+                old_handler(sig, frame)
+            # If we have got a SIGTERM, we must exit
+            elif old_handler == signal.SIG_DFL and signal_id == signal.SIGTERM:
+                sys.exit(128 + signal_id)
+
+        # Set the signal handler
+        signal.signal(signal_id, _handler)
 
 
 class Rsync(Command):
@@ -760,6 +793,8 @@ class PgReceiveXlog(Command):
             options += args
         Command.__init__(self, receivexlog, args=options, check=check,
                          **kwargs)
+        self.enable_signal_forwarding(signal.SIGINT)
+        self.enable_signal_forwarding(signal.SIGTERM)
 
 
 class BarmanSubProcess(object):

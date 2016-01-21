@@ -457,9 +457,14 @@ destination directory).
 
 #### Reducing RPO with WAL streaming
 
-From version 1.6.0, Barman improves its Recovery Point Objective (RPO) performance by allowing users to add, on top of the standard `archive_command` strategy, continuous WAL streaming from a PostgreSQL server.
+From version 1.6.0, Barman improves its Recovery Point Objective (RPO)
+performance by allowing users to add, on top of the standard `archive_command`
+strategy, continuous WAL streaming from a PostgreSQL server.
 
-Barman relies on [`pg_receivexlog`] [25], a utility that is available from PostgreSQL 9.2 which exploits the native streaming replication protocol and continuously receives transaction logs from a PostgreSQL server (be it a master or a standby).
+Barman relies on [`pg_receivexlog`] [25], a utility that is available
+from PostgreSQL 9.2 which exploits the native streaming replication protocol
+and continuously receives transaction logs from a PostgreSQL
+server (be it a master or a standby).
 
 > **Important:**
 > Barman requires that `pg_receivexlog` is installed in the same server.
@@ -476,7 +481,9 @@ In order to enable streaming of transaction logs, you need to:
 1. setup a streaming connection, as previously described;
 2. set the `streaming_archiver` option to `on`.
 
-The `cron` command, if the aforementioned requirements are met, transparently manages log streaming through the execution of the `receive-wal` command. This is the recommended scenario.
+The `cron` command, if the aforementioned requirements are met,
+transparently manages log streaming through the execution of the
+`receive-wal` command. This is the recommended scenario.
 
 However, users can manually execute the `receive-wal` command:
 
@@ -487,7 +494,9 @@ barman receive-wal <server_name>
 > **Note:**
 > The `receive-wal` command is a foreground process.
 
-Transaction logs are streamed directly in the directory specified by the `streaming_wal_directory` configuration option and are then archived by the `archive-wal` command.
+Transaction logs are streamed directly in the directory specified by the
+`streaming_wal_directory` configuration option and are then archived
+by the `archive-wal` command.
 
 > **Important:**
 > Currently, WAL streaming is only supported in Barman as an additional
@@ -501,6 +510,16 @@ Transaction logs are streamed directly in the directory specified by the `stream
 > adoption will allow us to improve future versions and implement a
 > "streaming-only" method of WAL archiving that is based on
 > transparent management of replication slots in Barman.
+
+##### Stopping a receive-wal process for a server
+
+If a `receive-wal` process is running in background (e.g. started by
+the cron command), it is possible to ask barman to stop it by invoking
+the `receive-wal` command with the `--stop` option:
+
+``` bash
+barman receive-wal --stop <server_name>
+```
 
 ## Listing the servers
 
@@ -759,7 +778,7 @@ barman cron
 ```
 
 
-As of version 1.5.1 `barman cron` executes WAL archiving operations 
+As of version 1.5.1 `barman cron` executes WAL archiving operations
 concurrently on a server basis.
 
 This also enforces retention policies on those servers that have:
@@ -840,7 +859,7 @@ barman check <server_name>
 From version 1.3.3, you can automatically be notified if the latest
 backup of a given server is older than, for example, _7
 days_.[^SMELLY_BACKUP]
-  
+
 [^SMELLY_BACKUP]:
   This feature is commonly known among the development team members as
   _smelly backup check_.

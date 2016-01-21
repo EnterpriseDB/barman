@@ -42,6 +42,7 @@ from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerXLOGDBLock)
 from barman.postgres import (ConninfoException, PostgreSQLConnection,
                              StreamingConnection)
+from barman.process import ProcessManager
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta, pretty_size
 from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
@@ -158,6 +159,7 @@ class Server(object):
         """
         self.config = config
         self.path = self._build_path(self.config.path_prefix)
+        self.process_manager = ProcessManager(self.config)
         try:
             self.postgres = PostgreSQLConnection(config)
         # If the PostgreSQLConnection creation fails, disable the Server
@@ -1339,3 +1341,22 @@ class Server(object):
             return None
         sys_path = os.environ.get('PATH')
         return "%s%s%s" % (path_prefix, os.pathsep, sys_path)
+
+    def kill(self, task):
+        """
+        Given the name of a barman sub-task type,
+        attempts to stop all the processes
+        :param string task: The task we want to stop
+        """
+        process_list = self.process_manager.list(task)
+        for process in process_list:
+            if self.process_manager.kill(process):
+                output.info('Stopped process %s(%s)',
+                            process.task, process.pid)
+                return
+            else:
+                output.error('Cannot terminate process %s(%s)',
+                             process.task, process.pid)
+                return
+        output.error('Termination of %s failed: no such process for server %s',
+                     task, self.config.name)

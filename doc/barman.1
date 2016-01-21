@@ -1,4 +1,5 @@
 .TH "BARMAN" "1" "Month DD, YEAR" "Barman User manuals" "Version 1.6.0 alpha 1"
+.hy
 .SH NAME
 .PP
 barman \- Backup and Recovery Manager for PostgreSQL
@@ -375,6 +376,11 @@ Start the stream of transaction logs for a server.
 The process relies on \f[C]pg_receivexlog\f[] to receive WAL files from
 the PostgreSQL servers through the streaming protocol.
 .RS
+.TP
+.B \-\-stop
+stop the receive\-wal process for the server
+.RS
+.RE
 .RE
 .TP
 .B delete \f[I]SERVER_NAME\f[] \f[I]BACKUP_ID\f[]

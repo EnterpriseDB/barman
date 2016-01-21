@@ -17,6 +17,7 @@
 
 import errno
 import fcntl
+import os
 
 import pytest
 from mock import ANY, patch
@@ -208,6 +209,24 @@ class TestLockFileBehavior(object):
         lock_file.release()
         # Check that the fcntl.flock() have been called using the flag LOCK_UN
         fcntl_mock.flock.assert_called_once_with(ANY, fcntl.LOCK_UN)
+
+    def test_owner_pid(self, fcntl_mock, tmpdir):
+        """
+        Test the get_owner_pid method. It should return the PID of the running
+        process if a lock is already acquired
+        """
+        lock_file_path = tmpdir.join("test_lock_file1")
+        # Force te lock to return a 'busy' state
+        _prepare_fnctl_mock(fcntl_mock, [None,
+                                         OSError(errno.EAGAIN, '', ''),
+                                         None])
+        # Acquire a lock
+        with LockFile(lock_file_path.strpath):
+            # Create another lock and get the pid
+            second_lock_file = LockFile(lock_file_path.strpath)
+            pid = second_lock_file.get_owner_pid()
+        # Pid should contain the current pid
+        assert pid == os.getpid()
 
 
 # noinspection PyMethodMayBeStatic

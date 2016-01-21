@@ -549,6 +549,8 @@ def archive_wal(args):
 
 
 @named('receive-wal')
+@arg('--stop', help='stop the receive-wal subprocess for the server',
+     action='store_true')
 @arg('server_name',
      completer=server_completer,
      help='specifies the server name for the command')
@@ -560,7 +562,12 @@ def receive_wal(args):
     from the PostgreSQL server.
     """
     server = get_server(args)
-    server.receive_wal()
+    # If the caller requested to shutdown the receive-wal process deliver the
+    # termination signal, otherwise attempt to start it
+    if args.stop:
+        server.kill('receive-wal')
+    else:
+        server.receive_wal()
     output.close_and_exit()
 
 

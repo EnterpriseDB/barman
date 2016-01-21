@@ -26,6 +26,7 @@ from barman.infofile import BackupInfo, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerWalReceiveLock)
+from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy, CheckStrategy, Server
 from testing_helpers import (build_config_from_dicts, build_real_server,
                              build_test_backup_info)
@@ -471,6 +472,39 @@ class TestServer(object):
                 server.cron(wals=True, retention_policies=False)
                 assert ("Another STREAMING ARCHIVER process is running for "
                         "server %s" % server.config.name) in caplog.text
+
+    @patch('barman.server.ProcessManager')
+    def test_kill(self, pm_mock, capsys):
+
+        server = build_real_server()
+
+        # Empty process list, the process is not running
+        task_name = 'test_task'
+        process_list = []
+        pm_mock.return_value.list.return_value = process_list
+        pm_mock.return_value.kill.return_value = True
+        server.kill(task_name)
+        out, err = capsys.readouterr()
+        assert ('Termination of %s failed: no such process for server %s' % (
+            task_name,
+            server.config.name)) in err
+
+        # Successful kill
+        pid = 1234
+        process_list.append(ProcessInfo(pid, server.config.name, task_name))
+        pm_mock.return_value.list.return_value = process_list
+        pm_mock.return_value.kill.return_value = True
+        server.kill('test_task')
+        out, err = capsys.readouterr()
+        assert ('Stopped process %s(%s)' %
+                (task_name, pid)) in out
+
+        # The process don't terminate
+        pm_mock.return_value.kill.return_value = False
+        server.kill('test_task')
+        out, err = capsys.readouterr()
+        assert ('ERROR: Cannot terminate process %s(%s)' %
+                (task_name, pid)) in err
 
 
 class TestCheckStrategy(object):

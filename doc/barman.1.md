@@ -88,7 +88,7 @@ check *SERVER_NAME*
     :    Nagios plugin compatible output
 
 diagnose
-:   Collect diagnostic information about the server where barman is installed 
+:   Collect diagnostic information about the server where barman is installed
     and all the configured servers, including: global configuration, SSH version,
     Python version, `rsync` version, as well as current configuration and status
     of all servers.
@@ -97,7 +97,7 @@ backup *SERVER_NAME*
 :   Perform a backup of `SERVER_NAME` using parameters specified in the
     configuration file. Specify `all` as `SERVER_NAME` to perform a backup
     of all the configured servers.
-    
+
     --immediate-checkpoint
     :   forces the initial checkpoint to be done as quickly as possible.
         Overrides value of the parameter `immediate_checkpoint`, if present
@@ -132,7 +132,7 @@ backup *SERVER_NAME*
     :   Same as `--retry-times 0`
 
     --retry-sleep
-    :   Number of seconds of wait after a failed copy, before retrying. 
+    :   Number of seconds of wait after a failed copy, before retrying.
         Used during both backup and recovery operations.
         Overrides value of the parameter `basebackup_retry_sleep`,
         if present in the configuration file.
@@ -255,7 +255,7 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
     :   Same as `--retry-times 0`
 
     --retry-sleep
-    :   Number of seconds of wait after a failed copy, before retrying. 
+    :   Number of seconds of wait after a failed copy, before retrying.
         Overrides value of the parameter `basebackup_retry_sleep`,
         if present in the configuration file.
 
@@ -278,6 +278,9 @@ receive-wal *SERVER_NAME*
 :   Start the stream of transaction logs for a server.
     The process relies on `pg_receivexlog` to receive WAL files
     from the PostgreSQL servers through the streaming protocol.
+
+    --stop
+    :   stop the receive-wal process for the server
 
 delete *SERVER_NAME* *BACKUP_ID*
 :   Delete the specified backup. [Backup ID shortcuts](#shortcuts)
