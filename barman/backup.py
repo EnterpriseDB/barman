@@ -20,7 +20,6 @@ This module represents a backup.
 """
 
 import datetime
-import filecmp
 import logging
 import os
 import shutil
@@ -39,8 +38,7 @@ from barman.hooks import (AbortedRetryHookScript, HookScriptRunner,
                           RetryHookScriptRunner)
 from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.recovery_executor import RecoveryExecutor
-from barman.utils import (fsync_dir, human_readable_timedelta, mkpath,
-                          pretty_size)
+from barman.utils import fsync_dir, human_readable_timedelta, pretty_size
 
 _logger = logging.getLogger(__name__)
 
@@ -464,106 +462,12 @@ class BackupManager(object):
 
         :param bool verbose: report even if no actions
         """
-        compressor = self.compression_manager.get_compressor()
         # Get the first available backup
         first_backup_id = self.get_first_backup_id(BackupInfo.STATUS_NOT_EMPTY)
         first_backup = self.server.get_backup(first_backup_id)
-        stamp = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
         with self.server.xlogdb('a') as fxlogdb:
             for archiver in self.server.archivers:
-                found = False
-                if verbose:
-                    output.info("Processing xlog segments from %s for %s",
-                                archiver.name,
-                                self.config.name,
-                                log=False)
-                batch = archiver.get_next_batch()
-                for wal_info in batch:
-                    if not found and not verbose:
-                        output.info("Processing xlog segments from %s for %s",
-                                    archiver.name,
-                                    self.config.name,
-                                    log=False)
-                    found = True
-
-                    # If there are no available backups ...
-                    if first_backup is None:
-                        # ... delete xlog segments only for exclusive backups
-                        if BackupOptions.CONCURRENT_BACKUP \
-                                not in self.config.backup_options:
-                            # Skipping history files
-                            if not xlog.is_history_file(wal_info.name):
-                                output.info("\tNo base backup available."
-                                            " Trashing file %s"
-                                            " from server %s",
-                                            wal_info.name, self.config.name)
-                                os.unlink(wal_info.orig_filename)
-                                continue
-                    # ... otherwise
-                    else:
-                        # ... delete xlog segments older than the first backup
-                        if wal_info.name < first_backup.begin_wal:
-                            # Skipping history files
-                            if not xlog.is_history_file(wal_info.name):
-                                output.info("\tOlder than first backup."
-                                            " Trashing file %s"
-                                            " from server %s",
-                                            wal_info.name, self.config.name)
-                                os.unlink(wal_info.orig_filename)
-                                continue
-
-                    # Report to the user the WAL file we are archiving
-                    output.info("\t%s", wal_info.name, log=False)
-                    _logger.info("Archiving %s/%s",
-                                 self.config.name, wal_info.name)
-                    # Archive the WAL file
-                    try:
-                        self.cron_wal_archival(compressor, wal_info)
-                    except MatchingDuplicateWalFile:
-                        # We already have this file. Simply unlink the file.
-                        os.unlink(wal_info.orig_filename)
-                        continue
-                    except DuplicateWalFile:
-                        output.info("\tError: %s is already present "
-                                    "in server %s. "
-                                    "File moved to errors directory.",
-                                    wal_info.name,
-                                    self.config.name)
-                        error_dst = os.path.join(
-                            self.config.errors_directory,
-                            "%s.%s.duplicate" % (wal_info.name,
-                                                 stamp))
-                        # TODO: cover corner case of duplication (unlikely,
-                        # but theoretically possible)
-                        shutil.move(wal_info.orig_filename, error_dst)
-                        continue
-                    except AbortedRetryHookScript as e:
-                        _logger.warning("Archiving of %s/%s aborted by "
-                                        "pre_archive_retry_script."
-                                        "Reason: %s" % (self.config.name,
-                                                        wal_info.name,
-                                                        e))
-                        return
-                    # Updates the information of the WAL archive with
-                    # the latest segments
-                    fxlogdb.write(wal_info.to_xlogdb_line())
-                    # flush and fsync for every line
-                    fxlogdb.flush()
-                    os.fsync(fxlogdb.fileno())
-                if not found and verbose:
-                    output.info("\tno file found", log=False)
-                if batch.errors:
-                    output.info("Some unknown objects have been found while "
-                                "processing xlog segments for %s. "
-                                "Object moved to errors directory.",
-                                self.config.name,
-                                log=False)
-                    for error in batch.errors:
-                        output.info("\t%s", error)
-                        error_dst = os.path.join(
-                            self.config.errors_directory,
-                            "%s.%s.unknown" % (os.path.basename(error), stamp))
-                        shutil.move(error, error_dst)
+                archiver.archive(first_backup, fxlogdb, verbose)
 
     def cron_retention_policy(self):
         """
@@ -633,127 +537,6 @@ class BackupManager(object):
         except OSError:
             _logger.warning('Expected WAL file %s not found during delete',
                             wal_info.name, exc_info=1)
-
-    def cron_wal_archival(self, compressor, wal_info):
-        """
-        Archive a WAL segment from the incoming directory.
-        This function returns a WalFileInfo object.
-
-        :param compressor: the compressor for the file (if any)
-        :param wal_info: WalFileInfo of the WAL file is being processed
-        """
-
-        src_file = wal_info.orig_filename
-        src_dir = os.path.dirname(src_file)
-        dst_file = wal_info.fullpath(self.server)
-        tmp_file = dst_file + '.tmp'
-        dst_dir = os.path.dirname(dst_file)
-
-        error = None
-        try:
-            # Run the pre_archive_script if present.
-            script = HookScriptRunner(self, 'archive_script', 'pre')
-            script.env_from_wal_info(wal_info, src_file)
-            script.run()
-
-            # Run the pre_archive_retry_script if present.
-            retry_script = RetryHookScriptRunner(self,
-                                                 'archive_retry_script',
-                                                 'pre')
-            retry_script.env_from_wal_info(wal_info, src_file)
-            retry_script.run()
-
-            # Check if destination already exists
-            if os.path.exists(dst_file):
-                src_uncompressed = src_file
-                dst_uncompressed = dst_file
-                dst_info = WalFileInfo.from_file(dst_file)
-                try:
-                    comp_manager = self.compression_manager
-                    if dst_info.compression is not None:
-                        dst_uncompressed = dst_file + '.uncompressed'
-                        comp_manager.get_compressor(
-                            dst_info.compression).decompress(
-                                dst_file, dst_uncompressed)
-                    if wal_info.compression:
-                        src_uncompressed = src_file + '.uncompressed'
-                        comp_manager.get_compressor(
-                            wal_info.compression).decompress(
-                                src_file, src_uncompressed)
-                    # Directly compare files.
-                    # When the files are identical
-                    # raise a MatchingDuplicateWalFile exception,
-                    # otherwise raise a DuplicateWalFile exception.
-                    if filecmp.cmp(dst_uncompressed, src_uncompressed):
-                        raise MatchingDuplicateWalFile(wal_info)
-                    else:
-                        raise DuplicateWalFile(wal_info)
-                finally:
-                    if src_uncompressed != src_file:
-                        os.unlink(src_uncompressed)
-                    if dst_uncompressed != dst_file:
-                        os.unlink(dst_uncompressed)
-
-            mkpath(dst_dir)
-            # Compress the file only if not already compressed
-            if compressor and not wal_info.compression:
-                compressor.compress(src_file, tmp_file)
-                shutil.copystat(src_file, tmp_file)
-                os.rename(tmp_file, dst_file)
-                os.unlink(src_file)
-                # Update wal_info
-                stat = os.stat(dst_file)
-                wal_info.size = stat.st_size
-                wal_info.compression = compressor.compression
-            else:
-                # Try to atomically rename the file. If successful,
-                # the renaming will be an atomic operation
-                # (this is a POSIX requirement).
-                try:
-                    os.rename(src_file, dst_file)
-                except OSError:
-                    # Source and destination are probably on different
-                    # filesystems
-                    shutil.copy2(src_file, tmp_file)
-                    os.rename(tmp_file, dst_file)
-                    os.unlink(src_file)
-            # At this point the original file has been removed
-            wal_info.orig_filename = None
-
-            # Execute fsync() on the archived WAL file
-            file_fd = os.open(dst_file, os.O_RDONLY)
-            os.fsync(file_fd)
-            os.close(file_fd)
-            # Execute fsync() on the archived WAL containing directory
-            fsync_dir(dst_dir)
-            # Execute fsync() also on the incoming directory
-            fsync_dir(src_dir)
-        except Exception as e:
-            # In case of failure save the exception for the post scripts
-            error = e
-            raise
-
-        # Ensure the execution of the post_archive_retry_script and
-        # the post_archive_script
-        finally:
-            # Run the post_archive_retry_script if present.
-            try:
-                retry_script = RetryHookScriptRunner(self,
-                                                     'archive_retry_script',
-                                                     'post')
-                retry_script.env_from_wal_info(wal_info, dst_file, error)
-                retry_script.run()
-            except AbortedRetryHookScript, e:
-                # Ignore the ABORT_STOP as it is a post-hook operation
-                _logger.warning("Ignoring stop request after receiving "
-                                "abort (exit code %d) from post-archive "
-                                "retry hook script: %s",
-                                e.hook.exit_status, e.hook.script)
-
-            # Run the post_archive_script if present.
-            script = HookScriptRunner(self, 'archive_script', 'post', error)
-            script.env_from_wal_info(wal_info, dst_file)
-            script.run()
 
     def check(self, check_strategy):
         """
