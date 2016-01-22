@@ -1,6 +1,54 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
+Version 1.6.0 - DD Mon 2016
+
+-   Support for streaming replication connection through the
+    streaming_conninfo server option
+
+-   Support for the streaming_archiver option that allows Barman to
+    receive WAL files through PostgreSQL's native streaming protocol.
+    When set to 'on', it relies on pg_receivexlog to receive WAL data,
+    reducing Recovery Point Objective. Currently, WAL streaming is an
+    additional feature (standard log archiving is still required)
+
+-   Implement the receive-wal command that, when streaming_archiver is
+    on, wraps pg_receivexlog for WAL streaming
+
+-   Automatic management of receive-wal command via cron command
+
+-   Support for the path_prefix configuration option
+
+-   Introduction of the archiver option (currently fixed to on) which
+    enables continuous WAL archiving for a specific server, through log
+    shipping via PostgreSQL's archive_command
+
+-   Support for streaming_wals_directory and errors_directory options
+
+-   Management of WAL duplicates in archive-wal command
+
+-   Accept compressed WAL files in incoming directory
+
+-   Add support for the pigz compressor (thanks to Stefano Zacchiroli
+    zack@upsilon.cc)
+
+-   Implement pygzip and pybzip2 compressors (based on an initial idea
+    of Christoph Moench-Tegeder christoph@2ndquadrant.de)
+
+-   Creation of an implicit restore point at the end of a backup
+
+-   Permit archive_mode=always for PostgreSQL 9.5 servers (thanks to
+    Christoph Moench-Tegeder christoph@2ndquadrant.de)
+
+-   Complete refactoring of the code responsible for connecting to
+    PostgreSQL
+
+-   Bug fixes:
+    -   Atomic WAL file archiving (#9 and #12)
+    -   Propagate "-c" option to any Barman subprocess (#19)
+    -   Fix management of backup ID during backup deletion (#22)
+    -   Improve archive-wal robustness and log messages (#24)
+
 Version 1.5.1 - 16 Nov 2015
 
 -   Add support for the 'archive-wal' command which performs WAL
