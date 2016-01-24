@@ -318,6 +318,22 @@ class PostgreSQLConnection(PostgreSQL):
                           str(e).strip())
             return None
 
+    @property
+    def current_size(self):
+        """
+        Returns the total size of the PostgreSQL server
+        """
+        try:
+            cur = self._cursor()
+            cur.execute(
+                "SELECT sum(pg_tablespace_size(oid)) "
+                "FROM pg_tablespace")
+            return cur.fetchone()[0]
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error retrieving PostgreSQL total size: %s",
+                          str(e).strip())
+            return None
+
     def get_archiver_stats(self):
         """
         This method gathers statistics from pg_stat_archiver.
@@ -379,6 +395,7 @@ class PostgreSQLConnection(PostgreSQL):
             result['server_txt_version'] = self.server_txt_version
             result['pgespresso_installed'] = self.has_pgespresso
             result['current_xlog'] = self.current_xlog
+            result['current_size'] = self.current_size
 
             result.update(self.get_configuration_files())
         except (PostgresConnectionError, psycopg2.Error) as e:

@@ -543,10 +543,13 @@ class TestPostgres(object):
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.current_xlog',
            new_callable=PropertyMock)
+    @patch('barman.postgres.PostgreSQLConnection.current_size',
+           new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.get_configuration_files')
     @patch('barman.postgres.PostgreSQLConnection.get_setting')
     def test_get_remote_status(self, get_setting_mock,
                                get_configuration_files_mock,
+                               current_size_mock,
                                current_xlog_mock, has_pgespresso_mock,
                                server_txt_version_mock, is_in_recovery_mock,
                                conn_mock):
@@ -556,6 +559,7 @@ class TestPostgres(object):
         # Build a server
         server = build_real_server()
         current_xlog_mock.return_value = 'DE/ADBEEF'
+        current_size_mock.return_value = 497354072
         has_pgespresso_mock.return_value = True
         server_txt_version_mock.return_value = '9.1.0'
         is_in_recovery_mock.return_value = False
@@ -571,7 +575,8 @@ class TestPostgres(object):
             'data_directory': 'dummy_setting',
             'pgespresso_installed': True,
             'server_txt_version': '9.1.0',
-            'wal_level': 'dummy_setting'}
+            'wal_level': 'dummy_setting',
+            'current_size': 497354072}
 
         # Test error management
         server.postgres.close()

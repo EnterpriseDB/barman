@@ -20,6 +20,7 @@ This module contains utility functions used in Barman.
 """
 
 import datetime
+import decimal
 import errno
 import grp
 import json
@@ -220,7 +221,6 @@ class BarmanEncoder(json.JSONEncoder):
     * dates and timestamps if they have a ctime() method.
     * objects that implement the 'to_json' method.
     * binary strings (python 3)
-
     """
     def default(self, obj):
         # If the object implements to_json() method use it
@@ -229,9 +229,14 @@ class BarmanEncoder(json.JSONEncoder):
         # Serialise date and datetime objects using ctime() method
         if hasattr(obj, 'ctime') and callable(obj.ctime):
             return obj.ctime()
-        # Serialise  timedelta objects using human_readable_timedelta()
+        # Serialise timedelta objects using human_readable_timedelta()
         if isinstance(obj, datetime.timedelta):
             return human_readable_timedelta(obj)
+        # Serialise Decimal objects using their string representation
+        # WARNING: When deserialized they will be treat as float values
+        # which have a lower precision
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)
         # Binary strings must be decoded before using them in
         # an unicode string
         if hasattr(obj, 'decode') and callable(obj.decode):
@@ -250,7 +255,7 @@ def fsync_dir(dir_path):
     dir_fd = os.open(dir_path, os.O_DIRECTORY)
     try:
         os.fsync(dir_fd)
-    except OSError, e:
+    except OSError as e:
         # On some filesystem doing a fsync on a directory
         # raises an EINVAL error. Ignoring it is usually safe.
         if e.errno != errno.EINVAL:

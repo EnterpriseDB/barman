@@ -43,7 +43,7 @@ from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
 from barman.postgres import (ConninfoException, PostgreSQLConnection,
                              StreamingConnection)
 from barman.retention_policies import RetentionPolicyFactory
-from barman.utils import human_readable_timedelta
+from barman.utils import human_readable_timedelta, pretty_size
 from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
                                  StreamingWalArchiver)
 
@@ -471,6 +471,11 @@ class Server(object):
         else:
             output.result('status', self.config.name, 'pgespresso',
                           'pgespresso extension', "Not available")
+        if remote_status.get('current_size') is not None:
+            output.result('status', self.config.name,
+                          'current_size',
+                          'Current data size',
+                          pretty_size(remote_status['current_size']))
         if remote_status['data_directory']:
             output.result('status', self.config.name,
                           "data_directory",
