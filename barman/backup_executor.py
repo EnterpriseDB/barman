@@ -280,15 +280,6 @@ class SshBackupExecutor(BackupExecutor):
         Set additional status info for SshBackupExecutor using remote
         commands via Ssh, as well as those defined by the given backup strategy.
         """
-        # If the PostgreSQL version is < 9.4 pg_stat_archiver is not available.
-        # Retrieve the last_archived_wal using the executor
-        remote_status = self.get_remote_status()
-        if 'last_archived_wal' in remote_status:
-            output.result('status', self.config.name,
-                          'last_archived_wal',
-                          'Last archived WAL',
-                          remote_status['last_archived_wal'] or
-                          'No WAL segment shipped yet')
         try:
             # Invoke the status() method for the given strategy
             self.strategy.status()
@@ -322,7 +313,7 @@ class SshBackupExecutor(BackupExecutor):
                     archive_dir = os.path.join(
                         self.server.postgres.get_setting('data_directory'),
                         'pg_xlog', 'archive_status')
-                    out = str(cmd.getoutput('ls', '-tr', archive_dir)[0])
+                    out = str(cmd.getoutput('ls', '-t', archive_dir)[0])
                     for line in out.splitlines():
                         if line.endswith('.done'):
                             name = line[:-5]
