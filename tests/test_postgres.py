@@ -374,13 +374,15 @@ class TestPostgres(object):
         cursor_mock.execute.assert_called_once_with(
             "SELECT *, current_setting('archive_mode')::BOOLEAN "
             "AND (last_failed_wal IS NULL "
+            "OR last_failed_wal LIKE '%.history' "
+            "AND substring(last_failed_wal from 1 for 8) "
+            "<= substring(last_archived_wal from 1 for 8) "
             "OR last_failed_wal <= last_archived_wal) "
             "AS is_archiving, "
             "CAST (archived_count AS NUMERIC) "
             "/ EXTRACT (EPOCH FROM age(now(), stats_reset)) "
             "AS current_archived_wals_per_second "
-            "FROM pg_stat_archiver"
-        )
+            "FROM pg_stat_archiver")
         conn.reset_mock()
 
         # test error management

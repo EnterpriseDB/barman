@@ -354,6 +354,9 @@ class PostgreSQLConnection(PostgreSQL):
             cur.execute(
                 "SELECT *, current_setting('archive_mode')::BOOLEAN "
                 "AND (last_failed_wal IS NULL "
+                "OR last_failed_wal LIKE '%.history' "
+                "AND substring(last_failed_wal from 1 for 8) "
+                "<= substring(last_archived_wal from 1 for 8) "
                 "OR last_failed_wal <= last_archived_wal) "
                 "AS is_archiving, "
                 "CAST (archived_count AS NUMERIC) "
