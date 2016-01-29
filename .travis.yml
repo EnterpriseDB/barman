@@ -9,6 +9,7 @@ env:
   - TOX_ENV=py33
   - TOX_ENV=py34
 install:
-  - pip install --use-mirrors tox
+# virtualenv>=14.0.0 has dropped Python 3.2 support
+  - travis_retry pip install --use-mirrors "virtualenv<14.0.0" "tox>=1.9"
 script:
   - tox -e $TOX_ENV
