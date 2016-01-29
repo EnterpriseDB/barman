@@ -217,9 +217,13 @@ class TestLockFileBehavior(object):
         """
         lock_file_path = tmpdir.join("test_lock_file1")
         # Force te lock to return a 'busy' state
-        _prepare_fnctl_mock(fcntl_mock, [None,
-                                         OSError(errno.EAGAIN, '', ''),
-                                         None])
+        _prepare_fnctl_mock(fcntl_mock, [
+            # first lock attempt: success
+            None,
+            # second lock attempt: failed (already locked)
+            OSError(errno.EAGAIN, '', ''),
+            # Unlocking the first lock
+            None])
         # Acquire a lock
         with LockFile(lock_file_path.strpath):
             # Create another lock and get the pid
@@ -235,8 +239,9 @@ class TestLockFile(object):
     """
     This class test a raw LockFile object.
 
-    It runs without mocking the fcntl.flock() method, so it could end up waiting
-    forever if something goes wrong. To avoid it we use a timeout of one second.
+    It runs without mocking the fcntl.flock() method, so it could end up
+    waiting forever if something goes wrong. To avoid it we use
+    a timeout of one second.
     """
 
     def test_init_with_minimal_params(self):
@@ -294,7 +299,8 @@ class TestLockFile(object):
         Test lock acquisition using direct methods.
 
          * Create a LockFile, and acquire the lock.
-         * Create a second LockFile and try to acquire the lock. It should fail.
+         * Create a second LockFile and try to acquire the lock.
+           It should fail.
          * Release the first lock and try acquiring the lock with the second
            one. It should now succeed.
         """

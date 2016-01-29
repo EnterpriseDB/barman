@@ -121,7 +121,6 @@ class LockFile(object):
         self.fd = None
         self.raise_if_fail = raise_if_fail
         self.wait = wait
-        self.lock_content = None
 
     def acquire(self, raise_if_fail=None, wait=None):
         """
@@ -151,15 +150,15 @@ class LockFile(object):
             if not wait:
                 flags |= fcntl.LOCK_NB
             fcntl.flock(fd, flags)
-            # Truncate the file only after the lock acquisition
-            os.ftruncate(fd, 0)
+            # Once locked, replace the content of the file
+            os.lseek(fd, 0, os.SEEK_SET)
             os.write(fd, ("%s\n" % os.getpid()).encode('ascii'))
+            # Truncate the file at the current position
+            os.ftruncate(fd, os.lseek(fd, 0, os.SEEK_CUR))
             self.fd = fd
             return True
         except (OSError, IOError), e:
             if fd:
-                # Read the lock content for later inspection
-                self.lock_content = os.read(fd, 1024).strip()
                 os.close(fd)  # let's not leak  file descriptors
             if raise_if_fail:
                 if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
@@ -213,9 +212,12 @@ class LockFile(object):
         try:
             self.acquire(raise_if_fail=True, wait=False)
         except LockFileBusy:
-            # read the owner pid from the class attribute
             try:
-                return int(self.lock_content)
+                # Read the lock content and parse the PID
+                # NOTE: We cannot read it in the self.acquire method to avoid
+                # reading the previous locker PID
+                with open(self.filename, 'r') as file_object:
+                    return int(file_object.readline().strip())
             except ValueError as e:
                 # This should not happen
                 raise LockFileParsingError(e)

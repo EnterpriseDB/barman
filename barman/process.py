@@ -23,7 +23,7 @@ import time
 from glob import glob
 
 from barman import output
-from barman.lockfile import ServerWalReceiveLock
+from barman.lockfile import LockFileParsingError, ServerWalReceiveLock
 
 _logger = logging.getLogger(__name__)
 
@@ -73,8 +73,15 @@ class ProcessManager(object):
                 # Check the lock_name against the lock class
                 lock = lock_class.build_if_matches(path)
                 if lock:
-                    # Use the lock to get the owner pid
-                    pid = lock.get_owner_pid()
+                    try:
+                        # Use the lock to get the owner pid
+                        pid = lock.get_owner_pid()
+                    except LockFileParsingError:
+                        _logger.warning(
+                            "Skipping the %s process for server %s: "
+                            "Error reading the PID from lock file '%s'",
+                            task, self.config.name, path)
+                        break
                     # If there is a pid save it in the process list
                     if pid:
                         self.process_list.append(

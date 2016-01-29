@@ -16,7 +16,6 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import errno
-# noinspection PyMethodMayBeStatic
 import os
 
 import mock
@@ -26,6 +25,7 @@ from barman.process import ProcessInfo, ProcessManager
 from testing_helpers import build_config_from_dicts
 
 
+# noinspection PyMethodMayBeStatic
 class TestProcessInfo(object):
     """
     ProcessInfo obj tests
@@ -60,7 +60,8 @@ class TestProcessManager(object):
         # Acquire a lock and initialise the ProjectManager.
         # Expect the ProjectManager to Retrieve the
         # "Running process" identified by the lock
-        with ServerWalReceiveLock(tmpdir.strpath, 'main'):
+        lock = ServerWalReceiveLock(tmpdir.strpath, 'main')
+        with lock:
             pm = ProcessManager(config)
 
         # Test for the length of the process list
@@ -71,14 +72,17 @@ class TestProcessManager(object):
         assert pm.process_list[0].task == 'receive-wal'
         # Read the pid from the lockfile and test id against the ProcessInfo
         # contained in the process_list
-        with open(
-                os.path.join(
-                    tmpdir.strpath,
-                    '.%s-receive-wal.lock' % config.name
-                )
-        ) as lockfile:
+        with open(lock.filename, 'r') as lockfile:
             pid = lockfile.read().strip()
             assert int(pid) == pm.process_list[0].pid
+
+        # Test lock file parse error.
+        # Skip the lock and don't raise any exception.
+        with lock:
+            with open(lock.filename, 'w') as lockfile:
+                lockfile.write("invalid")
+            pm = ProcessManager(config)
+            assert len(pm.process_list) == 0
 
     def test_list(self, tmpdir):
         """
