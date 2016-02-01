@@ -1,3 +1,355 @@
+2016-02-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Prepared version 1.6.0b1
+
+2016-01-29  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix python 3.2 error on travis-ci
+
+	Avoid exceptions during ProcessManager initialization
+	Previously a LockFileParsingError exception could have been raised if a
+	lock file were empty.
+
+	Also, the LockFile class now writes the lock content atomically
+
+2016-01-28  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Remove a spurious error when last_failed_wal is a history file
+	Fixes: SF#77
+
+2016-01-27  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix the 'status' command output with PostgreSQL < 9.4
+	Make sure only one 'Last archived WAL' line is present.
+
+	Fix the command used to retrieve the last archived WAL through
+	ssh when the pg_stat_archiver view is not available.
+
+	Fixes: #25
+
+2016-01-28  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Set version to 1.6.0b1
+
+2016-01-21  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add --stop option to receive-wal command
+	Add the option --stop to the receive-wal command, allowing the user to
+	stop a receive-wal process that running in background for a specific server.
+
+	The implementation is based on the new class ProcessManager that will be
+	used in the future to manage all barman's sub-processes.
+
+2016-01-24  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add current data size of the server in 'barman status'
+
+2016-01-22  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated NEWS with current code
+
+2016-01-19  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Improve archive-wal robustness and log messages
+	Display clearer error messages when discarding a WAL file.
+	Also, WAL files that are older than the first backup are
+	now moved in the 'errors' directory: FAILED backups are now
+	ignored in this process.
+
+	TODO: Add a method to check the presence of files in the error
+	directory.
+
+	Fixes: #24
+
+2016-01-21  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Move archive-wal code into the wal_archiver module
+
+2016-01-17  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Reorder options in barman.5 man page
+
+2016-01-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add include sorting check in tox flake8 environment
+
+2015-12-05  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Implement pygzip and pybzip2 compressors
+	The new pygzip and pybzip2 compressors are implemented using Python's
+	internal modules for compressing and decompressing gzip and bzip2 files.
+	This avoids the cost of forking and executing the shell.
+
+	Initial idea by Christoph Moench-Tegeder <cmt@2ndquadrant.de>
+
+2016-01-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update copyright years to 2016
+
+2016-01-08  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add 'receive-wal' cron integration
+	Add integration of the new command 'receive-wal' during the execution of
+	the cron command.
+
+	If the option 'streaming_archiver' is on, the command 'receive-wal' is
+	automatically executed as subprocess by the cron command, allowing
+	Barman to receive WAL files from PostgreSQL using the native streaming
+	protocol.
+
+	TODO: Implement a way to interrupt a running streaming process
+
+2015-12-09  Stefano Zacchiroli  <zack@upsilon.cc>
+
+	Add support for the pigz compressor
+	Pigz on-disk format is the same of gzip, but (de)compression is much
+	faster due to the usage of CPU parallelism.
+
+	For write-intense workloads pigz vs gzip might make the difference,
+	between struggling to keep up with archiving incoming WALs and being
+	able to keep up easily.
+
+2016-01-09  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add check() method in WalArchiver classes
+	Move code from the server.check_postgres() method in
+	the WalArchiver class, so that each implementation (FileWalArchiver
+	and StreamingArchiver) perform their specific checks.
+	Created the RemoteStatusMixin class that implements a cacheable
+	version of remote status information.
+
+	Currently it is only used by the WalArchiver class tree.
+	TODO: propagate it to all other classes implementing the
+	get_remote_status() function in a later commit.
+
+2016-01-08  Christoph Moench-Tegeder  <christoph@2ndquadrant.de>
+
+	Permit `archive_mode=always` for 9.5 servers
+	PostgreSQL 9.5 introduces archive_mode=always. Even though Barman's
+	current framework for checks does not allow yet to correctly monitor
+	archiving from standby servers, Barman now allows users to set
+	`archive_mode` to `always`, provided that archiving happens from the master.
+
+2016-01-08  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix server creation and output of check command
+	Modified the init method of Server Object, managing errors/exception
+	using the msg_list attribute of the configuration.
+	Modified the check command output.
+
+2016-01-04  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Rename get_first_backup and get_last_backup methods
+	Renamed get_first_backup() and get_last_backup() methods of the
+	Server and BackupManager classes, respectively into get_first_backup_id()
+	and get_last_backup_id(), for coherence and code clarity.
+	Now the fact that the method returns the ID of a backup instead
+	of a BackupInfo object has been made explicit.
+
+	Fix management of backup id during backup deletion
+	Fix an error that prevents the deletion of an existing
+	backup while a backup on the same server is in progress.
+
+	Fixes #22
+
+2015-12-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Use isort python package to keep imports ordered
+
+2015-12-14  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Implement `receive-wal` command
+	The `receive-wal` command receives the stream of transaction logs for a
+	server. The process relies on `pg_receivexlog` to receive WAL files from
+	a PostgreSQL server through the streaming protocol.
+	It is a foreground process which lasts until it receives a SIGINT.
+
+2015-12-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add support for long running Commands
+	The Command class now supports the execution of long running
+	subprocesses, by passing the subprocess output and error streams
+	to a handler, line by line.
+
+	Remove spurious newlines from log lines
+	Error messages coming from libpq often terminate with a newline.
+	Always call strip() on strings that have been extracted from
+	exceptions before logging them.
+
+	Make get_remote_status methods behaviour coherent
+	A 'get_remote_status' method should never raise an exception in case of
+	error. The expected behaviour is to set missing values to None in the
+	resulting dictionary.
+
+2015-12-29  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Fix exception when streaming connection is unavailable
+	Previously, when 'streaming_archiver' was on and pg_receivexlog correctly
+	installed, Barman would raise an AttributeError exception when streaming
+	connection to PostgreSQL was unavailable, as it could not detect the
+	server version.
+
+	This commit fixes the error by modifying the management of a failed
+	connection to PostgreSQL through streaming connection. It also adds
+	an unit test for this scenario, as well as hints for the user during
+	`barman check` suggesting a possible streaming connection error.
+
+2015-12-28  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Propagate "-c" option to any Barman subprocess
+	The "-c" option lets users specify a custom location for the configuration
+	file. It must be propagated to every Barman subprocess for consistency
+	of behaviour.
+
+	Fixes #19
+
+2015-12-24  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Update documentation about WAL archiving
+
+2015-12-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Manage WAL duplicates in `archive-wal` command
+	In case a WAL file is archived twice, `archive-wal` will check
+	if the new file is identical to the already archived one (compressed
+	WAL files will be decompressed and checked). If yes, the second
+	file is discarded, otherwise it is saved in the 'errors' directory.
+
+	Accept compressed WAL files in incoming directory
+	In case a WAL file in the incoming directory is already compressed
+	using a known algorithm, archive it as is.
+
+	Add streaming support to 'archive-wal' command
+	The `archive-wal` command now looks for both archived WAL files
+	(shipped from PostgreSQL through its `archive_command`) and streamed
+	ones (via the `receive-wal` command).
+
+2015-12-24  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add sleep time option to `barman-wal-restore` script
+	Introduce the '-s seconds' option to the barman-wal-restore script.
+	After a failure of the get-wal command, the script will sleep for
+	the specified amount of seconds (default 0, no wait) before
+	exiting the restore_command from PostgreSQL.
+
+	Closes #7
+
+2015-12-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add `streaming_wals_directory` and `errors_directory` options
+
+	Make sure WAL archiving is atomic. Fixes: #9,#12
+
+2015-12-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Get rid of pytest warnings from pytest-catchlog
+
+2015-12-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Restore compatibility with PostgreSQL 8.3
+	On PostgreSQL older than 8.4, disable the query that detects those
+	settings coming from an included file - as the required pg_setting
+	field was only included in that release.
+
+2015-11-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fixes possible unhandled exceptions in barman.postgres
+	Improve the testing coverage of barman.postgres module.
+
+2015-12-06  Christoph Moench-Tegeder  <cmt@2ndquadrant.com>
+
+	Remove redundant sete[gu]id() calls
+	Python's documentation of the os.setuid/os.setgid calls is
+	oversimplified to the point of being wrong. Under the hood,
+	the setuid(2)/setgid(2) functions are used, thus making these
+	calls as POSIX compliant as the underlying operating system.
+	As barman won't be installed SUID (it's an interpreter file),
+	effective, real and saved user id should always be the same.
+	That way, the only reason to use setuid() family calls at all
+	is for a privileged user (root) to change over to the barman
+	(unprivileged) user. According to POSIX.1-2013, the setuid()
+	call changes all three (real, effective and saved) uids if
+	called by a privileged user (the same holds for setgid() and
+	the group ids). In this construct, the additional seti[gu]id
+	calls are redundant no-ops and can be removed.
+
+2015-11-27  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add support for 'streaming_archiver' option
+	Add a global/server boolean option called 'streaming_archiver' which
+	enables the use of the PostgreSQL's streaming protocol to receive
+	transaction logs from a server.
+	If set to 'on', Barman expects to find `pg_receivexlog` in the PATH
+	(see `path` option) and that streaming connection for the server is
+	properly working. Subsequently, it activates both proper connection
+	checks and management of WAL files.
+
+	Refactored the code to use a new class, the StreamingWalArchiver,
+	which is responsible for managing WAL files using a streaming
+	connection.
+
+	Add support for 'archiver' option
+	Add a global/server boolean option called 'archiver' which
+	enables continuous WAL archiving (through log shipping using
+	PostgreSQL's archive_command) for a specific server.
+	If set the 'true' (default), Barman expects that PostgreSQL
+	continously deposits WAL files in the 'incoming' directory
+	of that server, and subsequently activates proper checks and
+	management.
+
+	Refactored the code to use a new class, the FileWalArchiver.
+	The class is in charge of both archival and compression of WAL files.
+	This is the first step towards the implementation of streaming
+	archiving support.
+
+2015-11-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Reorder constants in barman.config module
+
+2015-11-20  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add `streaming_conninfo` server option
+	Added the `streaming_conninfo` option to Barman configuration.
+	This option (with server scope only), adds the support in Barman
+	for a streaming replication connection to a PostgreSQL server.
+
+	Added also a simple check for the barman check command, that tests
+	that the streaming connection to PostgreSQL is properly working.
+
+2015-11-13  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add support for `path_prefix` configuration option
+	The `path_prefix` global/server option can contain one
+	or more absolute paths, separated by colon, where Barman
+	looks for executable files.
+
+	The paths specified in `path_prefix` are tried before the
+	ones specified in `PATH` environment variable.
+
+2015-11-10  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Refactored access to PostgreSQL
+	Created the 'postgres' module which is responsible for any communication
+	with a PostgreSQL server, wrapping all connection and query management
+	activities. This module is the only point of access to PostgreSQL.
+
+2015-11-06  Stefano Bianucci  <stefano.bianucci@2ndquadrant.it>
+
+	Rename `copy_method` configuration key to `backup_method`
+
+2015-11-03  Giuseppe Broccolo  <giuseppe.broccolo@2ndQuadrant.it>
+
+	Create an implicit restore point at the end of a backup
+	At the end of a backup, if the PostgreSQL version is 9.1 or newer,
+	create an implicit restore point using the pg_create_restore_point()
+	function.
+
+2015-11-11  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Set version to 1.6.0a1
+
 2015-11-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
