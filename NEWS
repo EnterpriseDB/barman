@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
-Version 1.6.0b1 - 28 Jan 2016
+Version 1.6.0b1 - 01 Feb 2016
 
 -   Support for streaming replication connection through the
     streaming_conninfo server option
