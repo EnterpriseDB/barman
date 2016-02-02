@@ -1091,14 +1091,13 @@ class Server(object):
                     self.config.name):
                 # Output and release the lock immediately
                 output.info("Starting WAL archiving for server %s",
-                            self.config.name)
+                            self.config.name, log=False)
 
             # Init a Barman sub-process object
             archive_process = BarmanSubProcess(
                 subcommand='archive-wal',
                 config=barman.__config__.config_file,
                 args=[self.config.name])
-            _logger.debug("Starting subprocess for WAL ARCHIVE")
             # Launch the sub-process
             archive_process.execute()
 
@@ -1131,15 +1130,13 @@ class Server(object):
                 # Output and release the lock immediately
                 output.info("Starting streaming archiver "
                             "for server %s",
-                            self.config.name)
+                            self.config.name, log=False)
 
             # Start a new receive-wal process
             receive_process = BarmanSubProcess(
                 subcommand='receive-wal',
                 config=barman.__config__.config_file,
                 args=[self.config.name])
-            _logger.debug("Starting subprocess for "
-                          "STREAMING ARCHIVER")
             # Launch the sub-process
             receive_process.execute()
 
@@ -1189,7 +1186,7 @@ class Server(object):
                          "barman configuration file")
             return
 
-        output.debug("Starting receive-wal for server %s", self.config.name)
+        output.info("Starting receive-wal for server %s", self.config.name)
         try:
             # Take care of the receive-wal lock.
             # Only one receiving process per server is permitted
