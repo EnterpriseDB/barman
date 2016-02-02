@@ -654,10 +654,10 @@ Barman is able to recover a backup on a remote server through the
 If this option is specified, barman uses `COMMAND` to connect to a
 remote host.
 
-Here is an example of a command that start recovery on a remote server:
+Here is an example of a command that starts recovery on a remote server:
 
 ``` bash
-barman@backup$ barman recover --remote-ssh-command="ssh user@remotehost" 
+barman@backup$ barman recover --remote-ssh-command="ssh user@remotehost" \
 main 20110920T185953 /path/to/recover/dir
 ```
 
