@@ -32,7 +32,6 @@ import barman
 import barman.xlog as xlog
 from barman import output
 from barman.backup import BackupManager
-from barman.backup_executor import SshCommandException
 from barman.command_wrappers import BarmanSubProcess
 from barman.compression import identify_compression
 from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
@@ -160,6 +159,12 @@ class Server(object):
         self.config = config
         self.path = self._build_path(self.config.path_prefix)
         self.process_manager = ProcessManager(self.config)
+        self.backup_manager = BackupManager(self)
+        self.streaming = None
+        self.enforce_retention_policies = False
+        self.postgres = None
+        self.streaming = None
+
         try:
             self.postgres = PostgreSQLConnection(config)
         # If the PostgreSQLConnection creation fails, disable the Server
@@ -167,45 +172,45 @@ class Server(object):
             self.config.disabled = True
             self.config.msg_list.append(str(e).strip())
 
-        self.streaming = None
-
-        try:
-            self.backup_manager = BackupManager(self)
-        # If the BackupManage raises a SshCommandException disable the Server
-        # TODO: Evaluate the usage of a more generic exception here
-        except SshCommandException as e:
-            self.config.disabled = True
-            self.config.msg_list.append(str(e).strip())
-
-        self.enforce_retention_policies = False
-
         # Order of items in self.archivers list is important!
         # The files will be archived in that order.
         self.archivers = []
-        if self.config.archiver:
-            self.archivers.append(FileWalArchiver(self.backup_manager))
-        else:
-            # Currently a server MUST have archiver set to on,
-            # otherwise disable the server.
-            self.config.disabled = True
-            self.config.msg_list.append("The option archiver = off "
-                                        "is not yet supported")
-
-        if self.config.streaming_archiver:
-            try:
-                self.streaming = StreamingConnection(config)
-                self.archivers.append(StreamingWalArchiver(
-                    self.backup_manager))
-            # If the StreamingConnection creation fails, disable the Server
-            except ConninfoException as e:
+        try:
+            if self.config.archiver:
+                self.archivers.append(FileWalArchiver(self.backup_manager))
+            else:
+                # Currently a server MUST have archiver set to on,
+                # otherwise disable the server.
                 self.config.disabled = True
-                self.config.msg_list.append(str(e).strip())
-
+                self.config.msg_list.append("The option archiver = off "
+                                            "is not yet supported")
+        except AttributeError as e:
+            _logger.debug(e)
+            self.config.disabled = True
+            self.config.msg_list.append('Unable to initialise the '
+                                        'file based archiver')
+        try:
+            if self.config.streaming_archiver:
+                try:
+                    self.streaming = StreamingConnection(config)
+                    self.archivers.append(StreamingWalArchiver(
+                        self.backup_manager))
+                # If the StreamingConnection creation fails, disable the Server
+                except ConninfoException as e:
+                    self.config.disabled = True
+                    self.config.msg_list.append(str(e).strip())
+        except AttributeError as e:
+            _logger.debug(e)
+            self.config.disabled = True
+            self.config.msg_list.append('Unable to initialise the '
+                                        'streaming archiver')
         if len(self.archivers) < 1:
             self.config.disabled = True
             self.config.msg_list.append(
                 "Missing archiver for server %s. "
-                "Enable 'archiver' and/or 'streaming_archiver'" % config.name)
+                "Enable at least the 'archiver' option in "
+                "the server configuration"
+                % config.name)
 
         # Set bandwidth_limit
         if self.config.bandwidth_limit:
@@ -343,7 +348,7 @@ class Server(object):
         """
         # Take the status of the remote server
         remote_status = self.get_remote_status()
-        if remote_status['server_txt_version']:
+        if remote_status.get('server_txt_version'):
             check_strategy.result(self.config.name, 'PostgreSQL', True)
         else:
             check_strategy.result(self.config.name, 'PostgreSQL', False)
@@ -566,14 +571,17 @@ class Server(object):
 
         :rtype: dict[str, None|str]
         """
-        result = self.postgres.get_remote_status()
-        # Merge additional status for a streaming connection
+        result = {}
+        # Merge status for a postgres connection
+        if self.postgres:
+            result.update(self.postgres.get_remote_status())
+        # Merge status for a streaming connection
         if self.streaming:
             result.update(self.streaming.get_remote_status())
-        # Merge additional status for each archiver
+        # Merge status for each archiver
         for archiver in self.archivers:
             result.update(archiver.get_remote_status())
-        # Merge additional status defined by the BackupManager
+        # Merge status defined by the BackupManager
         result.update(self.backup_manager.get_remote_status())
         return result
 

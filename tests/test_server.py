@@ -46,7 +46,34 @@ class TestServer(object):
         """
         Basic initialization test with minimal parameters
         """
-        Server(build_config_from_dicts().get_server('main'))
+        server = Server(build_config_from_dicts().get_server('main'))
+        assert not server.config.disabled
+
+    def test_bad_init(self):
+        """
+        Check the server is buildable with an empty configuration
+        """
+        server = Server(build_config_from_dicts(
+            main_conf={
+                'conninfo': '',
+                'ssh_command': '',
+            }
+        ).get_server('main'))
+        assert server.config.disabled
+
+    def test_check_config_missing(self):
+        """
+        Verify the check method can be called on an empty configuration
+        """
+        server = Server(build_config_from_dicts(
+            main_conf={
+                'conninfo': '',
+                'ssh_command': '',
+            }
+        ).get_server('main'))
+        check_strategy = CheckOutputStrategy()
+        server.check(check_strategy)
+        assert check_strategy.has_error
 
     @patch('barman.server.os')
     def test_xlogdb_with_exception(self, os_mock, tmpdir):

@@ -30,7 +30,7 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.backup_executor import RsyncBackupExecutor
+from barman.backup_executor import RsyncBackupExecutor, SshCommandException
 from barman.command_wrappers import DataTransferFailure
 from barman.compression import CompressionIncompatibility, CompressionManager
 from barman.config import BackupOptions
@@ -72,7 +72,12 @@ class BackupManager(object):
         self.config = server.config
         self._backup_cache = None
         self.compression_manager = CompressionManager(self.config, server.path)
-        self.executor = RsyncBackupExecutor(self)
+        self.executor = None
+        try:
+            self.executor = RsyncBackupExecutor(self)
+        except SshCommandException as e:
+            self.config.disabled = True
+            self.config.msg_list.append(str(e).strip())
 
     def get_available_backups(self, status_filter=DEFAULT_STATUS_FILTER):
         """
@@ -573,7 +578,8 @@ class BackupManager(object):
                 no_backups, self.config.minimum_redundancy))
 
         # Execute additional checks defined by the BackupExecutor
-        self.executor.check(check_strategy)
+        if self.executor:
+            self.executor.check(check_strategy)
 
     def status(self):
         """
@@ -610,7 +616,8 @@ class BackupManager(object):
                               self.config.minimum_redundancy))
 
         # Output additional status defined by the BackupExecutor
-        self.executor.status()
+        if self.executor:
+            self.executor.status()
 
     def get_remote_status(self):
         """
@@ -621,7 +628,10 @@ class BackupManager(object):
 
         :rtype: dict[str, None|str]
         """
-        return self.executor.get_remote_status()
+        if self.executor:
+            return self.executor.get_remote_status()
+        else:
+            return {}
 
     def rebuild_xlogdb(self):
         """

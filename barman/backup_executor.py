@@ -302,7 +302,8 @@ class SshBackupExecutor(BackupExecutor):
         # the remote server and executing an 'ls' command. Only
         # for pre-9.4 versions of PostgreSQL.
         try:
-            if self.server.postgres.server_version < 90400:
+            if self.server.postgres and \
+                    self.server.postgres.server_version < 90400:
                 remote_status['last_archived_wal'] = None
                 if self.server.postgres.get_setting('data_directory') and \
                         self.server.postgres.get_setting('archive_command'):
@@ -717,14 +718,15 @@ class ExclusiveBackupStrategy(BackupStrategy):
              of the results of the various checks
         """
         # Make sure PostgreSQL is not in recovery (i.e. is a master)
-        is_in_recovery = self.executor.server.postgres.is_in_recovery
-        if not is_in_recovery:
-            check_strategy.result(
-                self.executor.config.name, 'not in recovery', True)
-        else:
-            check_strategy.result(
-                self.executor.config.name, 'not in recovery', False,
-                'cannot perform exclusive backup on a standby')
+        if self.executor.server.postgres:
+            is_in_recovery = self.executor.server.postgres.is_in_recovery
+            if not is_in_recovery:
+                check_strategy.result(
+                    self.executor.config.name, 'not in recovery', True)
+            else:
+                check_strategy.result(
+                    self.executor.config.name, 'not in recovery', False,
+                    'cannot perform exclusive backup on a standby')
 
 
 class ConcurrentBackupStrategy(BackupStrategy):

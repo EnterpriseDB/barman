@@ -756,17 +756,17 @@ def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
             # Unknown server
             server_dict[server] = None
         else:
+            server_object = Server(conf)
             # Skip inactive servers, if requested
-            if skip_inactive and not conf.active:
+            if skip_inactive and not server_object.config.active:
                 output.info("Skipping inactive server '%s'"
                             % conf.name)
                 continue
             # Skip disabled servers, if requested
-            if skip_disabled and conf.disabled:
+            if skip_disabled and server_object.config.disabled:
                 output.info("Skipping temporarily disabled server '%s'"
                             % conf.name)
                 continue
-            server_object = Server(conf)
             server_dict[server] = server_object
 
     return server_dict

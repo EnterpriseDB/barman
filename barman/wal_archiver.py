@@ -387,6 +387,9 @@ class FileWalArchiver(WalArchiver):
         result = dict.fromkeys(
             ['archive_mode', 'archive_command'], None)
         postgres = self.backup_manager.server.postgres
+        # If Postgres is not available we cannot detect anything
+        if not postgres:
+            return result
         # Query the database for 'archive_mode' and 'archive_command'
         result['archive_mode'] = postgres.get_setting('archive_mode')
         result['archive_command'] = postgres.get_setting('archive_command')
@@ -490,12 +493,14 @@ class StreamingWalArchiver(WalArchiver):
         # Check the server version from the streaming
         # connection
         streaming = self.backup_manager.server.streaming
-        server_txt_version = streaming.server_txt_version
+        server_txt_version = None
+        if streaming:
+            server_txt_version = streaming.server_txt_version
         if server_txt_version:
             pg_version = Version(utils.simplify_version(server_txt_version))
         else:
             # No log here, it has already been logged in the
-            # StreamingConnection class
+            # StreamingConnection class or during the Server initialization
             pg_version = None
 
         # Detect a pg_receivexlog executable

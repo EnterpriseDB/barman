@@ -61,7 +61,13 @@ class PostgreSQL(object):
         self._conn = None
         # Build a dictionary with connection info parameters
         # This is mainly used to speed up search in conninfo
-        self._conn_parameters = self.parse_dsn(conninfo)
+        try:
+            self._conn_parameters = self.parse_dsn(conninfo)
+        except (ValueError, TypeError) as e:
+            _logger.debug(e)
+            raise PostgresConnectionError('Cannot connect to postgres: "%s" '
+                                          'is not a valid connection string' %
+                                          conninfo)
 
     @staticmethod
     def parse_dsn(dsn):

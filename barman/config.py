@@ -452,7 +452,7 @@ class ServerConfig(object):
                 value = self.invoke_parser(key, source, value, new_value)
             # An empty string is a None value (bypassing inheritance
             # from global configuration)
-            if value is not None and value == '':
+            if value is not None and value == '' or value == 'None':
                 value = None
             setattr(self, key, value)
 
