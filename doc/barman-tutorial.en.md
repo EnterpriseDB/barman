@@ -461,6 +461,19 @@ From version 1.6.0, Barman improves its Recovery Point Objective (RPO)
 performance by allowing users to add, on top of the standard `archive_command`
 strategy, continuous WAL streaming from a PostgreSQL server.
 
+> **Important:**
+> Currently, WAL streaming is only supported in Barman as an additional
+> method for continuous archiving of transaction logs. Future versions of
+> Barman will allow users of PostgreSQL 9.4 and above to rely exclusively
+> on WAL streaming (and abandon the standard `archive_command` method),
+> thanks to _replication slots_.
+> Following our incremental development approach, version 1.6.0 aims to
+> gradually introduce support of this feature in PostgreSQL Disaster Recovery
+> solutions based on Barman. At the same time, users' feedback and production
+> adoption will allow us to improve future versions and implement a
+> "streaming-only" method of WAL archiving that is based on
+> transparent management of replication slots in Barman.
+
 Barman relies on [`pg_receivexlog`] [25], a utility that is available
 from PostgreSQL 9.2 which exploits the native streaming replication protocol
 and continuously receives transaction logs from a PostgreSQL
@@ -497,19 +510,6 @@ barman receive-wal <server_name>
 Transaction logs are streamed directly in the directory specified by the
 `streaming_wal_directory` configuration option and are then archived
 by the `archive-wal` command.
-
-> **Important:**
-> Currently, WAL streaming is only supported in Barman as an additional
-> method for continuous archiving of transaction logs. Future versions of
-> Barman will allow users of PostgreSQL 9.4 and above to rely exclusively
-> on WAL streaming (and abandon the standard `archive_command` method),
-> thanks to _replication slots_.
-> Following our incremental development approach, version 1.6.0 aims to
-> gradually introduce support of this feature in PostgreSQL Disaster Recovery
-> solutions based on Barman. At the same time, users' feedback and production
-> adoption will allow us to improve future versions and implement a
-> "streaming-only" method of WAL archiving that is based on
-> transparent management of replication slots in Barman.
 
 ##### Stopping a receive-wal process for a server
 

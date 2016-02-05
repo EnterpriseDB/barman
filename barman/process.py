@@ -138,7 +138,7 @@ class ProcessManager(object):
         # killed successfully, otherwise is still alive.
         for counter in xrange(retries):
             try:
-                _logger.debug("Sending SIG_DFL to PID %s",
+                _logger.debug("Checking with SIG_DFL if PID %s is still alive",
                               process_info.pid)
                 os.kill(process_info.pid, signal.SIG_DFL)
                 _logger.debug("os.kill call succeeded")

@@ -605,20 +605,31 @@ class StreamingWalArchiver(WalArchiver):
                 'pg_receivexlog version not compatible with '
                 'PostgreSQL server version')
 
+        # Ensure the presence of the destination directory
+        mkpath(self.config.streaming_wals_directory)
+
         # Make sure we are not wasting precious PostgreSQL resources
         self.server.postgres.close()
         self.server.streaming.close()
 
         _logger.info('Activating WAL archiving through streaming protocol')
         try:
+            output_handler = PgReceiveXlog.make_output_handler(
+                self.config.name + ': ')
             receive = PgReceiveXlog(remote_status['pg_receivexlog_path'],
                                     self.config.streaming_conninfo,
-                                    self.config.streaming_wals_directory)
+                                    self.config.streaming_wals_directory,
+                                    out_handler=output_handler,
+                                    err_handler=output_handler)
             receive.execute()
         except CommandFailedException as e:
             _logger.error(e)
             raise ArchiverFailure("pg_receivexlog exited with an error. "
                                   "Check the logs for more information.")
+        except KeyboardInterrupt:
+            # This is a normal termination, so there is nothing to do beside
+            # informing the user.
+            output.info('SIGINT received. Terminate gracefully.')
 
     def get_next_batch(self):
         """

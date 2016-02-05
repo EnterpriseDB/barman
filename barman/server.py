@@ -1085,11 +1085,14 @@ class Server(object):
                                 self.config.name):
                 # WAL management and maintenance
                 if wals:
-                    # archive-wal sub-process
+                    # Execute the archive-wal sub-process
                     self.cron_archive_wal()
                     if self.config.streaming_archiver:
-                        # receive-wal sub-process
+                        # Spawn the receive-wal sub-process
                         self.cron_receive_wal()
+                    else:
+                        # Terminate the receive-wal sub-process if present
+                        self.kill('receive-wal', fail_if_not_present=False)
                 # Retention policies execution
                 if retention_policies:
                     self.backup_manager.cron_retention_policy()
@@ -1212,7 +1215,7 @@ class Server(object):
         # Execute the receive-wal command only if streaming_archiver
         # is enabled
         if not self.config.streaming_archiver:
-            output.error("Unable to start receive-wal process:"
+            output.error("Unable to start receive-wal process: "
                          "streaming_archiver option set to 'off' in "
                          "barman configuration file")
             return
@@ -1370,11 +1373,14 @@ class Server(object):
         sys_path = os.environ.get('PATH')
         return "%s%s%s" % (path_prefix, os.pathsep, sys_path)
 
-    def kill(self, task):
+    def kill(self, task, fail_if_not_present=True):
         """
         Given the name of a barman sub-task type,
         attempts to stop all the processes
+
         :param string task: The task we want to stop
+        :param bool fail_if_not_present: Display an error when the process
+            is not present (default: True)
         """
         process_list = self.process_manager.list(task)
         for process in process_list:
@@ -1386,5 +1392,7 @@ class Server(object):
                 output.error('Cannot terminate process %s(%s)',
                              process.task, process.pid)
                 return
-        output.error('Termination of %s failed: no such process for server %s',
-                     task, self.config.name)
+        if fail_if_not_present:
+            output.error('Termination of %s failed: '
+                         'no such process for server %s',
+                         task, self.config.name)

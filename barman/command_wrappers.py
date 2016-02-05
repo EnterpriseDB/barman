@@ -340,9 +340,10 @@ class Command(object):
                     # Remove the stream from the list of valid processors
                     processors.remove(stream)
 
-    def make_logging_handler(self, level, prefix=None):
+    @classmethod
+    def make_logging_handler(cls, level, prefix=None):
         """
-        Build an handler function which logs every line it receives.
+        Build a handler function that logs every line it receives.
 
         The resulting function logs its input at the specified level
         with an optional prefix.
@@ -351,7 +352,7 @@ class Command(object):
         :param prefix: An optional prefix to prepend to the line
         :return: handler function
         """
-        class_logger = logging.getLogger(self.__class__.__name__)
+        class_logger = logging.getLogger(cls.__name__)
 
         def handler(line):
             if line:
@@ -359,6 +360,31 @@ class Command(object):
                     class_logger.log(level, "%s%s", prefix, line)
                 else:
                     class_logger.log(level, "%s", line)
+        return handler
+
+    @staticmethod
+    def make_output_handler(prefix=None):
+        """
+        Build a handler function which prints every line it receives.
+
+        The resulting function prints (and log it at INFO level) its input
+        with an optional prefix.
+
+        :param prefix: An optional prefix to prepend to the line
+        :return: handler function
+        """
+
+        # Import the output module inside the function to avoid circular
+        # dependency
+        from barman import output
+
+        def handler(line):
+            if line:
+                if prefix:
+                    output.info("%s%s", prefix, line)
+                else:
+                    output.info("%s", line)
+
         return handler
 
     def enable_signal_forwarding(self, signal_id):

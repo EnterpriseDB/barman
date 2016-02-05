@@ -248,8 +248,9 @@ streaming_archiver
     to find `pg_receivexlog` in the PATH (see `path` option) and that streaming
     connection for the server is working. This activates connection
     checks as well as management (including compression) of WAL files.
-    If set to `off` (default) barman will rely ony on continuous archiving
-    for a server WAL archive operations. Global/Server.
+    If set to `off` (default) barman will rely only on continuous archiving
+    for a server WAL archive operations, eventually terminating any running
+    `pg_receivexlog` for the server. Global/Server.
 
 streaming_conninfo
 :   Connection string used by Barman to connect to the Postgres server via

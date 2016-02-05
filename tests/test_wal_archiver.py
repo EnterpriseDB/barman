@@ -425,8 +425,12 @@ class TestStreamingWalArchiver(object):
 
     @patch("barman.wal_archiver.StreamingWalArchiver.get_remote_status")
     @patch("barman.wal_archiver.PgReceiveXlog")
-    def test_receive_wal(self, receivexlog_mock, remote_mock):
-        backup_manager = build_backup_manager()
+    def test_receive_wal(self, receivexlog_mock, remote_mock, tmpdir):
+        backup_manager = build_backup_manager(
+            main_conf={
+                'backup_directory': tmpdir
+            }
+        )
         backup_manager.server.streaming.server_txt_version = "9.4.0"
         backup_manager.server.streaming.get_remote_status.return_value = {
             "streaming_supported": True
@@ -443,7 +447,9 @@ class TestStreamingWalArchiver(object):
         receivexlog_mock.assert_called_once_with(
             'fake/path',
             'host=pg01.nowhere user=postgres port=5432',
-            '/some/barman/home/main/streaming'
+            tmpdir.join('streaming').strpath,
+            out_handler=ANY,
+            err_handler=ANY,
         )
         receivexlog_mock.return_value.execute.assert_called_once_with()
 

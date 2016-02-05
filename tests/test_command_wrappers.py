@@ -559,7 +559,7 @@ class TestCommandPipeProcessorLoop(object):
     @mock.patch('barman.command_wrappers.select.select')
     @mock.patch('barman.command_wrappers.os.read')
     def test_ppl(self, read_mock, select_mock):
-        # Simulate teh two files
+        # Simulate the two files
         stdout = mock.Mock(name='pipe.stdout')
         stdout.fileno.return_value = 65
         stderr = mock.Mock(name='pipe.stderr')
