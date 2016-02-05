@@ -26,6 +26,7 @@ from mock import Mock, patch
 
 import barman.utils
 from barman.command_wrappers import DataTransferFailure
+from barman.compression import CompressionIncompatibility
 from barman.infofile import BackupInfo
 from testing_helpers import build_backup_manager, build_test_backup_info
 
@@ -484,3 +485,112 @@ class TestBackup(object):
 
         # Check that the backup returned is None
         assert backup_manager.get_backup(b_info.backup_id) is None
+
+    def test_check_redundancy(self, tmpdir):
+        """
+        Test the check method
+        """
+        # Setup temp dir and server
+        # build a backup_manager and setup a basic configuration
+        backup_manager = build_backup_manager(
+            name='TestServer',
+            global_conf={
+                'barman_home': tmpdir.strpath,
+                'minimum_redundancy': "1"
+            })
+        backup_manager.executor = mock.MagicMock()
+
+        # Test the unsatisfied minimum_redundancy option
+        strategy_mock = mock.MagicMock()
+        backup_manager.check(strategy_mock)
+        # Expect a failure from the method
+        strategy_mock.result.assert_called_with(
+            'TestServer',
+            'minimum redundancy requirements',
+            False,
+            'have 0 backups, expected at least 1'
+        )
+        # Test the satisfied minimum_redundancy option
+        b_info = build_test_backup_info(
+            backup_id='fake_backup_id',
+            server=backup_manager.server,
+        )
+        b_info.save()
+
+        strategy_mock.reset_mock()
+        backup_manager._load_backup_cache()
+        backup_manager.check(strategy_mock)
+        # Expect a success from the method
+        strategy_mock.result.assert_called_with(
+            'TestServer',
+            'minimum redundancy requirements',
+            True,
+            'have 1 backups, expected at least 1'
+        )
+
+        # Test for no failed backups
+        strategy_mock.reset_mock()
+        backup_manager._load_backup_cache()
+        backup_manager.check(strategy_mock)
+        # Expect a failure from the method
+        strategy_mock.result.assert_any_call(
+            'TestServer',
+            'failed backups',
+            True,
+            'there are 0 failed backups'
+        )
+
+        # Test for failed backups in catalog
+        b_info = build_test_backup_info(
+            backup_id='failed_backup_id',
+            server=backup_manager.server,
+            status=BackupInfo.FAILED,
+        )
+        b_info.save()
+        strategy_mock.reset_mock()
+        backup_manager._load_backup_cache()
+        backup_manager.check(strategy_mock)
+        # Expect a failure from the method
+        strategy_mock.result.assert_any_call(
+            'TestServer',
+            'failed backups',
+            False,
+            'there are 1 failed backups'
+        )
+
+        # Test unknown compression
+        backup_manager.config.compression = 'test_compression'
+        backup_manager.compression_manager.check.return_value = False
+        strategy_mock.reset_mock()
+        backup_manager.check(strategy_mock)
+        # Expect a failure from the method
+        strategy_mock.result.assert_any_call(
+            'TestServer',
+            'compression settings',
+            False
+        )
+
+        # Test valid compression
+        backup_manager.config.compression = 'test_compression'
+        backup_manager.compression_manager.check.return_value = True
+        strategy_mock.reset_mock()
+        backup_manager.check(strategy_mock)
+        # Expect a success from the method
+        strategy_mock.result.assert_any_call(
+            'TestServer',
+            'compression settings',
+            True
+        )
+        # Test failure retrieving a compressor
+        backup_manager.config.compression = 'test_compression'
+        backup_manager.compression_manager.check.return_value = True
+        backup_manager.compression_manager.get_compressor.side_effect = \
+            CompressionIncompatibility()
+        strategy_mock.reset_mock()
+        backup_manager.check(strategy_mock)
+        # Expect a failure from the method
+        strategy_mock.result.assert_any_call(
+            'TestServer',
+            'compression settings',
+            False
+        )

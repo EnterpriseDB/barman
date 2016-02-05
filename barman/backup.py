@@ -566,10 +566,20 @@ class BackupManager(RemoteStatusMixin):
             check_strategy.result(self.config.name,
                                   'compression settings', status)
 
+        # Failed backups check
+        failed_backups = self.get_available_backups((BackupInfo.FAILED,))
+        status = len(failed_backups) == 0
+        check_strategy.result(
+            self.config.name,
+            'failed backups',
+            status,
+            'there are %s failed backups' % (len(failed_backups,))
+        )
+
         # Minimum redundancy checks
         no_backups = len(self.get_available_backups())
         # Check minimum_redundancy_requirements parameter
-        if no_backups < self.config.minimum_redundancy:
+        if no_backups < int(self.config.minimum_redundancy):
             status = False
         else:
             status = True
