@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
+import collections
 import datetime
 import filecmp
 import logging
@@ -364,6 +365,35 @@ class WalArchiver(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+
+    @staticmethod
+    def summarise_error_files(error_files):
+        """
+        Summarise a error files list
+
+        :param list[str] error_files: Error files list to summarise
+        :return str: A summary, None if there are no error files
+        """
+
+        if not error_files:
+            return None
+
+        # The default value for this dictionary will be 0
+        counters = collections.defaultdict(int)
+
+        # Count the file types
+        for name in error_files:
+            if name.endswith(".error"):
+                counters['not relevant'] += 1
+            elif name.endswith(".duplicate"):
+                counters['duplicates'] += 1
+            elif name.endswith(".unknown"):
+                counters['unknown'] += 1
+            else:
+                counters['unknown failure'] += 1
+
+        # Return a summary list of the form: "item a: 2, item b: 5"
+        return ', '.join("%s: %s" % entry for entry in counters.items())
 
 
 class FileWalArchiver(WalArchiver):

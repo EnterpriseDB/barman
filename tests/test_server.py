@@ -533,6 +533,67 @@ class TestServer(object):
         assert ('ERROR: Cannot terminate process %s(%s)' %
                 (task_name, pid)) in err
 
+    @patch('os.listdir')
+    @patch('os.path.isdir')
+    def test_check_archiver_errors(self, isdir_mock, listdir_mock):
+        server = build_real_server()
+        check_strategy = MagicMock()
+
+        # There is no error file
+        check_strategy.reset_mock()
+        listdir_mock.return_value = []
+        server.check_archiver_errors(check_strategy)
+        check_strategy.result.assert_called_with(
+            'main',
+            'archiver errors',
+            True,
+            None,
+        )
+
+        # There is one duplicate file
+        check_strategy.reset_mock()
+        listdir_mock.return_value = ['testing.duplicate']
+        server.check_archiver_errors(check_strategy)
+        check_strategy.result.assert_called_with(
+            'main',
+            'archiver errors',
+            False,
+            'duplicates: 1',
+        )
+
+        # There is one unknown file
+        check_strategy.reset_mock()
+        listdir_mock.return_value = ['testing.unknown']
+        server.check_archiver_errors(check_strategy)
+        check_strategy.result.assert_called_with(
+            'main',
+            'archiver errors',
+            False,
+            'unknown: 1',
+        )
+
+        # There is one not relevant file
+        check_strategy.reset_mock()
+        listdir_mock.return_value = ['testing.error']
+        server.check_archiver_errors(check_strategy)
+        check_strategy.result.assert_called_with(
+            'main',
+            'archiver errors',
+            False,
+            'not relevant: 1',
+        )
+
+        # There is one extraneous file
+        check_strategy.reset_mock()
+        listdir_mock.return_value = ['testing.wrongextension']
+        server.check_archiver_errors(check_strategy)
+        check_strategy.result.assert_called_with(
+            'main',
+            'archiver errors',
+            False,
+            'unknown failure: 1'
+        )
+
 
 class TestCheckStrategy(object):
     """

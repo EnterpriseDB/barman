@@ -45,7 +45,7 @@ from barman.process import ProcessManager
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta, pretty_size
 from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
-                                 StreamingWalArchiver)
+                                 StreamingWalArchiver, WalArchiver)
 
 _logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class CheckStrategy(object):
 
     # Default list used as a filter to identify non-critical checks
     NON_CRITICAL_CHECKS = ['minimum redundancy requirements',
-                           'backup maximum age']
+                           'backup maximum age', 'archiver errors']
 
     def __init__(self, ignore_checks=NON_CRITICAL_CHECKS):
         """
@@ -339,6 +339,9 @@ class Server(object):
         for archiver in self.archivers:
             archiver.check(check_strategy)
 
+        # Check archiver errors
+        self.check_archiver_errors(check_strategy)
+
     def check_postgres(self, check_strategy):
         """
         Checks PostgreSQL connection
@@ -455,6 +458,26 @@ class Server(object):
             check_strategy.result(
                 self.config.name, 'backup maximum age', True,
                 "no last_backup_maximum_age provided")
+
+    def check_archiver_errors(self, check_strategy):
+        """
+        Checks the presence of archiving errors
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the check
+        """
+
+        if os.path.isdir(self.config.errors_directory):
+            errors = os.listdir(self.config.errors_directory)
+        else:
+            errors = []
+
+        check_strategy.result(
+            self.config.name,
+            "archiver errors",
+            len(errors) == 0,
+            WalArchiver.summarise_error_files(errors)
+        )
 
     def status_postgres(self):
         """
