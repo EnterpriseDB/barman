@@ -147,15 +147,21 @@ class TestRsyncBackupExecutor(object):
 
         gpb_mock.return_value = None
 
+        rwbb_mock.return_value = ['000000010000000000000001']
+
         # Test 1: exclusive backup
         backup_manager.executor.strategy = Mock()
         backup_manager.executor.backup(backup_info)
         out, err = capsys.readouterr()
         assert err == ''
-        assert "Backup start at xlog location: " \
-               "0/2000028 (000000010000000000000002, 00000028)\n" \
-               "Copying files.\n" \
-               "Copy done." in out
+        assert (
+            "Backup start at xlog location: "
+            "0/2000028 (000000010000000000000002, 00000028)\n"
+            "This is the first backup for server main\n"
+            "WAL segments preceding the current backup have been found:\n"
+            "\t000000010000000000000001 from server main has been removed\n"
+            "Copying files.\n"
+            "Copy done.") in out
 
         gpb_mock.assert_called_once_with(backup_info.backup_id)
         rwbb_mock.assert_called_once_with(backup_info)
@@ -183,10 +189,14 @@ class TestRsyncBackupExecutor(object):
         backup_manager.executor.backup(backup_info)
         out, err = capsys.readouterr()
         assert err == ''
-        assert "Backup start at xlog location: " \
-               "0/2000028 (000000010000000000000002, 00000028)\n" \
-               "Copying files.\n" \
-               "Copy done." in out
+        assert (
+            "Backup start at xlog location: "
+            "0/2000028 (000000010000000000000002, 00000028)\n"
+            "This is the first backup for server main\n"
+            "WAL segments preceding the current backup have been found:\n"
+            "\t000000010000000000000001 from server main has been removed\n"
+            "Copying files.\n"
+            "Copy done.") in out
 
         gpb_mock.assert_called_once_with(backup_info.backup_id)
         rwbb_mock.assert_called_once_with(backup_info)

@@ -708,7 +708,7 @@ class Server(object):
             # lock acquisition and backup execution
             with ServerBackupLock(self.config.barman_lock_directory, self.config.name):
                 self.backup_manager.backup()
-            # Archive incoming WALs and update WAL catalogue through cron
+            # Archive incoming WALs and update WAL catalogue
             self.archive_wal(verbose=False)
 
         except LockFileBusy:

@@ -181,7 +181,7 @@ class TestFileWalArchiver(object):
         """
         Test archive-wal behaviour when there are no backups.
 
-        Expect it to trash WAL files
+        Expect it to archive the files anyway
         """
         # Build a real backup manager
         backup_manager = build_backup_manager(
@@ -207,18 +207,18 @@ class TestFileWalArchiver(object):
 
         backup_manager.archive_wal()
 
-        # Check that the WAL file is not present inside the wal catalog
+        # Check that the WAL file is present inside the wal catalog
         with xlog_db.open() as f:
             line = str(f.readline())
-            assert wal_name not in line
+            assert wal_name in line
         wal_path = os.path.join(archive_dir.strpath,
                                 barman.xlog.hash_dir(wal_name),
                                 wal_name)
-        # Check that the wal file have not been archived
-        assert not os.path.exists(wal_path)
+        # Check that the wal file have been archived
+        assert os.path.exists(wal_path)
         out, err = capsys.readouterr()
-        # Check the output for the removal of the wal file
-        assert ("No base backup available. Trashing file %s" % wal_name) in out
+        # Check the output for the archival of the wal file
+        assert ("\t%s\n" % wal_name) in out
 
     # TODO: The following test should be splitted in two
     # the BackupManager part and the FileWalArchiver part
@@ -227,7 +227,7 @@ class TestFileWalArchiver(object):
         Test archive-wal command behaviour when the WAL files are older than
         the first backup of a server.
 
-        Expect it to trash WAL files
+        Expect it to archive the files anyway
         """
         # Build a real backup manager and a fake backup
         backup_manager = build_backup_manager(
@@ -260,21 +260,18 @@ class TestFileWalArchiver(object):
 
         backup_manager.archive_wal()
 
+        # Check that the WAL file is not present inside the wal catalog
         with xlog_db.open() as f:
             line = str(f.readline())
-            assert wal_name not in line
-        # Check that the WAL file is not present inside the wal catalog
+            assert wal_name in line
         wal_path = os.path.join(archive_dir.strpath,
                                 barman.xlog.hash_dir(wal_name),
                                 wal_name)
-        # Check that the wal file have not been archived
-        assert not os.path.exists(wal_path)
-        # Check the output for the removal of the wal file
+        # Check that the wal file have been archived
+        assert os.path.exists(wal_path)
+        # Check the output for the archival of the wal file
         out, err = capsys.readouterr()
-        assert (
-            "Older than first backup of server %s. "
-            "Moving the WAL file %s in the error directory" %
-            (backup_manager.config.name, wal_name)) in out
+        assert ("\t%s\n" % wal_name) in out
 
     # TODO: The following test should be splitted in two
     # the BackupManager part and the FileWalArchiver part
@@ -283,7 +280,7 @@ class TestFileWalArchiver(object):
         Test archive-wal command behaviour when the WAL files are older than
         the first backup of a server.
 
-        Expect it to trash WAL files
+        Expect it to archive the files anyway
         """
         # Build a real backup manager and a fake backup
         backup_manager = build_backup_manager(
@@ -307,7 +304,6 @@ class TestFileWalArchiver(object):
         archive_dir = basedir.join('wals')
         xlog_db = archive_dir.join('xlog.db')
         wal_name = '000000010000000000000001'
-        wal_timeline = int(wal_name[0:8], 16)
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
@@ -318,24 +314,18 @@ class TestFileWalArchiver(object):
 
         backup_manager.archive_wal()
 
+        # Check that the WAL file is present inside the wal catalog
         with xlog_db.open() as f:
             line = str(f.readline())
-            assert wal_name not in line
-        # Check that the WAL file is not present inside the wal catalog
+            assert wal_name in line
         wal_path = os.path.join(archive_dir.strpath,
                                 barman.xlog.hash_dir(wal_name),
                                 wal_name)
-        # Check that the wal file have not been archived
-        assert not os.path.exists(wal_path)
-        # Check the output for the removal of the wal file
+        # Check that the wal file have been archived
+        assert os.path.exists(wal_path)
+        # Check the output for the archival of the wal file
         out, err = capsys.readouterr()
-        assert ("The timeline of the WAL file %s (%s), is lower "
-                "than the one of the oldest backup of "
-                "server %s (%s). Moving the WAL in "
-                "the error directory" %
-                (wal_name, wal_timeline,
-                 backup_manager.config.name,
-                 b_info.timeline)) in out
+        assert ("\t%s\n" % wal_name) in out
 
 
 # noinspection PyMethodMayBeStatic

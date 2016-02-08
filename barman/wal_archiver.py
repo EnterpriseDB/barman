@@ -29,7 +29,6 @@ from barman import output, utils, xlog
 from barman.backup import DuplicateWalFile, MatchingDuplicateWalFile
 from barman.command_wrappers import (Command, CommandFailedException,
                                      PgReceiveXlog)
-from barman.config import BackupOptions
 from barman.hooks import (AbortedRetryHookScript, HookScriptRunner,
                           RetryHookScriptRunner)
 from barman.infofile import WalFileInfo
@@ -120,27 +119,6 @@ class WalArchiver(RemoteStatusMixin):
                             self.config.name,
                             log=False)
             found = True
-
-            # Delete the xlog segment if no backup is present and
-            # backup strategy is not concurrent and
-            # the wal file is not a history file
-            if (first_backup is None and
-                    BackupOptions.CONCURRENT_BACKUP not in
-                    self.config.backup_options and
-                    not xlog.is_history_file(wal_info.name)):
-                output.info("\tNo base backup available. "
-                            "Trashing file %s from server %s",
-                            wal_info.name, self.config.name)
-                os.unlink(wal_info.orig_filename)
-                continue
-            # ... otherwise move the wal file in the error directory
-            # if not relevant according to the first backup present
-            elif not self.is_wal_relevant(wal_info, first_backup):
-                error_dst = os.path.join(
-                    self.config.errors_directory,
-                    "%s.%s.error" % (wal_info.name, stamp))
-                shutil.move(wal_info.orig_filename, error_dst)
-                continue
 
             # Report to the user the WAL file we are archiving
             output.info("\t%s", wal_info.name, log=False)

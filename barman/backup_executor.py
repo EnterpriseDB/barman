@@ -201,8 +201,11 @@ class SshBackupExecutor(BackupExecutor):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
 
+        previous_backup = self.backup_manager.get_previous_backup(
+            backup_info.backup_id)
+
         # Start the backup, all the subsequent code must be wrapped in a
-        # try except block which finally issues a backup_stop command
+        # try except block which finally issues a stop_backup command
         try:
             self.strategy.start_backup(backup_info)
         except BaseException:
@@ -214,16 +217,24 @@ class SshBackupExecutor(BackupExecutor):
             # This must be inside the try-except, because it could fail
             backup_info.save()
 
-            # If this is the first backup, purge unused WAL files
-            previous_backup = self.backup_manager.get_previous_backup(
-                backup_info.backup_id)
-            if not previous_backup:
-                self.backup_manager.remove_wal_before_backup(backup_info)
-
             output.info("Backup start at xlog location: %s (%s, %08X)",
                         backup_info.begin_xlog,
                         backup_info.begin_wal,
                         backup_info.begin_offset)
+
+            # If this is the first backup, purge eventually unused WAL files
+            if not previous_backup:
+                output.info("This is the first backup for server %s",
+                            self.config.name)
+                removed = self.backup_manager.remove_wal_before_backup(
+                    backup_info)
+                if removed:
+                    output.info("WAL segments preceding the current backup "
+                                "have been found:", log=False)
+                    for wal_name in removed:
+                        output.info("\t%s from server %s "
+                                    "has been removed",
+                                    wal_name, self.config.name)
 
             # Start the copy
             self.current_action = "copying files"
