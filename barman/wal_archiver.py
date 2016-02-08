@@ -210,12 +210,12 @@ class WalArchiver(RemoteStatusMixin):
                     if dst_info.compression is not None:
                         dst_uncompressed = dst_file + '.uncompressed'
                         comp_manager.get_compressor(
-                            dst_info.compression).decompress(
+                            compression=dst_info.compression).decompress(
                                 dst_file, dst_uncompressed)
                     if wal_info.compression:
                         src_uncompressed = src_file + '.uncompressed'
                         comp_manager.get_compressor(
-                            wal_info.compression).decompress(
+                            compression=wal_info.compression).decompress(
                                 src_file, src_uncompressed)
                     # Directly compare files.
                     # When the files are identical

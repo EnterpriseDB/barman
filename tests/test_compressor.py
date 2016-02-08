@@ -122,8 +122,6 @@ class TestCommandCompressors(object):
         assert compressor is not None
         assert compressor.config == config_mock
         assert compressor.compression == "dummy_compressor"
-        assert compressor.debug is False
-        assert compressor.remove_origin is False
 
     def test_build_command(self):
         # prepare mock obj
@@ -136,15 +134,6 @@ class TestCommandCompressors(object):
 
         assert command.cmd == 'command(){ dummy_command > "$2" < "$1";}; ' \
                               'command'
-
-        compressor = CommandCompressor(config=config_mock,
-                                       compression="dummy_compressor",
-                                       remove_origin=True)
-
-        command = compressor._build_command("dummy_command")
-
-        assert command.cmd == 'command(){ dummy_command > "$2" < "$1" && rm ' \
-                              '-f "$1";}; command'
 
     def test_gzip(self, tmpdir):
 
