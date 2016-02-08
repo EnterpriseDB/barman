@@ -36,6 +36,7 @@ from barman.command_wrappers import (Command, CommandFailedException,
                                      DataTransferFailure, RsyncPgData)
 from barman.config import BackupOptions
 from barman.postgres import PostgresConnectionError
+from barman.remote_status import RemoteStatusMixin
 from barman.utils import mkpath
 
 _logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class SshCommandException(Exception):
     """
 
 
-class BackupExecutor(object):
+class BackupExecutor(RemoteStatusMixin):
     """
     Abstract base class for any backup executors.
     """
@@ -61,6 +62,7 @@ class BackupExecutor(object):
         :param barman.backup.BackupManager backup_manager: the BackupManager
             assigned to the executor
         """
+        super(BackupExecutor, self).__init__()
         self.backup_manager = backup_manager
         self.server = backup_manager.server
         self.config = backup_manager.config
@@ -91,7 +93,7 @@ class BackupExecutor(object):
         Set additional status info - invoked by BackupManager.status()
         """
 
-    def get_remote_status(self):
+    def fetch_remote_status(self):
         """
         Get additional remote status info - invoked by
         BackupManager.get_remote_status()
@@ -298,7 +300,7 @@ class SshBackupExecutor(BackupExecutor):
             self._update_action_from_strategy()
             raise
 
-    def get_remote_status(self):
+    def fetch_remote_status(self):
         """
         Get remote information on PostgreSQL using Ssh, such as
         last archived WAL file

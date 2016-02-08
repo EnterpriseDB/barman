@@ -38,6 +38,7 @@ from barman.hooks import (AbortedRetryHookScript, HookScriptRunner,
                           RetryHookScriptRunner)
 from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
 from barman.recovery_executor import RecoveryExecutor
+from barman.remote_status import RemoteStatusMixin
 from barman.utils import fsync_dir, human_readable_timedelta, pretty_size
 
 _logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ class MatchingDuplicateWalFile(DuplicateWalFile):
     pass
 
 
-class BackupManager(object):
+class BackupManager(RemoteStatusMixin):
     """Manager of the backup archive for a server"""
 
     DEFAULT_STATUS_FILTER = (BackupInfo.DONE,)
@@ -67,6 +68,7 @@ class BackupManager(object):
         """
         Constructor
         """
+        super(BackupManager, self).__init__()
         self.name = "default"
         self.server = server
         self.config = server.config
@@ -619,7 +621,7 @@ class BackupManager(object):
         if self.executor:
             self.executor.status()
 
-    def get_remote_status(self):
+    def fetch_remote_status(self):
         """
         Build additional remote status lines defined by the BackupManager.
 

@@ -556,7 +556,7 @@ class TestPostgres(object):
                                server_txt_version_mock, is_in_recovery_mock,
                                conn_mock):
         """
-        simple test for the get_remote_status method
+        simple test for the fetch_remote_status method
         """
         # Build a server
         server = build_real_server()
@@ -569,7 +569,7 @@ class TestPostgres(object):
         get_setting_mock.return_value = 'dummy_setting'
         conn_mock.return_value.server_version = 90100
 
-        result = server.postgres.get_remote_status()
+        result = server.postgres.fetch_remote_status()
 
         assert result == {
             'a': 'b',
@@ -583,14 +583,14 @@ class TestPostgres(object):
         # Test error management
         server.postgres.close()
         conn_mock.side_effect = psycopg2.DatabaseError
-        assert server.postgres.get_remote_status() == {
+        assert server.postgres.fetch_remote_status() == {
             'current_xlog': None,
             'data_directory': None,
             'pgespresso_installed': None,
             'server_txt_version': None}
 
         get_setting_mock.side_effect = psycopg2.ProgrammingError
-        assert server.postgres.get_remote_status() == {
+        assert server.postgres.fetch_remote_status() == {
             'current_xlog': None,
             'data_directory': None,
             'pgespresso_installed': None,
@@ -613,9 +613,9 @@ class TestStreamingConnection(object):
             'configuration for server main' in server.config.msg_list
 
     @patch('barman.postgres.psycopg2.connect')
-    def test_get_remote_status(self, conn_mock):
+    def test_fetch_remote_status(self, conn_mock):
         """
-        simple test for the get_remote_status method
+        simple test for the fetch_remote_status method
         """
         # Build a server
         server = build_real_server(
@@ -625,7 +625,7 @@ class TestStreamingConnection(object):
 
         # Too old PostgreSQL
         conn_mock.return_value.server_version = 90100
-        result = server.streaming.get_remote_status()
+        result = server.streaming.fetch_remote_status()
         assert result["streaming_supported"] is False
         assert result['streaming'] is None
 
@@ -633,7 +633,7 @@ class TestStreamingConnection(object):
         conn_mock.return_value.server_version = 90300
         cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.fetchone.return_value = ('12345', 1, 'DE/ADBEEF')
-        result = server.streaming.get_remote_status()
+        result = server.streaming.fetch_remote_status()
         cursor_mock.execute.assert_called_once_with("IDENTIFY_SYSTEM")
         assert result["streaming_supported"] is True
         assert result['streaming'] is True
@@ -641,7 +641,7 @@ class TestStreamingConnection(object):
         # Working non-streaming connection
         conn_mock.reset_mock()
         cursor_mock.execute.side_effect = psycopg2.ProgrammingError
-        result = server.streaming.get_remote_status()
+        result = server.streaming.fetch_remote_status()
         cursor_mock.execute.assert_called_once_with("IDENTIFY_SYSTEM")
         assert result["streaming_supported"] is True
         assert result['streaming'] is False
@@ -650,7 +650,7 @@ class TestStreamingConnection(object):
         server.streaming.close()
         conn_mock.reset_mock()
         conn_mock.side_effect = psycopg2.DatabaseError
-        result = server.streaming.get_remote_status()
+        result = server.streaming.fetch_remote_status()
         assert result["streaming_supported"] is None
         assert result['streaming'] is None
 

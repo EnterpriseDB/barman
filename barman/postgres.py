@@ -26,6 +26,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 from barman.infofile import Tablespace
+from barman.remote_status import RemoteStatusMixin
 
 _logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class PostgresConnectionError(Exception):
     """
 
 
-class PostgreSQL(object):
+class PostgreSQL(RemoteStatusMixin):
     """
     This abstract class represents a generic interface to a PostgreSQL server.
     """
@@ -55,6 +56,7 @@ class PostgreSQL(object):
         :param barman.config.ServerConfig config: the server configuration
         :param str conninfo: Connection information (aka DSN)
         """
+        super(PostgreSQL, self).__init__()
         assert conninfo
         self.config = config
         self.conninfo = conninfo
@@ -170,7 +172,7 @@ class StreamingConnection(PostgreSQL):
                           str(e).strip())
             return None
 
-    def get_remote_status(self):
+    def fetch_remote_status(self):
         """
         Returns the status of the connection to the PostgreSQL server.
 
@@ -375,7 +377,7 @@ class PostgreSQLConnection(PostgreSQL):
                           str(e).strip())
             return None
 
-    def get_remote_status(self):
+    def fetch_remote_status(self):
         """
         Get the status of the PostgreSQL server
 

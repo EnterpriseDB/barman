@@ -42,6 +42,7 @@ from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
 from barman.postgres import (ConninfoException, PostgreSQLConnection,
                              StreamingConnection)
 from barman.process import ProcessManager
+from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import human_readable_timedelta, pretty_size
 from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
@@ -140,7 +141,7 @@ class CheckOutputStrategy(CheckStrategy):
         output.result('check', server_name, check, status, hint)
 
 
-class Server(object):
+class Server(RemoteStatusMixin):
     """
     This class represents the PostgreSQL server to backup.
     """
@@ -156,6 +157,7 @@ class Server(object):
 
         :param barman.config.ServerConfig config: the server configuration
         """
+        super(Server, self).__init__()
         self.config = config
         self.path = self._build_path(self.config.path_prefix)
         self.process_manager = ProcessManager(self.config)
@@ -585,7 +587,7 @@ class Server(object):
         # Executes the backup manager status info method
         self.backup_manager.status()
 
-    def get_remote_status(self):
+    def fetch_remote_status(self):
         """
         Get the status of the remote server
 
