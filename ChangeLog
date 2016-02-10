@@ -1,3 +1,76 @@
+2016-02-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2016-02-10  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Prepared version 1.6.0b2
+
+2016-02-05  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add check for FAILED backups
+	The 'barman check' command now checks for the presence of failed backups.
+
+2016-02-08  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Complete integration of RemoteStatusMixin class
+	Let classes implementing the the get_remote_status method inherit
+	from the RemoteStatusMixin base class, completing the refactoring
+	activity started with a previous commit (3179a1e).
+
+2016-02-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix unwanted removal of duplicate WAL from archive
+	This commit removes an unused and dangerous option from the Compressor
+	interface that allowed the removal of the source WAL file after
+	compression (introduced in 1.6.0 development branch).
+
+	Fixes: #27
+
+	Remove trashing of old WAL files from the archiver
+	The archiver now always archives any file with a valid name that
+	finds inside the incoming directory.
+
+	NOTE: The block of code that has been removed changes behaviour
+	of existing Barman installations, but in a conservative way.
+	We defer to future versions of Barman to better understand
+	WAL files' sequentiality (parsing history files, for example),
+	by writing specific classes/modules responsible for deeper
+	and more robust checks in the archive area.
+
+2016-02-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Manage the termination of receive-wal in cron
+	When the 'streaming_archive' option is disabled for a server,
+	a cron execution makes sure that a running receive-wal process
+	is correctly terminated.
+
+	Clearer output and logging messages for `receive-wal`.
+
+2016-02-05  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add check for archiver errors
+	Barman now checks for the presence of files in the error directory.
+
+2016-02-04  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Improve error handling when required server parameters are missing
+	Add error handling in case a required parameter (i.e. ssh_command,
+	conninfo, ...) is missing, by emitting meaningful error messages.
+
+2016-02-02  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Adjust severity of some messages produced by cron command
+	The messages about subprocess execution produced by the cron command
+	were emitted for every cron run. They provide little information and
+	their presence may make the log difficult to analyse, so they have been
+	removed from log.
+
+2016-02-02  Aydan  <Aydan Tasdemir>
+
+	Update docs - Added remote recovery command
+	Closes: #26
+
 2016-02-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
