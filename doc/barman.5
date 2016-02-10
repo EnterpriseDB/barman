@@ -1,5 +1,4 @@
-.TH "BARMAN" "5" "February 1, 2016" "Barman User manuals" "Version 1.6.0 beta 1"
-.hy
+.TH "BARMAN" "5" "February 10, 2016" "Barman User manuals" "Version 1.6.0 beta 2"
 .SH NAME
 .PP
 barman \- backup and recovery manager for PostgreSQL
@@ -381,8 +380,9 @@ the PATH (see \f[C]path\f[] option) and that streaming connection for
 the server is working.
 This activates connection checks as well as management (including
 compression) of WAL files.
-If set to \f[C]off\f[] (default) barman will rely ony on continuous
-archiving for a server WAL archive operations.
+If set to \f[C]off\f[] (default) barman will rely only on continuous
+archiving for a server WAL archive operations, eventually terminating
+any running \f[C]pg_receivexlog\f[] for the server.
 Global/Server.
 .RS
 .RE

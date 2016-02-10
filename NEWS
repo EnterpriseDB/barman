@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
-Version 1.6.0b1 - 01 Feb 2016
+Version 1.6.0b2 - 10 Feb 2016
 
 -   Support for streaming replication connection through the
     streaming_conninfo server option
@@ -13,9 +13,11 @@ Version 1.6.0b1 - 01 Feb 2016
     additional feature (standard log archiving is still required)
 
 -   Implement the receive-wal command that, when streaming_archiver is
-    on, wraps pg_receivexlog for WAL streaming
+    on, wraps pg_receivexlog for WAL streaming. Add --stop option to
+    stop receiving WAL files via streaming protocol.
 
--   Automatic management of receive-wal command via cron command
+-   Automatic management (startup and stop) of receive-wal command via
+    cron command
 
 -   Support for the path_prefix configuration option
 
@@ -25,7 +27,10 @@ Version 1.6.0b1 - 01 Feb 2016
 
 -   Support for streaming_wals_directory and errors_directory options
 
--   Management of WAL duplicates in archive-wal command
+-   Management of WAL duplicates in archive-wal command and integration
+    with check command
+
+-   Verify if failed backups are present in check command
 
 -   Accept compressed WAL files in incoming directory
 
@@ -37,7 +42,7 @@ Version 1.6.0b1 - 01 Feb 2016
 
 -   Creation of an implicit restore point at the end of a backup
 
--   Current size of the PostgreSQL data files in `barman status`
+-   Current size of the PostgreSQL data files in barman status
 
 -   Permit archive_mode=always for PostgreSQL 9.5 servers (thanks to
     Christoph Moench-Tegeder christoph@2ndquadrant.de)
@@ -45,11 +50,16 @@ Version 1.6.0b1 - 01 Feb 2016
 -   Complete refactoring of the code responsible for connecting to
     PostgreSQL
 
+-   Improve messaging of cron command regarding sub-processes
+
+-   Changes of behaviour:
+    -   Stop trashing WAL files during archive-wal (commit:e3a1d16)
 -   Bug fixes:
     -   Atomic WAL file archiving (#9 and #12)
     -   Propagate "-c" option to any Barman subprocess (#19)
     -   Fix management of backup ID during backup deletion (#22)
     -   Improve archive-wal robustness and log messages (#24)
+    -   Improve error handling in case of missing parameters
 
 Version 1.5.1 - 16 Nov 2015
 
