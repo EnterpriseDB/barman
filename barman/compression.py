@@ -27,6 +27,7 @@ from abc import ABCMeta, abstractmethod
 from contextlib import closing
 
 from barman.command_wrappers import Command, CommandFailedException
+from barman.utils import with_metaclass
 
 _logger = logging.getLogger(__name__)
 
@@ -84,18 +85,16 @@ def identify_compression(filename):
     # should we use gzip or pigz?)
     with open(filename, 'rb') as f:
         file_start = f.read(MAGIC_MAX_LENGTH)
-    for file_type, cls in sorted(compression_registry.iteritems()):
+    for file_type, cls in sorted(compression_registry.items()):
         if cls.validate(file_start):
             return file_type
     return None
 
 
-class Compressor(object):
+class Compressor(with_metaclass(ABCMeta, object)):
     """
     Base class for all the compressors
     """
-
-    __metaclass__ = ABCMeta
 
     MAGIC = None
 
@@ -355,5 +354,4 @@ compression_registry = {
 }
 
 #: The longest string needed to identify a compression schema
-MAGIC_MAX_LENGTH = reduce(
-    max, [len(x.MAGIC or '') for x in compression_registry.values()], 0)
+MAGIC_MAX_LENGTH = max(len(x.MAGIC or '') for x in compression_registry.values())

@@ -402,7 +402,7 @@ class Server(RemoteStatusMixin):
         if not self.config.disabled:
             try:
                 self._make_directories()
-            except OSError, e:
+            except OSError as e:
                 check_strategy.result(self.config.name, 'directories', False,
                                       "%s: %s" % (e.filename, e.strerror))
             else:
@@ -680,7 +680,7 @@ class Server(RemoteStatusMixin):
             else:
                 return self.backup_manager.delete_backup(backup)
 
-        except LockFilePermissionDenied, e:
+        except LockFilePermissionDenied as e:
             # We cannot access the lockfile.
             # Exit without removing the backup.
             output.error("Permission denied, unable to access '%s'" % e)
@@ -701,7 +701,7 @@ class Server(RemoteStatusMixin):
                 return
             # check required backup directories exist
             self._make_directories()
-        except OSError, e:
+        except OSError as e:
             output.error('failed to create %s directory: %s',
                          e.filename, e.strerror)
             return
@@ -716,7 +716,7 @@ class Server(RemoteStatusMixin):
         except LockFileBusy:
             output.error("Another backup process is running")
 
-        except LockFilePermissionDenied, e:
+        except LockFilePermissionDenied as e:
             output.error("Permission denied, unable to access '%s'" % e)
 
     def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
@@ -754,7 +754,7 @@ class Server(RemoteStatusMixin):
         """
         retention_status = self.report_backups()
         backups = self.get_available_backups(BackupInfo.STATUS_ALL)
-        for key in sorted(backups.iterkeys(), reverse=True):
+        for key in sorted(backups.keys(), reverse=True):
             backup = backups[key]
 
             backup_size = backup.size or 0
@@ -1102,9 +1102,9 @@ class Server(RemoteStatusMixin):
             output.info(
                 "Another cron process is already running on server %s. "
                 "Skipping to the next server" % self.config.name)
-        except LockFilePermissionDenied, e:
+        except LockFilePermissionDenied as e:
             output.error("Permission denied, unable to access '%s'" % e)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             output.error("%s", e)
 
     def cron_archive_wal(self):

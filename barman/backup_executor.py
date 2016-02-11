@@ -37,7 +37,7 @@ from barman.command_wrappers import (Command, CommandFailedException,
 from barman.config import BackupOptions
 from barman.postgres import PostgresConnectionError
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import mkpath
+from barman.utils import mkpath, with_metaclass
 
 _logger = logging.getLogger(__name__)
 
@@ -48,12 +48,10 @@ class SshCommandException(Exception):
     """
 
 
-class BackupExecutor(RemoteStatusMixin):
+class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
     """
     Abstract base class for any backup executors.
     """
-
-    __metaclass__ = ABCMeta
 
     def __init__(self, backup_manager):
         """
@@ -125,7 +123,7 @@ def _parse_ssh_command(ssh_command):
     return ssh_command, ssh_options
 
 
-class SshBackupExecutor(BackupExecutor):
+class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
     """
     Abstract base class for any backup executors based on Ssh
     remote connections. This class is also a factory for
@@ -133,8 +131,6 @@ class SshBackupExecutor(BackupExecutor):
 
     Raises a SshCommandException if 'ssh_command' is not set.
     """
-
-    __metaclass__ = ABCMeta
 
     def __init__(self, backup_manager):
         """
@@ -429,7 +425,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
                         tablespace_dest,
                         safe_horizon,
                         ref_dir)
-                except CommandFailedException, e:
+                except CommandFailedException as e:
                     msg = "data transfer failure on directory '%s'" % \
                           backup_info.get_data_directory(tablespace.oid)
                     raise DataTransferFailure.from_rsync_error(e, msg)
@@ -454,7 +450,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
             rsync.smart_copy(':%s/' % backup_info.pgdata, backup_dest,
                              safe_horizon,
                              ref_dir)
-        except CommandFailedException, e:
+        except CommandFailedException as e:
             msg = "data transfer failure on directory '%s'" % \
                   backup_info.pgdata
             raise DataTransferFailure.from_rsync_error(e, msg)
@@ -463,7 +459,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
         try:
             rsync(':%s/global/pg_control' % (backup_info.pgdata,),
                   '%s/global/pg_control' % (backup_dest,))
-        except CommandFailedException, e:
+        except CommandFailedException as e:
             msg = "data transfer failure on file '%s/global/pg_control'" % \
                   backup_info.pgdata
             raise DataTransferFailure.from_rsync_error(e, msg)
@@ -487,7 +483,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 _logger.info(self.current_action)
                 try:
                     rsync(':%s' % cf, backup_dest)
-                except CommandFailedException, e:
+                except CommandFailedException as e:
                     ret_code = e.args[0]['ret']
                     msg = "data transfer failure on file '%s'" % cf
                     if 'ident_file' == key and ret_code == 23:
@@ -557,12 +553,10 @@ class RsyncBackupExecutor(SshBackupExecutor):
             return []
 
 
-class BackupStrategy(object):
+class BackupStrategy(with_metaclass(ABCMeta, object)):
     """
     Abstract base class for a strategy to be used by a backup executor.
     """
-
-    __metaclass__ = ABCMeta
 
     def __init__(self, executor):
         """

@@ -26,14 +26,14 @@ the Mixin pattern.
 
 from abc import ABCMeta, abstractmethod
 
+from barman.utils import with_metaclass
 
-class RemoteStatusMixin(object):
+
+class RemoteStatusMixin(with_metaclass(ABCMeta, object)):
     """
     Abstract base class that implements remote status capabilities
     following the Mixin pattern.
     """
-
-    __metaclass__ = ABCMeta
 
     def __init__(self, *args, **kwargs):
         """

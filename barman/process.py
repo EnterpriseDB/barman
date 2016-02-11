@@ -136,7 +136,7 @@ class ProcessManager(object):
         # way is to send a kill with 0 as signal.
         # If the method returns an OSError exceptions, the process have been
         # killed successfully, otherwise is still alive.
-        for counter in xrange(retries):
+        for counter in range(retries):
             try:
                 _logger.debug("Checking with SIG_DFL if PID %s is still alive",
                               process_info.pid)

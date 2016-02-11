@@ -19,6 +19,8 @@
 This module contains a wrapper for shell commands
 """
 
+from __future__ import print_function
+
 import collections
 import errno
 import inspect
@@ -274,7 +276,7 @@ class Command(object):
         # Remove the closed pipe from the object
         self.pipe = None
         if self.debug:
-            print >> sys.stderr, "Command return code: %s" % self.ret
+            print("Command return code: %s" % self.ret, file=sys.stderr)
         _logger.debug("Command return code: %s", self.ret)
 
         # Raise if check and the return code is not in the allowed list
@@ -303,7 +305,7 @@ class Command(object):
             cmd = [self.cmd] + args
         # Log the command we are about to execute
         if self.debug:
-            print >> sys.stderr, "Command: %r" % cmd
+            print("Command: %r" % cmd, file=sys.stderr)
         _logger.debug("Command: %r", cmd)
         return subprocess.Popen(cmd, shell=self.shell, env=self.env,
                                 stdin=subprocess.PIPE,

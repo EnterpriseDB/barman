@@ -67,7 +67,7 @@ if sys.version_info < (2, 7):
 
 barman = {}
 with open('barman/version.py', 'r') as fversion:
-    exec (fversion.read(), barman)
+    exec(fversion.read(), barman)
 
 setup(
     name='barman',
@@ -103,5 +103,4 @@ setup(
     ],
     tests_require=['pytest', 'mock', 'pytest-catchlog>=1.2.1', 'pytest-timeout'],
     cmdclass=cmdclass,
-    use_2to3=True,
 )

@@ -33,13 +33,13 @@ from datetime import datetime, timedelta
 from dateutil import tz
 
 from barman.infofile import BackupInfo
+from barman.utils import with_metaclass
 
 _logger = logging.getLogger(__name__)
 
 
-class RetentionPolicy(object):
+class RetentionPolicy(with_metaclass(ABCMeta, object)):
     """Abstract base class for retention policies"""
-    __metaclass__ = ABCMeta
 
     def __init__(self, mode, unit, value, context, server):
         """Constructor of the retention policy base class"""
@@ -162,7 +162,7 @@ class RedundancyRetentionPolicy(RetentionPolicy):
         # Non DONE backups are classified as NONE
         # NOTE: reverse key orders (simulate reverse chronology)
         i = 0
-        for bid in sorted(backups.iterkeys(), reverse=True):
+        for bid in sorted(backups.keys(), reverse=True):
             if backups[bid].status == BackupInfo.DONE:
                 if i < redundancy:
                     report[bid] = BackupInfo.VALID
@@ -251,7 +251,7 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         found = False
         valid = 0
         # NOTE: reverse key orders (simulate reverse chronology)
-        for bid in sorted(backups.iterkeys(), reverse=True):
+        for bid in sorted(backups.keys(), reverse=True):
             # We are interested in DONE backups only
             if backups[bid].status == BackupInfo.DONE:
                 if found:

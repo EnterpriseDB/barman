@@ -19,6 +19,8 @@
 This module control how the output of Barman will be rendered
 """
 
+from __future__ import print_function
+
 import inspect
 import logging
 import sys
@@ -324,13 +326,13 @@ class ConsoleOutputWriter(object):
         """
         Print a message on standard output
         """
-        print >> sys.stdout, _format_message(message, args)
+        print(_format_message(message, args), file=sys.stdout)
 
     def _err(self, message, args):
         """
         Print a message on standard error
         """
-        print >> sys.stderr, _format_message(message, args)
+        print(_format_message(message, args), file=sys.stderr)
 
     def is_quiet(self):
         """
@@ -734,7 +736,7 @@ class NagiosOutputWriter(ConsoleOutputWriter):
 
         # Global error (detected at configuration level)
         if len(issues) == 0 and error_occurred:
-            print "BARMAN CRITICAL - Global configuration errors"
+            print("BARMAN CRITICAL - Global configuration errors")
             error_exit_code = 2
             return
 
@@ -771,30 +773,31 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             # Append the summary of failures to the first line of the output
             # using * as delimiter
             if len(servers) == 1:
-                print "BARMAN CRITICAL - server %s has issues * %s" % \
-                    (servers[0], " * ".join(fail_summary))
+                print("BARMAN CRITICAL - server %s has issues * %s" %
+                      (servers[0], " * ".join(fail_summary)))
             else:
-                print "BARMAN CRITICAL - %d server out of %d have issues * " \
+                print("BARMAN CRITICAL - %d server out of %d have issues * "
                       "%s" % (len(issues), len(servers),
-                              " * ".join(fail_summary))
+                              " * ".join(fail_summary)))
 
             # add the detailed list to the output
             for issue in details:
-                print issue
+                print(issue)
             error_exit_code = 2
         else:
             # No issues, all good!
             # Display the output message for a single server check
             if len(servers) == 1:
-                print "BARMAN OK - Ready to serve the Espresso backup " \
-                    "for %s" % \
-                    (servers[0])
+                print("BARMAN OK - Ready to serve the Espresso backup "
+                      "for %s" %
+                      (servers[0]))
             else:
                 # Display the output message for several servers, using
                 # '*' as delimiter
-                print "BARMAN OK - Ready to serve the Espresso backup " \
-                    "for %d server(s) * %s" % \
-                    (len(servers), " * ".join([server for server in servers]))
+                print("BARMAN OK - Ready to serve the Espresso backup "
+                      "for %d server(s) * %s" % (
+                          len(servers),
+                          " * ".join([server for server in servers])))
 
 
 #: This dictionary acts as a registry of available OutputWriters

@@ -96,7 +96,7 @@ class BackupManager(RemoteStatusMixin):
             self._load_backup_cache()
         # Filter the cache using the status filter tuple
         backups = {}
-        for key, value in self._backup_cache.iteritems():
+        for key, value in self._backup_cache.items():
             if value.status in status_filter:
                 backups[key] = value
         return backups
@@ -318,7 +318,7 @@ class BackupManager(RemoteStatusMixin):
                 # execute the target function for backup copy
                 return target_function(*args, **kwargs)
             # catch rsync errors
-            except DataTransferFailure, e:
+            except DataTransferFailure as e:
                 # exit condition: if retry number is lower than configured retry
                 # limit, try again; otherwise exit.
                 if attempts < self.config.basebackup_retry_times:
@@ -376,7 +376,7 @@ class BackupManager(RemoteStatusMixin):
             backup_info.set_attribute("status", "DONE")
         # Use BaseException instead of Exception to catch events like
         # KeyboardInterrupt (e.g.: CRTL-C)
-        except BaseException, e:
+        except BaseException as e:
             msg_lines = str(e).strip().splitlines()
             if backup_info:
                 # Use only the first line of exception message
@@ -413,7 +413,7 @@ class BackupManager(RemoteStatusMixin):
                         self, 'backup_retry_script', 'post')
                     retry_script.env_from_backup_info(backup_info)
                     retry_script.run()
-                except AbortedRetryHookScript, e:
+                except AbortedRetryHookScript as e:
                     # Ignore the ABORT_STOP as it is a post-hook operation
                     _logger.warning("Ignoring stop request after receiving "
                                     "abort (exit code %d) from post-backup "
@@ -482,7 +482,7 @@ class BackupManager(RemoteStatusMixin):
             available_backups = self.get_available_backups(
                 BackupInfo.STATUS_ALL)
             retention_status = self.config.retention_policy.report()
-            for bid in sorted(retention_status.iterkeys()):
+            for bid in sorted(retention_status.keys()):
                 if retention_status[bid] == BackupInfo.OBSOLETE:
                     output.info(
                         "Enforcing retention policy: removing backup %s for "
@@ -557,7 +557,7 @@ class BackupManager(RemoteStatusMixin):
             status = True
             try:
                 self.compression_manager.get_compressor()
-            except CompressionIncompatibility, field:
+            except CompressionIncompatibility as field:
                 check_strategy.result(self.config.name,
                                       '%s setting' % field, False)
                 status = False

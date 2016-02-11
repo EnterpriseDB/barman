@@ -145,7 +145,8 @@ class LockFile(object):
             if raise_if_fail is not None else self.raise_if_fail
         wait = wait if wait is not None else self.wait
         try:
-            fd = os.open(self.filename, os.O_CREAT | os.O_RDWR, 0600)
+            # 384 is 0600 in octal, 'rw-------'
+            fd = os.open(self.filename, os.O_CREAT | os.O_RDWR, 384)
             flags = fcntl.LOCK_EX
             if not wait:
                 flags |= fcntl.LOCK_NB
@@ -157,7 +158,7 @@ class LockFile(object):
             os.ftruncate(fd, os.lseek(fd, 0, os.SEEK_CUR))
             self.fd = fd
             return True
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             if fd:
                 os.close(fd)  # let's not leak  file descriptors
             if raise_if_fail:

@@ -71,7 +71,7 @@ copyright = u'2011-2016 2ndQuadrant Italia Srl]'
 
 barman = {}
 with open(os.path.join(barman_dir, 'barman/version.py'), 'r') as fversion:
-    exec (fversion.read(), barman)
+    exec(fversion.read(), barman)
 
 # The short X.Y version.
 version = re.search(r'[\d.]+', barman['__version__']).group()

@@ -27,10 +27,15 @@ import logging.handlers
 import os
 import re
 import sys
-from ConfigParser import ConfigParser, NoOptionError
 from glob import iglob
 
 from barman import output
+
+try:
+    from ConfigParser import ConfigParser, NoOptionError
+except ImportError:
+    from configparser import ConfigParser, NoOptionError
+
 
 # create a namedtuple object called PathConflict with 'label' and 'server'
 PathConflict = collections.namedtuple('PathConflict', 'label server')
@@ -409,7 +414,7 @@ class ServerConfig(object):
                     value = parser(new_value, key, source)
                 else:
                     value = parser(new_value)
-            except Exception, e:
+            except Exception as e:
                 output.warning("Invalid configuration value '%s' for key %s"
                                " in %s: %s",
                                value, key, source, e)
@@ -648,7 +653,7 @@ class Config(object):
             }
 
             # Check for path errors
-            for label, path in sorted(config_paths.iteritems()):
+            for label, path in sorted(config_paths.items()):
                 # If the path does not conflict with the others, add it to the
                 # paths map
                 real_path = os.path.realpath(path)
@@ -764,13 +769,13 @@ class Config(object):
 # easy raw config diagnostic with python -m
 # noinspection PyProtectedMember
 def _main():
-    print "Active configuration settings:"
+    print("Active configuration settings:")
     r = Config()
     r.load_configuration_files_directory()
     for section in r._config.sections():
-        print "Section: %s" % section
+        print("Section: %s" % section)
         for option in r._config.options(section):
-            print "\t%s = %s " % (option, r.get(section, option))
+            print("\t%s = %s " % (option, r.get(section, option)))
 
 
 if __name__ == "__main__":

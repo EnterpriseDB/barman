@@ -19,6 +19,8 @@
 This module contains the methods necessary to perform a recovery
 """
 
+from __future__ import print_function
+
 import collections
 import logging
 import os
@@ -222,7 +224,7 @@ class RecoveryExecutor(object):
                 recovery_info['rsync'].from_file_list(file_list,
                                                       recovery_info['tempdir'],
                                                       ':%s' % dest)
-            except CommandFailedException, e:
+            except CommandFailedException as e:
                 output.exception(
                     'remote copy of configuration files failed: %s', e)
                 output.close_and_exit()
@@ -242,7 +244,7 @@ class RecoveryExecutor(object):
             # check for pg_tblspc dir into recovery destination folder.
             # if it does not exists, create it
             cmd.create_dir_if_not_exists(tblspc_dir)
-        except FsOperationFailed, e:
+        except FsOperationFailed as e:
             output.exception("unable to initialise tablespace directory "
                              "'%s': %s", tblspc_dir, e)
             output.close_and_exit()
@@ -271,7 +273,7 @@ class RecoveryExecutor(object):
                 cmd.check_write_permission(location)
                 # create symlink between tablespace and recovery folder
                 cmd.create_symbolic_link(location, pg_tblspc_file)
-            except FsOperationFailed, e:
+            except FsOperationFailed as e:
                 output.exception("unable to prepare '%s' tablespace "
                                  "(destination '%s'): %s",
                                  item.name, location, e)
@@ -306,7 +308,7 @@ class RecoveryExecutor(object):
             safe_horizon = min(backup_begin_time, dest_begin_time)
             output.info("Using safe horizon time for smart rsync copy: %s",
                         safe_horizon)
-        except FsOperationFailed, e:
+        except FsOperationFailed as e:
             # Setting safe_horizon to None will effectively disable
             # the time-based part of smart_copy method. However it is still
             # faster than running all the transfers with checksum enabled.
@@ -316,7 +318,7 @@ class RecoveryExecutor(object):
             safe_horizon = None
             _logger.warning('Unable to retrieve safe horizon time '
                             'for smart rsync copy: %s', e)
-        except Exception, e:
+        except Exception as e:
             # Same as above, but something failed decoding .barman-recover.info
             # or comparing times, so log the full traceback
             safe_horizon = None
@@ -366,26 +368,25 @@ class RecoveryExecutor(object):
                     self.config.config.user, fqdn)
             else:
                 barman_command = 'barman'
-            print >> recovery,\
-                "restore_command = '%s get-wal %s %%f > %%p'" % (
-                    barman_command, self.config.name)
+            print("restore_command = '%s get-wal %s %%f > %%p'" % (
+                  barman_command, self.config.name), file=recovery)
             recovery_info['results']['get_wal'] = True
         else:
-            print >> recovery, "restore_command = 'cp barman_xlog/%f %p'"
+            print("restore_command = 'cp barman_xlog/%f %p'", file=recovery)
         if backup_info.version >= 80400 and \
                 not recovery_info['get_wal']:
-            print >> recovery, "recovery_end_command = 'rm -fr barman_xlog'"
+            print("recovery_end_command = 'rm -fr barman_xlog'", file=recovery)
         if target_time:
-            print >> recovery, "recovery_target_time = '%s'" % target_time
+            print("recovery_target_time = '%s'" % target_time, file=recovery)
         if target_tli:
-            print >> recovery, "recovery_target_timeline = %s" % target_tli
+            print("recovery_target_timeline = %s" % target_tli, file=recovery)
         if target_xid:
-            print >> recovery, "recovery_target_xid = '%s'" % target_xid
+            print("recovery_target_xid = '%s'" % target_xid, file=recovery)
         if target_name:
-            print >> recovery, "recovery_target_name = '%s'" % target_name
+            print("recovery_target_name = '%s'" % target_name, file=recovery)
         if (target_xid or target_time) and exclusive:
-            print >> recovery, "recovery_target_inclusive = '%s'" % (
-                not exclusive)
+            print("recovery_target_inclusive = '%s'" % (
+                not exclusive), file=recovery)
         recovery.close()
         if remote_command:
             # Uses plain rsync (without exclusions) to ship recovery.conf
@@ -398,7 +399,7 @@ class RecoveryExecutor(object):
                 plain_rsync.from_file_list(['recovery.conf'],
                                            recovery_info['tempdir'],
                                            ':%s' % dest)
-            except CommandFailedException, e:
+            except CommandFailedException as e:
                 output.exception(
                     'remote copy of recovery.conf failed: %s', e)
                 output.close_and_exit()
@@ -611,7 +612,7 @@ class RecoveryExecutor(object):
         # check destination directory. If doesn't exist create it
         try:
             recovery_info['cmd'].create_dir_if_not_exists(dest)
-        except FsOperationFailed, e:
+        except FsOperationFailed as e:
             output.exception("unable to initialise destination directory "
                              "'%s': %s", dest, e)
             output.close_and_exit()
@@ -631,7 +632,7 @@ class RecoveryExecutor(object):
                 backup_info, dest,
                 tablespaces, remote_command,
                 recovery_info['safe_horizon'])
-        except DataTransferFailure, e:
+        except DataTransferFailure as e:
             output.exception("Failure copying base backup: %s", e)
             output.close_and_exit()
 
@@ -640,7 +641,7 @@ class RecoveryExecutor(object):
             try:
                 recovery_info['rsync'](backup_info.filename,
                                        ':%s/.barman-recover.info' % dest)
-            except CommandFailedException, e:
+            except CommandFailedException as e:
                 output.exception(
                     'copy of recovery metadata file failed: %s', e)
                 output.close_and_exit()
@@ -692,7 +693,7 @@ class RecoveryExecutor(object):
         archive_status_dir = os.path.join(dest, 'pg_xlog', 'archive_status')
         try:
             recovery_info['cmd'].create_dir_if_not_exists(archive_status_dir)
-        except FsOperationFailed, e:
+        except FsOperationFailed as e:
             output.exception("unable to create the archive_status directory "
                              "'%s': %s", archive_status_dir, e)
             output.close_and_exit()
@@ -780,7 +781,7 @@ class RecoveryExecutor(object):
                         '%s/' % backup_info.get_data_directory(tablespace.oid),
                         dest_prefix + location,
                         safe_horizon)
-                except CommandFailedException, e:
+                except CommandFailedException as e:
                     msg = "data transfer failure on directory '%s'" % location
                     raise DataTransferFailure.from_rsync_error(e, msg)
 
@@ -796,7 +797,7 @@ class RecoveryExecutor(object):
                 '%s/' % backup_info.get_data_directory(),
                 dest_prefix + dest,
                 safe_horizon)
-        except CommandFailedException, e:
+        except CommandFailedException as e:
             msg = "data transfer failure on directory '%s'" % dest
             raise DataTransferFailure.from_rsync_error(e, msg)
 

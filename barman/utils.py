@@ -274,3 +274,20 @@ def simplify_version(version_string):
         return None
     version = version_string.split('.')
     return '.'.join(version[:2])
+
+
+def with_metaclass(meta, *bases):
+    """
+    Function from jinja2/_compat.py. License: BSD.
+
+    Create a base class with a metaclass.
+
+    :param type meta: Metaclass to add to base class
+    """
+    # This requires a bit of explanation: the basic idea is to make a
+    # dummy metaclass for one level of class instantiation that replaces
+    # itself with the actual metaclass.
+    class Metaclass(type):
+        def __new__(mcs, name, this_bases, d):
+            return meta(name, bases, d)
+    return type.__new__(Metaclass, 'temporary_class', (), {})

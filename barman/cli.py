@@ -586,11 +586,11 @@ def pretty_args(args):
     values = dict(vars(args))
     # Retrieve the command name with recent argh versions
     if '_functions_stack' in values:
-        values['command'] = values['_functions_stack'][0].func_name
+        values['command'] = values['_functions_stack'][0].__name__
         del values['_functions_stack']
     # Older argh versions only have the matching function in the namespace
     elif 'function' in values:
-        values['command'] = values['function'].func_name
+        values['command'] = values['function'].__name__
         del values['function']
     return "%r" % values
 
@@ -894,7 +894,7 @@ def main():
     except KeyboardInterrupt:
         msg = "Process interrupted by user (KeyboardInterrupt)"
         output.exception(msg)
-    except Exception, e:
+    except Exception as e:
         msg = "%s\nSee log file for more details." % e
         output.exception(msg)
 

@@ -33,7 +33,7 @@ from barman.hooks import (AbortedRetryHookScript, HookScriptRunner,
                           RetryHookScriptRunner)
 from barman.infofile import WalFileInfo
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import fsync_dir, mkpath
+from barman.utils import fsync_dir, mkpath, with_metaclass
 
 _logger = logging.getLogger(__name__)
 
@@ -66,12 +66,10 @@ class ArchiverFailure(Exception):
     """
 
 
-class WalArchiver(RemoteStatusMixin):
+class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
     """
     Base class for WAL archiver objects
     """
-
-    __metaclass__ = ABCMeta
 
     def __init__(self, backup_manager, name):
         """
@@ -281,7 +279,7 @@ class WalArchiver(RemoteStatusMixin):
                                                      'post')
                 retry_script.env_from_wal_info(wal_info, dst_file, error)
                 retry_script.run()
-            except AbortedRetryHookScript, e:
+            except AbortedRetryHookScript as e:
                 # Ignore the ABORT_STOP as it is a post-hook operation
                 _logger.warning("Ignoring stop request after receiving "
                                 "abort (exit code %d) from post-archive "

@@ -27,6 +27,7 @@ from psycopg2.extras import RealDictCursor
 
 from barman.infofile import Tablespace
 from barman.remote_status import RemoteStatusMixin
+from barman.utils import with_metaclass
 
 _logger = logging.getLogger(__name__)
 
@@ -43,11 +44,10 @@ class PostgresConnectionError(Exception):
     """
 
 
-class PostgreSQL(RemoteStatusMixin):
+class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
     """
     This abstract class represents a generic interface to a PostgreSQL server.
     """
-    __metaclass__ = ABCMeta
 
     def __init__(self, config, conninfo):
         """
