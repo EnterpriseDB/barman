@@ -17,14 +17,17 @@
 import os
 
 import pytest
-from mock import ANY, patch
+from mock import ANY, MagicMock, patch
 
 import barman.xlog
+from barman.backup import DuplicateWalFile, MatchingDuplicateWalFile
 from barman.command_wrappers import CommandFailedException
+from barman.compression import PyGZipCompressor, identify_compression
+from barman.infofile import WalFileInfo
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy
 from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
-                                 StreamingWalArchiver)
+                                 StreamingWalArchiver, WalArchiverBatch)
 from testing_helpers import build_backup_manager, build_test_backup_info
 
 
@@ -126,6 +129,61 @@ class TestFileWalArchiver(object):
             "\tarchive_command: OK\n" \
             "\tcontinuous archiving: FAILED\n"
 
+    @patch('os.unlink')
+    @patch('barman.wal_archiver.FileWalArchiver.get_next_batch')
+    @patch('barman.wal_archiver.FileWalArchiver.archive_wal')
+    @patch('shutil.move')
+    @patch('datetime.datetime')
+    def test_archive(self, datetime_mock, move_mock, archive_wal_mock,
+                     get_next_batch_mock, unlink_mock, capsys):
+        """
+        Test FileWalArchiver.archive method
+        """
+        fxlogdb_mock = MagicMock()
+        backup_manager = MagicMock()
+        archiver = FileWalArchiver(backup_manager)
+        archiver.config.name = "test_server"
+
+        wal_info = WalFileInfo(name="test_wal_file")
+        wal_info.orig_filename = "test_wal_file"
+
+        batch = WalArchiverBatch([wal_info])
+        get_next_batch_mock.return_value = batch
+        archive_wal_mock.side_effect = DuplicateWalFile
+
+        archiver.archive(fxlogdb_mock)
+
+        out, err = capsys.readouterr()
+        assert ("\tError: %s is already present in server %s. "
+                "File moved to errors directory." %
+                (wal_info.name, archiver.config.name)) in out
+
+        archive_wal_mock.side_effect = MatchingDuplicateWalFile
+        archiver.archive(fxlogdb_mock)
+        unlink_mock.assert_called_with(wal_info.orig_filename)
+
+        # Test batch errors
+        datetime_mock.utcnow.strftime.return_value = 'test_time'
+        batch.errors = ['testfile_1', 'testfile_2']
+        archive_wal_mock.side_effect = DuplicateWalFile
+        archiver.archive(fxlogdb_mock)
+        out, err = capsys.readouterr()
+
+        assert ("Some unknown objects have been found while "
+                "processing xlog segments for %s. "
+                "Objects moved to errors directory:" %
+                archiver.config.name) in out
+
+        move_mock.assert_any_call(
+            'testfile_1',
+            os.path.join(archiver.config.errors_directory,
+                         "%s.%s.unknown" % ('testfile_1', 'test_time')))
+
+        move_mock.assert_any_call(
+            'testfile_2',
+            os.path.join(archiver.config.errors_directory,
+                         "%s.%s.unknown" % ('testfile_2', 'test_time')))
+
     # TODO: The following test should be splitted in two
     # the BackupManager part and the FileWalArchiver part
     def test_base_archive_wal(self, tmpdir):
@@ -175,6 +233,96 @@ class TestFileWalArchiver(object):
         assert not os.path.exists(wal_file.strpath)
         # Check that the wal file have been archived to the expected location
         assert os.path.exists(wal_path)
+
+    def test_archive_wal(self, tmpdir, capsys):
+        """
+        Test WalArchiver.archive_wal behaviour when the WAL file already
+        exists in the archive
+        """
+
+        # Setup the test environment
+        backup_manager = build_backup_manager(
+            name='TestServer',
+            global_conf={
+                'barman_home': tmpdir.strpath
+            })
+        backup_manager.compression_manager.get_compressor.return_value = None
+        backup_manager.server.get_backup.return_value = None
+
+        basedir = tmpdir.join('main')
+        incoming_dir = basedir.join('incoming')
+        archive_dir = basedir.join('wals')
+        xlog_db = archive_dir.join('xlog.db')
+        wal_name = '000000010000000000000001'
+        wal_file = incoming_dir.join(wal_name)
+        wal_file.ensure()
+        archive_dir.ensure(dir=True)
+        xlog_db.ensure()
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = (
+            xlog_db.open(mode='a'))
+        archiver = FileWalArchiver(backup_manager)
+        backup_manager.server.archivers = [archiver]
+
+        # Tests a basic archival process
+        wal_info = WalFileInfo.from_file(wal_file.strpath)
+        archiver.archive_wal(None, wal_info)
+
+        assert not os.path.exists(wal_file.strpath)
+        assert os.path.exists(wal_info.fullpath(backup_manager.server))
+
+        # Tests the archiver behaviour for duplicate WAL files, as the
+        # wal file named '000000010000000000000001' was already archived
+        # in the previous test
+        wal_file.ensure()
+        wal_info = WalFileInfo.from_file(wal_file.strpath)
+
+        with pytest.raises(MatchingDuplicateWalFile):
+            archiver.archive_wal(None, wal_info)
+
+        # Tests the archiver behaviour for duplicated WAL files with
+        # different contents
+        wal_file.write('test')
+        wal_info = WalFileInfo.from_file(wal_file.strpath)
+
+        with pytest.raises(DuplicateWalFile):
+            archiver.archive_wal(None, wal_info)
+
+        # Tests the archiver behaviour for duplicate WAL files, as the
+        # wal file named '000000010000000000000001' was already archived
+        # in the previous test and the input file uses compression
+        compressor = PyGZipCompressor(backup_manager.config, 'pygzip')
+        compressor.compress(wal_file.strpath, wal_file.strpath)
+        wal_info = WalFileInfo.from_file(wal_file.strpath)
+        assert os.path.exists(wal_file.strpath)
+        backup_manager.compression_manager.get_compressor.return_value = (
+            compressor)
+
+        with pytest.raises(MatchingDuplicateWalFile):
+            archiver.archive_wal(None, wal_info)
+
+        # Test the archiver behaviour when the incoming file is compressed
+        # and it has been already archived and compressed.
+        compressor.compress(wal_info.fullpath(backup_manager.server),
+                            wal_info.fullpath(backup_manager.server))
+
+        wal_info = WalFileInfo.from_file(wal_file.strpath)
+        with pytest.raises(MatchingDuplicateWalFile):
+            archiver.archive_wal(None, wal_info)
+
+        # Reset the status of the incoming and WALs directory
+        # removing the files archived during the preceding tests.
+        os.unlink(wal_info.fullpath(backup_manager.server))
+        os.unlink(wal_file.strpath)
+
+        # Test the archival of a WAL file using compression.
+        wal_file.write('test')
+        wal_info = WalFileInfo.from_file(wal_file.strpath)
+        archiver.archive_wal(compressor, wal_info)
+        assert os.path.exists(wal_info.fullpath(backup_manager.server))
+        assert not os.path.exists(wal_file.strpath)
+        assert 'gzip' == identify_compression(
+            wal_info.fullpath(backup_manager.server)
+        )
 
     # TODO: The following test should be splitted in two
     # the BackupManager part and the FileWalArchiver part
@@ -327,6 +475,37 @@ class TestFileWalArchiver(object):
         # Check the output for the archival of the wal file
         out, err = capsys.readouterr()
         assert ("\t%s\n" % wal_name) in out
+
+    @patch('barman.wal_archiver.glob')
+    @patch('os.path.isfile')
+    @patch('barman.wal_archiver.WalFileInfo.from_file')
+    def test_get_next_batch(self, from_file_mock, isfile_mock, glob_mock):
+        """
+        Test the FileWalArchiver.get_next_batch method
+        """
+
+        # WAL batch no errors
+        glob_mock.return_value = ['000000010000000000000001']
+        isfile_mock.return_value = True
+        # This is an hack, instead of a WalFileInfo we use a simple string to
+        # ease all the comparisons. The resulting string is the name enclosed
+        # in colons. e.g. ":000000010000000000000001:"
+        from_file_mock.side_effect = lambda wal_name: ':%s:' % wal_name
+
+        backup_manager = build_backup_manager(
+            name='TestServer'
+        )
+        archiver = FileWalArchiver(backup_manager)
+        backup_manager.server.archivers = [archiver]
+
+        batch = archiver.get_next_batch()
+        assert [':000000010000000000000001:'] == batch
+
+        # WAL batch with errors
+        wrong_file_name = 'test_wrong_wal_file.2'
+        glob_mock.return_value = ['test_wrong_wal_file.2']
+        batch = archiver.get_next_batch()
+        assert [wrong_file_name] == batch.errors
 
 
 # noinspection PyMethodMayBeStatic
@@ -603,3 +782,55 @@ class TestStreamingWalArchiver(object):
             "\tpg_receivexlog compatible: FAILED " \
             "(PostgreSQL version: 9.5, pg_receivexlog version: None)\n" \
             "\treceive-wal running: OK\n"
+
+    @patch('barman.wal_archiver.glob')
+    @patch('os.path.isfile')
+    @patch('barman.wal_archiver.WalFileInfo.from_file')
+    def test_get_next_batch(self, from_file_mock, isfile_mock, glob_mock):
+        """
+        Test the FileWalArchiver.get_next_batch method
+        """
+
+        # WAL batch, with 000000010000000000000001 that is currently being
+        # written
+        glob_mock.return_value = ['000000010000000000000001']
+        isfile_mock.return_value = True
+        # This is an hack, instead of a WalFileInfo we use a simple string to
+        # ease all the comparisons. The resulting string is the name enclosed
+        # in colons. e.g. ":000000010000000000000001:"
+        from_file_mock.side_effect = lambda wal_name, compression: (
+            ':%s:' % wal_name)
+
+        backup_manager = build_backup_manager(
+            name='TestServer'
+        )
+        archiver = StreamingWalArchiver(backup_manager)
+        backup_manager.server.archivers = [archiver]
+
+        batch = archiver.get_next_batch()
+        assert ['000000010000000000000001'] == batch.skip
+
+        # WAL batch, with 000000010000000000000002 that is currently being
+        # written and 000000010000000000000001 can be archived
+        glob_mock.return_value = [
+            '000000010000000000000001',
+            '000000010000000000000002',
+        ]
+        batch = archiver.get_next_batch()
+        assert [':000000010000000000000001:'] == batch
+        assert ['000000010000000000000002'] == batch.skip
+
+        # WAL batch, with two partial files.
+        glob_mock.return_value = [
+            '000000010000000000000001.partial',
+            '000000010000000000000002.partial',
+        ]
+        batch = archiver.get_next_batch()
+        assert ['000000010000000000000001.partial'] == batch.errors
+        assert ['000000010000000000000002.partial'] == batch.skip
+
+        # WAL batch with errors
+        wrong_file_name = 'test_wrong_wal_file.2'
+        glob_mock.return_value = ['test_wrong_wal_file.2']
+        batch = archiver.get_next_batch()
+        assert [wrong_file_name] == batch.errors

@@ -172,7 +172,7 @@ class TestFieldListFile(object):
 
 
 # noinspection PyMethodMayBeStatic
-class TestWallFileInfo(object):
+class TestWalFileInfo(object):
     def test_from_file_no_compression(self, tmpdir):
         tmp_file = tmpdir.join("000000000000000000000001")
         tmp_file.write('dummy_content\n')

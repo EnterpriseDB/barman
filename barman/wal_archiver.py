@@ -97,12 +97,10 @@ class WalArchiver(RemoteStatusMixin):
         :raise ArchiverFailure: when something goes wrong
         """
 
-    def archive(self, first_backup, fxlogdb, verbose=True):
+    def archive(self, fxlogdb, verbose=True):
         """
         Archive WAL files, discarding duplicates or those that are not valid.
 
-        :param BackupInfo first_backup: BackupInfo of the oldest backup for the
-            current server
         :param file fxlogdb: File object for xlogdb interactions
         :param boolean verbose: Flag for verbose output
         """
@@ -176,10 +174,10 @@ class WalArchiver(RemoteStatusMixin):
 
     def archive_wal(self, compressor, wal_info):
         """
-        Archive a WAL segment and return the updated WalFileInfo object
+        Archive a WAL segment and update the wal_info object
 
         :param compressor: the compressor for the file (if any)
-        :param wal_info: WalFileInfo of the WAL file is being processed
+        :param WalFileInfo wal_info: the WAL file is being processed
         """
 
         src_file = wal_info.orig_filename
@@ -294,40 +292,6 @@ class WalArchiver(RemoteStatusMixin):
             script = HookScriptRunner(self, 'archive_script', 'post', error)
             script.env_from_wal_info(wal_info, dst_file)
             script.run()
-
-    def is_wal_relevant(self, wal_info, first_backup):
-        """
-        Check the relevance of a WAL file according to a provided BackupInfo
-        (usually the oldest on the server) to ensure that the WAL is newer than
-        the start_wal of the backup.
-
-        :param WalFileInfo wal_info: the WAL file we are checking
-        :param BackupInfo first_backup: the backup used for the checks
-            (usually the oldest available on the server)
-        """
-
-        # Skip history files
-        if xlog.is_history_file(wal_info.name):
-            return True
-
-        # If the WAL file has a timeline smaller than the one of
-        # the oldest backup it cannot be used in any way.
-        wal_timeline = xlog.decode_segment_name(wal_info.name)[0]
-        if wal_timeline < first_backup.timeline:
-            output.info("\tThe timeline of the WAL file %s (%s), is lower "
-                        "than the one of the oldest backup of "
-                        "server %s (%s). Moving the WAL in "
-                        "the error directory",
-                        wal_info.name, wal_timeline, self.config.name,
-                        first_backup.timeline)
-            return False
-        # Manage xlog segments older than the first backup
-        if wal_info.name < first_backup.begin_wal:
-            output.info("\tOlder than first backup of server %s. "
-                        "Moving the WAL file %s in the error directory",
-                        self.config.name, wal_info.name)
-            return False
-        return True
 
     @abstractmethod
     def get_next_batch(self):
