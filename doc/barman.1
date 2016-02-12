@@ -380,6 +380,12 @@ the PostgreSQL servers through the streaming protocol.
 stop the receive\-wal process for the server
 .RS
 .RE
+.TP
+.B \-\-reset
+reset the status of receive\-wal, restarting the streaming from the
+current WAL file of the server
+.RS
+.RE
 .RE
 .TP
 .B delete \f[I]SERVER_NAME\f[] \f[I]BACKUP_ID\f[]

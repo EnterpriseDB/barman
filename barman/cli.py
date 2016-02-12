@@ -551,6 +551,9 @@ def archive_wal(args):
 @named('receive-wal')
 @arg('--stop', help='stop the receive-wal subprocess for the server',
      action='store_true')
+@arg('--reset', help='reset the status of receive-wal removing '
+                     'any status files',
+     action='store_true')
 @arg('server_name',
      completer=server_completer,
      help='specifies the server name for the command')
@@ -562,12 +565,14 @@ def receive_wal(args):
     from the PostgreSQL server.
     """
     server = get_server(args)
+    if args.stop and args.reset:
+        output.error("--stop and --reset options are not compatible")
     # If the caller requested to shutdown the receive-wal process deliver the
     # termination signal, otherwise attempt to start it
-    if args.stop:
+    elif args.stop:
         server.kill('receive-wal')
     else:
-        server.receive_wal()
+        server.receive_wal(reset=args.reset)
     output.close_and_exit()
 
 

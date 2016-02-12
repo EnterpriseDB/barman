@@ -282,6 +282,10 @@ receive-wal *SERVER_NAME*
     --stop
     :   stop the receive-wal process for the server
 
+    --reset
+    :   reset the status of receive-wal, restarting the streaming
+        from the current WAL file of the server
+
 delete *SERVER_NAME* *BACKUP_ID*
 :   Delete the specified backup. [Backup ID shortcuts](#shortcuts)
     section below for available shortcuts.

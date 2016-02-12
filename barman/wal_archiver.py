@@ -87,11 +87,14 @@ class WalArchiver(RemoteStatusMixin):
         self.name = name
         super(WalArchiver, self).__init__()
 
-    def receive_wal(self):
+    def receive_wal(self, reset=False):
         """
         Manage reception of WAL files. Does nothing by default.
         Some archiver classes, like the StreamingWalArchiver, have a full
         implementation.
+
+        :param bool reset: When set, resets the status of receive-wal
+        :raise ArchiverFailure: when something goes wrong
         """
 
     def archive(self, first_backup, fxlogdb, verbose=True):
@@ -557,13 +560,22 @@ class StreamingWalArchiver(WalArchiver):
 
         return result
 
-    def receive_wal(self):
+    def receive_wal(self, reset=False):
         """
         Creates a PgReceiveXlog object and issues the pg_receivexlog command
         for a specific server
 
+        :param bool reset: When set reset the status of receive-wal
         :raise ArchiverFailure: when something goes wrong
         """
+        # Ensure the presence of the destination directory
+        mkpath(self.config.streaming_wals_directory)
+
+        # Check if is a reset request
+        if reset:
+            self._reset_streaming_status()
+            return
+
         # Execute basic sanity checks on PostgreSQL connection
         postgres_status = self.server.streaming.get_remote_status()
         if postgres_status["streaming_supported"] is None:
@@ -582,9 +594,6 @@ class StreamingWalArchiver(WalArchiver):
             raise ArchiverFailure(
                 'pg_receivexlog version not compatible with '
                 'PostgreSQL server version')
-
-        # Ensure the presence of the destination directory
-        mkpath(self.config.streaming_wals_directory)
 
         # Make sure we are not wasting precious PostgreSQL resources
         self.server.postgres.close()
@@ -608,6 +617,17 @@ class StreamingWalArchiver(WalArchiver):
             # This is a normal termination, so there is nothing to do beside
             # informing the user.
             output.info('SIGINT received. Terminate gracefully.')
+
+    def _reset_streaming_status(self):
+        """
+        Reset the status of receive-wal removing any .partial files
+        """
+        output.info("Resetting receive-wal directory status")
+        partial_files = glob(os.path.join(
+            self.config.streaming_wals_directory, '*.partial'))
+        for partial in partial_files:
+            output.info("Removing status file %s" % partial)
+            os.unlink(partial)
 
     def get_next_batch(self):
         """

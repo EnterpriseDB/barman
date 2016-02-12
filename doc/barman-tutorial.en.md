@@ -520,6 +520,22 @@ the `receive-wal` command with the `--stop` option:
 ``` bash
 barman receive-wal --stop <server_name>
 ```
+##### Reset location of receive-wal
+
+In some cases, mainly due to the current lack of support for replication
+slots in Barman, it may be necessary to reset the location of the streaming
+WAL archiver (e.g.: a prolonged interruption of the `receive-wal` process
+might cause Barman to go out of sync with the master).
+
+You can reset the location using `--reset` option of the `receive-wal`
+command, as follows:
+
+``` bash
+barman receive-wal --reset <server_name>
+```
+
+> **Note:**
+> The `--reset` option requires that no `receive-wal` is running.
 
 ## Listing the servers
 

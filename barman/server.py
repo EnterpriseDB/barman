@@ -1206,13 +1206,15 @@ class Server(RemoteStatusMixin):
                         "on server %s. Skipping to the next server"
                         % self.config.name)
 
-    def receive_wal(self):
+    def receive_wal(self, reset=False):
         """
         Enable the reception of WAL files using streaming protocol.
 
         Usually started by barman cron command.
         Executing this manually, the barman process will not terminate but
         will continuously receive WAL files from the PostgreSQL server.
+
+        :param reset: When set, resets the status of receive-wal
         """
         # Execute the receive-wal command only if streaming_archiver
         # is enabled
@@ -1234,14 +1236,19 @@ class Server(RemoteStatusMixin):
                     # WARNING: This codes assumes that there is only one
                     # StreamingWalArchiver in the archivers list.
                     for archiver in self.archivers:
-                        archiver.receive_wal()
+                        archiver.receive_wal(reset)
                 except ArchiverFailure as e:
                     output.error("Impossible to start a receive-wal process "
                                  "for server %s: %s" % (self.config.name, e))
         except LockFileBusy:
             # If another process is running for this server,
-            output.info("Another receive-wal process is already running "
-                        "for server %s." % self.config.name)
+            if reset:
+                output.info("Unable to reset the status of receive-wal "
+                            "for server %s. Process is still running"
+                            % self.config.name)
+            else:
+                output.info("Another receive-wal process is already running "
+                            "for server %s." % self.config.name)
 
     @contextmanager
     def xlogdb(self, mode='r'):

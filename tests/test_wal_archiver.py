@@ -419,13 +419,14 @@ class TestStreamingWalArchiver(object):
         backup_manager = build_backup_manager(
             main_conf={
                 'backup_directory': tmpdir
-            }
+            },
         )
         backup_manager.server.streaming.server_txt_version = "9.4.0"
         backup_manager.server.streaming.get_remote_status.return_value = {
             "streaming_supported": True
         }
-
+        streaming_dir = tmpdir.join('streaming')
+        streaming_dir.ensure(dir=True)
         # Test: normal run
         archiver = StreamingWalArchiver(backup_manager)
         remote_mock.return_value = {
@@ -433,11 +434,18 @@ class TestStreamingWalArchiver(object):
             'pg_receivexlog_compatible': True,
             'pg_receivexlog_path': 'fake/path'
         }
-        archiver.receive_wal()
+
+        # Test: execute a reset request
+        partial = streaming_dir.join('test.partial')
+        partial.ensure()
+        archiver.receive_wal(reset=True)
+        assert not partial.check()
+
+        archiver.receive_wal(reset=False)
         receivexlog_mock.assert_called_once_with(
             'fake/path',
             'host=pg01.nowhere user=postgres port=5432',
-            tmpdir.join('streaming').strpath,
+            streaming_dir.strpath,
             out_handler=ANY,
             err_handler=ANY,
         )
