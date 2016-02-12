@@ -1578,6 +1578,35 @@ If you discover a bug, please follow this procedure:
   output obtained by the diagnostics command above (`barman
   diagnose`).
 
+# Contributing to Barman
+
+2ndQuadrant has a team of software engineers, architects, database
+administrators, system administrators, QA engineers, developers and
+managers that dedicate their time and expertise to improve Barman's code.
+We adopt lean and agile methodologies for software development, and
+we believe in the _devops_ culture that allowed us to implement rigorous
+testing procedures through cross-functional collaboration.
+Every Barman commit is the contribution of multiple individuals, at different
+stages of the production pipeline.
+
+Even though this is our preferred way of developing Barman, we gladly
+accept patches from external developers, as long as:
+
+* user documentation (tutorial and man pages) is provided;
+* source code is properly documented and contains relevant comments;
+* code supplied is covered by unit tests;
+* no unrelated feature is compromised or broken;
+* source code is rebased on the current master branch;
+* commits and pull requests are limited to a single feature (multi-feature
+patches are hard to test and review);
+* changes to the user interface are discussed beforehand with 2ndQuadrant.
+
+We also require that any contributions provide a copyright assignment
+and a disclaimer of any work-for-hire ownership claims from the employer
+of the developer.
+
+You can use Github's pull requests system for this purpose.
+
 # Authors
 
 In alphabetical order:
@@ -1599,6 +1628,7 @@ Past contributors:
 - [check-barman] [16]: a Nagios plugin for Barman, written by Holger
   Hamann (MIT license)
 - [puppet-barman] [17]: Barman module for Puppet (GPL)
+- [Tutorial on "How To Back Up, Restore, and Migrate PostgreSQL Databases with Barman on CentOS 7"] [26], by Sadequl Hussain (available on DigitalOcean Community)
 
 # License and Contributions
 
@@ -1647,3 +1677,4 @@ Assignment Form.
   [23]: http://www.postgresql.org/docs/current/static/role-attributes.html
   [24]: http://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION
   [25]: http://www.postgresql.org/docs/9.4/static/app-pgreceivexlog.html
+  [26]: https://goo.gl/218Ghl
