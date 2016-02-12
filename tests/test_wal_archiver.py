@@ -21,6 +21,7 @@ from mock import ANY, patch
 
 import barman.xlog
 from barman.command_wrappers import CommandFailedException
+from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy
 from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
                                  StreamingWalArchiver)
@@ -546,11 +547,14 @@ class TestStreamingWalArchiver(object):
             'pg_receivexlog_path': 'fake/path',
         }
         # Expect out: all parameters: OK
+        backup_manager.server.process_manager.list.return_value = []
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
         assert out == \
             "\tpg_receivexlog: OK\n" \
-            "\tpg_receivexlog compatible: OK\n"
+            "\tpg_receivexlog compatible: OK\n" \
+            "\treceive-wal running: FAILED " \
+            "(See the Barman log file for more details)\n"
 
         # Case: pg_receivexlog is not compatible
         remote_mock.return_value = {
@@ -566,7 +570,9 @@ class TestStreamingWalArchiver(object):
         assert out == \
             "\tpg_receivexlog: OK\n" \
             "\tpg_receivexlog compatible: FAILED " \
-            "(PostgreSQL version: 9.5, pg_receivexlog version: 9.2)\n"
+            "(PostgreSQL version: 9.5, pg_receivexlog version: 9.2)\n" \
+            "\treceive-wal running: FAILED " \
+            "(See the Barman log file for more details)\n"
         # Case: pg_receivexlog returned error
         remote_mock.return_value = {
             'pg_receivexlog_installed': True,
@@ -580,4 +586,20 @@ class TestStreamingWalArchiver(object):
         assert out == \
             "\tpg_receivexlog: OK\n" \
             "\tpg_receivexlog compatible: FAILED " \
-            "(PostgreSQL version: 9.5, pg_receivexlog version: None)\n"
+            "(PostgreSQL version: 9.5, pg_receivexlog version: None)\n" \
+            "\treceive-wal running: FAILED " \
+            "(See the Barman log file for more details)\n"
+
+        # Case: receive-wal running
+        backup_manager.server.process_manager.list.return_value = [
+            ProcessInfo(pid=1,
+                        server_name=backup_manager.config.name,
+                        task="receive-wal")
+        ]
+        archiver.check(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == \
+            "\tpg_receivexlog: OK\n" \
+            "\tpg_receivexlog compatible: FAILED " \
+            "(PostgreSQL version: 9.5, pg_receivexlog version: None)\n" \
+            "\treceive-wal running: OK\n"

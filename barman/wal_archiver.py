@@ -679,8 +679,9 @@ class StreamingWalArchiver(WalArchiver):
 
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
-        :param dict remote_status: remote status of the server
         """
+
+        # Check the version of pg_receivexlog
         remote_status = self.get_remote_status()
         check_strategy.result(
             self.name, 'pg_receivexlog',
@@ -694,3 +695,17 @@ class StreamingWalArchiver(WalArchiver):
         check_strategy.result(
             self.name, 'pg_receivexlog compatible',
             remote_status['pg_receivexlog_compatible'], hint=hint)
+
+        # Check if pg_receivexlog is running, by retrieving a list
+        # of running 'receive-wal' processes from the process manager.
+        receiver_list = self.server.process_manager.list('receive-wal')
+
+        # If there's at least one 'receive-wal' process running for this
+        # server, the test is passed
+        if receiver_list:
+            check_strategy.result(
+                self.name, 'receive-wal running', True)
+        else:
+            check_strategy.result(
+                self.name, 'receive-wal running', False,
+                'See the Barman log file for more details')
