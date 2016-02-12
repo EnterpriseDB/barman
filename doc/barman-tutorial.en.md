@@ -508,7 +508,7 @@ barman receive-wal <server_name>
 > The `receive-wal` command is a foreground process.
 
 Transaction logs are streamed directly in the directory specified by the
-`streaming_wal_directory` configuration option and are then archived
+`streaming_wals_directory` configuration option and are then archived
 by the `archive-wal` command.
 
 ##### Stopping a receive-wal process for a server
@@ -662,7 +662,7 @@ barman@backup$ barman list-backup srvpgsql
 > disaster recovery plans/procedures in case they need to be restored
 > in their original location.
 
-## Remote recovery
+### Remote recovery
 
 Barman is able to recover a backup on a remote server through the
 `--remote-ssh-command COMMAND` option for the `recover` command.
@@ -693,7 +693,7 @@ to be aware that:
 - there must be enough free space on the remote server to contain the
   base backup and the WAL files needed for recovery.
 
-## Relocating one or more tablespaces
+### Relocating one or more tablespaces
 
 > **Important:**
 > As of version 1.3.0, it is possible to relocate a tablespace both
@@ -710,7 +710,7 @@ format:
 If the destination directory does not exists, Barman will try to
 create it (assuming you have enough privileges).
 
-## Restoring to a given point in time
+### Restoring to a given point in time
 
 Barman employs PostgreSQL's Point-in-Time Recovery (PITR) by allowing
 DBAs to specify a recovery target, either as a timestamp or as a
@@ -735,6 +735,32 @@ Barman allows you to specify a target timeline for recovery, using the
 `target-tli` option. The notion of timeline goes beyond the scope of
 this document; you can find more details in the PostgreSQL
 documentation, or in one of 2ndQuadrant's Recovery training courses.
+
+### Limitations of partial WAL files with recovery
+
+Version 1.6.0 introduces support for WAL streaming, by integrating PostgreSQL's
+`pg_receivexlog` utility with Barman. The standard behaviour of `pg_receivexlog`
+is to write transactional information in a file with `.partial` suffix after
+the WAL segment name.
+
+Barman expects a partial file to be in the `streaming_wals_directory` of
+a server. When completed, `pg_receivexlog` removes the `.partial` suffix
+and opens the following one, delivering the file to the `archive-wal` command
+of Barman for permanent storage and compression.
+
+In case of a sudden and unrecoverable failure of the master PostgreSQL server,
+the `.partial` file that has been streamed to Barman contains very important
+information that the standard archiver (through PostgreSQL's `archive_command`)
+has not been able to deliver to Barman.
+
+> **Important:**
+> A current limitation of Barman is that the `recover` command is not yet able
+> to transparently manage `.partial` files. In such situations, users will need
+> to manually copy the latest partial file from the server's
+> `streaming_wals_directory` of their Barman installation to the destination
+> for recovery, making sure that the `.partial` suffix is removed.
+> Restoring a server using the last partial file, reduces data loss, by bringing
+> down _recovery point objective_ to values around 0.
 
 ## Retry of copy in backup/recovery operations
 
