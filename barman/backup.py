@@ -558,7 +558,8 @@ class BackupManager(RemoteStatusMixin):
             try:
                 self.compression_manager.get_compressor()
             except CompressionIncompatibility, field:
-                check_strategy.result('%s setting' % field, False)
+                check_strategy.result(self.config.name,
+                                      '%s setting' % field, False)
                 status = False
             check_strategy.result(self.config.name,
                                   'compression settings', status)

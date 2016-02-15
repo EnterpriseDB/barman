@@ -416,16 +416,16 @@ class FileWalArchiver(WalArchiver):
             return
         # Check archive_mode parameter: must be on
         if remote_status['archive_mode'] in ('on', 'always'):
-            check_strategy.result(self.name, 'archive_mode', True)
+            check_strategy.result(self.config.name, 'archive_mode', True)
         else:
             msg = "please set it to 'on'"
             if self.server.postgres.server_version >= 90500:
                 msg += " or 'always'"
-            check_strategy.result(self.name, 'archive_mode', False, msg)
+            check_strategy.result(self.config.name, 'archive_mode', False, msg)
 
         if remote_status['archive_command'] and \
                 remote_status['archive_command'] != '(disabled)':
-            check_strategy.result(self.name, 'archive_command',
+            check_strategy.result(self.config.name, 'archive_command',
                                   True)
 
             # Report if the archiving process works without issues.
@@ -433,11 +433,11 @@ class FileWalArchiver(WalArchiver):
             # It can be None if PostgreSQL is older than 9.4
             if remote_status.get('is_archiving') is not None:
                 check_strategy.result(
-                    self.name, 'continuous archiving',
+                    self.config.name, 'continuous archiving',
                     remote_status['is_archiving'])
         else:
             check_strategy.result(
-                self.name, 'archive_command', False,
+                self.config.name, 'archive_command', False,
                 'please set it accordingly to documentation')
 
 
@@ -648,7 +648,7 @@ class StreamingWalArchiver(WalArchiver):
         # Check the version of pg_receivexlog
         remote_status = self.get_remote_status()
         check_strategy.result(
-            self.name, 'pg_receivexlog',
+            self.config.name, 'pg_receivexlog',
             remote_status['pg_receivexlog_installed'])
         hint = None
         if not remote_status['pg_receivexlog_compatible']:
@@ -657,7 +657,7 @@ class StreamingWalArchiver(WalArchiver):
                 remote_status['pg_receivexlog_version']
             )
         check_strategy.result(
-            self.name, 'pg_receivexlog compatible',
+            self.config.name, 'pg_receivexlog compatible',
             remote_status['pg_receivexlog_compatible'], hint=hint)
 
         # Check if pg_receivexlog is running, by retrieving a list
@@ -668,8 +668,8 @@ class StreamingWalArchiver(WalArchiver):
         # server, the test is passed
         if receiver_list:
             check_strategy.result(
-                self.name, 'receive-wal running', True)
+                self.config.name, 'receive-wal running', True)
         else:
             check_strategy.result(
-                self.name, 'receive-wal running', False,
+                self.config.name, 'receive-wal running', False,
                 'See the Barman log file for more details')
