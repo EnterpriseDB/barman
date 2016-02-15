@@ -17,7 +17,7 @@
 
 import psycopg2
 import pytest
-from mock import PropertyMock, patch
+from mock import PropertyMock, call, patch
 
 from barman.postgres import PostgresConnectionError
 from testing_helpers import build_real_server
@@ -241,6 +241,8 @@ class TestPostgres(object):
             'now() FROM pg_start_backup(%s,%s) as xlog_loc',
             ('test label', False)
         )
+        conn.return_value.rollback.assert_has_calls([call(), call()])
+        # reset the mock for the next test
         conn.reset_mock()
 
         # 8.3 test
@@ -253,12 +255,15 @@ class TestPostgres(object):
             'now() FROM pg_start_backup(%s) as xlog_loc',
             ('test label',)
         )
-
+        conn.return_value.rollback.assert_has_calls([call(), call()])
+        # reset the mock for the next test
         conn.reset_mock()
+
         # test error management
         cursor_mock.execute.side_effect = psycopg2.Error
         with pytest.raises(Exception):
             server.postgres.start_exclusive_backup(backup_label)
+        conn.return_value.rollback.assert_called_once_with()
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
     def test_pgespresso_start_backup(self, conn):
@@ -278,7 +283,8 @@ class TestPostgres(object):
             'SELECT pgespresso_start_backup(%s,%s), now()',
             (backup_label, server.postgres.config.immediate_checkpoint)
         )
-        # reset the mock for the second test
+        conn.return_value.rollback.assert_has_calls([call(), call()])
+        # reset the mock for the next test
         conn.reset_mock()
 
         # Test 2: Setup the mock to trigger an exception
@@ -287,6 +293,7 @@ class TestPostgres(object):
         # Check that the method returns None as result
         with pytest.raises(Exception):
             server.postgres.pgespresso_start_backup('test_label')
+        conn.return_value.rollback.assert_called_once_with()
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
     def test_get_setting(self, conn):

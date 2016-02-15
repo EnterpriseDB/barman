@@ -535,8 +535,11 @@ class PostgreSQLConnection(PostgreSQL):
         """
         try:
             conn = self.connect()
+
             # Issue a rollback to release any unneeded lock
             conn.rollback()
+
+            # Start the exclusive backup
             cur = conn.cursor()
             if self.server_version < 80400:
                 cur.execute(
@@ -551,7 +554,14 @@ class PostgreSQLConnection(PostgreSQL):
                     "now() FROM pg_start_backup(%s,%s) as xlog_loc",
                     (backup_label,
                      self.config.immediate_checkpoint))
-            return cur.fetchone()
+
+            start_row = cur.fetchone()
+
+            # Rollback to release the transaction, as the connection
+            # is to be retained until the end of backup
+            conn.rollback()
+
+            return start_row
         except (PostgresConnectionError, psycopg2.Error) as e:
             msg = "pg_start_backup(): %s" % str(e).strip()
             _logger.debug(msg)
@@ -587,13 +597,22 @@ class PostgreSQLConnection(PostgreSQL):
         """
         try:
             conn = self.connect()
+
             # Issue a rollback to release any unneeded lock
             conn.rollback()
+
+            # Start the concurrent backup
             cur = conn.cursor()
             cur.execute(
                 'SELECT pgespresso_start_backup(%s,%s), now()',
                 (backup_label, self.config.immediate_checkpoint))
-            return cur.fetchone()
+            start_row = cur.fetchone()
+
+            # Rollback to release the transaction, as the connection
+            # is to be retained until the end of backup
+            conn.rollback()
+
+            return start_row
         except (PostgresConnectionError, psycopg2.Error) as e:
             msg = "pgespresso_start_backup(): %s" % str(e).strip()
             _logger.debug(msg)
