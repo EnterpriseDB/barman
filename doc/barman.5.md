@@ -390,6 +390,7 @@ In alphabetical order:
 - Giuseppe Broccolo <giuseppe.broccolo@2ndquadrant.it> (QA/testing)
 - Giulio Calacoci <giulio.calacoci@2ndquadrant.it> (developer)
 - Francesco Canovai <francesco.canovai@2ndquadrant.it> (QA/testing)
+- Leonardo Cecchi <leonardo.cecchi@2ndquadrant.it> (developer)
 - Gianni Ciolli <gianni.ciolli@2ndquadrant.it> (QA/testing)
 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> (lead developer)
 
