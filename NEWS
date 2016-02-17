@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
-Version 1.6.0b2 - 10 Feb 2016
+Version 1.6.0b3 - 17 Feb 2016
 
 -   Support for streaming replication connection through the
     streaming_conninfo server option
@@ -14,7 +14,9 @@ Version 1.6.0b2 - 10 Feb 2016
 
 -   Implement the receive-wal command that, when streaming_archiver is
     on, wraps pg_receivexlog for WAL streaming. Add --stop option to
-    stop receiving WAL files via streaming protocol.
+    stop receiving WAL files via streaming protocol. Add --reset option
+    to reset the streaming status and restart from the current xlog
+    in Postgres.
 
 -   Automatic management (startup and stop) of receive-wal command via
     cron command
@@ -29,6 +31,9 @@ Version 1.6.0b2 - 10 Feb 2016
 
 -   Management of WAL duplicates in archive-wal command and integration
     with check command
+
+-   Verify if pg_receivexlog is running in check command when
+    streaming_archiver is enabled
 
 -   Verify if failed backups are present in check command
 
@@ -54,6 +59,8 @@ Version 1.6.0b2 - 10 Feb 2016
 
 -   Changes of behaviour:
     -   Stop trashing WAL files during archive-wal (commit:e3a1d16)
+-   Native support for Python >= 3.3
+
 -   Bug fixes:
     -   Atomic WAL file archiving (#9 and #12)
     -   Propagate "-c" option to any Barman subprocess (#19)
