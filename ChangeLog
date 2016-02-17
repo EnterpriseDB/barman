@@ -1,3 +1,61 @@
+2016-02-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Prepared version 1.6.0b3
+
+2016-02-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Stop running tests on Python 3.2
+
+2016-02-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make the code compatible with Python >= 3.2
+	All the incompatible constructs were rewritten to support both Python 2.x
+	and 3.x. Previously we were running 2to3 during the setup execution.
+
+2016-02-16  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add Leonardo Cecchi to authors
+
+2016-02-15  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Rollback transaction after starting a backup
+	Following the complete refactoring of the PostgreSQL connection code,
+	part of this 1.6.0 previous versions (alpha1, beta1 and beta2),
+	Barman is keeping an IDLE connection while taking a backup.
+	This could trigger spurious alerts if a transaction has been left open.
+
+2016-02-15  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix output of 'barman check --nagios'
+	Display the correct number of servers with 'barman check --nagios'
+
+2016-02-12  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Enhance test coverage for the wal_archiver module
+	Remove the unused 'is_wal_relevant' method as well.
+
+2016-02-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add section about contributing for Barman
+
+	Add a section about .partial files in the documentation
+
+2016-02-12  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add 'receive-wal running' check
+	When `streaming_archiver` is enabled, this check ensures that
+	a `receive-wal` process is running.
+
+2016-02-12  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add --reset option to receive-wal comand
+	Add the `--reset` option to the `receive-wal` command, allowing
+	users to reset the WAL location of the streaming archiver.
+	This is useful in case Barman goes out of sync with the master
+	server.
+
 2016-02-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
