@@ -152,7 +152,8 @@ class UnixLocalCommand(object):
                     else:
                         raise FsOperationFailed('Unable to remove file')
                 else:
-                    raise FsOperationFailed('Unable to create write check file')
+                    raise FsOperationFailed(
+                        'Unable to create write check file')
             else:
                 raise FsOperationFailed('%s is not a directory' % dir_path)
         else:
@@ -260,5 +261,5 @@ class UnixRemoteCommand(UnixLocalCommand):
         self.cmd = Command(cmd=ssh_command, shell=True)
         ret = self.cmd("true")
         if ret != 0:
-            raise FsOperationFailed("Connection failed using the command '%s'" %
-                                    ssh_command)
+            raise FsOperationFailed(
+                "Connection failed using the command '%s'" % ssh_command)

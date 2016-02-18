@@ -138,14 +138,16 @@ class TestBackup(object):
         # invoke backup method
         backup_manager.backup()
         # verify that mock status is FAILED
-        assert mock.call.set_attribute('status', 'FAILED') in instance.mock_calls
+        assert mock.call.set_attribute(
+            'status', 'FAILED') in instance.mock_calls
         # Instruct the patched method to raise a KeyboardInterrupt
         backup_manager.executor.start_backup = Mock(
             side_effect=KeyboardInterrupt())
         # invoke backup method
         backup_manager.backup()
         # verify that mock status is FAILED
-        assert mock.call.set_attribute('status', 'FAILED') in instance.mock_calls
+        assert mock.call.set_attribute(
+            'status', 'FAILED') in instance.mock_calls
 
     def test_dateutil_parser(self, tmpdir, capsys):
         """
@@ -221,7 +223,8 @@ class TestBackup(object):
             '00000001.history\t42\t43\tNone\n'
             '00000002.history\t42\t43\tNone\n'
             '00000003.history\t42\t43\tNone\n')
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open()
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = (
+            xlog_db.open())
         backup_manager.server.config.basebackups_directory = base_dir.strpath
         backup_manager.server.config.wals_directory = wal_dir.strpath
         # The following tablespaces are defined in the default backup info
@@ -235,7 +238,8 @@ class TestBackup(object):
         # Make sure we are not trying to delete any WAL file,
         # just by having a previous backup
         mock_available_backups.return_value = {
-            "fake_backup": build_test_backup_info(server=backup_manager.server),
+            "fake_backup": build_test_backup_info(
+                server=backup_manager.server),
             "fake_backup_id": b_info,
         }
 
@@ -357,7 +361,8 @@ class TestBackup(object):
         available_backups = backup_manager.get_available_backups(
             (BackupInfo.DONE,))
 
-        assert available_backups[b_info.backup_id].to_dict() == b_info.to_dict()
+        assert available_backups[b_info.backup_id].to_dict() == (
+            b_info.to_dict())
         # Check that the  failed backup have been filtered from the result
         assert failed_b_info.backup_id not in available_backups
         assert len(available_backups) == 1
@@ -425,8 +430,8 @@ class TestBackup(object):
 
     def test_backup_cache_remove(self, tmpdir):
         """
-        Check the method responsible for the removal of a BackupInfo object from
-        the backups cache
+        Check the method responsible for the removal of a BackupInfo object
+        from the backups cache
         """
         # build a backup_manager and setup a basic configuration
         backup_manager = build_backup_manager(

@@ -238,7 +238,8 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             self.current_action = "copying files"
             output.info("Copying files.")
             # perform the backup copy, honouring the retry option if set
-            self.backup_manager.retry_backup_copy(self.backup_copy, backup_info)
+            self.backup_manager.retry_backup_copy(self.backup_copy,
+                                                  backup_info)
 
             output.info("Copy done.")
         except:
@@ -297,7 +298,8 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
     def status(self):
         """
         Set additional status info for SshBackupExecutor using remote
-        commands via Ssh, as well as those defined by the given backup strategy.
+        commands via Ssh, as well as those defined by the given
+        backup strategy.
         """
         try:
             # Invoke the status() method for the given strategy
@@ -413,7 +415,8 @@ class RsyncBackupExecutor(SshBackupExecutor):
                         tablespace.location[len(backup_info.pgdata):])
                 # Make sure the destination directory exists in order for
                 # smart copy to detect that no file is present there
-                tablespace_dest = backup_info.get_data_directory(tablespace.oid)
+                tablespace_dest = backup_info.get_data_directory(
+                    tablespace.oid)
                 mkpath(tablespace_dest)
                 # Exclude and protect the tablespace from being copied again
                 # during the data directory copy
@@ -481,7 +484,8 @@ class RsyncBackupExecutor(SshBackupExecutor):
             cf = getattr(backup_info, key, None)
             if cf:
                 assert isinstance(cf, str)
-                # Consider only those that reside outside of the original PGDATA
+                # Consider only those that reside outside of the original
+                # PGDATA directory
                 if cf.startswith(backup_info.pgdata):
                     self.current_action = \
                         "skipping %s as contained in %s directory" % (
@@ -806,7 +810,8 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         # Concurrent backup: issue a pgespresso_start_Backup() command
 
-        start_row = self.executor.server.postgres.pgespresso_start_backup(label)
+        postgres = self.executor.server.postgres
+        start_row = postgres.pgespresso_start_backup(label)
         backup_data, start_time = start_row
         wal_re = re.compile(
             '^START WAL LOCATION: (.*) \(file (.*)\)',
@@ -829,7 +834,8 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        stop_row = self.executor.server.postgres.pgespresso_stop_backup(backup_info.backup_label)
+        postgres = self.executor.server.postgres
+        stop_row = postgres.pgespresso_stop_backup(backup_info.backup_label)
         if stop_row:
             end_wal, stop_time = stop_row
             decoded_segment = xlog.decode_segment_name(end_wal)

@@ -244,7 +244,8 @@ class Server(RemoteStatusMixin):
 
         # Set minimum redundancy (default 0)
         if self.config.minimum_redundancy.isdigit():
-            self.config.minimum_redundancy = int(self.config.minimum_redundancy)
+            self.config.minimum_redundancy = int(
+                self.config.minimum_redundancy)
             if self.config.minimum_redundancy < 0:
                 _logger.warning('Negative value of minimum_redundancy "%s" '
                                 'for server "%s" (fallback to "0")' % (
@@ -292,16 +293,19 @@ class Server(RemoteStatusMixin):
                     rp = RetentionPolicyFactory.create(
                         self, 'wal_retention_policy',
                         self.config.wal_retention_policy)
-                    # Reassign the configuration value (we keep it in one place)
+                    # Reassign the configuration value
+                    # (we keep it in one place)
                     self.config.wal_retention_policy = rp
                     _logger.debug(
                         'WAL retention policy for server %s: %s' % (
-                            self.config.name, self.config.wal_retention_policy))
+                            self.config.name,
+                            self.config.wal_retention_policy))
                 except ValueError:
                     _logger.exception(
                         'Invalid wal_retention_policy setting "%s" '
                         'for server "%s" (fallback to "main")' % (
-                            self.config.wal_retention_policy, self.config.name))
+                            self.config.wal_retention_policy,
+                            self.config.name))
                     rp = RetentionPolicyFactory.create(
                         self, 'wal_retention_policy', 'main')
                     self.config.wal_retention_policy = rp
@@ -428,9 +432,11 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        if self.config.retention_policy and not self.enforce_retention_policies:
-            check_strategy.result(self.config.name, 'retention policy settings',
-                                  False, 'see log')
+        if (self.config.retention_policy and
+                not self.enforce_retention_policies):
+            check_strategy.result(self.config.name,
+                                  'retention policy settings', False,
+                                  'see log')
         else:
             check_strategy.result(self.config.name,
                                   'retention policy settings', True)
@@ -674,7 +680,8 @@ class Server(RemoteStatusMixin):
             # Otherwise, normally delete the backup.
             first_backup_id = self.get_first_backup_id(BackupInfo.STATUS_ALL)
             if backup.backup_id == first_backup_id \
-                    and backup.status in (BackupInfo.STARTED, BackupInfo.EMPTY):
+                    and backup.status in (BackupInfo.STARTED,
+                                          BackupInfo.EMPTY):
                 output.error("Cannot delete a running backup (%s %s)"
                              % (self.config.name, backup.backup_id))
             else:
@@ -708,7 +715,8 @@ class Server(RemoteStatusMixin):
 
         try:
             # lock acquisition and backup execution
-            with ServerBackupLock(self.config.barman_lock_directory, self.config.name):
+            with ServerBackupLock(self.config.barman_lock_directory,
+                                  self.config.name):
                 self.backup_manager.backup()
             # Archive incoming WALs and update WAL catalogue
             self.archive_wal(verbose=False)
@@ -719,7 +727,8 @@ class Server(RemoteStatusMixin):
         except LockFilePermissionDenied as e:
             output.error("Permission denied, unable to access '%s'" % e)
 
-    def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+    def get_available_backups(
+            self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
         Get a list of available backups
 
@@ -728,7 +737,8 @@ class Server(RemoteStatusMixin):
         """
         return self.backup_manager.get_available_backups(status_filter)
 
-    def get_last_backup_id(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+    def get_last_backup_id(
+            self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
         Get the id of the latest/last backup in the catalog (if exists)
 
@@ -738,7 +748,8 @@ class Server(RemoteStatusMixin):
         """
         return self.backup_manager.get_last_backup_id(status_filter)
 
-    def get_first_backup_id(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+    def get_first_backup_id(
+            self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
         Get the id of the oldest/first backup in the catalog (if exists)
 
@@ -774,7 +785,8 @@ class Server(RemoteStatusMixin):
                 if self.enforce_retention_policies and \
                         retention_status[backup.backup_id] != BackupInfo.VALID:
                     rstatus = retention_status[backup.backup_id]
-            output.result('list_backup', backup, backup_size, wal_size, rstatus)
+            output.result('list_backup', backup, backup_size, wal_size,
+                          rstatus)
 
     def get_backup(self, backup_id):
         """
@@ -804,8 +816,8 @@ class Server(RemoteStatusMixin):
         """
         return self.backup_manager.get_next_backup(backup_id)
 
-    def get_required_xlog_files(self, backup, target_tli=None, target_time=None,
-                                target_xid=None):
+    def get_required_xlog_files(self, backup, target_tli=None,
+                                target_time=None, target_xid=None):
         """
         Get the xlog files required for a recovery
         """
@@ -972,20 +984,20 @@ class Server(RemoteStatusMixin):
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
-        :param dict[str,str]|None tablespaces: a tablespace name -> location map
-            (for relocation)
+        :param dict[str,str]|None tablespaces: a tablespace
+            name -> location map (for relocation)
         :param str|None target_tli: the target timeline
         :param str|None target_time: the target time
         :param str|None target_xid: the target xid
         :param str|None target_name: the target name created previously with
                             pg_create_restore_point() function call
         :param bool exclusive: whether the recovery is exclusive or not
-        :param str|None remote_command: default None. The remote command to recover
-                               the base backup, in case of remote backup.
+        :param str|None remote_command: default None. The remote command to
+            recover the base backup, in case of remote backup.
         """
         return self.backup_manager.recover(
-            backup_info, dest, tablespaces, target_tli, target_time, target_xid,
-            target_name, exclusive, remote_command)
+            backup_info, dest, tablespaces, target_tli, target_time,
+            target_xid, target_name, exclusive, remote_command)
 
     def get_wal(self, wal_name, compression=None, output_directory=None):
         """
@@ -993,7 +1005,8 @@ class Server(RemoteStatusMixin):
 
         :param str wal_name: id of the WAL file to find into the WAL archive
         :param str|None compression: compression format for the output
-        :param str|None output_directory: directory where to deposit the WAL file
+        :param str|None output_directory: directory where to deposit the
+            WAL file
         """
         # Get the WAL file full path
         wal_file = self.get_wal_full_path(wal_name)
@@ -1256,7 +1269,8 @@ class Server(RemoteStatusMixin):
         Context manager to access the xlogdb file.
 
         This method uses locking to make sure only one process is accessing
-        the database at a time. The database file will be created if not exists.
+        the database at a time. The database file will be created
+        if it not exists.
 
         Usage example:
 
@@ -1270,7 +1284,8 @@ class Server(RemoteStatusMixin):
             os.makedirs(self.config.wals_directory)
         xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
 
-        with ServerXLOGDBLock(self.config.barman_lock_directory, self.config.name):
+        with ServerXLOGDBLock(self.config.barman_lock_directory,
+                              self.config.name):
             # If the file doesn't exist and it is required to read it,
             # we open it in a+ mode, to be sure it will be created
             if not os.path.exists(xlogdb) and mode.startswith('r'):

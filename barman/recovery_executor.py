@@ -48,8 +48,8 @@ _logger = logging.getLogger(__name__)
 # regexp matching a single value in Postgres configuration file
 PG_CONF_SETTING_RE = re.compile(r"^\s*([^\s=]+)\s*=?\s*(.*)$")
 
-# create a namedtuple object called Assertion with 'filename', 'line', 'key' and
-# 'value' as properties
+# create a namedtuple object called Assertion
+# with 'filename', 'line', 'key' and 'value' as properties
 Assertion = collections.namedtuple('Assertion', 'filename line key value')
 
 
@@ -126,7 +126,8 @@ class RecoveryExecutor(object):
         """
         This method looks for any possible issue with PostgreSQL
         location options such as data_directory, config_file, etc.
-        It returns a dictionary with the dangerous options that have been found.
+        It returns a dictionary with the dangerous options that
+        have been found.
 
         :param filename: the Postgres configuration file
         """
@@ -155,10 +156,11 @@ class RecoveryExecutor(object):
                                    remote_command):
         """
         Map configuration files, by filling the 'temporary_configuration_files'
-        array, depending on remote or local recovery. This array will be used by
-        the subsequent methods of the class.
+        array, depending on remote or local recovery. This array will be used
+        by the subsequent methods of the class.
 
-        :param dict recovery_info: Dictionary containing all the recovery params
+        :param dict recovery_info: Dictionary containing all the recovery
+            parameters
         :param barman.infofile.BackupInfo backup_info: a backup representation
         :param str remote_command: ssh command for remote recovery
         """
@@ -176,8 +178,8 @@ class RecoveryExecutor(object):
             # If is a remote recovery the conf files are inside a temporary dir
             else:
                 # Otherwise use the local destination path.
-                conf_file_path = os.path.join(recovery_info['destination_path'],
-                                              conf_file)
+                conf_file_path = os.path.join(
+                    recovery_info['destination_path'], conf_file)
             recovery_info['temporary_configuration_files'].append(
                 conf_file_path)
 
@@ -206,11 +208,13 @@ class RecoveryExecutor(object):
 
     def copy_temporary_config_files(self, dest, remote_command, recovery_info):
         """
-        Copy modified configuration files using rsync in case of remote recovery
+        Copy modified configuration files using rsync in case of
+        remote recovery
 
         :param str dest: destination directory of the recovery
         :param str remote_command: ssh command for remote connection
-        :param dict recovery_info: Dictionary containing all the recovery params
+        :param dict recovery_info: Dictionary containing all the recovery
+            parameters
         """
         if remote_command:
             # If this is a remote recovery, rsync the modified files from the
@@ -231,11 +235,12 @@ class RecoveryExecutor(object):
 
     def prepare_tablespaces(self, backup_info, cmd, dest, tablespaces):
         """
-        Prepare the directory structure for required tablespaces, taking care of
-        tablespaces relocation, if requested.
+        Prepare the directory structure for required tablespaces,
+        taking care of tablespaces relocation, if requested.
 
         :param barman.infofile.BackupInfo backup_info: backup representation
-        :param barman.fs.UnixLocalCommand cmd: Object for filesystem interaction
+        :param barman.fs.UnixLocalCommand cmd: Object for
+            filesystem interaction
         :param str dest: destination dir for the recovery
         :param dict tablespaces: dict of all the tablespaces and their location
         """
@@ -289,7 +294,8 @@ class RecoveryExecutor(object):
         recovering now and the one previously recovered in the target
         directory). Set the value in the given recovery_info dictionary.
 
-        :param dict recovery_info: Dictionary containing all the recovery params
+        :param dict recovery_info: Dictionary containing all the recovery
+            parameters
         :param barman.infofile.BackupInfo backup_info: a backup representation
         :param str dest: recovery destination directory
         """
@@ -334,7 +340,8 @@ class RecoveryExecutor(object):
         Generate a recovery.conf file for PITR containing
         all the required configurations
 
-        :param dict recovery_info: Dictionary containing all the recovery params
+        :param dict recovery_info: Dictionary containing all the recovery
+            parameters
         :param barman.infofile.BackupInfo backup_info: representation of a
             backup
         :param str dest: destination directory of the recovery
@@ -409,7 +416,8 @@ class RecoveryExecutor(object):
         """
         Populate the archive_status directory
 
-        :param dict recovery_info: Dictionary containing all the recovery params
+        :param dict recovery_info: Dictionary containing all the recovery
+            parameters
         :param str remote_command: ssh command for remote connection
         :param tuple required_xlog_files: list of required WAL segments
         """
@@ -510,7 +518,8 @@ class RecoveryExecutor(object):
         """
         Set PITR targets - as specified by the user
 
-        :param dict recovery_info: Dictionary containing all the recovery params
+        :param dict recovery_info: Dictionary containing all the recovery
+            parameters
         :param barman.infofile.BackupInfo backup_info: representation of a
             backup
         :param str dest: destination directory of the recovery
@@ -578,8 +587,8 @@ class RecoveryExecutor(object):
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
-        :param dict[str,str]|None tablespaces: a tablespace name -> location map
-            (for relocation)
+        :param dict[str,str]|None tablespaces: a tablespace
+            name -> location map (for relocation)
         :param str|None target_tli: the target timeline
         :param str|None target_time: the target time
         :param str|None target_xid: the target xid
@@ -636,7 +645,8 @@ class RecoveryExecutor(object):
             output.exception("Failure copying base backup: %s", e)
             output.close_and_exit()
 
-        # Copy the backup.info file in the destination as ".barman-recover.info"
+        # Copy the backup.info file in the destination as
+        # ".barman-recover.info"
         if remote_command:
             try:
                 recovery_info['rsync'](backup_info.filename,
@@ -657,7 +667,8 @@ class RecoveryExecutor(object):
                 # Retrieve a list of required log files
                 required_xlog_files = tuple(
                     self.server.get_required_xlog_files(
-                        backup_info, target_tli, recovery_info['target_epoch']))
+                        backup_info, target_tli,
+                        recovery_info['target_epoch']))
 
                 # Restore WAL segments into the wal_dest directory
                 self.xlog_copy(required_xlog_files,
@@ -728,8 +739,8 @@ class RecoveryExecutor(object):
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
-        :param dict[str,str]|None tablespaces: a tablespace name -> location map
-            (for relocation)
+        :param dict[str,str]|None tablespaces: a tablespace
+            name -> location map (for relocation)
         :param str|None remote_command: default None. The remote command to
             recover the base backup, in case of remote backup.
         :param datetime.datetime|None safe_horizon: anything after this time
@@ -842,7 +853,8 @@ class RecoveryExecutor(object):
         if compressors:
             if remote_command:
                 # Decompress to a temporary spool directory
-                wal_decompression_dest = tempfile.mkdtemp(prefix='barman_xlog-')
+                wal_decompression_dest = tempfile.mkdtemp(
+                    prefix='barman_xlog-')
             else:
                 # Decompress directly to the destination directory
                 wal_decompression_dest = wal_dest
@@ -889,8 +901,8 @@ class RecoveryExecutor(object):
                             list(segment.name for segment in xlogs[prefix]),
                             wal_decompression_dest, wal_dest)
                     except CommandFailedException as e:
-                        msg = "data transfer failure while copying WAL files " \
-                              "to directory '%s'" % (wal_dest[1:],)
+                        msg = ("data transfer failure while copying WAL files "
+                               "to directory '%s'") % (wal_dest[1:],)
                         raise DataTransferFailure.from_rsync_error(e, msg)
 
                     # Cleanup files after the transfer

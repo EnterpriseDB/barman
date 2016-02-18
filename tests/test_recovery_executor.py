@@ -48,8 +48,8 @@ class TestRecoveryExecutor(object):
 
     def test_analyse_temporary_config_files(self, tmpdir):
         """
-        Test the method that identifies dangerous options into the configuration
-         files
+        Test the method that identifies dangerous options into
+        the configuration files
         """
         # Build directory/files structure for testing
         tempdir = tmpdir.mkdir('tempdir')
@@ -90,8 +90,8 @@ class TestRecoveryExecutor(object):
 
     def test_map_temporary_config_files(self, tmpdir):
         """
-        Test the method that prepares configuration files for the final steps of
-         a recovery
+        Test the method that prepares configuration files
+        for the final steps of a recovery
         """
         # Build directory/files structure for testing
         tempdir = tmpdir.mkdir('tempdir')
@@ -399,8 +399,8 @@ class TestRecoveryExecutor(object):
             })
         executor = RecoveryExecutor(server.backup_manager)
         # test local recovery
-        rec_info = executor.recover(backup_info, dest.strpath, None, None, None,
-                                    None, None, True, None)
+        rec_info = executor.recover(backup_info, dest.strpath, None, None,
+                                    None, None, None, True, None)
         # remove not usefull keys from the result
         del rec_info['cmd']
         sys_tempdir = rec_info['tempdir']

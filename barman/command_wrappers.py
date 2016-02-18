@@ -872,4 +872,5 @@ class BarmanSubProcess(object):
             self.command,
             preexec_fn=os.setsid, close_fds=True,
             stdin=devnull, stdout=devnull, stderr=devnull)
-        _logger.debug("BarmanSubProcess: subprocess started. pid: %s", proc.pid)
+        _logger.debug("BarmanSubProcess: subprocess started. pid: %s",
+                      proc.pid)

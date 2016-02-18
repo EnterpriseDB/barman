@@ -131,7 +131,7 @@ class LockFile(object):
         raised when the user executing barman have insufficient rights for
         the creation of a LockFile.
 
-        Returns True if lock has been successfully acquired, False if it is not.
+        Returns True if lock has been successfully acquired, False otherwise.
 
         :param bool raise_if_fail: If True raise an exception on failure
         :param bool wait: If True issue a blocking request

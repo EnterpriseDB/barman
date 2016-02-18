@@ -101,7 +101,8 @@ def configure_logging(
 
 def parse_log_level(log_level):
     """
-    Convert a log level to its int representation as required by logging module.
+    Convert a log level to its int representation as required by
+    logging module.
 
     :param log_level: An integer or a string
     :return: an integer or None if an invalid argument is provided

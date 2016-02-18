@@ -200,8 +200,8 @@ class TestCli(object):
 
     def test_get_server_list_global_error_continue(self, monkeypatch):
         """
-        Test the population of the list of global errors for diagnostic purposes
-        (diagnose invocation)
+        Test the population of the list of global errors for diagnostic
+        purposes (diagnose invocation)
 
         :param monkeypatch monkeypatch: pytest patcher
         """

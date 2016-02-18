@@ -456,7 +456,6 @@ class BackupInfo(FieldListFile):
                  'backup_id', 'backup_version')
 
     def __init__(self, server, info_file=None, backup_id=None, **kwargs):
-        # Initialises the attributes for the object based on the predefined keys
         """
         Stores meta information about a single backup
 
@@ -466,7 +465,8 @@ class BackupInfo(FieldListFile):
         :raise BackupInfoBadInitialisation: if the info_file content is invalid
             or neither backup_info or
         """
-
+        # Initialises the attributes for the object
+        # based on the predefined keys
         super(BackupInfo, self).__init__(**kwargs)
 
         self.server = server
@@ -504,8 +504,8 @@ class BackupInfo(FieldListFile):
                     os.path.join(self.get_basebackup_directory(), 'pgdata')):
                 self.backup_version = 1
         except Exception as e:
-            _logger.warning("Error detecting backup_version, use default: 2.\n "
-                            "Failure reason: %s", e)
+            _logger.warning("Error detecting backup_version, "
+                            "use default: 2. Failure reason: %s", e)
 
     def get_required_wal_segments(self):
         """
@@ -606,7 +606,8 @@ class BackupInfo(FieldListFile):
             dir_name = os.path.dirname(filename)
             if not os.path.exists(dir_name):
                 os.makedirs(dir_name)
-        super(BackupInfo, self).save(filename=filename, file_object=file_object)
+        super(BackupInfo, self).save(filename=filename,
+                                     file_object=file_object)
 
     def to_dict(self):
         """

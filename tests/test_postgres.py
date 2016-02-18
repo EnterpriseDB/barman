@@ -223,7 +223,8 @@ class TestPostgres(object):
     @patch('barman.postgres.PostgreSQLConnection.connect')
     def test_start_exclusive_backup(self, conn):
         """
-        Simple test for start_exclusive_backup method of the RsyncBackupExecutor class
+        Simple test for start_exclusive_backup method of
+        the RsyncBackupExecutor class
         """
         # Build a server
         server = build_real_server()

@@ -161,7 +161,8 @@ class BackupManager(RemoteStatusMixin):
             return available_backups.get(backup_id)
         return None
 
-    def get_previous_backup(self, backup_id, status_filter=DEFAULT_STATUS_FILTER):
+    def get_previous_backup(self, backup_id,
+                            status_filter=DEFAULT_STATUS_FILTER):
         """
         Get the previous backup (if any) in the catalog
 
@@ -208,7 +209,8 @@ class BackupManager(RemoteStatusMixin):
                 current += 1
             return None
         except ValueError:
-            raise UnknownBackupIdException('Could not find backup_id %s' % backup_id)
+            raise UnknownBackupIdException('Could not find backup_id %s' %
+                                           backup_id)
 
     def get_last_backup_id(self, status_filter=DEFAULT_STATUS_FILTER):
         """
@@ -247,16 +249,18 @@ class BackupManager(RemoteStatusMixin):
         :param backup: the backup to delete
         """
         available_backups = self.get_available_backups()
+        minimum_redundancy = self.server.config.minimum_redundancy
         # Honour minimum required redundancy
         if backup.status == BackupInfo.DONE and \
-                self.server.config.minimum_redundancy >= len(available_backups):
-            output.warning("Skipping delete of backup %s for server %s due to "
-                           "minimum redundancy requirements "
-                           "(minimum redundancy = %s, current redundancy = %s)",
+                minimum_redundancy >= len(available_backups):
+            output.warning("Skipping delete of backup %s for server %s "
+                           "due to minimum redundancy requirements "
+                           "(minimum redundancy = %s, "
+                           "current redundancy = %s)",
                            backup.backup_id,
                            self.config.name,
                            len(available_backups),
-                           self.server.config.minimum_redundancy)
+                           minimum_redundancy)
             return
 
         output.info("Deleting backup %s for server %s",
@@ -319,8 +323,8 @@ class BackupManager(RemoteStatusMixin):
                 return target_function(*args, **kwargs)
             # catch rsync errors
             except DataTransferFailure as e:
-                # exit condition: if retry number is lower than configured retry
-                # limit, try again; otherwise exit.
+                # exit condition: if retry number is lower than configured
+                # retry limit, try again; otherwise exit.
                 if attempts < self.config.basebackup_retry_times:
                     # Log the exception, for debugging purpose
                     _logger.exception("Failure in base backup copy: %s", e)
@@ -332,8 +336,8 @@ class BackupManager(RemoteStatusMixin):
                     time.sleep(self.config.basebackup_retry_sleep)
                     attempts += 1
                 else:
-                    # if the max number of attempts is reached an there is still
-                    # an error, exit re-raising the exception.
+                    # if the max number of attempts is reached and
+                    # there is still an error, exit re-raising the exception.
                     raise
 
     def backup(self):
@@ -382,7 +386,8 @@ class BackupManager(RemoteStatusMixin):
                 # Use only the first line of exception message
                 # in backup_info error field
                 backup_info.set_attribute("status", "FAILED")
-                # If the exception has no attached message use the raw type name
+                # If the exception has no attached message use the raw
+                # type name
                 if len(msg_lines) == 0:
                     msg_lines = [type(e).__name__]
                 backup_info.set_attribute(
@@ -435,16 +440,16 @@ class BackupManager(RemoteStatusMixin):
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
-        :param dict[str,str]|None tablespaces: a tablespace name -> location map
-            (for relocation)
+        :param dict[str,str]|None tablespaces: a tablespace name -> location
+            map (for relocation)
         :param str|None target_tli: the target timeline
         :param str|None target_time: the target time
         :param str|None target_xid: the target xid
         :param str|None target_name: the target name created previously with
-                            pg_create_restore_point() function call
+            pg_create_restore_point() function call
         :param bool exclusive: whether the recovery is exclusive or not
-        :param str|None remote_command: default None. The remote command to recover
-                               the base backup, in case of remote backup.
+        :param str|None remote_command: default None. The remote command
+            to recover the base backup, in case of remote backup.
         """
 
         # Archive every WAL files in the incoming directory of the server
@@ -509,7 +514,8 @@ class BackupManager(RemoteStatusMixin):
             if backup.backup_version == 2:
                 tbs_dir = backup.get_basebackup_directory()
             else:
-                tbs_dir = os.path.join(backup.get_data_directory(), 'pg_tblspc')
+                tbs_dir = os.path.join(backup.get_data_directory(),
+                                       'pg_tblspc')
             for tablespace in backup.tablespaces:
                 rm_dir = os.path.join(tbs_dir, str(tablespace.oid))
                 if os.path.exists(rm_dir):
@@ -756,8 +762,8 @@ class BackupManager(RemoteStatusMixin):
         the function returns True.
 
         :param timedate.timedelta last_backup_maximum_age: time interval
-            representing the maximum allowed age for the last backup in a server
-            catalogue
+            representing the maximum allowed age for the last backup
+            in a server catalogue
         :return tuple: a tuple containing the boolean result of the check and
             auxiliary information about the last backup current age
         """
@@ -783,7 +789,8 @@ class BackupManager(RemoteStatusMixin):
 
     def backup_fsync_and_set_sizes(self, backup_info):
         """
-        Fsync all files in a backup and set the actual size on disk of a backup.
+        Fsync all files in a backup and set the actual size on disk
+        of a backup.
 
         Also evaluate the deduplication ratio and the deduplicated size if
         applicable.

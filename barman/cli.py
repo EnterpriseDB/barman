@@ -270,9 +270,10 @@ def rebuild_xlogdb(args):
 @arg('--remote-ssh-command',
      metavar='SSH_COMMAND',
      help='This options activates remote recovery, by specifying the secure '
-          'shell command to be launched on a remote host. It is the equivalent '
-          'of the "ssh_command" server option in the configuration file for '
-          'remote recovery. Example: "ssh postgres@db2"')
+          'shell command to be launched on a remote host. It is '
+          'the equivalent of the "ssh_command" server option in '
+          'the configuration file for remote recovery. '
+          'Example: "ssh postgres@db2"')
 @arg('backup_id',
      completer=backup_completer,
      help='specifies the backup ID to recover')
@@ -316,8 +317,10 @@ def recover(args):
                 output.close_and_exit()
 
     # validate the rules against the tablespace list
-    valid_tablespaces = [tablespace_data.name for tablespace_data in
-                         backup_id.tablespaces] if backup_id.tablespaces else []
+    valid_tablespaces = []
+    if backup_id.tablespaces:
+        valid_tablespaces = [tablespace_data.name for tablespace_data in
+                             backup_id.tablespaces]
     for item in tablespaces:
         if item not in valid_tablespaces:
             output.error("Invalid tablespace name '%s'\n"
@@ -504,7 +507,8 @@ def delete(args):
 @arg('wal_name',
      help='the WAL file to get')
 @arg('--output-directory', '-o',
-     help='put the retrieved WAL file in this directory with the original name',
+     help='put the retrieved WAL file in this directory '
+          'with the original name',
      default=SUPPRESS)
 @arg('--gzip', '-x',
      help='compress the output with gzip',
@@ -653,7 +657,8 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
 
     WARNING: this function modifies the 'args' parameter
 
-    :param args: an argparse namespace containing a single server_name parameter
+    :param args: an argparse namespace containing a single
+        server_name parameter
         WARNING: the function modifies the content of this parameter
     :param bool skip_inactive: skip inactive servers when 'all' is required
     :param bool skip_disabled: skip disabled servers when 'all' is required

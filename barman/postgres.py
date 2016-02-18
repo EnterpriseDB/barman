@@ -454,7 +454,8 @@ class PostgreSQLConnection(PostgreSQL):
 
     def get_configuration_files(self):
         """
-        Get postgres configuration files or an empty dictionary in case of error
+        Get postgres configuration files or an empty dictionary
+        in case of error
 
         :rtype: dict
         """

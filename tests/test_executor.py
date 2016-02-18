@@ -293,7 +293,8 @@ class TestRsyncBackupExecutor(object):
         backup_manager.executor.backup_copy(backup_info)
         out, err = capsys.readouterr()
         # check for the presence of the warning in the stderr
-        assert "WARNING: The usage of include directives is not supported" in err
+        assert ("WARNING: The usage of include directives "
+                "is not supported") in err
         # check that the additional configuration file is present in the output
         assert backup_info.included_files[0] in err
 

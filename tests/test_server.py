@@ -377,8 +377,8 @@ class TestServer(object):
     @patch('barman.backup.BackupManager.backup')
     @patch('barman.server.Server.archive_wal')
     @patch('barman.server.ServerBackupLock')
-    def test_backup(self, backup_lock_mock, archive_wal_mock, backup_manager_mock,
-                    dir_mock, check_mock, capsys):
+    def test_backup(self, backup_lock_mock, archive_wal_mock,
+                    backup_manager_mock, dir_mock, check_mock, capsys):
         """
 
         :param backup_lock_mock: mock ServerBackupLock
@@ -412,7 +412,8 @@ class TestServer(object):
 
     @patch('barman.server.Server.get_first_backup_id')
     @patch('barman.server.BackupManager.delete_backup')
-    def test_delete_running_backup(self, delete_mock, get_first_backup_mock, tmpdir, capsys):
+    def test_delete_running_backup(self, delete_mock, get_first_backup_mock,
+                                   tmpdir, capsys):
         """
         Simple test for the deletion of a running backup.
         We want to test the behaviour of the server.delete_backup method
@@ -456,7 +457,8 @@ class TestServer(object):
         delete_mock.assert_called_with(backup_info_started)
 
     @patch("subprocess.Popen")
-    def test_archive_wal_lock_acquisition(self, subprocess_mock, tmpdir, capsys):
+    def test_archive_wal_lock_acquisition(self, subprocess_mock,
+                                          tmpdir, capsys):
         """
         Basic test for archive-wal lock acquisition
         """
@@ -470,7 +472,8 @@ class TestServer(object):
                     % server.config.name) in out
 
     @patch("subprocess.Popen")
-    def test_cron_lock_acquisition(self, subprocess_mock, tmpdir, capsys, caplog):
+    def test_cron_lock_acquisition(self, subprocess_mock,
+                                   tmpdir, capsys, caplog):
         """
         Basic test for cron process lock acquisition
         """

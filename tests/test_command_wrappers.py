@@ -677,7 +677,8 @@ class TestRsync(object):
 
         mock_which.assert_called_with('/custom/rsync', None)
         popen.assert_called_with(
-            ['/custom/rsync', '-e', "/custom/ssh '-c' 'arcfour'", 'src', 'dst'],
+            ['/custom/rsync', '-e', "/custom/ssh '-c' 'arcfour'",
+                'src', 'dst'],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
             preexec_fn=mock.ANY, close_fds=True

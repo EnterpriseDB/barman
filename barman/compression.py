@@ -354,4 +354,5 @@ compression_registry = {
 }
 
 #: The longest string needed to identify a compression schema
-MAGIC_MAX_LENGTH = max(len(x.MAGIC or '') for x in compression_registry.values())
+MAGIC_MAX_LENGTH = max(len(x.MAGIC or '')
+                       for x in compression_registry.values())

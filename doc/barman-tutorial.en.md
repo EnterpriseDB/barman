@@ -1622,8 +1622,6 @@ In alphabetical order:
 
 Past contributors:
 
-Past contributors:
-
 - Carlo Ascani
 
 # Links

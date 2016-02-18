@@ -17,7 +17,8 @@
 """
 This module defines backup retention policies. A backup retention
 policy in Barman is a user-defined policy for determining how long
-backups and archived logs (WAL segments) need to be retained for media recovery.
+backups and archived logs (WAL segments) need to be retained for media
+recovery.
 You can define a retention policy in terms of backup redundancy
 or a recovery window.
 Barman retains the periodical backups required to satisfy
@@ -57,7 +58,8 @@ class RetentionPolicy(with_metaclass(ABCMeta, object)):
             context = self.context
         # Overrides the list of available backups
         if source is None:
-            source = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
+            source = self.server.get_available_backups(
+                BackupInfo.STATUS_NOT_EMPTY)
         if context == 'BASE':
             return self._backup_report(source)
         elif context == 'WAL':
@@ -191,13 +193,14 @@ class RedundancyRetentionPolicy(RetentionPolicy):
 class RecoveryWindowRetentionPolicy(RetentionPolicy):
     """
     Retention policy based on recovery window. The DBA specifies a period of
-    time and Barman ensures retention of backups and archived WAL files required
-    for point-in-time recovery to any time during the recovery window.
+    time and Barman ensures retention of backups and archived WAL files
+    required for point-in-time recovery to any time during the recovery window.
     The interval always ends with the current time and extends back in time
     for the number of days specified by the user.
-    For example, if the retention policy is set for a recovery window of seven days,
-    and the current time is 9:30 AM on Friday, Barman retains the backups required
-    to allow point-in-time recovery back to 9:30 AM on the previous Friday.
+    For example, if the retention policy is set for a recovery window of
+    seven days, and the current time is 9:30 AM on Friday, Barman retains
+    the backups required to allow point-in-time recovery back to 9:30 AM
+    on the previous Friday.
     """
 
     _re = re.compile(

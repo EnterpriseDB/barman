@@ -540,7 +540,8 @@ class Config(object):
             'barman', 'barman_lock_directory') or self.barman_home
         self.user = self.get('barman', 'barman_user') or DEFAULT_USER
         self.log_file = self.get('barman', 'log_file')
-        self.log_format = self.get('barman', 'log_format') or DEFAULT_LOG_FORMAT
+        self.log_format = self.get(
+            'barman', 'log_format') or DEFAULT_LOG_FORMAT
         self.log_level = self.get('barman', 'log_level') or DEFAULT_LOG_LEVEL
         # save the raw barman section to be compared later in
         # _is_global_config_changed() method

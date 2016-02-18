@@ -214,7 +214,8 @@ class TestConfig(object):
             'basebackups_directory': '/some/barman/home/main/wals',
             'msg_list': [
                 'Conflicting path: wals_directory=/some/barman/home/main/wals '
-                'conflicts with \'basebackups_directory\' for server \'main\''],
+                'conflicts with \'basebackups_directory\' '
+                'for server \'main\''],
             'description': 'Text with quotes',
         })
         assert main.__dict__ == expected
@@ -312,8 +313,8 @@ class TestCsvParsing(object):
 
         Empty value is not allowed in BackupOptions class, so we expect the
         configuration parser to fall back to the global value.
-        The global backup_options holds conflicting parameters, so we expect the
-        config builder to fall back to ignore de directive.
+        The global backup_options holds conflicting parameters, so we expect
+        the config builder to fall back to ignore de directive.
 
         :param out_mock: Mock the output
         """

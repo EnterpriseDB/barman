@@ -182,7 +182,8 @@ class TestWalFileInfo(object):
         assert wfile_info.size == stat.st_size
         assert wfile_info.time == stat.st_mtime
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
-        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
+        assert wfile_info.relpath() == (
+            '0000000000000000/000000000000000000000001')
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_compression(self, id_compression, tmpdir):
@@ -197,7 +198,8 @@ class TestWalFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression == 'test_compression'
-        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
+        assert wfile_info.relpath() == (
+            '0000000000000000/000000000000000000000001')
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_default_compression(self, id_compression, tmpdir):
@@ -214,7 +216,8 @@ class TestWalFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression == 'test_default_compression'
-        assert wfile_info.relpath() == '00000001000000E5/00000001000000E500000064'
+        assert wfile_info.relpath() == (
+            '00000001000000E5/00000001000000E500000064')
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_override_compression(self, id_compression, tmpdir):
@@ -232,7 +235,8 @@ class TestWalFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression == 'test_override_compression'
-        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
+        assert wfile_info.relpath() == (
+            '0000000000000000/000000000000000000000001')
 
     @mock.patch('barman.infofile.identify_compression')
     def test_from_file_override(self, id_compression, tmpdir):
@@ -250,7 +254,8 @@ class TestWalFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression is None
-        assert wfile_info.relpath() == '0000000000000000/000000000000000000000002'
+        assert wfile_info.relpath() == (
+            '0000000000000000/000000000000000000000002')
 
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
@@ -260,7 +265,8 @@ class TestWalFileInfo(object):
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression is None
-        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
+        assert wfile_info.relpath() == (
+            '0000000000000000/000000000000000000000001')
 
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
@@ -270,7 +276,8 @@ class TestWalFileInfo(object):
         assert wfile_info.time == 43
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
         assert wfile_info.compression is None
-        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
+        assert wfile_info.relpath() == (
+            '0000000000000000/000000000000000000000001')
 
     def test_to_xlogdb_line(self):
         wfile_info = WalFileInfo()
@@ -278,9 +285,11 @@ class TestWalFileInfo(object):
         wfile_info.size = 42
         wfile_info.time = 43
         wfile_info.compression = None
-        assert wfile_info.relpath() == '0000000000000000/000000000000000000000002'
+        assert wfile_info.relpath() == (
+            '0000000000000000/000000000000000000000002')
 
-        assert wfile_info.to_xlogdb_line() == '000000000000000000000002\t42\t43\tNone\n'
+        assert wfile_info.to_xlogdb_line() == (
+            '000000000000000000000002\t42\t43\tNone\n')
 
     def test_from_xlogdb_line(self):
         """
@@ -292,7 +301,8 @@ class TestWalFileInfo(object):
         wfile_info.size = 42
         wfile_info.time = 43
         wfile_info.compression = None
-        assert wfile_info.relpath() == '0000000000000000/000000000000000000000001'
+        assert wfile_info.relpath() == (
+            '0000000000000000/000000000000000000000001')
 
         # mock a server object
         server = mock.Mock(name='server')
@@ -472,7 +482,8 @@ class TestBackupInfo(object):
         # Check that the paths are built according with version
         assert b_info.backup_version == 2
         assert b_info.get_data_directory() == data_dir.strpath
-        assert b_info.get_data_directory(16384) == backup_dir.strpath + '/16384'
+        assert b_info.get_data_directory(16384) == (backup_dir.strpath +
+                                                    '/16384')
 
         # Build a fake v1 backup
         backup_dir = tmpdir.mkdir('another_fake_backup_id')

@@ -114,7 +114,8 @@ def _dispatch(obj, prefix, name, *args, **kwargs):
     :param obj: the target object
     :param str prefix: prefix of the method to be called
     :param str name: name of the method to be called
-    :param tuple args: all remaining positional arguments will be sent to target
+    :param tuple args: all remaining positional arguments will be sent
+        to target
     :param dict kwargs: all remaining keyword arguments will be sent to target
     :return: the result of the invoked method
     :raise ValueError: if the target method is not present
@@ -176,7 +177,8 @@ def warning(message, *args, **kwargs):
 def error(message, *args, **kwargs):
     """
     Output a message with severity 'ERROR'.
-    Also records that an error has occurred unless the ignore parameter is True.
+    Also records that an error has occurred unless the ignore parameter
+    is True.
 
     :key bool ignore: avoid setting an error exit status (default False)
     :key bool log: whether to log the message
@@ -536,7 +538,8 @@ class ConsoleOutputWriter(object):
                              pretty_size(backup_size),
                              pretty_size(wal_size)))
             if backup_info.tablespaces:
-                tablespaces = [("%s:%s" % (tablespace.name, tablespace.location))
+                tablespaces = [("%s:%s" % (tablespace.name,
+                                           tablespace.location))
                                for tablespace in backup_info.tablespaces]
                 out_list.append(' (tablespaces: %s)' %
                                 ', '.join(tablespaces))
@@ -550,9 +553,11 @@ class ConsoleOutputWriter(object):
         """
         Output all available information about a backup in show-backup command
 
-        The argument has to be the result of a Server.get_backup_ext_info() call
+        The argument has to be the result
+        of a Server.get_backup_ext_info() call
 
-        :param dict backup_ext_info: a dictionary containing the info to display
+        :param dict backup_ext_info: a dictionary containing
+            the info to display
         """
         data = dict(backup_ext_info)
         self.info("Backup %s:", data['backup_id'])
@@ -611,9 +616,10 @@ class ConsoleOutputWriter(object):
                           data['wals_per_second'] * 3600)
             # Output WAL compression ratio for archived WAL files
             if data['wal_until_next_compression_ratio'] > 0:
-                self.info("    Compression ratio    : %s",
-                          '{percent:.2%}'.format(
-                              percent=data['wal_until_next_compression_ratio']))
+                self.info(
+                    "    Compression ratio    : %s",
+                    '{percent:.2%}'.format(
+                        percent=data['wal_until_next_compression_ratio']))
             self.info("    Last available       : %s", data['wal_last'])
             self.info("")
             self.info("  Catalog information:")
@@ -766,7 +772,8 @@ class NagiosOutputWriter(ConsoleOutputWriter):
                 # .....
                 for issue in self.result_check_list:
                     if issue['server_name'] == server and not issue['status']:
-                        fail_detail = "%s.%s: FAILED" % (server, issue['check'])
+                        fail_detail = "%s.%s: FAILED" % (server,
+                                                         issue['check'])
                         if issue['hint']:
                             fail_detail += " (%s)" % issue['hint']
                         details.append(fail_detail)

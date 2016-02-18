@@ -62,7 +62,8 @@ class WalArchiverBatch(list):
 
 class ArchiverFailure(Exception):
     """
-    Exception representing a failure during the execution of the archive process
+    Exception representing a failure during the execution
+    of the archive process
     """
 
 

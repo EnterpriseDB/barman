@@ -324,7 +324,8 @@ class TestHooks(object):
         command_mock.return_value.return_value = 0
 
         # the actual test
-        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook', 'pre')
+        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook',
+                                       'pre')
         expected_env = {
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
@@ -349,7 +350,8 @@ class TestHooks(object):
             1, 1, 1, RetryHookScriptRunner.EXIT_SUCCESS]
 
         # the actual test
-        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook', 'pre')
+        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook',
+                                       'pre')
         expected_env = {
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
@@ -371,7 +373,8 @@ class TestHooks(object):
             1, 2, 3, 4, 5, 6, RetryHookScriptRunner.EXIT_ABORT_CONTINUE]
 
         # the actual test
-        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook', 'pre')
+        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook',
+                                       'pre')
         expected_env = {
             'BARMAN_PHASE': 'pre',
             'BARMAN_VERSION': version,
@@ -400,7 +403,8 @@ class TestHooks(object):
             RetryHookScriptRunner.EXIT_ABORT_STOP
 
         # the actual test
-        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook', 'pre')
+        script = RetryHookScriptRunner(backup_manager, 'test_retry_hook',
+                                       'pre')
         with pytest.raises(AbortedRetryHookScript) as excinfo:
             assert script.run() == RetryHookScriptRunner.EXIT_ABORT_STOP
         assert str(excinfo.value) == \

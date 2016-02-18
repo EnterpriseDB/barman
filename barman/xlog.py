@@ -136,7 +136,8 @@ def is_wal_file(path):
 
 def decode_segment_name(path):
     """
-    Retrieve the timeline, log ID and segment ID from the name of a xlog segment
+    Retrieve the timeline, log ID and segment ID
+    from the name of a xlog segment
 
     It can handle either a full file path or a simple file name.
 
