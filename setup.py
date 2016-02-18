@@ -32,38 +32,25 @@ Barman is written and maintained by PostgreSQL professionals 2ndQuadrant.
 
 import sys
 
-# support fo running test through setup.py
-# requires recent setuptools library
 try:
     from setuptools import setup
-    from setuptools.command.test import test as TestCommand
-
-    class PyTest(TestCommand):
-        def finalize_options(self):
-            TestCommand.finalize_options(self)
-            self.test_args = ['tests']
-            self.test_suite = True
-
-        def run_tests(self):
-            # import here, cause outside the eggs aren't loaded
-            import pytest
-
-            errno = pytest.main(self.test_args)
-            sys.exit(errno)
-    cmdclass = {'test': PyTest}
-
-
 except ImportError:
     from distutils.core import setup
-    cmdclass = {}
 
 if sys.version_info < (2, 6):
     raise SystemExit('ERROR: Barman needs at least python 2.6 to work')
 
-install_requires = ['psycopg2', 'argh >= 0.21.2', 'python-dateutil', 'argcomplete']
+install_requires = [
+    'psycopg2',
+    'argh >= 0.21.2',
+    'python-dateutil',
+    'argcomplete',
+]
 
 if sys.version_info < (2, 7):
-    install_requires.append('argparse')
+    install_requires += [
+        'argparse',
+    ]
 
 barman = {}
 with open('barman/version.py', 'r') as fversion:
@@ -93,7 +80,8 @@ setup(
         'Topic :: Database',
         'Topic :: System :: Recovery Tools',
         'Intended Audience :: System Administrators',
-        'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
+        'License :: OSI Approved :: GNU General Public License v3 or later '
+        '(GPLv3+)',
         'Programming Language :: Python',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
@@ -101,6 +89,13 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
     ],
-    tests_require=['pytest', 'mock', 'pytest-catchlog>=1.2.1', 'pytest-timeout'],
-    cmdclass=cmdclass,
+    setup_requires=[
+        'pytest-runner',
+    ],
+    tests_require=[
+        'pytest',
+        'mock',
+        'pytest-catchlog>=1.2.1',
+        'pytest-timeout',
+    ],
 )
