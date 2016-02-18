@@ -587,6 +587,8 @@ class BackupManager(RemoteStatusMixin):
             'have %s backups, expected at least %s' % (
                 no_backups, self.config.minimum_redundancy))
 
+        # TODO: Add a check for the existence of ssh and of rsync
+
         # Execute additional checks defined by the BackupExecutor
         if self.executor:
             self.executor.check(check_strategy)

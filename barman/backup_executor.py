@@ -269,14 +269,24 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         cmd = Command(self.ssh_command,
                       self.ssh_options,
                       path=self.server.path)
-        ret = cmd("true")
+
         hint = "PostgreSQL server"
-        if ret == 0:
-            check_strategy.result(self.config.name, 'ssh', True,
-                                  hint)
-        else:
-            check_strategy.result(self.config.name, 'ssh', False,
-                                  '%s, return code: %s' % (hint, ret))
+
+        # Try executing 'true' through the ssh connection
+        return_code = None
+        try:
+            return_code = cmd("true")
+        except OSError as e:
+            # The execution of ssh command has failed
+            hint = "error executing '%s': %s" % (self.ssh_command, e.strerror)
+
+        # The execution of ssh has succeeded but the return code is not 0
+        if return_code is not None and return_code != 0:
+            hint = '%s, return code: %s' % (hint, return_code)
+
+        # Output the result
+        check_strategy.result(self.config.name, 'ssh', return_code == 0, hint)
+
         try:
             # Invoke specific checks for the backup strategy
             self.strategy.check(check_strategy)
