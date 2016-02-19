@@ -40,6 +40,12 @@ except ImportError:
 if sys.version_info < (2, 6):
     raise SystemExit('ERROR: Barman needs at least python 2.6 to work')
 
+# Depend on pytest_runner only when the tests are actually invoked
+needs_pytest = set(['pytest', 'test']).intersection(sys.argv)
+pytest_runner = ['pytest_runner'] if needs_pytest else []
+
+setup_requires = pytest_runner
+
 install_requires = [
     'psycopg2',
     'argh >= 0.21.2',
@@ -89,9 +95,7 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
     ],
-    setup_requires=[
-        'pytest-runner',
-    ],
+    setup_requires=setup_requires,
     tests_require=[
         'pytest',
         'mock',
