@@ -826,6 +826,8 @@ class RecoveryExecutor(object):
         """
         # List of required WAL files partitioned by containing directory
         xlogs = collections.defaultdict(list)
+        # add '/' suffix to ensure it is a directory
+        wal_dest = '%s/' % wal_dest
         # Map of every compressor used with any WAL file in the archive,
         # to be used during this recovery
         compressors = {}
@@ -866,8 +868,7 @@ class RecoveryExecutor(object):
         if remote_command:
             # If remote recovery tell rsync to copy them remotely
             # add ':' prefix to mark it as remote
-            # add '/' suffix to ensure it is a directory
-            wal_dest = ':%s/' % wal_dest
+            wal_dest = ':%s' % wal_dest
         total_wals = sum(map(len, xlogs.values()))
         partial_count = 0
         for prefix in sorted(xlogs):
