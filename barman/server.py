@@ -20,6 +20,7 @@ This module represents a Server.
 Barman is able to manage multiple servers.
 """
 
+import itertools
 import logging
 import os
 import shutil
@@ -998,7 +999,8 @@ class Server(RemoteStatusMixin):
             backup_info, dest, tablespaces, target_tli, target_time,
             target_xid, target_name, exclusive, remote_command)
 
-    def get_wal(self, wal_name, compression=None, output_directory=None):
+    def get_wal(self, wal_name, compression=None, output_directory=None,
+                peek=None):
         """
         Retrieve a WAL file from the archive
 
@@ -1006,7 +1008,35 @@ class Server(RemoteStatusMixin):
         :param str|None compression: compression format for the output
         :param str|None output_directory: directory where to deposit the
             WAL file
+        :param int|None peek: if defined list the next N WAL file
         """
+
+        # Sanity check
+        if not xlog.is_any_xlog_file(wal_name):
+            output.error("'%s' is not a valid wal file name", wal_name)
+            return
+
+        # If peek is requested we only output a list of files
+        if peek:
+            # Get the next ``peek`` files following the provided ``wal_name``.
+            # If ``wal_name`` is not a simple wal file,
+            # we cannot guess the names of the following WAL files.
+            # So ``wal_name`` is the only possible result, if exists.
+            if xlog.is_wal_file(wal_name):
+                wal_peek_list = itertools.islice(
+                    xlog.generate_segment_names(wal_name), peek)
+            else:
+                wal_peek_list = [wal_name]
+            # Output the content of wal_peek_list until we find a missing file
+            for wal_peek_name in wal_peek_list:
+                wal_peek_file = self.get_wal_full_path(wal_peek_name)
+                # If ``wal_peek_file`` doesn't exist, stop the process
+                if not os.path.exists(wal_peek_file):
+                    return
+                output.info(wal_peek_name, log=False)
+            # Do not output anything else
+            return
+
         # Get the WAL file full path
         wal_file = self.get_wal_full_path(wal_name)
 

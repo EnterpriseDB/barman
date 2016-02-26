@@ -978,6 +978,8 @@ The following options are available for the `get-wal` command:
   will deposit the requested WAL file
 - `-j` will compress the output using `bzip2` algorithm
 - `-x` will compress the output using `gzip` algorithm
+- `-p SIZE` peeks from the archive up to WAL files, starting from
+  the requested one.
 
 It is possible to use `get-wal` during a recovery operation,
 transforming the Barman server in a _WAL hub_ for your servers. This

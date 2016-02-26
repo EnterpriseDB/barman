@@ -246,7 +246,7 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         in the configuration file for remote recovery.
         Example: 'ssh postgres@db2'.
 
-    --retry-times
+    --retry-times *RETRY_TIMES*
     :   Number of retries of data copy during base backup after
         an error. Overrides value of the parameter `basebackup_retry_times`,
         if present in the configuration file.
@@ -273,6 +273,12 @@ get-wal *\[OPTIONS\]* *SERVER_NAME* *WAL_ID*
 
     -x
     :   output will be compressed using bzip2
+
+    -p *SIZE*
+    :   peek from the WAL archive up to *SIZE* WAL files, starting
+        from the requested one. 'SIZE' must be an integer >= 1.
+        When invoked with this option, get-wal returns a
+        list of zero to 'SIZE' WAL segment names, one per row.
 
 receive-wal *SERVER_NAME*
 :   Start the stream of transaction logs for a server.

@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import itertools
+
 import pytest
 
 from barman import xlog
@@ -65,9 +67,9 @@ class Test(object):
         with pytest.raises(xlog.BadXlogSegmentName):
             xlog.decode_segment_name('000000000000X00000000000')
 
-    def test_enumerate_segments(self):
+    def test_generate_segment_names(self):
         assert tuple(
-            xlog.enumerate_segments(
+            xlog.generate_segment_names(
                 '0000000100000001000000FD',
                 '000000010000000200000002',
                 90200
@@ -78,7 +80,7 @@ class Test(object):
                 '000000010000000200000001',
                 '000000010000000200000002')
         assert tuple(
-            xlog.enumerate_segments(
+            xlog.generate_segment_names(
                 '0000000100000001000000FD',
                 '0000000100000001000000FF',
                 90200
@@ -87,7 +89,7 @@ class Test(object):
                 '0000000100000001000000FE')
 
         assert tuple(
-            xlog.enumerate_segments(
+            xlog.generate_segment_names(
                 '0000000100000001000000FD',
                 '000000010000000200000002',
                 90300
@@ -100,14 +102,58 @@ class Test(object):
                 '000000010000000200000002')
 
         assert tuple(
-            xlog.enumerate_segments(
+            xlog.generate_segment_names(
                 '0000000100000001000000FD',
                 '0000000100000001000000FF',
                 90300
             )) == (
                 '0000000100000001000000FD',
                 '0000000100000001000000FE',
-                '0000000100000001000000FF',)
+                '0000000100000001000000FF')
+
+        # Test the behaviour of generate_segment_names at log boundaries
+        # for recent versions
+        assert tuple(itertools.islice(
+            xlog.generate_segment_names(
+                '0000000300000004000000FD'), 6
+            )) == (
+                '0000000300000004000000FD',
+                '0000000300000004000000FE',
+                '0000000300000004000000FF',
+                '000000030000000500000000',
+                '000000030000000500000001',
+                '000000030000000500000002')
+        # Test the behaviour of generate_segment_names at log boundaries
+        # for versions < 9.3
+        assert tuple(itertools.islice(
+            xlog.generate_segment_names(
+                '0000000300000004000000FD',
+                version=90201), 6
+            )) == (
+                '0000000300000004000000FD',
+                '0000000300000004000000FE',
+                '000000030000000500000000',
+                '000000030000000500000001',
+                '000000030000000500000002',
+                '000000030000000500000003')
+
+        # Test the number of items produced between two segments
+        assert sum(
+            1 for _ in
+            xlog.generate_segment_names(
+                '000000040000000500000067',
+                '000000040000000700000067'
+            )) == 513
+
+        # The number of items produced between the same two segments is lower
+        # with version < 9.3
+        assert sum(
+            1 for _ in
+            xlog.generate_segment_names(
+                '000000040000000500000067',
+                '000000040000000700000067',
+                version=90201
+            )) == 511
 
     def test_hash_dir(self):
         assert xlog.hash_dir(

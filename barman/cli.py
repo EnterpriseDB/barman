@@ -37,6 +37,25 @@ from barman.xlog import BadXlogSegmentName
 _logger = logging.getLogger(__name__)
 
 
+def check_non_negative(value):
+    """
+    Check for a positive integer option
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    try:
+        int_value = int(value)
+    except Exception:
+        raise ArgumentTypeError("'%s' is not a valid non negative integer" %
+                                value)
+    if int_value < 0:
+        raise ArgumentTypeError("'%s' is not a valid non negative integer" %
+                                value)
+    return int_value
+
+
 def check_positive(value):
     """
     Check for a positive integer option
@@ -48,9 +67,11 @@ def check_positive(value):
     try:
         int_value = int(value)
     except Exception:
-        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
-    if int_value < 0:
-        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
+        raise ArgumentTypeError("'%s' is not a valid positive integer" %
+                                value)
+    if int_value < 1:
+        raise ArgumentTypeError("'%s' is not a valid positive integer" %
+                                value)
     return int_value
 
 
@@ -155,10 +176,10 @@ def backup_completer(prefix, parsed_args, **kwargs):
           'If no argument is given "link" is assumed')
 @arg('--retry-times',
      help='Number of retries after an error if base backup copy fails.',
-     type=check_positive)
+     type=check_non_negative)
 @arg('--retry-sleep',
      help='Wait time after a failed base backup copy, before retrying.',
-     type=check_positive)
+     type=check_non_negative)
 @arg('--no-retry', help='Disable base backup copy retry logic.',
      dest='retry_times', action='store_const', const=0)
 @expects_obj
@@ -254,7 +275,7 @@ def rebuild_xlogdb(args):
 @arg('server_name',
      completer=server_completer,
      help='specifies the server name for the command')
-@arg('--target-tli', help='target timeline', type=int)
+@arg('--target-tli', help='target timeline', type=check_positive)
 @arg('--target-time',
      help='target time. You can use any valid unambiguous representation. '
           'e.g: "YYYY-MM-DD HH:MM:SS.mmm"')
@@ -281,10 +302,10 @@ def rebuild_xlogdb(args):
      help='the directory where the new server is created')
 @arg('--retry-times',
      help='Number of retries after an error if base backup copy fails.',
-     type=check_positive)
+     type=check_non_negative)
 @arg('--retry-sleep',
      help='Wait time after a failed base backup copy, before retrying.',
-     type=check_positive)
+     type=check_non_negative)
 @arg('--no-retry', help='Disable base backup copy retry logic.',
      dest='retry_times', action='store_const', const=0)
 @expects_obj
@@ -516,6 +537,14 @@ def delete(args):
 @arg('--bzip2', '-j',
      help='compress the output with bzip2',
      action='store_const', const='bzip2', dest='compression', default=SUPPRESS)
+@arg('--peek', '-p',
+     help="peek from the WAL archive up to 'SIZE' WAL files, starting "
+          "from the requested one. 'SIZE' must be an integer >= 1. "
+          "When invoked with this option, get-wal returns a list of "
+          "zero to 'SIZE' WAL segment names, one per row.",
+     metavar='SIZE',
+     type=check_positive,
+     default=SUPPRESS)
 @expects_obj
 def get_wal(args):
     """
@@ -524,14 +553,18 @@ def get_wal(args):
     the --output-directory option is specified.
     """
     server = get_server(args)
+
     # Retrieve optional arguments. If an argument is not specified,
     # the namespace doesn't contain it due to SUPPRESS default.
     # In that case we pick 'None' using getattr third argument.
     compression = getattr(args, 'compression', None)
     output_directory = getattr(args, 'output_directory', None)
+    peek = getattr(args, 'peek', None)
+
     server.get_wal(args.wal_name,
                    compression=compression,
-                   output_directory=output_directory)
+                   output_directory=output_directory,
+                   peek=peek)
     output.close_and_exit()
 
 

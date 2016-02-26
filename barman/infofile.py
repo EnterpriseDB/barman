@@ -511,8 +511,8 @@ class BackupInfo(FieldListFile):
         """
         Get the list of required WAL segments for the current backup
         """
-        return xlog.enumerate_segments(self.begin_wal, self.end_wal,
-                                       self.version)
+        return xlog.generate_segment_names(self.begin_wal, self.end_wal,
+                                           self.version)
 
     def get_list_of_files(self, target):
         """
