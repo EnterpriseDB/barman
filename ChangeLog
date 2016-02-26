@@ -1,3 +1,30 @@
+2016-02-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Prepared version 1.6.0
+
+2016-02-24  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix subtle bug in local recovery
+
+2016-02-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Depend on pytest-runner module only when tests are actually invoked
+
+2016-02-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Enable E501 check (long lines) in flake8
+	Enabled in flake8 the E501 check, and reformatted text according to the
+	new line length policy.
+
+	Use pytest-runner module to run tests in setup.py
+
+2016-02-18  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Fix check if ssh is missing
+	Catch any 'command not found' errors during ssh check
+
 2016-02-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
