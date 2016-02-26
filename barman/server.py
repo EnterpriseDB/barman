@@ -29,8 +29,7 @@ from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 
 import barman
-import barman.xlog as xlog
-from barman import output
+from barman import output, xlog
 from barman.backup import BackupManager
 from barman.command_wrappers import BarmanSubProcess
 from barman.compression import identify_compression

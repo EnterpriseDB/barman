@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
-Version 1.6.0b3 - 17 Feb 2016
+Version 1.6.0 - 29 Feb 2016
 
 -   Support for streaming replication connection through the
     streaming_conninfo server option
@@ -57,9 +57,10 @@ Version 1.6.0b3 - 17 Feb 2016
 
 -   Improve messaging of cron command regarding sub-processes
 
+-   Native support for Python >= 3.3
+
 -   Changes of behaviour:
     -   Stop trashing WAL files during archive-wal (commit:e3a1d16)
--   Native support for Python >= 3.3
 
 -   Bug fixes:
     -   Atomic WAL file archiving (#9 and #12)
