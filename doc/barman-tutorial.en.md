@@ -93,9 +93,9 @@ recovery outcomes.
 - Python modules:
     - argcomplete
     - argh >= 0.21.2
-    - psycopg2
-    - python-dateutil < 2.0 (since version 2.0 requires python3)
-    - distribute (optional)
+    - psycopg2 >= 2.4.2
+    - python-dateutil <> 2.0
+    - setuptools
 - PostgreSQL >= 8.3
 - rsync >= 3.0.4
 
