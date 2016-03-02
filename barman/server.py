@@ -362,6 +362,16 @@ class Server(RemoteStatusMixin):
         else:
             check_strategy.result(self.config.name, 'PostgreSQL', False)
             return
+        # Check for superuser privileges in PostgreSQL
+        if remote_status.get('is_superuser') is not None:
+            if remote_status.get('is_superuser'):
+                check_strategy.result(
+                    self.config.name, 'superuser', True)
+            else:
+                check_strategy.result(
+                    self.config.name, 'not superuser', False,
+                    'superuser privileges for PostgreSQL connection required')
+
         if 'streaming_supported' in remote_status:
             hint = None
 

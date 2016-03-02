@@ -547,6 +547,8 @@ class TestPostgres(object):
     @patch('barman.postgres.psycopg2.connect')
     @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
            new_callable=PropertyMock)
+    @patch('barman.postgres.PostgreSQLConnection.is_superuser',
+           new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.server_txt_version',
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.has_pgespresso',
@@ -560,8 +562,11 @@ class TestPostgres(object):
     def test_get_remote_status(self, get_setting_mock,
                                get_configuration_files_mock,
                                current_size_mock,
-                               current_xlog_mock, has_pgespresso_mock,
-                               server_txt_version_mock, is_in_recovery_mock,
+                               current_xlog_mock,
+                               has_pgespresso_mock,
+                               server_txt_version_mock,
+                               is_superuser_mock,
+                               is_in_recovery_mock,
                                conn_mock):
         """
         simple test for the fetch_remote_status method
@@ -573,6 +578,7 @@ class TestPostgres(object):
         has_pgespresso_mock.return_value = True
         server_txt_version_mock.return_value = '9.1.0'
         is_in_recovery_mock.return_value = False
+        is_superuser_mock.return_value = True
         get_configuration_files_mock.return_value = {'a': 'b'}
         get_setting_mock.return_value = 'dummy_setting'
         conn_mock.return_value.server_version = 90100
@@ -581,6 +587,7 @@ class TestPostgres(object):
 
         assert result == {
             'a': 'b',
+            'is_superuser': True,
             'current_xlog': 'DE/ADBEEF',
             'data_directory': 'dummy_setting',
             'pgespresso_installed': True,
@@ -592,6 +599,7 @@ class TestPostgres(object):
         server.postgres.close()
         conn_mock.side_effect = psycopg2.DatabaseError
         assert server.postgres.fetch_remote_status() == {
+            'is_superuser': None,
             'current_xlog': None,
             'data_directory': None,
             'pgespresso_installed': None,
@@ -599,6 +607,7 @@ class TestPostgres(object):
 
         get_setting_mock.side_effect = psycopg2.ProgrammingError
         assert server.postgres.fetch_remote_status() == {
+            'is_superuser': None,
             'current_xlog': None,
             'data_directory': None,
             'pgespresso_installed': None,

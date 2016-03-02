@@ -308,6 +308,21 @@ class PostgreSQLConnection(PostgreSQL):
             return None
 
     @property
+    def is_superuser(self):
+        """
+        Returns true if current user has superuser privileges
+        """
+        try:
+            cur = self._cursor()
+            cur.execute('SELECT usesuper FROM pg_user '
+                        'WHERE usename = CURRENT_USER')
+            return cur.fetchone()[0]
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error calling is_superuser() function: %s",
+                          str(e).strip())
+            return None
+
+    @property
     def current_xlog(self):
         """
         Get current WAL file from PostgreSQL
@@ -329,8 +344,11 @@ class PostgreSQLConnection(PostgreSQL):
     @property
     def current_size(self):
         """
-        Returns the total size of the PostgreSQL server
+        Returns the total size of the PostgreSQL server (requires superuser)
         """
+        if not self.is_superuser:
+            return None
+
         try:
             cur = self._cursor()
             cur.execute(
@@ -386,23 +404,36 @@ class PostgreSQLConnection(PostgreSQL):
 
         :rtype: dict[str, None|str]
         """
-        # PostgreSQL settings to get from the server
-        pg_settings = [
+        # PostgreSQL settings to get from the server (requiring superuser)
+        pg_superuser_settings = [
             'data_directory']
+        # PostgreSQL settings to get from the server
+        pg_settings = []
         pg_query_keys = [
             'server_txt_version',
+            'is_superuser',
             'current_xlog',
             'pgespresso_installed']
         # Initialise the result dictionary setting all the values to None
-        result = dict.fromkeys(pg_settings + pg_query_keys, None)
+        result = dict.fromkeys(pg_superuser_settings +
+                               pg_settings +
+                               pg_query_keys,
+                               None)
         try:
             # check for wal_level only if the version is >= 9.0
             if self.server_version >= 90000:
                 pg_settings.append('wal_level')
 
+            # retrieves superuser settings
+            if self.is_superuser:
+                for name in pg_superuser_settings:
+                    result[name] = self.get_setting(name)
+
+            # retrieves standard settings
             for name in pg_settings:
                 result[name] = self.get_setting(name)
 
+            result['is_superuser'] = self.is_superuser
             result['server_txt_version'] = self.server_txt_version
             result['pgespresso_installed'] = self.has_pgespresso
             result['current_xlog'] = self.current_xlog
