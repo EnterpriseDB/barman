@@ -1,6 +1,6 @@
 % Backup and Recovery Manager for PostgreSQL: Tutorial
 % 2ndQuadrant Italia
-% February 29, 2016 (v1.6.0)
+% Month DD, 2016 (v1.6.1a1)
 
 **Barman** (backup and recovery manager) is an administration tool for
 disaster recovery of PostgreSQL servers written in Python. Barman can
