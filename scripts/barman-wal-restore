@@ -131,7 +131,7 @@ WAL_NAME=$3
 WAL_DEST=$4
 
 #
-# Check WAL destination is not a directory and does not exist
+# Check WAL destination is not a directory
 #
 if [ -d "$WAL_DEST" ]
 then
