@@ -376,9 +376,15 @@ class PostgreSQLConnection(PostgreSQL):
             # Select from pg_stat_archiver statistics view,
             # retrieving statistics about WAL archiver process activity,
             # also evaluating if the server is archiving without issues
-            # and the archived WALs per second rate
+            # and the archived WALs per second rate.
+            #
+            # We are using current_settings to check for archive_mode=always.
+            # current_setting does normalise its output so we can just
+            # check for 'always' settings using a direct string
+            # comparison
             cur.execute(
-                "SELECT *, current_setting('archive_mode')::BOOLEAN "
+                "SELECT *, "
+                "current_setting('archive_mode') IN ('on', 'always') "
                 "AND (last_failed_wal IS NULL "
                 "OR last_failed_wal LIKE '%.history' "
                 "AND substring(last_failed_wal from 1 for 8) "
