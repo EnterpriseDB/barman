@@ -268,10 +268,10 @@ get-wal *\[OPTIONS\]* *SERVER_NAME* *WAL_ID*
     -o *OUTPUT_DIRECTORY*
     :   destination directory where the `get-wal` will deposit the requested WAL
 
-    -j
+    -z
     :   output will be compressed using gzip
 
-    -x
+    -j
     :   output will be compressed using bzip2
 
     -p *SIZE*

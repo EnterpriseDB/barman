@@ -531,7 +531,7 @@ def delete(args):
      help='put the retrieved WAL file in this directory '
           'with the original name',
      default=SUPPRESS)
-@arg('--gzip', '-x',
+@arg('--gzip', '-z', '-x',
      help='compress the output with gzip',
      action='store_const', const='gzip', dest='compression', default=SUPPRESS)
 @arg('--bzip2', '-j',
