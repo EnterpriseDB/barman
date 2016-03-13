@@ -65,7 +65,8 @@ class CheckStrategy(object):
 
     # Default list used as a filter to identify non-critical checks
     NON_CRITICAL_CHECKS = ['minimum redundancy requirements',
-                           'backup maximum age', 'archiver errors']
+                           'backup maximum age', 'failed backups',
+                           'archiver errors']
 
     def __init__(self, ignore_checks=NON_CRITICAL_CHECKS):
         """
