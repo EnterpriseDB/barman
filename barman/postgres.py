@@ -378,7 +378,9 @@ class PostgreSQLConnection(PostgreSQL):
             # also evaluating if the server is archiving without issues
             # and the archived WALs per second rate
             cur.execute(
-                "SELECT *, current_setting('archive_mode')::BOOLEAN "
+                "SELECT *, "
+                "CASE current_setting('archive_mode') "
+                "  WHEN 'off' THEN 'f'::BOOLEAN ELSE 't'::BOOLEAN END "
                 "AND (last_failed_wal IS NULL "
                 "OR last_failed_wal LIKE '%.history' "
                 "AND substring(last_failed_wal from 1 for 8) "
