@@ -380,7 +380,9 @@ class TestPostgres(object):
         assert server.postgres.get_archiver_stats() == {'a': 'b'}
         # check for the correct call on the execute method
         cursor_mock.execute.assert_called_once_with(
-            "SELECT *, current_setting('archive_mode')::BOOLEAN "
+            "SELECT *, "
+            "CASE current_setting('archive_mode') "
+            "  WHEN 'off' THEN 'f'::BOOLEAN ELSE 't'::BOOLEAN END "
             "AND (last_failed_wal IS NULL "
             "OR last_failed_wal LIKE '%.history' "
             "AND substring(last_failed_wal from 1 for 8) "
