@@ -117,7 +117,7 @@ red "Cleaning the Build directory..."
 make clean
 
 red "Removing all generated files..."
-rm `ls "${BASEDIR}"/docs/*.rst | grep -v 'index.rst$'`
+ls "${BASEDIR}"/docs/*.rst | grep -v 'index.rst$' | xargs -trI X rm -f X
 
 # Generates automatically modules doc
 red "Generating documentation from modules..."

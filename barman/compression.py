@@ -108,6 +108,7 @@ class Compressor(with_metaclass(ABCMeta, object)):
         """
         Guess if the first bytes of a file are compatible with the compression
         implemented by this class
+
         :param file_start: a binary string representing the first few
             bytes of a file
         :rtype: bool
