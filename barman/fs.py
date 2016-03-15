@@ -250,11 +250,11 @@ class UnixRemoteCommand(UnixLocalCommand):
     # noinspection PyMissingConstructor
     def __init__(self, ssh_command):
         """
-            Uses the same commands as the UnixLocalCommand
-            but the constructor is overridden and a remote shell is
-            initialized using the ssh_command provided by the user
+        Uses the same commands as the UnixLocalCommand
+        but the constructor is overridden and a remote shell is
+        initialized using the ssh_command provided by the user
 
-            :param ssh_command the ssh command provided by the user
+        :param ssh_command the ssh command provided by the user
         """
         if ssh_command is None:
             raise FsOperationFailed('No ssh command provided')

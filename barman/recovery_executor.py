@@ -484,15 +484,21 @@ class RecoveryExecutor(object):
         # Handle remote recovery options
         if remote_command:
             recovery_info['recovery_dest'] = 'remote'
-            recovery_info['rsync'] = RsyncPgData(
-                path=self.server.path,
-                ssh=remote_command,
-                bwlimit=self.config.bandwidth_limit,
-                network_compression=self.config.network_compression)
+            try:
+                recovery_info['rsync'] = RsyncPgData(
+                    path=self.server.path,
+                    ssh=remote_command,
+                    bwlimit=self.config.bandwidth_limit,
+                    network_compression=self.config.network_compression)
+            except CommandFailedException:
+                self.teardown(recovery_info)
+                raise
+
             try:
                 # create a UnixRemoteCommand obj if is a remote recovery
                 recovery_info['cmd'] = UnixRemoteCommand(remote_command)
             except FsOperationFailed:
+                self.teardown(recovery_info)
                 output.error(
                     "Unable to connect to the target host using the command "
                     "'%s'", remote_command)
@@ -545,6 +551,7 @@ class RecoveryExecutor(object):
                     output.exception(
                         "unable to parse the target time parameter %r: %s",
                         target_time, e)
+                    self.teardown(recovery_info)
                     output.close_and_exit()
                 except Exception:
                     # this should not happen, but there is a known bug in

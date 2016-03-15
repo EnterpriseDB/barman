@@ -135,13 +135,25 @@ class TestRecoveryExecutor(object):
         backup_manager = Mock(server=server, config=server.config)
         executor = RecoveryExecutor(backup_manager)
         backup_info.version = 90300
+
+        # setup should create a temporary directory
+        # and teardown should delete it
+        ret = executor.setup(backup_info, None, "/tmp")
+        assert os.path.exists(ret['tempdir'])
+        executor.teardown(ret)
+        assert not os.path.exists(ret['tempdir'])
+
         # no postgresql.auto.conf on version 9.3
         ret = executor.setup(backup_info, None, "/tmp")
+        executor.teardown(ret)
         assert "postgresql.auto.conf" not in ret['configuration_files']
+
         # Check the present for postgresql.auto.conf on version 9.4
         backup_info.version = 90400
         ret = executor.setup(backup_info, None, "/tmp")
+        executor.teardown(ret)
         assert "postgresql.auto.conf" in ret['configuration_files']
+
         # Receive a error if the remote command is invalid
         with pytest.raises(SystemExit):
             executor.server.path = None
