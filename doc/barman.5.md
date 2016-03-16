@@ -254,7 +254,7 @@ streaming_archiver
 
 streaming_conninfo
 :   Connection string used by Barman to connect to the Postgres server via
-    streaming replication protocol. Server.
+    streaming replication protocol. By default it is set to `conninfo`. Server.
 
 streaming_wals_directory
 :   Directory where WAL files are streamed from the PostgreSQL server
