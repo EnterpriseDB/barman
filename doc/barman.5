@@ -85,8 +85,11 @@ Server.
 .RE
 .TP
 .B backup_method
-Configure the way barman executes a backup.
-Currently, only \f[C]rsync\f[].
+Configure the method barman used for backup execution.
+If set to \f[C]rsync\f[] (default), barman will execute backup using the
+\f[C]rsync\f[] command.
+If set to \f[C]postgres\f[] barman will use the \f[C]pg_basebackup\f[]
+command to execute the backup.
 Global/Server.
 .RS
 .RE
@@ -122,6 +125,18 @@ Global.
 Directory for locks.
 Default: \f[C]%(barman_home)s\f[].
 Global.
+.RS
+.RE
+.TP
+.B backup_method
+Method of Backup.
+Default: rsync
+.RS
+.RE
+.TP
+.B backup_directory
+Directory where backup data for a server will be placed.
+Server.
 .RS
 .RE
 .TP

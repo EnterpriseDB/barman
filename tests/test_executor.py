@@ -22,11 +22,13 @@ import mock
 import pytest
 from mock import Mock, patch
 
-from barman.backup_executor import RsyncBackupExecutor, SshCommandException
+from barman.backup_executor import (PostgresBackupExecutor,
+                                    RsyncBackupExecutor, SshCommandException)
+from barman.command_wrappers import CommandFailedException, DataTransferFailure
 from barman.config import BackupOptions
 from barman.fs import FsOperationFailed
 from barman.infofile import BackupInfo, Tablespace
-from barman.server import CheckOutputStrategy
+from barman.server import CheckOutputStrategy, CheckStrategy
 from testing_helpers import (build_backup_manager, build_mocked_server,
                              build_test_backup_info)
 
@@ -486,3 +488,258 @@ class TestStrategy(object):
         assert backup_info.end_wal == '000000060000A25700000044'
         assert backup_info.end_offset == 0
         assert backup_info.end_time == stop_time
+
+
+class TestPostgresBackupExecutor(object):
+    """
+    This class tests the methods of the executor object hierarchy
+    """
+
+    def test_postgres_backup_executor_init(self):
+        """
+        Test the construction of a PostgresBackupExecutor
+        """
+        server = build_mocked_server(global_conf={'backup_method': 'postgres'})
+        executor = PostgresBackupExecutor(server.backup_manager)
+        assert executor
+        assert executor.strategy
+
+        # Expect an error if the tablespace_bandwidth_limit option
+        # is set for this server.
+        server = build_mocked_server(
+            global_conf={'backup_method': 'postgres',
+                         'tablespace_bandwidth_limit': 1})
+        executor = PostgresBackupExecutor(server.backup_manager)
+        assert executor
+        assert executor.strategy
+        assert server.config.disabled
+
+    @patch(
+        "barman.backup_executor.PostgresBackupExecutor.postgres_backup_copy")
+    @patch("barman.backup.BackupManager.get_previous_backup")
+    def test_backup(self, gpb_mock, pbc_mock, capsys, tmpdir):
+        """
+        Test backup
+
+        :param gpb_mock: mock for the get_previous_backup method
+        :param pbc_mock: mock for the postgres_backup_copy method
+        :param capsys: stdout capture module
+        :param tmpdir: pytest temp directory
+        """
+        tmp_home = tmpdir.mkdir('home')
+        backup_manager = build_backup_manager(global_conf={
+            'barman_home': tmp_home.strpath,
+            'backup_method': 'postgres'
+        })
+        backup_info = BackupInfo(backup_manager.server,
+                                 backup_id='fake_backup_id')
+        timestamp = datetime.datetime(2015, 10, 26, 14, 38)
+        backup_manager.server.postgres.current_xlog_info = dict(
+            location='0/12000090',
+            file_name='000000010000000000000012',
+            file_offset=144,
+            timestamp=timestamp,
+        )
+
+        tmp_backup_label = tmp_home.mkdir('main')\
+            .mkdir('base').mkdir('fake_backup_id')\
+            .mkdir('data').join('backup_label')
+        tmp_backup_label.write(
+            'START WAL LOCATION: 0/40000028 (file 000000010000000000000040)\n'
+            'CHECKPOINT LOCATION: 0/40000028\n'
+            'BACKUP METHOD: streamed\n'
+            'BACKUP FROM: master\n'
+            'START TIME: 2015-11-04 15:47:55 CET\n'
+            'LABEL: pg_basebackup base backup')
+        backup_manager.executor.backup(backup_info)
+        out, err = capsys.readouterr()
+        gpb_mock.assert_called_once_with(backup_info.backup_id)
+        assert err.strip() == 'WARNING: pg_basebackup does not copy ' \
+                              'the PostgreSQL configuration files that '\
+                              'reside outside PGDATA. Those configuration '\
+                              'files must be copied manually.'
+        assert 'Copying files.' in out
+        assert 'Copy done.' in out
+        assert 'Finalising the backup.' in out
+        assert backup_info.end_xlog == '0/12000090'
+        assert backup_info.end_offset == 144
+        assert backup_info.begin_time == '2015-11-04 15:47:55 CET'
+        assert backup_info.begin_wal == '000000010000000000000040'
+
+        # Check the CommandFailedException re raising
+        with pytest.raises(CommandFailedException):
+            pbc_mock.side_effect = CommandFailedException('test')
+            backup_manager.executor.backup(backup_info)
+
+    @patch("barman.backup_executor.PostgresBackupExecutor.get_remote_status")
+    def test_check(self, remote_status_mock):
+        """
+        Very simple and basic test for the check method
+        :param remote_status_mock: mock for the get_remote_status method
+        """
+        remote_status_mock.return_value = {
+            'pg_basebackup_compatible': True,
+            'pg_basebackup_installed': True,
+            'pg_basebackup_path': '/fake/path',
+            'pg_basebackup_bwlimit': True,
+            'pg_basebackup_version': '9.5'
+        }
+        check_strat = CheckStrategy()
+        backup_manager = build_backup_manager(global_conf={
+            'backup_method': 'postgres'
+        })
+        backup_manager.executor.check(check_strategy=check_strat)
+        # No errors detected
+        assert check_strat.has_error is not True
+
+        remote_status_mock.reset_mock()
+        remote_status_mock.return_value = {
+            'pg_basebackup_compatible': False,
+            'pg_basebackup_installed': True,
+            'pg_basebackup_path': True,
+            'pg_basebackup_bwlimit': True,
+            'pg_basebackup_version': '9.5'
+        }
+
+        check_strat = CheckStrategy()
+        backup_manager.executor.check(check_strategy=check_strat)
+        # Error present because of the 'pg_basebackup_compatible': False
+        assert check_strat.has_error is True
+
+    @mock.patch("barman.backup_executor.Command")
+    @mock.patch("barman.utils.which")
+    def test_fetch_remote_status(self, mock_which, cmd_mock):
+        """
+        Test the fetch_remote_status method
+        :param mock_which: mock the which method from utils
+        :param cmd_mock: mock the Command class
+        """
+        backup_manager = build_backup_manager(global_conf={
+            'backup_method': 'postgres'
+        })
+        # Simulate the absence of pg_basebackup
+        mock_which.return_value = None
+        backup_manager.server.streaming.server_major_version = '9.5'
+        remote = backup_manager.executor.fetch_remote_status()
+        assert remote['pg_basebackup_installed'] is False
+        assert remote['pg_basebackup_path'] is None
+
+        # Simulate the presence of pg_basebackup 9.5.1 and pg 95
+        mock_which.return_value = '/fake/path'
+        backup_manager.server.streaming.server_major_version = '9.5'
+        cmd_mock.return_value.out = '9.5.1'
+        remote = backup_manager.executor.fetch_remote_status()
+        assert remote['pg_basebackup_installed'] is True
+        assert remote['pg_basebackup_path'] == '/fake/path'
+        assert remote['pg_basebackup_version'] == '9.5.1'
+        assert remote['pg_basebackup_compatible'] is True
+
+        # Simulate the presence of pg_basebackup 9.5.1 and no Pg
+        backup_manager.server.streaming.server_major_version = None
+        cmd_mock.reset_mock()
+        cmd_mock.return_value.out = '9.5.1'
+        remote = backup_manager.executor.fetch_remote_status()
+        assert remote['pg_basebackup_installed'] is True
+        assert remote['pg_basebackup_path'] == '/fake/path'
+        assert remote['pg_basebackup_version'] == '9.5.1'
+        assert remote['pg_basebackup_compatible'] is None
+
+        # Simulate the presence of pg_basebackup 9.3.3 and Pg 9.5
+        backup_manager.server.streaming.server_major_version = '9.5'
+        cmd_mock.reset_mock()
+        cmd_mock.return_value.out = '9.3.3'
+        remote = backup_manager.executor.fetch_remote_status()
+        assert remote['pg_basebackup_installed'] is True
+        assert remote['pg_basebackup_path'] == '/fake/path'
+        assert remote['pg_basebackup_version'] == '9.3.3'
+        assert remote['pg_basebackup_compatible'] is False
+
+    @patch("barman.backup_executor.PgBasebackup")
+    @patch("barman.backup_executor.PostgresBackupExecutor.fetch_remote_status")
+    def test_postgres_backup_copy(self, remote_mock,
+                                  pg_basebackup_mock, tmpdir):
+        """
+        Test backup folder structure
+
+        :param remote_mock: mock for the fetch_remote_status method
+        :param pg_basebackup_mock: mock for the PgBaseBackup object
+        :param tmpdir: pytest temp directory
+        """
+        backup_manager = build_backup_manager(global_conf={
+            'barman_home': tmpdir.mkdir('home').strpath,
+            'backup_method': 'postgres'
+        })
+        # simulate a old version of pg_basebackup
+        # not supporting bandwidth_limit
+        remote_mock.return_value = {
+            'pg_basebackup_version': '9.2',
+            'pg_basebackup_path': '/fake/path',
+            'pg_basebackup_bwlimit': False,
+        }
+        backup_manager.server.config.bandwidth_limit = 1
+        backup_manager.server.streaming.conn_parameters = {
+            'host': 'fakeHost',
+            'port': 'fakePort',
+            'user': 'fakeUser'
+        }
+        backup_info = build_test_backup_info(server=backup_manager.server,
+                                             backup_id='fake_backup_id')
+        backup_manager.executor.postgres_backup_copy(backup_info)
+        # check that the bwlimit option have been ignored
+        pg_basebackup_mock.assert_any_call(
+            destination=mock.ANY,
+            pg_basebackup='/fake/path',
+            host='fakeHost',
+            port='fakePort',
+            user='fakeUser',
+            tbs_mapping=mock.ANY,
+            bwlimit=None,
+            immediate=False,
+            path=mock.ANY)
+
+        # Check with newer version
+        remote_mock.reset_mock()
+        backup_manager.executor._remote_status = None
+        remote_mock.return_value = {
+            'pg_basebackup_version': '9.5',
+            'pg_basebackup_path': '/fake/path',
+            'pg_basebackup_bwlimit': True,
+        }
+        backup_manager.executor.config.immediate_checkpoint = True
+        backup_manager.executor.config.streaming_conninfo = 'fake=connstring'
+        backup_manager.executor.postgres_backup_copy(backup_info)
+        # check that the bwlimit option have been passed to the test call
+        pg_basebackup_mock.assert_any_call(
+            destination=mock.ANY,
+            pg_basebackup='/fake/path',
+            conn_string='fake=connstring',
+            tbs_mapping=mock.ANY,
+            bwlimit=1,
+            immediate=True,
+            path=mock.ANY)
+
+        # Raise a test CommandFailedException and expect it to be wrapped
+        # inside a DataTransferFailure exception
+        pg_basebackup_mock.return_value.side_effect = \
+            CommandFailedException(dict(ret='ret', out='out', err='err'))
+        with pytest.raises(DataTransferFailure):
+            backup_manager.executor.postgres_backup_copy(backup_info)
+
+    def test_strategy_pg_get_metadata(self):
+        """
+        Test the backup_info population through
+        the strategy start_backup method
+        """
+        backup_manager = build_backup_manager(global_conf={
+            'backup_method': 'postgres'
+        })
+        backup_info = BackupInfo(backup_manager.server,
+                                 backup_id='fake_backup_id')
+        backup_manager.server.postgres.get_setting.side_effect = [
+            '/test/fake_data_dir',
+        ]
+        # Backup_info.pgdata now is not available
+        assert backup_info.pgdata is None
+        backup_manager.executor.strategy.start_backup(backup_info)
+        # Backup_info.pgdata now is available
+        assert backup_info.pgdata == '/test/fake_data_dir'

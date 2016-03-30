@@ -99,7 +99,7 @@ class TestRecoveryExecutor(object):
             'configuration_files': ['postgresql.conf', 'postgresql.auto.conf'],
             'tempdir': tempdir.strpath,
             'temporary_configuration_files': [],
-            'results': {'changes': [], 'warnings': []},
+            'results': {'changes': [], 'warnings': [], 'missing_files': []},
         }
 
         backup_info = testing_helpers.build_test_backup_info()
@@ -125,6 +125,8 @@ class TestRecoveryExecutor(object):
         assert tempdir.join('postgresql.auto.conf').check()
         assert tempdir.join('postgresql.auto.conf').computehash() == \
             postgresql_auto_local.computehash()
+        assert recovery_info['results']['missing_files'] == [
+            'pg_hba.conf', 'pg_ident.conf']
 
     def test_setup(self):
         """
@@ -401,6 +403,9 @@ class TestRecoveryExecutor(object):
                                     'data_directory = something')
         shutil.copy2(postgresql_conf_local.strpath, dest.strpath)
         shutil.copy2(postgresql_auto_local.strpath, dest.strpath)
+        # Avoid triggering warning for missing config files
+        datadir.ensure('pg_hba.conf')
+        datadir.ensure('pg_ident.conf')
         # Build an executor
         server = testing_helpers.build_real_server(
             global_conf={
@@ -439,6 +444,7 @@ class TestRecoveryExecutor(object):
                         0,
                         'archive_command',
                         'false'])],
+                'missing_files': [],
                 'warnings': [
                     Assertion._make([
                         'postgresql.conf',
@@ -488,6 +494,7 @@ class TestRecoveryExecutor(object):
                         0,
                         'archive_command',
                         'false'])],
+                'missing_files': [],
                 'warnings': [
                     Assertion._make([
                         'postgresql.conf',

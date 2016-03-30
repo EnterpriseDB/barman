@@ -125,7 +125,8 @@ class TestConfig(object):
             'wal_retention_policy': 'base',
             'custom_compression_filter': 'bzip2 -c -9',
             'wals_directory': 'wals',
-            'custom_decompression_filter': 'bzip2 -c -d'
+            'custom_decompression_filter': 'bzip2 -c -d',
+            'backup_method': 'rsync'
         })
         assert main.__dict__ == expected
 
@@ -356,7 +357,9 @@ class TestCsvParsing(object):
         main = c.get_server('main')
 
         # create the expected dictionary
-        expected = build_config_dictionary({'config': main.config})
+        expected = build_config_dictionary(
+            {'config': main.config,
+             'backup_options': set([BackupOptions.EXCLUSIVE_BACKUP])})
         assert main.__dict__ == expected
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
@@ -416,6 +419,7 @@ class TestCsvParsing(object):
         expected = build_config_dictionary({
             'config': main.config,
             'backup_options': set(['concurrent_backup']),
+            'backup_method': 'rsync',
         })
         assert main.__dict__ == expected
 

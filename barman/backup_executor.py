@@ -30,10 +30,12 @@ import logging
 import os
 import re
 from abc import ABCMeta, abstractmethod
+from distutils.version import LooseVersion as Version
 
-from barman import output, xlog
-from barman.command_wrappers import (CommandFailedException,
-                                     DataTransferFailure, RsyncPgData)
+from barman import output, utils, xlog
+from barman.command_wrappers import (Command, CommandFailedException,
+                                     DataTransferFailure, PgBasebackup,
+                                     RsyncPgData)
 from barman.config import BackupOptions
 from barman.fs import FsOperationFailed, UnixRemoteCommand
 from barman.infofile import BackupInfo
@@ -153,6 +155,308 @@ def _parse_ssh_command(ssh_command):
     return ssh_command, ssh_options
 
 
+class PostgresBackupExecutor(BackupExecutor):
+    """
+    Concrete class for backup via pg_basebackup (plain format).
+
+    Relies on pg_basebackup command to copy data files from the PostgreSQL
+    cluster using replication protocol.
+    """
+
+    def __init__(self, backup_manager):
+        """
+        Constructor
+
+        :param barman.backup.BackupManager backup_manager: the BackupManager
+            assigned to the executor
+        """
+        super(PostgresBackupExecutor, self).__init__(backup_manager)
+        self.validate_configuration()
+        self.strategy = PostgresBackupStrategy(self)
+
+    def validate_configuration(self):
+        """
+        Validate the configuration for this backup executor.
+
+        If the configuration is not compatible this method will disable the
+        server.
+        """
+
+        # Check for the correct backup options
+        if BackupOptions.EXCLUSIVE_BACKUP in self.config.backup_options:
+            self.config.backup_options.remove(
+                BackupOptions.EXCLUSIVE_BACKUP)
+            output.warning(
+                "'exclusive_backup' is not a valid backup_option "
+                "using postgres backup_method. "
+                "Overriding with 'concurrent_backup'.")
+
+        # Apply the default backup strategy
+        if BackupOptions.CONCURRENT_BACKUP not in \
+                self.config.backup_options:
+            self.config.backup_options.add(BackupOptions.CONCURRENT_BACKUP)
+            output.debug("The default backup strategy for "
+                         "postgres backup_method is: concurrent_backup")
+
+        # Forbid tablespace_bandwidth_limit option.
+        # It works only with rsync based backups.
+        if self.config.tablespace_bandwidth_limit:
+            self.server.config.disabled = True
+            # Report the error in the configuration errors message list
+            self.server.config.msg_list.append(
+                'tablespace_bandwidth_limit option is not supported by '
+                'postgres backup_method')
+
+        # Forbid reuse_backup option.
+        # It works only with rsync based backups.
+        if self.config.reuse_backup:
+            self.server.config.disabled = True
+            # Report the error in the configuration errors message list
+            self.server.config.msg_list.append(
+                'reuse_backup option is not supported by '
+                'postgres backup_method')
+
+        # Forbid network_compression option.
+        # It works only with rsync based backups.
+        if self.config.network_compression:
+            self.server.config.disabled = True
+            # Report the error in the configuration errors message list
+            self.server.config.msg_list.append(
+                'network_compression option is not supported by '
+                'postgres backup_method')
+
+        # bandwidth_limit option is supported by pg_basebackup executable
+        # starting from Postgres 9.4
+        if self.server.config.bandwidth_limit:
+            # This method is invoked too early to have a working streaming
+            # connection. So we avoid caching the result by directly
+            # invoking fetch_remote_status() instead of get_remote_status()
+            remote_status = self.fetch_remote_status()
+            # If pg_basebackup is present and it doesn't support bwlimit
+            # disable the server.
+            if remote_status['pg_basebackup_bwlimit'] is False:
+                self.server.config.disabled = True
+                # Report the error in the configuration errors message list
+                self.server.config.msg_list.append(
+                    "bandwidth_limit option is not supported by "
+                    "pg_basebackup version (current: %s, required: 9.4)" %
+                    remote_status['pg_basebackup_version'])
+
+    def backup(self, backup_info):
+        """
+        Perform a backup for the server - invoked by BackupManager.backup()
+        through the generic interface of a BackupExecutor.
+
+        This implementation is responsible for performing a backup through the
+        streaming protocol.
+
+        The connection must be made with a superuser or a user having
+        REPLICATION permissions (see PostgreSQL documentation, Section 20.2),
+        and pg_hba.conf must explicitly permit the replication connection.
+        The server must also be configured with enough max_wal_senders to leave
+        at least one session available for the backup.
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        try:
+            # Set data directory and server version
+            self.strategy.start_backup(backup_info)
+            backup_info.set_attribute('status', "STARTED")
+            backup_info.save()
+            # Start the copy
+            self.current_action = "copying files"
+            output.info("Copying files.")
+            self.backup_manager.retry_backup_copy(self.postgres_backup_copy,
+                                                  backup_info)
+            output.info("Copy done.")
+            self.strategy.stop_backup(backup_info)
+            # If this is the first backup, purge eventually unused WAL files
+            self._purge_unused_wal_files(backup_info)
+        except CommandFailedException as e:
+            _logger.exception(e)
+            raise
+
+    def check(self, check_strategy):
+        """
+        Perform additional checks for PostgresBackupExecutor
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        remote_status = self.get_remote_status()
+
+        # Check for the presence of pg_basebackup
+        check_strategy.result(
+            self.config.name, 'pg_basebackup',
+            remote_status['pg_basebackup_installed'])
+
+        # remote_status['pg_basebackup_compatible'] is None if
+        # pg_basebackup cannot be executed and False if it is
+        # not compatible.
+        hint = None
+        if not remote_status['pg_basebackup_compatible']:
+            pg_version = 'Unknown'
+            basebackup_version = 'Unknown'
+            if self.server.streaming is not None:
+                pg_version = self.server.streaming.server_txt_version
+            if remote_status['pg_basebackup_version'] is not None:
+                basebackup_version = remote_status['pg_basebackup_version']
+            hint = "PostgreSQL version: %s, pg_basebackup version: %s" % (
+                pg_version, basebackup_version
+            )
+        check_strategy.result(
+            self.config.name, 'pg_basebackup compatible',
+            remote_status['pg_basebackup_compatible'], hint=hint)
+
+    def fetch_remote_status(self):
+        """
+        Gather info from the remote server.
+
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+        """
+        remote_status = dict.fromkeys(
+            ('pg_basebackup_compatible',
+             'pg_basebackup_installed',
+             'pg_basebackup_path',
+             'pg_basebackup_bwlimit',
+             'pg_basebackup_version'),
+            None)
+
+        # Test pg_basebackup existence
+        pg_basebackup = utils.which("pg_basebackup",
+                                    self.backup_manager.server.path)
+        if pg_basebackup:
+            remote_status["pg_basebackup_installed"] = True
+            remote_status["pg_basebackup_path"] = pg_basebackup
+        else:
+            remote_status["pg_basebackup_installed"] = False
+            return remote_status
+
+        # Obtain the `pg_basebackup` version
+        pg_basebackup = Command(pg_basebackup, path=self.config.path_prefix,
+                                check=True)
+        try:
+            pg_basebackup("--version")
+            splitter_version = pg_basebackup.out.strip().split()
+            remote_status["pg_basebackup_version"] = splitter_version[-1]
+            pgbasebackup_version = Version(
+                utils.simplify_version(remote_status["pg_basebackup_version"]))
+        except CommandFailedException as e:
+            pgbasebackup_version = None
+            _logger.debug("Error invoking pg_basebackup: %s", e)
+
+        # Is bandwidth limit supported?
+        if remote_status['pg_basebackup_version'] is not None \
+                and remote_status['pg_basebackup_version'] < '9.4':
+            remote_status['pg_basebackup_bwlimit'] = False
+        else:
+            remote_status['pg_basebackup_bwlimit'] = True
+
+        # Retrieve the PostgreSQL version
+        pg_version = None
+        if self.server.streaming is not None:
+            pg_version = self.server.streaming.server_major_version
+
+        # If any of the two versions is unknown, we can't compare them
+        if pgbasebackup_version is None or pg_version is None:
+            # Return here. We are unable to retrieve
+            # pg_basebackup or PostgreSQL versions
+            return remote_status
+
+        # pg_version is not None so transform into a Version object
+        # for easier comparison between versions
+        pg_version = Version(pg_version)
+
+        # pg_basebackup 9.2 is compatible only with PostgreSQL 9.2.
+        if "9.2" == pg_version == pgbasebackup_version:
+            remote_status["pg_basebackup_compatible"] = True
+
+        # other versions are compatible with lesser versions of PostgreSQL
+        # WARNING: The development versions of `pg_basebackup` are considered
+        # higher than the stable versions here, but this is not an issue
+        # because it accepts everything that is less than
+        # the `pg_basebackup` version(e.g. '9.6' is less than '9.6devel')
+        elif "9.2" < pg_version <= pgbasebackup_version:
+            remote_status["pg_basebackup_compatible"] = True
+        else:
+            remote_status["pg_basebackup_compatible"] = False
+
+        return remote_status
+
+    def postgres_backup_copy(self, backup_info):
+        """
+        Perform the actual copy of the backup using pg_basebackup.
+        First, manages tablespaces, then copies the base backup
+        using the streaming protocol.
+
+        In case of failure during the execution of the pg_basebackup command
+        the method raises a DataTransferFailure, this trigger the retrying
+        mechanism when necessary.
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        # Make sure the destination directory exists
+        backup_dest = backup_info.get_data_directory()
+        mkpath(backup_dest)
+
+        # Manage tablespaces, we need to handle them now in order to
+        # be able to relocate them inside the
+        # destination directory of the basebackup
+        tbs_map = {}
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                source = tablespace.location
+                destination = backup_info.get_data_directory(tablespace.oid)
+                tbs_map[source] = destination
+
+        # Retrieve pg_basebackup version information
+        remote_status = self.get_remote_status()
+
+        # If pg_basebackup supports --max-rate set the bandwidth_limit
+        bandwidth_limit = None
+        if remote_status['pg_basebackup_bwlimit']:
+            bandwidth_limit = self.config.bandwidth_limit
+
+        if remote_status['pg_basebackup_version'] >= '9.3':
+            # If pg_basebackup version is >= 9.3 we use the connection
+            # string because allows the user to set all the parameters
+            # supported by the libpq library to create a connection
+            pg_basebackup = PgBasebackup(
+                destination=backup_dest,
+                pg_basebackup=remote_status['pg_basebackup_path'],
+                conn_string=self.config.streaming_conninfo,
+                tbs_mapping=tbs_map,
+                bwlimit=bandwidth_limit,
+                immediate=self.config.immediate_checkpoint,
+                path=self.backup_manager.server.path)
+        else:
+            # 9.2 version of pg_basebackup doesn't support
+            # connection strings so the 'split' version of the conninfo
+            # option is used instead.
+            conn_params = self.server.streaming.conn_parameters
+            pg_basebackup = PgBasebackup(
+                destination=backup_dest,
+                pg_basebackup=remote_status['pg_basebackup_path'],
+                host=conn_params.get('host', None),
+                port=conn_params.get('port', None),
+                user=conn_params.get('user', None),
+                tbs_mapping=tbs_map,
+                bwlimit=bandwidth_limit,
+                immediate=self.config.immediate_checkpoint,
+                path=self.backup_manager.server.path)
+
+        # Do the actual copy
+        try:
+            pg_basebackup()
+        except CommandFailedException as e:
+            msg = "data transfer failure on directory '%s'" % \
+                  backup_info.get_data_directory()
+            raise DataTransferFailure.from_command_error(
+                'pg_basebackup', e, msg
+            )
+
+
 class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
     """
     Abstract base class for any backup executors based on Ssh
@@ -182,8 +486,16 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                 'Missing or invalid ssh_command in barman configuration '
                 'for server %s' % backup_manager.config.name)
 
-        # Holds the action being executed. Used for error messages.
-        self.current_action = None
+        # Apply the default backup strategy
+        if (BackupOptions.CONCURRENT_BACKUP not in
+                self.config.backup_options and
+                BackupOptions.EXCLUSIVE_BACKUP not in
+                self.config.backup_options):
+            self.config.backup_options.add(BackupOptions.EXCLUSIVE_BACKUP)
+            output.debug("The default backup strategy for "
+                         "any ssh based backup_method is: "
+                         "exclusive_backup")
+
         # Depending on the backup options value, create the proper strategy
         if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
             # Concurrent backup strategy
@@ -670,6 +982,95 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
             for item in tablespaces:
                 msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
                 _logger.info(msg)
+
+
+class PostgresBackupStrategy(BackupStrategy):
+    """
+    Concrete class for postgres backup strategy.
+
+    This strategy is for PostgresBackupExecutor only and is responsible for
+    executing pre e post backup operations during a physical backup executed
+    using pg_basebackup.
+    """
+
+    #: Regex for START WAL LOCATION info
+    WAL_RE = re.compile('^START WAL LOCATION: (.*) \(file (.*)\)',
+                        re.MULTILINE)
+    #: Regex for START TIME info
+    START_TIME_RE = re.compile('^START TIME: (.*)', re.MULTILINE)
+
+    def check(self, check_strategy):
+        """
+        Perform additional checks for the Postgres backup strategy
+        """
+
+    def start_backup(self, backup_info):
+        """
+        Manage the start of an pg_basebackup backup
+
+        The method performs all the preliminary operations required for a
+        backup executed using pg_basebackup to start, gathering information
+        from postgres and filling the backup_info.
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        self.current_action = "Initialising postgres backup_method"
+        self._pg_get_metadata(backup_info)
+
+    def stop_backup(self, backup_info):
+        """
+        Manage the stop of an pg_basebackup backup
+
+        The method retrieves the information necessary for the
+        backup.info file reading the backup_label file.
+
+        Due of the nature of the pg_basebackup, information that are gathered
+        during the start of a backup performed using rsync, are retrieved
+        here
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        # Get backup info from backup_label
+        backup_label_path = os.path.join(backup_info.get_data_directory(),
+                                         'backup_label')
+        with open(backup_label_path) as backup_label_file:
+            backup_label_data = backup_label_file.read()
+
+        # Parse backup label
+        wal_info = self.WAL_RE.search(backup_label_data)
+        start_time = self.START_TIME_RE.search(backup_label_data)
+
+        # Set data in backup_info from backup_label
+        backup_info.set_attribute('timeline', int(wal_info.group(2)[0:8], 16))
+        backup_info.set_attribute('begin_xlog', wal_info.group(1))
+        backup_info.set_attribute('begin_wal', wal_info.group(2))
+        backup_info.set_attribute('begin_offset',
+                                  xlog.get_offset_from_location(
+                                      wal_info.group(1)))
+        backup_info.set_attribute('begin_time', start_time.group(1))
+
+        output.info("Backup started at xlog location: %s (%s, %08X)",
+                    backup_info.begin_xlog,
+                    backup_info.begin_wal,
+                    backup_info.begin_offset)
+
+        # Set data in backup_info from curent_xlog_info
+        self.current_action = "stopping postgres backup_method"
+        output.info("Finalising the backup.")
+        server = self.executor.server
+        curent_xlog_info = server.postgres.current_xlog_info
+        backup_info.set_attribute('end_time',
+                                  curent_xlog_info['timestamp'])
+        backup_info.set_attribute('end_xlog',
+                                  curent_xlog_info['location'])
+        backup_info.set_attribute('end_wal',
+                                  curent_xlog_info['file_name'])
+        backup_info.set_attribute('end_offset',
+                                  curent_xlog_info['file_offset'])
+
+        output.warning("pg_basebackup does not copy the PostgreSQL "
+                       "configuration files that reside outside PGDATA. "
+                       "Those configuration files must be copied manually.")
 
 
 class ExclusiveBackupStrategy(BackupStrategy):

@@ -220,8 +220,7 @@ def build_config_dictionary(config_keys=None):
         'archiver': True,
         'config': None,
         'backup_directory': '/some/barman/home/main',
-        'backup_options': BackupOptions(BackupOptions.EXCLUSIVE_BACKUP,
-                                        "", ""),
+        'backup_options': BackupOptions("",  "", ""),
         'bandwidth_limit': None,
         'barman_home': '/some/barman/home',
         'basebackups_directory': '/some/barman/home/main/base',
@@ -290,6 +289,7 @@ def build_mocked_server(name=None, config=None,
                         global_conf=None, main_conf=None):
     """
     Build a mock server object
+    :param str name: server name, defaults to 'main'
     :param barman.config.ServerConfig config: use this object to build the
         server
     :param dict[str,str|None]|None global_conf: using this dictionary
@@ -307,6 +307,8 @@ def build_mocked_server(name=None, config=None,
             main_conf=main_conf).get_server('main')
     else:
         server.config = config
+    server.backup_manager.server = server
+    server.backup_manager.config = server.config
     server.config.name = name or 'main'
     return server
 

@@ -66,7 +66,8 @@ on a host. You want your data continuously backed up to another
 server, called the **backup server**.
 
 Barman allows you to launch PostgreSQL backups directly from the
-backup server, using SSH connections. Furthermore, it allows you to
+backup server, using either SSH connections or, from version 1.6.2,
+`pg_basebackup` (for PostgreSQL 9.1 or higher). Furthermore, it allows you to
 centralise your backups in case you have more than one PostgreSQL
 server to manage.
 
@@ -75,11 +76,14 @@ During this guide, we will assume that:
 - there is one PostgreSQL instance on a host (called `pg` for
   simplicity)
 - there is one backup server on another host (called `backup`)
-- communication via SSH between the two servers is enabled
 - the PostgreSQL server can be reached from the backup server as the
   `postgres` operating system user (or another user with PostgreSQL
   database _superuser_ privileges, typically configured via ident
   authentication)
+- you have chosen a backup method:
+    - `rsync`: communication via SSH between the two servers must be enabled
+    - `postgres`: streaming communication between the two servers must be
+      enabled
 
 It is important to note that, for disaster recovery, these two servers
 must not share any physical resource except for the network. You can
@@ -197,13 +201,36 @@ barman@backup$ ./setup.py install --user
 
 # Getting started
 
-## Prerequisites
+## Choose a backup method
 
-### SSH connection
+The first important decision you are called to make is which backup method
+to choose for your PostgreSQL server.
 
-Barman needs a bidirectional SSH connection between the `barman` user
-on the `backup` server and the `postgres` user. SSH must be configured
-such that there is no password prompt presented when connecting.
+For versions prior to PostgreSQL 9.1 you can only use `rsync` over SSH.
+For PostgreSQL 9.1 or higher, starting from Barman 1.6.2, you have an
+alternative: rely on PostgreSQL streaming replication only, by using
+`pg_basebackup` as backup application.
+
+This decision will have an impact at architecture, security and operations
+level, bringing along a set of different requirements and actions to take.
+
+Mechanically, this choice depends on the value that you assign to a
+global/server configuration option called `backup_method`. Currently,
+it only accepts two possible values:
+
+* `rsync`: instruct Barman to use `rsync` over SSH for taking base backups,
+  thus requiring a SSH connection with the PostgreSQL server;
+* `postgres`: use `pg_basebackup` to take base backups, thus requiring a
+  valid streaming connection to the PostgreSQL server.
+
+Below is a list of requirements and steps to follow for each case.
+
+### Backup with rsync over SSH
+
+In case your backup method is `rsync`, you need to allow the `barman` user
+on the `backup` server to connect via SSH as the `postgres` user on the
+PostgreSQL server. SSH must be configured so that no password prompt
+is presented when connecting.
 
 As the `barman` user on the `backup` server, generate an SSH key with
 an empty password, and append the public key to the `authorized_keys`
@@ -216,20 +243,39 @@ perform the following operation without typing a password:
 barman@backup$ ssh postgres@pg
 ```
 
-The procedure must be repeated with sides swapped in order to allow
-the `postgres` user on the `pg` server to connect to the `backup`
-server as the `barman` user without typing a password:
-
-``` bash
-postgres@pg$ ssh barman@backup
-```
-
 For further information, refer to OpenSSH documentation.
 
-### PostgreSQL connection
+### Backup through PostgreSQL streaming replication
 
-You need to make sure that the `backup` server allows connection to
-the PostgreSQL server on `pg` as superuser (`postgres`).
+In case your backup method is `postgres`, the following requirements apply:
+
+- PostgreSQL 9.1 or higher as database server
+- `pg_basebackup` installed on the Barman server:
+    - with PostgreSQL 9.1 and 9.2, `pg_basebackup` version 9.2 is required
+    - with PostgreSQL 9.3 or higher, it is recommended to install the latest
+      version of `pg_basebackup` (which is back-compatible down to 9.3)
+
+> **Note:**
+> In case you manage different versions of PostgreSQL, you can install
+> different versions of `pg_basebackup`, then set the `path_prefix`
+> specifically for each server to point to the proper version.
+
+The `postgres` backup method requires to set up a streaming connection.
+See the section "Streaming connection" below for further information.
+
+Current limitations of the `postgres` method are:
+
+* `bandwidth_limit` is available with `pg_basebackup` >= 9.4 only
+* `network_compression` is not supported
+* `reuse_backup` is not supported
+* `tablespace_bandwidth_limit` is not supported
+
+## Setup the PostgreSQL connection
+
+You need to make sure that the `backup` server can connect to
+the PostgreSQL server on `pg` as superuser (e.g. `postgres`).
+This connection is required by Barman in order to coordinate its
+activities with the server, as well as for monitoring purposes.
 
 You can choose your favourite client authentication method among those
 offered by PostgreSQL. More information can be found in the
@@ -263,7 +309,7 @@ In order to set up a streaming connection, you need to:
   > that is strictly related to Barman configuration. Please refer
   > to PostgreSQL documentation, mailing lists, and books for this activity.
 
-### Backup directory
+## Choose the main backup directory
 
 Barman needs a main backup directory to store all the backups. Even
 though you can define a separate folder for each server you want to
@@ -285,7 +331,7 @@ barman@backup$ sudo chown barman:barman /var/lib/barman
 > We assume that you have enough space, and that you have already
 > thought about redundancy and safety of your disks.
 
-## Basic configuration
+## Write a basic configuration
 
 In the `docs` directory you will find a minimal configuration file.
 Use it as a template, and copy it to `/etc/barman.conf`, or to
@@ -343,41 +389,8 @@ inside the `/etc/barman.d` folder.
 Otherwise, you can use Barman's standard way of specifying sections
 within the main configuration file.
 
-### Lock files
-
-Since version 1.5.0, Barman allows DBAs to specify a directory for
-lock files through the `barman_lock_directory` global option.
-
-Lock files are used to coordinate concurrent work at global and server
-level (for example, cron operations, backup operations, access to the
-WAL archive, etc.).
-
-By default (for backward compatibility reasons),
-`barman_lock_directory` is set to `barman_home`.
-
-> **Important:**
-> This change won't affect users upgrading from a version of Barman
-> older than 1.5.0, unless you have written applications that depend
-> on the names of the lock files. However, this is not a typical and
-> common case for Barman and most of users do not fall into this
-> category.
-
 > **Tip:**
-> Users are encouraged to use a directory in a volatile partition,
-> such as the one dedicated to run-time variable data (e.g.
-> `/var/run/barman`).
-
-### Customisation of binary paths
-
-As of version 1.6.0, Barman allows users to specify one or more directories
-where Barman looks for executable files, using the global/server
-option `path_prefix`.
-
-If a `path_prefix` is provided, it must contain a list of one or more
-directories separated by colon. Barman will search inside these directories
-first, then in those specified by the `PATH` environment variable.
-
-By default the `path_prefix` option is empty.
+> This is the recommended way to configure servers in Barman.
 
 ### Example of configuration
 
@@ -424,10 +437,25 @@ continuous WAL archiving.
 > 'please make sure WAL shipping is setup', rightly do so and set
 > continuous WAL archiving and WAL streaming (see next sections).
 
-### Continuous WAL archiving
+### Setup continuous WAL archiving
 
 Barman requires that continuous WAL archiving via PostgreSQL's
 `archive_command` is properly configured on the master.
+
+It also require that the `postgres` user on the `pg` server
+can connect to the `backup` server as the `barman` user without typing
+a password.
+
+As the `postgres` user on the `pg` server, generate an SSH key with
+an empty password, and append the public key to the `authorized_keys`
+file of the `barman` user on the `backup` server.
+
+Then, manually verify that this works:
+
+``` bash
+postgres@pg$ ssh barman@backup
+```
+
 Edit the `postgresql.conf` file of the PostgreSQL instance on the `pg`
 database and activate the archive mode:
 
@@ -1554,6 +1582,42 @@ Following variables are specific to archive scripts:
 - `BARMAN_TIMESTAMP`: WAL file timestamp
 - `BARMAN_COMPRESSION`: type of compression used for the WAL file
 
+
+## Customisation of lock file directory
+
+Since version 1.5.0, Barman allows DBAs to specify a directory for
+lock files through the `barman_lock_directory` global option.
+
+Lock files are used to coordinate concurrent work at global and server
+level (for example, cron operations, backup operations, access to the
+WAL archive, etc.).
+
+By default (for backward compatibility reasons),
+`barman_lock_directory` is set to `barman_home`.
+
+> **Important:**
+> This change won't affect users upgrading from a version of Barman
+> older than 1.5.0, unless you have written applications that depend
+> on the names of the lock files. However, this is not a typical and
+> common case for Barman and most of users do not fall into this
+> category.
+
+> **Tip:**
+> Users are encouraged to use a directory in a volatile partition,
+> such as the one dedicated to run-time variable data (e.g.
+> `/var/run/barman`).
+
+## Customisation of binary paths
+
+As of version 1.6.0, Barman allows users to specify one or more directories
+where Barman looks for executable files, using the global/server
+option `path_prefix`.
+
+If a `path_prefix` is provided, it must contain a list of one or more
+directories separated by colon. Barman will search inside these directories
+first, then in those specified by the `PATH` environment variable.
+
+By default the `path_prefix` option is empty.
 
 ## Integration with standby servers
 

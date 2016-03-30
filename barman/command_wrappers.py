@@ -806,6 +806,80 @@ class RsyncPgData(Rsync):
         Rsync.__init__(self, rsync, args=options, **kwargs)
 
 
+class PgBasebackup(Command):
+    """
+    This class is a wrapper for the pg_basebackup system command
+    """
+
+    def __init__(self, destination,
+                 pg_basebackup='pg_basebackup',
+                 conn_string=None,
+                 host=None,
+                 port=None,
+                 user=None,
+                 bwlimit=None,
+                 tbs_mapping=None,
+                 args=None,
+                 path=None,
+                 immediate=False,
+                 **kwargs):
+        """
+        Constructor
+
+        :param str conn_string: connection string
+        :param str host: the host to connect to
+        :param str port: the port used for the connection to PostgreSQL
+        :param str user: the user to use to connect to PostgreSQL
+        :param str pg_basebackup: command to run
+        :param str bwlimit: bandwidth limit for pg_basebackup
+        :param bool immediate: fast checkpoint identifier for pg_basebackup
+        :param str path: additional path for executable retrieval
+        :param List[str] args: additional arguments
+        :param Dict[str, str] tbs_mapping: used for tablespace
+        :param str destination: destination directory
+          relocation
+        """
+        # Check if pg_basebackup is actually available
+        pg_basebackup_path = barman.utils.which(pg_basebackup, path)
+        if not pg_basebackup_path:
+            raise CommandFailedException('pg_basebackup not in system PATH: '
+                                         'is pg_basebackup installed?')
+
+        # Set the backup destination
+        options = ['-v', '--pgdata=%s' % destination]
+
+        # The tablespace mapping option is repeated once for each tablespace
+        if tbs_mapping:
+            for (tbs_source, tbs_destination) in tbs_mapping.items():
+                options.append('--tablespace-mapping=%s=%s' %
+                               (tbs_source, tbs_destination))
+
+        # Pass the connections parameters
+        if conn_string:
+            options.append("--dbname=%s" % conn_string)
+        if host:
+            options.append("--host=%s" % host)
+        if port:
+            options.append("--port=%s" % port)
+        if host:
+            options.append("--username=%s" % user)
+
+        # Only global bandwidth limit is supported
+        if bwlimit is not None and bwlimit > 0:
+            options.append("--max-rate=%s" % bwlimit)
+
+        # Immediate checkpoint
+        if immediate:
+            options.append("--checkpoint=fast")
+
+        # Add other arguments
+        if args:
+            options += args
+
+        Command.__init__(self, pg_basebackup, args=options, check=True,
+                         path=path, **kwargs)
+
+
 class PgReceiveXlog(Command):
     """
     Wrapper class for pg_receivexlog

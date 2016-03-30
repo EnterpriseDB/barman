@@ -62,8 +62,10 @@ backup_directory
 :   Directory where backup data for a server will be placed. Server.
 
 backup_method
-:   Configure the way barman executes a backup. Currently, only `rsync`.
-    Global/Server.
+:   Configure the method barman used for backup execution.
+    If set to `rsync` (default), barman will execute backup using the `rsync`
+    command. If set to `postgres` barman will use the `pg_basebackup` command
+    to execute the backup. Global/Server.
 
 backup_options
 :   This option allows you to control the way Barman interacts with PostgreSQL
@@ -84,6 +86,12 @@ barman_home
 
 barman_lock_directory
 :   Directory for locks. Default: `%(barman_home)s`. Global.
+
+backup_method
+:   Method of Backup. Default: rsync
+
+backup_directory
+:   Directory where backup data for a server will be placed. Server.
 
 basebackups_directory
 :   Directory where base backups will be placed. Server.

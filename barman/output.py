@@ -438,6 +438,19 @@ class ConsoleOutputWriter(object):
                           assertion.key,
                           assertion.value)
 
+        if results['missing_files']:
+            # At least one file is missing, warn the user
+            self.info("")
+            self.info("WARNING")
+            self.info("The following configuration files have not been "
+                      "saved during backup, hence they have not been "
+                      "restored.")
+            self.info("You need to manually restore them "
+                      "in order to start the recovered PostgreSQL instance:")
+            self.info("")
+            for file_name in results['missing_files']:
+                self.info("    %s" % file_name)
+
         if results['delete_barman_xlog']:
             self.info("")
             self.info("After the recovery, please remember to remove the "

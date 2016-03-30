@@ -30,7 +30,8 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.backup_executor import RsyncBackupExecutor, SshCommandException
+from barman.backup_executor import (PostgresBackupExecutor,
+                                    RsyncBackupExecutor, SshCommandException)
 from barman.command_wrappers import DataTransferFailure
 from barman.compression import CompressionIncompatibility, CompressionManager
 from barman.config import BackupOptions
@@ -76,7 +77,10 @@ class BackupManager(RemoteStatusMixin):
         self.compression_manager = CompressionManager(self.config, server.path)
         self.executor = None
         try:
-            self.executor = RsyncBackupExecutor(self)
+            if self.config.backup_method == "postgres":
+                self.executor = PostgresBackupExecutor(self)
+            else:
+                self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:
             self.config.disabled = True
             self.config.msg_list.append(str(e).strip())

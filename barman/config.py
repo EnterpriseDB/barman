@@ -96,7 +96,7 @@ class CsvOption(set):
         Parses a list of values and correctly assign the set of values
         (removing duplication) and checking for conflicts.
         """
-        if value == '':
+        if not value:
             return
         values_list = value.split(',')
         for val in sorted(values_list):
@@ -155,6 +155,8 @@ class BackupOptions(CsvOption):
         Validates backup_option values: currently it makes sure
         that either exclusive_backup or concurrent_backup are set.
         """
+        if len(self) == 0:
+            return
         if self.CONCURRENT_BACKUP not in self \
                 and self.EXCLUSIVE_BACKUP not in self:
             raise ValueError("Invalid configuration value for "
@@ -344,7 +346,7 @@ class ServerConfig(object):
         'archiver': 'on',
         'backup_directory': '%(barman_home)s/%(name)s',
         'backup_method': 'rsync',
-        'backup_options': "%s" % BackupOptions.EXCLUSIVE_BACKUP,
+        'backup_options': '',
         'basebackup_retry_sleep': '30',
         'basebackup_retry_times': '0',
         'basebackups_directory': '%(backup_directory)s/base',

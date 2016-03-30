@@ -164,6 +164,24 @@ class RecoveryExecutor(object):
         :param barman.infofile.BackupInfo backup_info: a backup representation
         :param str remote_command: ssh command for remote recovery
         """
+
+        # Cycle over postgres configuration files which my be missing.
+        # If a file is missing, we will be unable to restore it and
+        # we will warn the user.
+        # This can happen if we are using pg_basebackup and
+        # a configuration file is located outside the data dir.
+        # This is not an error condition, so we check also for
+        # `pg_ident.conf` which is an optional file.
+        for conf_file in (recovery_info['configuration_files'] +
+                          ['pg_hba.conf', 'pg_ident.conf']):
+            source_path = os.path.join(
+                backup_info.get_data_directory(), conf_file)
+            if not os.path.exists(source_path):
+                recovery_info['results']['missing_files'].append(conf_file)
+                # Remove the file from the list of configuration files
+                if conf_file in recovery_info['configuration_files']:
+                    recovery_info['configuration_files'].remove(conf_file)
+
         for conf_file in recovery_info['configuration_files']:
             if remote_command:
                 # If the recovery is remote, copy the postgresql.conf
@@ -175,11 +193,11 @@ class RecoveryExecutor(object):
                 shutil.copy2(
                     os.path.join(backup_info.get_data_directory(),
                                  conf_file), conf_file_path)
-            # If is a remote recovery the conf files are inside a temporary dir
             else:
                 # Otherwise use the local destination path.
                 conf_file_path = os.path.join(
                     recovery_info['destination_path'], conf_file)
+
             recovery_info['temporary_configuration_files'].append(
                 conf_file_path)
 
@@ -472,6 +490,7 @@ class RecoveryExecutor(object):
             'changes': [],
             'warnings': [],
             'delete_barman_xlog': False,
+            'missing_files': [],
             'get_wal': False,
         }
         recovery_info['results'] = results
