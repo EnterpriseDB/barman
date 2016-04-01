@@ -412,6 +412,10 @@ class BackupManager(RemoteStatusMixin):
             if backup_info:
                 backup_info.save()
 
+                # Make sure we are not holding any PostgreSQL connection
+                # during the post-backup scripts
+                self.server.close()
+
                 # Run the post-backup-retry-script if present.
                 try:
                     retry_script = RetryHookScriptRunner(

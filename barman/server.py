@@ -319,6 +319,15 @@ class Server(RemoteStatusMixin):
                     'Invalid retention_policy setting "%s" for server "%s"' % (
                         self.config.retention_policy, self.config.name))
 
+    def close(self):
+        """
+        Close all the open connections to PostgreSQL
+        """
+        if self.postgres:
+            self.postgres.close()
+        if self.streaming:
+            self.streaming.close()
+
     def check(self, check_strategy=__default_check_strategy):
         """
         Implements the 'server check' command and makes sure SSH and PostgreSQL
@@ -724,6 +733,11 @@ class Server(RemoteStatusMixin):
             output.error('failed to create %s directory: %s',
                          e.filename, e.strerror)
             return
+
+        # Make sure we are not wasting an precious streaming PostgreSQL
+        # connection that may have been opened by the self.check() call
+        if self.streaming:
+            self.streaming.close()
 
         try:
             # lock acquisition and backup execution

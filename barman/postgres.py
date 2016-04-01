@@ -19,10 +19,12 @@
 This module represents the interface towards a PostgreSQL server.
 """
 
+import atexit
 import logging
 from abc import ABCMeta
 
 import psycopg2
+from psycopg2.extensions import STATUS_IN_TRANSACTION
 from psycopg2.extras import RealDictCursor
 
 from barman.infofile import Tablespace
@@ -42,6 +44,26 @@ class PostgresConnectionError(Exception):
     """
     Error connecting to the PostgreSQL server
     """
+
+
+_live_connections = []
+"""
+List of connections to be closed at the interpreter shutdown
+"""
+
+
+@atexit.register
+def _atexit():
+    """
+    Ensure that all the connections are correctly closed
+    at interpreter shutdown
+    """
+    # Take a copy of the list because the conn.close() method modify it
+    for conn in list(_live_connections):
+        _logger.warn(
+            "Forcing %s cleanup during process shut down.",
+            conn.__class__.__name__)
+        conn.close()
 
 
 class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
@@ -94,6 +116,8 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             except psycopg2.DatabaseError as e:
                 raise PostgresConnectionError(
                     "Cannot connect to postgres: %s" % str(e).strip())
+            # Register the connection to the live connections list
+            _live_connections.append(self)
         return self._conn
 
     def close(self):
@@ -101,8 +125,12 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         Close the connection to PostgreSQL
         """
         if self._conn:
+            if self._conn.status == STATUS_IN_TRANSACTION:
+                self._conn.rollback()
             self._conn.close()
             self._conn = None
+            # Remove the connection from the live connections list
+            _live_connections.remove(self)
 
     def _cursor(self, *args, **kwargs):
         """

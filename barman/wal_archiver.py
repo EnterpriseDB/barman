@@ -559,8 +559,7 @@ class StreamingWalArchiver(WalArchiver):
                 'PostgreSQL server version')
 
         # Make sure we are not wasting precious PostgreSQL resources
-        self.server.postgres.close()
-        self.server.streaming.close()
+        self.server.close()
 
         _logger.info('Activating WAL archiving through streaming protocol')
         try:

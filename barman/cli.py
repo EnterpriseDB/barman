@@ -23,6 +23,7 @@ import logging
 import os
 import sys
 from argparse import SUPPRESS, ArgumentTypeError
+from contextlib import closing
 
 from argh import ArghParser, arg, expects_obj, named
 
@@ -203,7 +204,8 @@ def backup(args):
             server.config.basebackup_retry_times = args.retry_times
         if hasattr(args, 'immediate_checkpoint'):
             server.config.immediate_checkpoint = args.immediate_checkpoint
-        server.backup()
+        with closing(server):
+            server.backup()
     output.close_and_exit()
 
 
@@ -227,7 +229,8 @@ def list_backup(args):
             continue
 
         output.init('list_backup', name, minimal=args.minimal)
-        server.list_backups()
+        with closing(server):
+            server.list_backups()
     output.close_and_exit()
 
 
@@ -248,7 +251,8 @@ def status(args):
             continue
 
         output.init('status', name)
-        server.status()
+        with closing(server):
+            server.status()
     output.close_and_exit()
 
 
@@ -268,7 +272,8 @@ def rebuild_xlogdb(args):
         if not manage_server_command(server, name):
             continue
 
-        server.rebuild_xlogdb()
+        with closing(server):
+            server.rebuild_xlogdb()
     output.close_and_exit()
 
 
@@ -362,15 +367,16 @@ def recover(args):
         server.config.basebackup_retry_sleep = args.retry_sleep
     if args.retry_times is not None:
         server.config.basebackup_retry_times = args.retry_times
-    server.recover(backup_id,
-                   args.destination_directory,
-                   tablespaces=tablespaces,
-                   target_tli=args.target_tli,
-                   target_time=args.target_time,
-                   target_xid=args.target_xid,
-                   target_name=args.target_name,
-                   exclusive=args.exclusive,
-                   remote_command=args.remote_ssh_command)
+    with closing(server):
+        server.recover(backup_id,
+                       args.destination_directory,
+                       tablespaces=tablespaces,
+                       target_tli=args.target_tli,
+                       target_time=args.target_time,
+                       target_xid=args.target_xid,
+                       target_name=args.target_name,
+                       exclusive=args.exclusive,
+                       remote_command=args.remote_ssh_command)
 
     output.close_and_exit()
 
@@ -394,7 +400,8 @@ def show_server(args):
             continue
 
         output.init('show_server', name)
-        server.show()
+        with closing(server):
+            server.show()
     output.close_and_exit()
 
 
@@ -430,7 +437,8 @@ def check(args):
         elif server.config.disabled:
             name += " (WARNING: disabled)"
         output.init('check', name, server.config.active)
-        server.check()
+        with closing(server):
+            server.check()
     output.close_and_exit()
 
 
@@ -462,7 +470,8 @@ def show_backup(args):
 
     # Retrieves the backup
     backup_info = parse_backup_id(server, args)
-    server.show_backup(backup_info)
+    with closing(server):
+        server.show_backup(backup_info)
     output.close_and_exit()
 
 
@@ -489,9 +498,9 @@ def list_files(args):
     server = get_server(args)
 
     # Retrieves the backup
-    backup_id = parse_backup_id(server, args)
+    backup_info = parse_backup_id(server, args)
     try:
-        for line in backup_id.get_list_of_files(args.target):
+        for line in backup_info.get_list_of_files(args.target):
             output.info(line, log=False)
     except BadXlogSegmentName as e:
         output.error(
@@ -517,7 +526,8 @@ def delete(args):
 
     # Retrieves the backup
     backup_id = parse_backup_id(server, args)
-    server.delete_backup(backup_id)
+    with closing(server):
+        server.delete_backup(backup_id)
     output.close_and_exit()
 
 
@@ -561,10 +571,11 @@ def get_wal(args):
     output_directory = getattr(args, 'output_directory', None)
     peek = getattr(args, 'peek', None)
 
-    server.get_wal(args.wal_name,
-                   compression=compression,
-                   output_directory=output_directory,
-                   peek=peek)
+    with closing(server):
+        server.get_wal(args.wal_name,
+                       compression=compression,
+                       output_directory=output_directory,
+                       peek=peek)
     output.close_and_exit()
 
 
@@ -581,7 +592,8 @@ def archive_wal(args):
 
     """
     server = get_server(args)
-    server.archive_wal()
+    with closing(server):
+        server.archive_wal()
     output.close_and_exit()
 
 
@@ -609,7 +621,8 @@ def receive_wal(args):
     elif args.stop:
         server.kill('receive-wal')
     else:
-        server.receive_wal(reset=args.reset)
+        with closing(server):
+            server.receive_wal(reset=args.reset)
     output.close_and_exit()
 
 

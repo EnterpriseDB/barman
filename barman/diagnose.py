@@ -77,5 +77,7 @@ def exec_diagnose(servers, errors_list):
         # backup list
         backups = server.get_available_backups(BackupInfo.STATUS_ALL)
         diagnosis['servers'][name]['backups'] = backups
+        # Release any PostgreSQL resource
+        server.close()
     output.info(json.dumps(diagnosis, sys.stdout, cls=BarmanEncoder, indent=4,
                            sort_keys=True))
