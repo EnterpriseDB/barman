@@ -62,18 +62,18 @@ version () {
 }
 
 exit_with_error () {
-  echo "ERROR: $1"
+  echo "[$(date -Ins)] ERROR($2): $1"
   exit "$2"
 }
 
 sleep_and_exit_with_error () {
   if [ $SLEEP_TIME -gt 0 ]
   then
-    echo "ERROR: $1 (sleeping $SLEEP_TIME seconds)"
+    echo "[$(date -Ins)] ERROR($2): $1 (sleeping $SLEEP_TIME seconds)"
     # In case of error, sleep for SLEEP_TIME seconds
     sleep $SLEEP_TIME
   else
-    echo "ERROR: $1"
+    echo "[$(date -Ins)] ERROR($2): $1"
   fi
   exit "$2"
 }
