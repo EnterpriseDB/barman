@@ -565,11 +565,30 @@ class StreamingWalArchiver(WalArchiver):
         try:
             output_handler = PgReceiveXlog.make_output_handler(
                 self.config.name + ': ')
-            receive = PgReceiveXlog(remote_status['pg_receivexlog_path'],
-                                    self.config.streaming_conninfo,
-                                    self.config.streaming_wals_directory,
-                                    out_handler=output_handler,
-                                    err_handler=output_handler)
+            if remote_status['pg_receivexlog_version'] >= "9.3":
+                # If pg_receivexlog version is >= 9.3 we use the connection
+                # string because allows the user to use all the parameters
+                # supported by the libpq library to create a connection
+                receive = PgReceiveXlog(
+                    remote_status['pg_receivexlog_path'],
+                    conn_string=self.config.streaming_conninfo,
+                    dest=self.config.streaming_wals_directory,
+                    out_handler=output_handler,
+                    err_handler=output_handler)
+            else:
+                # 9.2 version of pg_receivexlog doesn't support
+                # connection strings so the 'split' version of the conninfo
+                # option is used instead.
+                conn_params = self.server.streaming.conn_parameters
+                receive = PgReceiveXlog(
+                    remote_status['pg_receivexlog_path'],
+                    host=conn_params.get('host', None),
+                    port=conn_params.get('port', None),
+                    user=conn_params.get('user', None),
+                    dest=self.config.streaming_wals_directory,
+                    out_handler=output_handler,
+                    err_handler=output_handler)
+            # Finally execute the pg_receivexlog process
             receive.execute()
         except CommandFailedException as e:
             _logger.error(e)

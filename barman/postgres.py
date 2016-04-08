@@ -86,7 +86,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         # Build a dictionary with connection info parameters
         # This is mainly used to speed up search in conninfo
         try:
-            self._conn_parameters = self.parse_dsn(conninfo)
+            self.conn_parameters = self.parse_dsn(conninfo)
         except (ValueError, TypeError) as e:
             _logger.debug(e)
             raise PostgresConnectionError('Cannot connect to postgres: "%s" '
@@ -168,8 +168,8 @@ class StreamingConnection(PostgreSQL):
                                                   config.streaming_conninfo)
         # Make sure we connect using the 'replication' option which
         # triggers streaming replication protocol communication
-        if 'replication' not in self._conn_parameters:
-            self._conn_parameters['replication'] = 'true'
+        if 'replication' not in self.conn_parameters:
+            self.conn_parameters['replication'] = 'true'
             self.conninfo += ' replication=true'
 
     def connect(self):
@@ -273,7 +273,7 @@ class PostgreSQLConnection(PostgreSQL):
 
         self._conn = super(PostgreSQLConnection, self).connect()
         if (self._conn.server_version >= 90000 and
-                'application_name' not in self._conn_parameters):
+                'application_name' not in self.conn_parameters):
             try:
                 cur = self._conn.cursor()
                 cur.execute('SET application_name TO barman')

@@ -811,12 +811,24 @@ class PgReceiveXlog(Command):
                  dest=None,
                  args=None,
                  check=True,
+                 host=None,
+                 port=None,
+                 user=None,
                  **kwargs):
         options = [
-            "--dbname=%s" % conn_string,
             "--verbose",
             "--no-loop",
             "--directory=%s" % dest]
+        # Pass the connections parameters
+        if conn_string:
+            options.append("--dbname=%s" % conn_string)
+        if host:
+            options.append("--host=%s" % host)
+        if port:
+            options.append("--port=%s" % port)
+        if host:
+            options.append("--username=%s" % user)
+        # Add eventual other arguments
         if args:
             options += args
         Command.__init__(self, receivexlog, args=options, check=check,

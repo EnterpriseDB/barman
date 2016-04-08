@@ -907,7 +907,6 @@ class TestReceiveXlog(object):
         """
         receivexlog = command_wrappers.PgReceiveXlog()
         assert receivexlog.args == [
-            "--dbname=None",
             "--verbose",
             "--no-loop",
             "--directory=None"
@@ -924,13 +923,16 @@ class TestReceiveXlog(object):
         """
         Test class build
         """
-        receivexlog = command_wrappers.PgReceiveXlog('/path/to/pg_receivexlog',
-                                                     args=['a', 'b'])
+        receivexlog = command_wrappers.PgReceiveXlog(
+            '/path/to/pg_receivexlog',
+            conn_string='co=nn str=ing',
+            dest='/dest/dir',
+            args=['a', 'b'])
         assert receivexlog.args == [
-            "--dbname=None",
             "--verbose",
             "--no-loop",
-            "--directory=None",
+            "--directory=/dest/dir",
+            "--dbname=co=nn str=ing",
             "a",
             "b",
         ]
@@ -951,13 +953,15 @@ class TestReceiveXlog(object):
 
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
 
-        cmd = command_wrappers.PgReceiveXlog()
+        cmd = command_wrappers.PgReceiveXlog(
+            host='host', port='1234', user='user')
         result = cmd.execute()
 
         popen.assert_called_with(
             [
-                'pg_receivexlog', '--dbname=None', '--verbose', '--no-loop',
-                '--directory=None',
+                'pg_receivexlog', '--verbose', '--no-loop',
+                '--directory=None', '--host=host', '--port=1234',
+                '--username=user'
             ],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,

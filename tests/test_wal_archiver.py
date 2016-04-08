@@ -605,6 +605,11 @@ class TestStreamingWalArchiver(object):
         backup_manager.server.streaming.get_remote_status.return_value = {
             "streaming_supported": True
         }
+        backup_manager.server.streaming.conn_parameters = {
+            'host': 'pg01.nowhere',
+            'user': 'postgres',
+            'port': '5432',
+        }
         streaming_dir = tmpdir.join('streaming')
         streaming_dir.ensure(dir=True)
         # Test: normal run
@@ -612,7 +617,8 @@ class TestStreamingWalArchiver(object):
         remote_mock.return_value = {
             'pg_receivexlog_installed': True,
             'pg_receivexlog_compatible': True,
-            'pg_receivexlog_path': 'fake/path'
+            'pg_receivexlog_path': 'fake/path',
+            'pg_receivexlog_version': '9.4',
         }
 
         # Test: execute a reset request
@@ -624,8 +630,28 @@ class TestStreamingWalArchiver(object):
         archiver.receive_wal(reset=False)
         receivexlog_mock.assert_called_once_with(
             'fake/path',
-            'host=pg01.nowhere user=postgres port=5432',
-            streaming_dir.strpath,
+            conn_string='host=pg01.nowhere user=postgres port=5432',
+            dest=streaming_dir.strpath,
+            out_handler=ANY,
+            err_handler=ANY,
+        )
+        receivexlog_mock.return_value.execute.assert_called_once_with()
+
+        # Test: pg_receivexlog from 9.2
+        receivexlog_mock.reset_mock()
+        remote_mock.return_value = {
+            'pg_receivexlog_installed': True,
+            'pg_receivexlog_compatible': True,
+            'pg_receivexlog_path': 'fake/path',
+            'pg_receivexlog_version': '9.2',
+        }
+        archiver.receive_wal(reset=False)
+        receivexlog_mock.assert_called_once_with(
+            'fake/path',
+            host='pg01.nowhere',
+            user='postgres',
+            port='5432',
+            dest=streaming_dir.strpath,
             out_handler=ANY,
             err_handler=ANY,
         )
