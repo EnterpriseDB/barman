@@ -168,46 +168,47 @@ class Server(RemoteStatusMixin):
         self.enforce_retention_policies = False
         self.postgres = None
         self.streaming = None
+        self.archivers = []
 
         try:
             self.postgres = PostgreSQLConnection(config)
         # If the PostgreSQLConnection creation fails, disable the Server
         except ConninfoException as e:
             self.config.disabled = True
-            self.config.msg_list.append(str(e).strip())
+            self.config.msg_list.append("conninfo: " + str(e).strip())
 
         # Order of items in self.archivers list is important!
         # The files will be archived in that order.
-        self.archivers = []
-        try:
-            if self.config.archiver:
+        if self.config.archiver:
+            try:
                 self.archivers.append(FileWalArchiver(self.backup_manager))
-            else:
-                # Currently a server MUST have archiver set to on,
-                # otherwise disable the server.
+            except AttributeError as e:
+                _logger.debug(e)
                 self.config.disabled = True
-                self.config.msg_list.append("The option archiver = off "
-                                            "is not yet supported")
-        except AttributeError as e:
-            _logger.debug(e)
+                self.config.msg_list.append('Unable to initialise the '
+                                            'file based archiver')
+        else:
+            # Currently a server MUST have archiver set to on,
+            # otherwise disable the server.
             self.config.disabled = True
-            self.config.msg_list.append('Unable to initialise the '
-                                        'file based archiver')
-        try:
-            if self.config.streaming_archiver:
-                try:
-                    self.streaming = StreamingConnection(config)
-                    self.archivers.append(StreamingWalArchiver(
-                        self.backup_manager))
-                # If the StreamingConnection creation fails, disable the Server
-                except ConninfoException as e:
-                    self.config.disabled = True
-                    self.config.msg_list.append(str(e).strip())
-        except AttributeError as e:
-            _logger.debug(e)
-            self.config.disabled = True
-            self.config.msg_list.append('Unable to initialise the '
-                                        'streaming archiver')
+            self.config.msg_list.append("The option archiver = off "
+                                        "is not yet supported")
+
+        if self.config.streaming_archiver:
+            try:
+                self.streaming = StreamingConnection(config)
+                self.archivers.append(StreamingWalArchiver(
+                    self.backup_manager))
+            # If the StreamingConnection creation fails, disable the Server
+            except ConninfoException as e:
+                self.config.disabled = True
+                self.config.msg_list.append("streaming_conninfo: " +
+                                            str(e).strip())
+            except AttributeError as e:
+                _logger.debug(e)
+                self.config.disabled = True
+                self.config.msg_list.append('Unable to initialise the '
+                                            'streaming archiver')
         if len(self.archivers) < 1:
             self.config.disabled = True
             self.config.msg_list.append(

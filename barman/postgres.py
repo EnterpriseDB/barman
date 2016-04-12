@@ -36,7 +36,7 @@ _logger = logging.getLogger(__name__)
 
 class ConninfoException(Exception):
     """
-    Error parsing conninfo parameter (DSN)
+    Error for missing or failed parsing of the conninfo parameter (DSN)
     """
 
 
@@ -89,9 +89,9 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             self.conn_parameters = self.parse_dsn(conninfo)
         except (ValueError, TypeError) as e:
             _logger.debug(e)
-            raise PostgresConnectionError('Cannot connect to postgres: "%s" '
-                                          'is not a valid connection string' %
-                                          conninfo)
+            raise ConninfoException('Cannot connect to postgres: "%s" '
+                                    'is not a valid connection string' %
+                                    conninfo)
 
     @staticmethod
     def parse_dsn(dsn):
