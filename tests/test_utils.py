@@ -322,6 +322,52 @@ class TestPrettySize(object):
         val *= base
         assert barman.utils.pretty_size(val, base) == '10240.0 YiB'
 
+    def test_negative_1000(self):
+        val = -10
+        base = 1000
+        assert barman.utils.pretty_size(val, base) == '-10 B'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 kB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 MB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 GB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 TB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 PB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 EB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 ZB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 YB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10000.0 YB'
+
+    def test_negative_1024(self):
+        val = -10
+        base = 1024
+        assert barman.utils.pretty_size(val, base) == '-10 B'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 KiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 MiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 GiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 TiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 PiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 EiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 ZiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10.0 YiB'
+        val *= base
+        assert barman.utils.pretty_size(val, base) == '-10240.0 YiB'
+
     def test_float(self):
 
         assert barman.utils.pretty_size(1234, 1000) == \

@@ -130,7 +130,7 @@ def pretty_size(size, unit=1024):
     # cast to float to avoid loosing decimals
     size = float(size)
     for suffix in suffixes:
-        if size < unit or suffix == suffixes[-1]:
+        if abs(size) < unit or suffix == suffixes[-1]:
             if suffix == suffixes[0]:
                 return "%d %s" % (size, suffix)
             else:
