@@ -1632,6 +1632,7 @@ Past contributors:
   Hamann (MIT license)
 - [puppet-barman] [17]: Barman module for Puppet (GPL)
 - [Tutorial on "How To Back Up, Restore, and Migrate PostgreSQL Databases with Barman on CentOS 7"] [26], by Sadequl Hussain (available on DigitalOcean Community)
+- [BarmanAPI] [27]: RESTFul API for Barman, written by Mehmet Emin Karakaş (GPL)
 
 # License and Contributions
 
@@ -1681,3 +1682,4 @@ Assignment Form.
   [24]: http://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION
   [25]: http://www.postgresql.org/docs/9.4/static/app-pgreceivexlog.html
   [26]: https://goo.gl/218Ghl
+  [27]: https://github.com/emin100/barmanapi
