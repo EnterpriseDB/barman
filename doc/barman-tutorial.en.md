@@ -511,6 +511,12 @@ Transaction logs are streamed directly in the directory specified by the
 `streaming_wals_directory` configuration option and are then archived
 by the `archive-wal` command.
 
+Unless otherwise specified in the `streaming_archiver_name` parameter,
+and only for PostgreSQL 9.3 or above, Barman will set `application_name`
+of the WAL streamer process to `barman_receive_wal`, allowing you to
+monitor its status in the `pg_stat_replication` system view of the
+PostgreSQL server.
+
 ##### Stopping a receive-wal process for a server
 
 If a `receive-wal` process is running in background (e.g. started by

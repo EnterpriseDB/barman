@@ -252,6 +252,11 @@ streaming_archiver
     for a server WAL archive operations, eventually terminating any running
     `pg_receivexlog` for the server. Global/Server.
 
+streaming_archiver_name
+:   Identifier to be used as `application_name` by the `receive-wal` command.
+    Only available with `pg_receivexlog` >= 9.3. By default it is set to
+    `barman_receive_wal`. Global/Server.
+
 streaming_conninfo
 :   Connection string used by Barman to connect to the Postgres server via
     streaming replication protocol. By default it is set to `conninfo`. Server.

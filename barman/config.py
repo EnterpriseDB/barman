@@ -300,6 +300,7 @@ class ServerConfig(object):
         'reuse_backup',
         'ssh_command',
         'streaming_archiver',
+        'streaming_archiver_name',
         'streaming_conninfo',
         'streaming_wals_directory',
         'tablespace_bandwidth_limit',
@@ -353,8 +354,9 @@ class ServerConfig(object):
         'network_compression': 'false',
         'recovery_options': '',
         'retention_policy_mode': 'auto',
-        'streaming_conninfo': '%(conninfo)s',
         'streaming_archiver': 'off',
+        'streaming_archiver_name': 'barman_receive_wal',
+        'streaming_conninfo': '%(conninfo)s',
         'streaming_wals_directory': '%(backup_directory)s/streaming',
         'wal_retention_policy': 'main',
         'wals_directory': '%(backup_directory)s/wals'

@@ -630,7 +630,8 @@ class TestStreamingWalArchiver(object):
         archiver.receive_wal(reset=False)
         receivexlog_mock.assert_called_once_with(
             'fake/path',
-            conn_string='host=pg01.nowhere user=postgres port=5432',
+            conn_string='host=pg01.nowhere user=postgres port=5432 '
+                        'application_name=barman_receive_wal',
             dest=streaming_dir.strpath,
             out_handler=ANY,
             err_handler=ANY,
