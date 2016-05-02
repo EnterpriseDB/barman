@@ -164,7 +164,6 @@ class Server(RemoteStatusMixin):
         self.path = self._build_path(self.config.path_prefix)
         self.process_manager = ProcessManager(self.config)
         self.backup_manager = BackupManager(self)
-        self.streaming = None
         self.enforce_retention_policies = False
         self.postgres = None
         self.streaming = None
