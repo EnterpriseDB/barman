@@ -405,6 +405,27 @@ def show_server(args):
     output.close_and_exit()
 
 
+@named('switch-xlog')
+@arg('server_name', nargs='+',
+     completer=server_completer_all,
+     help="specifies the server name target of the switch-xlog command")
+@arg('--force',
+     help='forces the switch of a xlog by executing a checkpoint before',
+     dest='force',
+     action='store_true',
+     default=False)
+@expects_obj
+def switch_xlog(args):
+    """
+    Execute the switch-xlog command on the target server
+    """
+    servers = get_server_list(args, skip_inactive=True)
+    for name in sorted(servers):
+        server = servers[name]
+        server.switch_xlog(args.force)
+    output.close_and_exit()
+
+
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help="specifies the server names to check "
@@ -936,7 +957,8 @@ def main():
             recover,
             show_backup,
             show_server,
-            status
+            status,
+            switch_xlog,
         ]
     )
     # noinspection PyBroadException

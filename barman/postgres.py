@@ -706,3 +706,60 @@ class PostgreSQLConnection(PostgreSQL):
                 "Error issuing pgespresso_stop_backup() command: %s",
                 str(e).strip())
             return None
+
+    def switch_xlog(self):
+        """
+        Execute a pg_switch_xlog()
+
+        To be SURE of the switch of a xlog, we collect the xlogfile name
+        before and after the switch.
+        If the name of the xlog file post switch is greater than the one
+        collected before the switch have been executed.
+        Return None otherwise.
+
+        :rtype: str|None
+        """
+        # Requires superuser privilege and master server
+        if not self.is_superuser or self.is_in_recovery:
+            return None
+
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+            # Collect the xlog file name before the switch
+            cur.execute('SELECT pg_xlogfile_name('
+                        'pg_current_xlog_insert_location())')
+            pre_switch = cur.fetchone()[0]
+            # Switch
+            cur.execute('SELECT pg_xlogfile_name(pg_switch_xlog())')
+            # Collect the xlog file name after the switch
+            cur.execute('SELECT pg_xlogfile_name('
+                        'pg_current_xlog_insert_location())')
+            post_switch = cur.fetchone()[0]
+            if pre_switch < post_switch:
+                return post_switch
+            else:
+                return None
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug(
+                "Error issuing pg_switch_xlog() command: %s",
+                str(e).strip())
+            return None
+
+    def checkpoint(self):
+        """
+        Execute a checkpoint
+        """
+        # Requires superuser privilege and master server
+        if not self.is_superuser or self.is_in_recovery:
+            return
+
+        try:
+            conn = self.connect()
+            cur = conn.cursor()
+            cur.execute("CHECKPOINT")
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug(
+                "Error issuing CHECKPOINT: %s",
+                str(e).strip())
+            return

@@ -280,6 +280,14 @@ get-wal *\[OPTIONS\]* *SERVER_NAME* *WAL_ID*
         When invoked with this option, get-wal returns a
         list of zero to 'SIZE' WAL segment names, one per row.
 
+switch-xlog *SERVER_NAME*
+:   Execute pg_switch_xlog() on the target server
+
+    --force
+    :   Forces the switch by executing CHECKPOINT before pg_switch_xlog().
+        *IMPORTANT:* executing a CHECKPOINT might increase I/O load on
+        a PostgreSQL server. Use this option with care.
+
 receive-wal *SERVER_NAME*
 :   Start the stream of transaction logs for a server.
     The process relies on `pg_receivexlog` to receive WAL files

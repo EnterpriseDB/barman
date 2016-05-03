@@ -597,6 +597,34 @@ class TestServer(object):
             'unknown failure: 1'
         )
 
+    def test_switch_xlog(self, capsys):
+        server = build_real_server()
+
+        server.postgres = MagicMock()
+        server.postgres.switch_xlog.return_value = '000000010000000000000001'
+        server.switch_xlog(force=False)
+        out, err = capsys.readouterr()
+        assert "Switch to 000000010000000000000001 for server 'main'" \
+               in out
+        assert server.postgres.checkpoint.called is False
+
+        server.postgres.reset_mock()
+        server.postgres.switch_xlog.return_value = '000000010000000000000001'
+        server.switch_xlog(force=True)
+
+        out, err = capsys.readouterr()
+        assert "Switch to 000000010000000000000001 for server 'main'" \
+               in out
+        assert server.postgres.checkpoint.called is True
+        server.postgres.reset_mock()
+        server.postgres.switch_xlog.return_value = None
+
+        server.switch_xlog(force=False)
+
+        out, err = capsys.readouterr()
+        assert "No switch required for server 'main'" in out
+        assert server.postgres.checkpoint.called is False
+
 
 class TestCheckStrategy(object):
     """

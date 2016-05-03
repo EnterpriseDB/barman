@@ -455,6 +455,13 @@ destination directory).
 > `archive_command` from a standby. This feature is not yet implemented
 > in Barman.
 
+From version 1.6.1, in order to improve the verification of the WAL
+archiving process, the `switch-xlog` command has been developed:
+
+``` bash
+barman@backup$ barman switch-xlog main
+```
+
 #### Reducing RPO with WAL streaming
 
 From version 1.6.0, Barman improves its Recovery Point Objective (RPO)

@@ -614,6 +614,98 @@ class TestPostgres(object):
             'pgespresso_installed': None,
             'server_txt_version': None}
 
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
+           new_callable=PropertyMock)
+    @patch('barman.postgres.PostgreSQLConnection.is_superuser',
+           new_callable=PropertyMock)
+    def test_checkpoint(self, is_superuser_mock,
+                        is_in_recovery_mock, conn_mock):
+        """
+        Simple test for the execution of a checkpoint on a given server
+        """
+        # Build a server
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        is_in_recovery_mock.return_value = False
+        is_superuser_mock.return_value = True
+        # Execute the checkpoint method
+        server.postgres.checkpoint()
+        # Check for the right invocation
+        cursor_mock.execute.assert_called_with('CHECKPOINT')
+
+        cursor_mock.reset_mock()
+        # Missing required permissions
+        is_in_recovery_mock.return_value = False
+        is_superuser_mock.return_value = False
+        server.postgres.checkpoint()
+        assert not cursor_mock.execute.called
+
+        cursor_mock.reset_mock()
+        # Server in recovery
+        is_in_recovery_mock.return_value = True
+        is_superuser_mock.return_value = True
+        server.postgres.checkpoint()
+        assert not cursor_mock.execute.called
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
+           new_callable=PropertyMock)
+    @patch('barman.postgres.PostgreSQLConnection.is_superuser',
+           new_callable=PropertyMock)
+    def test_switch_xlog(self, is_superuser_mock,
+                         is_in_recovery_mock, conn_mock):
+        """
+        Simple test for the execution of a switch of a xlog on a given server
+        """
+        # Build a server
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        is_in_recovery_mock.return_value = False
+        is_superuser_mock.return_value = True
+        # Test for the response of a correct switch
+        cursor_mock.fetchone.side_effect = [
+            ('000000010000000000000001',),
+            ('000000010000000000000002',)
+        ]
+        xlog = server.postgres.switch_xlog()
+
+        # Check for the right invocation
+        assert xlog == '000000010000000000000002'
+        cursor_mock.execute.assert_has_calls([
+            call('SELECT pg_xlogfile_name(pg_current_xlog_insert_location())'),
+            call('SELECT pg_xlogfile_name(pg_switch_xlog())'),
+            call('SELECT pg_xlogfile_name(pg_current_xlog_insert_location())'),
+        ])
+
+        cursor_mock.reset_mock()
+        # The switch has not been executed
+        cursor_mock.fetchone.side_effect = [
+            ('000000010000000000000001',),
+            ('000000010000000000000001',)
+        ]
+        xlog = server.postgres.switch_xlog()
+        # Check for the right invocation
+        assert xlog is None
+
+        cursor_mock.reset_mock()
+        # Missing required permissions
+        is_in_recovery_mock.return_value = False
+        is_superuser_mock.return_value = False
+        xlog = server.postgres.switch_xlog()
+        # Check for the right invocation
+        assert xlog is None
+        assert not cursor_mock.execute.called
+
+        cursor_mock.reset_mock()
+        # Server in recovery
+        is_in_recovery_mock.return_value = True
+        is_superuser_mock.return_value = True
+        xlog = server.postgres.switch_xlog()
+        # Check for the right invocation
+        assert xlog is None
+        assert not cursor_mock.execute.called
+
 
 # noinspection PyMethodMayBeStatic
 class TestStreamingConnection(object):

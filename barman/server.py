@@ -1475,3 +1475,26 @@ class Server(RemoteStatusMixin):
             output.error('Termination of %s failed: '
                          'no such process for server %s',
                          task, self.config.name)
+
+    def switch_xlog(self, force=False):
+        """
+        Execute the switch-xlog command on the target server
+        """
+        if force:
+            # If called with force, execute a checkpoint before the
+            # switch-xlog command
+            _logger.info('Force a CHECKPOINT before pg_switch_xlog()')
+            self.postgres.checkpoint()
+
+        # Perform the switch xlog. expect a WAL name only if the switch
+        # has been successfully executed.
+        switch_xlogfile = self.postgres.switch_xlog()
+        if switch_xlogfile:
+            output.info(
+                "Switch to %s for server '%s'" %
+                (switch_xlogfile, self.config.name)
+            )
+        else:
+            output.info("No switch required for server '%s'" % (
+                self.config.name)
+            )
