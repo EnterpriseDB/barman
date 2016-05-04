@@ -337,6 +337,8 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        # Check WAL archive
+        self.check_archive(check_strategy)
         # Check postgres configuration
         self.check_postgres(check_strategy)
         # Check barman directories from barman configuration
@@ -358,6 +360,21 @@ class Server(RemoteStatusMixin):
 
         # Check archiver errors
         self.check_archiver_errors(check_strategy)
+
+    def check_archive(self, check_strategy):
+        """
+        Checks WAL archive
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        # Check WAL archiving has been setup
+        # NOTE: This check needs to be only visible if it fails
+        with self.xlogdb() as fxlogdb:
+            if os.fstat(fxlogdb.fileno()).st_size == 0:
+                check_strategy.result(
+                    self.config.name, 'WAL archive', False,
+                    'please make sure WAL shipping is setup')
 
     def check_postgres(self, check_strategy):
         """
@@ -1329,7 +1346,7 @@ class Server(RemoteStatusMixin):
 
         Usage example:
 
-            with server.xlogdb('w') ad file:
+            with server.xlogdb('w') as file:
                 file.write(new_line)
 
         :param str mode: open the file with the required mode

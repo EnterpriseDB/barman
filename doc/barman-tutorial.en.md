@@ -419,6 +419,11 @@ continuous WAL archiving.
 > The `barman check main` command automatically creates all the
 > directories for the continuous backup of the `main` server.
 
+> ** VERY IMPORTANT:**
+> If the check for the WAL archive fails and you receive the hint
+> 'please make sure WAL shipping is setup', rightly do so and set
+> continuous WAL archiving and WAL streaming (see next sections).
+
 ### Continuous WAL archiving
 
 Barman requires that continuous WAL archiving via PostgreSQL's

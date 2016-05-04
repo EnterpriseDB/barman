@@ -61,14 +61,20 @@ class TestServer(object):
         ).get_server('main'))
         assert server.config.disabled
 
-    def test_check_config_missing(self):
+    def test_check_config_missing(self, tmpdir):
         """
         Verify the check method can be called on an empty configuration
         """
         server = Server(build_config_from_dicts(
+            global_conf={
+                # Required by server.check_archive method
+                "barman_lock_directory": tmpdir.mkdir('lock').strpath
+            },
             main_conf={
                 'conninfo': '',
                 'ssh_command': '',
+                # Required by server.check_archive method
+                'wals_directory': tmpdir.mkdir('wals').strpath,
             }
         ).get_server('main'))
         check_strategy = CheckOutputStrategy()
@@ -624,6 +630,34 @@ class TestServer(object):
         out, err = capsys.readouterr()
         assert "No switch required for server 'main'" in out
         assert server.postgres.checkpoint.called is False
+
+    def test_check_archive(self, tmpdir):
+        """
+        Test the check_archive method
+        """
+        # Setup temp dir and server
+        server = build_real_server(
+            global_conf={
+                "barman_lock_directory": tmpdir.mkdir('lock').strpath
+            },
+            main_conf={
+                "wals_directory": tmpdir.mkdir('wals').strpath
+            })
+        strategy = CheckStrategy()
+        # Call the check on an empty xlog file. expect it to contain errors.
+        server.check_archive(strategy)
+        assert strategy.has_error is True
+        assert strategy.check_result[0].check == 'WAL archive'
+        assert strategy.check_result[0].status is False
+
+        # Write something in the xlog db file and check for the results
+        with server.xlogdb('w') as fxlogdb:
+            fxlogdb.write("00000000000000000000")
+        # The check strategy should contain no errors.
+        strategy = CheckStrategy()
+        server.check_archive(strategy)
+        assert strategy.has_error is False
+        assert len(strategy.check_result) == 0
 
 
 class TestCheckStrategy(object):
