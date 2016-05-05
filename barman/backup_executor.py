@@ -329,6 +329,8 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                 if self.server.postgres.get_setting('data_directory') and \
                         self.server.postgres.get_setting('archive_command'):
                     # TODO: replace with RemoteUnixCommand
+                    # The Command can raise OSError
+                    # if self.ssh_command does not exist.
                     cmd = Command(self.ssh_command,
                                   self.ssh_options,
                                   path=self.server.path)
@@ -342,7 +344,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                             if xlog.is_any_xlog_file(name):
                                 remote_status['last_archived_wal'] = name
                                 break
-        except PostgresConnectionError as e:
+        except (PostgresConnectionError, OSError) as e:
             _logger.warn("Error retrieving PostgreSQL status: %s", e)
         return remote_status
 
