@@ -35,6 +35,7 @@ from barman import output, xlog
 from barman.command_wrappers import (Command, CommandFailedException,
                                      DataTransferFailure, RsyncPgData)
 from barman.config import BackupOptions
+from barman.infofile import BackupInfo
 from barman.postgres import PostgresConnectionError
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import mkpath, with_metaclass
@@ -267,6 +268,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         """
 
         # Execute a 'true' command on the remote server
+        # TODO: replace with RemoteUnixCommand
         cmd = Command(self.ssh_command,
                       self.ssh_options,
                       path=self.server.path)
@@ -287,6 +289,30 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
         # Output the result
         check_strategy.result(self.config.name, 'ssh', return_code == 0, hint)
+
+        # If SSH works but PostgreSQL is not responding
+        if (return_code == 0 and
+                self.server.get_remote_status()['server_txt_version']
+                is None):
+            # Check for 'backup_label' presence
+            last_backup = self.server.get_backup(
+                self.server.get_last_backup_id(BackupInfo.STATUS_NOT_EMPTY)
+            )
+            # Look for the latest backup in the catalogue
+            if last_backup:
+                # Get PGDATA and build path to 'backup_label'
+                backup_label = os.path.join(last_backup.pgdata,
+                                            'backup_label')
+                # Verify that backup_label exists in the remote PGDATA.
+                # If so, send an alert. Do not show anything if OK.
+                # TODO: replace with RemoteUnixCommand
+                exists = cmd("test -e %s" % backup_label)
+                if exists == 0:
+                    hint = 'Check that the PostgreSQL server is up ' \
+                           "and no 'backup_label' file is in PGDATA."
+                    check_strategy.result(self.config.name,
+                                          'backup_label', False,
+                                          hint)
 
         try:
             # Invoke specific checks for the backup strategy
