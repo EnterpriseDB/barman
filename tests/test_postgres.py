@@ -89,6 +89,10 @@ class TestPostgres(object):
 
         pg_connect_mock.assert_called_with("valid conninfo")
 
+        server.postgres.close()
+
+        assert conn_mock.close.called
+
     @patch('barman.postgres.psycopg2.connect')
     def test_connect_error(self, connect_mock):
         """
