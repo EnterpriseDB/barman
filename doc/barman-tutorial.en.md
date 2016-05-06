@@ -1564,6 +1564,9 @@ availability tools like [repmgr] [10].
 From an architectural point of view, PostgreSQL must be configured to
 archive WAL files directly to the Barman server.
 
+Version 1.6.1 introduces the `replication-status` command which allows
+users to get information about any streaming client attached to the
+managed server, in particular hot standby servers and WAL streamers.
 
 # Support and sponsor opportunities
 

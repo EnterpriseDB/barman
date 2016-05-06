@@ -19,7 +19,9 @@ import psycopg2
 import pytest
 from mock import PropertyMock, call, patch
 
-from barman.postgres import PostgresConnectionError
+from barman.postgres import (PostgresConnectionError, PostgreSQLConnection,
+                             PostgresSuperuserRequired,
+                             PostgresUnsupportedFeature)
 from testing_helpers import build_real_server
 
 
@@ -704,6 +706,295 @@ class TestPostgres(object):
         xlog = server.postgres.switch_xlog()
         # Check for the right invocation
         assert xlog is None
+        assert not cursor_mock.execute.called
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    @patch('barman.postgres.PostgreSQLConnection.server_version',
+           new_callable=PropertyMock)
+    @patch('barman.postgres.PostgreSQLConnection.is_superuser',
+           new_callable=PropertyMock)
+    def test_get_replication_stats(self, is_superuser_mock,
+                                   server_version_mock, conn_mock):
+        """
+        Simple test for the execution of get_replication_stats on a server
+        """
+        # Build a server
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        is_superuser_mock.return_value = True
+
+        # 9.4 ALL
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90400
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.ANY_STREAMING_CLIENT)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT * , "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(sent_location, "
+            "pg_current_xlog_location()) END AS sent_diff, "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(write_location, "
+            "pg_current_xlog_location()) END AS write_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(flush_location, "
+            "pg_current_xlog_location()) END AS flush_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(replay_location, "
+            "pg_current_xlog_location()) END AS replay_diff "
+            "FROM pg_stat_replication "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 9.4 WALSTREAMER
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90400
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.WALSTREAMER)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT * , "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(sent_location, "
+            "pg_current_xlog_location()) END AS sent_diff, "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(write_location, "
+            "pg_current_xlog_location()) END AS write_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(flush_location, "
+            "pg_current_xlog_location()) END AS flush_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(replay_location, "
+            "pg_current_xlog_location()) END AS replay_diff "
+            "FROM pg_stat_replication "
+            "WHERE replay_location IS NULL "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 9.4 STANDBY
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90400
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.STANDBY)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT * , "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(sent_location, "
+            "pg_current_xlog_location()) END AS sent_diff, "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(write_location, "
+            "pg_current_xlog_location()) END AS write_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(flush_location, "
+            "pg_current_xlog_location()) END AS flush_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(replay_location, "
+            "pg_current_xlog_location()) END AS replay_diff "
+            "FROM pg_stat_replication "
+            "WHERE replay_location IS NOT NULL "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 9.2 ALL
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90200
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.ANY_STREAMING_CLIENT)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT pid,usesysid,usename,application_name,client_addr,"
+            "client_hostname,client_port,backend_start,"
+            "CAST (NULL AS xid) AS backend_xmin,"
+            "state,sent_location,write_location,flush_location,"
+            "replay_location,sync_priority,sync_state , "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(sent_location, "
+            "pg_current_xlog_location()) END AS sent_diff, "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(write_location, "
+            "pg_current_xlog_location()) END AS write_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(flush_location, "
+            "pg_current_xlog_location()) END AS flush_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(replay_location, "
+            "pg_current_xlog_location()) END AS replay_diff "
+            "FROM pg_stat_replication "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 9.2 WALSTREAMER
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90200
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.WALSTREAMER)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT pid,usesysid,usename,application_name,client_addr,"
+            "client_hostname,client_port,backend_start,"
+            "CAST (NULL AS xid) AS backend_xmin,"
+            "state,sent_location,write_location,flush_location,"
+            "replay_location,sync_priority,sync_state , "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(sent_location, "
+            "pg_current_xlog_location()) END AS sent_diff, "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(write_location, "
+            "pg_current_xlog_location()) END AS write_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(flush_location, "
+            "pg_current_xlog_location()) END AS flush_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(replay_location, "
+            "pg_current_xlog_location()) END AS replay_diff "
+            "FROM pg_stat_replication "
+            "WHERE replay_location IS NULL "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 9.2 STANDBY
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90200
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.STANDBY)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT pid,usesysid,usename,application_name,client_addr,"
+            "client_hostname,client_port,backend_start,"
+            "CAST (NULL AS xid) AS backend_xmin,"
+            "state,sent_location,write_location,flush_location,"
+            "replay_location,sync_priority,sync_state , "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(sent_location, "
+            "pg_current_xlog_location()) END AS sent_diff, "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(write_location, "
+            "pg_current_xlog_location()) END AS write_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(flush_location, "
+            "pg_current_xlog_location()) END AS flush_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(replay_location, "
+            "pg_current_xlog_location()) END AS replay_diff "
+            "FROM pg_stat_replication "
+            "WHERE replay_location IS NOT NULL "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 9.1 ALL
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90100
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.ANY_STREAMING_CLIENT)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT procpid AS pid,usesysid,usename,application_name,"
+            "client_addr,client_hostname,client_port,backend_start,"
+            "CAST (NULL AS xid) AS backend_xmin,"
+            "state,sent_location,write_location,flush_location,"
+            "replay_location,sync_priority,sync_state , "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(sent_location, "
+            "pg_current_xlog_location()) END AS sent_diff, "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(write_location, "
+            "pg_current_xlog_location()) END AS write_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(flush_location, "
+            "pg_current_xlog_location()) END AS flush_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(replay_location, "
+            "pg_current_xlog_location()) END AS replay_diff "
+            "FROM pg_stat_replication "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 9.1 WALSTREAMER
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90100
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.WALSTREAMER)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT procpid AS pid,usesysid,usename,application_name,"
+            "client_addr,client_hostname,client_port,backend_start,"
+            "CAST (NULL AS xid) AS backend_xmin,"
+            "state,sent_location,write_location,flush_location,"
+            "replay_location,sync_priority,sync_state , "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(sent_location, "
+            "pg_current_xlog_location()) END AS sent_diff, "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(write_location, "
+            "pg_current_xlog_location()) END AS write_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(flush_location, "
+            "pg_current_xlog_location()) END AS flush_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(replay_location, "
+            "pg_current_xlog_location()) END AS replay_diff "
+            "FROM pg_stat_replication "
+            "WHERE replay_location IS NULL "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 9.1 STANDBY
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90100
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.STANDBY)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT procpid AS pid,usesysid,usename,application_name,"
+            "client_addr,client_hostname,client_port,backend_start,"
+            "CAST (NULL AS xid) AS backend_xmin,"
+            "state,sent_location,write_location,flush_location,"
+            "replay_location,sync_priority,sync_state , "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(sent_location, "
+            "pg_current_xlog_location()) END AS sent_diff, "
+            "CASE WHEN pg_is_in_recovery() "
+            "THEN NULL ELSE "
+            "pg_xlog_location_diff(write_location, "
+            "pg_current_xlog_location()) END AS write_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(flush_location, "
+            "pg_current_xlog_location()) END AS flush_diff, "
+            "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+            "pg_xlog_location_diff(replay_location, "
+            "pg_current_xlog_location()) END AS replay_diff "
+            "FROM pg_stat_replication "
+            "WHERE replay_location IS NOT NULL "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        cursor_mock.reset_mock()
+        # Missing required permissions
+        is_superuser_mock.return_value = False
+        with pytest.raises(PostgresSuperuserRequired):
+            server.postgres.get_replication_stats(
+                PostgreSQLConnection.ANY_STREAMING_CLIENT)
+        # Check for the right invocation
+        assert not cursor_mock.execute.called
+
+        cursor_mock.reset_mock()
+        # Too old version (9.0)
+        is_superuser_mock.return_value = True
+        server_version_mock.return_value = 90000
+        with pytest.raises(PostgresUnsupportedFeature):
+            server.postgres.get_replication_stats(
+                PostgreSQLConnection.ANY_STREAMING_CLIENT)
+        # Check for the right invocation
         assert not cursor_mock.execute.called
 
 

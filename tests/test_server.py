@@ -17,15 +17,19 @@
 
 import datetime
 import os
-from collections import defaultdict
+from collections import defaultdict, namedtuple
+from decimal import Decimal
 
 import pytest
 from mock import MagicMock, patch
+from psycopg2.tz import FixedOffsetTimezone
 
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerWalReceiveLock)
+from barman.postgres import (PostgreSQLConnection, PostgresSuperuserRequired,
+                             PostgresUnsupportedFeature)
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy, CheckStrategy, Server
 from testing_helpers import (build_config_from_dicts, build_real_server,
@@ -658,6 +662,90 @@ class TestServer(object):
         server.check_archive(strategy)
         assert strategy.has_error is False
         assert len(strategy.check_result) == 0
+
+    def test_replication_status(self, capsys):
+        """
+        Test management of pg_stat_archiver view output
+
+        :param MagicMock connect_mock: mock the database connection
+        :param capsys: retrieve output from consolle
+
+        """
+
+        # Build a fake get_replication_stats record
+        replication_stats_data = dict(
+            pid=93275,
+            usesysid=10,
+            usename='postgres',
+            application_name='replica',
+            client_addr=None,
+            client_hostname=None,
+            client_port=-1,
+            backend_start=datetime.datetime(
+                2016, 5, 6, 9, 29, 20, 98534,
+                tzinfo=FixedOffsetTimezone(offset=120)),
+            backend_xmin='940',
+            state='streaming',
+            sent_location='0/3005FF0',
+            write_location='0/3005FF0',
+            flush_location='0/3005FF0',
+            replay_location='0/3005FF0',
+            sync_priority=0,
+            sync_state='async',
+            sent_diff=Decimal('0'),
+            write_diff=Decimal('0'),
+            flush_diff=Decimal('0'),
+            replay_diff=Decimal('0')
+        )
+        replication_stats_class = namedtuple("Record",
+                                             replication_stats_data.keys())
+        replication_stats_record = replication_stats_class(
+            **replication_stats_data)
+
+        # Prepare the server
+        server = build_real_server()
+        server.postgres = MagicMock()
+        server.postgres.get_replication_stats.return_value = [
+            replication_stats_record]
+        server.postgres.current_xlog_location = "AB/CDEF1234"
+
+        # Execute the test (ALL)
+        server.postgres.reset_mock()
+        server.replication_status('all')
+        (out, err) = capsys.readouterr()
+        assert err == ''
+        server.postgres.get_replication_stats.assert_called_once_with(
+            PostgreSQLConnection.ANY_STREAMING_CLIENT)
+
+        # Execute the test (WALSTREAMER)
+        server.postgres.reset_mock()
+        server.replication_status('wal-streamer')
+        (out, err) = capsys.readouterr()
+        assert err == ''
+        server.postgres.get_replication_stats.assert_called_once_with(
+            PostgreSQLConnection.WALSTREAMER)
+
+        # Execute the test (failure: PostgreSQL too old)
+        server.postgres.reset_mock()
+        server.postgres.get_replication_stats.side_effect = \
+            PostgresUnsupportedFeature('9.1')
+        server.replication_status('all')
+        (out, err) = capsys.readouterr()
+        assert 'Requires PostgreSQL 9.1 or higher' in out
+        assert err == ''
+        server.postgres.get_replication_stats.assert_called_once_with(
+            PostgreSQLConnection.ANY_STREAMING_CLIENT)
+
+        # Execute the test (failure: superuser required)
+        server.postgres.reset_mock()
+        server.postgres.get_replication_stats.side_effect = \
+            PostgresSuperuserRequired
+        server.replication_status('all')
+        (out, err) = capsys.readouterr()
+        assert 'Requires superuser rights' in out
+        assert err == ''
+        server.postgres.get_replication_stats.assert_called_once_with(
+            PostgreSQLConnection.ANY_STREAMING_CLIENT)
 
 
 class TestCheckStrategy(object):

@@ -256,6 +256,38 @@ def status(args):
     output.close_and_exit()
 
 
+@named('replication-status')
+@arg('server_name', nargs='+',
+     completer=server_completer_all,
+     help='specifies the server name for the command')
+@arg('--minimal', help='machine readable output', action='store_true')
+@arg('--target', choices=('all', 'hot-standby', 'wal-streamer'),
+     default='all',
+     help='''
+         Possible values are: 'hot-standby' (only hot standby servers),
+         'wal-streamer' (only WAL streaming clients, such as pg_receivexlog),
+         'all' (any of them). Defaults to %(default)s''')
+@expects_obj
+def replication_status(args):
+    """
+    Shows live information and status of any streaming client
+    """
+    servers = get_server_list(args, skip_inactive=True)
+    for name in sorted(servers):
+        server = servers[name]
+
+        # Skip the server (apply general rule)
+        if not manage_server_command(server, name):
+            continue
+
+        with closing(server):
+            output.init('replication_status',
+                        name,
+                        minimal=args.minimal)
+            server.replication_status(args.target)
+    output.close_and_exit()
+
+
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help='specifies the server name for the command')
@@ -957,6 +989,7 @@ def main():
             recover,
             show_backup,
             show_server,
+            replication_status,
             status,
             switch_xlog,
         ]

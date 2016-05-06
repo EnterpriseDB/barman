@@ -418,6 +418,30 @@ Delete the specified backup.
 Backup ID shortcuts (#shortcuts) section below for available shortcuts.
 .RS
 .RE
+.TP
+.B replication\-status \f[I][OPTIONS]\f[] \f[I]SERVER_NAME\f[]
+Shows live information and status of any streaming client attached to
+the given server (or servers).
+Default behaviour can be changed through the following options:
+.RS
+.TP
+.B \-\-minimal
+machine readable output (default: False)
+.RS
+.RE
+.TP
+.B \-\-target \f[I]TARGET_TYPE\f[]
+Possible values for TARGET_TYPE are:
+.RS
+.IP \[bu] 2
+\f[I]hot-standby\f[]: lists only hot standby servers
+.IP \[bu] 2
+\f[I]wal-streamer\f[]: lists only WAL streaming clients, such as
+pg_receivexlog
+.IP \[bu] 2
+\f[I]all\f[]: any streaming client (default)
+.RE
+.RE
 .SH BACKUP ID SHORTCUTS
 .PP
 Rather than using the timestamp backup ID, you can use any of the

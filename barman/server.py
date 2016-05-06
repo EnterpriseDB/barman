@@ -40,7 +40,8 @@ from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerWalArchiveLock, ServerWalReceiveLock,
                              ServerXLOGDBLock)
 from barman.postgres import (ConninfoException, PostgreSQLConnection,
-                             StreamingConnection)
+                             PostgresSuperuserRequired,
+                             PostgresUnsupportedFeature, StreamingConnection)
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
@@ -1515,3 +1516,23 @@ class Server(RemoteStatusMixin):
             output.info("No switch required for server '%s'" % (
                 self.config.name)
             )
+
+    def replication_status(self, target='all'):
+        """
+        Implements the 'replication-status' command.
+        """
+        if target == 'hot-standby':
+            client_type = PostgreSQLConnection.STANDBY
+        elif target == 'wal-streamer':
+            client_type = PostgreSQLConnection.WALSTREAMER
+        else:
+            client_type = PostgreSQLConnection.ANY_STREAMING_CLIENT
+        try:
+            standby_info = self.postgres.get_replication_stats(client_type)
+            output.result('replication_status', self.config.name,
+                          target, self.postgres.current_xlog_location,
+                          standby_info)
+        except PostgresUnsupportedFeature as e:
+            output.info("  Requires PostgreSQL %s or higher", e)
+        except PostgresSuperuserRequired:
+            output.info("  Requires superuser rights")

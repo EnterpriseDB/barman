@@ -662,6 +662,166 @@ class ConsoleOutputWriter(object):
             description=description, message=message))
         self.info("\t%s: %s", description, message)
 
+    def init_replication_status(self, server_name, minimal=False):
+        """
+        Init the 'standby-status' command
+
+        :param str server_name: the server we are start listing
+        :param str minimal: minimal output
+        """
+        self.minimal = minimal
+
+    def result_replication_status(self, server_name, target, xlog_location,
+                                  standby_info):
+        """
+        Record a result line of a server status command
+
+        and output it as INFO
+
+        :param str server_name: the replication server
+        :param str target: all|hot-standby|wal-streamer
+        :param str xlog_location: server's xlog location
+        :param StatReplication standby_info: status info of a standby
+        """
+
+        if target == 'hot-standby':
+            title = 'hot standby servers'
+        elif target == 'wal-streamer':
+            title = 'WAL streamers'
+        else:
+            title = 'streaming clients'
+
+        if self.minimal:
+            # Minimal output
+            if xlog_location:
+                # xlog location from the master
+                self.info("%s for master '%s' (xlog @ %s):",
+                          title.capitalize(), server_name, xlog_location)
+            else:
+                # We are connected to a standby
+                self.info("%s for slave '%s':",
+                          title.capitalize(), server_name)
+        else:
+            # Full output
+            self.info("Status of %s for server '%s':",
+                      title, server_name)
+            # xlog location from the master
+            if xlog_location:
+                self.info("  Current xlog location on master: %s",
+                          xlog_location)
+
+        if standby_info is not None and not len(standby_info):
+            self.info("  No %s attached", title)
+            return
+
+        # Minimal output
+        if self.minimal:
+            n = 1
+            for standby in standby_info:
+                if not standby.replay_location:
+                    # WAL streamer
+                    self.info("  %s. W) %s@%s S:%s W:%s P:%s AN:%s",
+                              n,
+                              standby.usename,
+                              standby.client_addr or 'socket',
+                              standby.sent_location,
+                              standby.write_location,
+                              standby.sync_priority,
+                              standby.application_name)
+                else:
+                    # Standby
+                    self.info("  %s. %s) %s@%s S:%s F:%s R:%s P:%s AN:%s",
+                              n,
+                              standby.sync_state[0].upper(),
+                              standby.usename,
+                              standby.client_addr or 'socket',
+                              standby.sent_location,
+                              standby.flush_location,
+                              standby.replay_location,
+                              standby.sync_priority,
+                              standby.application_name)
+                n += 1
+        else:
+            n = 1
+            self.info("  Number of %s: %s",
+                      title, len(standby_info))
+            for standby in standby_info:
+                self.info("")
+
+                # Determine the sync stage of the client
+                sync_stage = None
+                if not standby.replay_location:
+                    client_type = 'WAL streamer'
+                    max_level = 3
+                else:
+                    client_type = 'standby'
+                    max_level = 5
+                    # Only standby can replay WAL info
+                    if standby.replay_diff == 0:
+                        sync_stage = '5/5 Hot standby (max)'
+                    elif standby.flush_diff == 0:
+                        sync_stage = '4/5 2-safe'  # remote flush
+
+                # If not yet done, set the sync stage
+                if not sync_stage:
+                    if standby.write_diff == 0:
+                        sync_stage = '3/%s Remote write' % max_level
+                    elif standby.sent_diff == 0:
+                        sync_stage = '2/%s WAL Sent (min)' % max_level
+                    else:
+                        sync_stage = '1/%s 1-safe' % max_level
+
+                # Synchronous standby
+                if standby.sync_priority > 0:
+                    self.info("  %s. #%s %s %s",
+                              n,
+                              standby.sync_priority,
+                              standby.sync_state.capitalize(),
+                              client_type)
+                # Asynchronous standby
+                else:
+                    self.info("  %s. %s %s",
+                              n,
+                              standby.sync_state.capitalize(),
+                              client_type)
+                self.info("     Application name: %s",
+                          standby.application_name)
+                self.info("     Sync stage      : %s",
+                          sync_stage)
+                if standby.client_addr:
+                    self.info("     Communication   : TCP/IP")
+                    self.info("     IP Address      : %s "
+                              "/ Port: %s / Host: %s",
+                              standby.client_addr,
+                              standby.client_port,
+                              standby.client_hostname or '-')
+                else:
+                    self.info("     Communication   : Unix domain socket")
+                self.info("     User name       : %s", standby.usename)
+                self.info("     Current state   : %s (%s)",
+                          standby.state,
+                          standby.sync_state)
+                self.info("     WAL sender PID  : %s", standby.pid)
+                self.info("     Started at      : %s", standby.backend_start)
+                if standby.backend_xmin:
+                    self.info("     Standby's xmin  : %s",
+                              standby.backend_xmin or '-')
+                self.info("     Sent location   : %s (diff: %s)",
+                          standby.sent_location,
+                          pretty_size(standby.sent_diff))
+                self.info("     Write location  : %s (diff: %s)",
+                          standby.write_location,
+                          pretty_size(standby.write_diff))
+                if standby.flush_location:
+                    self.info("     Flush location  : %s (diff: %s)",
+                              standby.flush_location,
+                              pretty_size(standby.flush_diff))
+                if standby.replay_location:
+                    self.info("     Replay location : %s (diff: %s)",
+                              standby.replay_location,
+                              pretty_size(standby.replay_diff))
+                n += 1
+
     def init_list_server(self, server_name, minimal=False):
         """
         Init the list-server command

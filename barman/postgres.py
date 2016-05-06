@@ -46,6 +46,18 @@ class PostgresConnectionError(Exception):
     """
 
 
+class PostgresSuperuserRequired(Exception):
+    """
+    Superuser access is required
+    """
+
+
+class PostgresUnsupportedFeature(Exception):
+    """
+    Unsupported feature
+    """
+
+
 _live_connections = []
 """
 List of connections to be closed at the interpreter shutdown
@@ -250,6 +262,11 @@ class PostgreSQLConnection(PostgreSQL):
     This class represents a standard client connection to a PostgreSQL server.
     """
 
+    # Streaming replication client types
+    STANDBY = 1
+    WALSTREAMER = 2
+    ANY_STREAMING_CLIENT = (STANDBY, WALSTREAMER)
+
     def __init__(self, config):
         """
         PostgreSQL connection constructor.
@@ -366,6 +383,24 @@ class PostgreSQLConnection(PostgreSQL):
                 return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving current xlog: %s",
+                          str(e).strip())
+            return None
+
+    @property
+    def current_xlog_location(self):
+        """
+        Get current WAL location from PostgreSQL
+
+        :return str: current WAL location in PostgreSQL
+        """
+        try:
+            if not self.is_in_recovery:
+                cur = self._cursor()
+                cur.execute(
+                    'SELECT pg_current_xlog_location()')
+                return cur.fetchone()[0]
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error retrieving current xlog location: %s",
                           str(e).strip())
             return None
 
@@ -763,3 +798,116 @@ class PostgreSQLConnection(PostgreSQL):
                 "Error issuing CHECKPOINT: %s",
                 str(e).strip())
             return
+
+    def get_replication_stats(self, client_type=STANDBY):
+        """
+        Returns streaming replication information
+        """
+        # Without superuser rights, this function is useless
+        # TODO: provide a simplified version for non-superusers
+        if not self.is_superuser:
+            raise PostgresSuperuserRequired()
+
+        try:
+            cur = self._cursor(cursor_factory=psycopg2.extras.NamedTupleCursor)
+            # pg_stat_replication is a system view that contains one
+            # row per WAL sender process with information about the
+            # replication status of a standby server. It has been
+            # introduced in PostgreSQL 9.1. Current fields are:
+            #
+            # - pid (procpid in 9.1)
+            # - usesysid
+            # - usename
+            # - application_name
+            # - client_addr
+            # - client_hostname
+            # - client_port
+            # - backend_start
+            # - backend_xmin (9.4+)
+            # - state
+            # - sent_location
+            # - write_location
+            # - flush_location
+            # - replay_location
+            # - sync_priority
+            # - sync_state
+            #
+
+            if self.server_version < 90100:
+                raise PostgresUnsupportedFeature('9.1')
+
+            if self.server_version >= 90400:
+                # Current implementation (9.4+)
+                what = "* "
+            elif self.server_version >= 90200:
+                # PostgreSQL 9.2/9.3
+                what = "pid," \
+                    "usesysid," \
+                    "usename," \
+                    "application_name," \
+                    "client_addr," \
+                    "client_hostname," \
+                    "client_port," \
+                    "backend_start," \
+                    "CAST (NULL AS xid) AS backend_xmin," \
+                    "state," \
+                    "sent_location," \
+                    "write_location," \
+                    "flush_location," \
+                    "replay_location," \
+                    "sync_priority," \
+                    "sync_state "
+            else:
+                # PostgreSQL 9.1
+                what = "procpid AS pid," \
+                    "usesysid," \
+                    "usename," \
+                    "application_name," \
+                    "client_addr," \
+                    "client_hostname," \
+                    "client_port," \
+                    "backend_start," \
+                    "CAST (NULL AS xid) AS backend_xmin," \
+                    "state," \
+                    "sent_location," \
+                    "write_location," \
+                    "flush_location," \
+                    "replay_location," \
+                    "sync_priority," \
+                    "sync_state "
+
+            # Streaming client
+            if client_type == self.STANDBY:
+                # Standby server
+                where = 'WHERE replay_location IS NOT NULL '
+            elif client_type == self.WALSTREAMER:
+                # WAL streamer
+                where = 'WHERE replay_location IS NULL '
+            else:
+                where = ''
+
+            # Execute the query
+            cur.execute(
+                "SELECT %s, "
+                "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+                "pg_xlog_location_diff(sent_location, "
+                "pg_current_xlog_location()) END AS sent_diff, "
+                "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+                "pg_xlog_location_diff(write_location, "
+                "pg_current_xlog_location()) END AS write_diff, "
+                "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+                "pg_xlog_location_diff(flush_location, "
+                "pg_current_xlog_location()) END AS flush_diff, "
+                "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
+                "pg_xlog_location_diff(replay_location, "
+                "pg_current_xlog_location()) END AS replay_diff "
+                "FROM pg_stat_replication "
+                "%s"
+                "ORDER BY sync_state DESC, sync_priority" % (what, where))
+
+            # Generate a list of standby objects
+            return cur.fetchall()
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error retrieving status of standby servers: %s",
+                          str(e).strip())
+            return None
