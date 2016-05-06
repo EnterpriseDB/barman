@@ -1,3 +1,186 @@
+2016-05-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Prepared version 1.6.1a1
+
+2016-05-06  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Fix "PostgreSQL connection forced cleanup message" during unit tests
+
+2016-05-06  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Modify manifest to include tutorial file in dist tar.
+
+2016-05-06  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Rolling out 1.6.1a1
+
+	Add "replication-status" command
+	The "replication-status" command shows live information
+	and status of any streaming client attached to one or more
+	given servers.
+
+	The --target option allows users to limit the scope to
+	only hot standby servers ('hot-standby') or WAL streaming
+	clients, such as pg_receivexlog ('wal-streamer'). By default,
+	--target is set to 'all'.
+
+2016-05-05  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Check for 'backup_label' on the master
+	If a PostgreSQL server is abruptly shut down when an
+	exclusive backup is in progress, the 'backup_label' file
+	will stay inside PGDATA.
+
+	In case of a failed exclusive backup, if the Postgres server
+	is down, "barman check" verifies that a backup_label is present.
+	If so, prints "A 'backup_label' is present".
+
+	Fixes #69
+
+2016-05-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add check for empty WAL archive
+	Add a check, visible in the check output only if fails, that war the
+	user about a bad configuration of WAL shipping checking the dimension of
+	the xlog.db file.
+
+2016-05-03  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add implementation of the switch-xlog command
+	Implement the switch-xlog command that invokes
+	pg_switch_xlog() on one or any PostgreSQL server.
+
+	A --force option issues a CHECKPOINT just before the
+	execution of the switch, forcing the server to generate
+	a new WAL file.
+
+2016-05-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid logging a traceback during check with wrong ssh_command
+	If ssh_command does not exists avoid logging an exception during checks
+	with PostgreSQL versions older than 9.4
+
+2016-05-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add `streaming_archiver_name` option
+	When `streaming_archiver` is enabled, the `streaming_archiver_name`
+	option properly sets the `application_name` of the managed `pg_receivexlog`
+	process, improving monitoring of physical streaming replication clients.
+	By default, `streaming_archiver_name` is set to `barman_receive_wal`.
+
+	Available for PostgreSQL 9.3 and above.
+
+	Remove redundant initial assignment
+
+2016-04-28  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add reference to external project BarmanAPI
+
+2016-04-22  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Use absolute unit values in pretty_size()
+
+2016-04-12  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Avoid crashing with a malformed conninfo parameter
+	When a connection fails, prepend the error message with the connnection
+	type ('conninfo' or 'streaming_conninfo').
+
+2016-04-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix usage of the --dbname option.
+	The --dbname option is available only from version 9.3 of pg_receivexlog.
+	This patch fixes the wal_archiver module, forcing barman when
+	pg_receivexlog version is <= 9.2 to split the
+	conninfo parameter.
+
+	Fixes #36
+
+2016-04-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add timestamp and exit code to barman-wal-restore output
+
+2016-04-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make sure PostgreSQL connections are cleanly closed
+	Modified the cli module to wrap every Server's top level command
+	in a closing(server) context.
+
+	Added also an atexit handler which logs a warning for stale connections.
+
+	During backup command, the PostgreSQL connections are closed as soon as
+	they are no longer needed.
+
+2016-03-15  Leonardo Cecchi  <leonardo.cecchi@gmail.com>
+
+	Make Barman unit tests remove temporary folders
+	During the recovery executor unit tests, Barman was leaving a few
+	temporary folders.
+
+	This patch makes the unit tests remove them and covers a few corner
+	cases where Barman, in consequence of a command failure, was not
+	deleting the temporary folders.
+
+2016-03-16  Rubens Souza  <rubens.souza@2ndquadrant.it>
+
+	Minor change in man page for streaming_conninfo
+
+2016-03-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix warning notices during sphinx execution
+
+2016-03-12  Christoph Moench-Tegeder  <christoph@2ndquadrant.de>
+
+	Mark "failed backups" check as non-fatal
+	Allow taking a new backup in case of presence of failed backups.
+	This bug was introduced in version 1.6.0.
+
+2016-03-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Rename '-x' get-wal option as '-z'
+	The old '-x' remains as a deprecated undocumented alias.
+
+2016-03-10  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add archive_mode=always support for PostgreSQL 9.5
+	This patch adds a basic archive_mode=always support for PostgreSQL
+	9.5. This archive mode is simply considered equal to "on".
+
+	Thanks to Koichi Suzuki for opening a bug and proposing a fix.
+
+	Fixes #32
+
+2016-03-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Small comment fix in scripts/barman-wal-restore
+
+2016-03-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Set version to 1.6.1a1
+
+2016-03-03  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Check for PostgreSQL superuser privileges
+	* Add the is_superuser property to PostgreSQLConnection
+	* Add a related check for the server
+
+	Closes #30
+
+2016-02-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add `--peek SIZE` option to `barman get-wal`
+	When the `--peek SIZE` option is passed to `get-wal`, it will peek from
+	the WAL archive the requested WAL file as well as subsequent files.
+	'SIZE' must be an integer >= 1. When invoked with this option, get-wal
+	returns a list of zero to 'SIZE' WAL segment names, one per row.
+
+2016-03-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Refine dependencies on external software
+	Barman requires psycopg2 >= 2.4.2 to support streaming archiving
+
 2016-02-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
