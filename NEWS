@@ -1,6 +1,39 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
+Version 1.6.1a1 - 9 May 2016
+
+-   Add --peek option to get-wal command to discover existing WAL files
+    from the Barman's archive
+
+-   Add replication-status command for monitoring the status of any
+    streaming replication clients connected to the PostgreSQL server.
+    The --target option allows users to limit the request to only hot
+    standby servers or WAL streaming clients
+
+-   Add the switch-xlog command to request a switch of a WAL file to the
+    PostgreSQL server. Through the '--force' it issues a CHECKPOINT
+    beforehand
+
+-   Add streaming_archiver_name option, which sets a proper
+    application_name to pg_receivexlog when streaming_archiver is
+    enabled (only for PostgreSQL 9.3 and above)
+
+-   Check for _superuser_ privileges with PostgreSQL's standard
+    connections (#30)
+
+-   Check the WAL archive is never empty
+
+-   Improve barman-wal-restore contrib script
+
+-   Bug fixes:
+
+    -   Treat the "failed backups" check as non-fatal
+    -   Rename '-x' option for get-wal as '-z'
+    -   Add archive_mode=always support for PostgreSQL 9.5 (#32)
+    -   Properly close PostgreSQL connections when necessary
+    -   Fix receive-wal for pg_receive_xlog version 9.2
+
 Version 1.6.0 - 29 Feb 2016
 
 -   Support for streaming replication connection through the
