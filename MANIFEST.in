@@ -1,5 +1,6 @@
 recursive-include barman *.py
 recursive-include rpm *
-include doc/barman.1 doc/barman.5 doc/barman.conf
+recursive-include doc *.md
+include doc/Makefile doc/barman.1 doc/barman.5 doc/barman.conf
 include scripts/barman-wal-restore scripts/barman.bash_completion
-include AUTHORS NEWS ChangeLog LICENSE PKG-INFO MANIFEST.in MANIFEST setup.py INSTALL README
+include AUTHORS NEWS ChangeLog LICENSE MANIFEST.in setup.py INSTALL README
