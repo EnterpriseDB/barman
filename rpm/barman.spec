@@ -109,6 +109,9 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
+* Mon May  9 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.1-0.1.alpha.1
+- New release 1.6.1-0.1.alpha.1
+
 * Mon Feb 29 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.0-1
 - New release 1.6.0-1
 
