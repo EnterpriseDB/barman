@@ -548,9 +548,10 @@ class BackupManager(RemoteStatusMixin):
                 # We always try to remove the the trailing directories,
                 # this means that hashdir is not empty.
                 pass
-        except OSError:
-            _logger.warning('Expected WAL file %s not found during delete',
-                            wal_info.name, exc_info=1)
+        except OSError as e:
+            output.warning('Ignoring deletion of WAL file %s '
+                           'for server %s: %s',
+                           wal_info.name, self.config.name, e)
 
     def check(self, check_strategy):
         """
