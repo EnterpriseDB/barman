@@ -24,6 +24,7 @@ from mock import Mock, patch
 
 from barman.backup_executor import RsyncBackupExecutor, SshCommandException
 from barman.config import BackupOptions
+from barman.fs import FsOperationFailed
 from barman.infofile import BackupInfo, Tablespace
 from barman.server import CheckOutputStrategy
 from testing_helpers import (build_backup_manager, build_mocked_server,
@@ -100,7 +101,7 @@ class TestRsyncBackupExecutor(object):
         assert backup_manager.executor._reuse_args(reuse_dir) == \
             ['--copy-dest=some/dir']
 
-    @patch('barman.backup_executor.Command')
+    @patch('barman.backup_executor.UnixRemoteCommand')
     def test_check(self, command_mock, capsys):
         """
         Check the ssh connection to a remote server
@@ -108,7 +109,6 @@ class TestRsyncBackupExecutor(object):
         backup_manager = build_backup_manager()
 
         # Test 1: ssh ok
-        command_mock.return_value.return_value = 0
         check_strategy = CheckOutputStrategy()
         backup_manager.executor.check(check_strategy)
         out, err = capsys.readouterr()
@@ -117,7 +117,6 @@ class TestRsyncBackupExecutor(object):
 
         # Test 2: ssh ok and PostgreSQL is not responding
         command_mock.reset_mock()
-        command_mock.return_value.return_value = 0
         check_strategy = CheckOutputStrategy()
         backup_manager.server.get_remote_status.return_value = {
             'server_txt_version': None
@@ -132,7 +131,7 @@ class TestRsyncBackupExecutor(object):
 
         # Test 3: ssh failed
         command_mock.reset_mock()
-        command_mock.return_value.return_value = 1
+        command_mock.side_effect = FsOperationFailed
         backup_manager.executor.check(check_strategy)
         out, err = capsys.readouterr()
         assert err == ''

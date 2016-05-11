@@ -496,7 +496,8 @@ class RecoveryExecutor(object):
 
             try:
                 # create a UnixRemoteCommand obj if is a remote recovery
-                recovery_info['cmd'] = UnixRemoteCommand(remote_command)
+                recovery_info['cmd'] = UnixRemoteCommand(remote_command,
+                                                         path=self.server.path)
             except FsOperationFailed:
                 self.teardown(recovery_info)
                 output.error(

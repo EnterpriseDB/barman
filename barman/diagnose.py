@@ -67,7 +67,9 @@ def exec_diagnose(servers, errors_list):
         if server.config.ssh_command:
             try:
                 command = fs.UnixRemoteCommand(
-                    ssh_command=server.config.ssh_command)
+                    ssh_command=server.config.ssh_command,
+                    path=server.path
+                )
                 diagnosis['servers'][name]['system_info'] = (
                     command.get_system_info())
             except FsOperationFailed:

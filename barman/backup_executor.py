@@ -32,9 +32,10 @@ import re
 from abc import ABCMeta, abstractmethod
 
 from barman import output, xlog
-from barman.command_wrappers import (Command, CommandFailedException,
+from barman.command_wrappers import (CommandFailedException,
                                      DataTransferFailure, RsyncPgData)
 from barman.config import BackupOptions
+from barman.fs import FsOperationFailed, UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.postgres import PostgresConnectionError
 from barman.remote_status import RemoteStatusMixin
@@ -267,31 +268,20 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
              of the results of the various checks
         """
 
-        # Execute a 'true' command on the remote server
-        # TODO: replace with RemoteUnixCommand
-        cmd = Command(self.ssh_command,
-                      self.ssh_options,
-                      path=self.server.path)
-
         hint = "PostgreSQL server"
-
-        # Try executing 'true' through the ssh connection
-        return_code = None
+        cmd = None
         try:
-            return_code = cmd("true")
-        except OSError as e:
-            # The execution of ssh command has failed
-            hint = "error executing '%s': %s" % (self.ssh_command, e.strerror)
-
-        # The execution of ssh has succeeded but the return code is not 0
-        if return_code is not None and return_code != 0:
-            hint = '%s, return code: %s' % (hint, return_code)
+            cmd = UnixRemoteCommand(self.ssh_command,
+                                    self.ssh_options,
+                                    path=self.server.path)
+        except FsOperationFailed as e:
+                hint = str(e).strip()
 
         # Output the result
-        check_strategy.result(self.config.name, 'ssh', return_code == 0, hint)
+        check_strategy.result(self.config.name, 'ssh', cmd is not None, hint)
 
         # If SSH works but PostgreSQL is not responding
-        if (return_code == 0 and
+        if (cmd is not None and
                 self.server.get_remote_status()['server_txt_version']
                 is None):
             # Check for 'backup_label' presence
@@ -305,10 +295,9 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                                             'backup_label')
                 # Verify that backup_label exists in the remote PGDATA.
                 # If so, send an alert. Do not show anything if OK.
-                # TODO: replace with RemoteUnixCommand
-                exists = cmd("test -e %s" % backup_label)
-                if exists == 0:
-                    hint = 'Check that the PostgreSQL server is up ' \
+                exists = cmd.exists(backup_label)
+                if exists:
+                    hint = "Check that the PostgreSQL server is up " \
                            "and no 'backup_label' file is in PGDATA."
                     check_strategy.result(self.config.name,
                                           'backup_label', False,
@@ -354,23 +343,20 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                 remote_status['last_archived_wal'] = None
                 if self.server.postgres.get_setting('data_directory') and \
                         self.server.postgres.get_setting('archive_command'):
-                    # TODO: replace with RemoteUnixCommand
-                    # The Command can raise OSError
-                    # if self.ssh_command does not exist.
-                    cmd = Command(self.ssh_command,
-                                  self.ssh_options,
-                                  path=self.server.path)
+                    cmd = UnixRemoteCommand(self.ssh_command,
+                                            self.ssh_options,
+                                            path=self.server.path)
                     archive_dir = os.path.join(
                         self.server.postgres.get_setting('data_directory'),
                         'pg_xlog', 'archive_status')
-                    out = str(cmd.getoutput('ls', '-t', archive_dir)[0])
+                    out = str(cmd.list_dir_content('-t', archive_dir))
                     for line in out.splitlines():
                         if line.endswith('.done'):
                             name = line[:-5]
                             if xlog.is_any_xlog_file(name):
                                 remote_status['last_archived_wal'] = name
                                 break
-        except (PostgresConnectionError, OSError) as e:
+        except (PostgresConnectionError, FsOperationFailed) as e:
             _logger.warn("Error retrieving PostgreSQL status: %s", e)
         return remote_status
 

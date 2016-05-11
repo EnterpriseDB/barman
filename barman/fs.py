@@ -64,8 +64,8 @@ class UnixLocalCommand(object):
             :param dir_path full path for the directory
         """
         _logger.debug('Create directory %s if it does not exists' % dir_path)
-        exists = self.cmd('test -e %s' % dir_path)
-        if exists == 0:
+        exists = self.exists(dir_path)
+        if exists:
             is_dir = self.cmd('test -d %s' % dir_path)
             if is_dir != 0:
                 raise FsOperationFailed(
@@ -91,8 +91,8 @@ class UnixLocalCommand(object):
             :param dir_path the full path for the directory
         """
         _logger.debug('Delete if directory %s exists' % dir_path)
-        exists = self.cmd('test -e %s' % dir_path)
-        if exists == 0:
+        exists = self.exists(dir_path)
+        if exists:
             is_dir = self.cmd('test -d %s' % dir_path)
             if is_dir != 0:
                 raise FsOperationFailed(
@@ -117,8 +117,8 @@ class UnixLocalCommand(object):
             :param dir_path full path for the directory
         """
         _logger.debug('Check if directory %s exists' % dir_path)
-        exists = self.cmd('test -e %s' % dir_path)
-        if exists == 0:
+        exists = self.exists(dir_path)
+        if exists:
             is_dir = self.cmd('test -d %s' % dir_path)
             if is_dir != 0:
                 raise FsOperationFailed(
@@ -139,8 +139,8 @@ class UnixLocalCommand(object):
             :param dir_path full dir_path for the directory to check
         """
         _logger.debug('Check if directory %s is writable' % dir_path)
-        exists = self.cmd('test -e %s' % dir_path)
-        if exists == 0:
+        exists = self.exists(dir_path)
+        if exists:
             is_dir = self.cmd('test -d %s' % dir_path)
             if is_dir == 0:
                 can_write = self.cmd('touch %s/.barman_write_check' % dir_path)
@@ -171,10 +171,10 @@ class UnixLocalCommand(object):
             :param dst full path for the destination of the symlink
         """
         _logger.debug('Create symbolic link %s -> %s' % (src, dst))
-        exists = self.cmd('test -e %s' % src)
-        if exists == 0:
-            exists_dst = self.cmd('test -e %s' % dst)
-            if exists_dst != 0:
+        exists = self.exists(src)
+        if exists:
+            exists_dst = self.exists(dst)
+            if not exists_dst:
                 link = self.cmd('ln -s %s %s' % (src, dst))
                 if link == 0:
                     return True
@@ -195,13 +195,13 @@ class UnixLocalCommand(object):
         release = ''
         if self.cmd("lsb_release -a") == 0:
             release = _str(self.cmd.out).rstrip()
-        elif self.cmd('test -e /etc/lsb-release') == 0:
+        elif self.exists('/etc/lsb-release'):
             self.cmd('cat /etc/lsb-release ')
             release = "Ubuntu Linux %s" % _str(self.cmd.out).rstrip()
-        elif self.cmd('test -e /etc/debian_version') == 0:
+        elif self.exists('/etc/debian_version'):
             self.cmd('cat /etc/debian_version')
             release = "Debian GNU/Linux %s" % _str(self.cmd.out).rstrip()
-        elif self.cmd('test -e /etc/redhat-release') == 0:
+        elif self.exists('/etc/redhat-release'):
             self.cmd('cat /etc/redhat-release')
             release = "RedHat Linux %s" % _str(self.cmd.out).rstrip()
         elif self.cmd('sw_vers') == 0:
@@ -227,8 +227,8 @@ class UnixLocalCommand(object):
         """
         _logger.debug('Reading content of file %s' % path)
 
-        result = self.cmd("test -e '%s'" % path)
-        if result != 0:
+        result = self.exists(path)
+        if not result:
             raise FsOperationFailed('The %s file does not exist' % path)
 
         result = self.cmd("test -r '%s'" % path)
@@ -241,6 +241,41 @@ class UnixLocalCommand(object):
 
         return self.cmd.out
 
+    def exists(self, path):
+        """
+        Check for the existence of a path.
+
+        :param str path: full path to check
+        :return bool: if the file exists or not.
+        """
+        _logger.debug('check for existence of: %s' % path)
+        result = self.cmd("test -e '%s'" % path)
+        return result == 0
+
+    def ping(self):
+
+        """
+        'Ping' the server executing the `true` command.
+
+        :return int: the true cmd result
+        """
+        _logger.debug('execute the true command')
+        result = self.cmd("true")
+        return result
+
+    def list_dir_content(self, dir_path, options=''):
+        """
+        List the contents of a given directory.
+
+        :param str dir_path: the path where we want the ls to be executed
+        :param str options: a string containing the options for the ls command
+        :return str: the ls cmd output
+        """
+        _logger.debug('list the content of a directory')
+        ls_command = "ls %s '%s'" % (options, dir_path)
+        self.cmd(ls_command)
+        return self.cmd.out
+
 
 class UnixRemoteCommand(UnixLocalCommand):
     """
@@ -248,18 +283,34 @@ class UnixRemoteCommand(UnixLocalCommand):
     """
 
     # noinspection PyMissingConstructor
-    def __init__(self, ssh_command):
+    def __init__(self, ssh_command, ssh_options=None, path=None):
         """
         Uses the same commands as the UnixLocalCommand
         but the constructor is overridden and a remote shell is
         initialized using the ssh_command provided by the user
 
-        :param ssh_command the ssh command provided by the user
+        :param str ssh_command: the ssh command provided by the user
+        :param list[str] ssh_options: the options to be passed to SSH
+        :param str path: the path to be used if provided, otherwise
+          the PATH environment variable will be used
         """
+        # Ensure that ssh_option is iterable
+        if ssh_options is None:
+            ssh_options = []
+
         if ssh_command is None:
             raise FsOperationFailed('No ssh command provided')
-        self.cmd = Command(cmd=ssh_command, shell=True)
-        ret = self.cmd("true")
+        self.cmd = Command(ssh_command,
+                           ssh_options,
+                           path=path,
+                           shell=True)
+        try:
+            ret = self.cmd("true")
+        except OSError:
+            raise FsOperationFailed("Unable to execute %s" % ssh_command)
         if ret != 0:
             raise FsOperationFailed(
-                "Connection failed using the command '%s'" % ssh_command)
+                "Connection failed using '%s %s' return code %s" % (
+                    ssh_command,
+                    ' '.join(ssh_options),
+                    ret))
