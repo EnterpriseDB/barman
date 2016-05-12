@@ -454,7 +454,11 @@ def switch_xlog(args):
     servers = get_server_list(args, skip_inactive=True)
     for name in sorted(servers):
         server = servers[name]
-        server.switch_xlog(args.force)
+        # Skip the server (apply general rule)
+        if not manage_server_command(server, name):
+            continue
+        with closing(server):
+            server.switch_xlog(args.force)
     output.close_and_exit()
 
 
