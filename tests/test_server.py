@@ -627,7 +627,7 @@ class TestServer(object):
                in out
         assert server.postgres.checkpoint.called is True
         server.postgres.reset_mock()
-        server.postgres.switch_xlog.return_value = None
+        server.postgres.switch_xlog.return_value = ''
 
         server.switch_xlog(force=False)
 

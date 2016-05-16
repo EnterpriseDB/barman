@@ -19,8 +19,8 @@ import psycopg2
 import pytest
 from mock import PropertyMock, call, patch
 
-from barman.postgres import (PostgresConnectionError, PostgreSQLConnection,
-                             PostgresSuperuserRequired,
+from barman.postgres import (PostgresConnectionError, PostgresIsInRecovery,
+                             PostgreSQLConnection, PostgresSuperuserRequired,
                              PostgresUnsupportedFeature)
 from testing_helpers import build_real_server
 
@@ -644,14 +644,8 @@ class TestPostgres(object):
         # Missing required permissions
         is_in_recovery_mock.return_value = False
         is_superuser_mock.return_value = False
-        server.postgres.checkpoint()
-        assert not cursor_mock.execute.called
-
-        cursor_mock.reset_mock()
-        # Server in recovery
-        is_in_recovery_mock.return_value = True
-        is_superuser_mock.return_value = True
-        server.postgres.checkpoint()
+        with pytest.raises(PostgresSuperuserRequired):
+            server.postgres.checkpoint()
         assert not cursor_mock.execute.called
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
@@ -692,24 +686,24 @@ class TestPostgres(object):
         ]
         xlog = server.postgres.switch_xlog()
         # Check for the right invocation
-        assert xlog is None
+        assert xlog is ''
 
         cursor_mock.reset_mock()
         # Missing required permissions
         is_in_recovery_mock.return_value = False
         is_superuser_mock.return_value = False
-        xlog = server.postgres.switch_xlog()
+        with pytest.raises(PostgresSuperuserRequired):
+            server.postgres.switch_xlog()
         # Check for the right invocation
-        assert xlog is None
         assert not cursor_mock.execute.called
 
         cursor_mock.reset_mock()
         # Server in recovery
         is_in_recovery_mock.return_value = True
         is_superuser_mock.return_value = True
-        xlog = server.postgres.switch_xlog()
+        with pytest.raises(PostgresIsInRecovery):
+            server.postgres.switch_xlog()
         # Check for the right invocation
-        assert xlog is None
         assert not cursor_mock.execute.called
 
     @patch('barman.postgres.PostgreSQLConnection.connect')

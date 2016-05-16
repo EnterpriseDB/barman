@@ -39,8 +39,8 @@ from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
                              ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerWalReceiveLock,
                              ServerXLOGDBLock)
-from barman.postgres import (ConninfoException, PostgreSQLConnection,
-                             PostgresSuperuserRequired,
+from barman.postgres import (ConninfoException, PostgresIsInRecovery,
+                             PostgreSQLConnection, PostgresSuperuserRequired,
                              PostgresUnsupportedFeature, StreamingConnection)
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
@@ -1498,24 +1498,37 @@ class Server(RemoteStatusMixin):
         """
         Execute the switch-xlog command on the target server
         """
-        if force:
-            # If called with force, execute a checkpoint before the
-            # switch-xlog command
-            _logger.info('Force a CHECKPOINT before pg_switch_xlog()')
-            self.postgres.checkpoint()
+        try:
+            if force:
+                # If called with force, execute a checkpoint before the
+                # switch_xlog command
+                _logger.info('Force a CHECKPOINT before pg_switch_xlog()')
+                self.postgres.checkpoint()
 
-        # Perform the switch xlog. expect a WAL name only if the switch
-        # has been successfully executed.
-        switch_xlogfile = self.postgres.switch_xlog()
-        if switch_xlogfile:
-            output.info(
-                "Switch to %s for server '%s'" %
-                (switch_xlogfile, self.config.name)
-            )
-        else:
-            output.info("No switch required for server '%s'" % (
-                self.config.name)
-            )
+            # Perform the switch_xlog. expect a WAL name only if the switch
+            # has been successfully executed, False otherwise.
+            switch_xlogfile = self.postgres.switch_xlog()
+            if switch_xlogfile is None:
+                # Something went wrong during the execution of the
+                # pg_switch_xlog command
+                output.error("Unable to perform pg_switch_xlog "
+                             "for server '%s'." % self.config.name)
+                return
+            if switch_xlogfile:
+                # The switch_xlog command have been executed successfully
+                output.info(
+                    "Switch to %s for server '%s'" %
+                    (switch_xlogfile, self.config.name))
+            else:
+                # Is not necessary to perform a switch_xlog
+                output.info("No switch required for server '%s'" %
+                            self.config.name)
+        except PostgresIsInRecovery:
+            output.info("No switch performed because server '%s' "
+                        "is a standby." % self.config.name)
+        except PostgresSuperuserRequired:
+            # Superuser rights are required to perform the switch_xlog
+            output.error("Barman switch-xlog requires superuser rights")
 
     def replication_status(self, target='all'):
         """
@@ -1529,9 +1542,13 @@ class Server(RemoteStatusMixin):
             client_type = PostgreSQLConnection.ANY_STREAMING_CLIENT
         try:
             standby_info = self.postgres.get_replication_stats(client_type)
-            output.result('replication_status', self.config.name,
-                          target, self.postgres.current_xlog_location,
-                          standby_info)
+            if standby_info is None:
+                output.error('Unable to connect to server %s' %
+                             self.config.name)
+            else:
+                output.result('replication_status', self.config.name,
+                              target, self.postgres.current_xlog_location,
+                              standby_info)
         except PostgresUnsupportedFeature as e:
             output.info("  Requires PostgreSQL %s or higher", e)
         except PostgresSuperuserRequired:

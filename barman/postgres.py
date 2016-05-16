@@ -52,6 +52,12 @@ class PostgresSuperuserRequired(Exception):
     """
 
 
+class PostgresIsInRecovery(Exception):
+    """
+    PostgreSQL is in recovery, so no write operations are allowed
+    """
+
+
 class PostgresUnsupportedFeature(Exception):
     """
     Unsupported feature
@@ -750,16 +756,23 @@ class PostgreSQLConnection(PostgreSQL):
         before and after the switch.
         If the name of the xlog file post switch is greater than the one
         collected before the switch have been executed.
-        Return None otherwise.
+        Returns an empty string otherwise.
+
+        The method returns None if something went wrong during the execution
+        of the pg_switch_xlog command.
 
         :rtype: str|None
         """
-        # Requires superuser privilege and master server
-        if not self.is_superuser or self.is_in_recovery:
-            return None
-
         try:
             conn = self.connect()
+            # Requires superuser privilege
+            if not self.is_superuser:
+                raise PostgresSuperuserRequired()
+
+            # If this server is in recovery there is nothing to do
+            if self.is_in_recovery:
+                raise PostgresIsInRecovery()
+
             cur = conn.cursor()
             # Collect the xlog file name before the switch
             cur.execute('SELECT pg_xlogfile_name('
@@ -774,7 +787,7 @@ class PostgreSQLConnection(PostgreSQL):
             if pre_switch < post_switch:
                 return post_switch
             else:
-                return None
+                return ''
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
                 "Error issuing pg_switch_xlog() command: %s",
@@ -785,31 +798,32 @@ class PostgreSQLConnection(PostgreSQL):
         """
         Execute a checkpoint
         """
-        # Requires superuser privilege and master server
-        if not self.is_superuser or self.is_in_recovery:
-            return
-
         try:
             conn = self.connect()
+
+            # Requires superuser privilege
+            if not self.is_superuser:
+                raise PostgresSuperuserRequired()
+
             cur = conn.cursor()
             cur.execute("CHECKPOINT")
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
                 "Error issuing CHECKPOINT: %s",
                 str(e).strip())
-            return
 
     def get_replication_stats(self, client_type=STANDBY):
         """
         Returns streaming replication information
         """
-        # Without superuser rights, this function is useless
-        # TODO: provide a simplified version for non-superusers
-        if not self.is_superuser:
-            raise PostgresSuperuserRequired()
-
         try:
             cur = self._cursor(cursor_factory=psycopg2.extras.NamedTupleCursor)
+
+            # Without superuser rights, this function is useless
+            # TODO: provide a simplified version for non-superusers
+            if not self.is_superuser:
+                raise PostgresSuperuserRequired()
+
             # pg_stat_replication is a system view that contains one
             # row per WAL sender process with information about the
             # replication status of a standby server. It has been
