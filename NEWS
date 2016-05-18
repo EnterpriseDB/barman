@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
-Version 1.6.1a1 - 9 May 2016
+Version 1.6.1 - 23 May 2016
 
 -   Add --peek option to get-wal command to discover existing WAL files
     from the Barman's archive
@@ -23,6 +23,8 @@ Version 1.6.1a1 - 9 May 2016
     connections (#30)
 
 -   Check the WAL archive is never empty
+
+-   Check for 'backup_label' on the master when server is down
 
 -   Improve barman-wal-restore contrib script
 

@@ -1,6 +1,6 @@
-% BARMAN(1) Barman User manuals | Version 1.6.1a1
+% BARMAN(1) Barman User manuals | Version 1.6.1
 % 2ndQuadrant Italy <http://www.2ndQuadrant.it>
-% May 9, 2016
+% May 23, 2016
 
 # NAME
 
