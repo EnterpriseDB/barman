@@ -802,7 +802,8 @@ class RecoveryExecutor(object):
                         safe_horizon)
                 except CommandFailedException as e:
                     msg = "data transfer failure on directory '%s'" % location
-                    raise DataTransferFailure.from_rsync_error(e, msg)
+                    raise DataTransferFailure.from_command_error(
+                        'rsync', e, msg)
 
         # Copy the pgdata directory
         rsync = RsyncPgData(
@@ -818,7 +819,7 @@ class RecoveryExecutor(object):
                 safe_horizon)
         except CommandFailedException as e:
             msg = "data transfer failure on directory '%s'" % dest
-            raise DataTransferFailure.from_rsync_error(e, msg)
+            raise DataTransferFailure.from_command_error('rsync', e, msg)
 
             # TODO: Manage different location for configuration files
             # TODO: that were not within the data directory
@@ -912,7 +913,8 @@ class RecoveryExecutor(object):
                     except CommandFailedException as e:
                         msg = ("data transfer failure while copying WAL files "
                                "to directory '%s'") % (wal_dest[1:],)
-                        raise DataTransferFailure.from_rsync_error(e, msg)
+                        raise DataTransferFailure.from_command_error(
+                            'rsync', e, msg)
 
                     # Cleanup files after the transfer
                     for segment in xlogs[prefix]:
@@ -934,7 +936,8 @@ class RecoveryExecutor(object):
                 except CommandFailedException as e:
                     msg = "data transfer failure while copying WAL files " \
                           "to directory '%s'" % (wal_dest[1:],)
-                    raise DataTransferFailure.from_rsync_error(e, msg)
+                    raise DataTransferFailure.from_command_error(
+                        'rsync', e, msg)
 
         _logger.info("Finished copying %s WAL files.", total_wals)
 

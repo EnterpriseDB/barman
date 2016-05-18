@@ -58,22 +58,23 @@ class RsyncListFilesFailure(Exception):
 
 class DataTransferFailure(Exception):
     """
-    Used to pass rsync failure details
+    Used to pass failure details from a data transfer Command
     """
 
     @classmethod
-    def from_rsync_error(cls, e, msg):
+    def from_command_error(cls, cmd, e, msg):
         """
         This method build a DataTransferFailure exception and report the
         provided message to the user (both console and log file) along with
-        the output of the failed rsync command.
+        the output of the failed command.
 
+        :param str cmd: The command that failed the transfer
         :param CommandFailedException e: The exception we are handling
         :param str msg: a descriptive message on what we are trying to do
         :return DataTransferFailure: will contain the message provided in msg
         """
         details = msg
-        details += "\nrsync error:\n"
+        details += "\n%s error:\n" % cmd
         details += e.args[0]['out']
         details += e.args[0]['err']
         return cls(details)
@@ -788,6 +789,11 @@ class RsyncPgData(Rsync):
     """
 
     def __init__(self, rsync='rsync', args=None, **kwargs):
+        """
+        Constructor
+
+        :param str rsync: command to run
+        """
         options = [
             '-rLKpts', '--delete-excluded', '--inplace',
             '--exclude=/pg_xlog/*',

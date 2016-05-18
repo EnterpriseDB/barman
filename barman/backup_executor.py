@@ -463,7 +463,8 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 except CommandFailedException as e:
                     msg = "data transfer failure on directory '%s'" % \
                           backup_info.get_data_directory(tablespace.oid)
-                    raise DataTransferFailure.from_rsync_error(e, msg)
+                    raise DataTransferFailure.from_command_error(
+                        'rsync', e, msg)
 
         # Make sure the destination directory exists in order for smart copy
         # to detect that no file is present there
@@ -488,7 +489,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
         except CommandFailedException as e:
             msg = "data transfer failure on directory '%s'" % \
                   backup_info.pgdata
-            raise DataTransferFailure.from_rsync_error(e, msg)
+            raise DataTransferFailure.from_command_error('rsync', e, msg)
 
         # At last copy pg_control
         try:
@@ -497,7 +498,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
         except CommandFailedException as e:
             msg = "data transfer failure on file '%s/global/pg_control'" % \
                   backup_info.pgdata
-            raise DataTransferFailure.from_rsync_error(e, msg)
+            raise DataTransferFailure.from_command_error('rsync', e, msg)
 
         # Copy configuration files (if not inside PGDATA)
         self.current_action = "copying configuration files"
@@ -529,7 +530,8 @@ class RsyncBackupExecutor(SshBackupExecutor):
                         output.warning(msg, log=True)
                         continue
                     else:
-                        raise DataTransferFailure.from_rsync_error(e, msg)
+                        raise DataTransferFailure.from_command_error(
+                            'rsync', e, msg)
         # Check for any include directives in PostgreSQL configuration
         # Currently, include directives are not supported for files that
         # reside outside PGDATA. These files must be manually backed up.
