@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import datetime
+
 import psycopg2
 import pytest
 from mock import PropertyMock, call, patch
@@ -526,7 +528,46 @@ class TestPostgres(object):
     @patch('barman.postgres.PostgreSQLConnection.connect')
     @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
            new_callable=PropertyMock)
-    def test_current_xlog(self, is_in_recovery_mock, conn_mock):
+    def test_current_xlog_info(self, is_in_recovery_mock, conn_mock):
+        """
+        Test correct select xlog_loc
+        """
+        # Build and configure a server using a mock
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        timestamp = datetime.datetime(2016, 3, 30, 17, 4, 20, 271376)
+        current_xlog_info = dict(
+            location='0/35000528',
+            file_name='000000010000000000000035',
+            file_offset=1320,
+            timestamp=timestamp,
+        )
+        cursor_mock.fetchone.return_value = current_xlog_info
+        is_in_recovery_mock.return_value = False
+
+        # sequence
+        remote_loc = server.postgres.current_xlog_info
+        assert remote_loc == current_xlog_info
+
+        cursor_mock.execute.assert_called_once_with(
+            'SELECT location, (pg_xlogfile_name_offset(location)).*, '
+            'CURRENT_TIMESTAMP AS timestamp '
+            'FROM pg_current_xlog_location() AS location')
+
+        # Reset mock
+        conn_mock.reset_mock()
+
+        # Test error management
+        cursor_mock.execute.side_effect = PostgresConnectionError
+        assert server.postgres.current_xlog_info is None
+
+        cursor_mock.execute.side_effect = psycopg2.ProgrammingError
+        assert server.postgres.current_xlog_info is None
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
+           new_callable=PropertyMock)
+    def test_current_xlog_file_name(self, is_in_recovery_mock, conn_mock):
         """
         simple test for current_xlog property
         """
@@ -534,22 +575,28 @@ class TestPostgres(object):
         server = build_real_server()
         cursor_mock = conn_mock.return_value.cursor.return_value
 
-        cursor_mock.fetchone.return_value = ['000000010000000000000006']
+        timestamp = datetime.datetime(2016, 3, 30, 17, 4, 20, 271376)
+        cursor_mock.fetchone.return_value = dict(
+            location='0/35000528',
+            file_name='000000010000000000000035',
+            file_offset=1320,
+            timestamp=timestamp,
+        )
+
         # Special way to mock a property
         is_in_recovery_mock.return_value = False
-        assert server.postgres.current_xlog == '000000010000000000000006'
-        cursor_mock.execute.assert_called_once_with(
-            'SELECT pg_xlogfile_name(pg_current_xlog_location())')
+        assert server.postgres.current_xlog_file_name == (
+            '000000010000000000000035')
 
         # Reset mock
         conn_mock.reset_mock()
 
         # Test error management
         cursor_mock.execute.side_effect = PostgresConnectionError
-        assert server.postgres.current_xlog is None
+        assert server.postgres.current_xlog_file_name is None
 
         cursor_mock.execute.side_effect = psycopg2.ProgrammingError
-        assert server.postgres.current_xlog is None
+        assert server.postgres.current_xlog_file_name is None
 
     @patch('barman.postgres.psycopg2.connect')
     @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
@@ -560,7 +607,7 @@ class TestPostgres(object):
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.has_pgespresso',
            new_callable=PropertyMock)
-    @patch('barman.postgres.PostgreSQLConnection.current_xlog',
+    @patch('barman.postgres.PostgreSQLConnection.current_xlog_file_name',
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.current_size',
            new_callable=PropertyMock)
@@ -569,7 +616,7 @@ class TestPostgres(object):
     def test_get_remote_status(self, get_setting_mock,
                                get_configuration_files_mock,
                                current_size_mock,
-                               current_xlog_mock,
+                               current_xlog_file_mock,
                                has_pgespresso_mock,
                                server_txt_version_mock,
                                is_superuser_mock,
@@ -580,7 +627,7 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        current_xlog_mock.return_value = 'DE/ADBEEF'
+        current_xlog_file_mock.return_value = 'DE/ADBEEF'
         current_size_mock.return_value = 497354072
         has_pgespresso_mock.return_value = True
         server_txt_version_mock.return_value = '9.1.0'

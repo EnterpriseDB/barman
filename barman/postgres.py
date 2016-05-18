@@ -374,23 +374,45 @@ class PostgreSQLConnection(PostgreSQL):
             return None
 
     @property
-    def current_xlog(self):
+    def current_xlog_info(self):
+        """
+        Get detailed information about the current WAL position in PostgreSQL.
+
+        This method returns a dictionary containing the following data:
+
+         * location
+         * file_name
+         * file_offset
+         * timestamp
+
+        :rtype: dict
+        """
+        try:
+            if not self.is_in_recovery:
+                cur = self._cursor(cursor_factory=psycopg2.extras.DictCursor)
+                cur.execute(
+                    "SELECT location, "
+                    "(pg_xlogfile_name_offset(location)).*, "
+                    "CURRENT_TIMESTAMP AS timestamp "
+                    "FROM pg_current_xlog_location() AS location")
+                return cur.fetchone()
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error retrieving current xlog "
+                          "detailed information: %s",
+                          str(e).strip())
+        return None
+
+    @property
+    def current_xlog_file_name(self):
         """
         Get current WAL file from PostgreSQL
 
         :return str: current WAL file in PostgreSQL
         """
-        try:
-            if not self.is_in_recovery:
-                cur = self._cursor()
-                cur.execute(
-                    'SELECT pg_xlogfile_name('
-                    'pg_current_xlog_location())')
-                return cur.fetchone()[0]
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving current xlog: %s",
-                          str(e).strip())
-            return None
+        current_xlog_info = self.current_xlog_info
+        if current_xlog_info is not None:
+            return current_xlog_info['file_name']
+        return None
 
     @property
     def current_xlog_location(self):
@@ -399,16 +421,10 @@ class PostgreSQLConnection(PostgreSQL):
 
         :return str: current WAL location in PostgreSQL
         """
-        try:
-            if not self.is_in_recovery:
-                cur = self._cursor()
-                cur.execute(
-                    'SELECT pg_current_xlog_location()')
-                return cur.fetchone()[0]
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving current xlog location: %s",
-                          str(e).strip())
-            return None
+        current_xlog_info = self.current_xlog_info
+        if current_xlog_info is not None:
+            return current_xlog_info['location']
+        return None
 
     @property
     def current_size(self):
@@ -511,7 +527,7 @@ class PostgreSQLConnection(PostgreSQL):
             result['is_superuser'] = self.is_superuser
             result['server_txt_version'] = self.server_txt_version
             result['pgespresso_installed'] = self.has_pgespresso
-            result['current_xlog'] = self.current_xlog
+            result['current_xlog'] = self.current_xlog_file_name
             result['current_size'] = self.current_size
 
             result.update(self.get_configuration_files())
