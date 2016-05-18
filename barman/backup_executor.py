@@ -67,10 +67,14 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
         self.server = backup_manager.server
         self.config = backup_manager.config
 
+        # Holds the action being executed. Used for error messages.
+        self.current_action = None
+
     def init(self):
         """
         Initialise the internal state of the backup executor
         """
+        self.current_action = "starting backup"
 
     @abstractmethod
     def backup(self, backup_info):
@@ -104,6 +108,30 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
         :rtype: dict[str, None|str]
         """
         return {}
+
+    def _purge_unused_wal_files(self, backup_info):
+        """
+        It the provided backup is the first, purge all WAL files before the
+        backup start.
+
+        :param barman.infofile.BackupInfo backup_info: the backup to check
+        """
+        # If this is the first backup, purge unused WAL files
+        previous_backup = self.backup_manager.get_previous_backup(
+            backup_info.backup_id)
+        if not previous_backup:
+            output.info("This is the first backup for server %s",
+                        self.config.name)
+            removed = self.backup_manager.remove_wal_before_backup(
+                backup_info)
+            if removed:
+                # report the list of the removed WAL files
+                output.info("WAL segments preceding the current backup "
+                            "have been found:", log=False)
+                for wal_name in removed:
+                    output.info("\t%s from server %s "
+                                "has been removed",
+                                wal_name, self.config.name)
 
 
 def _parse_ssh_command(ssh_command):
@@ -183,12 +211,6 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
 
-    def init(self):
-        """
-        Initialise the internal state of the backup executor
-        """
-        self.current_action = "starting backup"
-
     def backup(self, backup_info):
         """
         Perform a backup for the server - invoked by BackupManager.backup()
@@ -200,9 +222,6 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-
-        previous_backup = self.backup_manager.get_previous_backup(
-            backup_info.backup_id)
 
         # Start the backup, all the subsequent code must be wrapped in a
         # try except block which finally issues a stop_backup command
@@ -223,18 +242,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                         backup_info.begin_offset)
 
             # If this is the first backup, purge eventually unused WAL files
-            if not previous_backup:
-                output.info("This is the first backup for server %s",
-                            self.config.name)
-                removed = self.backup_manager.remove_wal_before_backup(
-                    backup_info)
-                if removed:
-                    output.info("WAL segments preceding the current backup "
-                                "have been found:", log=False)
-                    for wal_name in removed:
-                        output.info("\t%s from server %s "
-                                    "has been removed",
-                                    wal_name, self.config.name)
+            self._purge_unused_wal_files(backup_info)
 
             # Start the copy
             self.current_action = "copying files"
@@ -823,7 +831,6 @@ class ConcurrentBackupStrategy(BackupStrategy):
             backup_info.server_name, backup_info.backup_id)
 
         # Concurrent backup: issue a pgespresso_start_Backup() command
-
         postgres = self.executor.server.postgres
         start_row = postgres.pgespresso_start_backup(label)
         backup_data, start_time = start_row
