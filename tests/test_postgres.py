@@ -110,7 +110,7 @@ class TestPostgres(object):
         connect_mock.assert_called_with("not valid conninfo")
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
-    def test_streaming_server_txt_version(self, conn_mock):
+    def test_server_txt_version(self, conn_mock):
         """
         simple test for the server_txt_version property
         """

@@ -560,7 +560,7 @@ class TestStreamingWalArchiver(object):
         """
         # pg_receivexlog 9.2 is compatible only with PostgreSQL 9.2
         backup_manager = build_backup_manager()
-        backup_manager.server.streaming.server_txt_version = "9.2.0"
+        backup_manager.server.streaming.server_major_version = "9.2"
         archiver = StreamingWalArchiver(backup_manager)
         which_mock.return_value = '/some/path/to/pg_receivexlog'
 
@@ -574,20 +574,20 @@ class TestStreamingWalArchiver(object):
         assert result["pg_receivexlog_compatible"] is False
 
         # Every pg_receivexlog is compatible with older PostgreSQL
-        backup_manager.server.streaming.server_txt_version = "9.3.0"
+        backup_manager.server.streaming.server_major_version = "9.3"
         command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.5"
         archiver.reset_remote_status()
         result = archiver.get_remote_status()
         assert result["pg_receivexlog_compatible"] is True
 
-        backup_manager.server.streaming.server_txt_version = "9.5.0"
+        backup_manager.server.streaming.server_major_version = "9.5"
         command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.3"
         archiver.reset_remote_status()
         result = archiver.get_remote_status()
         assert result["pg_receivexlog_compatible"] is False
 
         # Check for minor versions
-        backup_manager.server.streaming.server_txt_version = "9.4.5"
+        backup_manager.server.streaming.server_major_version = "9.4"
         command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.4.4"
         archiver.reset_remote_status()
         result = archiver.get_remote_status()
@@ -721,7 +721,7 @@ class TestStreamingWalArchiver(object):
         # When the streaming connection is not available, the
         # server_txt_version property will have a None value.
         backup_manager = build_backup_manager()
-        backup_manager.server.streaming.server_txt_version = None
+        backup_manager.server.streaming.server_major_version = None
         archiver = StreamingWalArchiver(backup_manager)
         which_mock.return_value = '/some/path/to/pg_receivexlog'
         command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.2"

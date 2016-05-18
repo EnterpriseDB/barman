@@ -29,7 +29,7 @@ from psycopg2.extras import RealDictCursor
 
 from barman.infofile import Tablespace
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import with_metaclass
+from barman.utils import simplify_version, with_metaclass
 
 _logger = logging.getLogger(__name__)
 
@@ -165,6 +165,36 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         conn = self.connect()
         return conn.server_version
 
+    @property
+    def server_txt_version(self):
+        """
+        Human readable version of PostgreSQL (calculated from server_version)
+
+        :rtype: str|None
+        """
+        try:
+            conn = self.connect()
+            major = int(conn.server_version / 10000)
+            minor = int(conn.server_version / 100 % 100)
+            patch = int(conn.server_version % 100)
+            return "%d.%d.%d" % (major, minor, patch)
+        except PostgresConnectionError as e:
+            _logger.debug("Error retrieving PostgreSQL version: %s",
+                          str(e).strip())
+            return None
+
+    @property
+    def server_major_version(self):
+        """
+        PostgreSQL major version (calculated from server_txt_version)
+
+        :rtype: str|None
+        """
+        result = self.server_txt_version
+        if result is not None:
+            return simplify_version(result)
+        return None
+
 
 class StreamingConnection(PostgreSQL):
     """
@@ -201,22 +231,6 @@ class StreamingConnection(PostgreSQL):
             self._conn = super(StreamingConnection, self).connect()
             self._conn.autocommit = True
         return self._conn
-
-    @property
-    def server_txt_version(self):
-        """
-        Human readable version of PostgreSQL (calculated from server_version)
-        """
-        try:
-            conn = self.connect()
-            major = int(conn.server_version / 10000)
-            minor = int(conn.server_version / 100 % 100)
-            patch = int(conn.server_version % 100)
-            return "%d.%d.%d" % (major, minor, patch)
-        except PostgresConnectionError as e:
-            _logger.debug("Error retrieving PostgreSQL version: %s",
-                          str(e).strip())
-            return None
 
     def fetch_remote_status(self):
         """

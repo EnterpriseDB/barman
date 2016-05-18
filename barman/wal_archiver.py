@@ -464,19 +464,6 @@ class StreamingWalArchiver(WalArchiver):
              'pg_receivexlog_version'),
             None)
 
-        # Check the server version from the streaming
-        # connection
-        streaming = self.backup_manager.server.streaming
-        server_txt_version = None
-        if streaming:
-            server_txt_version = streaming.server_txt_version
-        if server_txt_version:
-            pg_version = Version(utils.simplify_version(server_txt_version))
-        else:
-            # No log here, it has already been logged in the
-            # StreamingConnection class or during the Server initialization
-            pg_version = None
-
         # Detect a pg_receivexlog executable
         pg_receivexlog = utils.which("pg_receivexlog",
                                      self.backup_manager.server.path)
@@ -502,9 +489,18 @@ class StreamingWalArchiver(WalArchiver):
             receivexlog_version = None
             _logger.debug("Error invoking pg_receivexlog: %s", e)
 
+        # Retrieve the PostgreSQL versionn
+        pg_version = None
+        if self.server.streaming is not None:
+            pg_version = self.server.streaming.server_major_version
+
         # If one of the version is unknown we cannot compare them
         if receivexlog_version is None or pg_version is None:
             return result
+
+        # pg_version is not None so transform into a Version object
+        # for easier comparison between versions
+        pg_version = Version(pg_version)
 
         # pg_receivexlog 9.2 is compatible only with PostgreSQL 9.2.
         if "9.2" == pg_version == receivexlog_version:
