@@ -18,9 +18,11 @@
 import decimal
 import json
 import logging
+import signal
 from datetime import datetime, timedelta
 
 import mock
+import pytest
 
 import barman.utils
 
@@ -501,3 +503,53 @@ class TestBarmanEncoder(object):
         assert json.dumps(
             [{"a": 1}, "test"],
             cls=barman.utils.BarmanEncoder) == '[{"a": 1}, "test"]'
+
+
+# noinspection PyMethodMayBeStatic
+@mock.patch('barman.utils.signal.signal')
+@mock.patch('barman.utils.signal.alarm')
+class TestTimeout(object):
+    """
+    Simple class for timeout context manager testing
+    """
+    def test_timeout_enter(self, alarm_mock, signal_mock):
+        # Test: normal call
+        signal_mock.return_value = signal.SIG_DFL
+        with barman.utils.timeout(3):
+            signal_mock.assert_called_once_with(signal.SIGALRM, mock.ANY)
+            alarm_mock.assert_called_once_with(3)
+
+        # Use to simulate another alarm running
+        def fake_handler(signum, frame):
+            pass
+
+        # Test: forbid nesting
+        signal_mock.reset_mock()
+        alarm_mock.reset_mock()
+        signal_mock.return_value = fake_handler
+        with pytest.raises(AssertionError):
+            with barman.utils.timeout(3):
+                pass
+        signal_mock.assert_called_with(signal.SIGALRM, mock.ANY)
+        signal_mock.assert_called_with(signal.SIGALRM, fake_handler)
+        assert not alarm_mock.called
+
+    def test_timeout_exit(self, alarm_mock, signal_mock):
+        # test: normal call
+        signal_mock.return_value = signal.SIG_DFL
+        with barman.utils.timeout(3):
+            # Reset the mocks, we are only interested to the exit actions
+            signal_mock.reset_mock()
+            alarm_mock.reset_mock()
+        signal_mock.assert_called_once_with(signal.SIGALRM, signal.SIG_DFL)
+        alarm_mock.assert_called_once_with(0)
+
+        # test: exception handling
+        with pytest.raises(ZeroDivisionError):
+            with barman.utils.timeout(3):
+                # Reset the mocks, we are only interested to the exit actions
+                signal_mock.reset_mock()
+                alarm_mock.reset_mock()
+                raise ZeroDivisionError("Fake Error")
+        signal_mock.assert_called_once_with(signal.SIGALRM, signal.SIG_DFL)
+        alarm_mock.assert_called_once_with(0)

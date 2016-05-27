@@ -45,7 +45,8 @@ from barman.postgres import (ConninfoException, PostgresIsInRecovery,
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
-from barman.utils import human_readable_timedelta, pretty_size
+from barman.utils import (TimeoutError, human_readable_timedelta, pretty_size,
+                          timeout)
 from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
                                  StreamingWalArchiver, WalArchiver)
 
@@ -335,32 +336,42 @@ class Server(RemoteStatusMixin):
         connections work properly. It checks also that backup directories exist
         (and if not, it creates them).
 
+        The check command will time out after a time interval defined by the
+        check_timeout configuration value (default 30 seconds)
+
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        # Check WAL archive
-        self.check_archive(check_strategy)
-        # Check postgres configuration
-        self.check_postgres(check_strategy)
-        # Check barman directories from barman configuration
-        self.check_directories(check_strategy)
-        # Check retention policies
-        self.check_retention_policy_settings(check_strategy)
-        # Check for backup validity
-        self.check_backup_validity(check_strategy)
-        # Executes the backup manager set of checks
-        self.backup_manager.check(check_strategy)
-        # Check if the msg_list of the server
-        # contains messages and output eventual failures
-        self.check_configuration(check_strategy)
+        try:
+            with timeout(self.config.check_timeout):
+                # Check WAL archive
+                self.check_archive(check_strategy)
+                # Check postgres configuration
+                self.check_postgres(check_strategy)
+                # Check barman directories from barman configuration
+                self.check_directories(check_strategy)
+                # Check retention policies
+                self.check_retention_policy_settings(check_strategy)
+                # Check for backup validity
+                self.check_backup_validity(check_strategy)
+                # Executes the backup manager set of checks
+                self.backup_manager.check(check_strategy)
+                # Check if the msg_list of the server
+                # contains messages and output eventual failures
+                self.check_configuration(check_strategy)
 
-        # Executes check() for every archiver, passing
-        # remote status information for efficiency
-        for archiver in self.archivers:
-            archiver.check(check_strategy)
+                # Executes check() for every archiver, passing
+                # remote status information for efficiency
+                for archiver in self.archivers:
+                    archiver.check(check_strategy)
 
-        # Check archiver errors
-        self.check_archiver_errors(check_strategy)
+                # Check archiver errors
+                self.check_archiver_errors(check_strategy)
+        except TimeoutError:
+            # The check timed out.
+            # Add a failed entry to the check strategy for this.
+            check_strategy.result(self.config.name, 'check timeout', False,
+                                  'barman check command timed out')
 
     def check_archive(self, check_strategy):
         """

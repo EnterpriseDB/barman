@@ -28,8 +28,16 @@ import logging
 import logging.handlers
 import os
 import pwd
+import signal
+from contextlib import contextmanager
 
 _logger = logging.getLogger(__name__)
+
+
+class TimeoutError(Exception):
+    """
+    A timeout occurred.
+    """
 
 
 def drop_privileges(user):
@@ -292,3 +300,29 @@ def with_metaclass(meta, *bases):
         def __new__(mcs, name, this_bases, d):
             return meta(name, bases, d)
     return type.__new__(Metaclass, 'temporary_class', (), {})
+
+
+@contextmanager
+def timeout(timeout_duration):
+    """
+    ContextManager responsible for timing out the contained
+    block of code after a defined time interval.
+    """
+    # Define the handler for the alarm signal
+    def handler(signum, frame):
+        raise TimeoutError()
+
+    # set the timeout handler
+    previous_handler = signal.signal(signal.SIGALRM, handler)
+    if previous_handler != signal.SIG_DFL:
+        signal.signal(signal.SIGALRM, previous_handler)
+        raise AssertionError("Another timeout is already defined")
+    # set the timeout duration
+    signal.alarm(timeout_duration)
+    try:
+        # Execute the contained block of code
+        yield
+    finally:
+        # Reset the signal
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)

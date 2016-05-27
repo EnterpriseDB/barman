@@ -98,6 +98,11 @@ basebackup_retry_times
     Used during both backup and recovery operations.
     Positive integer, default 0. Global/Server.
 
+check_timeout
+:   Maximum execution time, in seconds per server, for a barman check
+    command. Set to 0 to disable the timeout.
+    Positive integer, default 30. Global/Server.
+
 compression
 :   Standard compression algorithm applied to WAL files. Possible values
     are: `gzip` (requires `gzip` to be installed on the system),
