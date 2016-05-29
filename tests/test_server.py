@@ -635,34 +635,6 @@ class TestServer(object):
         assert "No switch required for server 'main'" in out
         assert server.postgres.checkpoint.called is False
 
-    def test_check_archive(self, tmpdir):
-        """
-        Test the check_archive method
-        """
-        # Setup temp dir and server
-        server = build_real_server(
-            global_conf={
-                "barman_lock_directory": tmpdir.mkdir('lock').strpath
-            },
-            main_conf={
-                "wals_directory": tmpdir.mkdir('wals').strpath
-            })
-        strategy = CheckStrategy()
-        # Call the check on an empty xlog file. expect it to contain errors.
-        server.check_archive(strategy)
-        assert strategy.has_error is True
-        assert strategy.check_result[0].check == 'WAL archive'
-        assert strategy.check_result[0].status is False
-
-        # Write something in the xlog db file and check for the results
-        with server.xlogdb('w') as fxlogdb:
-            fxlogdb.write("00000000000000000000")
-        # The check strategy should contain no errors.
-        strategy = CheckStrategy()
-        server.check_archive(strategy)
-        assert strategy.has_error is False
-        assert len(strategy.check_result) == 0
-
     def test_replication_status(self, capsys):
         """
         Test management of pg_stat_archiver view output
