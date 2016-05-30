@@ -1418,8 +1418,8 @@ backup_. These operations are not allowed on a read-only standby
 server.
 
 As of version 1.3.1, Barman is also capable of performing backups of
-PostgreSQL 9.2/9.3 database servers in a **concurrent way**, primarily
-through the `backup_options` configuration
+PostgreSQL from 9.2 or greater database servers in a **concurrent way**,
+primarily through the `backup_options` configuration
 parameter.[^ABOUT_CONCURRENT_BACKUP]
 
 [^ABOUT_CONCURRENT_BACKUP]:
@@ -1431,10 +1431,13 @@ This introduces a new architecture scenario with Barman: **backup from
 a standby server**, using `rsync`.
 
 > **Important:**
-> **Concurrent backup** requires users of PostgreSQL 9.2 and 9.3 to
-> install the `pgespresso` open source extension on the PostgreSQL
-> server. For more detailed information and the source code, please
-> visit the [pgespresso extension website] [9].
+> **Concurrent backup** requires users of PostgreSQL 9.2, 9.3, 9.4,
+> and 9.5 to install the `pgespresso` open source extension
+> on every PostgreSQL server of the cluster. For more detailed information
+> and the source code, please visit the [pgespresso extension website] [9].
+> As of version 1.7, Barman adds support to the new API introduced in
+> PostgreSQL 9.6. This removes the requirement of the `pgespresso`
+> extension to perform concurrent backups altogether.
 
 By default, `backup_options` is transparently set to
 `exclusive_backup` (the only supported method by any Barman version
@@ -1445,9 +1448,10 @@ the _concurrent backup mode_ for a server and follows these two simple
 rules:
 
 - `ssh_command` must point to the destination Postgres server;
-- `conninfo` must point to a database on the destination Postgres 9.2
-  or 9.3 server where `pgespresso` is correctly installed through
-  `CREATE EXTENSION`.
+- `conninfo` must point to a database on the destination Postgres database.
+  Using PostgreSQL 9.2, 9.3, 9.4, and 9.5 `pgespresso` must be correctly
+  installed through `CREATE EXTENSION`. Using 9.6 or greater, concurrent
+  backups are executed through the Postgres native API.
 
 The destination Postgres server can be either the master or a
 streaming replicated standby server.

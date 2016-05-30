@@ -21,8 +21,8 @@ import psycopg2
 import pytest
 from mock import PropertyMock, call, patch
 
-from barman.exceptions import (PostgresConnectionError, PostgresIsInRecovery,
-                               PostgresSuperuserRequired,
+from barman.exceptions import (PostgresConnectionError, PostgresException,
+                               PostgresIsInRecovery, PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
 from barman.postgres import PostgreSQLConnection
 from testing_helpers import build_real_server
@@ -202,11 +202,43 @@ class TestPostgres(object):
             'FROM pg_stop_backup() AS location'
         )
         # Test 2: Setup the mock to trigger an exception
-        # expect the method to return None
+        # expect the method to raise a PostgresException
         conn.reset_mock()
         cursor_mock.execute.side_effect = psycopg2.Error
-        # Check that the method returns None as result
-        assert server.postgres.stop_exclusive_backup() is None
+        # Check that the method raises a PostgresException
+        with pytest.raises(PostgresException):
+            server.postgres.stop_exclusive_backup()
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_stop_concurrent_backup(self, conn):
+        """
+        Basic test for the stop_concurrent_backup method
+
+        :param conn: a mock that imitates a connection to PostgreSQL
+        """
+        # Build a server
+        server = build_real_server()
+
+        # Expect no errors on normal call
+        assert server.postgres.stop_concurrent_backup()
+
+        # check the correct invocation of the execute method
+        cursor_mock = conn.return_value.cursor.return_value
+        cursor_mock.execute.assert_called_once_with(
+            'SELECT end_row.lsn AS location, '
+            'end_row.labelfile AS backup_label, '
+            '(pg_xlogfile_name_offset(end_row.lsn)).*, '
+            'now() AS timestamp '
+            'FROM pg_stop_backup(%s) AS end_row', (False,)
+        )
+
+        # Test 2: Setup the mock to trigger an exception
+        # expect the method to raise a PostgresException
+        conn.reset_mock()
+        cursor_mock.execute.side_effect = psycopg2.Error
+        # Check that the method raises a PostgresException
+        with pytest.raises(PostgresException):
+            server.postgres.stop_concurrent_backup()
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
     def test_pgespresso_stop_backup(self, conn):
@@ -226,11 +258,12 @@ class TestPostgres(object):
         )
 
         # Test 2: Setup the mock to trigger an exception
-        # expect the method to return None
+        # expect the method to raise PostgresException
         conn.reset_mock()
         cursor_mock.execute.side_effect = psycopg2.Error
-        # Check that the method returns None as result
-        assert server.postgres.pgespresso_stop_backup('test_label') is None
+        # Check that the method raises a PostgresException
+        with pytest.raises(PostgresException):
+            server.postgres.pgespresso_stop_backup('test_label')
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
     def test_start_exclusive_backup(self, conn):
@@ -276,8 +309,40 @@ class TestPostgres(object):
 
         # test error management
         cursor_mock.execute.side_effect = psycopg2.Error
-        with pytest.raises(Exception):
+        with pytest.raises(PostgresException):
             server.postgres.start_exclusive_backup(backup_label)
+        conn.return_value.rollback.assert_called_once_with()
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_start_concurrent_backup(self, conn):
+        """
+        Simple test for start_exclusive_backup method of
+        the RsyncBackupExecutor class
+        """
+        # Build a server
+        server = build_real_server()
+        label = 'test label'
+
+        # Expect no errors
+        assert server.postgres.start_concurrent_backup(label)
+
+        # check for the correct call on the execute method
+        cursor_mock = conn.return_value.cursor.return_value
+        cursor_mock.execute.assert_called_once_with(
+            'SELECT location, '
+            '(pg_xlogfile_name_offset(location)).*, '
+            'now() AS timestamp '
+            'FROM pg_start_backup(%s,%s,%s) AS location',
+            ('test label', False, False)
+        )
+        conn.return_value.rollback.assert_has_calls([call(), call()])
+        # reset the mock for the next test
+        conn.reset_mock()
+
+        # test error management
+        cursor_mock.execute.side_effect = psycopg2.Error
+        with pytest.raises(PostgresException):
+            server.postgres.start_concurrent_backup(label)
         conn.return_value.rollback.assert_called_once_with()
 
     @patch('barman.postgres.PostgreSQLConnection.connect')

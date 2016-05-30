@@ -78,9 +78,11 @@ backup_options
     for backups. If set to `exclusive_backup` (default), `barman backup`
     executes backup operations using the standard exclusive backup approach
     (technically through pg_start_backup/pg_stop_backup).
-    If set to `concurrent_backup`, Barman requires the `pgespresso` module
-    to be installed on the PostgreSQL server (this allows you to perform a
-    backup from a standby server). Global/Server.
+    If set to `concurrent_backup`, if using PostgreSQL 9.2, 9.3, 9.4, and 9.5,
+    Barman requires the `pgespresso` module to be installed on the
+    PostgreSQL server and can be used to perform a backup from a standby server.
+    Starting from PostgreSQL 9.6, Barman uses the new PostgreSQL API to
+    perform backups from a standby server. Global/Server.
 
 bandwidth_limit
 :   This  option  allows  you  to specify a maximum transfer rate in
