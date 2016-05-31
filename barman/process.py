@@ -23,7 +23,8 @@ import time
 from glob import glob
 
 from barman import output
-from barman.lockfile import LockFileParsingError, ServerWalReceiveLock
+from barman.exceptions import LockFileParsingError
+from barman.lockfile import ServerWalReceiveLock
 
 _logger = logging.getLogger(__name__)
 

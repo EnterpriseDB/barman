@@ -24,33 +24,8 @@ import fcntl
 import os
 import re
 
-
-class LockFileException(Exception):
-    """
-    LockFile Exception base class
-    """
-    pass
-
-
-class LockFileBusy(LockFileException):
-    """
-    Raised when a lock file is not free
-    """
-    pass
-
-
-class LockFilePermissionDenied(LockFileException):
-    """
-    Raised when a lock file is not accessible
-    """
-    pass
-
-
-class LockFileParsingError(LockFileException):
-    """
-    Raised when the content of the lockfile is unexpected
-    """
-    pass
+from barman.exceptions import (LockFileBusy, LockFileParsingError,
+                               LockFilePermissionDenied)
 
 
 class LockFile(object):

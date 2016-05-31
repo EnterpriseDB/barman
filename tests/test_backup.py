@@ -25,8 +25,7 @@ import pytest
 from mock import Mock, patch
 
 import barman.utils
-from barman.command_wrappers import DataTransferFailure
-from barman.compression import CompressionIncompatibility
+from barman.exceptions import CompressionIncompatibility, DataTransferFailure
 from barman.infofile import BackupInfo
 from testing_helpers import build_backup_manager, build_test_backup_info
 

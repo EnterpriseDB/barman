@@ -25,6 +25,7 @@ import dateutil.tz
 
 from barman import xlog
 from barman.compression import identify_compression
+from barman.exceptions import BackupInfoBadInitialisation
 
 # create a namedtuple object called Tablespace with 'name' 'oid' and 'location'
 # as property.
@@ -391,18 +392,6 @@ class WalFileInfo(FieldListFile):
         :param barman.server.Server server: the server that owns the wal file
         """
         return os.path.join(server.config.wals_directory, self.relpath())
-
-
-class UnknownBackupIdException(Exception):
-    """
-    The searched backup_id doesn't exists
-    """
-
-
-class BackupInfoBadInitialisation(Exception):
-    """
-    Exception for a bad initialization error
-    """
 
 
 class BackupInfo(FieldListFile):

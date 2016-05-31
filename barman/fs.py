@@ -18,15 +18,9 @@
 import logging
 
 from barman.command_wrappers import Command
+from barman.exceptions import FsOperationFailed
 
 _logger = logging.getLogger(__name__)
-
-
-class FsOperationFailed(Exception):
-    """
-    Exception which represents a failed execution of a command on FS
-    """
-    pass
 
 
 def _str(cmd_out):

@@ -25,7 +25,7 @@ from mock import ANY, Mock, patch
 
 import testing_helpers
 from barman import xlog
-from barman.command_wrappers import CommandFailedException
+from barman.exceptions import CommandFailedException
 from barman.infofile import WalFileInfo
 from barman.recovery_executor import Assertion, RecoveryExecutor
 

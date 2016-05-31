@@ -30,10 +30,10 @@ from argh import ArghParser, arg, expects_obj, named
 import barman.config
 import barman.diagnose
 from barman import output
+from barman.exceptions import BadXlogSegmentName
 from barman.infofile import BackupInfo
 from barman.server import Server
 from barman.utils import configure_logging, drop_privileges, parse_log_level
-from barman.xlog import BadXlogSegmentName
 
 _logger = logging.getLogger(__name__)
 

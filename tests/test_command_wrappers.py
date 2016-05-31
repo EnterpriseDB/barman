@@ -27,8 +27,10 @@ import dateutil.tz
 import mock
 import pytest
 
+import barman.exceptions
 from barman import command_wrappers
-from barman.command_wrappers import CommandFailedException, StreamLineProcessor
+from barman.command_wrappers import StreamLineProcessor
+from barman.exceptions import CommandFailedException
 
 try:
     from StringIO import StringIO
@@ -137,7 +139,8 @@ class TestCommand(object):
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
 
         cmd = command_wrappers.Command(command, check=True)
-        with pytest.raises(command_wrappers.CommandFailedException) as excinfo:
+        with pytest.raises(barman.exceptions.CommandFailedException) \
+                as excinfo:
             cmd()
         assert excinfo.value.args[0]['ret'] == ret
         assert excinfo.value.args[0]['out'] == out
@@ -465,7 +468,8 @@ class TestCommand(object):
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
 
         cmd = command_wrappers.Command(command, check=True)
-        with pytest.raises(command_wrappers.CommandFailedException) as excinfo:
+        with pytest.raises(barman.exceptions.CommandFailedException) \
+                as excinfo:
             cmd.execute()
         assert excinfo.value.args[0]['ret'] == ret
         assert excinfo.value.args[0]['out'] is None
@@ -698,13 +702,13 @@ class TestRsync(object):
         """
         # Pass an invalid path to Rsync class constructor.
         # Expect a CommandFailedException
-        with pytest.raises(command_wrappers.CommandFailedException):
+        with pytest.raises(barman.exceptions.CommandFailedException):
             command_wrappers.Rsync('/invalid/path/rsync')
         # Force the which method to return false, simulating rsync command not
         # present in system PATH. Expect a CommandFailedExceptiomn
         with mock.patch("barman.utils.which") as mock_which:
             mock_which.return_value = False
-            with pytest.raises(command_wrappers.CommandFailedException):
+            with pytest.raises(barman.exceptions.CommandFailedException):
                 command_wrappers.Rsync(ssh_options=['-c', 'arcfour'])
 
     def test_protect_ssh_invocation(self, popen, pipe_processor_loop):

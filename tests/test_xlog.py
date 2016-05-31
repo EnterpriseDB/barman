@@ -19,6 +19,7 @@ import itertools
 
 import pytest
 
+import barman.exceptions
 from barman import xlog
 
 
@@ -60,11 +61,11 @@ class Test(object):
             '00000001000000000000000A.00000020.backup') == [1, 0, 10]
         assert xlog.decode_segment_name(
             '00000001.history') == [1, None, None]
-        with pytest.raises(xlog.BadXlogSegmentName):
+        with pytest.raises(barman.exceptions.BadXlogSegmentName):
             xlog.decode_segment_name('00000000000000000000000')
-        with pytest.raises(xlog.BadXlogSegmentName):
+        with pytest.raises(barman.exceptions.BadXlogSegmentName):
             xlog.decode_segment_name('0000000000000000000000000')
-        with pytest.raises(xlog.BadXlogSegmentName):
+        with pytest.raises(barman.exceptions.BadXlogSegmentName):
             xlog.decode_segment_name('000000000000X00000000000')
 
     def test_generate_segment_names(self):
@@ -170,11 +171,11 @@ class Test(object):
             '00000001000000000000000A.00000020.backup') == '0000000100000000'
         assert xlog.hash_dir(
             '00000002000000050000000A.00000020.backup') == '0000000200000005'
-        with pytest.raises(xlog.BadXlogSegmentName):
+        with pytest.raises(barman.exceptions.BadXlogSegmentName):
             xlog.hash_dir('00000000000000000000000')
-        with pytest.raises(xlog.BadXlogSegmentName):
+        with pytest.raises(barman.exceptions.BadXlogSegmentName):
             xlog.hash_dir('0000000000000000000000000')
-        with pytest.raises(xlog.BadXlogSegmentName):
+        with pytest.raises(barman.exceptions.BadXlogSegmentName):
             xlog.hash_dir('000000000000X00000000000')
 
     def test_is_any_xlog_file(self):

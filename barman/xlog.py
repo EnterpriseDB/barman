@@ -24,6 +24,8 @@ import os
 import re
 
 # xlog file segment name parser (regular expression)
+from barman.exceptions import BadXlogSegmentName
+
 _xlog_re = re.compile(r'''
     ^
     ([\dA-Fa-f]{8})                    # everything has a timeline
@@ -46,13 +48,6 @@ _location_re = re.compile(r'^([\dA-F]+)/([\dA-F]+)$')
 XLOG_SEG_SIZE = 1 << 24
 XLOG_SEG_PER_FILE = 0xffffffff // XLOG_SEG_SIZE
 XLOG_FILE_SIZE = XLOG_SEG_SIZE * XLOG_SEG_PER_FILE
-
-
-class BadXlogSegmentName(Exception):
-    """
-    Exception for a bad xlog name
-    """
-    pass
 
 
 def is_any_xlog_file(path):

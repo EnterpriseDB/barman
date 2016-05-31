@@ -31,13 +31,9 @@ import pwd
 import signal
 from contextlib import contextmanager
 
+from barman.exceptions import TimeoutError
+
 _logger = logging.getLogger(__name__)
-
-
-class TimeoutError(Exception):
-    """
-    A timeout occurred.
-    """
 
 
 def drop_privileges(user):

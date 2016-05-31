@@ -26,7 +26,7 @@ import sys
 import barman
 from barman import fs, output
 from barman.backup import BackupInfo
-from barman.fs import FsOperationFailed
+from barman.exceptions import FsOperationFailed
 from barman.utils import BarmanEncoder
 
 _logger = logging.getLogger(__name__)
@@ -43,9 +43,7 @@ def exec_diagnose(servers, errors_list):
     :param list errors_list: list of global errors
     """
     # global section. info about barman server
-    diagnosis = {}
-    diagnosis['global'] = {}
-    diagnosis['servers'] = {}
+    diagnosis = {'global': {}, 'servers': {}}
     # barman global config
     diagnosis['global']['config'] = dict(barman.__config__._global_config)
     diagnosis['global']['config']['errors_list'] = errors_list

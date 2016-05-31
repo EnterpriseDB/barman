@@ -34,21 +34,23 @@ from barman import output, xlog
 from barman.backup import BackupManager
 from barman.command_wrappers import BarmanSubProcess
 from barman.compression import identify_compression
-from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
-from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
-                             ServerBackupLock, ServerCronLock,
+from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
+                               ConninfoException, LockFileBusy,
+                               LockFilePermissionDenied, PostgresIsInRecovery,
+                               PostgresSuperuserRequired,
+                               PostgresUnsupportedFeature, TimeoutError,
+                               UnknownBackupIdException)
+from barman.infofile import BackupInfo, WalFileInfo
+from barman.lockfile import (ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerWalReceiveLock,
                              ServerXLOGDBLock)
-from barman.postgres import (ConninfoException, PostgresIsInRecovery,
-                             PostgreSQLConnection, PostgresSuperuserRequired,
-                             PostgresUnsupportedFeature, StreamingConnection)
+from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
-from barman.utils import (TimeoutError, human_readable_timedelta, pretty_size,
-                          timeout)
-from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
-                                 StreamingWalArchiver, WalArchiver)
+from barman.utils import human_readable_timedelta, pretty_size, timeout
+from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
+                                 WalArchiver)
 
 _logger = logging.getLogger(__name__)
 
@@ -847,7 +849,7 @@ class Server(RemoteStatusMixin):
                     wal_info = self.get_wal_info(backup)
                     backup_size += wal_info['wal_size']
                     wal_size = wal_info['wal_until_next_size']
-                except xlog.BadXlogSegmentName as e:
+                except BadXlogSegmentName as e:
                     output.error(
                         "invalid xlog segment name %r\n"
                         "HINT: Please run \"barman rebuild-xlogdb %s\" "
@@ -1473,7 +1475,7 @@ class Server(RemoteStatusMixin):
         try:
             backup_ext_info = self.get_backup_ext_info(backup_info)
             output.result('show_backup', backup_ext_info)
-        except xlog.BadXlogSegmentName as e:
+        except BadXlogSegmentName as e:
             output.error(
                 "invalid xlog segment name %r\n"
                 "HINT: Please run \"barman rebuild-xlogdb %s\" "

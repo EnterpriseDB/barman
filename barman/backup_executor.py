@@ -33,23 +33,17 @@ from abc import ABCMeta, abstractmethod
 from distutils.version import LooseVersion as Version
 
 from barman import output, utils, xlog
-from barman.command_wrappers import (Command, CommandFailedException,
-                                     DataTransferFailure, PgBasebackup,
-                                     RsyncPgData)
+from barman.command_wrappers import Command, PgBasebackup, RsyncPgData
 from barman.config import BackupOptions
-from barman.fs import FsOperationFailed, UnixRemoteCommand
+from barman.exceptions import (CommandFailedException, DataTransferFailure,
+                               FsOperationFailed, PostgresConnectionError,
+                               PostgresException, SshCommandException)
+from barman.fs import UnixRemoteCommand
 from barman.infofile import BackupInfo
-from barman.postgres import PostgresConnectionError
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import mkpath, with_metaclass
 
 _logger = logging.getLogger(__name__)
-
-
-class SshCommandException(Exception):
-    """
-    Error parsing ssh_command parameter
-    """
 
 
 class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
@@ -1152,9 +1146,10 @@ class ExclusiveBackupStrategy(BackupStrategy):
             backup_info.set_attribute('end_wal', stop_file_name)
             backup_info.set_attribute('end_offset', stop_file_offset)
         else:
-            raise Exception('Cannot terminate exclusive backup. You might '
-                            'have to  manually execute pg_stop_backup() '
-                            'on your PostgreSQL server')
+            raise PostgresException(
+                'Cannot terminate exclusive backup. '
+                'You might have to  manually execute pg_stop_backup() '
+                'on your PostgreSQL server')
 
     def check(self, check_strategy):
         """
@@ -1271,10 +1266,10 @@ class ConcurrentBackupStrategy(BackupStrategy):
             backup_info.set_attribute('end_wal', end_wal)
             backup_info.set_attribute('end_offset', 0)
         else:
-            raise Exception('Cannot terminate exclusive backup. You might '
-                            'have to  manually execute '
-                            'pgespresso_abort_backup() on your PostgreSQL '
-                            'server')
+            raise PostgresException(
+                'Cannot terminate exclusive backup. '
+                'You might have to  manually execute '
+                'pgespresso_abort_backup() on your PostgreSQL server')
         self.current_action = "writing backup label"
         self._write_backup_label(backup_info)
 

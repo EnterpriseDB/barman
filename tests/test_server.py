@@ -24,12 +24,13 @@ import pytest
 from mock import MagicMock, patch
 from psycopg2.tz import FixedOffsetTimezone
 
+from barman.exceptions import (LockFileBusy, LockFilePermissionDenied,
+                               PostgresSuperuserRequired,
+                               PostgresUnsupportedFeature)
 from barman.infofile import BackupInfo, WalFileInfo
-from barman.lockfile import (LockFileBusy, LockFilePermissionDenied,
-                             ServerBackupLock, ServerCronLock,
+from barman.lockfile import (ServerBackupLock, ServerCronLock,
                              ServerWalArchiveLock, ServerWalReceiveLock)
-from barman.postgres import (PostgreSQLConnection, PostgresSuperuserRequired,
-                             PostgresUnsupportedFeature)
+from barman.postgres import PostgreSQLConnection
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy, CheckStrategy, Server
 from testing_helpers import (build_config_from_dicts, build_real_server,

@@ -24,7 +24,7 @@ import time
 
 from barman import version
 from barman.command_wrappers import Command
-from barman.infofile import UnknownBackupIdException
+from barman.exceptions import AbortedRetryHookScript, UnknownBackupIdException
 
 _logger = logging.getLogger(__name__)
 
@@ -146,25 +146,6 @@ class HookScriptRunner(object):
             _logger.exception('Exception running %s', self.name)
             self.exception = e
             return None
-
-
-class AbortedRetryHookScript(Exception):
-    """
-    Exception for handling abort of retry hook scripts
-    """
-    def __init__(self, hook):
-        """
-        Initialise the exception with hook script info
-        """
-        self.hook = hook
-
-    def __str__(self):
-        """
-        String representation
-        """
-        return ("Abort '%s_%s' retry hook script (%s, exit code: %d)" % (
-                self.hook.phase, self.hook.name,
-                self.hook.script, self.hook.exit_status))
 
 
 class RetryHookScriptRunner(HookScriptRunner):

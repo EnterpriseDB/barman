@@ -22,8 +22,8 @@ import os
 import pytest
 from mock import ANY, patch
 
-from barman.lockfile import (GlobalCronLock, LockFile, LockFileBusy,
-                             LockFilePermissionDenied, ServerBackupLock,
+from barman.exceptions import LockFileBusy, LockFilePermissionDenied
+from barman.lockfile import (GlobalCronLock, LockFile, ServerBackupLock,
                              ServerCronLock, ServerWalReceiveLock,
                              ServerXLOGDBLock)
 

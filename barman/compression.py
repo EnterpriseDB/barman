@@ -26,16 +26,12 @@ import shutil
 from abc import ABCMeta, abstractmethod
 from contextlib import closing
 
-from barman.command_wrappers import Command, CommandFailedException
+from barman.command_wrappers import Command
+from barman.exceptions import (CommandFailedException,
+                               CompressionIncompatibility)
 from barman.utils import with_metaclass
 
 _logger = logging.getLogger(__name__)
-
-
-class CompressionIncompatibility(Exception):
-    """
-    Exception for compression incompatibility
-    """
 
 
 class CompressionManager(object):

@@ -22,11 +22,10 @@ import mock
 import pytest
 from mock import Mock, patch
 
-from barman.backup_executor import (PostgresBackupExecutor,
-                                    RsyncBackupExecutor, SshCommandException)
-from barman.command_wrappers import CommandFailedException, DataTransferFailure
+from barman.backup_executor import PostgresBackupExecutor, RsyncBackupExecutor
 from barman.config import BackupOptions
-from barman.fs import FsOperationFailed
+from barman.exceptions import (CommandFailedException, DataTransferFailure,
+                               FsOperationFailed, SshCommandException)
 from barman.infofile import BackupInfo, Tablespace
 from barman.server import CheckOutputStrategy, CheckStrategy
 from testing_helpers import (build_backup_manager, build_mocked_server,

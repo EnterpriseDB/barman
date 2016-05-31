@@ -20,14 +20,14 @@ import pytest
 from mock import ANY, MagicMock, patch
 
 import barman.xlog
-from barman.backup import DuplicateWalFile, MatchingDuplicateWalFile
-from barman.command_wrappers import CommandFailedException
 from barman.compression import PyGZipCompressor, identify_compression
+from barman.exceptions import (ArchiverFailure, CommandFailedException,
+                               DuplicateWalFile, MatchingDuplicateWalFile)
 from barman.infofile import WalFileInfo
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy
-from barman.wal_archiver import (ArchiverFailure, FileWalArchiver,
-                                 StreamingWalArchiver, WalArchiverBatch)
+from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
+                                 WalArchiverBatch)
 from testing_helpers import build_backup_manager, build_test_backup_info
 
 

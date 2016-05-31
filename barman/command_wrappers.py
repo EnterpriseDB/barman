@@ -38,46 +38,9 @@ import dateutil.parser
 import dateutil.tz
 
 import barman.utils
+from barman.exceptions import CommandFailedException, RsyncListFilesFailure
 
 _logger = logging.getLogger(__name__)
-
-
-class CommandFailedException(Exception):
-    """
-    Exception representing a failed command
-    """
-    pass
-
-
-class RsyncListFilesFailure(Exception):
-    """
-    Failure parsing the output of a "rsync --list-only" command
-    """
-    pass
-
-
-class DataTransferFailure(Exception):
-    """
-    Used to pass failure details from a data transfer Command
-    """
-
-    @classmethod
-    def from_command_error(cls, cmd, e, msg):
-        """
-        This method build a DataTransferFailure exception and report the
-        provided message to the user (both console and log file) along with
-        the output of the failed command.
-
-        :param str cmd: The command that failed the transfer
-        :param CommandFailedException e: The exception we are handling
-        :param str msg: a descriptive message on what we are trying to do
-        :return DataTransferFailure: will contain the message provided in msg
-        """
-        details = msg
-        details += "\n%s error:\n" % cmd
-        details += e.args[0]['out']
-        details += e.args[0]['err']
-        return cls(details)
 
 
 class StreamLineProcessor(object):

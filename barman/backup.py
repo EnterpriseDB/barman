@@ -30,34 +30,19 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.backup_executor import (PostgresBackupExecutor,
-                                    RsyncBackupExecutor, SshCommandException)
-from barman.command_wrappers import DataTransferFailure
-from barman.compression import CompressionIncompatibility, CompressionManager
+from barman.backup_executor import PostgresBackupExecutor, RsyncBackupExecutor
+from barman.compression import CompressionManager
 from barman.config import BackupOptions
-from barman.hooks import (AbortedRetryHookScript, HookScriptRunner,
-                          RetryHookScriptRunner)
-from barman.infofile import BackupInfo, UnknownBackupIdException, WalFileInfo
+from barman.exceptions import (AbortedRetryHookScript,
+                               CompressionIncompatibility, DataTransferFailure,
+                               SshCommandException, UnknownBackupIdException)
+from barman.hooks import HookScriptRunner, RetryHookScriptRunner
+from barman.infofile import BackupInfo, WalFileInfo
 from barman.recovery_executor import RecoveryExecutor
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import fsync_dir, human_readable_timedelta, pretty_size
 
 _logger = logging.getLogger(__name__)
-
-
-class DuplicateWalFile(Exception):
-    """
-    A duplicate WAL file has been found
-    """
-    pass
-
-
-class MatchingDuplicateWalFile(DuplicateWalFile):
-    """
-    A duplicate WAL file has been found, but it's identical to the one we
-    already have.
-    """
-    pass
 
 
 class BackupManager(RemoteStatusMixin):

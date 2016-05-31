@@ -27,42 +27,15 @@ import psycopg2
 from psycopg2.extensions import STATUS_IN_TRANSACTION
 from psycopg2.extras import RealDictCursor
 
+from barman.exceptions import (ConninfoException, PostgresConnectionError,
+                               PostgresException, PostgresIsInRecovery,
+                               PostgresSuperuserRequired,
+                               PostgresUnsupportedFeature)
 from barman.infofile import Tablespace
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import simplify_version, with_metaclass
 
 _logger = logging.getLogger(__name__)
-
-
-class ConninfoException(Exception):
-    """
-    Error for missing or failed parsing of the conninfo parameter (DSN)
-    """
-
-
-class PostgresConnectionError(Exception):
-    """
-    Error connecting to the PostgreSQL server
-    """
-
-
-class PostgresSuperuserRequired(Exception):
-    """
-    Superuser access is required
-    """
-
-
-class PostgresIsInRecovery(Exception):
-    """
-    PostgreSQL is in recovery, so no write operations are allowed
-    """
-
-
-class PostgresUnsupportedFeature(Exception):
-    """
-    Unsupported feature
-    """
-
 
 _live_connections = []
 """
@@ -702,7 +675,7 @@ class PostgreSQLConnection(PostgreSQL):
         except (PostgresConnectionError, psycopg2.Error) as e:
             msg = "pg_start_backup(): %s" % str(e).strip()
             _logger.debug(msg)
-            raise Exception(msg)
+            raise PostgresException(msg)
 
     def stop_exclusive_backup(self):
         """
@@ -753,7 +726,7 @@ class PostgreSQLConnection(PostgreSQL):
         except (PostgresConnectionError, psycopg2.Error) as e:
             msg = "pgespresso_start_backup(): %s" % str(e).strip()
             _logger.debug(msg)
-            raise Exception(msg)
+            raise PostgresException(msg)
 
     def pgespresso_stop_backup(self, backup_label):
         """

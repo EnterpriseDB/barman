@@ -35,10 +35,11 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.command_wrappers import (CommandFailedException,
-                                     DataTransferFailure, Rsync, RsyncPgData)
+from barman.command_wrappers import Rsync, RsyncPgData
 from barman.config import RecoveryOptions
-from barman.fs import FsOperationFailed, UnixLocalCommand, UnixRemoteCommand
+from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
+                               DataTransferFailure, FsOperationFailed)
+from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.utils import mkpath
 
@@ -704,7 +705,7 @@ class RecoveryExecutor(object):
             except DataTransferFailure as e:
                 output.exception("Failure copying WAL files: %s", e)
                 output.close_and_exit()
-            except xlog.BadXlogSegmentName as e:
+            except BadXlogSegmentName as e:
                 output.error(
                     "invalid xlog segment name %r\n"
                     "HINT: Please run \"barman rebuild-xlogdb %s\" "

@@ -26,11 +26,11 @@ from distutils.version import LooseVersion as Version
 from glob import glob
 
 from barman import output, utils, xlog
-from barman.backup import DuplicateWalFile, MatchingDuplicateWalFile
 from barman.command_wrappers import (Command, CommandFailedException,
                                      PgReceiveXlog)
-from barman.hooks import (AbortedRetryHookScript, HookScriptRunner,
-                          RetryHookScriptRunner)
+from barman.exceptions import (AbortedRetryHookScript, ArchiverFailure,
+                               DuplicateWalFile, MatchingDuplicateWalFile)
+from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import WalFileInfo
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import fsync_dir, mkpath, with_metaclass
@@ -58,13 +58,6 @@ class WalArchiverBatch(list):
             self.skip = skip
         if errors is not None:
             self.errors = errors
-
-
-class ArchiverFailure(Exception):
-    """
-    Exception representing a failure during the execution
-    of the archive process
-    """
 
 
 class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):

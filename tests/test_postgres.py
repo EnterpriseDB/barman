@@ -21,9 +21,10 @@ import psycopg2
 import pytest
 from mock import PropertyMock, call, patch
 
-from barman.postgres import (PostgresConnectionError, PostgresIsInRecovery,
-                             PostgreSQLConnection, PostgresSuperuserRequired,
-                             PostgresUnsupportedFeature)
+from barman.exceptions import (PostgresConnectionError, PostgresIsInRecovery,
+                               PostgresSuperuserRequired,
+                               PostgresUnsupportedFeature)
+from barman.postgres import PostgreSQLConnection
 from testing_helpers import build_real_server
 
 
