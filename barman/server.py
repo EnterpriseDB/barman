@@ -1464,6 +1464,15 @@ class Server(RemoteStatusMixin):
                     policy.backup_status(backup_info.backup_id)
             else:
                 backup_ext_info['retention_policy_status'] = None
+
+            # Check any child timeline exists
+            children_timelines = self.get_children_timelines(
+                backup_ext_info['timeline'],
+                forked_after=backup_info.end_xlog)
+
+            backup_ext_info['children_timelines'] = \
+                children_timelines
+
         return backup_ext_info
 
     def show_backup(self, backup_info):
@@ -1582,3 +1591,46 @@ class Server(RemoteStatusMixin):
             output.info("  Requires PostgreSQL %s or higher", e)
         except PostgresSuperuserRequired:
             output.info("  Requires superuser rights")
+
+    def get_children_timelines(self, tli, forked_after=None):
+        """
+        Get a list of the children of the passed timeline
+
+        :param int tli: Id of the timeline to check
+        :param str forked_after: XLog location after which the timeline
+          must have been created
+        :return List[xlog.HistoryFileData]: the list of timelines that
+          have the timeline with id 'tli' as parent
+        """
+        if forked_after:
+            forked_after = xlog.parse_lsn(forked_after)
+
+        children = []
+        # Search all the history files after the passed timeline
+        children_tli = tli
+        while True:
+            children_tli += 1
+            history_path = os.path.join(self.config.wals_directory,
+                                        "%08X.history" % children_tli)
+            # If the file doesn't exists, stop searching
+            if not os.path.exists(history_path):
+                break
+
+            # Get content of the file
+            history_info = xlog.decode_history_file(history_path)
+
+            # Save the history only if is reachable from this timeline.
+            for tinfo in history_info:
+                # The history file contains the full genealogy
+                # but we keep only the line with `tli` timeline as parent.
+                if tinfo.parent_tli != tli:
+                    continue
+
+                # We need to return this history info only if this timeline
+                # has been forked after the passed LSN
+                if forked_after and tinfo.switchpoint < forked_after:
+                    continue
+
+                children.append(tinfo)
+
+        return children

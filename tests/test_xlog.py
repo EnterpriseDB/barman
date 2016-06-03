@@ -274,3 +274,57 @@ class Test(object):
         assert xlog.get_offset_from_location('9AFB/5B13FD70') == 1310064
         assert xlog.get_offset_from_location('9B02/29883178') == 8925560
         assert xlog.get_offset_from_location('BLAH') is None
+
+    def test_decode_history_file(self, tmpdir):
+        p = tmpdir.join('00000002.history')
+
+        # Regular history file
+        p.write('1\t2/83000168\tat restore point "myrp"\n')
+        result = xlog.HistoryFileData(
+            tli=2,
+            parent_tli=1,
+            reason='at restore point "myrp"',
+            switchpoint=0x283000168)
+        assert xlog.decode_history_file(p.strpath) == [result]
+
+        # Comments must be skipped
+        p = tmpdir.join('00000003.history')
+        p.write('# Comment\n1\t2/83000168\tat restore point "testcomment"\n')
+        result = xlog.HistoryFileData(
+            tli=3,
+            parent_tli=1,
+            reason='at restore point "testcomment"',
+            switchpoint=0x283000168)
+        assert xlog.decode_history_file(p.strpath) == [result]
+
+        # History file with comments and empty lines
+        p = tmpdir.join('00000004.history')
+        p.write('# Comment\n\n1\t2/83000168\ttesting "testemptyline"\n')
+        result = xlog.HistoryFileData(
+            tli=4,
+            parent_tli=1,
+            reason='testing "testemptyline"',
+            switchpoint=0x283000168)
+        assert xlog.decode_history_file(p.strpath) == [result]
+
+        with pytest.raises(barman.exceptions.BadHistoryFileContents):
+            # Empty file
+            p.write('')
+            xlog.decode_history_file(p.strpath)
+
+        with pytest.raises(barman.exceptions.BadHistoryFileContents):
+            # Missing field
+            p.write('1\t2/83000168')
+            xlog.decode_history_file(p.strpath)
+
+        with pytest.raises(barman.exceptions.BadHistoryFileContents):
+            # Unattended field
+            p.write('1\t2/83000168\tat restore point "myrp"\ttest')
+            xlog.decode_history_file(p.strpath)
+
+    def test_parse_lsn(self):
+        assert xlog.parse_lsn('2/8300168') == (
+            (2 << 32) + 0x8300168)
+        assert xlog.parse_lsn('FFFFFFFF/FFFFFFFF') == (
+            (0xFFFFFFFF << 32) + 0xFFFFFFFF)
+        assert xlog.parse_lsn('0/0') == 0

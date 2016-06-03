@@ -20,11 +20,12 @@ This module contains functions to retrieve information about xlog
 files
 """
 
+import collections
 import os
 import re
 
 # xlog file segment name parser (regular expression)
-from barman.exceptions import BadXlogSegmentName
+from barman.exceptions import BadHistoryFileContents, BadXlogSegmentName
 
 _xlog_re = re.compile(r'''
     ^
@@ -48,6 +49,12 @@ _location_re = re.compile(r'^([\dA-F]+)/([\dA-F]+)$')
 XLOG_SEG_SIZE = 1 << 24
 XLOG_SEG_PER_FILE = 0xffffffff // XLOG_SEG_SIZE
 XLOG_FILE_SIZE = XLOG_SEG_SIZE * XLOG_SEG_PER_FILE
+
+#: This namedtuple is a container for the information
+#: contained inside history files
+HistoryFileData = collections.namedtuple(
+    'HistoryFileData',
+    'tli parent_tli switchpoint reason')
 
 
 def is_any_xlog_file(path):
@@ -190,7 +197,7 @@ def generate_segment_names(begin, end=None, version=None):
             "Begin segment (%s) and end segment (%s) "
             "must have the same timeline part" % (begin, end))
 
-    # If version is less than 9.3 the last segmen must be skipped
+    # If version is less than 9.3 the last segment must be skipped
     skip_last_segment = version is not None and version < 90300
 
     # Start from the first xlog and generate the segments sequentially
@@ -238,3 +245,68 @@ def get_offset_from_location(location):
         return xlo % XLOG_SEG_SIZE
     else:
         return None
+
+
+def parse_lsn(lsn):
+    """
+    Transform a XLOG location, formatted as %X/%X, in a list
+    containing the highest portion of the LSN and the lower
+    portion of the LSN as numbers
+
+    :param str lsn: the XLOG location, i.e. 2/82000168
+    :return Tuple[int, int]: a tuple containing the highest
+      portion of the LSN and the low one
+    """
+    lsn_list = lsn.split('/')
+    if len(lsn_list) != 2:
+        raise ValueError('Invalid LSN: %s', lsn)
+
+    return (int(lsn_list[0], 16) << 32) + int(lsn_list[1], 16)
+
+
+def decode_history_file(path):
+    """
+    Read an history file and parse its contents.
+
+    Each line in the file represents a timeline switch, each field is
+    separated by tab, empty lines are ignored and lines starting with '#'
+    are comments.
+
+    Each line is composed by three fields: parentTLI, switchpoint and reason.
+    "parentTLI" is the ID of the parent timeline.
+    "switchpoint" is the WAL position where the switch happened
+    "reason" is an human-readable explanation of why the timeline was changed
+
+    :param path: history file location
+    :return List[HistoryFileData]: information from the history file
+    """
+    lines = []
+    with open(path) as fp:
+        for line in fp:
+            line = line.strip()
+            # Skip comments and empty lines
+            if line.startswith("#"):
+                continue
+            # Skip comments and empty lines
+            if len(line) == 0:
+                continue
+            # Use tab as separator
+            contents = line.split('\t')
+            if len(contents) != 3:
+                # Invalid content of the line
+                raise BadHistoryFileContents(path)
+
+            tli, _, _ = decode_segment_name(path)
+
+            history = HistoryFileData(
+                tli=tli,
+                parent_tli=int(contents[0]),
+                switchpoint=parse_lsn(contents[1]),
+                reason=contents[2])
+            lines.append(history)
+
+    # Empty history file or containing invalid content
+    if len(lines) == 0:
+        raise BadHistoryFileContents(path)
+    else:
+        return lines

@@ -127,6 +127,7 @@ def mock_backup_ext_info(
         retention_policy_status=None,
         wal_compression_ratio=0.0,
         wal_until_next_compression_ratio=0.0,
+        children_timelines=[],
         **kwargs):
 
     # make a dictionary with all the arguments

@@ -634,6 +634,11 @@ class ConsoleOutputWriter(object):
                     '{percent:.2%}'.format(
                         percent=data['wal_until_next_compression_ratio']))
             self.info("    Last available       : %s", data['wal_last'])
+            if data['children_timelines']:
+                timelines = data['children_timelines']
+                self.info(
+                    "    Reachable timelines  : %s",
+                    ", ".join([str(history.tli) for history in timelines]))
             self.info("")
             self.info("  Catalog information:")
             self.info("    Retention Policy     : %s",
@@ -649,6 +654,12 @@ class ConsoleOutputWriter(object):
             if data['error']:
                 self.info("  Error:            : %s",
                           data['error'])
+
+        if data['children_timelines']:
+            self.info("")
+            self.info(
+                "WARNING: WAL information is inaccurate due to "
+                "multiple timelines interacting with this backup")
 
     def init_status(self, server_name):
         """

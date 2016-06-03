@@ -218,6 +218,12 @@ class BadXlogSegmentName(WALFileException):
     """
 
 
+class BadHistoryFileContents(WALFileException):
+    """
+    Exception for a corrupted history file
+    """
+
+
 class AbortedRetryHookScript(HookScriptException):
     """
     Exception for handling abort of retry hook scripts

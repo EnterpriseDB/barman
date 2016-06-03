@@ -193,7 +193,7 @@ class TestServer(object):
         wals_dir = tmpdir.mkdir("wals")
         xlog = wals_dir.join("xlog.db")
         xlog.write(wfile_info.to_xlogdb_line() + history_info.to_xlogdb_line())
-        # facke backup
+        # fake backup
         backup = build_test_backup_info(
             begin_wal='000000010000000000000001',
             end_wal='000000010000000000000004')
@@ -747,6 +747,34 @@ class TestServer(object):
         assert err == ''
         server.postgres.get_replication_stats.assert_called_once_with(
             PostgreSQLConnection.ANY_STREAMING_CLIENT)
+
+    def test_timeline_has_children(self, tmpdir):
+        """
+        Test for the timeline_has_children
+        """
+        server = build_real_server({'barman_home': tmpdir.strpath})
+        tmpdir.join('main/wals').ensure(dir=True)
+
+        # Write two history files
+        history_2 = server.get_wal_full_path('00000002.history')
+        with open(history_2, "w") as fp:
+            fp.write('1\t2/83000168\tat restore point "myrp"\n')
+
+        history_3 = server.get_wal_full_path('00000003.history')
+        with open(history_3, "w") as fp:
+            fp.write('1\t2/83000168\tat restore point "myrp"\n')
+
+        history_4 = server.get_wal_full_path('00000004.history')
+        with open(history_4, "w") as fp:
+            fp.write('1\t2/83000168\tat restore point "myrp"\n')
+            fp.write('2\t2/84000268\tunknown\n')
+
+        # Check that the first timeline has children but the
+        # others have not
+        assert len(server.get_children_timelines(1)) == 3
+        assert len(server.get_children_timelines(2)) == 1
+        assert len(server.get_children_timelines(3)) == 0
+        assert len(server.get_children_timelines(4)) == 0
 
 
 class TestCheckStrategy(object):
