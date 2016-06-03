@@ -350,11 +350,11 @@ class TestStrategy(object):
         # Test 1: start exclusive backup
         # Mock executor.pg_start_backup(label) call
         start_time = datetime.datetime.now()
-        server.postgres.start_exclusive_backup.return_value = (
-            "A257/44B4C0D8",
-            "000000060000A25700000044",
-            11845848,
-            start_time)
+        server.postgres.start_exclusive_backup.return_value = {
+            'location': "A257/44B4C0D8",
+            'file_name': "000000060000A25700000044",
+            'file_offset': 11845848,
+            'timestamp': start_time}
 
         # Build a test empty backup info
         backup_info = BackupInfo(server=backup_manager.server,
@@ -404,9 +404,11 @@ class TestStrategy(object):
 
         # Mock executor._pgespresso_start_backup(label) call
         start_time = datetime.datetime.now()
-        server.postgres.pgespresso_start_backup.return_value = (
-            "START WAL LOCATION: 266/4A9C1EF8 (file 00000010000002660000004A)",
-            start_time)
+        server.postgres.pgespresso_start_backup.return_value = {
+            'backup_label':
+                "START WAL LOCATION: 266/4A9C1EF8 "
+                "(file 00000010000002660000004A)",
+            'timestamp': start_time}
         # Build a test empty backup info
         backup_info = BackupInfo(server=backup_manager.server,
                                  backup_id='fake_id2')
@@ -443,12 +445,12 @@ class TestStrategy(object):
         backup_manager = build_backup_manager(server=server)
         # Mock executor._pg_stop_backup(backup_info) call
         stop_time = datetime.datetime.now()
-        server.postgres.stop_exclusive_backup.return_value = (
-            "266/4A9C1EF8",
-            "00000010000002660000004A",
-            10231544,
-            stop_time
-        )
+        server.postgres.stop_exclusive_backup.return_value = {
+            'location': "266/4A9C1EF8",
+            'file_name': "00000010000002660000004A",
+            'file_offset': 10231544,
+            'timestamp': stop_time
+        }
 
         backup_info = build_test_backup_info()
         backup_manager.executor.strategy.stop_backup(backup_info)
@@ -476,9 +478,10 @@ class TestStrategy(object):
 
         # Mock executor._pgespresso_stop_backup(backup_info) call
         stop_time = datetime.datetime.now()
-        server.postgres.pgespresso_stop_backup.return_value = (
-            "000000060000A25700000044",
-            stop_time)
+        server.postgres.pgespresso_stop_backup.return_value = {
+            'end_wal': "000000060000A25700000044",
+            'timestamp': stop_time
+        }
 
         backup_info = build_test_backup_info()
         backup_manager.executor.strategy.stop_backup(backup_info)

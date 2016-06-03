@@ -1115,15 +1115,13 @@ class ExclusiveBackupStrategy(BackupStrategy):
 
         # Exclusive backup: issue a pg_start_Backup() command
         start_row = self.executor.server.postgres.start_exclusive_backup(label)
-        start_xlog, start_file_name, start_file_offset, start_time = \
-            start_row
         backup_info.set_attribute('status', "STARTED")
         backup_info.set_attribute('timeline',
-                                  int(start_file_name[0:8], 16))
-        backup_info.set_attribute('begin_xlog', start_xlog)
-        backup_info.set_attribute('begin_wal', start_file_name)
-        backup_info.set_attribute('begin_offset', start_file_offset)
-        backup_info.set_attribute('begin_time', start_time)
+                                  int(start_row['file_name'][0:8], 16))
+        backup_info.set_attribute('begin_xlog', start_row['location'])
+        backup_info.set_attribute('begin_wal', start_row['file_name'])
+        backup_info.set_attribute('begin_offset', start_row['file_offset'])
+        backup_info.set_attribute('begin_time', start_row['timestamp'])
 
     def stop_backup(self, backup_info):
         """
@@ -1139,12 +1137,10 @@ class ExclusiveBackupStrategy(BackupStrategy):
         self.current_action = "issuing stop backup command"
         stop_row = self.executor.server.postgres.stop_exclusive_backup()
         if stop_row:
-            stop_xlog, stop_file_name, stop_file_offset, stop_time = \
-                stop_row
-            backup_info.set_attribute('end_time', stop_time)
-            backup_info.set_attribute('end_xlog', stop_xlog)
-            backup_info.set_attribute('end_wal', stop_file_name)
-            backup_info.set_attribute('end_offset', stop_file_offset)
+            backup_info.set_attribute('end_xlog', stop_row['location'])
+            backup_info.set_attribute('end_wal', stop_row['file_name'])
+            backup_info.set_attribute('end_offset', stop_row['file_offset'])
+            backup_info.set_attribute('end_time', stop_row['timestamp'])
         else:
             raise PostgresException(
                 'Cannot terminate exclusive backup. '
@@ -1231,11 +1227,11 @@ class ConcurrentBackupStrategy(BackupStrategy):
         # Concurrent backup: issue a pgespresso_start_Backup() command
         postgres = self.executor.server.postgres
         start_row = postgres.pgespresso_start_backup(label)
-        backup_data, start_time = start_row
         wal_re = re.compile(
             '^START WAL LOCATION: (.*) \(file (.*)\)',
             re.MULTILINE)
-        wal_info = wal_re.search(backup_data)
+        wal_info = wal_re.search(start_row['backup_label'])
+        backup_info.set_attribute('backup_label', start_row['backup_label'])
         backup_info.set_attribute('status', "STARTED")
         backup_info.set_attribute('timeline',
                                   int(wal_info.group(2)[0:8], 16))
@@ -1244,8 +1240,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         backup_info.set_attribute('begin_offset',
                                   xlog.get_offset_from_location(
                                       wal_info.group(1)))
-        backup_info.set_attribute('backup_label', backup_data)
-        backup_info.set_attribute('begin_time', start_time)
+        backup_info.set_attribute('begin_time', start_row['timestamp'])
 
     def stop_backup(self, backup_info):
         """
@@ -1256,15 +1251,14 @@ class ConcurrentBackupStrategy(BackupStrategy):
         postgres = self.executor.server.postgres
         stop_row = postgres.pgespresso_stop_backup(backup_info.backup_label)
         if stop_row:
-            end_wal, stop_time = stop_row
-            decoded_segment = xlog.decode_segment_name(end_wal)
-            backup_info.set_attribute('end_time', stop_time)
+            decoded_segment = xlog.decode_segment_name(stop_row['end_wal'])
             backup_info.set_attribute('end_xlog',
                                       "%X/%X" % (decoded_segment[1],
                                                  (decoded_segment[
                                                   2] + 1) << 24))
-            backup_info.set_attribute('end_wal', end_wal)
+            backup_info.set_attribute('end_wal', stop_row['end_wal'])
             backup_info.set_attribute('end_offset', 0)
+            backup_info.set_attribute('end_time', stop_row['timestamp'])
         else:
             raise PostgresException(
                 'Cannot terminate exclusive backup. '

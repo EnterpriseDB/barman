@@ -196,8 +196,10 @@ class TestPostgres(object):
         # check the correct invocation of the execute method
         cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
-            'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, now() '
-            'FROM pg_stop_backup() as xlog_loc'
+            'SELECT location, '
+            '(pg_xlogfile_name_offset(location)).*, '
+            'now() AS timestamp '
+            'FROM pg_stop_backup() AS location'
         )
         # Test 2: Setup the mock to trigger an exception
         # expect the method to return None
@@ -219,7 +221,8 @@ class TestPostgres(object):
 
         cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
-            'SELECT pgespresso_stop_backup(%s), now()', ('test_label',)
+            'SELECT pgespresso_stop_backup(%s) AS end_wal, now() AS timestamp',
+            ('test_label',)
         )
 
         # Test 2: Setup the mock to trigger an exception
@@ -246,9 +249,10 @@ class TestPostgres(object):
         # check for the correct call on the execute method
         cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
-            'SELECT xlog_loc, '
-            '(pg_xlogfile_name_offset(xlog_loc)).*, '
-            'now() FROM pg_start_backup(%s,%s) as xlog_loc',
+            'SELECT location, '
+            '(pg_xlogfile_name_offset(location)).*, '
+            'now() AS timestamp '
+            'FROM pg_start_backup(%s,%s) AS location',
             ('test label', False)
         )
         conn.return_value.rollback.assert_has_calls([call(), call()])
@@ -260,9 +264,10 @@ class TestPostgres(object):
         assert server.postgres.start_exclusive_backup(backup_label)
         # check for the correct call on the execute method
         cursor_mock.execute.assert_called_once_with(
-            'SELECT xlog_loc, '
-            '(pg_xlogfile_name_offset(xlog_loc)).*, '
-            'now() FROM pg_start_backup(%s) as xlog_loc',
+            'SELECT location, '
+            '(pg_xlogfile_name_offset(location)).*, '
+            'now() AS timestamp '
+            'FROM pg_start_backup(%s) AS location',
             ('test label',)
         )
         conn.return_value.rollback.assert_has_calls([call(), call()])
@@ -290,7 +295,8 @@ class TestPostgres(object):
 
         cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
-            'SELECT pgespresso_start_backup(%s,%s), now()',
+            'SELECT pgespresso_start_backup(%s,%s) AS backup_label, '
+            'now() AS timestamp',
             (backup_label, server.postgres.config.immediate_checkpoint)
         )
         conn.return_value.rollback.assert_has_calls([call(), call()])

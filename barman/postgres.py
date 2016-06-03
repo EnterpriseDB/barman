@@ -25,7 +25,7 @@ from abc import ABCMeta
 
 import psycopg2
 from psycopg2.extensions import STATUS_IN_TRANSACTION
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import DictCursor, NamedTupleCursor
 
 from barman.exceptions import (ConninfoException, PostgresConnectionError,
                                PostgresException, PostgresIsInRecovery,
@@ -376,7 +376,7 @@ class PostgreSQLConnection(PostgreSQL):
         """
         try:
             if not self.is_in_recovery:
-                cur = self._cursor(cursor_factory=psycopg2.extras.DictCursor)
+                cur = self._cursor(cursor_factory=DictCursor)
                 cur.execute(
                     "SELECT location, "
                     "(pg_xlogfile_name_offset(location)).*, "
@@ -444,7 +444,7 @@ class PostgreSQLConnection(PostgreSQL):
             # pg_stat_archiver is only available from Postgres 9.4+
             if self.server_version < 90400:
                 return None
-            cur = self._cursor(cursor_factory=RealDictCursor)
+            cur = self._cursor(cursor_factory=DictCursor)
             # Select from pg_stat_archiver statistics view,
             # retrieving statistics about WAL archiver process activity,
             # also evaluating if the server is archiving without issues
@@ -650,18 +650,20 @@ class PostgreSQLConnection(PostgreSQL):
             conn.rollback()
 
             # Start the exclusive backup
-            cur = conn.cursor()
+            cur = conn.cursor(cursor_factory=DictCursor)
             if self.server_version < 80400:
                 cur.execute(
-                    "SELECT xlog_loc, "
-                    "(pg_xlogfile_name_offset(xlog_loc)).*, "
-                    "now() FROM pg_start_backup(%s) as xlog_loc",
+                    "SELECT location, "
+                    "(pg_xlogfile_name_offset(location)).*, "
+                    "now() AS timestamp "
+                    "FROM pg_start_backup(%s) AS location",
                     (backup_label,))
             else:
                 cur.execute(
-                    "SELECT xlog_loc, "
-                    "(pg_xlogfile_name_offset(xlog_loc)).*, "
-                    "now() FROM pg_start_backup(%s,%s) as xlog_loc",
+                    "SELECT location, "
+                    "(pg_xlogfile_name_offset(location)).*, "
+                    "now() AS timestamp "
+                    "FROM pg_start_backup(%s,%s) AS location",
                     (backup_label,
                      self.config.immediate_checkpoint))
 
@@ -688,10 +690,12 @@ class PostgreSQLConnection(PostgreSQL):
             conn = self.connect()
             # Issue a rollback to release any unneeded lock
             conn.rollback()
-            cur = conn.cursor()
+            cur = conn.cursor(cursor_factory=DictCursor)
             cur.execute(
-                'SELECT xlog_loc, (pg_xlogfile_name_offset(xlog_loc)).*, '
-                'now() FROM pg_stop_backup() as xlog_loc')
+                "SELECT location, "
+                "(pg_xlogfile_name_offset(location)).*, "
+                "now() AS timestamp "
+                "FROM pg_stop_backup() AS location")
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug('Error issuing pg_stop_backup() command: %s',
@@ -712,9 +716,10 @@ class PostgreSQLConnection(PostgreSQL):
             conn.rollback()
 
             # Start the concurrent backup
-            cur = conn.cursor()
+            cur = conn.cursor(cursor_factory=DictCursor)
             cur.execute(
-                'SELECT pgespresso_start_backup(%s,%s), now()',
+                'SELECT pgespresso_start_backup(%s,%s) AS backup_label, '
+                'now() AS timestamp',
                 (backup_label, self.config.immediate_checkpoint))
             start_row = cur.fetchone()
 
@@ -741,8 +746,9 @@ class PostgreSQLConnection(PostgreSQL):
             conn = self.connect()
             # Issue a rollback to release any unneeded lock
             conn.rollback()
-            cur = conn.cursor()
-            cur.execute("SELECT pgespresso_stop_backup(%s), now()",
+            cur = conn.cursor(cursor_factory=DictCursor)
+            cur.execute("SELECT pgespresso_stop_backup(%s) AS end_wal, "
+                        "now() AS timestamp",
                         (backup_label,))
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
@@ -820,7 +826,7 @@ class PostgreSQLConnection(PostgreSQL):
         Returns streaming replication information
         """
         try:
-            cur = self._cursor(cursor_factory=psycopg2.extras.NamedTupleCursor)
+            cur = self._cursor(cursor_factory=NamedTupleCursor)
 
             # Without superuser rights, this function is useless
             # TODO: provide a simplified version for non-superusers
