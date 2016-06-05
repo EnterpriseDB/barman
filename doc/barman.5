@@ -4,7 +4,13 @@
 .hy
 .SH NAME
 .PP
-barman \- backup and recovery manager for PostgreSQL
+barman \- Backup and Recovery Manager for PostgreSQL
+.SH DESCRIPTION
+.PP
+Barman is an administration tool for disaster recovery of PostgreSQL
+servers written in Python and maintained by 2ndQuadrant.
+Barman can perform remote backups of multiple servers in business
+critical environments and helps DBAs during the recovery phase.
 .SH CONFIGURATION FILE LOCATIONS
 .PP
 The system\-level Barman configuration file is located at
@@ -158,6 +164,15 @@ Global/Server.
 Number of retries of base backup copy, after an error.
 Used during both backup and recovery operations.
 Positive integer, default 0.
+Global/Server.
+.RS
+.RE
+.TP
+.B check_timeout
+Maximum execution time, in seconds per server, for a barman check
+command.
+Set to 0 to disable the timeout.
+Positive integer, default 30.
 Global/Server.
 .RS
 .RE
@@ -620,6 +635,8 @@ Carlo Ascani
 Homepage: <http://www.pgbarman.org/>
 .IP \[bu] 2
 Documentation: <http://docs.pgbarman.org/>
+.IP \[bu] 2
+Professional support: <http://www.2ndQuadrant.com/>
 .SH COPYING
 .PP
 Barman is the exclusive property of 2ndQuadrant Italia and its code is

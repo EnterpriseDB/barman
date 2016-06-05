@@ -28,11 +28,16 @@ In such cases, any ICT manager or DBA should be able to repair the
 incident and recover the database in the shortest possible time. We
 normally refer to this discipline as **Disaster recovery**.
 
-This guide assumes that you are familiar with theoretical disaster
+**IMPORTANT:** This guide assumes that you are familiar with theoretical disaster
 recovery concepts, and you have a grasp of PostgreSQL fundamentals in
 terms of physical backup and disaster recovery. If not, we encourage
 you to read the PostgreSQL documentation or any of the recommended
-books on PostgreSQL.
+books on PostgreSQL, such as:
+
+- [File System Level Backup] [28] (_PostgreSQL documentation_)
+- [Continuous Archiving and Point-in-Time Recovery (PITR)] [29] (_PostgreSQL documentation_)
+- [PostgreSQL 9 Administration Cookbook - 2nd edition] [30] (_book_)
+
 
 Professional training on this topic is another effective way of
 learning these concepts. At any time of the year you can find many
@@ -1765,6 +1770,9 @@ Assignment Form.
   [22]: http://www.postgresql.org/docs/current/static/protocol-replication.html
   [23]: http://www.postgresql.org/docs/current/static/role-attributes.html
   [24]: http://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION
-  [25]: http://www.postgresql.org/docs/9.4/static/app-pgreceivexlog.html
+  [25]: http://www.postgresql.org/docs/current/static/app-pgreceivexlog.html
   [26]: https://goo.gl/218Ghl
   [27]: https://github.com/emin100/barmanapi
+  [28]: https://www.postgresql.org/docs/current/static/backup-file.html
+  [29]: https://www.postgresql.org/docs/current/static/continuous-archiving.html
+  [30]: http://www.2ndquadrant.com/en/books/postgresql-9-administration-cookbook/

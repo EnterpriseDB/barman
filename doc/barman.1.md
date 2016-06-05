@@ -13,10 +13,10 @@ barman [*OPTIONS*] *COMMAND*
 
 # DESCRIPTION
 
-barman is an administration tool for disaster recovery of PostgreSQL
-servers written in Python. barman can perform remote backups of multiple
-servers in business critical environments and helps DBAs during the
-recovery phase.
+Barman is an administration tool for disaster recovery of PostgreSQL
+servers written in Python and maintained by 2ndQuadrant.
+Barman can perform remote backups of multiple servers in business critical
+environments and helps DBAs during the recovery phase.
 
 # OPTIONS
 
@@ -381,10 +381,11 @@ Past contributors:
 
 * Homepage: <http://www.pgbarman.org/>
 * Documentation: <http://docs.pgbarman.org/>
+* Professional support: <http://www.2ndQuadrant.com/>
 
 # COPYING
 
-Barman is the exclusive property of 2ndQuadrant Italia
+Barman is the property of 2ndQuadrant Italia
 and its code is distributed under GNU General Public License v3.
 
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl - <http://www.2ndQuadrant.it/>.

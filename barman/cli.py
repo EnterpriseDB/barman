@@ -963,9 +963,10 @@ def main():
     """
     The main method of Barman
     """
-    p = ArghParser()
+    p = ArghParser(epilog='Barman by 2ndQuadrant (www.2ndQuadrant.com)')
     p.add_argument('-v', '--version', action='version',
-                   version=barman.__version__)
+                   version='%s\n\nBarman by 2ndQuadrant (www.2ndQuadrant.com)'
+                           % barman.__version__)
     p.add_argument('-c', '--config',
                    help='uses a configuration file '
                         '(defaults: %s)'

@@ -46,13 +46,15 @@ Requires:	/usr/sbin/useradd
 Requires:	rsync >= 3.0.4
 
 %description
-Barman (Backup and Recovery Manager) is an open source administration
-tool for disaster recovery of PostgreSQL servers written in Python.
-It allows your organisation to perform remote backups of multiple servers
-in business critical environments and help DBAs during the recovery phase.
-Barman's most requested features include backup catalogues, incremental backup,
-retention policies, remote backup and recovery, archiving and compression
-of WAL files and backups. Barman is distributed under GNU GPL 3.
+Barman (Backup and Recovery Manager) is an open-source
+administration tool for disaster recovery of PostgreSQL
+servers written in Python.
+It allows your organisation to perform remote backups of
+multiple servers in business critical environments to
+reduce risk and help DBAs during the recovery phase.
+
+Barman is distributed under GNU GPL 3 and maintained
+by 2ndQuadrant.
 
 %prep
 %setup -n barman-%{version}%{?extra_version:%{extra_version}} -q
