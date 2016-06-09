@@ -416,10 +416,12 @@ class PostgresBackupExecutor(BackupExecutor):
             # If pg_basebackup version is >= 9.3 we use the connection
             # string because allows the user to set all the parameters
             # supported by the libpq library to create a connection
+            connection_string = self.server.streaming.get_connection_string(
+                self.config.streaming_backup_name)
             pg_basebackup = PgBasebackup(
                 destination=backup_dest,
                 pg_basebackup=remote_status['pg_basebackup_path'],
-                conn_string=self.config.streaming_conninfo,
+                conn_string=connection_string,
                 tbs_mapping=tbs_map,
                 bwlimit=bandwidth_limit,
                 immediate=self.config.immediate_checkpoint,

@@ -555,16 +555,11 @@ class StreamingWalArchiver(WalArchiver):
             output_handler = PgReceiveXlog.make_output_handler(
                 self.config.name + ': ')
             if remote_status['pg_receivexlog_version'] >= "9.3":
-                conn_string = self.config.streaming_conninfo
-                # Set a default application_name unless defined by user
-                if ('application_name' not in
-                        self.server.streaming.conn_parameters):
-                    conn_string += ' application_name=%s' % (
-                        self.config.streaming_archiver_name
-                    )
                 # If pg_receivexlog version is >= 9.3 we use the connection
                 # string because allows the user to use all the parameters
                 # supported by the libpq library to create a connection
+                conn_string = self.server.streaming.get_connection_string(
+                    self.config.streaming_archiver_name)
                 receive = PgReceiveXlog(
                     remote_status['pg_receivexlog_path'],
                     conn_string=conn_string,

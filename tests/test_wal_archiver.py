@@ -601,8 +601,12 @@ class TestStreamingWalArchiver(object):
                 'backup_directory': tmpdir
             },
         )
-        backup_manager.server.streaming.server_txt_version = "9.4.0"
-        backup_manager.server.streaming.get_remote_status.return_value = {
+        streaming_mock = backup_manager.server.streaming
+        streaming_mock.server_txt_version = "9.4.0"
+        streaming_mock.get_connection_string.return_value = (
+            'host=pg01.nowhere user=postgres port=5432 '
+            'application_name=barman_receive_wal')
+        streaming_mock.get_remote_status.return_value = {
             "streaming_supported": True
         }
         backup_manager.server.streaming.conn_parameters = {

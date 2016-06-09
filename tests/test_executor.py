@@ -678,8 +678,11 @@ class TestPostgresBackupExecutor(object):
             'pg_basebackup_path': '/fake/path',
             'pg_basebackup_bwlimit': False,
         }
-        backup_manager.server.config.bandwidth_limit = 1
-        backup_manager.server.streaming.conn_parameters = {
+        server_mock = backup_manager.server
+        streaming_mock = server_mock.streaming
+        server_mock.config.bandwidth_limit = 1
+        streaming_mock.get_connection_string.return_value = 'fake=connstring'
+        streaming_mock.conn_parameters = {
             'host': 'fakeHost',
             'port': 'fakePort',
             'user': 'fakeUser'

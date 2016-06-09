@@ -134,18 +134,6 @@ Global.
 .RS
 .RE
 .TP
-.B backup_method
-Method of Backup.
-Default: rsync
-.RS
-.RE
-.TP
-.B backup_directory
-Directory where backup data for a server will be placed.
-Server.
-.RS
-.RE
-.TP
 .B basebackups_directory
 Directory where base backups will be placed.
 Server.
@@ -425,6 +413,15 @@ Identifier to be used as \f[C]application_name\f[] by the
 \f[C]receive\-wal\f[] command.
 Only available with \f[C]pg_receivexlog\f[] >= 9.3.
 By default it is set to \f[C]barman_receive_wal\f[].
+Global/Server.
+.RS
+.RE
+.TP
+.B streaming_backup_name
+Identifier to be used as \f[C]application_name\f[] by the
+\f[C]pg_basebackup\f[] command.
+Only available with \f[C]pg_basebackup\f[] >= 9.3.
+By default it is set to \f[C]barman_streaming_backup\f[].
 Global/Server.
 .RS
 .RE

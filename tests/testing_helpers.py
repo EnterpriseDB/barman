@@ -241,6 +241,7 @@ def build_config_dictionary(config_keys=None):
         'pre_backup_script': None,
         'streaming_archiver_name': 'barman_receive_wal',
         'post_backup_retry_script': None,
+        'streaming_backup_name': 'barman_streaming_backup',
         'pre_backup_retry_script': None,
         'recovery_options': set(),
         'retention_policy': None,

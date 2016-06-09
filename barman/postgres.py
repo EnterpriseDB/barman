@@ -95,6 +95,21 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         # TODO: this might be made more robust in the future
         return dict(x.split('=', 1) for x in dsn.split(' '))
 
+    def get_connection_string(self, application_name=None):
+        """
+        Return the connection string, adding the application_name parameter
+        if requested, unless already defined by user in the connection string
+
+        :param str application_name: the application_name to add
+        :return str: the connection string
+        """
+        conn_string = self.conninfo
+        # check if the application name is already defined by user
+        if application_name and 'application_name' not in self.conn_parameters:
+            # Then add the it to the connection string
+            conn_string += ' application_name=%s' % application_name
+        return conn_string
+
     def connect(self):
         """
         Generic function for Postgres connection (using psycopg2)

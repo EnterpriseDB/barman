@@ -93,12 +93,6 @@ barman_home
 barman_lock_directory
 :   Directory for locks. Default: `%(barman_home)s`. Global.
 
-backup_method
-:   Method of Backup. Default: rsync
-
-backup_directory
-:   Directory where backup data for a server will be placed. Server.
-
 basebackups_directory
 :   Directory where base backups will be placed. Server.
 
@@ -275,6 +269,11 @@ streaming_archiver_name
 :   Identifier to be used as `application_name` by the `receive-wal` command.
     Only available with `pg_receivexlog` >= 9.3. By default it is set to
     `barman_receive_wal`. Global/Server.
+
+streaming_backup_name
+:   Identifier to be used as `application_name` by the `pg_basebackup` command.
+    Only available with `pg_basebackup` >= 9.3. By default it is set to
+    `barman_streaming_backup`. Global/Server.
 
 streaming_conninfo
 :   Connection string used by Barman to connect to the Postgres server via
