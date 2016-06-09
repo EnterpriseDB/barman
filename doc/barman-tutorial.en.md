@@ -500,6 +500,14 @@ archiving process, the `switch-xlog` command has been developed:
 barman@backup$ barman switch-xlog main
 ```
 
+Finally, for a new install using 1.6.1, if you receive a message that says
+to "please make sure WAL shipping is setup", you may need to force
+writing to the `xlog.db` file:
+
+```
+barman@backup$ barman switch-xlog --force main
+```
+
 #### Reducing RPO with WAL streaming
 
 From version 1.6.0, Barman improves its Recovery Point Objective (RPO)
