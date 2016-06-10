@@ -203,7 +203,7 @@ class PostgresBackupExecutor(BackupExecutor):
 
         # Forbid reuse_backup option.
         # It works only with rsync based backups.
-        if self.config.reuse_backup:
+        if self.config.reuse_backup in ('copy', 'link'):
             self.server.config.disabled = True
             # Report the error in the configuration errors message list
             self.server.config.msg_list.append(
