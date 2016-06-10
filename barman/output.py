@@ -819,12 +819,14 @@ class ConsoleOutputWriter(object):
                 if standby.backend_xmin:
                     self.info("     Standby's xmin  : %s",
                               standby.backend_xmin or '-')
-                self.info("     Sent location   : %s (diff: %s)",
-                          standby.sent_location,
-                          pretty_size(standby.sent_diff))
-                self.info("     Write location  : %s (diff: %s)",
-                          standby.write_location,
-                          pretty_size(standby.write_diff))
+                if standby.sent_location:
+                    self.info("     Sent location   : %s (diff: %s)",
+                              standby.sent_location,
+                              pretty_size(standby.sent_diff))
+                if standby.write_location:
+                    self.info("     Write location  : %s (diff: %s)",
+                              standby.write_location,
+                              pretty_size(standby.write_diff))
                 if standby.flush_location:
                     self.info("     Flush location  : %s (diff: %s)",
                               standby.flush_location,
