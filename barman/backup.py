@@ -284,8 +284,26 @@ class BackupManager(RemoteStatusMixin):
                 remove_until = next_backup
             elif BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
                 remove_until = backup
+
+            timelines_to_protect = set()
+            # If remove_until is not set there are no backup left
+            if remove_until:
+                # Retrieve the list of extra timelines that contains at least
+                # a backup. On such timelines we don't want to delete any WAL
+                for value in self.get_available_backups(
+                        BackupInfo.STATUS_ARCHIVING).values():
+                    # Ignore the backup that is being deleted
+                    if value == backup:
+                        continue
+                    timelines_to_protect.add(value.timeline)
+                # Remove the timeline of `remove_until` from the list.
+                # We have enough information to safely delete unused WAL files
+                # on it.
+                timelines_to_protect -= set([remove_until.timeline])
+
             output.info("Delete associated WAL segments:")
-            for name in self.remove_wal_before_backup(remove_until):
+            for name in self.remove_wal_before_backup(remove_until,
+                                                      timelines_to_protect):
                 output.info("\t%s", name)
         # As last action, remove the backup directory,
         # ending the delete operation
@@ -717,14 +735,19 @@ class BackupManager(RemoteStatusMixin):
                     '(history: %s, backup_labels: %s, wal_file: %s)',
                     self.config.name, history_count, label_count, wal_count)
 
-    def remove_wal_before_backup(self, backup_info):
+    def remove_wal_before_backup(self, backup_info, timelines_to_protect=None):
         """
         Remove WAL files which have been archived before the start of
         the provided backup.
 
         If no backup_info is provided delete all available WAL files
 
+        If timelines_to_protect list is passed, never remove a wal in one of
+        these timelines.
+
         :param BackupInfo|None backup_info: the backup information structure
+        :param set timelines_to_protect: optional list of timelines
+            to protect
         :return list: a list of removed WAL files
         """
         removed = []
@@ -740,13 +763,25 @@ class BackupManager(RemoteStatusMixin):
                             "to solve this issue",
                             wal_info.name, self.config.name)
                         continue
-                    # Keeps the WAL segment if it is a history file or later
+
+                    # Keeps the WAL segment if it is a history file
+                    keep = xlog.is_history_file(wal_info.name)
+
+                    # Keeps the WAL segment if its timeline is in
+                    # `timelines_to_protect`
+                    if timelines_to_protect:
+                        tli, _, _ = xlog.decode_segment_name(wal_info.name)
+                        keep |= tli in timelines_to_protect
+
+                    # Keeps the WAL segment if it is a newer
                     # than the given backup (the first available)
-                    if (xlog.is_history_file(wal_info.name) or
-                            (backup_info and
-                                wal_info.name >= backup_info.begin_wal)):
+                    if backup_info:
+                        keep |= wal_info.name >= backup_info.begin_wal
+
+                    # If the file has to be kept write it in the new xlogdb
+                    # otherwise delete it  and record it in the removed list
+                    if keep:
                         fxlogdb_new.write(wal_info.to_xlogdb_line())
-                        continue
                     else:
                         self.delete_wal(wal_info)
                         removed.append(wal_info.name)

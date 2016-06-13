@@ -16,6 +16,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 from datetime import datetime, timedelta
+from shutil import rmtree
 
 import mock
 from dateutil import tz
@@ -24,6 +25,7 @@ from barman.backup import BackupManager
 from barman.config import BackupOptions, Config
 from barman.infofile import BackupInfo, Tablespace
 from barman.server import Server
+from barman.utils import mkpath
 
 try:
     from cStringIO import StringIO
@@ -331,3 +333,24 @@ def build_backup_manager(server=None, name=None, config=None,
         manager = BackupManager(server=server)
     server.backup_manager = manager
     return manager
+
+
+def caplog_reset(caplog):
+    """
+    Workaround for the fact that caplog doesn't provide a reset method yet
+    """
+    del caplog.handler.records[:]
+    caplog.handler.stream.truncate(0)
+    caplog.handler.stream.seek(0)
+
+
+def build_backup_directories(backup_info):
+    """
+    Create on disk directory structure for a given BackupInfo
+
+    :param BackupInfo backup_info:
+    """
+    rmtree(backup_info.get_basebackup_directory(), ignore_errors=True)
+    mkpath(backup_info.get_data_directory())
+    for tbs in backup_info.tablespaces:
+        mkpath(backup_info.get_data_directory(tbs.oid))
