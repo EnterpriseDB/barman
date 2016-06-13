@@ -51,7 +51,7 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
     Abstract base class for any backup executors.
     """
 
-    def __init__(self, backup_manager):
+    def __init__(self, backup_manager, mode=None):
         """
         Base constructor
 
@@ -62,6 +62,8 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
         self.backup_manager = backup_manager
         self.server = backup_manager.server
         self.config = backup_manager.config
+        self.strategy = None
+        self._mode = mode
 
         # Holds the action being executed. Used for error messages.
         self.current_action = None
@@ -71,6 +73,23 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
         Initialise the internal state of the backup executor
         """
         self.current_action = "starting backup"
+
+    @property
+    def mode(self):
+        """
+        Property that defines the mode used for the backup.
+
+        If a strategy is present, the returned string is a combination
+        of the mode of the executor and the mode of the strategy
+        (eg: rsync-exclusive)
+
+        :return str: a string describing the mode used for the backup
+        """
+        strategy_mode = self.strategy.mode
+        if strategy_mode:
+            return "%s-%s" % (self._mode, strategy_mode)
+        else:
+            return self._mode
 
     @abstractmethod
     def backup(self, backup_info):
@@ -164,7 +183,8 @@ class PostgresBackupExecutor(BackupExecutor):
         :param barman.backup.BackupManager backup_manager: the BackupManager
             assigned to the executor
         """
-        super(PostgresBackupExecutor, self).__init__(backup_manager)
+        super(PostgresBackupExecutor, self).__init__(backup_manager,
+                                                     'postgres')
         self.validate_configuration()
         self.strategy = PostgresBackupStrategy(self)
 
@@ -462,14 +482,14 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
     Raises a SshCommandException if 'ssh_command' is not set.
     """
 
-    def __init__(self, backup_manager):
+    def __init__(self, backup_manager, mode):
         """
         Constructor of the abstract class for backups via Ssh
 
         :param barman.backup.BackupManager backup_manager: the BackupManager
             assigned to the executor
         """
-        super(SshBackupExecutor, self).__init__(backup_manager)
+        super(SshBackupExecutor, self).__init__(backup_manager, mode)
 
         # Retrieve the ssh command and the options necessary for the
         # remote ssh access.
@@ -694,7 +714,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
         :param barman.backup.BackupManager backup_manager: the BackupManager
             assigned to the strategy
         """
-        super(RsyncBackupExecutor, self).__init__(backup_manager)
+        super(RsyncBackupExecutor, self).__init__(backup_manager, 'rsync')
 
     def backup_copy(self, backup_info):
         """
@@ -904,7 +924,7 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
     Abstract base class for a strategy to be used by a backup executor.
     """
 
-    def __init__(self, executor):
+    def __init__(self, executor, mode=None):
         """
         Constructor
 
@@ -915,6 +935,7 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
 
         # Holds the action being executed. Used for error messages.
         self.current_action = None
+        self.mode = mode
 
     @abstractmethod
     def start_backup(self, backup_info):
@@ -1086,7 +1107,7 @@ class ExclusiveBackupStrategy(BackupStrategy):
         :param BackupExecutor executor: the BackupExecutor assigned
             to the strategy
         """
-        super(ExclusiveBackupStrategy, self).__init__(executor)
+        super(ExclusiveBackupStrategy, self).__init__(executor, 'exclusive')
         # Make sure that executor is of type SshBackupExecutor
         assert isinstance(executor, SshBackupExecutor)
         # Make sure that backup_options does not contain 'concurrent'
@@ -1184,7 +1205,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param BackupExecutor executor: the BackupExecutor assigned
             to the strategy
         """
-        super(ConcurrentBackupStrategy, self).__init__(executor)
+        super(ConcurrentBackupStrategy, self).__init__(executor, 'concurrent')
         # Make sure that executor is of type SshBackupExecutor
         assert isinstance(executor, SshBackupExecutor)
         # Make sure that backup_options contains 'concurrent'

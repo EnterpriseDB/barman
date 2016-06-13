@@ -55,7 +55,6 @@ class BackupManager(RemoteStatusMixin):
         Constructor
         """
         super(BackupManager, self).__init__()
-        self.name = "default"
         self.server = server
         self.config = server.config
         self._backup_cache = None
@@ -69,6 +68,15 @@ class BackupManager(RemoteStatusMixin):
         except SshCommandException as e:
             self.config.disabled = True
             self.config.msg_list.append(str(e).strip())
+
+    @property
+    def mode(self):
+        """
+        Property defining the BackupInfo mode content
+        """
+        if self.executor:
+            return self.executor.mode
+        return None
 
     def get_available_backups(self, status_filter=DEFAULT_STATUS_FILTER):
         """

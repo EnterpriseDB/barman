@@ -25,7 +25,7 @@ from dateutil.tz import tzlocal, tzoffset
 
 from barman.infofile import (BackupInfo, Field, FieldListFile, WalFileInfo,
                              load_datetime_tz)
-from testing_helpers import build_mocked_server
+from testing_helpers import build_backup_manager, build_mocked_server
 
 
 BASE_BACKUP_INFO = """backup_label=None
@@ -380,12 +380,24 @@ class TestBackupInfo(object):
         infofile.write('')
         # Mock the server, we don't need it at the moment
         server = build_mocked_server(name='test_server')
-        server.backup_manager.name = 'test_mode'
+        server.backup_manager.mode = 'test-mode'
         # load the data from the backup.info file
         b_info = BackupInfo(server, info_file=infofile.strpath)
         assert b_info
         assert b_info.server_name == 'test_server'
-        assert b_info.mode == 'test_mode'
+        assert b_info.mode == 'test-mode'
+
+    def test_mode(self):
+        # build a backup manager with a rsync executor (exclusive)
+        backup_manager = build_backup_manager()
+        # check the result of the mode property
+        assert backup_manager.executor.mode == 'rsync-exclusive'
+        # build a backup manager with a postgres executor
+        #  (strategy without mode)
+        backup_manager = build_backup_manager(global_conf={
+            'backup_method': 'postgres'})
+        # check the result of the mode property
+        assert backup_manager.executor.mode == 'postgres'
 
     def test_backup_info_from_backup_id(self, tmpdir):
         """

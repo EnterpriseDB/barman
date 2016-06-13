@@ -462,7 +462,7 @@ class BackupInfo(FieldListFile):
         self.config = server.config
         self.backup_manager = self.server.backup_manager
         self.server_name = self.config.name
-        self.mode = self.backup_manager.name
+        self.mode = self.backup_manager.mode
         if backup_id:
             # Cannot pass both info_file and backup_id
             if info_file:
