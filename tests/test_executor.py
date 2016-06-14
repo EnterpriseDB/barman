@@ -608,7 +608,7 @@ class TestPostgresBackupExecutor(object):
         # Error present because of the 'pg_basebackup_compatible': False
         assert check_strat.has_error is True
 
-    @mock.patch("barman.backup_executor.Command")
+    @mock.patch("barman.command_wrappers.Command")
     @mock.patch("barman.utils.which")
     def test_fetch_remote_status(self, mock_which, cmd_mock):
         """
@@ -629,6 +629,7 @@ class TestPostgresBackupExecutor(object):
         # Simulate the presence of pg_basebackup 9.5.1 and pg 95
         mock_which.return_value = '/fake/path'
         backup_manager.server.streaming.server_major_version = '9.5'
+        backup_manager.server.path = 'fake/path2'
         cmd_mock.return_value.out = '9.5.1'
         remote = backup_manager.executor.fetch_remote_status()
         assert remote['pg_basebackup_installed'] is True
@@ -656,7 +657,7 @@ class TestPostgresBackupExecutor(object):
         assert remote['pg_basebackup_version'] == '9.3.3'
         assert remote['pg_basebackup_compatible'] is False
 
-    @patch("barman.backup_executor.PgBasebackup")
+    @patch("barman.backup_executor.PgBaseBackup")
     @patch("barman.backup_executor.PostgresBackupExecutor.fetch_remote_status")
     def test_postgres_backup_copy(self, remote_mock,
                                   pg_basebackup_mock, tmpdir):
@@ -692,11 +693,11 @@ class TestPostgresBackupExecutor(object):
         backup_manager.executor.postgres_backup_copy(backup_info)
         # check that the bwlimit option have been ignored
         pg_basebackup_mock.assert_any_call(
+            connection=mock.ANY,
+            version='9.2',
+            app_name='barman_streaming_backup',
             destination=mock.ANY,
-            pg_basebackup='/fake/path',
-            host='fakeHost',
-            port='fakePort',
-            user='fakeUser',
+            command='/fake/path',
             tbs_mapping=mock.ANY,
             bwlimit=None,
             immediate=False,
@@ -715,9 +716,11 @@ class TestPostgresBackupExecutor(object):
         backup_manager.executor.postgres_backup_copy(backup_info)
         # check that the bwlimit option have been passed to the test call
         pg_basebackup_mock.assert_any_call(
+            connection=mock.ANY,
+            version='9.5',
+            app_name='barman_streaming_backup',
             destination=mock.ANY,
-            pg_basebackup='/fake/path',
-            conn_string='fake=connstring',
+            command='/fake/path',
             tbs_mapping=mock.ANY,
             bwlimit=1,
             immediate=True,

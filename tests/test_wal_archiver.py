@@ -518,7 +518,7 @@ class TestStreamingWalArchiver(object):
         StreamingWalArchiver(backup_manager)
 
     @patch("barman.utils.which")
-    @patch("barman.wal_archiver.Command")
+    @patch("barman.command_wrappers.Command")
     def test_check_receivexlog_installed(self, command_mock, which_mock):
         """
         Test for the check method of the StreamingWalArchiver class
@@ -552,7 +552,7 @@ class TestStreamingWalArchiver(object):
         }
 
     @patch("barman.utils.which")
-    @patch("barman.wal_archiver.Command")
+    @patch("barman.command_wrappers.Command")
     def test_check_receivexlog_is_compatible(self, command_mock, which_mock):
         """
         Test for the compatibility checks between versions of pg_receivexlog
@@ -633,13 +633,14 @@ class TestStreamingWalArchiver(object):
 
         archiver.receive_wal(reset=False)
         receivexlog_mock.assert_called_once_with(
-            'fake/path',
-            conn_string='host=pg01.nowhere user=postgres port=5432 '
-                        'application_name=barman_receive_wal',
-            dest=streaming_dir.strpath,
-            out_handler=ANY,
+            app_name='barman_receive_wal',
+            connection=ANY,
+            destination=streaming_dir.strpath,
             err_handler=ANY,
-        )
+            out_handler=ANY,
+            path=ANY,
+            command='fake/path',
+            version='9.4')
         receivexlog_mock.return_value.execute.assert_called_once_with()
 
         # Test: pg_receivexlog from 9.2
@@ -652,13 +653,14 @@ class TestStreamingWalArchiver(object):
         }
         archiver.receive_wal(reset=False)
         receivexlog_mock.assert_called_once_with(
-            'fake/path',
-            host='pg01.nowhere',
-            user='postgres',
-            port='5432',
-            dest=streaming_dir.strpath,
-            out_handler=ANY,
+            app_name='barman_receive_wal',
+            connection=ANY,
+            destination=streaming_dir.strpath,
             err_handler=ANY,
+            out_handler=ANY,
+            path=ANY,
+            command='fake/path',
+            version='9.2'
         )
         receivexlog_mock.return_value.execute.assert_called_once_with()
 
@@ -713,7 +715,7 @@ class TestStreamingWalArchiver(object):
             archiver.receive_wal()
 
     @patch("barman.utils.which")
-    @patch("barman.wal_archiver.Command")
+    @patch("barman.command_wrappers.Command")
     def test_when_streaming_connection_rejected(
             self, command_mock, which_mock):
         """

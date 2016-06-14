@@ -30,10 +30,11 @@ import logging
 import os
 import re
 from abc import ABCMeta, abstractmethod
+
 from distutils.version import LooseVersion as Version
 
-from barman import output, utils, xlog
-from barman.command_wrappers import Command, PgBasebackup, RsyncPgData
+from barman import output, xlog
+from barman.command_wrappers import PgBaseBackup, RsyncPgData
 from barman.config import BackupOptions
 from barman.exceptions import (CommandFailedException, DataTransferFailure,
                                FsOperationFailed, PostgresConnectionError,
@@ -338,27 +339,17 @@ class PostgresBackupExecutor(BackupExecutor):
             None)
 
         # Test pg_basebackup existence
-        pg_basebackup = utils.which("pg_basebackup",
-                                    self.backup_manager.server.path)
-        if pg_basebackup:
+        version_info = PgBaseBackup.get_version_info(
+            self.backup_manager.server.path)
+        if version_info['full_path']:
             remote_status["pg_basebackup_installed"] = True
-            remote_status["pg_basebackup_path"] = pg_basebackup
+            remote_status["pg_basebackup_path"] = version_info['full_path']
+            remote_status["pg_basebackup_version"] = (
+                version_info['full_version'])
+            pgbasebackup_version = version_info['major_version']
         else:
             remote_status["pg_basebackup_installed"] = False
             return remote_status
-
-        # Obtain the `pg_basebackup` version
-        pg_basebackup = Command(pg_basebackup, path=self.config.path_prefix,
-                                check=True)
-        try:
-            pg_basebackup("--version")
-            splitter_version = pg_basebackup.out.strip().split()
-            remote_status["pg_basebackup_version"] = splitter_version[-1]
-            pgbasebackup_version = Version(
-                utils.simplify_version(remote_status["pg_basebackup_version"]))
-        except CommandFailedException as e:
-            pgbasebackup_version = None
-            _logger.debug("Error invoking pg_basebackup: %s", e)
 
         # Is bandwidth limit supported?
         if remote_status['pg_basebackup_version'] is not None \
@@ -432,36 +423,16 @@ class PostgresBackupExecutor(BackupExecutor):
         if remote_status['pg_basebackup_bwlimit']:
             bandwidth_limit = self.config.bandwidth_limit
 
-        if remote_status['pg_basebackup_version'] >= '9.3':
-            # If pg_basebackup version is >= 9.3 we use the connection
-            # string because allows the user to set all the parameters
-            # supported by the libpq library to create a connection
-            connection_string = self.server.streaming.get_connection_string(
-                self.config.streaming_backup_name)
-            pg_basebackup = PgBasebackup(
-                destination=backup_dest,
-                pg_basebackup=remote_status['pg_basebackup_path'],
-                conn_string=connection_string,
-                tbs_mapping=tbs_map,
-                bwlimit=bandwidth_limit,
-                immediate=self.config.immediate_checkpoint,
-                path=self.backup_manager.server.path)
-        else:
-            # 9.2 version of pg_basebackup doesn't support
-            # connection strings so the 'split' version of the conninfo
-            # option is used instead.
-            conn_params = self.server.streaming.conn_parameters
-            pg_basebackup = PgBasebackup(
-                destination=backup_dest,
-                pg_basebackup=remote_status['pg_basebackup_path'],
-                host=conn_params.get('host', None),
-                port=conn_params.get('port', None),
-                user=conn_params.get('user', None),
-                tbs_mapping=tbs_map,
-                bwlimit=bandwidth_limit,
-                immediate=self.config.immediate_checkpoint,
-                path=self.backup_manager.server.path)
-
+        pg_basebackup = PgBaseBackup(
+            connection=self.server.streaming,
+            destination=backup_dest,
+            command=remote_status['pg_basebackup_path'],
+            version=remote_status['pg_basebackup_version'],
+            app_name=self.config.streaming_backup_name,
+            tbs_mapping=tbs_map,
+            bwlimit=bandwidth_limit,
+            immediate=self.config.immediate_checkpoint,
+            path=self.backup_manager.server.path)
         # Do the actual copy
         try:
             pg_basebackup()
@@ -469,8 +440,7 @@ class PostgresBackupExecutor(BackupExecutor):
             msg = "data transfer failure on directory '%s'" % \
                   backup_info.get_data_directory()
             raise DataTransferFailure.from_command_error(
-                'pg_basebackup', e, msg
-            )
+                'pg_basebackup', e, msg)
 
 
 class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):

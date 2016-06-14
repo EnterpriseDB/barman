@@ -36,6 +36,7 @@ import tempfile
 
 import dateutil.parser
 import dateutil.tz
+from distutils.version import LooseVersion as Version
 
 import barman.utils
 from barman.exceptions import CommandFailedException, RsyncListFilesFailure
@@ -769,115 +770,205 @@ class RsyncPgData(Rsync):
         Rsync.__init__(self, rsync, args=options, **kwargs)
 
 
-class PgBasebackup(Command):
+class PostgreSQLClient(Command):
     """
-    This class is a wrapper for the pg_basebackup system command
+    Superclass of all the PostgreSQL client commands.
     """
 
-    def __init__(self, destination,
-                 pg_basebackup='pg_basebackup',
-                 conn_string=None,
-                 host=None,
-                 port=None,
-                 user=None,
-                 bwlimit=None,
-                 tbs_mapping=None,
-                 args=None,
+    COMMAND = None
+
+    def __init__(self,
+                 connection,
+                 command,
+                 version=None,
+                 app_name=None,
                  path=None,
-                 immediate=False,
                  **kwargs):
         """
         Constructor
 
-        :param str conn_string: connection string
-        :param str host: the host to connect to
-        :param str port: the port used for the connection to PostgreSQL
-        :param str user: the user to use to connect to PostgreSQL
-        :param str pg_basebackup: command to run
-        :param str bwlimit: bandwidth limit for pg_basebackup
-        :param bool immediate: fast checkpoint identifier for pg_basebackup
+        :param PostgreSQL connection: an object representing
+          a database connection
+        :param str command: the command to use
+        :param Version version: the command version
+        :param str app_name: the application name to use for the connection
         :param str path: additional path for executable retrieval
-        :param List[str] args: additional arguments
-        :param Dict[str, str] tbs_mapping: used for tablespace
-        :param str destination: destination directory
-          relocation
         """
-        # Check if pg_basebackup is actually available
-        pg_basebackup_path = barman.utils.which(pg_basebackup, path)
-        if not pg_basebackup_path:
-            raise CommandFailedException('pg_basebackup not in system PATH: '
-                                         'is pg_basebackup installed?')
+        Command.__init__(self, command, path=path, **kwargs)
+
+        # Check if the command is actually available in path
+        command_path = barman.utils.which(command, path)
+        if not command_path:
+            # Raise an error if not
+            raise CommandFailedException('%s not in system PATH: '
+                                         'is %s installed?' % (command,
+                                                               command))
+
+        if version and version >= Version("9.3"):
+            # If version of the client is >= 9.3 we use the connection
+            # string because allows the user to use all the parameters
+            # supported by the libpq library to create a connection
+            conn_string = connection.get_connection_string(app_name)
+            self.args.append("--dbname=%s" % conn_string)
+        else:
+            # 9.2 version doesn't support
+            # connection strings so the 'split' version of the conninfo
+            # option is used instead.
+            conn_params = connection.conn_parameters
+            self.args.append("--host=%s" % conn_params.get('host', None))
+            self.args.append("--port=%s" % conn_params.get('port', None))
+            self.args.append("--username=%s" % conn_params.get('user', None))
+
+        self.enable_signal_forwarding(signal.SIGINT)
+        self.enable_signal_forwarding(signal.SIGTERM)
+
+    @classmethod
+    def get_version_info(cls, path=None):
+        """
+        Return a dictionary containing all the info about
+        the version of the PostgreSQL client
+
+        :param str path: the PATH env
+        """
+        if cls.COMMAND is None:
+            raise NotImplementedError(
+                "get_version_info cannot be invoked on %s" % cls.__name__)
+
+        version_info = dict.fromkeys(('full_path',
+                                      'full_version',
+                                      'major_version'),
+                                     None)
+
+        # Retrieve the path of the command
+        version_info['full_path'] = barman.utils.which(cls.COMMAND, path)
+        if version_info['full_path'] is None:
+            # The client is not installed or not working
+            return version_info
+
+        # Get the version string
+        command = Command(version_info['full_path'], path=path, check=True)
+        try:
+            command("--version")
+        except CommandFailedException as e:
+            _logger.debug("Error invoking %s: %s", cls.COMMAND, e)
+            return version_info
+
+        # Parse the full text version
+        full_version = command.out.strip().split()[-1]
+        version_info['full_version'] = Version(full_version)
+        # Extract the major version
+        version_info['major_version'] = Version(barman.utils.simplify_version(
+            full_version))
+
+        return version_info
+
+
+class PgBaseBackup(PostgreSQLClient):
+    """
+    Wrapper class for the pg_basebackup system command
+    """
+
+    COMMAND = 'pg_basebackup'
+
+    def __init__(self,
+                 connection,
+                 destination,
+                 command=COMMAND,
+                 version=None,
+                 app_name=None,
+                 bwlimit=None,
+                 tbs_mapping=None,
+                 immediate=False,
+                 check=True,
+                 args=None,
+                 **kwargs):
+        """
+        Constructor
+
+        :param PostgreSQL connection: an object representing
+          a database connection
+        :param str destination: destination directory path
+        :param str command: the command to use
+        :param Version version: the command version
+        :param str app_name: the application name to use for the connection
+        :param str bwlimit: bandwidth limit for pg_basebackup
+        :param Dict[str, str] tbs_mapping: used for tablespace
+        :param bool immediate: fast checkpoint identifier for pg_basebackup
+        :param bool check: check if the return value is in the list of
+          allowed values of the Command obj
+        :param List[str] args: additional arguments
+        """
+        PostgreSQLClient.__init__(
+            self,
+            connection=connection, command=command,
+            version=version, app_name=app_name,
+            check=check, **kwargs)
 
         # Set the backup destination
-        options = ['-v', '--pgdata=%s' % destination]
+        self.args += ['-v', '--pgdata=%s' % destination]
 
         # The tablespace mapping option is repeated once for each tablespace
         if tbs_mapping:
             for (tbs_source, tbs_destination) in tbs_mapping.items():
-                options.append('--tablespace-mapping=%s=%s' %
-                               (tbs_source, tbs_destination))
-
-        # Pass the connections parameters
-        if conn_string:
-            options.append("--dbname=%s" % conn_string)
-        if host:
-            options.append("--host=%s" % host)
-        if port:
-            options.append("--port=%s" % port)
-        if host:
-            options.append("--username=%s" % user)
+                self.args.append('--tablespace-mapping=%s=%s' %
+                                 (tbs_source, tbs_destination))
 
         # Only global bandwidth limit is supported
         if bwlimit is not None and bwlimit > 0:
-            options.append("--max-rate=%s" % bwlimit)
+            self.args.append("--max-rate=%s" % bwlimit)
 
         # Immediate checkpoint
         if immediate:
-            options.append("--checkpoint=fast")
+            self.args.append("--checkpoint=fast")
 
-        # Add other arguments
+        # Manage additional args
         if args:
-            options += args
-
-        Command.__init__(self, pg_basebackup, args=options, check=True,
-                         path=path, **kwargs)
+            self.args += args
 
 
-class PgReceiveXlog(Command):
+class PgReceiveXlog(PostgreSQLClient):
     """
     Wrapper class for pg_receivexlog
     """
 
+    COMMAND = "pg_receivexlog"
+
     def __init__(self,
-                 receivexlog='pg_receivexlog',
-                 conn_string=None,
-                 dest=None,
-                 args=None,
+                 connection,
+                 destination,
+                 command=COMMAND,
+                 version=None,
+                 app_name=None,
                  check=True,
-                 host=None,
-                 port=None,
-                 user=None,
+                 args=None,
                  **kwargs):
-        options = [
+        """
+        Constructor
+
+        :param PostgreSQL connection: an object representing
+          a database connection
+        :param str destination: destination directory path
+        :param str command: the command to use
+        :param Version version: the command version
+        :param str app_name: the application name to use for the connection
+        :param bool check: check if the return value is in the list of
+          allowed values of the Command obj
+        :param List[str] args: additional arguments
+        """
+        PostgreSQLClient.__init__(
+            self,
+            connection=connection, command=command,
+            version=version, app_name=app_name,
+            check=check, **kwargs)
+
+        self.args += [
             "--verbose",
             "--no-loop",
-            "--directory=%s" % dest]
-        # Pass the connections parameters
-        if conn_string:
-            options.append("--dbname=%s" % conn_string)
-        if host:
-            options.append("--host=%s" % host)
-        if port:
-            options.append("--port=%s" % port)
-        if host:
-            options.append("--username=%s" % user)
-        # Add eventual other arguments
+            "--directory=%s" % destination]
+
+        # Manage additional args
         if args:
-            options += args
-        Command.__init__(self, receivexlog, args=options, check=check,
-                         **kwargs)
-        self.enable_signal_forwarding(signal.SIGINT)
-        self.enable_signal_forwarding(signal.SIGTERM)
+            self.args += args
 
 
 class BarmanSubProcess(object):

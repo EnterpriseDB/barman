@@ -22,12 +22,12 @@ import logging
 import os
 import shutil
 from abc import ABCMeta, abstractmethod
-from distutils.version import LooseVersion as Version
 from glob import glob
 
-from barman import output, utils, xlog
-from barman.command_wrappers import (Command, CommandFailedException,
-                                     PgReceiveXlog)
+from distutils.version import LooseVersion as Version
+
+from barman import output, xlog
+from barman.command_wrappers import CommandFailedException, PgReceiveXlog
 from barman.exceptions import (AbortedRetryHookScript, ArchiverFailure,
                                DuplicateWalFile, MatchingDuplicateWalFile)
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
@@ -450,67 +450,55 @@ class StreamingWalArchiver(WalArchiver):
 
         :rtype: dict[str, None|str]
         """
-        result = dict.fromkeys(
+        remote_status = dict.fromkeys(
             ('pg_receivexlog_compatible',
              'pg_receivexlog_installed',
              'pg_receivexlog_path',
              'pg_receivexlog_version'),
             None)
 
-        # Detect a pg_receivexlog executable
-        pg_receivexlog = utils.which("pg_receivexlog",
-                                     self.backup_manager.server.path)
-
         # Test pg_receivexlog existence
-        if pg_receivexlog:
-            result["pg_receivexlog_installed"] = True
-            result["pg_receivexlog_path"] = pg_receivexlog
+        version_info = PgReceiveXlog.get_version_info(
+            self.backup_manager.server.path)
+        if version_info['full_path']:
+            remote_status["pg_receivexlog_installed"] = True
+            remote_status["pg_receivexlog_path"] = version_info['full_path']
+            remote_status["pg_receivexlog_version"] = (
+                version_info['full_version'])
+            pgreceivexlog_version = version_info['major_version']
         else:
-            result["pg_receivexlog_installed"] = False
-            return result
+            remote_status["pg_receivexlog_installed"] = False
+            return remote_status
 
-        receivexlog = Command(pg_receivexlog, check=True)
-
-        # Obtain the `pg_receivexlog` version
-        try:
-            receivexlog("--version")
-            splitter_version = receivexlog.out.strip().split()
-            result["pg_receivexlog_version"] = splitter_version[-1]
-            receivexlog_version = Version(
-                utils.simplify_version(result["pg_receivexlog_version"]))
-        except CommandFailedException as e:
-            receivexlog_version = None
-            _logger.debug("Error invoking pg_receivexlog: %s", e)
-
-        # Retrieve the PostgreSQL versionn
+        # Retrieve the PostgreSQL version
         pg_version = None
         if self.server.streaming is not None:
             pg_version = self.server.streaming.server_major_version
 
         # If one of the version is unknown we cannot compare them
-        if receivexlog_version is None or pg_version is None:
-            return result
+        if pgreceivexlog_version is None or pg_version is None:
+            return remote_status
 
         # pg_version is not None so transform into a Version object
         # for easier comparison between versions
         pg_version = Version(pg_version)
 
         # pg_receivexlog 9.2 is compatible only with PostgreSQL 9.2.
-        if "9.2" == pg_version == receivexlog_version:
-            result["pg_receivexlog_compatible"] = True
+        if "9.2" == pg_version == pgreceivexlog_version:
+            remote_status["pg_receivexlog_compatible"] = True
 
         # other versions are compatible with lesser versions of PostgreSQL
         # WARNING: The development versions of `pg_receivexlog` are considered
         # higher than the stable versions here, but this is not an issue
         # because it accepts everything that is less than
         # the `pg_receivexlog` version(e.g. '9.6' is less than '9.6devel')
-        elif "9.2" < pg_version <= receivexlog_version:
-            result["pg_receivexlog_compatible"] = True
+        elif "9.2" < pg_version <= pgreceivexlog_version:
+            remote_status["pg_receivexlog_compatible"] = True
 
         else:
-            result["pg_receivexlog_compatible"] = False
+            remote_status["pg_receivexlog_compatible"] = False
 
-        return result
+        return remote_status
 
     def receive_wal(self, reset=False):
         """
@@ -554,31 +542,16 @@ class StreamingWalArchiver(WalArchiver):
         try:
             output_handler = PgReceiveXlog.make_output_handler(
                 self.config.name + ': ')
-            if remote_status['pg_receivexlog_version'] >= "9.3":
-                # If pg_receivexlog version is >= 9.3 we use the connection
-                # string because allows the user to use all the parameters
-                # supported by the libpq library to create a connection
-                conn_string = self.server.streaming.get_connection_string(
-                    self.config.streaming_archiver_name)
-                receive = PgReceiveXlog(
-                    remote_status['pg_receivexlog_path'],
-                    conn_string=conn_string,
-                    dest=self.config.streaming_wals_directory,
-                    out_handler=output_handler,
-                    err_handler=output_handler)
-            else:
-                # 9.2 version of pg_receivexlog doesn't support
-                # connection strings so the 'split' version of the conninfo
-                # option is used instead.
-                conn_params = self.server.streaming.conn_parameters
-                receive = PgReceiveXlog(
-                    remote_status['pg_receivexlog_path'],
-                    host=conn_params.get('host', None),
-                    port=conn_params.get('port', None),
-                    user=conn_params.get('user', None),
-                    dest=self.config.streaming_wals_directory,
-                    out_handler=output_handler,
-                    err_handler=output_handler)
+            receive = PgReceiveXlog(
+                connection=self.server.streaming,
+                destination=self.config.streaming_wals_directory,
+                command=remote_status['pg_receivexlog_path'],
+                version=remote_status['pg_receivexlog_version'],
+                app_name=self.config.streaming_archiver_name,
+                path=self.backup_manager.server.path,
+                out_handler=output_handler,
+                err_handler=output_handler
+            )
             # Finally execute the pg_receivexlog process
             receive.execute()
         except CommandFailedException as e:

@@ -899,21 +899,153 @@ class TestRsyncPgdata(object):
         assert cmd.err == err
 
 
+class TestPgBaseBackup(object):
+    """
+    Simple class for testing of the PgBaseBackup obj
+    """
+
+    @mock.patch('barman.utils.which')
+    def test_init_simple(self, which_mock):
+        """
+        Test class build
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = 'test_conn'
+        pgbasebackup = command_wrappers.PgBaseBackup(
+            destination='/fake/path',
+            connection=connection_mock,
+            version='9.3',
+            app_name='fake_app_name')
+        assert pgbasebackup.args == [
+            "--dbname=test_conn",
+            "-v",
+            '--pgdata=/fake/path']
+        assert pgbasebackup.cmd == 'pg_basebackup'
+        assert pgbasebackup.check is True
+        assert pgbasebackup.close_fds is True
+        assert pgbasebackup.allowed_retval == (0,)
+        assert pgbasebackup.debug is False
+        assert pgbasebackup.err_handler
+        assert pgbasebackup.out_handler
+
+        connection_mock.conn_parameters = {'host': 'fake host',
+                                           'port': 'fake_port',
+                                           'user': 'fake_user'}
+        pgbasebackup = command_wrappers.PgBaseBackup(
+            destination='/fake/target',
+            connection=connection_mock,
+            version='9.2',
+            app_name='fake_app_name'
+        )
+        assert pgbasebackup.args == [
+            "--host=fake host",
+            "--port=fake_port",
+            "--username=fake_user",
+            "-v",
+            '--pgdata=/fake/target']
+
+        which_mock.return_value = None
+        with pytest.raises(CommandFailedException):
+            # Expect an exception for pg_basebackup not in path
+            command_wrappers.PgBaseBackup(destination='/fake/target',
+                                          connection=connection_mock,
+                                          command='fake/path',
+                                          version='9.3',
+                                          app_name='fake_app_name')
+
+    @mock.patch("barman.utils.which")
+    def test_init_args(self, which_mock):
+        """
+        Test class build
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = 'test_connstring'
+        pg_basebackup = command_wrappers.PgBaseBackup(
+            command='/path/to/pg_basebackup',
+            connection=connection_mock,
+            version='9.4',
+            destination='/dest/dir',
+            args=['a', 'b'])
+        assert pg_basebackup.args == [
+            "--dbname=test_connstring",
+            "-v",
+            "--pgdata=/dest/dir",
+            "a",
+            "b",
+        ]
+        assert pg_basebackup.cmd == '/path/to/pg_basebackup'
+        assert pg_basebackup.check is True
+        assert pg_basebackup.close_fds is True
+        assert pg_basebackup.allowed_retval == (0,)
+        assert pg_basebackup.debug is False
+        assert pg_basebackup.err_handler
+        assert pg_basebackup.out_handler
+
+    @mock.patch("barman.utils.which")
+    @mock.patch('barman.command_wrappers.Command.pipe_processor_loop')
+    @mock.patch('barman.command_wrappers.subprocess.Popen')
+    def test_simple_invocation(self,
+                               popen,
+                               pipe_processor_loop,
+                               which_mock,
+                               caplog):
+        ret = 0
+        out = 'out'
+        err = 'err'
+
+        pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = 'fake_connstring'
+        which_mock.return_value = '/bin/pg_basebackup'
+        cmd = command_wrappers.PgBaseBackup(
+            destination='/fake/target',
+            connection=connection_mock,
+            version='9.4',
+            app_name='fake_app_name')
+        result = cmd.execute()
+
+        popen.assert_called_with(
+            ['pg_basebackup', '--dbname=fake_connstring', '-v',
+             '--pgdata=/fake/target'],
+            close_fds=True,
+            env=None,
+            preexec_fn=mock.ANY,
+            shell=False,
+            stdout=mock.ANY, stderr=mock.ANY, stdin=mock.ANY,
+        )
+        assert not pipe.stdin.write.called
+        pipe.stdin.close.assert_called_once_with()
+        assert result == ret
+        assert cmd.ret == ret
+        assert cmd.out is None
+        assert cmd.err is None
+        assert ('PgBaseBackup', INFO, out) in caplog.record_tuples
+        assert ('PgBaseBackup', WARNING, err) in caplog.record_tuples
+
+
 # noinspection PyMethodMayBeStatic
 class TestReceiveXlog(object):
     """
     Simple class for testing of the PgReceiveXlog obj
     """
 
-    def test_init(self):
+    @mock.patch("barman.utils.which")
+    def test_init_simple(self, which_mock):
         """
         Test class build
         """
-        receivexlog = command_wrappers.PgReceiveXlog()
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = 'test_conn'
+        receivexlog = command_wrappers.PgReceiveXlog(
+            destination='/fake/target',
+            connection=connection_mock,
+            version='9.3',
+            app_name='fake_app_name')
         assert receivexlog.args == [
+            "--dbname=test_conn",
             "--verbose",
             "--no-loop",
-            "--directory=None"
+            "--directory=/fake/target"
         ]
         assert receivexlog.cmd == 'pg_receivexlog'
         assert receivexlog.check is True
@@ -923,20 +1055,42 @@ class TestReceiveXlog(object):
         assert receivexlog.err_handler
         assert receivexlog.out_handler
 
-    def test_init_args(self):
+        connection_mock.conn_parameters = {'host': 'fake host',
+                                           'port': 'fake_port',
+                                           'user': 'fake_user'}
+        receivexlog = command_wrappers.PgReceiveXlog(
+            destination='/fake/target',
+            command=connection_mock,
+            connection=connection_mock,
+            version='9.2',
+            app_name='fake_app_name')
+        assert receivexlog.args == [
+            "--host=fake host",
+            "--port=fake_port",
+            "--username=fake_user",
+            "--verbose",
+            "--no-loop",
+            "--directory=/fake/target"
+        ]
+
+    @mock.patch("barman.utils.which")
+    def test_init_args(self, which_mock):
         """
         Test class build
         """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = 'test_connstring'
         receivexlog = command_wrappers.PgReceiveXlog(
-            '/path/to/pg_receivexlog',
-            conn_string='co=nn str=ing',
-            dest='/dest/dir',
+            destination='/dest/dir',
+            command='/path/to/pg_receivexlog',
+            connection=connection_mock,
+            version='9.4',
             args=['a', 'b'])
         assert receivexlog.args == [
+            "--dbname=test_connstring",
             "--verbose",
             "--no-loop",
             "--directory=/dest/dir",
-            "--dbname=co=nn str=ing",
             "a",
             "b",
         ]
@@ -948,28 +1102,36 @@ class TestReceiveXlog(object):
         assert receivexlog.err_handler
         assert receivexlog.out_handler
 
+    @mock.patch("barman.utils.which")
     @mock.patch('barman.command_wrappers.Command.pipe_processor_loop')
     @mock.patch('barman.command_wrappers.subprocess.Popen')
-    def test_simple_invocation(self, popen, pipe_processor_loop, caplog):
+    def test_simple_invocation(self,
+                               popen,
+                               pipe_processor_loop,
+                               which_mock,
+                               caplog):
         ret = 0
         out = 'out'
         err = 'err'
 
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
-
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = 'fake_connstring'
         cmd = command_wrappers.PgReceiveXlog(
-            host='host', port='1234', user='user')
+            destination='/fake/target',
+            connection=connection_mock,
+            version='9.4',
+            app_name='fake_app_name')
         result = cmd.execute()
 
         popen.assert_called_with(
-            [
-                'pg_receivexlog', '--verbose', '--no-loop',
-                '--directory=None', '--host=host', '--port=1234',
-                '--username=user'
-            ],
+            ['pg_receivexlog',
+             "--dbname=fake_connstring",
+             '--verbose', '--no-loop', '--directory=/fake/target'],
+            close_fds=True,
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY, close_fds=True
+            preexec_fn=mock.ANY
         )
         assert not pipe.stdin.write.called
         pipe.stdin.close.assert_called_once_with()
