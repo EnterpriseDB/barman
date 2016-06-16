@@ -180,8 +180,8 @@ class TestRsyncBackupExecutor(object):
             "Copying files.\n"
             "Copy done.") in out
 
-        gpb_mock.assert_called_once_with(backup_info.backup_id)
-        rwbb_mock.assert_called_once_with(backup_info)
+        gpb_mock.assert_called_with(backup_info.backup_id)
+        rwbb_mock.assert_called_with(backup_info)
         backup_manager.executor.strategy.start_backup.assert_called_once_with(
             backup_info)
         retry_mock.assert_called_once_with(
@@ -215,8 +215,8 @@ class TestRsyncBackupExecutor(object):
             "Copying files.\n"
             "Copy done.") in out
 
-        gpb_mock.assert_called_once_with(backup_info.backup_id)
-        rwbb_mock.assert_called_once_with(backup_info)
+        gpb_mock.assert_called_with(backup_info.backup_id)
+        rwbb_mock.assert_called_with(backup_info)
         backup_manager.executor.strategy.start_backup.assert_called_once_with(
             backup_info)
         retry_mock.assert_called_once_with(
@@ -484,7 +484,7 @@ class TestStrategy(object):
 
     def test_exclusive_stop_backup(self):
         """
-        Basic test for the start_backup method
+        Basic test for the stop_backup method
 
         :param stop_mock: mimic the response od _pg_stop_backup
         """
@@ -535,7 +535,7 @@ class TestStrategy(object):
             'timestamp': stop_time
         }
 
-        backup_info = build_test_backup_info()
+        backup_info = build_test_backup_info(timeline=6)
         backup_manager.executor.strategy.stop_backup(backup_info)
 
         assert backup_info.end_xlog == 'A257/44FFFFFF'
@@ -564,26 +564,29 @@ class TestStrategy(object):
         # This is a pg 9.6
         server.postgres.server_version = 90600
         # Mock stop backup call for the new api method
+        start_time = datetime.datetime.now(tz.tzlocal()).replace(microsecond=0)
         server.postgres.stop_concurrent_backup.return_value = {
-            'location': "266/4A9C1EF8",
-            'file_name': "00000010000002660000004A",
-            'file_offset': 10231544,
+            'location': "A266/4A9C1EF8",
             'timestamp': stop_time,
             'backup_label':
                 'START WAL LOCATION: A257/44B4C0D8 '
-                '(file 000000060000A25700000044)'
+                '(file 000000060000A25700000044)\n'
+                'START TIME: %s\n' %
+                start_time.strftime('%Y-%m-%d %H:%M:%S %Z')
         }
 
         backup_info = build_test_backup_info()
         backup_manager.executor.strategy.stop_backup(backup_info)
 
-        assert backup_info.end_xlog == '266/4A9C1EF8'
-        assert backup_info.end_wal == '00000010000002660000004A'
-        assert backup_info.end_offset == 10231544
+        assert backup_info.end_xlog == 'A266/4A9C1EF8'
+        assert backup_info.end_wal == '000000060000A2660000004A'
+        assert backup_info.end_offset == 0x9C1EF8
         assert backup_info.end_time == stop_time
         assert backup_info.backup_label == (
             'START WAL LOCATION: A257/44B4C0D8 '
-            '(file 000000060000A25700000044)'
+            '(file 000000060000A25700000044)\n'
+            'START TIME: %s\n' %
+            start_time.strftime('%Y-%m-%d %H:%M:%S %Z')
         )
 
 
@@ -830,21 +833,52 @@ class TestPostgresBackupExecutor(object):
         with pytest.raises(DataTransferFailure):
             backup_manager.executor.backup_copy(backup_info)
 
-    def test_strategy_pg_get_metadata(self):
+    def test_postgres_start_backup(self):
         """
-        Test the backup_info population through
-        the strategy start_backup method
+        Test concurrent backup using pg_basebackup
         """
+        # Test: start concurrent backup
         backup_manager = build_backup_manager(global_conf={
             'backup_method': 'postgres'
         })
-        backup_info = BackupInfo(backup_manager.server,
-                                 backup_id='fake_backup_id')
-        backup_manager.server.postgres.get_setting.side_effect = [
+        # Mock server.get_pg_setting('data_directory') call
+        postgres_mock = backup_manager.server.postgres
+        postgres_mock.get_setting.side_effect = [
             '/test/fake_data_dir',
         ]
-        # Backup_info.pgdata now is not available
-        assert backup_info.pgdata is None
+        # Mock server.get_pg_configuration_files() call
+        postgres_mock.get_configuration_files.return_value = dict(
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/pg_hba.conf",
+            ident_file="/pg/pg_ident.conf",
+        )
+        # Mock server.get_pg_tablespaces() call
+        tablespaces = [Tablespace._make(('test_tbs', 1234, '/tbs/test'))]
+        postgres_mock.get_tablespaces.return_value = tablespaces
+        # this is a postgres 9.5
+        postgres_mock.server_version = 90500
+
+        # Mock call to new api method
+        start_time = datetime.datetime.now()
+        postgres_mock.current_xlog_info = {
+            'location': "A257/44B4C0D8",
+            'timestamp': start_time,
+        }
+        # Build a test empty backup info
+        backup_info = BackupInfo(server=backup_manager.server,
+                                 backup_id='fake_id2')
+
         backup_manager.executor.strategy.start_backup(backup_info)
-        # Backup_info.pgdata now is available
+
+        # Check that all the values are correctly saved inside the BackupInfo
         assert backup_info.pgdata == '/test/fake_data_dir'
+        assert backup_info.config_file == "/etc/postgresql.conf"
+        assert backup_info.hba_file == "/pg/pg_hba.conf"
+        assert backup_info.ident_file == "/pg/pg_ident.conf"
+        assert backup_info.tablespaces == tablespaces
+        assert backup_info.status == 'STARTED'
+        assert backup_info.timeline is None
+        assert backup_info.begin_xlog == 'A257/44B4C0D8'
+        assert backup_info.begin_wal is None
+        assert backup_info.begin_offset is None
+        assert backup_info.begin_time == start_time

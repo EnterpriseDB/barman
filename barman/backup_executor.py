@@ -133,6 +133,11 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
         :param barman.infofile.BackupInfo backup_info: the backup to check
         """
+
+        # Do nothing if the begin_wal is not defined yet
+        if backup_info.begin_wal is None:
+            return
+
         # If this is the first backup, purge unused WAL files
         previous_backup = self.backup_manager.get_previous_backup(
             backup_info.backup_id)
@@ -277,8 +282,17 @@ class PostgresBackupExecutor(BackupExecutor):
         try:
             # Set data directory and server version
             self.strategy.start_backup(backup_info)
-            backup_info.set_attribute('status', "STARTED")
             backup_info.save()
+
+            if backup_info.begin_wal is not None:
+                output.info("Backup start at xlog location: %s (%s, %08X)",
+                            backup_info.begin_xlog,
+                            backup_info.begin_wal,
+                            backup_info.begin_offset)
+            else:
+                output.info("Backup start at xlog location: %s",
+                            backup_info.begin_xlog)
+
             # Start the copy
             self.current_action = "copying files"
             output.info("Copying files.")
@@ -286,6 +300,7 @@ class PostgresBackupExecutor(BackupExecutor):
                                                   backup_info)
             output.info("Copy done.")
             self.strategy.stop_backup(backup_info)
+
             # If this is the first backup, purge eventually unused WAL files
             self._purge_unused_wal_files(backup_info)
         except CommandFailedException as e:
@@ -535,10 +550,14 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             # This must be inside the try-except, because it could fail
             backup_info.save()
 
-            output.info("Backup start at xlog location: %s (%s, %08X)",
-                        backup_info.begin_xlog,
-                        backup_info.begin_wal,
-                        backup_info.begin_offset)
+            if backup_info.begin_wal is not None:
+                output.info("Backup start at xlog location: %s (%s, %08X)",
+                            backup_info.begin_xlog,
+                            backup_info.begin_wal,
+                            backup_info.begin_offset)
+            else:
+                output.info("Backup start at xlog location: %s",
+                            backup_info.begin_xlog)
 
             # If this is the first backup, purge eventually unused WAL files
             self._purge_unused_wal_files(backup_info)
@@ -551,6 +570,11 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                                                   backup_info)
 
             output.info("Copy done.")
+
+            # Try again to purge eventually unused WAL files. At this point
+            # the begin_wal value is surely known. Doing it twice is safe
+            # because this function is useful only during the first backup.
+            self._purge_unused_wal_files(backup_info)
         except:
             # we do not need to do anything here besides re-raising the
             # exception. It will be handled in the external try block.
@@ -983,34 +1007,54 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
                 msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
                 _logger.info(msg)
 
-    def _backup_info_from_start_backup(self, backup_info, start_row):
+    @staticmethod
+    def _backup_info_from_start_location(backup_info, start_info):
         """
         Fill a backup info with information from a start_backup
 
         :param barman.infofile.BackupInfo backup_info: object representing a
             backup
-        :param DictCursor start_row: the result of the pg_start_backup command
+        :param DictCursor start_info: the result of the pg_start_backup
+        command
         """
         backup_info.set_attribute('status', "STARTED")
-        backup_info.set_attribute('timeline',
-                                  int(start_row['file_name'][0:8], 16))
-        backup_info.set_attribute('begin_xlog', start_row['location'])
-        backup_info.set_attribute('begin_wal', start_row['file_name'])
-        backup_info.set_attribute('begin_offset', start_row['file_offset'])
-        backup_info.set_attribute('begin_time', start_row['timestamp'])
+        backup_info.set_attribute('begin_time', start_info['timestamp'])
+        backup_info.set_attribute('begin_xlog', start_info['location'])
 
-    def _backup_info_from_stop_backup(self, backup_info, stop_row):
+        # If file_name and file_offset are available, use them
+        if (start_info.get('file_name') is not None and
+                start_info.get('file_offset') is not None):
+            backup_info.set_attribute('timeline',
+                                      int(start_info['file_name'][0:8], 16))
+            backup_info.set_attribute('begin_wal',
+                                      start_info['file_name'])
+            backup_info.set_attribute('begin_offset',
+                                      start_info['file_offset'])
+
+    @staticmethod
+    def _backup_info_from_stop_location(backup_info, stop_info):
         """
-        Fill a backup info with information from a stop_backup
+        Fill a backup info with information from a backup stop location
 
         :param barman.infofile.BackupInfo backup_info: object representing a
             backup
-        :param DictCursor stop_row: the result of the pg_stop_backup command
+        :param DictCursor stop_info: location info of stop backup
         """
-        backup_info.set_attribute('end_time', stop_row['timestamp'])
-        backup_info.set_attribute('end_xlog', stop_row['location'])
-        backup_info.set_attribute('end_wal', stop_row['file_name'])
-        backup_info.set_attribute('end_offset', stop_row['file_offset'])
+
+        # If file_name or file_offset are missing build them using the stop
+        # location and the timeline from backup_info.
+        if (stop_info.get('file_name') is None or
+                stop_info.get('file_offset') is None):
+            # Take a copy of stop_info because we are going to update it
+            stop_info = stop_info.copy()
+            stop_info.update(xlog.location_to_xlogfile_name_offset(
+                stop_info['location'],
+                backup_info.timeline))
+
+        backup_info.set_attribute('end_time', stop_info['timestamp'])
+        backup_info.set_attribute('end_xlog', stop_info['location'])
+        backup_info.set_attribute('end_wal', stop_info['file_name'])
+        backup_info.set_attribute('end_offset', stop_info['file_offset'])
 
     def _backup_info_from_backup_label(self, backup_info):
         """
@@ -1070,8 +1114,11 @@ class PostgresBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        self.current_action = "Initialising postgres backup_method"
-        self._pg_get_metadata(backup_info)
+        self.current_action = "initialising postgres backup_method"
+        super(PostgresBackupStrategy, self).start_backup(backup_info)
+        postgres = self.executor.server.postgres
+        current_xlog_info = postgres.current_xlog_info
+        self._backup_info_from_start_location(backup_info, current_xlog_info)
 
     def stop_backup(self, backup_info):
         """
@@ -1088,23 +1135,14 @@ class PostgresBackupStrategy(BackupStrategy):
         """
         self._backup_info_from_backup_label(backup_info)
 
-        output.info("Backup started at xlog location: %s (%s, %08X)",
-                    backup_info.begin_xlog,
-                    backup_info.begin_wal,
-                    backup_info.begin_offset)
-
-        # Set data in backup_info from curent_xlog_info
+        # Set data in backup_info from current_xlog_info
         self.current_action = "stopping postgres backup_method"
         output.info("Finalising the backup.")
-        curent_xlog_info = self.executor.server.postgres.current_xlog_info
-        backup_info.set_attribute('end_time',
-                                  curent_xlog_info['timestamp'])
-        backup_info.set_attribute('end_xlog',
-                                  curent_xlog_info['location'])
-        backup_info.set_attribute('end_wal',
-                                  curent_xlog_info['file_name'])
-        backup_info.set_attribute('end_offset',
-                                  curent_xlog_info['file_offset'])
+
+        # Get the current xlog position
+        postgres = self.executor.server.postgres
+        current_xlog_info = postgres.current_xlog_info.copy()
+        self._backup_info_from_stop_location(backup_info, current_xlog_info)
 
         # TODO: display this warning only if needed
         output.warning("pg_basebackup does not copy the PostgreSQL "
@@ -1152,8 +1190,9 @@ class ExclusiveBackupStrategy(BackupStrategy):
 
         # Issue an exclusive start backup command
         _logger.debug("Start of exclusive backup")
-        start_row = self.executor.server.postgres.start_exclusive_backup(label)
-        self._backup_info_from_start_backup(backup_info, start_row)
+        postgres = self.executor.server.postgres
+        start_info = postgres.start_exclusive_backup(label)
+        self._backup_info_from_start_location(backup_info, start_info)
 
     def stop_backup(self, backup_info):
         """
@@ -1168,8 +1207,8 @@ class ExclusiveBackupStrategy(BackupStrategy):
 
         self.current_action = "issuing stop backup command"
         _logger.debug("Stop of exclusive backup")
-        stop_row = self.executor.server.postgres.stop_exclusive_backup()
-        self._backup_info_from_stop_backup(backup_info, stop_row)
+        stop_info = self.executor.server.postgres.stop_exclusive_backup()
+        self._backup_info_from_stop_location(backup_info, stop_info)
 
     def check(self, check_strategy):
         """
@@ -1299,9 +1338,9 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
         postgres = self.executor.server.postgres
-        start_row = postgres.pgespresso_start_backup(label)
-        backup_info.set_attribute('backup_label', start_row['backup_label'])
         backup_info.set_attribute('status', "STARTED")
+        start_info = postgres.pgespresso_start_backup(label)
+        backup_info.set_attribute('backup_label', start_info['backup_label'])
         self._backup_info_from_backup_label(backup_info)
 
     def _pgespresso_stop_backup(self, backup_info):
@@ -1311,18 +1350,14 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
         postgres = self.executor.server.postgres
-        stop_row = postgres.pgespresso_stop_backup(backup_info.backup_label)
-        decoded_segment = xlog.decode_segment_name(stop_row['end_wal'])
+        stop_info = postgres.pgespresso_stop_backup(backup_info.backup_label)
+        # Obtain a modifiable copy of stop_info object
+        stop_info = stop_info.copy()
         # We don't know the exact backup stop location,
-        # so we include the whole segment to be sure.
-        next_segment_lsn = ((decoded_segment[1] << 32) +
-                            (decoded_segment[2] << 24) +
-                            0xFFFFFF)
-        backup_info.set_attribute('end_xlog',
-                                  xlog.format_lsn(next_segment_lsn))
-        backup_info.set_attribute('end_wal', stop_row['end_wal'])
-        backup_info.set_attribute('end_offset', 0xFFFFFF)
-        backup_info.set_attribute('end_time', stop_row['timestamp'])
+        # so we include the whole segment.
+        stop_info['location'] = xlog.location_from_xlogfile_name_offset(
+            stop_info['end_wal'], 0xFFFFFF)
+        self._backup_info_from_stop_location(backup_info, stop_info)
 
     def check(self, check_strategy):
         """
@@ -1352,8 +1387,8 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param str label: the backup label
         """
         postgres = self.executor.server.postgres
-        start_row = postgres.start_concurrent_backup(label)
-        self._backup_info_from_start_backup(backup_info, start_row)
+        start_info = postgres.start_concurrent_backup(label)
+        self._backup_info_from_start_location(backup_info, start_info)
 
     def _concurrent_stop_backup(self, backup_info):
         """
@@ -1363,6 +1398,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
         postgres = self.executor.server.postgres
-        stop_row = postgres.stop_concurrent_backup()
-        self._backup_info_from_stop_backup(backup_info, stop_row)
-        backup_info.set_attribute('backup_label', stop_row['backup_label'])
+        stop_info = postgres.stop_concurrent_backup()
+        backup_info.set_attribute('backup_label', stop_info['backup_label'])
+        self._backup_info_from_backup_label(backup_info)
+        self._backup_info_from_stop_location(backup_info, stop_info)

@@ -259,6 +259,49 @@ def format_lsn(lsn):
     return "%X/%X" % (lsn >> 32, lsn & 0xFFFFFFFF)
 
 
+def location_to_xlogfile_name_offset(location, timeline):
+    """
+    Convert transaction log location string to file_name and file_offset
+
+    This is a reimplementation of pg_xlogfile_name_offset PostgreSQL function
+
+    This method returns a dictionary containing the following data:
+
+         * file_name
+         * file_offset
+
+    :param str location: XLOG location
+    :param int timeline: timeline
+    :rtype: dict
+    """
+    lsn = parse_lsn(location)
+    log = lsn >> 32
+    seg = (lsn & XLOG_FILE_SIZE) >> 24
+    offset = lsn & 0xFFFFFF
+    return {
+        'file_name': encode_segment_name(timeline, log, seg),
+        'file_offset': offset,
+    }
+
+
+def location_from_xlogfile_name_offset(file_name, file_offset):
+    """
+    Convert file_name and file_offset to a transaction log location.
+
+    This is the inverted function of PostgreSQL's pg_xlogfile_name_offset
+    function.
+
+    :param str file_name: a WAL file name
+    :param int file_offset: a numeric offset
+    :rtype: str
+    """
+    decoded_segment = decode_segment_name(file_name)
+    location = ((decoded_segment[1] << 32) +
+                (decoded_segment[2] << 24) +
+                file_offset)
+    return format_lsn(location)
+
+
 def decode_history_file(path):
     """
     Read an history file and parse its contents.

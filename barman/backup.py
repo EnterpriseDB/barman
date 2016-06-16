@@ -370,7 +370,8 @@ class BackupManager(RemoteStatusMixin):
             backup_info.save()
             self.backup_cache_add(backup_info)
             output.info(
-                "Starting backup for server %s in %s",
+                "Starting backup using %s method for server %s in %s",
+                self.mode,
                 self.config.name,
                 backup_info.get_basebackup_directory())
 

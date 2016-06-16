@@ -327,3 +327,13 @@ class Test(object):
 
     def test_format_lsn(self):
         assert xlog.format_lsn(0x123456789ABCDEF) == '1234567/89ABCDEF'
+
+    def test_location_to_xlogfile_name_offset(self):
+        assert xlog.location_to_xlogfile_name_offset('A/12345678', 3) == {
+            'file_name': '000000030000000A00000012',
+            'file_offset': 0x345678
+        }
+
+    def test_location_from_xlogfile_name_offset(self):
+        assert xlog.location_from_xlogfile_name_offset(
+            '000000030000000A00000012', 0x345678) == 'A/12345678'

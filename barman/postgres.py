@@ -712,7 +712,7 @@ class PostgreSQLConnection(PostgreSQL):
             _logger.debug(msg)
             raise PostgresException(msg)
 
-    def start_concurrent_backup(self, label, exclusive=False):
+    def start_concurrent_backup(self, label):
         """
         Calls pg_start_backup on the PostgreSQL server using the
         API introduced with version 9.6
@@ -720,12 +720,9 @@ class PostgreSQLConnection(PostgreSQL):
         This method returns a dictionary containing the following data:
 
          * location
-         * file_name
-         * file_offset
          * timestamp
 
         :param str label: descriptive string to identify the backup
-        :param bool exclusive: if the backup is exclusive or concurrent
         :rtype: psycopg2.extras.DictRow
         """
         try:
@@ -739,11 +736,9 @@ class PostgreSQLConnection(PostgreSQL):
             cur = conn.cursor(cursor_factory=DictCursor)
             cur.execute(
                 "SELECT location, "
-                "(pg_xlogfile_name_offset(location)).*, "
                 "now() AS timestamp "
-                "FROM pg_start_backup(%s,%s,%s) AS location",
-                (label, self.config.immediate_checkpoint,
-                 exclusive))
+                "FROM pg_start_backup(%s,%s,FALSE) AS location",
+                (label, self.config.immediate_checkpoint))
             start_row = cur.fetchone()
 
             # Rollback to release the transaction, as the connection
@@ -793,7 +788,7 @@ class PostgreSQLConnection(PostgreSQL):
                 'You might have to manually execute pg_stop_backup '
                 'on your PostgreSQL server')
 
-    def stop_concurrent_backup(self, exclusive=False):
+    def stop_concurrent_backup(self):
         """
         Calls pg_stop_backup on the PostgreSQL server using the
         API introduced with version 9.6
@@ -801,11 +796,9 @@ class PostgreSQLConnection(PostgreSQL):
         This method returns a dictionary containing the following data:
 
          * location
-         * file_name
-         * file_offset
+         * backup_label
          * timestamp
 
-        :param bool exclusive: if the backup is exclusive or concurrent
         :rtype: psycopg2.extras.DictRow
         """
         try:
@@ -820,22 +813,13 @@ class PostgreSQLConnection(PostgreSQL):
             cur.execute(
                 'SELECT end_row.lsn AS location, '
                 'end_row.labelfile AS backup_label, '
-                '(pg_xlogfile_name_offset(end_row.lsn)).*, '
-                'now() AS timestamp FROM pg_stop_backup(%s) AS end_row',
-                (exclusive,))
+                'now() AS timestamp FROM pg_stop_backup(FALSE) AS end_row')
 
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
             msg = "Error issuing pg_stop_backup command: %s" % str(e).strip()
             _logger.debug(msg)
-            if exclusive:
-                raise PostgresException(
-                    '%s\n'
-                    'HINT: You might have to manually execute '
-                    'pg_stop_backup on your PostgreSQL '
-                    'server' % msg)
-            else:
-                raise PostgresException(msg)
+            raise PostgresException(msg)
 
     def pgespresso_start_backup(self, label):
         """
