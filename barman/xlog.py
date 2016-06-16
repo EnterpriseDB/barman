@@ -42,6 +42,7 @@ _xlog_re = re.compile(r'''
     )
     $
     ''', re.VERBOSE)
+
 # xlog location parser for concurrent backup (regular expression)
 _location_re = re.compile(r'^([\dA-F]+)/([\dA-F]+)$')
 
@@ -232,36 +233,30 @@ def hash_dir(path):
         return ''
 
 
-def get_offset_from_location(location):
+def parse_lsn(lsn_string):
     """
-    Calculate a xlog segment offset starting from a xlog location.
+    Transform a string XLOG location, formatted as %X/%X, in the corresponding
+    numeric representation
 
-    :param location: a complete xlog location
-    :return int: a xlog segment offset
+    :param str lsn_string: the string XLOG location, i.e. '2/82000168'
+    :rtype: int
     """
-    match = _location_re.match(location)
-    if match:
-        xlo = int(match.group(2), 16)
-        return xlo % XLOG_SEG_SIZE
-    else:
-        return None
-
-
-def parse_lsn(lsn):
-    """
-    Transform a XLOG location, formatted as %X/%X, in a list
-    containing the highest portion of the LSN and the lower
-    portion of the LSN as numbers
-
-    :param str lsn: the XLOG location, i.e. 2/82000168
-    :return Tuple[int, int]: a tuple containing the highest
-      portion of the LSN and the low one
-    """
-    lsn_list = lsn.split('/')
+    lsn_list = lsn_string.split('/')
     if len(lsn_list) != 2:
-        raise ValueError('Invalid LSN: %s', lsn)
+        raise ValueError('Invalid LSN: %s', lsn_string)
 
     return (int(lsn_list[0], 16) << 32) + int(lsn_list[1], 16)
+
+
+def format_lsn(lsn):
+    """
+    Transform a numeric XLOG location, in the corresponding %X/%X string
+    representation
+
+    :param int lsn: numeric XLOG location
+    :rtype: str
+    """
+    return "%X/%X" % (lsn >> 32, lsn & 0xFFFFFFFF)
 
 
 def decode_history_file(path):

@@ -269,12 +269,6 @@ class Test(object):
         assert xlog.encode_history_file_name(33) == '00000021.history'
         assert xlog.encode_history_file_name(328) == '00000148.history'
 
-    def test_get_offset_from_location(self):
-        assert xlog.get_offset_from_location('0/1B0C7A0') == 11585440
-        assert xlog.get_offset_from_location('9AFB/5B13FD70') == 1310064
-        assert xlog.get_offset_from_location('9B02/29883178') == 8925560
-        assert xlog.get_offset_from_location('BLAH') is None
-
     def test_decode_history_file(self, tmpdir):
         p = tmpdir.join('00000002.history')
 
@@ -328,3 +322,8 @@ class Test(object):
         assert xlog.parse_lsn('FFFFFFFF/FFFFFFFF') == (
             (0xFFFFFFFF << 32) + 0xFFFFFFFF)
         assert xlog.parse_lsn('0/0') == 0
+        with pytest.raises(ValueError):
+            xlog.parse_lsn('DEADBEEF')
+
+    def test_format_lsn(self):
+        assert xlog.format_lsn(0x123456789ABCDEF) == '1234567/89ABCDEF'

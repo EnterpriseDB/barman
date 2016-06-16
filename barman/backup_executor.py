@@ -31,6 +31,7 @@ import os
 import re
 from abc import ABCMeta, abstractmethod
 
+import dateutil.parser
 from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
@@ -894,6 +895,13 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
     Abstract base class for a strategy to be used by a backup executor.
     """
 
+    #: Regex for START WAL LOCATION info
+    START_TIME_RE = re.compile('^START TIME: (.*)', re.MULTILINE)
+
+    #: Regex for START TIME info
+    WAL_RE = re.compile('^START WAL LOCATION: (.*) \(file (.*)\)',
+                        re.MULTILINE)
+
     def __init__(self, executor, mode=None):
         """
         Constructor
@@ -1004,6 +1012,39 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         backup_info.set_attribute('end_wal', stop_row['file_name'])
         backup_info.set_attribute('end_offset', stop_row['file_offset'])
 
+    def _backup_info_from_backup_label(self, backup_info):
+        """
+        Fill a backup info with information from the backup_label file
+
+        :param barman.infofile.BackupInfo backup_info: object representing a
+            backup
+        """
+        # If backup_label is present in backup_info use it...
+        if backup_info.backup_label:
+            backup_label_data = backup_info.backup_label
+        # ... otherwise load backup info from backup_label file
+        else:
+            backup_label_path = os.path.join(backup_info.get_data_directory(),
+                                             'backup_label')
+            with open(backup_label_path) as backup_label_file:
+                backup_label_data = backup_label_file.read()
+
+        # Parse backup label
+        wal_info = self.WAL_RE.search(backup_label_data)
+        start_time = self.START_TIME_RE.search(backup_label_data)
+        if wal_info is None or start_time is None:
+            raise ValueError("Failure parsing backup_label for backup %s" %
+                             backup_info.backup_id)
+
+        # Set data in backup_info from backup_label
+        backup_info.set_attribute('timeline', int(wal_info.group(2)[0:8], 16))
+        backup_info.set_attribute('begin_xlog', wal_info.group(1))
+        backup_info.set_attribute('begin_wal', wal_info.group(2))
+        backup_info.set_attribute('begin_offset', xlog.parse_lsn(
+            wal_info.group(1)) % xlog.XLOG_SEG_SIZE)
+        backup_info.set_attribute('begin_time', dateutil.parser.parse(
+            start_time.group(1)))
+
 
 class PostgresBackupStrategy(BackupStrategy):
     """
@@ -1013,12 +1054,6 @@ class PostgresBackupStrategy(BackupStrategy):
     executing pre e post backup operations during a physical backup executed
     using pg_basebackup.
     """
-
-    #: Regex for START WAL LOCATION info
-    WAL_RE = re.compile('^START WAL LOCATION: (.*) \(file (.*)\)',
-                        re.MULTILINE)
-    #: Regex for START TIME info
-    START_TIME_RE = re.compile('^START TIME: (.*)', re.MULTILINE)
 
     def check(self, check_strategy):
         """
@@ -1051,24 +1086,7 @@ class PostgresBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        # Get backup info from backup_label
-        backup_label_path = os.path.join(backup_info.get_data_directory(),
-                                         'backup_label')
-        with open(backup_label_path) as backup_label_file:
-            backup_label_data = backup_label_file.read()
-
-        # Parse backup label
-        wal_info = self.WAL_RE.search(backup_label_data)
-        start_time = self.START_TIME_RE.search(backup_label_data)
-
-        # Set data in backup_info from backup_label
-        backup_info.set_attribute('timeline', int(wal_info.group(2)[0:8], 16))
-        backup_info.set_attribute('begin_xlog', wal_info.group(1))
-        backup_info.set_attribute('begin_wal', wal_info.group(2))
-        backup_info.set_attribute('begin_offset',
-                                  xlog.get_offset_from_location(
-                                      wal_info.group(1)))
-        backup_info.set_attribute('begin_time', start_time.group(1))
+        self._backup_info_from_backup_label(backup_info)
 
         output.info("Backup started at xlog location: %s (%s, %08X)",
                     backup_info.begin_xlog,
@@ -1078,8 +1096,7 @@ class PostgresBackupStrategy(BackupStrategy):
         # Set data in backup_info from curent_xlog_info
         self.current_action = "stopping postgres backup_method"
         output.info("Finalising the backup.")
-        server = self.executor.server
-        curent_xlog_info = server.postgres.current_xlog_info
+        curent_xlog_info = self.executor.server.postgres.current_xlog_info
         backup_info.set_attribute('end_time',
                                   curent_xlog_info['timestamp'])
         backup_info.set_attribute('end_xlog',
@@ -1089,6 +1106,7 @@ class PostgresBackupStrategy(BackupStrategy):
         backup_info.set_attribute('end_offset',
                                   curent_xlog_info['file_offset'])
 
+        # TODO: display this warning only if needed
         output.warning("pg_basebackup does not copy the PostgreSQL "
                        "configuration files that reside outside PGDATA. "
                        "Those configuration files must be copied manually.")
@@ -1282,20 +1300,9 @@ class ConcurrentBackupStrategy(BackupStrategy):
         """
         postgres = self.executor.server.postgres
         start_row = postgres.pgespresso_start_backup(label)
-        wal_re = re.compile(
-            '^START WAL LOCATION: (.*) \(file (.*)\)',
-            re.MULTILINE)
-        wal_info = wal_re.search(start_row['backup_label'])
         backup_info.set_attribute('backup_label', start_row['backup_label'])
         backup_info.set_attribute('status', "STARTED")
-        backup_info.set_attribute('timeline',
-                                  int(wal_info.group(2)[0:8], 16))
-        backup_info.set_attribute('begin_xlog', wal_info.group(1))
-        backup_info.set_attribute('begin_wal', wal_info.group(2))
-        backup_info.set_attribute('begin_offset',
-                                  xlog.get_offset_from_location(
-                                      wal_info.group(1)))
-        backup_info.set_attribute('begin_time', start_row['timestamp'])
+        self._backup_info_from_backup_label(backup_info)
 
     def _pgespresso_stop_backup(self, backup_info):
         """
@@ -1306,12 +1313,15 @@ class ConcurrentBackupStrategy(BackupStrategy):
         postgres = self.executor.server.postgres
         stop_row = postgres.pgespresso_stop_backup(backup_info.backup_label)
         decoded_segment = xlog.decode_segment_name(stop_row['end_wal'])
+        # We don't know the exact backup stop location,
+        # so we include the whole segment to be sure.
+        next_segment_lsn = ((decoded_segment[1] << 32) +
+                            (decoded_segment[2] << 24) +
+                            0xFFFFFF)
         backup_info.set_attribute('end_xlog',
-                                  "%X/%X" % (decoded_segment[1],
-                                             (decoded_segment[
-                                              2] + 1) << 24))
+                                  xlog.format_lsn(next_segment_lsn))
         backup_info.set_attribute('end_wal', stop_row['end_wal'])
-        backup_info.set_attribute('end_offset', 0)
+        backup_info.set_attribute('end_offset', 0xFFFFFF)
         backup_info.set_attribute('end_time', stop_row['timestamp'])
 
     def check(self, check_strategy):

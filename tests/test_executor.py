@@ -20,6 +20,7 @@ import os
 
 import mock
 import pytest
+from dateutil import tz
 from mock import Mock, patch
 
 from barman.backup_executor import PostgresBackupExecutor, RsyncBackupExecutor
@@ -400,12 +401,13 @@ class TestStrategy(object):
         server.postgres.server_version = 90500
 
         # Mock executor._pgespresso_start_backup(label) call
-        start_time = datetime.datetime.now()
+        start_time = datetime.datetime.now(tz.tzlocal()).replace(microsecond=0)
         server.postgres.pgespresso_start_backup.return_value = {
             'backup_label':
                 "START WAL LOCATION: 266/4A9C1EF8 "
-                "(file 00000010000002660000004A)",
-            'timestamp': start_time}
+                "(file 00000010000002660000004A)\n"
+                "START TIME: %s" % start_time.strftime('%Y-%m-%d %H:%M:%S %Z'),
+        }
         # Build a test empty backup info
         backup_info = BackupInfo(server=backup_manager.server,
                                  backup_id='fake_id2')
@@ -536,9 +538,9 @@ class TestStrategy(object):
         backup_info = build_test_backup_info()
         backup_manager.executor.strategy.stop_backup(backup_info)
 
-        assert backup_info.end_xlog == 'A257/45000000'
+        assert backup_info.end_xlog == 'A257/44FFFFFF'
         assert backup_info.end_wal == '000000060000A25700000044'
-        assert backup_info.end_offset == 0
+        assert backup_info.end_offset == 0xFFFFFF
         assert backup_info.end_time == stop_time
 
     @patch('barman.backup_executor.ConcurrentBackupStrategy.'
@@ -639,13 +641,16 @@ class TestPostgresBackupExecutor(object):
         tmp_backup_label = tmp_home.mkdir('main')\
             .mkdir('base').mkdir('fake_backup_id')\
             .mkdir('data').join('backup_label')
+        start_time = datetime.datetime.now(tz.tzlocal()).replace(microsecond=0)
         tmp_backup_label.write(
             'START WAL LOCATION: 0/40000028 (file 000000010000000000000040)\n'
             'CHECKPOINT LOCATION: 0/40000028\n'
             'BACKUP METHOD: streamed\n'
             'BACKUP FROM: master\n'
-            'START TIME: 2015-11-04 15:47:55 CET\n'
-            'LABEL: pg_basebackup base backup')
+            'START TIME: %s\n'
+            'LABEL: pg_basebackup base backup' %
+            start_time.strftime('%Y-%m-%d %H:%M:%S %Z')
+        )
         backup_manager.executor.backup(backup_info)
         out, err = capsys.readouterr()
         gpb_mock.assert_called_once_with(backup_info.backup_id)
@@ -658,7 +663,7 @@ class TestPostgresBackupExecutor(object):
         assert 'Finalising the backup.' in out
         assert backup_info.end_xlog == '0/12000090'
         assert backup_info.end_offset == 144
-        assert backup_info.begin_time == '2015-11-04 15:47:55 CET'
+        assert backup_info.begin_time == start_time
         assert backup_info.begin_wal == '000000010000000000000040'
 
         # Check the CommandFailedException re raising
