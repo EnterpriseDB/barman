@@ -615,16 +615,27 @@ class TestPostgres(object):
             timestamp=timestamp,
         )
         cursor_mock.fetchone.return_value = current_xlog_info
-        is_in_recovery_mock.return_value = False
 
-        # sequence
+        # Test call on master
+        is_in_recovery_mock.return_value = False
         remote_loc = server.postgres.current_xlog_info
         assert remote_loc == current_xlog_info
-
         cursor_mock.execute.assert_called_once_with(
             'SELECT location, (pg_xlogfile_name_offset(location)).*, '
             'CURRENT_TIMESTAMP AS timestamp '
             'FROM pg_current_xlog_location() AS location')
+
+        # Check call on standby
+        conn_mock.reset_mock()
+        is_in_recovery_mock.return_value = True
+        current_xlog_info['file_name'] = None
+        current_xlog_info['file_offset'] = None
+        remote_loc = server.postgres.current_xlog_info
+        assert remote_loc == current_xlog_info
+        cursor_mock.execute.assert_called_once_with(
+            'SELECT location, NULL AS file_name, NULL AS file_offset, '
+            'CURRENT_TIMESTAMP AS timestamp '
+            'FROM pg_last_xlog_replay_location() AS location')
 
         # Reset mock
         conn_mock.reset_mock()

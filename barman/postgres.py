@@ -387,16 +387,27 @@ class PostgreSQLConnection(PostgreSQL):
          * file_offset
          * timestamp
 
+        When executed on a standby server file_name and file_offset are always
+        None
+
         :rtype: psycopg2.extras.DictRow
         """
         try:
+            cur = self._cursor(cursor_factory=DictCursor)
             if not self.is_in_recovery:
-                cur = self._cursor(cursor_factory=DictCursor)
                 cur.execute(
                     "SELECT location, "
                     "(pg_xlogfile_name_offset(location)).*, "
                     "CURRENT_TIMESTAMP AS timestamp "
                     "FROM pg_current_xlog_location() AS location")
+                return cur.fetchone()
+            else:
+                cur.execute(
+                    "SELECT location, "
+                    "NULL AS file_name, "
+                    "NULL AS file_offset, "
+                    "CURRENT_TIMESTAMP AS timestamp "
+                    "FROM pg_last_xlog_replay_location() AS location")
                 return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving current xlog "
