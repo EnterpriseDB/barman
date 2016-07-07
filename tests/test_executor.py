@@ -459,8 +459,7 @@ class TestStrategy(object):
         start_time = datetime.datetime.now()
         server.postgres.start_concurrent_backup.return_value = {
             'location': "A257/44B4C0D8",
-            'file_name': "000000060000A25700000044",
-            'file_offset': 11845848,
+            'timeline': 6,
             'timestamp': start_time,
         }
         # Build a test empty backup info
@@ -567,10 +566,12 @@ class TestStrategy(object):
         start_time = datetime.datetime.now(tz.tzlocal()).replace(microsecond=0)
         server.postgres.stop_concurrent_backup.return_value = {
             'location': "A266/4A9C1EF8",
+            'timeline': 6,
             'timestamp': stop_time,
             'backup_label':
                 'START WAL LOCATION: A257/44B4C0D8 '
-                '(file 000000060000A25700000044)\n'
+                # Timeline 0 simulates a bug in PostgreSQL 9.6 beta2
+                '(file 000000000000A25700000044)\n'
                 'START TIME: %s\n' %
                 start_time.strftime('%Y-%m-%d %H:%M:%S %Z')
         }
@@ -584,7 +585,7 @@ class TestStrategy(object):
         assert backup_info.end_time == stop_time
         assert backup_info.backup_label == (
             'START WAL LOCATION: A257/44B4C0D8 '
-            '(file 000000060000A25700000044)\n'
+            '(file 000000000000A25700000044)\n'
             'START TIME: %s\n' %
             start_time.strftime('%Y-%m-%d %H:%M:%S %Z')
         )

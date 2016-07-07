@@ -720,6 +720,7 @@ class PostgreSQLConnection(PostgreSQL):
         This method returns a dictionary containing the following data:
 
          * location
+         * timeline
          * timestamp
 
         :param str label: descriptive string to identify the backup
@@ -736,8 +737,10 @@ class PostgreSQLConnection(PostgreSQL):
             cur = conn.cursor(cursor_factory=DictCursor)
             cur.execute(
                 "SELECT location, "
+                "(SELECT timeline_id "
+                "FROM pg_control_checkpoint()) AS timeline, "
                 "now() AS timestamp "
-                "FROM pg_start_backup(%s,%s,FALSE) AS location",
+                "FROM pg_start_backup(%s, %s, FALSE) AS location",
                 (label, self.config.immediate_checkpoint))
             start_row = cur.fetchone()
 
@@ -796,6 +799,7 @@ class PostgreSQLConnection(PostgreSQL):
         This method returns a dictionary containing the following data:
 
          * location
+         * timeline
          * backup_label
          * timestamp
 
@@ -812,6 +816,10 @@ class PostgreSQLConnection(PostgreSQL):
             cur = conn.cursor(cursor_factory=DictCursor)
             cur.execute(
                 'SELECT end_row.lsn AS location, '
+                '(SELECT CASE WHEN pg_is_in_recovery() '
+                'THEN min_recovery_end_timeline ELSE timeline_id END '
+                'FROM pg_control_checkpoint(), pg_control_recovery()'
+                ') AS timeline, '
                 'end_row.labelfile AS backup_label, '
                 'now() AS timestamp FROM pg_stop_backup(FALSE) AS end_row')
 

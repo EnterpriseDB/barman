@@ -1021,15 +1021,28 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         backup_info.set_attribute('begin_time', start_info['timestamp'])
         backup_info.set_attribute('begin_xlog', start_info['location'])
 
+        # PostgreSQL 9.6+ directly provides the timeline
+        if start_info.get('timeline') is not None:
+            backup_info.set_attribute('timeline', start_info['timeline'])
+            # Take a copy of stop_info because we are going to update it
+            start_info = start_info.copy()
+            start_info.update(xlog.location_to_xlogfile_name_offset(
+                start_info['location'],
+                start_info['timeline']))
+
         # If file_name and file_offset are available, use them
         if (start_info.get('file_name') is not None and
                 start_info.get('file_offset') is not None):
-            backup_info.set_attribute('timeline',
-                                      int(start_info['file_name'][0:8], 16))
             backup_info.set_attribute('begin_wal',
                                       start_info['file_name'])
             backup_info.set_attribute('begin_offset',
                                       start_info['file_offset'])
+
+            # If the timeline is still missing, extract it from the file_name
+            if backup_info.timeline is None:
+                backup_info.set_attribute(
+                    'timeline',
+                    int(start_info['file_name'][0:8], 16))
 
     @staticmethod
     def _backup_info_from_stop_location(backup_info, stop_info):
@@ -1042,14 +1055,19 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         """
 
         # If file_name or file_offset are missing build them using the stop
-        # location and the timeline from backup_info.
+        # location and the timeline.
         if (stop_info.get('file_name') is None or
                 stop_info.get('file_offset') is None):
             # Take a copy of stop_info because we are going to update it
             stop_info = stop_info.copy()
+            # Get the timeline from the stop_info if available, otherwise
+            # Use the one from the backup_label
+            timeline = stop_info.get('timeline')
+            if timeline is None:
+                timeline = backup_info.timeline
             stop_info.update(xlog.location_to_xlogfile_name_offset(
                 stop_info['location'],
-                backup_info.timeline))
+                timeline))
 
         backup_info.set_attribute('end_time', stop_info['timestamp'])
         backup_info.set_attribute('end_xlog', stop_info['location'])
@@ -1400,5 +1418,4 @@ class ConcurrentBackupStrategy(BackupStrategy):
         postgres = self.executor.server.postgres
         stop_info = postgres.stop_concurrent_backup()
         backup_info.set_attribute('backup_label', stop_info['backup_label'])
-        self._backup_info_from_backup_label(backup_info)
         self._backup_info_from_stop_location(backup_info, stop_info)

@@ -226,6 +226,11 @@ class TestPostgres(object):
         cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
             'SELECT end_row.lsn AS location, '
+            '(SELECT CASE WHEN pg_is_in_recovery() '
+            'THEN min_recovery_end_timeline '
+            'ELSE timeline_id END '
+            'FROM pg_control_checkpoint(), pg_control_recovery()'
+            ') AS timeline, '
             'end_row.labelfile AS backup_label, '
             'now() AS timestamp '
             'FROM pg_stop_backup(FALSE) AS end_row'
@@ -329,8 +334,10 @@ class TestPostgres(object):
         cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
             'SELECT location, '
+            '(SELECT timeline_id '
+            'FROM pg_control_checkpoint()) AS timeline, '
             'now() AS timestamp '
-            'FROM pg_start_backup(%s,%s,FALSE) AS location',
+            'FROM pg_start_backup(%s, %s, FALSE) AS location',
             ('test label', False)
         )
         conn.return_value.rollback.assert_has_calls([call(), call()])
