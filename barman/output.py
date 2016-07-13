@@ -27,6 +27,7 @@ import sys
 
 from barman.infofile import BackupInfo
 from barman.utils import pretty_size
+from barman.xlog import diff_lsn
 
 __all__ = [
     'error_occurred', 'debug', 'info', 'warning', 'error', 'exception',
@@ -772,6 +773,16 @@ class ConsoleOutputWriter(object):
             for standby in standby_info:
                 self.info("")
 
+                # Calculate differences in bytes
+                sent_diff = diff_lsn(standby.sent_location,
+                                     standby.current_location)
+                write_diff = diff_lsn(standby.write_location,
+                                      standby.current_location)
+                flush_diff = diff_lsn(standby.flush_location,
+                                      standby.current_location)
+                replay_diff = diff_lsn(standby.replay_location,
+                                       standby.current_location)
+
                 # Determine the sync stage of the client
                 sync_stage = None
                 if not standby.replay_location:
@@ -781,16 +792,16 @@ class ConsoleOutputWriter(object):
                     client_type = 'standby'
                     max_level = 5
                     # Only standby can replay WAL info
-                    if standby.replay_diff == 0:
+                    if replay_diff == 0:
                         sync_stage = '5/5 Hot standby (max)'
-                    elif standby.flush_diff == 0:
+                    elif flush_diff == 0:
                         sync_stage = '4/5 2-safe'  # remote flush
 
                 # If not yet done, set the sync stage
                 if not sync_stage:
-                    if standby.write_diff == 0:
+                    if write_diff == 0:
                         sync_stage = '3/%s Remote write' % max_level
-                    elif standby.sent_diff == 0:
+                    elif sent_diff == 0:
                         sync_stage = '2/%s WAL Sent (min)' % max_level
                     else:
                         sync_stage = '1/%s 1-safe' % max_level
@@ -833,19 +844,19 @@ class ConsoleOutputWriter(object):
                 if standby.sent_location:
                     self.info("     Sent location   : %s (diff: %s)",
                               standby.sent_location,
-                              pretty_size(standby.sent_diff))
+                              pretty_size(sent_diff))
                 if standby.write_location:
                     self.info("     Write location  : %s (diff: %s)",
                               standby.write_location,
-                              pretty_size(standby.write_diff))
+                              pretty_size(write_diff))
                 if standby.flush_location:
                     self.info("     Flush location  : %s (diff: %s)",
                               standby.flush_location,
-                              pretty_size(standby.flush_diff))
+                              pretty_size(flush_diff))
                 if standby.replay_location:
                     self.info("     Replay location : %s (diff: %s)",
                               standby.replay_location,
-                              pretty_size(standby.replay_diff))
+                              pretty_size(replay_diff))
                 n += 1
 
     def init_list_server(self, server_name, minimal=False):

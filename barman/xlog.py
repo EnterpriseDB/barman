@@ -248,6 +248,25 @@ def parse_lsn(lsn_string):
     return (int(lsn_list[0], 16) << 32) + int(lsn_list[1], 16)
 
 
+def diff_lsn(lsn_string1, lsn_string2):
+    """
+    Calculate the difference in bytes between two string XLOG location,
+    formatted as %X/%X
+
+    Tis function is a Python implementation of
+    the ``pg_xlog_location_diff(str, str)`` PostgreSQL function.
+
+    :param str lsn_string1: the string XLOG location, i.e. '2/82000168'
+    :param str lsn_string2: the string XLOG location, i.e. '2/82000168'
+    :rtype: int
+    """
+
+    # If one the input is None returns None
+    if lsn_string1 is None or lsn_string2 is None:
+        return None
+    return parse_lsn(lsn_string1) - parse_lsn(lsn_string2)
+
+
 def format_lsn(lsn):
     """
     Transform a numeric XLOG location, in the corresponding %X/%X string

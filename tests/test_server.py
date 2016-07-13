@@ -18,7 +18,6 @@
 import datetime
 import os
 from collections import defaultdict, namedtuple
-from decimal import Decimal
 
 import pytest
 from mock import MagicMock, patch
@@ -691,12 +690,9 @@ class TestServer(object):
             write_location='0/3005FF0',
             flush_location='0/3005FF0',
             replay_location='0/3005FF0',
+            current_location='0/3005FF0',
             sync_priority=0,
-            sync_state='async',
-            sent_diff=Decimal('0'),
-            write_diff=Decimal('0'),
-            flush_diff=Decimal('0'),
-            replay_diff=Decimal('0')
+            sync_state='async'
         )
         replication_stats_class = namedtuple("Record",
                                              replication_stats_data.keys())

@@ -328,6 +328,12 @@ class Test(object):
     def test_format_lsn(self):
         assert xlog.format_lsn(0x123456789ABCDEF) == '1234567/89ABCDEF'
 
+    def test_diff_lsn(self):
+        assert xlog.diff_lsn('2/8300168', '1/8300168') == 1 << 32
+        assert xlog.diff_lsn('2/8300168', '2/8100168') == 0x200000
+        assert xlog.diff_lsn(None, '2/8100168') is None
+        assert xlog.diff_lsn('2/8300168', None) is None
+
     def test_location_to_xlogfile_name_offset(self):
         assert xlog.location_to_xlogfile_name_offset('A/12345678', 3) == {
             'file_name': '000000030000000A00000012',

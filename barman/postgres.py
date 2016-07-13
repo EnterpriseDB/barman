@@ -1055,18 +1055,11 @@ class PostgreSQLConnection(PostgreSQL):
             # Execute the query
             cur.execute(
                 "SELECT %s, "
-                "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
-                "pg_xlog_location_diff(sent_location, "
-                "pg_current_xlog_location()) END AS sent_diff, "
-                "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
-                "pg_xlog_location_diff(write_location, "
-                "pg_current_xlog_location()) END AS write_diff, "
-                "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
-                "pg_xlog_location_diff(flush_location, "
-                "pg_current_xlog_location()) END AS flush_diff, "
-                "CASE WHEN pg_is_in_recovery() THEN NULL ELSE "
-                "pg_xlog_location_diff(replay_location, "
-                "pg_current_xlog_location()) END AS replay_diff "
+                "pg_is_in_recovery() AS is_in_recovery,"
+                "CASE WHEN pg_is_in_recovery() "
+                "  THEN NULL "
+                "  ELSE pg_current_xlog_location() "
+                "END AS current_location "
                 "FROM pg_stat_replication "
                 "%s"
                 "ORDER BY sync_state DESC, sync_priority" % (what, where))
