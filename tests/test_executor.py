@@ -112,13 +112,33 @@ class TestRsyncBackupExecutor(object):
 
         # Test 1: ssh ok
         check_strategy = CheckOutputStrategy()
+        command_mock.return_value.get_last_output.return_value = ('', '')
         backup_manager.executor.check(check_strategy)
         out, err = capsys.readouterr()
         assert err == ''
         assert 'ssh: OK' in out
 
-        # Test 2: ssh ok and PostgreSQL is not responding
+        # Test 2: ssh success, with unclean output (out)
         command_mock.reset_mock()
+        command_mock.return_value.get_last_output.return_value = (
+            'This is unclean', '')
+        backup_manager.executor.check(check_strategy)
+        out, err = capsys.readouterr()
+        assert err == ''
+        assert 'ssh output clean: FAILED' in out
+
+        # Test 2bis: ssh success, with unclean output (err)
+        command_mock.reset_mock()
+        command_mock.return_value.get_last_output.return_value = (
+            '', 'This is unclean')
+        backup_manager.executor.check(check_strategy)
+        out, err = capsys.readouterr()
+        assert err == ''
+        assert 'ssh output clean: FAILED' in out
+
+        # Test 3: ssh ok and PostgreSQL is not responding
+        command_mock.reset_mock()
+        command_mock.return_value.get_last_output.return_value = ('', '')
         check_strategy = CheckOutputStrategy()
         backup_manager.server.get_remote_status.return_value = {
             'server_txt_version': None
@@ -131,7 +151,7 @@ class TestRsyncBackupExecutor(object):
         assert "Check that the PostgreSQL server is up and no " \
                "'backup_label' file is in PGDATA."
 
-        # Test 3: ssh failed
+        # Test 4: ssh failed
         command_mock.reset_mock()
         command_mock.side_effect = FsOperationFailed
         backup_manager.executor.check(check_strategy)

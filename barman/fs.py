@@ -46,6 +46,14 @@ class UnixLocalCommand(object):
         # initialize a shell
         self.cmd = Command(cmd='sh -c', shell=True, path=path)
 
+    def get_last_output(self):
+        """
+        Return the output and the error strings from the last executed command
+
+        :rtype: tuple[str,str]
+        """
+        return _str(self.cmd.out), _str(self.cmd.err)
+
     def create_dir_if_not_exists(self, dir_path):
         """
             This method check for the existence of a directory.

@@ -601,15 +601,26 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
         hint = "PostgreSQL server"
         cmd = None
+        minimal_ssh_output = None
         try:
             cmd = UnixRemoteCommand(self.ssh_command,
                                     self.ssh_options,
                                     path=self.server.path)
+            minimal_ssh_output = ''.join(cmd.get_last_output())
         except FsOperationFailed as e:
                 hint = str(e).strip()
 
         # Output the result
         check_strategy.result(self.config.name, 'ssh', cmd is not None, hint)
+
+        # Check if the communication channel is "clean"
+        if minimal_ssh_output:
+            check_strategy.result(
+                self.config.name,
+                'ssh output clean',
+                False,
+                "the configured ssh_command must not add anything "
+                "to the remote command output")
 
         # If SSH works but PostgreSQL is not responding
         if (cmd is not None and
