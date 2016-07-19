@@ -1,8 +1,15 @@
 #!/usr/bin/env python
 #
-# barman - Backup and Recovery Manager for PostgreSQL
+# barman-wal-restore.py - Remote Barman WAL restore command for PostgreSQL
 #
-# Copyright (C) 2011-2016 2ndQuadrant Italia Srl <info@2ndquadrant.it>
+# This script remotely fetches WAL files from Barman via Ssh, on demand.
+# It is intended to be used as restore_command in recovery.conf files
+# of PostgreSQL standby servers. Supports parallel fetching and
+# protects against Ssh failures.
+#
+# See help page for usage details.
+#
+# Copyright (C) 2016 2ndQuadrant Italia Srl <info@2ndquadrant.it>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -262,7 +269,7 @@ def parse_arguments(args=None):
         "-s", "--sleep", default=0,
         type=int,
         metavar="SECONDS",
-        help="sleep for SECONDS after a failure of get-wal request. "
+        help="Sleep for SECONDS after a failure of get-wal request. "
              "Defaults to 0 (nowait).",
     )
     parser.add_argument(
@@ -297,13 +304,13 @@ def parse_arguments(args=None):
     parser.add_argument(
         "wal_name",
         metavar="WAL_NAME",
-        help="this parameter has to be the value of the '%%f' keyword "
+        help="The value of the '%%f' keyword "
              "(according to 'restore_command').",
     )
     parser.add_argument(
         "wal_dest",
         metavar="WAL_DEST",
-        help="this parameter has to be the value of the '%%p' keyword "
+        help="The value of the '%%p' keyword "
              "(according to 'restore_command').",
     )
     return parser.parse_args(args=args)
