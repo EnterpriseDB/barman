@@ -301,6 +301,7 @@ class ServerConfig(object):
         'retention_policy',
         'retention_policy_mode',
         'reuse_backup',
+        'slot_name',
         'ssh_command',
         'streaming_archiver',
         'streaming_archiver_name',
@@ -337,6 +338,7 @@ class ServerConfig(object):
         'retention_policy',
         'retention_policy_mode',
         'reuse_backup',
+        'slot_name',
         'streaming_archiver',
         'tablespace_bandwidth_limit',
         'wal_retention_policy'

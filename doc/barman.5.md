@@ -257,6 +257,11 @@ reuse_backup
       and space). Requires operating system and file system support
       for hard links.
 
+slot_name
+:   Physical replication slot to be used by the `receive-wal`
+    command when `streaming_archiver` is set to `on`. Requires
+    PostgreSQL >= 9.4. Global/Server. Default: None (disabled).
+
 streaming_archiver
 :   This option allows you to use the PostgreSQL's streaming protocol to
     receive transaction logs from a server. If set to `on`, Barman expects

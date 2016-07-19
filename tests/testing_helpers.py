@@ -242,6 +242,7 @@ def build_config_dictionary(config_keys=None):
         'network_compression': False,
         'post_backup_script': None,
         'pre_backup_script': None,
+        'slot_name': None,
         'streaming_archiver_name': 'barman_receive_wal',
         'post_backup_retry_script': None,
         'streaming_backup_name': 'barman_streaming_backup',

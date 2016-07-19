@@ -396,6 +396,15 @@ Requires operating system and file system support for hard links.
 .RS
 .RE
 .TP
+.B slot_name
+Physical replication slot to be used by the \f[C]receive\-wal\f[]
+command when \f[C]streaming_archiver\f[] is set to \f[C]on\f[].
+Requires PostgreSQL >= 9.4.
+Global/Server.
+Default: None (disabled).
+.RS
+.RE
+.TP
 .B streaming_archiver
 This option allows you to use the PostgreSQL\[aq]s streaming protocol to
 receive transaction logs from a server.
