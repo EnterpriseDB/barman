@@ -339,6 +339,50 @@ class PostgresBackupExecutor(BackupExecutor):
             self.config.name, 'pg_basebackup compatible',
             remote_status['pg_basebackup_compatible'], hint=hint)
 
+        # We can't backup a cluster with tablespaces if the tablespace
+        # mapping option is not available in the installed version
+        # of pg_basebackup.
+        pg_version = Version(self.server.postgres.server_txt_version)
+        tbls_present = len(self.server.postgres.get_tablespaces()) > 0
+
+        # pg_basebackup supports the tablespace-mapping option,
+        # so there are no problems in this case
+        if remote_status['pg_basebackup_tbls_mapping']:
+            hint = None
+            check_result = True
+
+        # pg_basebackup doesn't support the tablespace-mapping option
+        # and the data directory contains tablespaces, we can't correctly
+        # backup it.
+        elif tbls_present:
+            check_result = False
+
+            if pg_version < '9.3':
+                hint = "pg_basebackup can't be used with tablespaces "  \
+                       "and PostgreSQL older than 9.3"
+            else:
+                hint = "pg_basebackup 9.4 or higher is required for " \
+                       "tablespaces support"
+
+        # Even if pg_basebackup doesn't support the tablespace-mapping
+        # option, this location can be correctly backed up as doesn't
+        # have any tablespaces
+        else:
+            check_result = True
+            if pg_version < '9.3':
+                hint = "pg_basebackup can be used as long as tablespaces " \
+                       "support is not required"
+            else:
+                hint = "pg_basebackup 9.4 or higher is required for " \
+                       "tablespaces support"
+
+        check_strategy.result(
+            self.config.name,
+            'pg_basebackup supports tablespaces mapping',
+            check_result,
+            hint=hint
+        )
+
     def fetch_remote_status(self):
         """
         Gather info from the remote server.
@@ -349,6 +393,7 @@ class PostgresBackupExecutor(BackupExecutor):
         remote_status = dict.fromkeys(
             ('pg_basebackup_compatible',
              'pg_basebackup_installed',
+             'pg_basebackup_tbls_mapping',
              'pg_basebackup_path',
              'pg_basebackup_bwlimit',
              'pg_basebackup_version'),
@@ -373,6 +418,12 @@ class PostgresBackupExecutor(BackupExecutor):
             remote_status['pg_basebackup_bwlimit'] = False
         else:
             remote_status['pg_basebackup_bwlimit'] = True
+
+        # Is the tablespace mapping option supported?
+        if pgbasebackup_version >= '9.4':
+            remote_status["pg_basebackup_tbls_mapping"] = True
+        else:
+            remote_status["pg_basebackup_tbls_mapping"] = False
 
         # Retrieve the PostgreSQL version
         pg_version = None

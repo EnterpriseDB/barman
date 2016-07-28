@@ -254,11 +254,16 @@ For further information, refer to OpenSSH documentation.
 
 In case your backup method is `postgres`, the following requirements apply:
 
-- PostgreSQL 9.1 or higher as database server
+- PostgreSQL database server:
+    - version 9.3 or higher, **if you have tablespaces**
+    - version 9.1 or higher, if you do not have tablespaces
 - `pg_basebackup` installed on the Barman server:
-    - with PostgreSQL 9.1 and 9.2, `pg_basebackup` version 9.2 is required
-    - with PostgreSQL 9.3 or higher, it is recommended to install the latest
-      version of `pg_basebackup` (which is back-compatible down to 9.3)
+    - `pg_basebackup` version 9.2 is required when connecting to
+      PostgreSQL servers 9.1 and 9.2
+    - the latest version of `pg_basebackup` is recommended when connecting to
+      PostgreSQL servers 9.3 or higher (as it is back-compatible down to 9.3);
+      **if you have tablespaces**, `pg_basebackup` version 9.4 or higher is
+      required
 
 > **Note:**
 > In case you manage different versions of PostgreSQL, you can install
@@ -270,6 +275,8 @@ See the section "Streaming connection" below for further information.
 
 Current limitations of the `postgres` method are:
 
+* tablespaces support is available only for PostgreSQL servers 9.3 or
+  higher using `pg_basebackup` 9.4 or higher
 * `bandwidth_limit` is available with `pg_basebackup` >= 9.4 only
 * `network_compression` is not supported
 * `reuse_backup` is not supported

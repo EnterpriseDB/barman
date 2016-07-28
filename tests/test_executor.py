@@ -706,12 +706,14 @@ class TestPostgresBackupExecutor(object):
             'pg_basebackup_installed': True,
             'pg_basebackup_path': '/fake/path',
             'pg_basebackup_bwlimit': True,
-            'pg_basebackup_version': '9.5'
+            'pg_basebackup_version': '9.5',
+            'pg_basebackup_tbls_mapping': True,
         }
         check_strat = CheckStrategy()
         backup_manager = build_backup_manager(global_conf={
             'backup_method': 'postgres'
         })
+        backup_manager.server.postgres.server_txt_version = '9.5'
         backup_manager.executor.check(check_strategy=check_strat)
         # No errors detected
         assert check_strat.has_error is not True
@@ -722,12 +724,44 @@ class TestPostgresBackupExecutor(object):
             'pg_basebackup_installed': True,
             'pg_basebackup_path': True,
             'pg_basebackup_bwlimit': True,
-            'pg_basebackup_version': '9.5'
+            'pg_basebackup_version': '9.5',
+            'pg_basebackup_tbls_mapping': True,
         }
-
         check_strat = CheckStrategy()
         backup_manager.executor.check(check_strategy=check_strat)
         # Error present because of the 'pg_basebackup_compatible': False
+        assert check_strat.has_error is True
+
+        # Even if pg_backup has no tbls_mapping option the check
+        # succeeds if the server doesn't have any tablespaces
+        remote_status_mock.reset_mock()
+        remote_status_mock.return_value = {
+            'pg_basebackup_compatible': True,
+            'pg_basebackup_installed': True,
+            'pg_basebackup_path': True,
+            'pg_basebackup_bwlimit': True,
+            'pg_basebackup_version': '9.3',
+            'pg_basebackup_tbls_mapping': False,
+        }
+        check_strat = CheckStrategy()
+        backup_manager.server.postgres.get_tablespaces.return_value = []
+        backup_manager.executor.check(check_strategy=check_strat)
+        assert check_strat.has_error is False
+
+        # This check fails because the server contains tablespaces and
+        # pg_basebackup doesn't support the tbls_mapping option
+        remote_status_mock.reset_mock()
+        remote_status_mock.return_value = {
+            'pg_basebackup_compatible': True,
+            'pg_basebackup_installed': True,
+            'pg_basebackup_path': True,
+            'pg_basebackup_bwlimit': True,
+            'pg_basebackup_version': '9.3',
+            'pg_basebackup_tbls_mapping': False,
+        }
+        check_strat = CheckStrategy()
+        backup_manager.server.postgres.get_tablespaces.return_value = [True]
+        backup_manager.executor.check(check_strategy=check_strat)
         assert check_strat.has_error is True
 
     @mock.patch("barman.command_wrappers.Command")
@@ -758,6 +792,7 @@ class TestPostgresBackupExecutor(object):
         assert remote['pg_basebackup_path'] == '/fake/path'
         assert remote['pg_basebackup_version'] == '9.5.1'
         assert remote['pg_basebackup_compatible'] is True
+        assert remote['pg_basebackup_tbls_mapping'] is True
 
         # Simulate the presence of pg_basebackup 9.5.1 and no Pg
         backup_manager.server.streaming.server_major_version = None
@@ -768,6 +803,7 @@ class TestPostgresBackupExecutor(object):
         assert remote['pg_basebackup_path'] == '/fake/path'
         assert remote['pg_basebackup_version'] == '9.5.1'
         assert remote['pg_basebackup_compatible'] is None
+        assert remote['pg_basebackup_tbls_mapping'] is True
 
         # Simulate the presence of pg_basebackup 9.3.3 and Pg 9.5
         backup_manager.server.streaming.server_major_version = '9.5'
@@ -778,6 +814,7 @@ class TestPostgresBackupExecutor(object):
         assert remote['pg_basebackup_path'] == '/fake/path'
         assert remote['pg_basebackup_version'] == '9.3.3'
         assert remote['pg_basebackup_compatible'] is False
+        assert remote['pg_basebackup_tbls_mapping'] is False
 
     @patch("barman.backup_executor.PgBaseBackup")
     @patch("barman.backup_executor.PostgresBackupExecutor.fetch_remote_status")
