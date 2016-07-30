@@ -300,6 +300,10 @@ receive-wal *SERVER_NAME*
     :   reset the status of receive-wal, restarting the streaming
         from the current WAL file of the server
 
+    --create-slot
+    :   create the physical replication slot configured with the
+        `slot_name` configuration parameter
+
 delete *SERVER_NAME* *BACKUP_ID*
 :   Delete the specified backup. [Backup ID shortcuts](#shortcuts)
     section below for available shortcuts.

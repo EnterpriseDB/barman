@@ -20,12 +20,29 @@ import datetime
 import psycopg2
 import pytest
 from mock import PropertyMock, call, patch
+from psycopg2.errorcodes import DUPLICATE_OBJECT
 
-from barman.exceptions import (PostgresConnectionError, PostgresException,
-                               PostgresIsInRecovery, PostgresSuperuserRequired,
+from barman.exceptions import (PostgresConnectionError,
+                               PostgresDuplicateReplicationSlot,
+                               PostgresException, PostgresIsInRecovery,
+                               PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
 from barman.postgres import PostgreSQLConnection
 from testing_helpers import build_real_server
+
+
+class MockProgrammingError(psycopg2.ProgrammingError):
+    """
+    Mock class for psycopg2 ProgrammingError
+    """
+    def __init__(self, pgcode=None, pgerror=None):
+        # pgcode and pgerror are read only attributes and the ProgrammingError
+        # class is written in native code. The only way to set these attribute
+        # is to use the private method '__setstate__', which is also native
+        self.__setstate__({
+            'pgcode': pgcode,
+            'pgerror': pgerror
+        })
 
 
 # noinspection PyMethodMayBeStatic
@@ -1143,3 +1160,32 @@ class TestStreamingConnection(object):
 
         conn_mock.return_value.server_version = 0
         assert server.streaming.server_txt_version == '0.0.0'
+
+    @patch('barman.postgres.psycopg2.connect')
+    def test_streaming_create_repslot(self, connect_mock):
+        # Build a server
+        server = build_real_server(
+            main_conf={
+                'streaming_archiver': True,
+                'streaming_conninfo': 'dummy=param'})
+
+        # Test replication slot creation
+        cursor_mock = connect_mock.return_value.cursor.return_value
+        server.streaming.create_physical_repslot('test_repslot')
+        cursor_mock.execute.assert_called_once_with(
+            "CREATE_REPLICATION_SLOT test_repslot PHYSICAL"
+        )
+
+        # Test replication slot already existent
+        cursor_mock = connect_mock.return_value.cursor.return_value
+        cursor_mock.execute.side_effect = MockProgrammingError(
+            DUPLICATE_OBJECT
+        )
+
+        with pytest.raises(PostgresDuplicateReplicationSlot):
+            server.streaming.create_physical_repslot('test_repslot')
+            cursor_mock.execute.assert_called_once_with(
+                "CREATE_REPLICATION_SLOT test_repslot PHYSICAL"
+            )
+
+        server.streaming.close()

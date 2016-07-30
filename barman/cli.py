@@ -660,6 +660,8 @@ def archive_wal(args):
 @arg('--reset', help='reset the status of receive-wal removing '
                      'any status files',
      action='store_true')
+@arg('--create-slot', help='create the replication slot if it does not exist',
+     action='store_true')
 @arg('server_name',
      completer=server_completer,
      help='specifies the server name for the command')
@@ -677,6 +679,9 @@ def receive_wal(args):
     # termination signal, otherwise attempt to start it
     elif args.stop:
         server.kill('receive-wal')
+    elif args.create_slot:
+        with closing(server):
+            server.create_physical_repslot()
     else:
         with closing(server):
             server.receive_wal(reset=args.reset)

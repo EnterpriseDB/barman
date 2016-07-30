@@ -36,8 +36,9 @@ from barman.command_wrappers import BarmanSubProcess
 from barman.compression import identify_compression
 from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
                                ConninfoException, LockFileBusy,
-                               LockFilePermissionDenied, PostgresIsInRecovery,
-                               PostgresSuperuserRequired,
+                               LockFilePermissionDenied,
+                               PostgresDuplicateReplicationSlot,
+                               PostgresIsInRecovery, PostgresSuperuserRequired,
                                PostgresUnsupportedFeature, TimeoutError,
                                UnknownBackupIdException)
 from barman.infofile import BackupInfo, WalFileInfo
@@ -1328,6 +1329,38 @@ class Server(RemoteStatusMixin):
             output.info("Another archive-wal process is already running "
                         "on server %s. Skipping to the next server"
                         % self.config.name)
+
+    def create_physical_repslot(self, ignore_if_exists=True):
+        """
+        Create a physical replication slot using the streaming connection
+        :param bool ignore_if_exists: Ignore the operation if the
+          replication slot already exists
+        """
+        if not self.streaming:
+            output.error("Unable to create a physical replication slot: "
+                         "streaming connection not configured")
+            return
+
+        if not self.config.slot_name:
+            output.error("Unable to create a physical replication slot: "
+                         "slot_name configuration option required")
+            return
+
+        output.info(
+            "Creating physical replication slot %s for server %s",
+            self.config.slot_name,
+            self.config.name
+        )
+
+        try:
+            self.streaming.create_physical_repslot(self.config.slot_name)
+            output.info('Replication slot %s created', self.config.slot_name)
+        except PostgresDuplicateReplicationSlot:
+            if ignore_if_exists:
+                output.info('Replication slot %s already exists',
+                            self.config.slot_name)
+            else:
+                raise
 
     def receive_wal(self, reset=False):
         """

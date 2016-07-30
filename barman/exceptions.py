@@ -199,6 +199,13 @@ class PostgresUnsupportedFeature(PostgresException):
     """
 
 
+class PostgresDuplicateReplicationSlot(PostgresException):
+    """
+    The creation of a physical replication slot failed because
+    the slot already exists
+    """
+
+
 class TimeoutError(CommandException):
     """
     A timeout occurred.

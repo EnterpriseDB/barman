@@ -24,6 +24,7 @@ from mock import MagicMock, patch
 from psycopg2.tz import FixedOffsetTimezone
 
 from barman.exceptions import (LockFileBusy, LockFilePermissionDenied,
+                               PostgresDuplicateReplicationSlot,
                                PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
 from barman.infofile import BackupInfo, WalFileInfo
@@ -796,6 +797,40 @@ class TestServer(object):
         )
 
         assert server.xlogdb_file_name == result
+
+    def test_create_physical_repslot(self):
+        """
+        Test the 'create_physical_repslot' method of the Postgres
+        class
+        """
+
+        # No operation if there is no streaming connection
+        server = build_real_server()
+        server.streaming = None
+        assert server.create_physical_repslot() is None
+
+        # No operation if the slot name is empty
+        server.streaming = MagicMock()
+        server.config.slot_name = None
+        assert server.create_physical_repslot() is None
+
+        # If there is a streaming connection and the replication
+        # slot is defined, then the replication slot should be
+        # created
+        server.config.slot_name = 'test_repslot'
+        server.create_physical_repslot()
+        create_physical_repslot = server.streaming.create_physical_repslot
+        create_physical_repslot.assert_called_with('test_repslot')
+
+        # If the replication slot was already created no error is given
+        # since ignore_if_exists is True
+        create_physical_repslot.side_effect = PostgresDuplicateReplicationSlot
+        server.create_physical_repslot()
+        create_physical_repslot.assert_called_with('test_repslot')
+
+        # If ignore_if_exists is False, then we have the exception raised
+        with pytest.raises(PostgresDuplicateReplicationSlot):
+            server.create_physical_repslot(ignore_if_exists=False)
 
 
 class TestCheckStrategy(object):
