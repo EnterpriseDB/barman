@@ -24,14 +24,15 @@ import logging
 from abc import ABCMeta
 
 import psycopg2
-from psycopg2.errorcodes import DUPLICATE_OBJECT
+from psycopg2.errorcodes import DUPLICATE_OBJECT, UNDEFINED_OBJECT
 from psycopg2.extensions import STATUS_IN_TRANSACTION
 from psycopg2.extras import DictCursor, NamedTupleCursor
 
 from barman.exceptions import (ConninfoException, PostgresConnectionError,
                                PostgresDuplicateReplicationSlot,
-                               PostgresException, PostgresIsInRecovery,
-                               PostgresSuperuserRequired,
+                               PostgresException,
+                               PostgresInvalidReplicationSlot,
+                               PostgresIsInRecovery, PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
 from barman.infofile import Tablespace
 from barman.remote_status import RemoteStatusMixin
@@ -283,6 +284,26 @@ class StreamingConnection(PostgreSQL):
             if exc.pgcode == DUPLICATE_OBJECT:
                 # A replication slot with the same name exists
                 raise PostgresDuplicateReplicationSlot()
+            else:
+                raise
+
+    def drop_repslot(self, slot_name):
+        """
+        Drop a physical replication slot using the streaming connection
+        :param str slot_name: Replication slot name
+        """
+        cursor = self._cursor()
+        try:
+            # In the following query, the slot name is directly passed
+            # to the DROP_REPLICATION_SLOT command, without any
+            # quoting. This is a characteristic of the streaming
+            # connection, otherwise if will fail with a generic
+            # "syntax error"
+            cursor.execute('DROP_REPLICATION_SLOT %s' % slot_name)
+        except psycopg2.ProgrammingError as exc:
+            if exc.pgcode == UNDEFINED_OBJECT:
+                # A replication slot with the that name does not exist
+                raise PostgresInvalidReplicationSlot()
             else:
                 raise
 

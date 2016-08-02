@@ -304,6 +304,10 @@ receive-wal *SERVER_NAME*
     :   create the physical replication slot configured with the
         `slot_name` configuration parameter
 
+    --drop-slot
+    :   drop the physical replication slot configured with the
+        `slot_name` configuration parameter
+
 delete *SERVER_NAME* *BACKUP_ID*
 :   Delete the specified backup. [Backup ID shortcuts](#shortcuts)
     section below for available shortcuts.

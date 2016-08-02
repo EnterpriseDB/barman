@@ -20,12 +20,13 @@ import datetime
 import psycopg2
 import pytest
 from mock import PropertyMock, call, patch
-from psycopg2.errorcodes import DUPLICATE_OBJECT
+from psycopg2.errorcodes import DUPLICATE_OBJECT, UNDEFINED_OBJECT
 
 from barman.exceptions import (PostgresConnectionError,
                                PostgresDuplicateReplicationSlot,
-                               PostgresException, PostgresIsInRecovery,
-                               PostgresSuperuserRequired,
+                               PostgresException,
+                               PostgresInvalidReplicationSlot,
+                               PostgresIsInRecovery, PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
 from barman.postgres import PostgreSQLConnection
 from testing_helpers import build_real_server
@@ -1186,6 +1187,33 @@ class TestStreamingConnection(object):
             server.streaming.create_physical_repslot('test_repslot')
             cursor_mock.execute.assert_called_once_with(
                 "CREATE_REPLICATION_SLOT test_repslot PHYSICAL"
+            )
+
+    @patch('barman.postgres.psycopg2.connect')
+    def test_streaming_drop_repslot(self, connect_mock):
+        # Build a server
+        server = build_real_server(
+            main_conf={
+                'streaming_archiver': True,
+                'streaming_conninfo': 'dummy=param'})
+
+        # Test replication slot creation
+        cursor_mock = connect_mock.return_value.cursor.return_value
+        server.streaming.drop_repslot('test_repslot')
+        cursor_mock.execute.assert_called_once_with(
+            "DROP_REPLICATION_SLOT test_repslot"
+        )
+
+        # Test replication slot already existent
+        cursor_mock = connect_mock.return_value.cursor.return_value
+        cursor_mock.execute.side_effect = MockProgrammingError(
+            UNDEFINED_OBJECT
+        )
+
+        with pytest.raises(PostgresInvalidReplicationSlot):
+            server.streaming.drop_repslot('test_repslot')
+            cursor_mock.execute.assert_called_once_with(
+                "DROP_REPLICATION_SLOT test_repslot"
             )
 
         server.streaming.close()

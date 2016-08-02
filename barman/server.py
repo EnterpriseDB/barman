@@ -38,6 +38,7 @@ from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
                                ConninfoException, LockFileBusy,
                                LockFilePermissionDenied,
                                PostgresDuplicateReplicationSlot,
+                               PostgresInvalidReplicationSlot,
                                PostgresIsInRecovery, PostgresSuperuserRequired,
                                PostgresUnsupportedFeature, TimeoutError,
                                UnknownBackupIdException)
@@ -1358,6 +1359,38 @@ class Server(RemoteStatusMixin):
         except PostgresDuplicateReplicationSlot:
             if ignore_if_exists:
                 output.info('Replication slot %s already exists',
+                            self.config.slot_name)
+            else:
+                raise
+
+    def drop_repslot(self, ignore_if_not_exist=True):
+        """
+        Drop a replication slot using the streaming connection
+        :param bool ignore_if_not_exist: Ignore the operation if the
+          replication slot doesn't exist
+        """
+        if not self.streaming:
+            output.error("Unable to drop a physical replication slot: "
+                         "streaming connection not configured")
+            return
+
+        if not self.config.slot_name:
+            output.error("Unable to drop a physical replication slot: "
+                         "slot_name configuration option required")
+            return
+
+        output.info(
+            "Dropping physical replication slot %s for server %s",
+            self.config.slot_name,
+            self.config.name
+        )
+
+        try:
+            self.streaming.drop_repslot(self.config.slot_name)
+            output.info('Replication slot %s dropped', self.config.slot_name)
+        except PostgresInvalidReplicationSlot:
+            if ignore_if_not_exist:
+                output.info('Replication slot %s does not exist',
                             self.config.slot_name)
             else:
                 raise

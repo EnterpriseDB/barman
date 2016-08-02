@@ -206,6 +206,13 @@ class PostgresDuplicateReplicationSlot(PostgresException):
     """
 
 
+class PostgresInvalidReplicationSlot(PostgresException):
+    """
+    Exception representing a failure during the deletion of a non
+    existent replication slot
+    """
+
+
 class TimeoutError(CommandException):
     """
     A timeout occurred.
