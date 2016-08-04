@@ -398,13 +398,21 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        # Check WAL archiving has been setup
+
+        # Make sure that WAL archiving has been setup
+        # XLOG_DB needs to exist and its size must be > 0
+        # NOTE: we do not need to acquire a lock in this phase
+        xlogdb_empty = True
+        if os.path.exists(self.xlogdb_file_name):
+            with open(self.xlogdb_file_name, "rb") as fxlogdb:
+                if os.fstat(fxlogdb.fileno()).st_size > 0:
+                    xlogdb_empty = False
+
         # NOTE: This check needs to be only visible if it fails
-        with self.xlogdb() as fxlogdb:
-            if os.fstat(fxlogdb.fileno()).st_size == 0:
-                check_strategy.result(
-                    self.config.name, 'WAL archive', False,
-                    'please make sure WAL shipping is setup')
+        if xlogdb_empty:
+            check_strategy.result(
+                self.config.name, 'WAL archive', False,
+                'please make sure WAL shipping is setup')
 
     def check_postgres(self, check_strategy):
         """
@@ -1365,6 +1373,14 @@ class Server(RemoteStatusMixin):
                 output.info("Another receive-wal process is already running "
                             "for server %s." % self.config.name)
 
+    @property
+    def xlogdb_file_name(self):
+        """
+        The name of the file containing the XLOG_DB
+        :return str: the name of the file that contains the XLOG_DB
+        """
+        return os.path.join(self.config.wals_directory, self.XLOG_DB)
+
     @contextmanager
     def xlogdb(self, mode='r'):
         """
@@ -1384,7 +1400,7 @@ class Server(RemoteStatusMixin):
         """
         if not os.path.exists(self.config.wals_directory):
             os.makedirs(self.config.wals_directory)
-        xlogdb = os.path.join(self.config.wals_directory, self.XLOG_DB)
+        xlogdb = self.xlogdb_file_name
 
         with ServerXLOGDBLock(self.config.barman_lock_directory,
                               self.config.name):

@@ -648,7 +648,18 @@ class TestServer(object):
                 "wals_directory": tmpdir.mkdir('wals').strpath
             })
         strategy = CheckStrategy()
+
+        # Call the server on an unexistent xlog file. expect it to fail
+        server.check_archive(strategy)
+        assert strategy.has_error is True
+        assert strategy.check_result[0].check == 'WAL archive'
+        assert strategy.check_result[0].status is False
+
         # Call the check on an empty xlog file. expect it to contain errors.
+        with open(server.xlogdb_file_name, "a"):
+            # the open call forces the file creation
+            pass
+
         server.check_archive(strategy)
         assert strategy.has_error is True
         assert strategy.check_result[0].check == 'WAL archive'
@@ -771,6 +782,20 @@ class TestServer(object):
         assert len(server.get_children_timelines(2)) == 1
         assert len(server.get_children_timelines(3)) == 0
         assert len(server.get_children_timelines(4)) == 0
+
+    def test_xlogdb_file_name(self):
+        """
+        Test the xlogdb_file_name server property
+        """
+        server = build_real_server()
+        server.config.wals_directory = 'mock_wals_directory'
+
+        result = os.path.join(
+            server.config.wals_directory,
+            server.XLOG_DB
+        )
+
+        assert server.xlogdb_file_name == result
 
 
 class TestCheckStrategy(object):
