@@ -591,16 +591,18 @@ class StreamingWalArchiver(WalArchiver):
         file_names.sort()
 
         # Process anything that looks like a valid WAL file,
-        # including partial ones.
+        # including partial ones and history files.
         # Anything else is treated like an error/anomaly
         files = []
         skip = []
         errors = []
         for file_name in file_names:
-            if xlog.is_wal_file(file_name) and os.path.isfile(file_name):
-                files.append(file_name)
-            elif xlog.is_partial_file(file_name) and os.path.isfile(file_name):
+            if not os.path.isfile(file_name):
+                errors.append(file_name)
+            elif xlog.is_partial_file(file_name):
                 skip.append(file_name)
+            elif xlog.is_any_xlog_file(file_name):
+                files.append(file_name)
             else:
                 errors.append(file_name)
         # In case of more than a partial file, keep the last

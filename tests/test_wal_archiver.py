@@ -862,6 +862,15 @@ class TestStreamingWalArchiver(object):
         assert ['000000010000000000000001.partial'] == batch.errors
         assert ['000000010000000000000002.partial'] == batch.skip
 
+        # WAL batch, with history files.
+        glob_mock.return_value = [
+            '00000001.history',
+            '000000010000000000000002.partial',
+        ]
+        batch = archiver.get_next_batch()
+        assert [':00000001.history:'] == batch
+        assert ['000000010000000000000002.partial'] == batch.skip
+
         # WAL batch with errors
         wrong_file_name = 'test_wrong_wal_file.2'
         glob_mock.return_value = ['test_wrong_wal_file.2']
