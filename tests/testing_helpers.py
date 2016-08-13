@@ -221,6 +221,7 @@ def build_config_dictionary(config_keys=None):
     base_config = {
         'active': True,
         'archiver': True,
+        'archiver_batch_size': 0,
         'config': None,
         'backup_directory': '/some/barman/home/main',
         'backup_options': BackupOptions("",  "", ""),
@@ -244,6 +245,7 @@ def build_config_dictionary(config_keys=None):
         'pre_backup_script': None,
         'slot_name': None,
         'streaming_archiver_name': 'barman_receive_wal',
+        'streaming_archiver_batch_size': 0,
         'post_backup_retry_script': None,
         'streaming_backup_name': 'barman_streaming_backup',
         'pre_backup_retry_script': None,

@@ -268,6 +268,7 @@ class ServerConfig(object):
     KEYS = [
         'active',
         'archiver',
+        'archiver_batch_size',
         'backup_directory',
         'backup_method',
         'backup_options',
@@ -304,6 +305,7 @@ class ServerConfig(object):
         'slot_name',
         'ssh_command',
         'streaming_archiver',
+        'streaming_archiver_batch_size',
         'streaming_archiver_name',
         'streaming_backup_name',
         'streaming_conninfo',
@@ -315,6 +317,7 @@ class ServerConfig(object):
 
     BARMAN_KEYS = [
         'archiver',
+        'archiver_batch_size',
         'backup_method',
         'backup_options',
         'bandwidth_limit',
@@ -340,6 +343,7 @@ class ServerConfig(object):
         'reuse_backup',
         'slot_name',
         'streaming_archiver',
+        'streaming_archiver_batch_size',
         'tablespace_bandwidth_limit',
         'wal_retention_policy'
     ]
@@ -347,6 +351,7 @@ class ServerConfig(object):
     DEFAULTS = {
         'active': 'true',
         'archiver': 'on',
+        'archiver_batch_size': '0',
         'backup_directory': '%(barman_home)s/%(name)s',
         'backup_method': 'rsync',
         'backup_options': '',
@@ -363,6 +368,7 @@ class ServerConfig(object):
         'recovery_options': '',
         'retention_policy_mode': 'auto',
         'streaming_archiver': 'off',
+        'streaming_archiver_batch_size': '0',
         'streaming_archiver_name': 'barman_receive_wal',
         'streaming_backup_name': 'barman_streaming_backup',
         'streaming_conninfo': '%(conninfo)s',
@@ -378,6 +384,7 @@ class ServerConfig(object):
     PARSERS = {
         'active': parse_boolean,
         'archiver': parse_boolean,
+        'archiver_batch_size': int,
         'backup_method': parse_backup_method,
         'backup_options': BackupOptions,
         'basebackup_retry_sleep': int,
@@ -390,6 +397,7 @@ class ServerConfig(object):
         'recovery_options': RecoveryOptions,
         'reuse_backup': parse_reuse_backup,
         'streaming_archiver': parse_boolean,
+        'streaming_archiver_batch_size': int,
     }
 
     def invoke_parser(self, key, source, value, new_value):

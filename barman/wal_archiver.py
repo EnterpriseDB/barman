@@ -38,26 +38,62 @@ from barman.utils import fsync_dir, mkpath, with_metaclass
 _logger = logging.getLogger(__name__)
 
 
-class WalArchiverBatch(list):
-    def __init__(self, items, errors=None, skip=None):
+class WalArchiverQueue(list):
+    def __init__(self, items, errors=None, skip=None, batch_size=0):
         """
-        A WalArchiverBatch is a list of WalFileInfo which has two extra
+        A WalArchiverQueue is a list of WalFileInfo which has two extra
         attribute list:
 
         * errors: containing a list of unrecognized files
         * skip: containing a list of skipped files.
 
+        It also stores batch run size information in case
+        it is requested by configuration, in order to limit the
+        number of WAL files that are processed in a single
+        run of the archive-wal command.
+
         :param items: iterable from which initialize the list
+        :param batch_size: size of the current batch run (0=unlimited)
         :param errors: an optional list of unrecognized files
         :param skip: an optional list of skipped files
         """
-        super(WalArchiverBatch, self).__init__(items)
+        super(WalArchiverQueue, self).__init__(items)
         self.skip = []
         self.errors = []
         if skip is not None:
             self.skip = skip
         if errors is not None:
             self.errors = errors
+        # Normalises batch run size
+        if batch_size > 0:
+            self.batch_size = batch_size
+        else:
+            self.batch_size = 0
+
+    @property
+    def size(self):
+        """
+        Number of valid WAL segments waiting to be processed (in total)
+
+        :return int: total number of valid WAL files
+        """
+        return len(self)
+
+    @property
+    def run_size(self):
+        """
+        Number of valid WAL files to be processed in this run - takes
+        in consideration the batch size
+
+        :return int: number of valid WAL files for this batch run
+        """
+        # In case a batch size has been explicitly specified
+        # (i.e. batch_size > 0), returns the minimum number between
+        # batch size and the queue size. Otherwise, simply
+        # returns the total queue size (unlimited batch size).
+        if self.batch_size > 0:
+            return min(self.size, self.batch_size)
+        return self.size
 
 
 class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
@@ -98,24 +134,62 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         """
         compressor = self.backup_manager.compression_manager.get_compressor()
         stamp = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
-        found = False
-        if verbose:
-            output.info("Processing xlog segments from %s for %s",
-                        self.name,
-                        self.config.name,
-                        log=False)
+        processed = 0
+        header = "Processing xlog segments from %s for %s" % (
+                 self.name, self.config.name)
+
+        # Get the next batch of WAL files to be processed
         batch = self.get_next_batch()
+
+        # Analyse the batch and properly log the information
+        if batch.size:
+            if batch.size > batch.run_size:
+                # Batch mode enabled
+                _logger.info("Found %s xlog segments from %s for %s."
+                             " Archive a batch of %s segments in this run.",
+                             batch.size,
+                             self.name,
+                             self.config.name,
+                             batch.run_size)
+                header += " (batch size: %s)" % batch.run_size
+            else:
+                # Single run mode (traditional)
+                _logger.info("Found %s xlog segments from %s for %s."
+                             " Archive all segments in one run.",
+                             batch.size,
+                             self.name,
+                             self.config.name)
+        else:
+            _logger.info("No xlog segments found from %s for %s.",
+                         self.name,
+                         self.config.name)
+
+        # Print the header (verbose mode)
+        if verbose:
+            output.info(header, log=False)
+
+        # Loop through all available WAL files
         for wal_info in batch:
-            if not found and not verbose:
-                output.info("Processing xlog segments from %s for %s",
-                            self.name,
-                            self.config.name,
-                            log=False)
-            found = True
+            # Print the header (non verbose mode)
+            if not processed and not verbose:
+                output.info(header, log=False)
+
+            # Exit when archive batch size is reached
+            if processed >= batch.run_size:
+                _logger.debug("Batch size reached (%s) - "
+                              "Exit %s process for %s",
+                              batch.batch_size,
+                              self.name,
+                              self.config.name)
+                break
+
+            processed += 1
 
             # Report to the user the WAL file we are archiving
             output.info("\t%s", wal_info.name, log=False)
-            _logger.info("Archiving %s/%s", self.config.name, wal_info.name)
+            _logger.info("Archiving segment %s of %s from %s: %s/%s",
+                         processed, batch.run_size, self.name,
+                         self.config.name, wal_info.name)
             # Archive the WAL file
             try:
                 self.archive_wal(compressor, wal_info)
@@ -149,8 +223,13 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
             # flush and fsync for every line
             fxlogdb.flush()
             os.fsync(fxlogdb.fileno())
-        if not found and verbose:
+
+        if processed:
+            _logger.debug("Archived %s out of %s xlog segments from %s for %s",
+                          processed, batch.size, self.name, self.config.name)
+        elif verbose:
             output.info("\tno file found", log=False)
+
         if batch.errors:
             output.info("Some unknown objects have been found while "
                         "processing xlog segments for %s. "
@@ -288,9 +367,9 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
     @abstractmethod
     def get_next_batch(self):
         """
-        Return a WalArchiverBatch containing the WAL files to be archived.
+        Return a WalArchiverQueue containing the WAL files to be archived.
 
-        :rtype: WalArchiverBatch
+        :rtype: WalArchiverQueue
         """
 
     @abstractmethod
@@ -373,8 +452,10 @@ class FileWalArchiver(WalArchiver):
         Returns the next batch of WAL files that have been archived through
         a PostgreSQL's 'archive_command' (in the 'incoming' directory)
 
-        :return: WalArchiverBatch: list of WAL files
+        :return: WalArchiverQueue: list of WAL files
         """
+        # Get the batch size from configuration (0 = unlimited)
+        batch_size = self.config.archiver_batch_size
         # List and sort all files in the incoming directory
         file_names = glob(os.path.join(
             self.config.incoming_wals_directory, '*'))
@@ -392,7 +473,9 @@ class FileWalArchiver(WalArchiver):
 
         # Build the list of WalFileInfo
         wal_files = [WalFileInfo.from_file(f) for f in files]
-        return WalArchiverBatch(wal_files, errors=errors)
+        return WalArchiverQueue(wal_files,
+                                batch_size=batch_size,
+                                errors=errors)
 
     def check(self, check_strategy):
         """
@@ -583,8 +666,10 @@ class StreamingWalArchiver(WalArchiver):
         because the 'pg_receivexlog' process needs at least one file to
         detect the current streaming position after a restart.
 
-        :return: WalArchiverBatch: list of WAL files
+        :return: WalArchiverQueue: list of WAL files
         """
+        # Get the batch size from configuration (0 = unlimited)
+        batch_size = self.config.streaming_archiver_batch_size
         # List and sort all files in the incoming directory
         file_names = glob(os.path.join(
             self.config.streaming_wals_directory, '*'))
@@ -617,7 +702,9 @@ class StreamingWalArchiver(WalArchiver):
 
         # Build the list of WalFileInfo
         wal_files = [WalFileInfo.from_file(f, compression=None) for f in files]
-        return WalArchiverBatch(wal_files, errors=errors, skip=skip)
+        return WalArchiverQueue(wal_files,
+                                batch_size=batch_size,
+                                errors=errors, skip=skip)
 
     def check(self, check_strategy):
         """

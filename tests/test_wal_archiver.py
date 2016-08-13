@@ -27,7 +27,7 @@ from barman.infofile import WalFileInfo
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy
 from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
-                                 WalArchiverBatch)
+                                 WalArchiverQueue)
 from testing_helpers import build_backup_manager, build_test_backup_info
 
 
@@ -147,7 +147,9 @@ class TestFileWalArchiver(object):
         wal_info = WalFileInfo(name="test_wal_file")
         wal_info.orig_filename = "test_wal_file"
 
-        batch = WalArchiverBatch([wal_info])
+        batch = WalArchiverQueue([wal_info])
+        assert batch.size == 1
+        assert batch.run_size == 1
         get_next_batch_mock.return_value = batch
         archive_wal_mock.side_effect = DuplicateWalFile
 
@@ -183,6 +185,45 @@ class TestFileWalArchiver(object):
             'testfile_2',
             os.path.join(archiver.config.errors_directory,
                          "%s.%s.unknown" % ('testfile_2', 'test_time')))
+
+    @patch('os.fsync')
+    @patch('barman.wal_archiver.FileWalArchiver.get_next_batch')
+    @patch('barman.wal_archiver.FileWalArchiver.archive_wal')
+    def test_archive_batch(self, archive_wal_mock, get_next_batch_mock,
+                           fsync_mock, caplog):
+        """
+        Test archive using batch limit
+        """
+        # Setup the test
+        fxlogdb_mock = MagicMock()
+        backup_manager = MagicMock()
+        archiver = FileWalArchiver(backup_manager)
+        archiver.config.name = "test_server"
+
+        wal_info = WalFileInfo(name="test_wal_file")
+        wal_info.orig_filename = "test_wal_file"
+        wal_info2 = WalFileInfo(name="test_wal_file2")
+        wal_info2.orig_filename = "test_wal_file2"
+
+        # Test queue with batch limit 1 with a list of 2 files
+        batch = WalArchiverQueue([wal_info, wal_info2], batch_size=1)
+        assert batch.size == 2
+        assert batch.run_size == 1
+
+        get_next_batch_mock.return_value = batch
+        archiver.archive(fxlogdb_mock)
+        # check the log for messages
+        assert ("Found %s xlog segments from %s for %s."
+                " Archive a batch of %s segments in this run." %
+                (batch.size,
+                 archiver.name,
+                 archiver.config.name,
+                 batch.run_size)) in caplog.text
+        assert ("Batch size reached (%s) - "
+                "Exit %s process for %s" %
+                (batch.batch_size,
+                 archiver.name,
+                 archiver.config.name)) in caplog.text
 
     # TODO: The following test should be splitted in two
     # the BackupManager part and the FileWalArchiver part

@@ -919,6 +919,20 @@ need to do it, given that it is transparently invoked as a subprocess
 by the `cron` command, as part of the standard maintenance operations
 for every server.
 
+By default, `archive-wal` processes the whole queue of incoming
+WAL segments. Starting from Barman 1.7.0, batch processing can be
+enabled through the `archiver_batch_size` option (for traditional
+file archival) and/or the `streaming_archiver_batch_size`
+option (for WAL streaming).
+
+The following example limits `archive-wal` to process up to 10
+WAL segments from file archival and WAL streaming:
+
+``` ini
+archiver_batch_size = 10
+streaming_archiver_batch_size = 10
+```
+
 ## Server commands
 
 ### Show the configuration for a given server

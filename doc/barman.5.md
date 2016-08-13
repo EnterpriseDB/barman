@@ -64,6 +64,14 @@ archiver
     natively supports physical replication slots. Setting it to `false`
     will result in a disabled server).
 
+archiver_batch_size
+:   This option allows you to activate batch processing of WAL files
+    for the `archiver` process, by setting it to a value > 0. Otherwise,
+    the traditional unlimited processing of the WAL queue is enabled.
+    When batch processing is activated, the `archive-wal` process would
+    limit itself to maximum `archiver_batch_size` WAL segments per single
+    run. Integer. Global/Server.
+
 backup_directory
 :   Directory where backup data for a server will be placed. Server.
 
@@ -271,6 +279,14 @@ streaming_archiver
     If set to `off` (default) barman will rely only on continuous archiving
     for a server WAL archive operations, eventually terminating any running
     `pg_receivexlog` for the server. Global/Server.
+
+streaming_archiver_batch_size
+:   This option allows you to activate batch processing of WAL files
+    for the `streaming_archiver` process, by setting it to a value > 0.
+    Otherwise, the traditional unlimited processing of the WAL queue
+    is enabled. When batch processing is activated, the `archive-wal`
+    process would limit itself to maximum `streaming_archiver_batch_size`
+    WAL segments per single run. Integer. Global/Server.
 
 streaming_archiver_name
 :   Identifier to be used as `application_name` by the `receive-wal` command.
