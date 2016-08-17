@@ -463,6 +463,74 @@ class Server(RemoteStatusMixin):
                     self.config.name, 'wal_level', False,
                     "please set it to a higher level than 'minimal'")
 
+        # Check the presence and the status of the configured replication slot
+        # This check will be skipped if `slot_name` is undefined
+        if self.config.slot_name:
+            slot = remote_status['replication_slot']
+            # The streaming_archiver is enabled
+            if self.config.streaming_archiver is True:
+                # Error if PostgreSQL is too old
+                if not remote_status['replication_slot_support']:
+                    check_strategy.result(
+                        self.config.name,
+                        'replication slot',
+                        False,
+                        "slot_name parameter set but "
+                        "PostgreSQL server is too old (%s < 9.4)" % (
+                            remote_status['server_txt_version']))
+                # Replication slots are supported
+                else:
+                    # The slot is not present
+                    if slot is None:
+                        check_strategy.result(
+                            self.config.name, 'replication slot', False,
+                            "replication slot '%s' doesn't exist. "
+                            "Please execute "
+                            "'barman receive-wal --create-slot %s'" %
+                            (self.config.slot_name, self.config.name))
+                    else:
+                        # The slot is present but not initialised
+                        if slot.restart_lsn is None:
+                            check_strategy.result(
+                                self.config.name, 'replication slot', False,
+                                "slot '%s' not initialised: "
+                                "is 'receive-wal' running?" %
+                                self.config.slot_name)
+                        # The slot is present but not active
+                        elif slot.active is False:
+                            check_strategy.result(
+                                self.config.name, 'replication slot', False,
+                                "slot '%s' not active: "
+                                "is 'receive-wal' running?" %
+                                self.config.slot_name)
+                        else:
+                            check_strategy.result(self.config.name,
+                                                  'replication slot',
+                                                  True)
+            else:
+                # If the streaming_archiver is disabled and the slot_name
+                # option is present in the configuration, we check that
+                # a replication slot with the specified name is NOT present
+                # and NOT active.
+                # NOTE: This is not a failure, just a warning.
+                if slot is not None:
+                    if slot.restart_lsn \
+                            is not None:
+                        slot_status = 'initialised'
+
+                        # Check if the slot is also active
+                        if slot.active:
+                            slot_status = 'active'
+
+                        # Warn the user
+                        check_strategy.result(
+                            self.config.name,
+                            'replication slot',
+                            True,
+                            "WARNING: slot '%s' is %s but not required "
+                            "by the current config" % (
+                                self.config.slot_name, slot_status))
+
     def _make_directories(self):
         """
         Make backup directories in case they do not exist
@@ -1347,6 +1415,13 @@ class Server(RemoteStatusMixin):
                          "slot_name configuration option required")
             return
 
+        # Replication slots are not supported by PostgreSQL < 9.4
+        if self.streaming.server_version < 90400:
+            output.error("Unable to create a physical replication slot: "
+                         "not supported by %s (9.4 is required)" %
+                         self.streaming.server_major_version)
+            return
+
         output.info(
             "Creating physical replication slot %s for server %s",
             self.config.slot_name,
@@ -1377,6 +1452,13 @@ class Server(RemoteStatusMixin):
         if not self.config.slot_name:
             output.error("Unable to drop a physical replication slot: "
                          "slot_name configuration option required")
+            return
+
+        # Replication slots are not supported by PostgreSQL < 9.4
+        if self.streaming.server_version < 90400:
+            output.error("Unable to drop a physical replication slot: "
+                         "not supported by %s (9.4 is required)" %
+                         self.streaming.server_major_version)
             return
 
         output.info(

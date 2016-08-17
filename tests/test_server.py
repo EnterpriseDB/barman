@@ -20,7 +20,7 @@ import os
 from collections import defaultdict, namedtuple
 
 import pytest
-from mock import MagicMock, patch
+from mock import MagicMock, mock, patch
 from psycopg2.tz import FixedOffsetTimezone
 
 from barman.exceptions import (LockFileBusy, LockFilePermissionDenied,
@@ -346,6 +346,134 @@ class TestServer(object):
         assert out == "\tPostgreSQL: OK\n" \
                       "\twal_level: FAILED (please set it to a higher level " \
                       "than 'minimal')\n"
+
+    @patch('barman.server.Server.get_remote_status')
+    def test_check_replication_slot(self, postgres_mock, capsys):
+        """
+        Extension of the check_postgres test.
+        Tests the replication_slot check
+
+        :param postgres_mock: mock get_remote_status function
+        :param capsys: retrieve output from console
+        """
+        postgres_mock.return_value = {
+            'current_xlog': None,
+            'archive_command': 'wal to archive',
+            'pgespresso_installed': None,
+            'server_txt_version': '9.3.1',
+            'data_directory': '/usr/local/postgres',
+            'archive_mode': 'on',
+            'wal_level': 'archive',
+            'replication_slot_support': False,
+            'replication_slot': None,
+        }
+
+        # Create server
+        server = build_real_server()
+
+        # Case: Postgres version < 9.4
+        strategy = CheckOutputStrategy()
+        server.check_postgres(strategy)
+        (out, err) = capsys.readouterr()
+        assert '\treplication slot:' not in out
+
+        # Case: correct configuration
+        # use a mock as a quick disposable obj
+        rep_slot = mock.Mock()
+        rep_slot.slot_name = 'test'
+        rep_slot.active = True
+        rep_slot.restart_lsn = 'aaaBB'
+        postgres_mock.return_value = {
+            'server_txt_version': '9.4.1',
+            'replication_slot_support': True,
+            'replication_slot': rep_slot,
+        }
+        server = build_real_server()
+        server.config.streaming_archiver = True
+        server.config.slot_name = 'test'
+        server.check_postgres(strategy)
+        (out, err) = capsys.readouterr()
+
+        # Everything is ok
+        assert '\treplication slot: OK\n' in out
+
+        rep_slot.active = False
+        rep_slot.restart_lsn = None
+        postgres_mock.return_value = {
+            'server_txt_version': '9.4.1',
+            'replication_slot_support': True,
+            'replication_slot': rep_slot,
+        }
+
+        # Replication slot not initialised.
+        server = build_real_server()
+        server.config.slot_name = 'test'
+        server.config.streaming_archiver = True
+        server.check_postgres(strategy)
+        (out, err) = capsys.readouterr()
+        # Everything is ok
+        assert "\treplication slot: FAILED (slot '%s' not initialised: " \
+               "is 'receive-wal' running?)\n" \
+               % server.config.slot_name in out
+
+        rep_slot.reset_mock()
+        rep_slot.active = False
+        rep_slot.restart_lsn = 'Test'
+        postgres_mock.return_value = {
+            'server_txt_version': '9.4.1',
+            'replication_slot_support': True,
+            'replication_slot': rep_slot
+        }
+
+        # Replication slot not active.
+        server = build_real_server()
+        server.config.slot_name = 'test'
+        server.config.streaming_archiver = True
+        server.check_postgres(strategy)
+        (out, err) = capsys.readouterr()
+        # Everything is ok
+        assert "\treplication slot: FAILED (slot '%s' not active: " \
+               "is 'receive-wal' running?)\n" % server.config.slot_name in out
+
+        rep_slot.reset_mock()
+        rep_slot.active = False
+        rep_slot.restart_lsn = 'Test'
+        postgres_mock.return_value = {
+            'server_txt_version': 'PostgreSQL 9.4.1',
+            'replication_slot_support': True,
+            'replication_slot': rep_slot
+        }
+
+        # Replication slot not active with streaming_archiver off.
+        server = build_real_server()
+        server.config.slot_name = 'test'
+        server.config.streaming_archiver = False
+        server.check_postgres(strategy)
+        (out, err) = capsys.readouterr()
+        # Everything is ok
+        assert "\treplication slot: OK (WARNING: slot '%s' is initialised " \
+               "but not required by the current config)\n" \
+               % server.config.slot_name in out
+
+        rep_slot.reset_mock()
+        rep_slot.active = True
+        rep_slot.restart_lsn = 'Test'
+        postgres_mock.return_value = {
+            'server_txt_version': 'PostgreSQL 9.4.1',
+            'replication_slot_support': True,
+            'replication_slot': rep_slot,
+        }
+
+        # Replication slot not active with streaming_archiver off.
+        server = build_real_server()
+        server.config.slot_name = 'test'
+        server.config.streaming_archiver = False
+        server.check_postgres(strategy)
+        (out, err) = capsys.readouterr()
+        # Everything is ok
+        assert "\treplication slot: OK (WARNING: slot '%s' is active " \
+               "but not required by the current config)\n" \
+               % server.config.slot_name in out
 
     @patch('barman.server.Server.get_wal_until_next_backup')
     def test_get_wal_info(self, get_wal_mock, tmpdir):
@@ -819,6 +947,7 @@ class TestServer(object):
         # slot is defined, then the replication slot should be
         # created
         server.config.slot_name = 'test_repslot'
+        server.streaming.server_version = 90400
         server.create_physical_repslot()
         create_physical_repslot = server.streaming.create_physical_repslot
         create_physical_repslot.assert_called_with('test_repslot')
@@ -853,6 +982,7 @@ class TestServer(object):
         # slot is defined, then the replication slot should be
         # created
         server.config.slot_name = 'test_repslot'
+        server.streaming.server_version = 90400
         server.drop_repslot()
         drop_repslot = server.streaming.drop_repslot
         drop_repslot.assert_called_with('test_repslot')

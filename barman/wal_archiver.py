@@ -537,6 +537,7 @@ class StreamingWalArchiver(WalArchiver):
             ('pg_receivexlog_compatible',
              'pg_receivexlog_installed',
              'pg_receivexlog_path',
+             'pg_receivexlog_supports_slots',
              'pg_receivexlog_version'),
             None)
 
@@ -566,6 +567,10 @@ class StreamingWalArchiver(WalArchiver):
         # for easier comparison between versions
         pg_version = Version(pg_version)
 
+        # Set conservative default values (False) for modern features
+        remote_status["pg_receivexlog_compatible"] = False
+        remote_status['pg_receivexlog_supports_slots'] = False
+
         # pg_receivexlog 9.2 is compatible only with PostgreSQL 9.2.
         if "9.2" == pg_version == pgreceivexlog_version:
             remote_status["pg_receivexlog_compatible"] = True
@@ -576,10 +581,12 @@ class StreamingWalArchiver(WalArchiver):
         # because it accepts everything that is less than
         # the `pg_receivexlog` version(e.g. '9.6' is less than '9.6devel')
         elif "9.2" < pg_version <= pgreceivexlog_version:
+            # At least PostgreSQL 9.3 is required here
             remote_status["pg_receivexlog_compatible"] = True
 
-        else:
-            remote_status["pg_receivexlog_compatible"] = False
+            # replication slots are supported starting from version 9.4
+            if "9.4" <= pg_version <= pgreceivexlog_version:
+                remote_status['pg_receivexlog_supports_slots'] = True
 
         return remote_status
 
@@ -600,11 +607,11 @@ class StreamingWalArchiver(WalArchiver):
             return
 
         # Execute basic sanity checks on PostgreSQL connection
-        postgres_status = self.server.streaming.get_remote_status()
-        if postgres_status["streaming_supported"] is None:
+        streaming_status = self.server.streaming.get_remote_status()
+        if streaming_status["streaming_supported"] is None:
             raise ArchiverFailure(
                 'failed opening the PostgreSQL streaming connection')
-        elif not postgres_status["streaming_supported"]:
+        elif not streaming_status["streaming_supported"]:
             raise ArchiverFailure(
                 'PostgreSQL version too old (%s < 9.2)' %
                 self.server.streaming.server_txt_version)
@@ -617,6 +624,28 @@ class StreamingWalArchiver(WalArchiver):
             raise ArchiverFailure(
                 'pg_receivexlog version not compatible with '
                 'PostgreSQL server version')
+
+        # Execute sanity check on replication slot usage
+        if self.config.slot_name:
+            # Check if slots are supported
+            if not remote_status['pg_receivexlog_supports_slots']:
+                raise ArchiverFailure(
+                    'replication slot support requires PostgreSQL 9.4 '
+                    'or higher (server is %s)' %
+                    self.server.streaming.server_txt_version)
+            # Check if the required slot exists
+            postgres_status = self.server.postgres.get_remote_status()
+            if postgres_status['replication_slot'] is None:
+                raise ArchiverFailure(
+                    "replication slot '%s' doesn't exist. "
+                    "Please execute "
+                    "'barman receive-wal --create-slot %s'" %
+                    (self.config.slot_name, self.config.name))
+            # Check if the required slot is available
+            if postgres_status['replication_slot'].active:
+                raise ArchiverFailure(
+                    "replication slot '%s' is already in use" %
+                    (self.config.slot_name,))
 
         # Make sure we are not wasting precious PostgreSQL resources
         self.server.close()
@@ -632,6 +661,7 @@ class StreamingWalArchiver(WalArchiver):
                 version=remote_status['pg_receivexlog_version'],
                 app_name=self.config.streaming_archiver_name,
                 path=self.backup_manager.server.path,
+                slot_name=self.config.slot_name,
                 out_handler=output_handler,
                 err_handler=output_handler
             )

@@ -940,6 +940,7 @@ class PgReceiveXlog(PostgreSQLClient):
                  version=None,
                  app_name=None,
                  check=True,
+                 slot_name=None,
                  args=None,
                  **kwargs):
         """
@@ -953,6 +954,8 @@ class PgReceiveXlog(PostgreSQLClient):
         :param str app_name: the application name to use for the connection
         :param bool check: check if the return value is in the list of
           allowed values of the Command obj
+        :param str slot_name: the replication slot name to use for the
+          connection
         :param List[str] args: additional arguments
         """
         PostgreSQLClient.__init__(
@@ -966,6 +969,9 @@ class PgReceiveXlog(PostgreSQLClient):
             "--no-loop",
             "--directory=%s" % destination]
 
+        # Add  the replication slot name if set in the configuration.
+        if slot_name is not None:
+            self.args.append('--slot=%s' % slot_name)
         # Manage additional args
         if args:
             self.args += args

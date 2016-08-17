@@ -753,7 +753,10 @@ class TestPostgres(object):
             'pgespresso_installed': True,
             'server_txt_version': '9.1.0',
             'wal_level': 'dummy_setting',
-            'current_size': 497354072}
+            'current_size': 497354072,
+            'replication_slot_support': False,
+            'replication_slot': None,
+        }
 
         # Test error management
         server.postgres.close()
@@ -763,7 +766,10 @@ class TestPostgres(object):
             'current_xlog': None,
             'data_directory': None,
             'pgespresso_installed': None,
-            'server_txt_version': None}
+            'server_txt_version': None,
+            'replication_slot_support': None,
+            'replication_slot': None,
+        }
 
         get_setting_mock.side_effect = psycopg2.ProgrammingError
         assert server.postgres.fetch_remote_status() == {
@@ -771,7 +777,10 @@ class TestPostgres(object):
             'current_xlog': None,
             'data_directory': None,
             'pgespresso_installed': None,
-            'server_txt_version': None}
+            'server_txt_version': None,
+            'replication_slot_support': None,
+            'replication_slot': None,
+        }
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
     @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
@@ -1066,6 +1075,41 @@ class TestPostgres(object):
                 PostgreSQLConnection.ANY_STREAMING_CLIENT)
         # Check for the right invocation
         assert not cursor_mock.execute.called
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    @patch('barman.postgres.PostgreSQLConnection.server_version',
+           new_callable=PropertyMock)
+    @patch('barman.postgres.PostgreSQLConnection.is_superuser',
+           new_callable=PropertyMock)
+    def test_get_replication_slot(self, is_superuser_mock,
+                                  server_version_mock, conn_mock):
+        """
+        Simple test for the execution of get_replication_slots on a server
+        """
+        # Build a server
+        server = build_real_server()
+        server.config.slot_name = 'test'
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        is_superuser_mock.return_value = True
+
+        # Supported version 9.4
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90400
+        replication_slot = server.postgres.get_replication_slot(
+            server.config.slot_name)
+        assert replication_slot is cursor_mock.fetchone.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT slot_name, "
+            "active, "
+            "restart_lsn "
+            "FROM pg_replication_slots "
+            "WHERE slot_type = 'physical' "
+            "AND slot_name = '%s'" % server.config.slot_name)
+
+        # Too old version (3.0)
+        server_version_mock.return_value = 90300
+        with pytest.raises(PostgresUnsupportedFeature):
+            server.postgres.get_replication_slot(server.config.slot_name)
 
 
 # noinspection PyMethodMayBeStatic

@@ -560,7 +560,10 @@ class PostgreSQLConnection(PostgreSQL):
             'server_txt_version',
             'is_superuser',
             'current_xlog',
-            'pgespresso_installed']
+            'pgespresso_installed',
+            'replication_slot_support',
+            'replication_slot',
+        ]
         # Initialise the result dictionary setting all the values to None
         result = dict.fromkeys(pg_superuser_settings +
                                pg_settings +
@@ -587,6 +590,15 @@ class PostgreSQLConnection(PostgreSQL):
             result['current_size'] = self.current_size
 
             result.update(self.get_configuration_files())
+
+            # Retrieve the replication_slot status
+            result["replication_slot_support"] = False
+            if self.server_version >= 90400:
+                result["replication_slot_support"] = True
+                if self.config.slot_name is not None:
+                    result["replication_slot"] = (
+                        self.get_replication_slot(self.config.slot_name))
+
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.warn("Error retrieving PostgreSQL status: %s",
                          str(e).strip())
@@ -1113,3 +1125,37 @@ class PostgreSQLConnection(PostgreSQL):
             _logger.debug("Error retrieving status of standby servers: %s",
                           str(e).strip())
             return None
+
+    def get_replication_slot(self, slot_name):
+        """
+        Retrieve from the PostgreSQL server a physical replication slot
+        with a specific slot_name.
+
+        This method returns a dictionary containing the following data:
+
+         * slot_name
+         * active
+         * restart_lsn
+
+        :param str slot_name: the replication slot name
+        :rtype: psycopg2.extras.DictRow
+        """
+        if self.server_version < 90400:
+            # Raise exception if replication slot are not supported
+            # by PostgreSQL version
+            raise PostgresUnsupportedFeature('9.4')
+        else:
+            cur = self._cursor(cursor_factory=NamedTupleCursor)
+            try:
+                cur.execute("SELECT slot_name, "
+                            "active, "
+                            "restart_lsn "
+                            "FROM pg_replication_slots "
+                            "WHERE slot_type = 'physical' "
+                            "AND slot_name = '%s'" % slot_name)
+                # Retrieve the replication slot information
+                return cur.fetchone()
+            except (PostgresConnectionError, psycopg2.Error) as e:
+                _logger.debug("Error retrieving replication_slots: %s",
+                              str(e).strip())
+                raise

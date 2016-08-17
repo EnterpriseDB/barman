@@ -577,6 +577,7 @@ class TestStreamingWalArchiver(object):
             "pg_receivexlog_path": None,
             "pg_receivexlog_compatible": None,
             "pg_receivexlog_version": None,
+            "pg_receivexlog_supports_slots": None,
         }
 
         backup_manager.server.postgres.server_txt_version = "9.2"
@@ -590,6 +591,7 @@ class TestStreamingWalArchiver(object):
             "pg_receivexlog_path": "/some/path/to/pg_receivexlog",
             "pg_receivexlog_compatible": None,
             "pg_receivexlog_version": None,
+            "pg_receivexlog_supports_slots": None,
         }
 
     @patch("barman.utils.which")
@@ -659,10 +661,12 @@ class TestStreamingWalArchiver(object):
         streaming_dir.ensure(dir=True)
         # Test: normal run
         archiver = StreamingWalArchiver(backup_manager)
+        archiver.server.streaming.server_version = 90400
         remote_mock.return_value = {
             'pg_receivexlog_installed': True,
             'pg_receivexlog_compatible': True,
             'pg_receivexlog_path': 'fake/path',
+            'replication_slot_compatible': True,
             'pg_receivexlog_version': '9.4',
         }
 
@@ -680,6 +684,7 @@ class TestStreamingWalArchiver(object):
             err_handler=ANY,
             out_handler=ANY,
             path=ANY,
+            slot_name=None,
             command='fake/path',
             version='9.4')
         receivexlog_mock.return_value.execute.assert_called_once_with()
@@ -690,6 +695,7 @@ class TestStreamingWalArchiver(object):
             'pg_receivexlog_installed': True,
             'pg_receivexlog_compatible': True,
             'pg_receivexlog_path': 'fake/path',
+            'replication_slot_compatible': False,
             'pg_receivexlog_version': '9.2',
         }
         archiver.receive_wal(reset=False)
@@ -701,6 +707,7 @@ class TestStreamingWalArchiver(object):
             out_handler=ANY,
             path=ANY,
             command='fake/path',
+            slot_name=None,
             version='9.2'
         )
         receivexlog_mock.return_value.execute.assert_called_once_with()
@@ -710,6 +717,7 @@ class TestStreamingWalArchiver(object):
             remote_mock.return_value = {
                 'pg_receivexlog_installed': True,
                 'pg_receivexlog_compatible': False,
+                'replication_slot_compatible': False,
                 'pg_receivexlog_path': 'fake/path'
             }
             archiver.receive_wal()
@@ -719,6 +727,7 @@ class TestStreamingWalArchiver(object):
             remote_mock.return_value = {
                 'pg_receivexlog_installed': False,
                 'pg_receivexlog_compatible': True,
+                'replication_slot_compatible': False,
                 'pg_receivexlog_path': 'fake/path'
             }
             archiver.receive_wal()
@@ -729,6 +738,7 @@ class TestStreamingWalArchiver(object):
             }
             remote_mock.return_value = {
                 'pg_receivexlog_installed': True,
+                'replication_slot_compatible': False,
                 'pg_receivexlog_compatible': True,
                 'pg_receivexlog_path': 'fake/path'
             }
