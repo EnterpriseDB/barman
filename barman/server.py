@@ -1427,8 +1427,8 @@ class Server(RemoteStatusMixin):
                     for archiver in self.archivers:
                         archiver.receive_wal(reset)
                 except ArchiverFailure as e:
-                    output.error("Impossible to start a receive-wal process "
-                                 "for server %s: %s" % (self.config.name, e))
+                    output.error(e)
+
         except LockFileBusy:
             # If another process is running for this server,
             if reset:

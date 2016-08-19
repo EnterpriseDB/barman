@@ -638,9 +638,19 @@ class StreamingWalArchiver(WalArchiver):
             # Finally execute the pg_receivexlog process
             receive.execute()
         except CommandFailedException as e:
-            _logger.error(e)
-            raise ArchiverFailure("pg_receivexlog exited with an error. "
-                                  "Check the logs for more information.")
+            # Retrieve the return code from the exception
+            ret_code = e.args[0]['ret']
+            if ret_code < 0:
+                # If the return code is negative, then pg_receivexlog
+                # was terminated by a signal
+                msg = "pg_receivexlog terminated by signal: %s" \
+                      % abs(ret_code)
+            else:
+                # Otherwise terminated with an error
+                msg = "pg_receivexlog terminated with error code: %s"\
+                      % (self.server.config.name, ret_code)
+
+            raise ArchiverFailure(msg)
         except KeyboardInterrupt:
             # This is a normal termination, so there is nothing to do beside
             # informing the user.
