@@ -468,9 +468,12 @@ class PostgresBackupExecutor(BackupExecutor):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        # Make sure the destination directory exists
+        # Make sure the destination directory exists, ensure the
+        # right permissions to the destination dir
         backup_dest = backup_info.get_data_directory()
         mkpath(backup_dest)
+        # chmod 0700 octal
+        os.chmod(backup_dest, 448)
 
         # Manage tablespaces, we need to handle them now in order to
         # be able to relocate them inside the
@@ -481,6 +484,10 @@ class PostgresBackupExecutor(BackupExecutor):
                 source = tablespace.location
                 destination = backup_info.get_data_directory(tablespace.oid)
                 tbs_map[source] = destination
+                # Ensure the right permissions to the destination directory
+                mkpath(destination)
+                # chmod 0700 octal
+                os.chmod(destination, 448)
 
         # Retrieve pg_basebackup version information
         remote_status = self.get_remote_status()
