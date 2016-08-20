@@ -599,6 +599,12 @@ class PostgreSQLConnection(PostgreSQL):
                     result["replication_slot"] = (
                         self.get_replication_slot(self.config.slot_name))
 
+            # Retrieve the list of synchronous standby names
+            result["synchronous_standby_names"] = []
+            if self.server_version >= 90100:
+                result["synchronous_standby_names"] = (
+                    self.get_synchronous_standby_names())
+
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.warn("Error retrieving PostgreSQL status: %s",
                          str(e).strip())
@@ -1159,3 +1165,20 @@ class PostgreSQLConnection(PostgreSQL):
                 _logger.debug("Error retrieving replication_slots: %s",
                               str(e).strip())
                 raise
+
+    def get_synchronous_standby_names(self):
+        """
+        Retrieve the list of named synchronous standby servers from PostgreSQL
+
+        This method returns a list of names
+
+        :return list: synchronous standby names
+        """
+        if self.server_version < 90100:
+            # Raise exception if synchronous replication is not supported
+            raise PostgresUnsupportedFeature('9.1')
+        else:
+            synchronous_standby_names = (
+                self.get_setting('synchronous_standby_names'))
+            # Normalise the list of sync standby names
+            return [x.strip() for x in synchronous_standby_names.split(',')]

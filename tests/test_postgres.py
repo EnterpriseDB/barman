@@ -719,7 +719,11 @@ class TestPostgres(object):
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.get_configuration_files')
     @patch('barman.postgres.PostgreSQLConnection.get_setting')
-    def test_get_remote_status(self, get_setting_mock,
+    @patch('barman.postgres.'
+           'PostgreSQLConnection.get_synchronous_standby_names')
+    def test_get_remote_status(self,
+                               get_synchronous_standby_names,
+                               get_setting_mock,
                                get_configuration_files_mock,
                                current_size_mock,
                                current_xlog_file_mock,
@@ -741,6 +745,7 @@ class TestPostgres(object):
         is_superuser_mock.return_value = True
         get_configuration_files_mock.return_value = {'a': 'b'}
         get_setting_mock.return_value = 'dummy_setting'
+        get_synchronous_standby_names.return_value = []
         conn_mock.return_value.server_version = 90100
 
         result = server.postgres.fetch_remote_status()
@@ -756,6 +761,7 @@ class TestPostgres(object):
             'current_size': 497354072,
             'replication_slot_support': False,
             'replication_slot': None,
+            'synchronous_standby_names': [],
         }
 
         # Test error management

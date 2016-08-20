@@ -447,7 +447,7 @@ class FileWalArchiver(WalArchiver):
         """
         result = dict.fromkeys(
             ['archive_mode', 'archive_command'], None)
-        postgres = self.backup_manager.server.postgres
+        postgres = self.server.postgres
         # If Postgres is not available we cannot detect anything
         if not postgres:
             return result
@@ -553,12 +553,13 @@ class StreamingWalArchiver(WalArchiver):
              'pg_receivexlog_installed',
              'pg_receivexlog_path',
              'pg_receivexlog_supports_slots',
+             'pg_receivexlog_synchronous',
              'pg_receivexlog_version'),
             None)
 
         # Test pg_receivexlog existence
         version_info = PgReceiveXlog.get_version_info(
-            self.backup_manager.server.path)
+            self.server.path)
         if version_info['full_path']:
             remote_status["pg_receivexlog_installed"] = True
             remote_status["pg_receivexlog_path"] = version_info['full_path']
@@ -585,6 +586,7 @@ class StreamingWalArchiver(WalArchiver):
         # Set conservative default values (False) for modern features
         remote_status["pg_receivexlog_compatible"] = False
         remote_status['pg_receivexlog_supports_slots'] = False
+        remote_status["pg_receivexlog_synchronous"] = False
 
         # pg_receivexlog 9.2 is compatible only with PostgreSQL 9.2.
         if "9.2" == pg_version == pgreceivexlog_version:
@@ -602,6 +604,23 @@ class StreamingWalArchiver(WalArchiver):
             # replication slots are supported starting from version 9.4
             if "9.4" <= pg_version <= pgreceivexlog_version:
                 remote_status['pg_receivexlog_supports_slots'] = True
+
+            # Synchronous WAL streaming requires replication slots
+            # and pg_receivexlog >= 9.5
+            if "9.4" <= pg_version and "9.5" <= pgreceivexlog_version:
+                # Check if synchronous WAL streaming can be enabled
+                # by peeking 'synchronous_standby_names'
+                postgres_status = self.server.postgres.get_remote_status()
+                syncnames = postgres_status['synchronous_standby_names']
+                _logger.debug("Look for '%s' in "
+                              "'synchronous_standby_names': %s",
+                              self.config.streaming_archiver_name, syncnames)
+                # Set pg_receivexlog_synchronous
+                remote_status["pg_receivexlog_synchronous"] = (
+                    self.config.streaming_archiver_name in syncnames)
+                _logger.info('Synchronous WAL streaming for %s: %s',
+                             self.config.streaming_archiver_name,
+                             remote_status["pg_receivexlog_synchronous"])
 
         return remote_status
 
@@ -675,8 +694,9 @@ class StreamingWalArchiver(WalArchiver):
                 command=remote_status['pg_receivexlog_path'],
                 version=remote_status['pg_receivexlog_version'],
                 app_name=self.config.streaming_archiver_name,
-                path=self.backup_manager.server.path,
+                path=self.server.path,
                 slot_name=self.config.slot_name,
+                synchronous=remote_status['pg_receivexlog_synchronous'],
                 out_handler=output_handler,
                 err_handler=output_handler
             )
