@@ -37,9 +37,9 @@ from distutils.version import LooseVersion as Version
 from barman import output, xlog
 from barman.command_wrappers import PgBaseBackup, RsyncPgData
 from barman.config import BackupOptions
-from barman.exceptions import (CommandFailedException,
-                               DataTransferFailure, FsOperationFailed,
-                               PostgresConnectionError, SshCommandException)
+from barman.exceptions import (CommandFailedException, DataTransferFailure,
+                               FsOperationFailed, PostgresConnectionError,
+                               SshCommandException)
 from barman.fs import UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.remote_status import RemoteStatusMixin

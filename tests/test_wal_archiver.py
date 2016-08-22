@@ -28,7 +28,8 @@ from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy
 from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
                                  WalArchiverQueue)
-from testing_helpers import build_backup_manager, build_test_backup_info
+from testing_helpers import (build_backup_manager, build_test_backup_info,
+                             caplog_reset)
 
 
 # noinspection PyMethodMayBeStatic
@@ -135,7 +136,7 @@ class TestFileWalArchiver(object):
     @patch('shutil.move')
     @patch('datetime.datetime')
     def test_archive(self, datetime_mock, move_mock, archive_wal_mock,
-                     get_next_batch_mock, unlink_mock, capsys):
+                     get_next_batch_mock, unlink_mock, capsys, caplog):
         """
         Test FileWalArchiver.archive method
         """
@@ -160,11 +161,16 @@ class TestFileWalArchiver(object):
                 "File moved to errors directory." %
                 (wal_info.name, archiver.config.name)) in out
 
+        assert ("\tError: %s is already present in server %s. "
+                "File moved to errors directory." %
+                (wal_info.name, archiver.config.name)) in caplog.text
+
         archive_wal_mock.side_effect = MatchingDuplicateWalFile
         archiver.archive(fxlogdb_mock)
         unlink_mock.assert_called_with(wal_info.orig_filename)
 
         # Test batch errors
+        caplog_reset(caplog)
         datetime_mock.utcnow.strftime.return_value = 'test_time'
         batch.errors = ['testfile_1', 'testfile_2']
         archive_wal_mock.side_effect = DuplicateWalFile
@@ -175,6 +181,20 @@ class TestFileWalArchiver(object):
                 "processing xlog segments for %s. "
                 "Objects moved to errors directory:" %
                 archiver.config.name) in out
+
+        assert ("Archiver is about to move %s unexpected file(s) to errors "
+                "directory for %s from %s" %
+                (len(batch.errors),
+                 archiver.config.name,
+                 archiver.name)) in caplog.text
+
+        assert ("Moving unexpected file for %s from %s: %s" %
+                (archiver.config.name,
+                 archiver.name, 'testfile_1')) in caplog.text
+
+        assert ("Moving unexpected file for %s from %s: %s" %
+                (archiver.config.name,
+                 archiver.name, 'testfile_2')) in caplog.text
 
         move_mock.assert_any_call(
             'testfile_1',
@@ -870,7 +890,8 @@ class TestStreamingWalArchiver(object):
     @patch('barman.wal_archiver.glob')
     @patch('os.path.isfile')
     @patch('barman.wal_archiver.WalFileInfo.from_file')
-    def test_get_next_batch(self, from_file_mock, isfile_mock, glob_mock):
+    def test_get_next_batch(self, from_file_mock, isfile_mock, glob_mock,
+                            caplog):
         """
         Test the FileWalArchiver.get_next_batch method
         """
@@ -912,6 +933,9 @@ class TestStreamingWalArchiver(object):
         batch = archiver.get_next_batch()
         assert ['000000010000000000000001.partial'] == batch.errors
         assert ['000000010000000000000002.partial'] == batch.skip
+        assert ('Multiple partial files found for server %s: '
+                '000000010000000000000001.partial'
+                % archiver.config.name) in caplog.text
 
         # WAL batch, with history files.
         glob_mock.return_value = [

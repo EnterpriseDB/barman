@@ -17,6 +17,7 @@
 
 import collections
 import datetime
+import errno
 import filecmp
 import logging
 import os
@@ -236,12 +237,26 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                         "Objects moved to errors directory:",
                         self.config.name,
                         log=False)
+            # Log unexpected files
+            _logger.warning("Archiver is about to move %s unexpected file(s) "
+                            "to errors directory for %s from %s",
+                            len(batch.errors),
+                            self.config.name,
+                            self.name)
             for error in batch.errors:
-                output.info("\t%s", error)
+                basename = os.path.basename(error)
+                output.info("\t%s", basename, log=False)
+                # Print informative log line.
+                _logger.warning("Moving unexpected file for %s from %s: %s",
+                                self.config.name, self.name, basename)
                 error_dst = os.path.join(
                     self.config.errors_directory,
-                    "%s.%s.unknown" % (os.path.basename(error), stamp))
-                shutil.move(error, error_dst)
+                    "%s.%s.unknown" % (basename, stamp))
+                try:
+                    shutil.move(error, error_dst)
+                except IOError as e:
+                    if e.errno == errno.ENOENT:
+                        _logger.warning('%s not found' % error)
 
     def archive_wal(self, compressor, wal_info):
         """
@@ -734,6 +749,9 @@ class StreamingWalArchiver(WalArchiver):
         # and treat the rest as errors
         if len(skip) > 1:
             errors.extend(skip[:-1])
+            _logger.warning('Multiple partial files found for server %s: %s' %
+                            (self.config.name,
+                             ", ".join([os.path.basename(f) for f in errors])))
             skip = skip[-1:]
 
         # Keep the last full WAL file in case no partial file is present
