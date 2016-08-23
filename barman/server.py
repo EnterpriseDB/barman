@@ -1410,16 +1410,16 @@ class Server(RemoteStatusMixin):
                          "streaming connection not configured")
             return
 
-        if not self.config.slot_name:
-            output.error("Unable to create a physical replication slot: "
-                         "slot_name configuration option required")
-            return
-
         # Replication slots are not supported by PostgreSQL < 9.4
         if self.streaming.server_version < 90400:
             output.error("Unable to create a physical replication slot: "
-                         "not supported by %s (9.4 is required)" %
+                         "not supported by %s (9.4 or higher is required)" %
                          self.streaming.server_major_version)
+            return
+
+        if not self.config.slot_name:
+            output.error("Unable to create a physical replication slot: "
+                         "slot_name configuration option required")
             return
 
         output.info(
@@ -1449,16 +1449,16 @@ class Server(RemoteStatusMixin):
                          "streaming connection not configured")
             return
 
-        if not self.config.slot_name:
-            output.error("Unable to drop a physical replication slot: "
-                         "slot_name configuration option required")
-            return
-
         # Replication slots are not supported by PostgreSQL < 9.4
         if self.streaming.server_version < 90400:
             output.error("Unable to drop a physical replication slot: "
-                         "not supported by %s (9.4 is required)" %
+                         "not supported by %s (9.4 or higher is required)" %
                          self.streaming.server_major_version)
+            return
+
+        if not self.config.slot_name:
+            output.error("Unable to drop a physical replication slot: "
+                         "slot_name configuration option required")
             return
 
         output.info(

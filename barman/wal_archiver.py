@@ -664,8 +664,8 @@ class StreamingWalArchiver(WalArchiver):
             # Check if slots are supported
             if not remote_status['pg_receivexlog_supports_slots']:
                 raise ArchiverFailure(
-                    'replication slot support requires PostgreSQL 9.4 '
-                    'or higher (server is %s)' %
+                    'Physical replication slot not supported by %s '
+                    '(9.4 or higher is required)' %
                     self.server.streaming.server_txt_version)
             # Check if the required slot exists
             postgres_status = self.server.postgres.get_remote_status()

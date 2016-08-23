@@ -941,6 +941,7 @@ class TestServer(object):
         # No operation if the slot name is empty
         server.streaming = MagicMock()
         server.config.slot_name = None
+        server.streaming.server_version = 90400
         assert server.create_physical_repslot() is None
 
         # If there is a streaming connection and the replication
@@ -976,6 +977,7 @@ class TestServer(object):
         # No operation if the slot name is empty
         server.streaming = MagicMock()
         server.config.slot_name = None
+        server.streaming.server_version = 90400
         assert server.drop_repslot() is None
 
         # If there is a streaming connection and the replication
