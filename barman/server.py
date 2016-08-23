@@ -1433,8 +1433,8 @@ class Server(RemoteStatusMixin):
             output.info('Replication slot %s created', self.config.slot_name)
         except PostgresDuplicateReplicationSlot:
             if ignore_if_exists:
-                output.info('Replication slot %s already exists',
-                            self.config.slot_name)
+                output.error('Replication slot %s already exists',
+                             self.config.slot_name)
             else:
                 raise
 
@@ -1472,8 +1472,8 @@ class Server(RemoteStatusMixin):
             output.info('Replication slot %s dropped', self.config.slot_name)
         except PostgresInvalidReplicationSlot:
             if ignore_if_not_exist:
-                output.info('Replication slot %s does not exist',
-                            self.config.slot_name)
+                output.error('Replication slot %s does not exist',
+                             self.config.slot_name)
             else:
                 raise
 
