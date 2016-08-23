@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 
 import mock
 import pytest
+from distutils.version import LooseVersion
 
 import barman.utils
 
@@ -503,6 +504,16 @@ class TestBarmanEncoder(object):
         assert json.dumps(
             [{"a": 1}, "test"],
             cls=barman.utils.BarmanEncoder) == '[{"a": 1}, "test"]'
+
+    def test_version_objects(self):
+        """
+        Test the BarmanEncoder on distutils version objects
+        """
+        json_dump = json.dumps(
+            LooseVersion('9.5.3'),
+            cls=barman.utils.BarmanEncoder
+        )
+        assert json_dump == '"9.5.3"'
 
 
 # noinspection PyMethodMayBeStatic

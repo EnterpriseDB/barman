@@ -30,6 +30,7 @@ import os
 import pwd
 import signal
 from contextlib import contextmanager
+from distutils.version import Version
 
 from barman.exceptions import TimeoutError
 
@@ -246,6 +247,9 @@ class BarmanEncoder(json.JSONEncoder):
         # an unicode string
         if hasattr(obj, 'decode') and callable(obj.decode):
             return obj.decode('utf-8', 'replace')
+        # Manage (Loose|Strict)Version objects as strings.
+        if isinstance(obj, Version):
+            return str(obj)
         # Let the base class default method raise the TypeError
         return super(BarmanEncoder, self).default(obj)
 
