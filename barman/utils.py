@@ -30,6 +30,7 @@ import os
 import pwd
 import signal
 from contextlib import contextmanager
+
 from distutils.version import Version
 
 from barman.exceptions import TimeoutError

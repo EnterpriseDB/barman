@@ -206,6 +206,13 @@ class PostgresDuplicateReplicationSlot(PostgresException):
     """
 
 
+class PostgresReplicationSlotsFull(PostgresException):
+    """
+    The creation of a physical replication slot failed because
+    the all the replication slots have been taken
+    """
+
+
 class PostgresInvalidReplicationSlot(PostgresException):
     """
     Exception representing a failure during the deletion of a non

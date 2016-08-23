@@ -39,7 +39,9 @@ from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
                                LockFilePermissionDenied,
                                PostgresDuplicateReplicationSlot,
                                PostgresInvalidReplicationSlot,
-                               PostgresIsInRecovery, PostgresSuperuserRequired,
+                               PostgresIsInRecovery,
+                               PostgresReplicationSlotsFull,
+                               PostgresSuperuserRequired,
                                PostgresUnsupportedFeature, TimeoutError,
                                UnknownBackupIdException)
 from barman.infofile import BackupInfo, WalFileInfo
@@ -1399,11 +1401,9 @@ class Server(RemoteStatusMixin):
                         "on server %s. Skipping to the next server"
                         % self.config.name)
 
-    def create_physical_repslot(self, ignore_if_exists=True):
+    def create_physical_repslot(self):
         """
         Create a physical replication slot using the streaming connection
-        :param bool ignore_if_exists: Ignore the operation if the
-          replication slot already exists
         """
         if not self.streaming:
             output.error("Unable to create a physical replication slot: "
@@ -1432,17 +1432,17 @@ class Server(RemoteStatusMixin):
             self.streaming.create_physical_repslot(self.config.slot_name)
             output.info("Replication slot '%s' created", self.config.slot_name)
         except PostgresDuplicateReplicationSlot:
-            if ignore_if_exists:
-                output.error("Replication slot '%s' already exists",
-                             self.config.slot_name)
-            else:
-                raise
+            output.error("Replication slot '%s' already exists",
+                         self.config.slot_name)
+        except PostgresReplicationSlotsFull:
+            output.error("All replication slots for server '%s' are in use\n"
+                         "Free one or increase the max_replication_slots "
+                         "value on your PostgreSQL server.",
+                         self.config.name)
 
-    def drop_repslot(self, ignore_if_not_exist=True):
+    def drop_repslot(self):
         """
         Drop a replication slot using the streaming connection
-        :param bool ignore_if_not_exist: Ignore the operation if the
-          replication slot doesn't exist
         """
         if not self.streaming:
             output.error("Unable to drop a physical replication slot: "
@@ -1471,11 +1471,8 @@ class Server(RemoteStatusMixin):
             self.streaming.drop_repslot(self.config.slot_name)
             output.info("Replication slot '%s' dropped", self.config.slot_name)
         except PostgresInvalidReplicationSlot:
-            if ignore_if_not_exist:
-                output.error("Replication slot '%s' does not exist",
-                             self.config.slot_name)
-            else:
-                raise
+            output.error("Replication slot '%s' does not exist",
+                         self.config.slot_name)
 
     def receive_wal(self, reset=False):
         """

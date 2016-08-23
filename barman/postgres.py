@@ -32,11 +32,22 @@ from barman.exceptions import (ConninfoException, PostgresConnectionError,
                                PostgresDuplicateReplicationSlot,
                                PostgresException,
                                PostgresInvalidReplicationSlot,
-                               PostgresIsInRecovery, PostgresSuperuserRequired,
+                               PostgresIsInRecovery,
+                               PostgresReplicationSlotsFull,
+                               PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
 from barman.infofile import Tablespace
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import simplify_version, with_metaclass
+
+# This is necessary because the CONFIGURATION_LIMIT_EXCEEDED constant
+# has been added in psycopg2 2.5, but Barman supports version 2.4.2+ so
+# in case of import error we declare a constant providing the correct value.
+try:
+    from psycopg2.errorcodes import CONFIGURATION_LIMIT_EXCEEDED
+except ImportError:
+    CONFIGURATION_LIMIT_EXCEEDED = '53400'
+
 
 _logger = logging.getLogger(__name__)
 
@@ -280,10 +291,14 @@ class StreamingConnection(PostgreSQL):
             # connection, otherwise if will fail with a generic
             # "syntax error"
             cursor.execute('CREATE_REPLICATION_SLOT %s PHYSICAL' % slot_name)
-        except psycopg2.ProgrammingError as exc:
+        except psycopg2.DatabaseError as exc:
             if exc.pgcode == DUPLICATE_OBJECT:
                 # A replication slot with the same name exists
                 raise PostgresDuplicateReplicationSlot()
+            elif exc.pgcode == CONFIGURATION_LIMIT_EXCEEDED:
+                # Unable to create a new physical replication slot.
+                # All slots are full.
+                raise PostgresReplicationSlotsFull()
             else:
                 raise
 

@@ -26,6 +26,7 @@ from psycopg2.tz import FixedOffsetTimezone
 from barman.exceptions import (LockFileBusy, LockFilePermissionDenied,
                                PostgresDuplicateReplicationSlot,
                                PostgresInvalidReplicationSlot,
+                               PostgresReplicationSlotsFull,
                                PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
 from barman.infofile import BackupInfo, WalFileInfo
@@ -927,7 +928,7 @@ class TestServer(object):
 
         assert server.xlogdb_file_name == result
 
-    def test_create_physical_repslot(self):
+    def test_create_physical_repslot(self, capsys):
         """
         Test the 'create_physical_repslot' method of the Postgres
         class
@@ -953,17 +954,23 @@ class TestServer(object):
         create_physical_repslot = server.streaming.create_physical_repslot
         create_physical_repslot.assert_called_with('test_repslot')
 
-        # If the replication slot was already created no error is given
-        # since ignore_if_exists is True
+        # If the replication slot was already created
+        # check that underlying the exception is correctly managed
         create_physical_repslot.side_effect = PostgresDuplicateReplicationSlot
         server.create_physical_repslot()
         create_physical_repslot.assert_called_with('test_repslot')
+        out, err = capsys.readouterr()
+        assert "Replication slot 'test_repslot' already exists" in err
 
-        # If ignore_if_exists is False, then we have the exception raised
-        with pytest.raises(PostgresDuplicateReplicationSlot):
-            server.create_physical_repslot(ignore_if_exists=False)
+        # Test the method failure if the replication slots
+        # on the server are all taken
+        create_physical_repslot.side_effect = PostgresReplicationSlotsFull
+        server.create_physical_repslot()
+        create_physical_repslot.assert_called_with('test_repslot')
+        out, err = capsys.readouterr()
+        assert "All replication slots for server 'main' are in use\n" in err
 
-    def test_drop_repslot(self):
+    def test_drop_repslot(self, capsys):
         """
         Test the 'drop_repslot' method of the Postgres
         class
@@ -989,15 +996,13 @@ class TestServer(object):
         drop_repslot = server.streaming.drop_repslot
         drop_repslot.assert_called_with('test_repslot')
 
-        # If the replication slot doesn't exist no error is given
-        # since ignore_if_not_exist is True
+        # If the replication slot doesn't exist
+        # check that the underlying exception is correctly managed
         drop_repslot.side_effect = PostgresInvalidReplicationSlot
         server.drop_repslot()
         drop_repslot.assert_called_with('test_repslot')
-
-        # If ignore_if_not_exist is False, then we have the exception raised
-        with pytest.raises(PostgresInvalidReplicationSlot):
-            server.drop_repslot(ignore_if_not_exist=False)
+        out, err = capsys.readouterr()
+        assert "Replication slot 'test_repslot' does not exist" in err
 
 
 class TestCheckStrategy(object):
