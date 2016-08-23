@@ -1,6 +1,6 @@
 % Backup and Recovery Manager for PostgreSQL: Tutorial
 % 2ndQuadrant Italia
-% Month DD, 2016 (v1.6.2a1)
+% Month DD, 2016 (v2.0a1)
 
 **Barman** (backup and recovery manager) is an administration tool for
 disaster recovery of PostgreSQL servers written in Python. Barman can
@@ -71,7 +71,7 @@ on a host. You want your data continuously backed up to another
 server, called the **backup server**.
 
 Barman allows you to launch PostgreSQL backups directly from the
-backup server, using either SSH connections or, from version 1.6.2,
+backup server, using either SSH connections or, from version 2.0,
 `pg_basebackup` (for PostgreSQL 9.1 or higher). Furthermore, it allows you to
 centralise your backups in case you have more than one PostgreSQL
 server to manage.
@@ -212,7 +212,7 @@ The first important decision you are called to make is which backup method
 to choose for your PostgreSQL server.
 
 For versions prior to PostgreSQL 9.1 you can only use `rsync` over SSH.
-For PostgreSQL 9.1 or higher, starting from Barman 1.6.2, you have an
+For PostgreSQL 9.1 or higher, starting from Barman 2.0, you have an
 alternative: rely on PostgreSQL streaming replication only, by using
 `pg_basebackup` as backup application.
 
@@ -920,7 +920,7 @@ by the `cron` command, as part of the standard maintenance operations
 for every server.
 
 By default, `archive-wal` processes the whole queue of incoming
-WAL segments. Starting from Barman 1.7.0, batch processing can be
+WAL segments. Starting from Barman 2.0, batch processing can be
 enabled through the `archiver_batch_size` option (for traditional
 file archival) and/or the `streaming_archiver_batch_size`
 option (for WAL streaming).
@@ -1456,7 +1456,7 @@ a standby server**, using `rsync`.
 > and 9.5 to install the `pgespresso` open source extension
 > on every PostgreSQL server of the cluster. For more detailed information
 > and the source code, please visit the [pgespresso extension website] [9].
-> As of version 1.7, Barman adds support to the new API introduced in
+> As of version 2.0, Barman adds support to the new API introduced in
 > PostgreSQL 9.6. This removes the requirement of the `pgespresso`
 > extension to perform concurrent backups altogether.
 

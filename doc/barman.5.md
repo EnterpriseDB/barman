@@ -1,4 +1,4 @@
-% BARMAN(5) Barman User manuals | Version 1.6.2a1
+% BARMAN(5) Barman User manuals | Version 2.0a1
 % 2ndQuadrant Italy <http://www.2ndQuadrant.it>
 % Month DD, 2016
 

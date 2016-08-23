@@ -20,7 +20,7 @@
 %global __python_ver python
 %endif
 
-%global main_version 1.6.2
+%global main_version 2.0
 # comment out the next line if not a pre-release (use '#%%global ...')
 %global extra_version a1
 # Usually 1 - unique sequence for all pre-release version
