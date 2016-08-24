@@ -188,7 +188,8 @@ class Server(RemoteStatusMixin):
         # If the PostgreSQLConnection creation fails, disable the Server
         except ConninfoException as e:
             self.config.disabled = True
-            self.config.msg_list.append("conninfo: " + str(e).strip())
+            self.config.msg_list.append("PostgreSQL connection: " +
+                                        str(e).strip())
 
         # Initialize the FileWalArchiver
         # WARNING: Order of items in self.archivers list is important!
@@ -201,12 +202,6 @@ class Server(RemoteStatusMixin):
                 self.config.disabled = True
                 self.config.msg_list.append('Unable to initialise the '
                                             'file based archiver')
-        else:
-            # Currently a server MUST have archiver set to on,
-            # otherwise disable the server.
-            self.config.disabled = True
-            self.config.msg_list.append("The option archiver = off "
-                                        "is not yet supported")
 
         # Initialize the streaming PostgreSQL connection only when
         # backup_method is postgres or the streaming_archiver is in use
@@ -217,30 +212,40 @@ class Server(RemoteStatusMixin):
             # If the StreamingConnection creation fails, disable the server
             except ConninfoException as e:
                 self.config.disabled = True
-                self.config.msg_list.append("streaming_conninfo: " +
+                self.config.msg_list.append("Streaming connection: " +
                                             str(e).strip())
 
-            # Initialize the StreamingWalArchiver
-            # WARNING: Order of items in self.archivers list is important!
-            # The files will be archived in that order.
-            if self.config.streaming_archiver:
-                try:
-                    self.archivers.append(StreamingWalArchiver(
-                        self.backup_manager))
-                # If the StreamingWalArchiver creation fails,
-                # disable the server
-                except AttributeError as e:
-                    _logger.debug(e)
-                    self.config.disabled = True
-                    self.config.msg_list.append('Unable to initialise the '
-                                                'streaming archiver')
+        # Initialize the StreamingWalArchiver
+        # WARNING: Order of items in self.archivers list is important!
+        # The files will be archived in that order.
+        if self.config.streaming_archiver:
+            try:
+                self.archivers.append(StreamingWalArchiver(
+                    self.backup_manager))
+            # If the StreamingWalArchiver creation fails,
+            # disable the server
+            except AttributeError as e:
+                _logger.debug(e)
+                self.config.disabled = True
+                self.config.msg_list.append('Unable to initialise the '
+                                            'streaming archiver')
+
+        # At least one of the available archive modes should be enabled
         if len(self.archivers) < 1:
             self.config.disabled = True
             self.config.msg_list.append(
-                "Missing archiver for server %s. "
-                "Enable at least the 'archiver' option in "
-                "the server configuration"
+                "No archiver enabled for server '%s'. "
+                "Please turn on 'archiver', 'streaming_archiver' or both"
                 % config.name)
+
+        # Sanity check: if file based archiver is disabled, and only
+        # WAL streaming is enabled, a replication slot name must be configured.
+        if not self.config.archiver and self.config.streaming_archiver and \
+                self.config.slot_name is None:
+            self.config.disabled = True
+            self.config.msg_list.append(
+                "Streaming-only archiver requires 'streaming_conninfo' and "
+                "'slot_name' options to be properly configured")
 
         # Set bandwidth_limit
         if self.config.bandwidth_limit:

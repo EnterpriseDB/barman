@@ -56,8 +56,8 @@ class TestPostgres(object):
         # Test with wrong configuration
         server = build_real_server(main_conf={'conninfo': ''})
         assert server.config.msg_list
-        assert 'conninfo: Missing conninfo parameter in barman ' \
-               'configuration for server main' in server.config.msg_list
+        assert "PostgreSQL connection: Missing 'conninfo' parameter " \
+               "for server 'main'" in server.config.msg_list
 
     @patch('barman.postgres.psycopg2.connect')
     def test_connect_and_close(self, pg_connect_mock):
@@ -1130,8 +1130,8 @@ class TestStreamingConnection(object):
             'streaming_archiver': True,
             'streaming_conninfo': ''})
         assert server.config.msg_list
-        assert 'streaming_conninfo: Missing streaming_conninfo parameter ' \
-               'in barman configuration for server main' in \
+        assert "Streaming connection: Missing 'streaming_conninfo' " \
+               "parameter for server 'main'" in \
                server.config.msg_list
 
     @patch('barman.postgres.psycopg2.connect')

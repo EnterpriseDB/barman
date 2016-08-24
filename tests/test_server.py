@@ -67,6 +67,27 @@ class TestServer(object):
             }
         ).get_server('main'))
         assert server.config.disabled
+        server = Server(build_config_from_dicts(
+            main_conf={
+                'archiver': 'off',
+                'streaming_archiver': 'off'
+            }
+        ).get_server('main'))
+        assert server.config.disabled
+        assert "No archiver enabled for server 'main'. " \
+               "Please turn on 'archiver', 'streaming_archiver' or " \
+               "both" in server.config.msg_list
+        server = Server(build_config_from_dicts(
+            main_conf={
+                'archiver': 'off',
+                'streaming_archiver': 'on',
+                'slot_name': ''
+            }
+        ).get_server('main'))
+        assert server.config.disabled
+        assert "Streaming-only archiver requires 'streaming_conninfo' and " \
+               "'slot_name' options to be properly configured" \
+               in server.config.msg_list
 
     def test_check_config_missing(self, tmpdir):
         """

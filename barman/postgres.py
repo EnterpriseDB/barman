@@ -213,9 +213,9 @@ class StreamingConnection(PostgreSQL):
         """
         if config.streaming_conninfo is None:
             raise ConninfoException(
-                'Missing streaming_conninfo parameter in barman configuration '
-                'for server %s' % config.name
-            )
+                "Missing 'streaming_conninfo' parameter for server '%s'"
+                % config.name)
+
         super(StreamingConnection, self).__init__(config,
                                                   config.streaming_conninfo)
         # Make sure we connect using the 'replication' option which
@@ -347,8 +347,7 @@ class PostgreSQLConnection(PostgreSQL):
         # Check that 'conninfo' option is properly set
         if config.conninfo is None:
             raise ConninfoException(
-                'Missing conninfo parameter in barman configuration '
-                'for server %s' % config.name)
+                "Missing 'conninfo' parameter for server '%s'" % config.name)
         super(PostgreSQLConnection, self).__init__(config, config.conninfo)
         self.configuration_files = None
 
