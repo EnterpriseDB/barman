@@ -213,6 +213,13 @@ class PostgresReplicationSlotsFull(PostgresException):
     """
 
 
+class PostgresReplicationSlotInUse(PostgresException):
+    """
+    The drop of a physical replication slot failed because
+    the replication slots is in use
+    """
+
+
 class PostgresInvalidReplicationSlot(PostgresException):
     """
     Exception representing a failure during the deletion of a non

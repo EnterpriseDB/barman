@@ -38,8 +38,10 @@ from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
                                ConninfoException, LockFileBusy,
                                LockFilePermissionDenied,
                                PostgresDuplicateReplicationSlot,
+                               PostgresException,
                                PostgresInvalidReplicationSlot,
                                PostgresIsInRecovery,
+                               PostgresReplicationSlotInUse,
                                PostgresReplicationSlotsFull,
                                PostgresSuperuserRequired,
                                PostgresUnsupportedFeature, TimeoutError,
@@ -1411,10 +1413,17 @@ class Server(RemoteStatusMixin):
             return
 
         # Replication slots are not supported by PostgreSQL < 9.4
-        if self.streaming.server_version < 90400:
-            output.error("Unable to create a physical replication slot: "
-                         "not supported by %s (9.4 or higher is required)" %
-                         self.streaming.server_major_version)
+        try:
+            if self.streaming.server_version < 90400:
+                output.error("Unable to create a physical replication slot: "
+                             "not supported by '%s' "
+                             "(9.4 or higher is required)" %
+                             self.streaming.server_major_version)
+                return
+        except PostgresException as exc:
+            msg = "Cannot connect to server '%s'" % self.config.name
+            output.error(msg, log=False)
+            _logger.error("%s: %s", msg, str(exc).strip())
             return
 
         if not self.config.slot_name:
@@ -1423,10 +1432,9 @@ class Server(RemoteStatusMixin):
             return
 
         output.info(
-            "Creating physical replication slot '%s' for server '%s'",
+            "Creating physical replication slot '%s' on server '%s'",
             self.config.slot_name,
-            self.config.name
-        )
+            self.config.name)
 
         try:
             self.streaming.create_physical_repslot(self.config.slot_name)
@@ -1439,6 +1447,12 @@ class Server(RemoteStatusMixin):
                          "Free one or increase the max_replication_slots "
                          "value on your PostgreSQL server.",
                          self.config.name)
+        except PostgresException as exc:
+            output.error(
+                "Cannot create replication slot '%s' on server '%s': %s",
+                self.config.slot_name,
+                self.config.name,
+                str(exc).strip())
 
     def drop_repslot(self):
         """
@@ -1450,10 +1464,17 @@ class Server(RemoteStatusMixin):
             return
 
         # Replication slots are not supported by PostgreSQL < 9.4
-        if self.streaming.server_version < 90400:
-            output.error("Unable to drop a physical replication slot: "
-                         "not supported by %s (9.4 or higher is required)" %
-                         self.streaming.server_major_version)
+        try:
+            if self.streaming.server_version < 90400:
+                output.error("Unable to drop a physical replication slot: "
+                             "not supported by '%s' (9.4 or higher is "
+                             "required)" %
+                             self.streaming.server_major_version)
+                return
+        except PostgresException as exc:
+            msg = "Cannot connect to server '%s'" % self.config.name
+            output.error(msg, log=False)
+            _logger.error("%s: %s", msg, str(exc).strip())
             return
 
         if not self.config.slot_name:
@@ -1462,10 +1483,9 @@ class Server(RemoteStatusMixin):
             return
 
         output.info(
-            "Dropping physical replication slot '%s' for server '%s'",
+            "Dropping physical replication slot '%s' on server '%s'",
             self.config.slot_name,
-            self.config.name
-        )
+            self.config.name)
 
         try:
             self.streaming.drop_repslot(self.config.slot_name)
@@ -1473,6 +1493,18 @@ class Server(RemoteStatusMixin):
         except PostgresInvalidReplicationSlot:
             output.error("Replication slot '%s' does not exist",
                          self.config.slot_name)
+        except PostgresReplicationSlotInUse as exc:
+            output.error(
+                "Cannot drop replication slot '%s' on server '%s' "
+                "because it is in use.",
+                self.config.slot_name,
+                self.config.name)
+        except PostgresException as exc:
+            output.error(
+                "Cannot drop replication slot '%s' on server '%s': %s",
+                self.config.slot_name,
+                self.config.name,
+                str(exc).strip())
 
     def receive_wal(self, reset=False):
         """

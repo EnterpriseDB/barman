@@ -24,7 +24,8 @@ import logging
 from abc import ABCMeta
 
 import psycopg2
-from psycopg2.errorcodes import DUPLICATE_OBJECT, UNDEFINED_OBJECT
+from psycopg2.errorcodes import (DUPLICATE_OBJECT, OBJECT_IN_USE,
+                                 UNDEFINED_OBJECT)
 from psycopg2.extensions import STATUS_IN_TRANSACTION
 from psycopg2.extras import DictCursor, NamedTupleCursor
 
@@ -33,6 +34,7 @@ from barman.exceptions import (ConninfoException, PostgresConnectionError,
                                PostgresException,
                                PostgresInvalidReplicationSlot,
                                PostgresIsInRecovery,
+                               PostgresReplicationSlotInUse,
                                PostgresReplicationSlotsFull,
                                PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
@@ -300,7 +302,7 @@ class StreamingConnection(PostgreSQL):
                 # All slots are full.
                 raise PostgresReplicationSlotsFull()
             else:
-                raise
+                raise PostgresException(str(exc).strip())
 
     def drop_repslot(self, slot_name):
         """
@@ -315,12 +317,15 @@ class StreamingConnection(PostgreSQL):
             # connection, otherwise if will fail with a generic
             # "syntax error"
             cursor.execute('DROP_REPLICATION_SLOT %s' % slot_name)
-        except psycopg2.ProgrammingError as exc:
+        except psycopg2.DatabaseError as exc:
             if exc.pgcode == UNDEFINED_OBJECT:
                 # A replication slot with the that name does not exist
                 raise PostgresInvalidReplicationSlot()
+            if exc.pgcode == OBJECT_IN_USE:
+                # The replication slot is still in use
+                raise PostgresReplicationSlotInUse()
             else:
-                raise
+                raise PostgresException(str(exc).strip())
 
 
 class PostgreSQLConnection(PostgreSQL):
