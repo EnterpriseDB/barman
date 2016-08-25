@@ -448,9 +448,10 @@ class Rsync(Command):
     FileItem = collections.namedtuple('FileItem', 'mode size date path')
 
     def __init__(self, rsync='rsync', args=None, ssh=None, ssh_options=None,
-                 bwlimit=None, exclude_and_protect=None,
+                 bwlimit=None, exclude=None, exclude_and_protect=None,
                  network_compression=None, check=True, allowed_retval=(0, 24),
                  path=None, **kwargs):
+        # TODO: Add docstrings here
         options = []
         # Try to find rsync in system PATH using the which method.
         # If not found, rsync is not installed and this class cannot
@@ -464,10 +465,13 @@ class Rsync(Command):
             options += ['-e', self._cmd_quote(ssh, ssh_options)]
         if network_compression:
             options += ['-z']
+        if exclude:
+            for pattern in exclude:
+                options += ["--exclude=%s" % (pattern,)]
         if exclude_and_protect:
-            for exclude_path in exclude_and_protect:
-                options += ["--exclude=%s" % (exclude_path,),
-                            "--filter=P_%s" % (exclude_path,)]
+            for pattern in exclude_and_protect:
+                options += ["--exclude=%s" % (pattern,),
+                            "--filter=P_%s" % (pattern,)]
         if args:
             options += self._args_for_suse(args)
         if bwlimit is not None and bwlimit > 0:

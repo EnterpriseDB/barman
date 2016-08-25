@@ -54,7 +54,7 @@ class TestRsyncBackupExecutor(object):
             server.config.ssh_command = None
             RsyncBackupExecutor(server)
 
-    def test_reuse_dir(self):
+    def test_reuse_path(self):
         """
         Simple test for the reuse_dir method
 
@@ -67,41 +67,17 @@ class TestRsyncBackupExecutor(object):
         backup_info = build_test_backup_info()
 
         # No path if the backup is not incremental
-        assert backup_manager.executor._reuse_dir(backup_info) is None
+        assert backup_manager.executor._reuse_path(backup_info) is None
 
         # check for the expected path with copy
         backup_manager.executor.config.reuse_backup = 'copy'
-        assert backup_manager.executor._reuse_dir(backup_info) == \
+        assert backup_manager.executor._reuse_path(backup_info) == \
             '/some/barman/home/main/base/1234567890/data'
 
         # check for the expected path with link
         backup_manager.executor.config.reuse_backup = 'link'
-        assert backup_manager.executor._reuse_dir(backup_info) == \
+        assert backup_manager.executor._reuse_path(backup_info) == \
             '/some/barman/home/main/base/1234567890/data'
-
-    def test_reuse_args(self):
-        """
-        Simple test for the _reuse_args method
-
-        The method is necessary for the execution of incremental backups,
-        we need to test that the method build correctly the rsync option that
-        enables the incremental backup
-        """
-        backup_manager = build_backup_manager()
-        reuse_dir = "some/dir"
-
-        # Test for disabled incremental
-        assert backup_manager.executor._reuse_args(reuse_dir) == []
-
-        # Test for link incremental
-        backup_manager.executor.config.reuse_backup = 'link'
-        assert backup_manager.executor._reuse_args(reuse_dir) == \
-            ['--link-dest=some/dir']
-
-        # Test for copy incremental
-        backup_manager.executor.config.reuse_backup = 'copy'
-        assert backup_manager.executor._reuse_args(reuse_dir) == \
-            ['--copy-dest=some/dir']
 
     @patch('barman.backup_executor.UnixRemoteCommand')
     def test_check(self, command_mock, capsys):
@@ -244,12 +220,12 @@ class TestRsyncBackupExecutor(object):
         backup_manager.executor.strategy.start_backup.assert_called_once_with(
             backup_info)
 
-    @patch('barman.backup_executor.RsyncPgData')
+    @patch('barman.backup_executor.RsyncCopyController')
     def test_backup_copy(self, rsync_mock, tmpdir):
         """
         Test the execution of a rsync copy
 
-        :param rsync_mock: mock for the rsync command
+        :param rsync_mock: mock for the RsyncCopyController object
         :param tmpdir: temporary dir
         """
         backup_manager = build_backup_manager(global_conf={
@@ -272,42 +248,54 @@ class TestRsyncBackupExecutor(object):
         backup_manager.executor.backup_copy(backup_info)
 
         assert rsync_mock.mock_calls == [
-            mock.call(check=True, network_compression=False, args=[],
-                      bwlimit=None, ssh='ssh', path=None,
+            mock.call(reuse_backup=None, safe_horizon=None,
+                      network_compression=False,
+                      ssh_command='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no']),
-            mock.call().smart_copy(':/fake/location/',
-                                   backup_info.get_data_directory(16387),
-                                   None, None),
-            mock.call(check=True, network_compression=False, args=[],
-                      bwlimit=None, ssh='ssh', path=None,
-                      ssh_options=['-c', '"arcfour"', '-p', '22',
-                                   'postgres@pg01.nowhere', '-o',
-                                   'BatchMode=yes', '-o',
-                                   'StrictHostKeyChecking=no']),
-            mock.call().smart_copy(':/another/location/',
-                                   backup_info.get_data_directory(16405),
-                                   None, None),
-            mock.call(network_compression=False,
-                      exclude_and_protect=['/pg_tblspc/16387',
-                                           '/pg_tblspc/16405'],
-                      args=[], bwlimit=None, ssh='ssh', path=None,
-                      ssh_options=['-c', '"arcfour"', '-p', '22',
-                                   'postgres@pg01.nowhere',
-                                   '-o', 'BatchMode=yes',
-                                   '-o', 'StrictHostKeyChecking=no']),
-            mock.call().smart_copy(':/pg/data/',
-                                   backup_info.get_data_directory(),
-                                   None, None),
-            mock.call()(
-                ':/pg/data/global/pg_control',
-                '%s/global/pg_control' % backup_info.get_data_directory()),
-            mock.call()(':/etc/postgresql.conf',
-                        backup_info.get_data_directory())]
+            mock.call().add_directory(
+                label='tbs1',
+                src=':/fake/location/',
+                dst=backup_info.get_data_directory(16387),
+                reuse=None,
+                bwlimit=None,
+                item_class=rsync_mock.return_value.TABLESPACE_CLASS),
+            mock.call().add_directory(
+                label='tbs2',
+                src=':/another/location/',
+                dst=backup_info.get_data_directory(16405),
+                reuse=None,
+                bwlimit=None,
+                item_class=rsync_mock.return_value.TABLESPACE_CLASS),
+            mock.call().add_directory(
+                label='pgdata',
+                src=':/pg/data/',
+                dst=backup_info.get_data_directory(),
+                reuse=None,
+                bwlimit=None,
+                item_class=rsync_mock.return_value.PGDATA_CLASS,
+                exclude=['/pg_xlog/*',
+                         '/pg_log/*',
+                         '/recovery.conf',
+                         '/postmaster.pid'],
+                exclude_and_protect=['pg_tblspc/16387', 'pg_tblspc/16405']),
+            mock.call().add_file(
+                label='pg_control',
+                src=':/pg/data/global/pg_control',
+                dst='%s/global/pg_control' % backup_info.get_data_directory(),
+                item_class=rsync_mock.return_value.PGCONTROL_CLASS),
+            mock.call().add_file(
+                label='config_file',
+                src=':/etc/postgresql.conf',
+                dst=backup_info.get_data_directory(),
+                item_class=rsync_mock.return_value.CONFIG_CLASS,
+                optional=False),
+            mock.call().copy(),
+        ]
 
-    @patch('barman.backup_executor.RsyncPgData')
+    @patch('barman.backup_executor.RsyncCopyController')
     def test_backup_copy_with_included_files(self, rsync_moc, tmpdir, capsys):
         backup_manager = build_backup_manager(global_conf={
             'barman_home': tmpdir.mkdir('home').strpath

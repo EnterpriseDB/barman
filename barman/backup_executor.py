@@ -35,8 +35,9 @@ import dateutil.parser
 from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
-from barman.command_wrappers import PgBaseBackup, RsyncPgData
+from barman.command_wrappers import PgBaseBackup
 from barman.config import BackupOptions
+from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (CommandFailedException, DataTransferFailure,
                                FsOperationFailed, PostgresConnectionError,
                                SshCommandException)
@@ -799,138 +800,121 @@ class RsyncBackupExecutor(SshBackupExecutor):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
 
-        # List of paths to be ignored by Rsync
-        exclude_and_protect = []
-
-        # Retrieve the previous backup metadata, then set safe_horizon
+        # Retrieve the previous backup metadata, then calculate safe_horizon
         previous_backup = self.backup_manager.get_previous_backup(
             backup_info.backup_id)
+        safe_horizon = None
+        reuse_backup = None
         if previous_backup:
             # safe_horizon is a tz-aware timestamp because BackupInfo class
-            # ensures it
+            # ensures that property
+            reuse_backup = self.config.reuse_backup
             safe_horizon = previous_backup.begin_time
-        else:
-            # If no previous backup is present, safe_horizon is set to None
-            safe_horizon = None
 
-        # Copy tablespaces applying bwlimit when necessary
+        # Create the copy controller object, specific for rsync,
+        # which will drive all the copy operations. Items to be
+        # copied are added before executing the copy() method
+        controller = RsyncCopyController(
+            path=self.server.path,
+            ssh_command=self.ssh_command,
+            ssh_options=self.ssh_options,
+            network_compression=self.config.network_compression,
+            reuse_backup=reuse_backup,
+            safe_horizon=safe_horizon)
+
+        # List of paths to be excluded by the PGDATA copy
+        exclude_and_protect = []
+
+        # Process every tablespace
         if backup_info.tablespaces:
-            tablespaces_bw_limit = self.config.tablespace_bandwidth_limit
-            # Copy a tablespace at a time
             for tablespace in backup_info.tablespaces:
-                self.current_action = "copying tablespace '%s'" % \
-                                      tablespace.name
-                # Apply bandwidth limit if requested
-                bwlimit = self.config.bandwidth_limit
-                if tablespaces_bw_limit and \
-                        tablespace.name in tablespaces_bw_limit:
-                    bwlimit = tablespaces_bw_limit[tablespace.name]
-                if bwlimit:
-                    self.current_action += (" with bwlimit '%d'" % bwlimit)
-                _logger.debug(self.current_action)
                 # If the tablespace location is inside the data directory,
                 # exclude and protect it from being copied twice during
                 # the data directory copy
                 if tablespace.location.startswith(backup_info.pgdata):
-                    exclude_and_protect.append(
-                        tablespace.location[len(backup_info.pgdata):])
+                    exclude_and_protect += [
+                        tablespace.location[len(backup_info.pgdata):]]
+
+                # Exclude and protect the tablespace from being copied again
+                # during the data directory copy
+                exclude_and_protect += ["pg_tblspc/%s" % tablespace.oid]
+
                 # Make sure the destination directory exists in order for
                 # smart copy to detect that no file is present there
                 tablespace_dest = backup_info.get_data_directory(
                     tablespace.oid)
                 mkpath(tablespace_dest)
-                # Exclude and protect the tablespace from being copied again
-                # during the data directory copy
-                exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
-                # Copy the backup using smart_copy trying to reuse the
-                # tablespace of the previous backup if incremental is active
-                ref_dir = self._reuse_dir(previous_backup, tablespace.oid)
-                tb_rsync = RsyncPgData(
-                    path=self.server.path,
-                    ssh=self.ssh_command,
-                    ssh_options=self.ssh_options,
-                    args=self._reuse_args(ref_dir),
-                    bwlimit=bwlimit,
-                    network_compression=self.config.network_compression,
-                    check=True)
-                try:
-                    tb_rsync.smart_copy(
-                        ':%s/' % tablespace.location,
-                        tablespace_dest,
-                        safe_horizon,
-                        ref_dir)
-                except CommandFailedException as e:
-                    msg = "data transfer failure on directory '%s'" % \
-                          backup_info.get_data_directory(tablespace.oid)
-                    raise DataTransferFailure.from_command_error(
-                        'rsync', e, msg)
+
+                # Add the tablespace directory to the list of objects
+                # to be copied by the controller
+                controller.add_directory(
+                    label=tablespace.name,
+                    src=':%s/' % tablespace.location,
+                    dst=tablespace_dest,
+                    bwlimit=self._bwlimit(tablespace),
+                    reuse=self._reuse_path(previous_backup, tablespace),
+                    item_class=controller.TABLESPACE_CLASS,
+                )
 
         # Make sure the destination directory exists in order for smart copy
         # to detect that no file is present there
         backup_dest = backup_info.get_data_directory()
         mkpath(backup_dest)
 
-        # Copy the PGDATA, trying to reuse the data dir
-        # of the previous backup if incremental is active
-        ref_dir = self._reuse_dir(previous_backup)
-        rsync = RsyncPgData(
-            path=self.server.path,
-            ssh=self.ssh_command,
-            ssh_options=self.ssh_options,
-            args=self._reuse_args(ref_dir),
-            bwlimit=self.config.bandwidth_limit,
+        # Create the actual copy jobs in the controller
+        controller.add_directory(
+            label='pgdata',
+            src=':%s/' % backup_info.pgdata,
+            dst=backup_dest,
+            exclude=[
+                '/pg_xlog/*',
+                '/pg_log/*',
+                '/recovery.conf',
+                '/postmaster.pid'],
             exclude_and_protect=exclude_and_protect,
-            network_compression=self.config.network_compression)
-        try:
-            rsync.smart_copy(':%s/' % backup_info.pgdata, backup_dest,
-                             safe_horizon,
-                             ref_dir)
-        except CommandFailedException as e:
-            msg = "data transfer failure on directory '%s'" % \
-                  backup_info.pgdata
-            raise DataTransferFailure.from_command_error('rsync', e, msg)
+            bwlimit=self._bwlimit(),
+            reuse=self._reuse_path(previous_backup),
+            item_class=controller.PGDATA_CLASS,
+        )
 
         # At last copy pg_control
-        try:
-            rsync(':%s/global/pg_control' % (backup_info.pgdata,),
-                  '%s/global/pg_control' % (backup_dest,))
-        except CommandFailedException as e:
-            msg = "data transfer failure on file '%s/global/pg_control'" % \
-                  backup_info.pgdata
-            raise DataTransferFailure.from_command_error('rsync', e, msg)
+        controller.add_file(
+            label='pg_control',
+            src=':%s/global/pg_control' % backup_info.pgdata,
+            dst='%s/global/pg_control' % (backup_dest,),
+            item_class=controller.PGCONTROL_CLASS,
+        )
 
         # Copy configuration files (if not inside PGDATA)
-        self.current_action = "copying configuration files"
-        _logger.debug(self.current_action)
         for key in ('config_file', 'hba_file', 'ident_file'):
             cf = getattr(backup_info, key, None)
             if cf:
-                assert isinstance(cf, str)
                 # Consider only those that reside outside of the original
                 # PGDATA directory
                 if cf.startswith(backup_info.pgdata):
-                    self.current_action = \
-                        "skipping %s as contained in %s directory" % (
-                            key, backup_info.pgdata)
-                    _logger.debug(self.current_action)
+                    _logger.debug("Config file '%s' already in PGDATA",
+                                  cf[len(backup_info.pgdata)+1:])
                     continue
-                self.current_action = "copying %s as outside %s directory" % (
-                    key, backup_info.pgdata)
-                _logger.info(self.current_action)
-                try:
-                    rsync(':%s' % cf, backup_dest)
-                except CommandFailedException as e:
-                    ret_code = e.args[0]['ret']
-                    msg = "data transfer failure on file '%s'" % cf
-                    if 'ident_file' == key and ret_code == 23:
-                        # If the ident file is missing,
-                        # it isn't an error condition for PostgreSQL.
-                        # Barman is consistent with this behavior.
-                        output.warning(msg, log=True)
-                        continue
-                    else:
-                        raise DataTransferFailure.from_command_error(
-                            'rsync', e, msg)
+
+                # If the ident file is missing, it isn't an error condition
+                # for PostgreSQL.
+                # Barman is consistent with this behavior.
+                optional = False
+                if key == 'ident_file':
+                    optional = True
+
+                # Create the actual copy jobs in the controller
+                controller.add_file(
+                    label=key,
+                    src=':%s' % cf,
+                    dst=backup_dest,
+                    optional=optional,
+                    item_class=controller.CONFIG_CLASS,
+                )
+
+        # Execute the copy
+        controller.copy()
+
         # Check for any include directives in PostgreSQL configuration
         # Currently, include directives are not supported for files that
         # reside outside PGDATA. These files must be manually backed up.
@@ -950,7 +934,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
                     "\n\t".join(filtered_files)
                 )
 
-    def _reuse_dir(self, previous_backup_info, oid=None):
+    def _reuse_path(self, previous_backup_info, tablespace=None):
         """
         If reuse_backup is 'copy' or 'link', builds the path of the directory
         to reuse, otherwise always returns None.
@@ -961,11 +945,14 @@ class RsyncBackupExecutor(SshBackupExecutor):
 
         :param barman.infofile.BackupInfo previous_backup_info: backup to be
             reused
-        :param str oid: oid of the tablespace to be reused
+        :param barman.infofile.Tablespace tablespace: the tablespace to copy
         :returns: a string containing the local path with data to be reused
             or None
         :rtype: str|None
         """
+        oid = None
+        if tablespace:
+            oid = tablespace.oid
         if self.config.reuse_backup in ('copy', 'link') and \
                 previous_backup_info is not None:
             try:
@@ -973,21 +960,26 @@ class RsyncBackupExecutor(SshBackupExecutor):
             except ValueError:
                 return None
 
-    def _reuse_args(self, reuse_dir):
+    def _bwlimit(self, tablespace=None):
         """
-        If reuse_backup is 'copy' or 'link', build the rsync option to enable
-        the reuse, otherwise returns an empty list
+        Return the configured bandwidth limit for the provided tablespace
 
-        :param str reuse_dir: the local path with data to be reused or None
-        :returns: list of argument for rsync call for incremental backup
-            or empty list.
-        :rtype: list(str)
+        If tablespace is None, it returns the global bandwidth limit
+
+        :param barman.infofile.Tablespace tablespace: the tablespace to copy
+        :rtype: str
         """
-        if self.config.reuse_backup in ('copy', 'link') and \
-                reuse_dir is not None:
-            return ['--%s-dest=%s' % (self.config.reuse_backup, reuse_dir)]
-        else:
-            return []
+        # Default to global bandwidth limit
+        bwlimit = self.config.bandwidth_limit
+
+        if tablespace:
+            # A tablespace can be copied using a per-tablespace bwlimit
+            tablespaces_bw_limit = self.config.tablespace_bandwidth_limit
+            if (tablespaces_bw_limit and
+                    tablespace.name in tablespaces_bw_limit):
+                bwlimit = tablespaces_bw_limit[tablespace.name]
+
+        return bwlimit
 
 
 class BackupStrategy(with_metaclass(ABCMeta, object)):
