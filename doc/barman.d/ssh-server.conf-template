@@ -17,7 +17,7 @@ ssh_command = ssh postgres@pg
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; PostgreSQL connection string (mandatory)
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-conninfo = host=pg user=postgres
+conninfo = host=pg user=barman
 
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Backup settings (via rsync over Ssh)

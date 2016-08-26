@@ -1,12 +1,17 @@
 MANPAGES=barman.1 barman.5
-DOCS=barman-tutorial.en.pdf barman-tutorial.en.html
+DOCS= \
+			barman-quickstart.en.pdf barman-quickstart.en.html
 
-all: $(MANPAGES) $(DOCS)
+SUBDIRS=manual
 
-barman-tutorial.en.pdf: barman-tutorial.en.md
+.PHONY: all clean help subdirs $(SUBDIRS)
+
+all: $(MANPAGES) $(DOCS) $(SUBDIRS)
+
+barman-quickstart.en.pdf: barman-quickstart.en.md images/*.png
 	pandoc $< -o $@ -s -f markdown
 
-barman-tutorial.en.html: barman-tutorial.en.md
+barman-quickstart.en.html: barman-quickstart.en.md images/*.png
 	pandoc -o $@ -t html5 -f markdown -s -S --toc $<
 
 barman.1: barman.1.md
@@ -17,9 +22,16 @@ barman.5: barman.5.md
 
 clean:
 	    rm -f $(MANPAGES) $(DOCS)
+			for dir in $(SUBDIRS); do \
+				$(MAKE) -C $$dir clean; \
+			done
 
 help:
 	    @echo "Usage:"
 	    @echo "    $$ make"
 
-.PHONY: all clean help 
+subdirs: $(SUBDIRS)
+
+$(SUBDIRS):
+			$(MAKE) -C $@
+
