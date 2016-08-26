@@ -36,7 +36,10 @@ class TestCli(object):
         # Mock the args from argparse
         args = Mock()
         args.server_name = 'main'
-        monkeypatch.setattr(barman, '__config__', build_config_from_dicts())
+        monkeypatch.setattr(barman, '__config__', build_config_from_dicts(
+            main_conf={
+                'archiver': 'on',
+            }))
         server_main = get_server(args)
         # Expect the server to exists
         assert server_main
@@ -56,6 +59,7 @@ class TestCli(object):
             main_conf={
                 'wals_directory': '/some/barman/home/main/wals',
                 'basebackups_directory': '/some/barman/home/main/wals',
+                'archiver': 'on',
             }))
         args.server_name = 'main'
         with pytest.raises(SystemExit):
@@ -69,6 +73,7 @@ class TestCli(object):
             main_conf={
                 'wals_directory': '/some/barman/home/main/wals',
                 'basebackups_directory': '/some/barman/home/main/wals',
+                'archiver': 'on',
             }))
         args.server_name = 'main'
         get_server(args, on_error_stop=False)
@@ -89,6 +94,7 @@ class TestCli(object):
             main_conf=build_config_dictionary({
                 'wals_directory': '/some/barman/home/main/wals',
                 'basebackups_directory': '/some/barman/home/main/wals',
+                'archiver': 'on',
             })))
         server = Server(barman.__config__.get_server('main'))
         # Test a not blocking WARNING message
@@ -133,12 +139,14 @@ class TestCli(object):
                 'incoming_wals_directory': '/some/barman/home/main/incoming',
                 'wals_directory': '/some/barman/home/main/wals',
                 'backup_directory': '/some/barman/home/main',
+                'archiver': 'on',
             },
             test_conf={
                 'basebackups_directory': '/some/barman/home/test/wals',
                 'incoming_wals_directory': '/some/barman/home/main/incoming',
                 'wals_directory': '/some/barman/home/main/wals',
                 'backup_directory': '/some/barman/home/main',
+                'archiver': 'on',
             }))
         # Expect a conflict because of the shared paths
         with pytest.raises(SystemExit):
@@ -175,12 +183,14 @@ class TestCli(object):
                 'incoming_wals_directory': '/some/barman/home/main/incoming',
                 'wals_directory': '/some/barman/home/main/wals',
                 'backup_directory': '/some/barman/home/main',
+                'archiver': 'on',
             },
             test_conf={
                 'basebackups_directory': '/some/barman/home/test/wals',
                 'incoming_wals_directory': '/some/barman/home/main/incoming',
                 'wals_directory': '/some/barman/home/main/wals',
                 'backup_directory': '/some/barman/home/main',
+                'archiver': 'on',
             }))
         # Expect the method to fail and exit
         with pytest.raises(SystemExit):
@@ -209,9 +219,11 @@ class TestCli(object):
             global_conf=None,
             main_conf={
                 'backup_directory': '/some/barman/home/main',
+                'archiver': 'on',
             },
             test_conf={
                 'backup_directory': '/some/barman/home/main',
+                'archiver': 'on',
             }))
         server_dict = get_server_list(on_error_stop=False)
         global_error_list = barman.__config__.servers_msg_list

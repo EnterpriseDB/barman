@@ -53,7 +53,10 @@ class TestServer(object):
         """
         Basic initialization test with minimal parameters
         """
-        server = Server(build_config_from_dicts().get_server('main'))
+        server = Server(build_config_from_dicts(
+            global_conf={
+                'archiver': 'on'
+            }).get_server('main'))
         assert not server.config.disabled
 
     def test_bad_init(self):

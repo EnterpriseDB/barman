@@ -350,7 +350,7 @@ class ServerConfig(object):
 
     DEFAULTS = {
         'active': 'true',
-        'archiver': 'on',
+        'archiver': 'off',
         'archiver_batch_size': '0',
         'backup_directory': '%(barman_home)s/%(name)s',
         'backup_method': 'rsync',

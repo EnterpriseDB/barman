@@ -37,6 +37,7 @@ barman_home = /some/barman/home
 barman_user = {USER}
 log_file = %(barman_home)s/log/barman.log
 [main]
+archiver = on
 description = " Text with quotes "
 ssh_command = ssh -c "arcfour" -p 22 postgres@pg01.nowhere
 conninfo = host=pg01.nowhere user=postgres port=5432
@@ -53,6 +54,7 @@ retention_policy = redundancy 2
 wal_retention_policy = base
 [main]
 active = true
+archiver = on
 description = Main PostgreSQL Database
 ssh_command = ssh -c arcfour -p 22 postgres@pg01.nowhere
 conninfo = host=pg01.nowhere user=postgres port=5432
@@ -68,6 +70,7 @@ wal_retention_policy = base
 last_backup_maximum_age = '1 day'
 [web]
 active = true
+archiver = on
 description = Web applications database
 ssh_command = ssh -I ~/.ssh/web01_rsa -c arcfour -p 22 postgres@web01
 conninfo = host=web01 user=postgres port=5432
@@ -204,6 +207,7 @@ class TestConfig(object):
         # basebackups_directory = /some/barman/home/main/wals
         # wals_directory = /some/barman/home/main/wals
         c = build_config_from_dicts(main_conf={
+            'archiver': 'on',
             'basebackups_directory': '/some/barman/home/main/wals',
             'description': ' Text with quotes ',
         })
@@ -295,8 +299,11 @@ class TestCsvParsing(object):
         """
         # add backup_options configuration to minimal configuration string
         c = build_config_from_dicts(
-            {'backup_options': BackupOptions.EXCLUSIVE_BACKUP},
-            {'backup_options': ''})
+            global_conf={
+                'archiver': 'on',
+                'backup_options': BackupOptions.EXCLUSIVE_BACKUP
+            },
+            main_conf={'backup_options': ''})
         main = c.get_server('main')
 
         # create the expected dictionary
@@ -324,8 +331,11 @@ class TestCsvParsing(object):
                                BackupOptions.CONCURRENT_BACKUP)
         # add backup_options to minimal configuration string
         c = build_config_from_dicts(
-            {'backup_options': conflict},
-            None)
+            global_conf={
+                'archiver': 'on',
+                'backup_options': conflict
+            },
+            main_conf=None)
         main = c.get_server('main')
         # create the expected dictionary
         expected = build_config_dictionary({'config': main.config})
@@ -352,8 +362,13 @@ class TestCsvParsing(object):
         """
         # add backup_options to minimal configuration string
         c = build_config_from_dicts(
-            {'backup_options': BackupOptions.EXCLUSIVE_BACKUP},
-            {'backup_options': 'none_of_your_business'})
+            global_conf={
+                'archiver': 'on',
+                'backup_options': BackupOptions.EXCLUSIVE_BACKUP
+            },
+            main_conf={
+                'backup_options': 'none_of_your_business'
+            })
         main = c.get_server('main')
 
         # create the expected dictionary
@@ -386,8 +401,13 @@ class TestCsvParsing(object):
                                        'none_of_your_business')
         # add backup_options to minimal configuration string
         c = build_config_from_dicts(
-            {'backup_options': BackupOptions.CONCURRENT_BACKUP},
-            {'backup_options': wrong_parameters})
+            global_conf={
+                'archiver': 'on',
+                'backup_options': BackupOptions.CONCURRENT_BACKUP
+            },
+            main_conf={
+                'backup_options': wrong_parameters
+            })
         main = c.get_server('main')
         # create the expected dictionary
         expected = build_config_dictionary({
@@ -412,8 +432,11 @@ class TestCsvParsing(object):
         """
         # add backup_options to minimal configuration string
         c = build_config_from_dicts(
-            {'backup_options': BackupOptions.CONCURRENT_BACKUP},
-            None)
+            global_conf={
+                'archiver': 'on',
+                'backup_options': BackupOptions.CONCURRENT_BACKUP
+            },
+            main_conf=None)
         main = c.get_server('main')
         # create the expected dictionary
         expected = build_config_dictionary({
@@ -458,7 +481,12 @@ class TestCsvParsing(object):
         expected: recovery_options = empty RecoveryOptions obj
         """
         # Build configuration with empty recovery_options
-        c = build_config_from_dicts({'recovery_options': ''}, None)
+        c = build_config_from_dicts(
+            global_conf={
+                'archiver': 'on',
+                'recovery_options': ''
+            },
+            main_conf=None)
         main = c.get_server('main')
 
         expected = build_config_dictionary({
@@ -468,7 +496,12 @@ class TestCsvParsing(object):
         assert main.__dict__ == expected
 
         # Build configuration with recovery_options set to get-wal
-        c = build_config_from_dicts({'recovery_options': 'get-wal'}, None)
+        c = build_config_from_dicts(
+            global_conf={
+                'archiver': 'on',
+                'recovery_options': 'get-wal'
+            },
+            main_conf=None)
         main = c.get_server('main')
 
         expected = build_config_dictionary({
