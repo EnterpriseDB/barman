@@ -1,0 +1,39 @@
+; Barman, Backup and Recovery Manager for PostgreSQL
+; http://www.pgbarman.org/ - http://www.2ndQuadrant.com/
+;
+; Template configuration file for a server using
+; Ssh connections and rsync for copy.
+;
+
+[ssh]
+; Human readable description
+description =  "Example of PostgreSQL Database (via Ssh)"
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; SSH options (mandatory)
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+ssh_command = ssh postgres@pg
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; PostgreSQL connection string (mandatory)
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+conninfo = host=pg user=postgres
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Backup settings (via rsync over Ssh)
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+backup_method = rsync
+; Incremental backup support: possible values are None (default), link or copy
+;reuse_backup = link
+; Identify the standard behavior for backup operations: possible values are
+; exclusive_backup (default), concurrent_backup
+;backup_options = exclusive_backup
+
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Continuous WAL archiving (via 'archive_command')
+; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+archiver = on
+;archiver_batch_size = 50
+
+; PATH setting for this server
+;path_prefix = "/usr/pgsql-9.3/bin"
