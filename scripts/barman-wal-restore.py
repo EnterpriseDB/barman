@@ -169,17 +169,22 @@ def build_ssh_command(config, wal_name, peek=0):
     ssh_command = [
         'ssh',
         "%s@%s" % (config.user, config.barman_host),
+        "barman",
     ]
+
+    if config.config:
+        ssh_command.append("--config %s" % config.config )
+
     if peek:
-        get_wal_command = "barman get-wal --peek '%s' '%s' '%s'" % (
+        get_wal_command = "get-wal --peek '%s' '%s' '%s'" % (
             peek, config.server_name, wal_name)
 
     else:
         if config.compression:
-            get_wal_command = "barman get-wal --%s '%s' '%s'" % (
+            get_wal_command = "get-wal --%s '%s' '%s'" % (
                 config.compression, config.server_name, wal_name)
         else:
-            get_wal_command = "barman get-wal '%s' '%s'" % (
+            get_wal_command = "get-wal '%s' '%s'" % (
                 config.server_name, wal_name)
 
     ssh_command.append(get_wal_command)
@@ -289,6 +294,11 @@ def parse_arguments(args=None):
         '-j', '--bzip2',
         help='Transfer the WAL files compressed with bzip2',
         action='store_const', const='bzip2', dest='compression',
+    )
+    parser.add_argument(
+        '-c', '--config',
+        metavar="CONFIG",
+        help='configuration file on the Barman server',
     )
     parser.add_argument(
         "barman_host",
