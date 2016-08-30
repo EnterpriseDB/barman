@@ -397,6 +397,12 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
              of the results of the various checks
         """
 
+    @abstractmethod
+    def status(self):
+        """
+        Set additional status info - invoked by Server.status()
+        """
+
     @staticmethod
     def summarise_error_files(error_files):
         """
@@ -529,6 +535,47 @@ class FileWalArchiver(WalArchiver):
             check_strategy.result(
                 self.config.name, 'archive_command', False,
                 'please set it accordingly to documentation')
+
+    def status(self):
+        """
+        Set additional status info - invoked by Server.status()
+        """
+        remote_status = self.get_remote_status()
+
+        # If archive_mode is None, there are issues connecting to PostgreSQL
+        if remote_status['archive_mode'] is None:
+            return
+
+        output.result('status', self.config.name,
+                      "archive_command",
+                      "PostgreSQL 'archive_command' setting",
+                      remote_status['archive_command'] or
+                      "FAILED (please set it accordingly to documentation)")
+        last_wal = remote_status.get('last_archived_wal')
+        # If PostgreSQL is >= 9.4 we have the last_archived_time
+        if last_wal and remote_status.get('last_archived_time'):
+                last_wal += ", at %s" % (
+                    remote_status['last_archived_time'].ctime())
+        output.result('status', self.config.name,
+                      "last_archived_wal",
+                      "Last archived WAL",
+                      last_wal or "No WAL segment shipped yet")
+        # Set output for WAL archive failures (PostgreSQL >= 9.4)
+        if remote_status.get('failed_count') is not None:
+            remote_fail = str(remote_status['failed_count'])
+            if int(remote_status['failed_count']) > 0:
+                remote_fail += " (%s at %s)" % (
+                    remote_status['last_failed_wal'],
+                    remote_status['last_failed_time'].ctime())
+            output.result('status', self.config.name, 'failed_count',
+                          'Failures of WAL archiver', remote_fail)
+        # Add hourly archive rate if available (PostgreSQL >= 9.4) and > 0
+        if remote_status.get('current_archived_wals_per_second'):
+            output.result(
+                'status', self.config.name,
+                'server_archived_wals_per_hour',
+                'Server WAL archiving rate', '%0.2f/hour' % (
+                    3600 * remote_status['current_archived_wals_per_second']))
 
 
 class StreamingWalArchiver(WalArchiver):
@@ -842,3 +889,9 @@ class StreamingWalArchiver(WalArchiver):
                      self.config.streaming_archiver_name,
                      synchronous)
         return synchronous
+
+    def status(self):
+        """
+        Set additional status info - invoked by Server.status()
+        """
+        # TODO: Add status information for WAL streaming

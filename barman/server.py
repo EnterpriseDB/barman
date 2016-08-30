@@ -674,41 +674,18 @@ class Server(RemoteStatusMixin):
                           "data_directory",
                           "PostgreSQL Data directory",
                           remote_status['data_directory'])
-        output.result('status', self.config.name,
-                      "archive_command",
-                      "PostgreSQL 'archive_command' setting",
-                      remote_status['archive_command'] or
-                      "FAILED (please set it accordingly to documentation)")
-        last_wal = remote_status.get('last_archived_wal')
-        # If PostgreSQL is >= 9.4 we have the last_archived_time
-        if last_wal and remote_status.get('last_archived_time'):
-                last_wal += ", at %s" % (
-                    remote_status['last_archived_time'].ctime())
-        output.result('status', self.config.name,
-                      "last_archived_wal",
-                      "Last archived WAL",
-                      last_wal or "No WAL segment shipped yet")
         if remote_status['current_xlog']:
             output.result('status', self.config.name,
                           "current_xlog",
                           "Current WAL segment",
                           remote_status['current_xlog'])
-        # Set output for WAL archive failures (PostgreSQL >= 9.4)
-        if remote_status.get('failed_count') is not None:
-            remote_fail = str(remote_status['failed_count'])
-            if int(remote_status['failed_count']) > 0:
-                remote_fail += " (%s at %s)" % (
-                    remote_status['last_failed_wal'],
-                    remote_status['last_failed_time'].ctime())
-            output.result('status', self.config.name, 'failed_count',
-                          'Failures of WAL archiver', remote_fail)
-        # Add hourly archive rate if available (PostgreSQL >= 9.4) and > 0
-        if remote_status.get('current_archived_wals_per_second'):
-            output.result(
-                'status', self.config.name,
-                'server_archived_wals_per_hour',
-                'Server WAL archiving rate', '%0.2f/hour' % (
-                    3600 * remote_status['current_archived_wals_per_second']))
+
+    def status_wal_archiver(self):
+        """
+        Status of WAL archiver(s)
+        """
+        for archiver in self.archivers:
+            archiver.status()
 
     def status_retention_policies(self):
         """
@@ -744,6 +721,7 @@ class Server(RemoteStatusMixin):
                       "disabled",
                       "Disabled", self.config.disabled)
         self.status_postgres()
+        self.status_wal_archiver()
         self.status_retention_policies()
         # Executes the backup manager status info method
         self.backup_manager.status()
@@ -776,10 +754,7 @@ class Server(RemoteStatusMixin):
         Shows the server configuration
         """
         # Populate result map with all the required keys
-        result = dict([
-            (key, getattr(self.config, key))
-            for key in self.config.KEYS
-        ])
+        result = self.config.to_json()
         remote_status = self.get_remote_status()
         result.update(remote_status)
         # Backup maximum age section

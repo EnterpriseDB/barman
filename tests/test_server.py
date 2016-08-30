@@ -17,7 +17,7 @@
 
 import datetime
 import os
-from collections import defaultdict, namedtuple
+from collections import namedtuple
 
 import pytest
 from mock import MagicMock, mock, patch
@@ -246,11 +246,11 @@ class TestServer(object):
         assert history_info.name in wals
 
     @patch('barman.server.Server.get_remote_status')
-    def test_pg_stat_archiver_output(self, remote_mock, capsys):
+    def test_pg_stat_archiver_show(self, remote_mock, capsys):
         """
-        Test management of pg_stat_archiver view output
+        Test management of pg_stat_archiver view output in show command
 
-        :param MagicMock connect_mock: mock the database connection
+        :param MagicMock remote_mock: mock the Server.get_remote_status method
         :param capsys: retrieve output from consolle
 
         """
@@ -264,22 +264,23 @@ class TestServer(object):
         }
         remote_mock.return_value = dict(stats)
 
-        server = build_real_server()
-        server.server_version = 90400
-        server.config.description = None
-        server.config.KEYS = []
-        server.config.last_backup_maximum_age = datetime.timedelta(days=1)
-        # Mock the BackupExecutor.get_remote_status() method
-        server.backup_manager.executor.get_remote_status = MagicMock(
-            return_value={})
+        server = build_real_server(
+            global_conf={
+                'archiver': 'on',
+                'last_backup_maximum_age': '1 day',
+            }
+        )
 
-        # testing for show-server command.
+        # Testing for show-server command.
         # Expecting in the output the same values present into the stats dict
         server.show()
+
+        # Parse the output
         (out, err) = capsys.readouterr()
-        assert err == ''
         result = dict(item.strip('\t\n\r').split(": ")
                       for item in out.split("\n") if item != '')
+        assert err == ''
+
         assert result['failed_count'] == stats['failed_count']
         assert result['last_archived_wal'] == stats['last_archived_wal']
         assert result['last_archived_time'] == str(stats['last_archived_time'])
@@ -288,29 +289,57 @@ class TestServer(object):
         assert result['current_archived_wals_per_second'] == \
             str(stats['current_archived_wals_per_second'])
 
-        # test output for status
+    @patch('barman.wal_archiver.FileWalArchiver.get_remote_status')
+    def test_pg_stat_archiver_status(self, remote_mock, capsys):
+        """
+        Test management of pg_stat_archiver view output in status command
+
+        :param MagicMock remote_mock: mock the
+            FileWalArchiver.get_remote_status method
+        :param capsys: retrieve output from consolle
+        """
+
+        archiver_remote_status = {
+            "archive_mode": "on",
+            "archive_command": "send_to_barman.sh %p %f",
+            "failed_count": "2",
+            "last_archived_wal": "000000010000000000000006",
+            "last_archived_time": datetime.datetime.now(),
+            "last_failed_wal": "000000010000000000000005",
+            "last_failed_time": datetime.datetime.now(),
+            "current_archived_wals_per_second": 1.0002,
+        }
+        remote_mock.return_value = dict(archiver_remote_status)
+
+        server = build_real_server(
+            global_conf={
+                'archiver': 'on',
+            }
+        )
+
+        # Test output for status invocation
         # Expecting:
         # Last archived WAL:
         #   <last_archived_wal>, at <last_archived_time>
         # Failures of WAL archiver:
         #   <failed_count> (<last_failed wal>, at <last_failed_time>)
-        remote_mock.return_value = defaultdict(lambda: None,
-                                               server_txt_version=1,
-                                               **stats)
         server.status()
         (out, err) = capsys.readouterr()
-        # clean the output
+
+        # Parse the output
         result = dict(item.strip('\t\n\r').split(": ")
                       for item in out.split("\n") if item != '')
         assert err == ''
-        # check the result
+
+        # Check the result
         assert result['Last archived WAL'] == '%s, at %s' % (
-            stats['last_archived_wal'], stats['last_archived_time'].ctime()
+            archiver_remote_status['last_archived_wal'],
+            archiver_remote_status['last_archived_time'].ctime()
         )
         assert result['Failures of WAL archiver'] == '%s (%s at %s)' % (
-            stats['failed_count'],
-            stats['last_failed_wal'],
-            stats['last_failed_time'].ctime()
+            archiver_remote_status['failed_count'],
+            archiver_remote_status['last_failed_wal'],
+            archiver_remote_status['last_failed_time'].ctime()
         )
 
     @patch('barman.server.Server.get_remote_status')
