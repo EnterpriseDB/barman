@@ -88,7 +88,7 @@ class TestRsyncCopyController(object):
         assert rcc._reuse_args(reuse_dir) == \
             ['--copy-dest=some/dir']
 
-    @patch('barman.copy_controller.Rsync')
+    @patch('barman.copy_controller.RsyncPgData')
     @patch('barman.copy_controller.RsyncCopyController._smart_copy')
     def test_full_copy(self, smart_copy_mock, rsync_mock, tmpdir):
         """
@@ -171,10 +171,7 @@ class TestRsyncCopyController(object):
 
         assert rsync_mock.mock_calls == [
             mock.call(network_compression=False,
-                      args=['-rLKpts',
-                            '--delete-excluded',
-                            '--inplace',
-                            '--itemize-changes',
+                      args=['--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
@@ -183,10 +180,7 @@ class TestRsyncCopyController(object):
                                    'StrictHostKeyChecking=no'],
                       exclude=None, exclude_and_protect=None),
             mock.call(network_compression=False,
-                      args=['-rLKpts',
-                            '--delete-excluded',
-                            '--inplace',
-                            '--itemize-changes',
+                      args=['--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
@@ -195,10 +189,7 @@ class TestRsyncCopyController(object):
                                    'StrictHostKeyChecking=no'],
                       exclude=None, exclude_and_protect=None),
             mock.call(network_compression=False,
-                      args=['-rLKpts',
-                            '--delete-excluded',
-                            '--inplace',
-                            '--itemize-changes',
+                      args=['--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
@@ -214,10 +205,7 @@ class TestRsyncCopyController(object):
                           'pg_tblspc/16387',
                           'pg_tblspc/16405']),
             mock.call(network_compression=False,
-                      args=['-rLKpts',
-                            '--delete-excluded',
-                            '--inplace',
-                            '--itemize-changes',
+                      args=['--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
@@ -229,10 +217,7 @@ class TestRsyncCopyController(object):
                 ':/pg/data/global/pg_control',
                 '%s/global/pg_control' % backup_info.get_data_directory()),
             mock.call(network_compression=False,
-                      args=['-rLKpts',
-                            '--delete-excluded',
-                            '--inplace',
-                            '--itemize-changes',
+                      args=['--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',

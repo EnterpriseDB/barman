@@ -546,7 +546,7 @@ class BackupInfo(FieldListFile):
         If tablespace_oid is passed, build the path to the tablespace
         base directory, according with the backup version
 
-        :param str tablespace_oid: the oid of a valid tablespace
+        :param int tablespace_oid: the oid of a valid tablespace
         """
         # Check if a tablespace oid is passed and if is a valid oid
         if tablespace_oid is not None and (

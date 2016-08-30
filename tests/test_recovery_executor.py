@@ -20,8 +20,8 @@ import shutil
 import time
 
 import dateutil
+import mock
 import pytest
-from mock import ANY, Mock, patch
 
 import testing_helpers
 from barman import xlog
@@ -42,8 +42,7 @@ class TestRecoveryExecutor(object):
         """
 
         # Test
-        server = testing_helpers.build_mocked_server()
-        backup_manager = Mock(server=server, config=server.config)
+        backup_manager = testing_helpers.build_backup_manager()
         assert RecoveryExecutor(backup_manager)
 
     def test_analyse_temporary_config_files(self, tmpdir):
@@ -73,8 +72,7 @@ class TestRecoveryExecutor(object):
             postgresql_auto.strpath)
         # Build a RecoveryExecutor object (using a mock as server and backup
         # manager.
-        server = testing_helpers.build_mocked_server()
-        backup_manager = Mock(server=server, config=server.config)
+        backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
         # Identify dangerous options into config files for remote recovery
         executor.analyse_temporary_config_files(recovery_info)
@@ -113,8 +111,7 @@ class TestRecoveryExecutor(object):
                                     'data_directory = something')
         # Build a RecoveryExecutor object (using a mock as server and backup
         # manager.
-        server = testing_helpers.build_mocked_server()
-        backup_manager = Mock(server=server, config=server.config)
+        backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
         executor.map_temporary_config_files(recovery_info,
                                             backup_info, 'ssh@something')
@@ -133,8 +130,7 @@ class TestRecoveryExecutor(object):
         Test the method that set up a recovery
         """
         backup_info = testing_helpers.build_test_backup_info()
-        server = testing_helpers.build_mocked_server()
-        backup_manager = Mock(server=server, config=server.config)
+        backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
         backup_info.version = 90300
 
@@ -178,8 +174,7 @@ class TestRecoveryExecutor(object):
             'get_wal': False,
         }
         backup_info = testing_helpers.build_test_backup_info()
-        server = testing_helpers.build_mocked_server()
-        backup_manager = Mock(server=server, config=server.config)
+        backup_manager = testing_helpers.build_backup_manager()
         # Build a recovery executor
         executor = RecoveryExecutor(backup_manager)
         executor.set_pitr_targets(recovery_info, backup_info,
@@ -205,7 +200,7 @@ class TestRecoveryExecutor(object):
         assert recovery_info['target_epoch'] == target_epoch
         assert recovery_info['wal_dest'] == dest.join('barman_xlog').strpath
 
-    @patch('barman.recovery_executor.Rsync')
+    @mock.patch('barman.recovery_executor.RsyncPgData')
     def test_generate_recovery_conf(self, rsync_pg_mock, tmpdir):
         """
         Test the generation of recovery.conf file
@@ -248,11 +243,10 @@ class TestRecoveryExecutor(object):
         assert recovery_conf['recovery_target_timeline'] == '2'
         assert recovery_conf['recovery_target_name'] == "'target_name'"
 
-    @patch('barman.recovery_executor.RsyncPgData')
-    def test_recover_basebackup_copy(self, rsync_pg_mock, tmpdir):
+    @mock.patch('barman.recovery_executor.RsyncCopyController')
+    def test_recover_backup_copy(self, copy_controller_mock, tmpdir):
         """
         Test the copy of a content of a backup during a recovery
-        :param rsync_pg_mock: Mock rsync object for the purpose if this test
         """
         # Build basic folder/files structure
         dest = tmpdir.mkdir('destination')
@@ -264,23 +258,40 @@ class TestRecoveryExecutor(object):
         executor = RecoveryExecutor(server.backup_manager)
         executor.config.tablespace_bandwidth_limit = {'tbs1': ''}
         executor.config.bandwidth_limit = 10
-        executor.basebackup_copy(
-            backup_info, dest.strpath, tablespaces=None)
-        rsync_pg_mock.assert_called_with(
-            network_compression=False, bwlimit=10, ssh=None, path=None,
-            exclude_and_protect=['/pg_tblspc/16387'])
-        rsync_pg_mock.assert_any_call(
-            network_compression=False, bwlimit='', ssh=None, path=None,
-            check=True)
-        rsync_pg_mock.return_value.smart_copy.assert_any_call(
-            '/some/barman/home/main/base/1234567890/16387/',
-            '/fake/location', None)
-        rsync_pg_mock.return_value.smart_copy.assert_called_with(
-            '/some/barman/home/main/base/1234567890/data/',
-            dest.strpath, None)
 
-    @patch('barman.backup.CompressionManager')
-    @patch('barman.recovery_executor.RsyncPgData')
+        executor.backup_copy(
+            backup_info, dest.strpath, tablespaces=None)
+
+        # Check the calls
+        assert copy_controller_mock.mock_calls == [
+            mock.call(
+                network_compression=False,
+                path=None,
+                safe_horizon=None,
+                ssh_command=None),
+            mock.call().add_directory(
+                bwlimit='',
+                dst='/fake/location',
+                item_class=copy_controller_mock.return_value.TABLESPACE_CLASS,
+                label='tbs1',
+                src=backup_info.get_data_directory(16387) + '/'),
+            mock.call().add_directory(
+                bwlimit=10,
+                dst=dest.strpath,
+                exclude=[
+                    '/pg_xlog/*',
+                    '/pg_log/*',
+                    '/recovery.conf',
+                    '/postmaster.pid'],
+                exclude_and_protect=['/pg_tblspc/16387'],
+                item_class=copy_controller_mock.return_value.PGDATA_CLASS,
+                label='pgdata',
+                src=backup_info.get_data_directory() + '/'),
+            mock.call().copy(),
+        ]
+
+    @mock.patch('barman.backup.CompressionManager')
+    @mock.patch('barman.recovery_executor.RsyncPgData')
     def test_recover_xlog(self, rsync_pg_mock, cm_mock, tmpdir):
         """
         Test the recovery of the xlogs of a backup
@@ -301,8 +312,8 @@ class TestRecoveryExecutor(object):
             main_conf={'wals_directory': wals.strpath})
         # Prepare compressors mock
         c = {
-            'gzip': Mock(name='gzip'),
-            'bzip2': Mock(name='bzip2'),
+            'gzip': mock.Mock(name='gzip'),
+            'bzip2': mock.Mock(name='bzip2'),
         }
         cm_mock.return_value.get_compressor = \
             lambda compression=None, path=None: c[compression]
@@ -328,8 +339,10 @@ class TestRecoveryExecutor(object):
             bwlimit=None, path=None,
             ssh=None)
         assert not rsync_pg_mock.return_value.from_file_list.called
-        c['gzip'].decompress.assert_called_once_with(xlog_gz.strpath, ANY)
-        c['bzip2'].decompress.assert_called_once_with(xlog_bz2.strpath, ANY)
+        c['gzip'].decompress.assert_called_once_with(xlog_gz.strpath,
+                                                     mock.ANY)
+        c['bzip2'].decompress.assert_called_once_with(xlog_bz2.strpath,
+                                                      mock.ANY)
 
         # Reset mock calls
         rsync_pg_mock.reset_mock()
@@ -341,17 +354,19 @@ class TestRecoveryExecutor(object):
         # Check for the invocation of rsync on a remote call
         rsync_pg_mock.assert_called_once_with(
             network_compression=False,
-            bwlimit=None, path=ANY,
+            bwlimit=None, path=mock.ANY,
             ssh='remote_command')
         rsync_pg_mock.return_value.from_file_list.assert_called_once_with(
             [
                 '000000000000000000000001',
                 '000000000000000000000002',
                 '000000000000000000000003'],
-            ANY,
-            ANY)
-        c['gzip'].decompress.assert_called_once_with(xlog_gz.strpath, ANY)
-        c['bzip2'].decompress.assert_called_once_with(xlog_bz2.strpath, ANY)
+            mock.ANY,
+            mock.ANY)
+        c['gzip'].decompress.assert_called_once_with(xlog_gz.strpath,
+                                                     mock.ANY)
+        c['bzip2'].decompress.assert_called_once_with(xlog_bz2.strpath,
+                                                      mock.ANY)
 
     def test_prepare_tablespaces(self, tmpdir):
         """
@@ -367,7 +382,7 @@ class TestRecoveryExecutor(object):
             main_conf={'wals_directory': wals.strpath})
         executor = RecoveryExecutor(server.backup_manager)
         # use a mock as cmd obj
-        cmd_mock = Mock()
+        cmd_mock = mock.Mock()
         executor.prepare_tablespaces(backup_info, cmd_mock, dest.strpath, {})
         cmd_mock.create_dir_if_not_exists.assert_any_call(
             dest.join('pg_tblspc').strpath)
@@ -379,9 +394,11 @@ class TestRecoveryExecutor(object):
             '/fake/location',
             dest.join('pg_tblspc').join('16387').strpath)
 
-    @patch('barman.recovery_executor.RsyncPgData')
-    @patch('barman.recovery_executor.UnixRemoteCommand')
-    def test_recovery(self, remote_cmd_mock, rsync_pg_mock, tmpdir):
+    @mock.patch('barman.recovery_executor.RsyncCopyController')
+    @mock.patch('barman.recovery_executor.RsyncPgData')
+    @mock.patch('barman.recovery_executor.UnixRemoteCommand')
+    def test_recovery(self, remote_cmd_mock, rsync_pg_mock,
+                      copy_controller_mock, tmpdir):
         """
         Test the execution of a recovery
         """
@@ -468,7 +485,7 @@ class TestRecoveryExecutor(object):
         # test remote recovery
         rec_info = executor.recover(backup_info, dest.strpath, {}, None, None,
                                     None, None, True, "remote@command")
-        # remove not usefull keys from the result
+        # remove not useful keys from the result
         del rec_info['cmd']
         del rec_info['rsync']
         sys_tempdir = rec_info['tempdir']

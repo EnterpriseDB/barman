@@ -35,8 +35,9 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.command_wrappers import Rsync, RsyncPgData
+from barman.command_wrappers import RsyncPgData
 from barman.config import RecoveryOptions
+from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
                                DataTransferFailure, FsOperationFailed)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
@@ -415,8 +416,7 @@ class RecoveryExecutor(object):
                 not exclusive), file=recovery)
         recovery.close()
         if remote_command:
-            # Uses plain rsync (without exclusions) to ship recovery.conf
-            plain_rsync = Rsync(
+            plain_rsync = RsyncPgData(
                 path=self.server.path,
                 ssh=remote_command,
                 bwlimit=self.config.bandwidth_limit,
@@ -665,7 +665,7 @@ class RecoveryExecutor(object):
         try:
             # perform the backup copy, honoring the retry option if set
             self.backup_manager.retry_backup_copy(
-                self.basebackup_copy,
+                self.backup_copy,
                 backup_info, dest,
                 tablespaces, remote_command,
                 recovery_info['safe_horizon'])
@@ -760,10 +760,17 @@ class RecoveryExecutor(object):
 
         return recovery_info
 
-    def basebackup_copy(self, backup_info, dest, tablespaces=None,
-                        remote_command=None, safe_horizon=None):
+    def backup_copy(self, backup_info, dest, tablespaces=None,
+                    remote_command=None, safe_horizon=None):
         """
         Perform the actual copy of the base backup for recovery purposes
+
+        First, it copies one tablespace at a time, then the PGDATA directory.
+
+        Bandwidth limitation, according to configuration, is applied in
+        the process.
+
+        TODO: manage configuration files if outside PGDATA.
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
@@ -775,24 +782,26 @@ class RecoveryExecutor(object):
             has to be checked with checksum
         """
 
-        # Dictionary for paths to be excluded from rsync
-        exclude_and_protect = []
-
         # Set a ':' prefix to remote destinations
         dest_prefix = ''
         if remote_command:
             dest_prefix = ':'
 
-        # Copy tablespaces applying bwlimit when necessary
+        # Create the copy controller object, specific for rsync,
+        # which will drive all the copy operations. Items to be
+        # copied are added before executing the copy() method
+        controller = RsyncCopyController(
+            path=self.server.path,
+            ssh_command=remote_command,
+            network_compression=self.config.network_compression,
+            safe_horizon=safe_horizon)
+
+        # Dictionary for paths to be excluded from rsync
+        exclude_and_protect = []
+
+        # Process every tablespace
         if backup_info.tablespaces:
-            tablespaces_bw_limit = self.config.tablespace_bandwidth_limit
-            # Copy a tablespace at a time
             for tablespace in backup_info.tablespaces:
-                # Apply bandwidth limit if requested
-                bwlimit = self.config.bandwidth_limit
-                if tablespaces_bw_limit and \
-                        tablespace.name in tablespaces_bw_limit:
-                    bwlimit = tablespaces_bw_limit[tablespace.name]
                 # By default a tablespace goes in the same location where
                 # it was on the source server when the backup was taken
                 location = tablespace.location
@@ -800,49 +809,48 @@ class RecoveryExecutor(object):
                 # use the user provided target directory
                 if tablespaces and tablespace.name in tablespaces:
                     location = tablespaces[tablespace.name]
+
                 # If the tablespace location is inside the data directory,
                 # exclude and protect it from being deleted during
                 # the data directory copy
                 if location.startswith(dest):
-                    exclude_and_protect.append(location[len(dest):])
+                    exclude_and_protect += [location[len(dest):]]
+
                 # Exclude and protect the tablespace from being deleted during
                 # the data directory copy
                 exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
-                # Copy the tablespace using smart copy
-                tb_rsync = RsyncPgData(
-                    path=self.server.path,
-                    ssh=remote_command,
-                    bwlimit=bwlimit,
-                    network_compression=self.config.network_compression,
-                    check=True)
-                try:
-                    tb_rsync.smart_copy(
-                        '%s/' % backup_info.get_data_directory(tablespace.oid),
-                        dest_prefix + location,
-                        safe_horizon)
-                except CommandFailedException as e:
-                    msg = "data transfer failure on directory '%s'" % location
-                    raise DataTransferFailure.from_command_error(
-                        'rsync', e, msg)
 
-        # Copy the pgdata directory
-        rsync = RsyncPgData(
-            path=self.server.path,
-            ssh=remote_command,
-            bwlimit=self.config.bandwidth_limit,
+                # Add the tablespace directory to the list of objects
+                # to be copied by the controller
+                controller.add_directory(
+                    label=tablespace.name,
+                    src='%s/' % backup_info.get_data_directory(tablespace.oid),
+                    dst=dest_prefix + location,
+                    bwlimit=self.config.get_bwlimit(tablespace),
+                    item_class=controller.TABLESPACE_CLASS
+                    )
+
+        # Add the PGDATA directory to the list of objects to be copied
+        # by the controller
+        controller.add_directory(
+            label='pgdata',
+            src='%s/' % backup_info.get_data_directory(),
+            dst=dest_prefix + dest,
+            bwlimit=self.config.get_bwlimit(),
+            exclude=[
+                '/pg_xlog/*',
+                '/pg_log/*',
+                '/recovery.conf',
+                '/postmaster.pid'],
             exclude_and_protect=exclude_and_protect,
-            network_compression=self.config.network_compression)
-        try:
-            rsync.smart_copy(
-                '%s/' % backup_info.get_data_directory(),
-                dest_prefix + dest,
-                safe_horizon)
-        except CommandFailedException as e:
-            msg = "data transfer failure on directory '%s'" % dest
-            raise DataTransferFailure.from_command_error('rsync', e, msg)
+            item_class=controller.PGDATA_CLASS
+        )
 
-            # TODO: Manage different location for configuration files
-            # TODO: that were not within the data directory
+        # TODO: Manage different location for configuration files
+        # TODO: that were not within the data directory
+
+        # Execute the copy
+        controller.copy()
 
     def xlog_copy(self, required_xlog_files, wal_dest, remote_command):
         """

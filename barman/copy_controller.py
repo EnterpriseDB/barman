@@ -30,7 +30,7 @@ import tempfile
 import dateutil.parser
 import dateutil.tz
 
-from barman.command_wrappers import Rsync
+from barman.command_wrappers import RsyncPgData
 from barman.exceptions import CommandFailedException, RsyncListFilesFailure
 
 _logger = logging.getLogger(__name__)
@@ -159,14 +159,15 @@ class RsyncCopyController(object):
     # of a "rsync --list-only" call
     FileItem = collections.namedtuple('FileItem', 'mode size date path')
 
-    def __init__(self, path, ssh_command, ssh_options, network_compression,
-                 reuse_backup, safe_horizon, exclude=None):
-
+    def __init__(self, path=None, ssh_command=None, ssh_options=None,
+                 network_compression=False,
+                 reuse_backup=None, safe_horizon=None,
+                 exclude=None):
         """
-        :param str path: the PATH where rsync executable will be searched
-        :param str ssh_command: the ssh executable to be used
+        :param str|None path: the PATH where rsync executable will be searched
+        :param str|None ssh_command: the ssh executable to be used
             to access remote paths
-        :param list[str] ssh_options: list of ssh options to be used
+        :param list[str]|None ssh_options: list of ssh options to be used
             to access remote paths
         :param boolean network_compression: whether to use the network
             compression
@@ -174,8 +175,10 @@ class RsyncCopyController(object):
             the incremental copy feature
         :param datetime.datetime|None safe_horizon: if set, assumes that every
             files older than it are save to copy without checksum verification.
-        :param list[str] exclude: list of patterns to be excluded from the copy
+        :param list[str]|None exclude: list of patterns to be excluded
+            from the copy
         """
+
         super(RsyncCopyController, self).__init__()
         self.path = path
         self.ssh_command = ssh_command
@@ -267,8 +270,7 @@ class RsyncCopyController(object):
             formatted_class += ' directory' if item.is_directory else ' file'
 
             # Prepare the command arguments
-            args = ['-rLKpts', '--delete-excluded', '--inplace']
-            args += self._reuse_args(item.reuse)
+            args = self._reuse_args(item.reuse)
 
             # Merge the global exclude with the one into the item object
             if self.exclude and item.exclude:
@@ -276,7 +278,7 @@ class RsyncCopyController(object):
             else:
                 exclude = self.exclude or item.exclude
 
-            # TODO: remove debug output
+            # TODO: remove debug output or use it to progress tracking
             # By adding a double '--itemize-changes' option, the rsync
             # output will contain the full list of files that have been
             # touched, even those that have not changed
@@ -284,7 +286,7 @@ class RsyncCopyController(object):
             args.append('--itemize-changes')
 
             # Build the rsync object that will execute the copy
-            rsync = Rsync(
+            rsync = RsyncPgData(
                 path=self.path,
                 ssh=self.ssh_command,
                 ssh_options=self.ssh_options,

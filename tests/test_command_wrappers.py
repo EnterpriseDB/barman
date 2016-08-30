@@ -855,9 +855,7 @@ class TestRsyncPgdata(object):
         popen.assert_called_with(
             [
                 'rsync', '-rLKpts', '--delete-excluded', '--inplace',
-                '--exclude=/pg_xlog/*', '--exclude=/pg_log/*',
-                '--exclude=/recovery.conf',
-                '--exclude=/postmaster.pid', 'src', 'dst'
+                'src', 'dst'
             ],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
@@ -883,9 +881,7 @@ class TestRsyncPgdata(object):
         popen.assert_called_with(
             [
                 'rsync', '-rLKpts', '--delete-excluded', '--inplace',
-                '--exclude=/pg_xlog/*', '--exclude=/pg_log/*',
-                '--exclude=/recovery.conf',
-                '--exclude=/postmaster.pid', 'a', 'b', 'src', 'dst'
+                'a', 'b', 'src', 'dst'
             ],
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,

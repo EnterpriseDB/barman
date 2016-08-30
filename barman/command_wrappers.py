@@ -762,13 +762,7 @@ class RsyncPgData(Rsync):
 
         :param str rsync: command to run
         """
-        options = [
-            '-rLKpts', '--delete-excluded', '--inplace',
-            '--exclude=/pg_xlog/*',
-            '--exclude=/pg_log/*',
-            '--exclude=/recovery.conf',
-            '--exclude=/postmaster.pid'
-        ]
+        options = ['-rLKpts', '--delete-excluded', '--inplace']
         if args:
             options += args
         Rsync.__init__(self, rsync, args=options, **kwargs)
