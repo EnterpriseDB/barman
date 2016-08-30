@@ -339,11 +339,18 @@ class PostgresBackupExecutor(BackupExecutor):
             self.config.name, 'pg_basebackup compatible',
             remote_status['pg_basebackup_compatible'], hint=hint)
 
+        # Skip further checks if the postgres connection doesn't work.
+        # We assume that this error condition will be reported by
+        # another check.
+        postgres = self.server.postgres
+        if postgres is None or postgres.server_txt_version is None:
+            return
+
         # We can't backup a cluster with tablespaces if the tablespace
         # mapping option is not available in the installed version
         # of pg_basebackup.
-        pg_version = Version(self.server.postgres.server_txt_version)
-        tbls_present = len(self.server.postgres.get_tablespaces()) > 0
+        pg_version = Version(postgres.server_txt_version)
+        tablespaces_list = postgres.get_tablespaces()
 
         # pg_basebackup supports the tablespace-mapping option,
         # so there are no problems in this case
@@ -354,7 +361,7 @@ class PostgresBackupExecutor(BackupExecutor):
         # pg_basebackup doesn't support the tablespace-mapping option
         # and the data directory contains tablespaces, we can't correctly
         # backup it.
-        elif tbls_present:
+        elif tablespaces_list:
             check_result = False
 
             if pg_version < '9.3':
@@ -1454,16 +1461,25 @@ class ConcurrentBackupStrategy(BackupStrategy):
              of the results of the various checks
         """
         postgres = self.executor.server.postgres
-        if postgres.server_version < 90600:
-            if self.executor.server.postgres.has_pgespresso:
-                check_strategy.result(self.executor.config.name,
-                                      'pgespresso extension', True)
-            else:
-                check_strategy.result(self.executor.config.name,
-                                      'pgespresso extension', False,
-                                      'required for concurrent backups on '
-                                      'PostgreSQL %s' %
-                                      postgres.server_major_version)
+        try:
+            # We execute this check only if the postgres connection is non None
+            # and the server version is lower than 9.6. On latest PostgreSQL
+            # there is a native API for concurrent backups.
+            if postgres and postgres.server_version < 90600:
+                if postgres.has_pgespresso:
+                    check_strategy.result(self.executor.config.name,
+                                          'pgespresso extension', True)
+                else:
+                    check_strategy.result(self.executor.config.name,
+                                          'pgespresso extension', False,
+                                          'required for concurrent backups on '
+                                          'PostgreSQL %s' %
+                                          postgres.server_major_version)
+        except PostgresConnectionError:
+            # Skip the check if the postgres connection doesn't work.
+            # We assume that this error condition will be reported by
+            # another check.
+            pass
 
     def _concurrent_start_backup(self, backup_info, label):
         """
