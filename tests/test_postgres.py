@@ -775,6 +775,7 @@ class TestPostgres(object):
             'server_txt_version': None,
             'replication_slot_support': None,
             'replication_slot': None,
+            'synchronous_standby_names': None,
         }
 
         get_setting_mock.side_effect = psycopg2.ProgrammingError
@@ -786,6 +787,7 @@ class TestPostgres(object):
             'server_txt_version': None,
             'replication_slot_support': None,
             'replication_slot': None,
+            'synchronous_standby_names': None,
         }
 
     @patch('barman.postgres.PostgreSQLConnection.connect')

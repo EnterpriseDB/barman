@@ -582,6 +582,7 @@ class PostgreSQLConnection(PostgreSQL):
             'pgespresso_installed',
             'replication_slot_support',
             'replication_slot',
+            'synchronous_standby_names',
         ]
         # Initialise the result dictionary setting all the values to None
         result = dict.fromkeys(pg_superuser_settings +

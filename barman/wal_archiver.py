@@ -608,19 +608,8 @@ class StreamingWalArchiver(WalArchiver):
             # Synchronous WAL streaming requires replication slots
             # and pg_receivexlog >= 9.5
             if "9.4" <= pg_version and "9.5" <= pgreceivexlog_version:
-                # Check if synchronous WAL streaming can be enabled
-                # by peeking 'synchronous_standby_names'
-                postgres_status = self.server.postgres.get_remote_status()
-                syncnames = postgres_status['synchronous_standby_names']
-                _logger.debug("Look for '%s' in "
-                              "'synchronous_standby_names': %s",
-                              self.config.streaming_archiver_name, syncnames)
-                # Set pg_receivexlog_synchronous
                 remote_status["pg_receivexlog_synchronous"] = (
-                    self.config.streaming_archiver_name in syncnames)
-                _logger.info('Synchronous WAL streaming for %s: %s',
-                             self.config.streaming_archiver_name,
-                             remote_status["pg_receivexlog_synchronous"])
+                    self._is_synchronous())
 
         return remote_status
 
@@ -821,3 +810,35 @@ class StreamingWalArchiver(WalArchiver):
             check_strategy.result(
                 self.config.name, 'receive-wal running', False,
                 'See the Barman log file for more details')
+
+    def _is_synchronous(self):
+        """
+        Check if receive-wal process is eligible for synchronous replication
+
+        The receive-wal process is eligible for synchronous replication
+        if `synchronous_standby_names` is configured and contains
+        the value of `streaming_archiver_name`
+
+        :rtype: bool
+        """
+        # Nothing to do if postgres connection is not working
+        postgres = self.server.postgres
+        if postgres is None or postgres.server_txt_version is None:
+            return None
+
+        # Check if synchronous WAL streaming can be enabled
+        # by peeking 'synchronous_standby_names'
+        postgres_status = postgres.get_remote_status()
+        syncnames = postgres_status['synchronous_standby_names']
+        _logger.debug("Look for '%s' in "
+                      "'synchronous_standby_names': %s",
+                      self.config.streaming_archiver_name, syncnames)
+        # The receive-wal process is eligible for synchronous replication
+        # if `synchronous_standby_names` is configured and contains
+        # the value of `streaming_archiver_name`
+        synchronous = (syncnames and
+                       self.config.streaming_archiver_name in syncnames)
+        _logger.info('Synchronous WAL streaming for %s: %s',
+                     self.config.streaming_archiver_name,
+                     synchronous)
+        return synchronous
