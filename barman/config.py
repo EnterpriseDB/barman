@@ -490,6 +490,27 @@ class ServerConfig(object):
         del json_dict['config']
         return json_dict
 
+    def get_bwlimit(self, tablespace=None):
+        """
+        Return the configured bandwidth limit for the provided tablespace
+
+        If tablespace is None, it returns the global bandwidth limit
+
+        :param barman.infofile.Tablespace tablespace: the tablespace to copy
+        :rtype: str
+        """
+        # Default to global bandwidth limit
+        bwlimit = self.bandwidth_limit
+
+        if tablespace:
+            # A tablespace can be copied using a per-tablespace bwlimit
+            tablespaces_bw_limit = self.tablespace_bandwidth_limit
+            if (tablespaces_bw_limit and
+                    tablespace.name in tablespaces_bw_limit):
+                bwlimit = tablespaces_bw_limit[tablespace.name]
+
+        return bwlimit
+
 
 class Config(object):
     """This class represents the barman configuration.

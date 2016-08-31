@@ -791,6 +791,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
     def backup_copy(self, backup_info):
         """
         Perform the actual copy of the backup using Rsync.
+
         First, it copies one tablespace at a time, then the PGDATA directory,
         and finally configuration files (if outside PGDATA).
         Bandwidth limitation, according to configuration, is applied in
@@ -851,7 +852,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
                     label=tablespace.name,
                     src=':%s/' % tablespace.location,
                     dst=tablespace_dest,
-                    bwlimit=self._bwlimit(tablespace),
+                    bwlimit=self.config.get_bwlimit(tablespace),
                     reuse=self._reuse_path(previous_backup, tablespace),
                     item_class=controller.TABLESPACE_CLASS,
                 )
@@ -861,7 +862,8 @@ class RsyncBackupExecutor(SshBackupExecutor):
         backup_dest = backup_info.get_data_directory()
         mkpath(backup_dest)
 
-        # Create the actual copy jobs in the controller
+        # Add the PGDATA directory to the list of objects to be copied
+        # by the controller
         controller.add_directory(
             label='pgdata',
             src=':%s/' % backup_info.pgdata,
@@ -872,7 +874,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 '/recovery.conf',
                 '/postmaster.pid'],
             exclude_and_protect=exclude_and_protect,
-            bwlimit=self._bwlimit(),
+            bwlimit=self.config.get_bwlimit(),
             reuse=self._reuse_path(previous_backup),
             item_class=controller.PGDATA_CLASS,
         )
@@ -959,27 +961,6 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 return previous_backup_info.get_data_directory(oid)
             except ValueError:
                 return None
-
-    def _bwlimit(self, tablespace=None):
-        """
-        Return the configured bandwidth limit for the provided tablespace
-
-        If tablespace is None, it returns the global bandwidth limit
-
-        :param barman.infofile.Tablespace tablespace: the tablespace to copy
-        :rtype: str
-        """
-        # Default to global bandwidth limit
-        bwlimit = self.config.bandwidth_limit
-
-        if tablespace:
-            # A tablespace can be copied using a per-tablespace bwlimit
-            tablespaces_bw_limit = self.config.tablespace_bandwidth_limit
-            if (tablespaces_bw_limit and
-                    tablespace.name in tablespaces_bw_limit):
-                bwlimit = tablespaces_bw_limit[tablespace.name]
-
-        return bwlimit
 
 
 class BackupStrategy(with_metaclass(ABCMeta, object)):
