@@ -75,14 +75,14 @@ class TestRecoveryExecutor(object):
         backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
         # Identify dangerous options into config files for remote recovery
-        executor.analyse_temporary_config_files(recovery_info)
+        executor._analyse_temporary_config_files(recovery_info)
         assert len(recovery_info['results']['changes']) == 2
         assert len(recovery_info['results']['warnings']) == 4
         # Clean for a local recovery test
         recovery_info['results']['changes'] = []
         recovery_info['results']['warnings'] = []
         # Identify dangerous options for local recovery
-        executor.analyse_temporary_config_files(recovery_info)
+        executor._analyse_temporary_config_files(recovery_info)
         assert len(recovery_info['results']['changes']) == 2
         assert len(recovery_info['results']['warnings']) == 4
 
@@ -113,8 +113,8 @@ class TestRecoveryExecutor(object):
         # manager.
         backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
-        executor.map_temporary_config_files(recovery_info,
-                                            backup_info, 'ssh@something')
+        executor._map_temporary_config_files(recovery_info,
+                                             backup_info, 'ssh@something')
         # check that configuration files have been moved by the method
         assert tempdir.join('postgresql.conf').check()
         assert tempdir.join('postgresql.conf').computehash() == \
@@ -136,26 +136,26 @@ class TestRecoveryExecutor(object):
 
         # setup should create a temporary directory
         # and teardown should delete it
-        ret = executor.setup(backup_info, None, "/tmp")
+        ret = executor._setup(backup_info, None, "/tmp")
         assert os.path.exists(ret['tempdir'])
-        executor.teardown(ret)
+        executor._teardown(ret)
         assert not os.path.exists(ret['tempdir'])
 
         # no postgresql.auto.conf on version 9.3
-        ret = executor.setup(backup_info, None, "/tmp")
-        executor.teardown(ret)
+        ret = executor._setup(backup_info, None, "/tmp")
+        executor._teardown(ret)
         assert "postgresql.auto.conf" not in ret['configuration_files']
 
         # Check the present for postgresql.auto.conf on version 9.4
         backup_info.version = 90400
-        ret = executor.setup(backup_info, None, "/tmp")
-        executor.teardown(ret)
+        ret = executor._setup(backup_info, None, "/tmp")
+        executor._teardown(ret)
         assert "postgresql.auto.conf" in ret['configuration_files']
 
         # Receive a error if the remote command is invalid
         with pytest.raises(SystemExit):
             executor.server.path = None
-            executor.setup(backup_info, "invalid", "/tmp")
+            executor._setup(backup_info, "invalid", "/tmp")
 
     def test_set_pitr_targets(self, tmpdir):
         """
@@ -177,20 +177,20 @@ class TestRecoveryExecutor(object):
         backup_manager = testing_helpers.build_backup_manager()
         # Build a recovery executor
         executor = RecoveryExecutor(backup_manager)
-        executor.set_pitr_targets(recovery_info, backup_info,
-                                  dest.strpath,
-                                  '', '', '', '')
+        executor._set_pitr_targets(recovery_info, backup_info,
+                                   dest.strpath,
+                                   '', '', '', '')
         # Test with empty values (no PITR)
         assert recovery_info['target_epoch'] is None
         assert recovery_info['target_datetime'] is None
         assert recovery_info['wal_dest'] == wal_dest.strpath
         # Test for PITR targets
-        executor.set_pitr_targets(recovery_info, backup_info,
-                                  dest.strpath,
-                                  'target_name',
-                                  '2015-06-03 16:11:03.71038+02',
-                                  '2',
-                                  None,)
+        executor._set_pitr_targets(recovery_info, backup_info,
+                                   dest.strpath,
+                                   'target_name',
+                                   '2015-06-03 16:11:03.71038+02',
+                                   '2',
+                                   None,)
         target_datetime = dateutil.parser.parse(
             '2015-06-03 16:11:03.710380+02:00')
         target_epoch = (time.mktime(target_datetime.timetuple()) +
@@ -217,12 +217,12 @@ class TestRecoveryExecutor(object):
         # Build a recovery executor using a real server
         server = testing_helpers.build_real_server()
         executor = RecoveryExecutor(server.backup_manager)
-        executor.generate_recovery_conf(recovery_info, backup_info,
-                                        dest.strpath,
-                                        True, 'remote@command',
-                                        'target_name',
-                                        '2015-06-03 16:11:03.71038+02', '2',
-                                        '')
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '')
         # Check that the recovery.conf file exists
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert recovery_conf_file.check()
@@ -259,7 +259,7 @@ class TestRecoveryExecutor(object):
         executor.config.tablespace_bandwidth_limit = {'tbs1': ''}
         executor.config.bandwidth_limit = 10
 
-        executor.backup_copy(
+        executor._backup_copy(
             backup_info, dest.strpath, tablespaces=None)
 
         # Check the calls
@@ -332,7 +332,7 @@ class TestRecoveryExecutor(object):
             WalFileInfo.from_xlogdb_line(
                 '000000000000000000000003\t42\t43\tbzip2\n'),
         )
-        executor.xlog_copy(required_wals, dest.strpath, None)
+        executor._xlog_copy(required_wals, dest.strpath, None)
         # Check for a correct invocation of rsync using local paths
         rsync_pg_mock.assert_called_once_with(
             network_compression=False,
@@ -350,7 +350,7 @@ class TestRecoveryExecutor(object):
         c['bzip2'].reset_mock()
 
         # Test: remote copy
-        executor.xlog_copy(required_wals, dest.strpath, 'remote_command')
+        executor._xlog_copy(required_wals, dest.strpath, 'remote_command')
         # Check for the invocation of rsync on a remote call
         rsync_pg_mock.assert_called_once_with(
             network_compression=False,
@@ -383,7 +383,7 @@ class TestRecoveryExecutor(object):
         executor = RecoveryExecutor(server.backup_manager)
         # use a mock as cmd obj
         cmd_mock = mock.Mock()
-        executor.prepare_tablespaces(backup_info, cmd_mock, dest.strpath, {})
+        executor._prepare_tablespaces(backup_info, cmd_mock, dest.strpath, {})
         cmd_mock.create_dir_if_not_exists.assert_any_call(
             dest.join('pg_tblspc').strpath)
         cmd_mock.create_dir_if_not_exists.assert_any_call(
