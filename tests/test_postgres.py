@@ -1119,6 +1119,79 @@ class TestPostgres(object):
         with pytest.raises(PostgresUnsupportedFeature):
             server.postgres.get_replication_slot(server.config.slot_name)
 
+    @patch('barman.postgres.PostgreSQLConnection.get_setting')
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_get_synchronous_standby_names(self, conn_mock, setting_mock):
+        """
+        Simple test for retrieving settings from the database
+        """
+        # Build and configure a server
+        server = build_real_server()
+
+        # Unsupported version: 9.0
+        conn_mock.return_value.server_version = 90000
+
+        with pytest.raises(PostgresUnsupportedFeature):
+            server.postgres.get_synchronous_standby_names()
+
+        # Supported version: 9.1
+        conn_mock.return_value.server_version = 90100
+
+        setting_mock.return_value = "a, bc, def"
+        names = server.postgres.get_synchronous_standby_names()
+        setting_mock.assert_called_once_with(
+            'synchronous_standby_names')
+        assert names == ['a', 'bc', 'def']
+
+        setting_mock.reset_mock()
+        setting_mock.return_value = "a,bc,def"
+        names = server.postgres.get_synchronous_standby_names()
+        setting_mock.assert_called_once_with(
+            'synchronous_standby_names')
+        assert names == ['a', 'bc', 'def']
+
+        setting_mock.reset_mock()
+        setting_mock.return_value = " a, bc, def "
+        names = server.postgres.get_synchronous_standby_names()
+        setting_mock.assert_called_once_with(
+            'synchronous_standby_names')
+        assert names == ['a', 'bc', 'def']
+
+        setting_mock.reset_mock()
+        setting_mock.return_value = "2(a, bc, def)"
+        names = server.postgres.get_synchronous_standby_names()
+        setting_mock.assert_called_once_with(
+            'synchronous_standby_names')
+        assert names == ['a', 'bc', 'def']
+
+        setting_mock.reset_mock()
+        setting_mock.return_value = " 1 ( a, bc, def ) "
+        names = server.postgres.get_synchronous_standby_names()
+        setting_mock.assert_called_once_with(
+            'synchronous_standby_names')
+        assert names == ['a', 'bc', 'def']
+
+        setting_mock.reset_mock()
+        setting_mock.return_value = " a "
+        names = server.postgres.get_synchronous_standby_names()
+        setting_mock.assert_called_once_with(
+            'synchronous_standby_names')
+        assert names == ['a']
+
+        setting_mock.reset_mock()
+        setting_mock.return_value = "1(a)"
+        names = server.postgres.get_synchronous_standby_names()
+        setting_mock.assert_called_once_with(
+            'synchronous_standby_names')
+        assert names == ['a']
+
+        setting_mock.reset_mock()
+        setting_mock.return_value = "1(a)"
+        names = server.postgres.get_synchronous_standby_names()
+        setting_mock.assert_called_once_with(
+            'synchronous_standby_names')
+        assert names == ['a']
+
 
 # noinspection PyMethodMayBeStatic
 class TestStreamingConnection(object):

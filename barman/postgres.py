@@ -1201,4 +1201,15 @@ class PostgreSQLConnection(PostgreSQL):
             synchronous_standby_names = (
                 self.get_setting('synchronous_standby_names'))
             # Normalise the list of sync standby names
-            return [x.strip() for x in synchronous_standby_names.split(',')]
+            # On PostgreSQL 9.6 it is possible to specify the number of
+            # required synchronous standby using this format:
+            # n (name1, name2, ... nameN).
+            # We only need the name list, so we discard everything else.
+
+            # The name list starts after the first parenthesis or at pos 0
+            names_start = synchronous_standby_names.find('(') + 1
+            names_end = synchronous_standby_names.rfind(')')
+            if names_end < 0:
+                names_end = len(synchronous_standby_names)
+            names_list = synchronous_standby_names[names_start:names_end]
+            return [x.strip() for x in names_list.split(',')]
