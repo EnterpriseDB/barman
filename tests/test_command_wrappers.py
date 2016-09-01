@@ -19,11 +19,9 @@ import errno
 import os
 import select
 import sys
-from datetime import datetime
 from logging import DEBUG, INFO, WARNING
 from subprocess import PIPE
 
-import dateutil.tz
 import mock
 import pytest
 
@@ -784,57 +782,6 @@ class TestRsync(object):
         assert cmd.ret == ret
         assert cmd.out == out
         assert cmd.err == err
-
-    def test_invocation_list_file(self, popen, pipe_processor_loop):
-        """
-        Unit test for dateutil package in list_file
-
-        This test cover all list_file's code with correct parameters
-
-        :param tmpdir: temporary folder
-        :param popen: mock popen
-        """
-        # variables to be tested
-        ret = 0
-        out = 'drwxrwxrwt       69632 2015/02/09 15:01:00 tmp\n' \
-              'drwxrwxrwt       69612 2015/02/19 15:01:22 tmp2'
-        err = 'err'
-        # created mock pipe
-        pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
-        # created rsync and launched list_files
-        cmd = command_wrappers.Rsync()
-        return_values = list(cmd.list_files('some/path'))
-
-        # returned list must contain two elements
-        assert len(return_values) == 2
-
-        # assert call
-        popen.assert_called_with(
-            ['rsync', '--no-human-readable', '--list-only', '-r', 'some/path'],
-            shell=False, env=None,
-            stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY, close_fds=True
-        )
-
-        # Rsync pipe must be called with no input
-        assert not pipe.stdin.write.called
-        pipe.stdin.close.assert_called_once_with()
-
-        # assert tmp and tmp2 in test_list
-        assert return_values[0] == cmd.FileItem(
-            'drwxrwxrwt',
-            69632,
-            datetime(year=2015, month=2, day=9,
-                     hour=15, minute=1, second=0,
-                     tzinfo=dateutil.tz.tzlocal()),
-            'tmp')
-        assert return_values[1] == cmd.FileItem(
-            'drwxrwxrwt',
-            69612,
-            datetime(year=2015, month=2, day=19,
-                     hour=15, minute=1, second=22,
-                     tzinfo=dateutil.tz.tzlocal()),
-            'tmp2')
 
 
 # noinspection PyMethodMayBeStatic

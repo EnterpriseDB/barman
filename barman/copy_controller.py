@@ -157,7 +157,7 @@ class RsyncCopyController(object):
 
     # This named tuple is used to parse each line of the output
     # of a "rsync --list-only" call
-    FileItem = collections.namedtuple('FileItem', 'mode size date path')
+    _FileItem = collections.namedtuple('FileItem', 'mode size date path')
 
     def __init__(self, path=None, ssh_command=None, ssh_options=None,
                  network_compression=False,
@@ -530,7 +530,7 @@ class RsyncCopyController(object):
                     _logger.exception(msg)
                     raise RsyncListFilesFailure(msg)
                 path = match.group('path')
-                yield self.FileItem(mode, size, date, path)
+                yield self._FileItem(mode, size, date, path)
             else:
                 # This is a hard error, as we are unable to parse the output
                 # of rsync. It can only happen with a modified or unknown

@@ -16,7 +16,9 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+from datetime import datetime
 
+import dateutil.tz
 import mock
 from mock import patch
 
@@ -244,3 +246,42 @@ class TestRsyncCopyController(object):
                       backup_info.get_data_directory(),
                       None, None),
         ]
+
+    def test_list_files(self):
+        """
+        Unit test for RsyncCopyController_list_file's code
+        """
+        # Mock rsync invocation
+        rsync_mock = mock.Mock(name='Rsync()')
+        rsync_mock.ret = 0
+        rsync_mock.out = 'drwxrwxrwt       69632 2015/02/09 15:01:00 tmp\n' \
+                         'drwxrwxrwt       69612 2015/02/19 15:01:22 tmp2'
+        rsync_mock.err = 'err'
+
+        # Test the _list_files internal method
+        rcc = RsyncCopyController()
+        return_values = list(rcc._list_files(rsync_mock, 'some/path'))
+
+        # Returned list must contain two elements
+        assert len(return_values) == 2
+
+        # Check rsync.getoutput has called correctly
+        rsync_mock.getoutput.assert_called_with(
+            '--no-human-readable', '--list-only', '-r', 'some/path',
+            check=True)
+
+        # Check the result
+        assert return_values[0] == rcc._FileItem(
+            'drwxrwxrwt',
+            69632,
+            datetime(year=2015, month=2, day=9,
+                     hour=15, minute=1, second=0,
+                     tzinfo=dateutil.tz.tzlocal()),
+            'tmp')
+        assert return_values[1] == rcc._FileItem(
+            'drwxrwxrwt',
+            69612,
+            datetime(year=2015, month=2, day=19,
+                     hour=15, minute=1, second=22,
+                     tzinfo=dateutil.tz.tzlocal()),
+            'tmp2')
