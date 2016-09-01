@@ -25,15 +25,9 @@ from subprocess import PIPE
 import mock
 import pytest
 
-import barman.exceptions
 from barman import command_wrappers
 from barman.command_wrappers import StreamLineProcessor
-from barman.exceptions import CommandFailedException
-
-try:
-    from StringIO import StringIO
-except ImportError:  # pragma: no cover
-    from io import StringIO
+from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
 
 
 def _mock_pipe(popen, pipe_processor_loop, ret=0, out='', err=''):
@@ -137,8 +131,7 @@ class TestCommand(object):
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
 
         cmd = command_wrappers.Command(command, check=True)
-        with pytest.raises(barman.exceptions.CommandFailedException) \
-                as excinfo:
+        with pytest.raises(CommandFailedException) as excinfo:
             cmd()
         assert excinfo.value.args[0]['ret'] == ret
         assert excinfo.value.args[0]['out'] == out
@@ -329,37 +322,7 @@ class TestCommand(object):
         assert cmd.out == out
         assert cmd.err == err
 
-    def test_debug_invocation(self, popen, pipe_processor_loop):
-        command = 'command'
-        ret = 1
-        out = 'out'
-        err = 'err'
-
-        pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
-
-        stdout = StringIO()
-        stderr = StringIO()
-        with mock.patch.multiple('sys', stdout=stdout, stderr=stderr):
-            cmd = command_wrappers.Command(command, debug=True)
-            result = cmd()
-
-        popen.assert_called_with(
-            [command], shell=False, env=None,
-            stdout=PIPE, stderr=PIPE, stdin=PIPE,
-            preexec_fn=mock.ANY, close_fds=True
-        )
-        assert not pipe.stdin.write.called
-        pipe.stdin.close.assert_called_once_with()
-        assert result == ret
-        assert cmd.ret == ret
-        assert cmd.out == out
-        assert cmd.err == err
-
-        assert stdout.getvalue() == ""
-        assert stderr.getvalue() == "Command: ['command']\n" \
-                                    "Command return code: 1\n"
-
-    def test_getoutput_invocation(self, popen, pipe_processor_loop):
+    def test_get_output_invocation(self, popen, pipe_processor_loop):
         command = 'command'
         ret = 0
         out = 'out'
@@ -372,7 +335,7 @@ class TestCommand(object):
             cmd = command_wrappers.Command(command,
                                            env_append={'TEST1': 'VAL1',
                                                        'TEST2': 'VAL2'})
-            result = cmd.getoutput(stdin=stdin)
+            result = cmd.get_output(stdin=stdin)
 
         popen.assert_called_with(
             [command], shell=False,
@@ -466,8 +429,7 @@ class TestCommand(object):
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
 
         cmd = command_wrappers.Command(command, check=True)
-        with pytest.raises(barman.exceptions.CommandFailedException) \
-                as excinfo:
+        with pytest.raises(CommandFailedException) as excinfo:
             cmd.execute()
         assert excinfo.value.args[0]['ret'] == ret
         assert excinfo.value.args[0]['out'] is None
@@ -553,6 +515,54 @@ class TestCommand(object):
         assert cmd.err is None
         assert ('Command', INFO, 'out: ' + out) in caplog.record_tuples
         assert ('Command', WARNING, 'err: ' + err) in caplog.record_tuples
+
+    @mock.patch('time.sleep')
+    @mock.patch('barman.command_wrappers.Command._get_output_once')
+    def test_retry(self, get_output_no_retry_mock, sleep_mock,
+                   popen, pipe_processor_loop):
+        """
+        Test the retry method
+
+        :param mock.Mock get_output_no_retry_mock: simulate a
+            Command._get_output_once() call
+        :param mock.Mock sleep_mock: mimic the sleep timer
+        :param mock.Mock popen: unused, mocked from the whole test class
+        :param mock.Mock pipe_processor_loop: unused, mocked from the whole
+            test class
+        """
+
+        command = 'test stringe'
+        cmd = command_wrappers.Command(command, check=True,
+                                       retry_times=5, retry_sleep=10)
+
+        # check for correct return value
+        r = cmd.get_output('test string')
+        get_output_no_retry_mock.assert_called_with('test string')
+        assert get_output_no_retry_mock.return_value == r
+
+        # check for correct number of calls and invocations of sleep method
+        get_output_no_retry_mock.reset_mock()
+        sleep_mock.reset_mock()
+        expected = mock.Mock()
+        get_output_no_retry_mock.side_effect = [
+            CommandFailedException('testException'),
+            expected
+        ]
+        r = cmd.get_output('test string')
+        assert get_output_no_retry_mock.call_count == 2
+        assert sleep_mock.call_count == 1
+        assert r == expected
+
+        # check for correct number of tries and invocations of sleep method
+        get_output_no_retry_mock.reset_mock()
+        sleep_mock.reset_mock()
+        e = CommandFailedException('testException')
+        get_output_no_retry_mock.side_effect = [e, e, e, e, e, e]
+        with pytest.raises(CommandMaxRetryExceeded) as exc_info:
+            cmd.get_output('test string')
+        assert exc_info.value.exc == e
+        assert sleep_mock.call_count == 5
+        assert get_output_no_retry_mock.call_count == 6
 
 
 # noinspection PyMethodMayBeStatic
@@ -700,13 +710,13 @@ class TestRsync(object):
         """
         # Pass an invalid path to Rsync class constructor.
         # Expect a CommandFailedException
-        with pytest.raises(barman.exceptions.CommandFailedException):
+        with pytest.raises(CommandFailedException):
             command_wrappers.Rsync('/invalid/path/rsync')
         # Force the which method to return false, simulating rsync command not
         # present in system PATH. Expect a CommandFailedExceptiomn
         with mock.patch("barman.utils.which") as mock_which:
             mock_which.return_value = False
-            with pytest.raises(barman.exceptions.CommandFailedException):
+            with pytest.raises(CommandFailedException):
                 command_wrappers.Rsync(ssh_options=['-c', 'arcfour'])
 
     def test_protect_ssh_invocation(self, popen, pipe_processor_loop):
@@ -867,7 +877,6 @@ class TestPgBaseBackup(object):
         assert pgbasebackup.check is True
         assert pgbasebackup.close_fds is True
         assert pgbasebackup.allowed_retval == (0,)
-        assert pgbasebackup.debug is False
         assert pgbasebackup.err_handler
         assert pgbasebackup.out_handler
 
@@ -920,7 +929,6 @@ class TestPgBaseBackup(object):
         assert pg_basebackup.check is True
         assert pg_basebackup.close_fds is True
         assert pg_basebackup.allowed_retval == (0,)
-        assert pg_basebackup.debug is False
         assert pg_basebackup.err_handler
         assert pg_basebackup.out_handler
 
@@ -994,7 +1002,6 @@ class TestReceiveXlog(object):
         assert receivexlog.check is True
         assert receivexlog.close_fds is True
         assert receivexlog.allowed_retval == (0,)
-        assert receivexlog.debug is False
         assert receivexlog.err_handler
         assert receivexlog.out_handler
 
@@ -1041,7 +1048,6 @@ class TestReceiveXlog(object):
         assert receivexlog.check is True
         assert receivexlog.close_fds is True
         assert receivexlog.allowed_retval == (0,)
-        assert receivexlog.debug is False
         assert receivexlog.err_handler
         assert receivexlog.out_handler
 

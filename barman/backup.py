@@ -23,7 +23,6 @@ import datetime
 import logging
 import os
 import shutil
-import time
 from glob import glob
 
 import dateutil.parser
@@ -34,8 +33,8 @@ from barman.backup_executor import PostgresBackupExecutor, RsyncBackupExecutor
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
 from barman.exceptions import (AbortedRetryHookScript,
-                               CompressionIncompatibility, DataTransferFailure,
-                               SshCommandException, UnknownBackupIdException)
+                               CompressionIncompatibility, SshCommandException,
+                               UnknownBackupIdException)
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.recovery_executor import RecoveryExecutor
@@ -317,43 +316,6 @@ class BackupManager(RemoteStatusMixin):
             return
         self.backup_cache_remove(backup)
         output.info("Done")
-
-    def retry_backup_copy(self, target_function, *args, **kwargs):
-        """
-        Execute the target backup copy function, retrying the configured
-        number of times
-
-        :param target_function: the base backup target function
-        :param args: args for the target function
-        :param kwargs: kwargs of the target function
-        :return: the result of the target function
-        """
-        attempts = 0
-        while True:
-            try:
-                # if is not the first attempt, output the retry number
-                if attempts >= 1:
-                    output.warning("Copy of base backup: retry #%s", attempts)
-                # execute the target function for backup copy
-                return target_function(*args, **kwargs)
-            # catch rsync errors
-            except DataTransferFailure as e:
-                # exit condition: if retry number is lower than configured
-                # retry limit, try again; otherwise exit.
-                if attempts < self.config.basebackup_retry_times:
-                    # Log the exception, for debugging purpose
-                    _logger.exception("Failure in base backup copy: %s", e)
-                    output.warning(
-                        "Copy of base backup failed, waiting for next "
-                        "attempt in %s seconds",
-                        self.config.basebackup_retry_sleep)
-                    # sleep for configured time. then try again
-                    time.sleep(self.config.basebackup_retry_sleep)
-                    attempts += 1
-                else:
-                    # if the max number of attempts is reached and
-                    # there is still an error, exit re-raising the exception.
-                    raise
 
     def backup(self):
         """

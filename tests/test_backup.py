@@ -25,7 +25,7 @@ import pytest
 from mock import Mock, patch
 
 import barman.utils
-from barman.exceptions import CompressionIncompatibility, DataTransferFailure
+from barman.exceptions import CompressionIncompatibility
 from barman.infofile import BackupInfo
 from testing_helpers import (build_backup_directories, build_backup_manager,
                              build_test_backup_info, caplog_reset)
@@ -33,40 +33,6 @@ from testing_helpers import (build_backup_directories, build_backup_manager,
 
 # noinspection PyMethodMayBeStatic
 class TestBackup(object):
-
-    @patch('time.sleep')
-    def test_retry(self, sleep_moc):
-        """
-        Test the retry method
-
-        :param sleep_moc: mimic the sleep timer
-        """
-        # BackupManager setup
-        backup_manager = build_backup_manager()
-        backup_manager.config.basebackup_retry_times = 5
-        backup_manager.config.basebackup_retry_sleep = 10
-        f = Mock()
-
-        # check for correct return value
-        r = backup_manager.retry_backup_copy(f, 'test string')
-        f.assert_called_with('test string')
-        assert f.return_value == r
-
-        # check for correct number of calls
-        expected = Mock()
-        f = Mock(side_effect=[DataTransferFailure('testException'), expected])
-        r = backup_manager.retry_backup_copy(f, 'test string')
-        assert f.call_count == 2
-
-        # check for correct number of tries and invocations of sleep method
-        sleep_moc.reset_mock()
-        e = DataTransferFailure('testException')
-        f = Mock(side_effect=[e, e, e, e, e, e])
-        with pytest.raises(DataTransferFailure):
-            backup_manager.retry_backup_copy(f, 'test string')
-
-        assert sleep_moc.call_count == 5
-        assert f.call_count == 6
 
     @patch('barman.backup.datetime')
     @patch('barman.backup.BackupInfo')

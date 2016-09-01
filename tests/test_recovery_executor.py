@@ -268,7 +268,8 @@ class TestRecoveryExecutor(object):
                 network_compression=False,
                 path=None,
                 safe_horizon=None,
-                ssh_command=None),
+                ssh_command=None,
+                retry_sleep=30, retry_times=0),
             mock.call().add_directory(
                 bwlimit='',
                 dst='/fake/location',

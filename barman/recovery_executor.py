@@ -140,9 +140,7 @@ class RecoveryExecutor(object):
         # Copy the base backup
         output.info("Copying the base backup.")
         try:
-            # perform the backup copy, honoring the retry option if set
-            self.backup_manager.retry_backup_copy(
-                self._backup_copy,
+            self._backup_copy(
                 backup_info, dest,
                 tablespaces, remote_command,
                 recovery_info['safe_horizon'])
@@ -507,7 +505,10 @@ class RecoveryExecutor(object):
             path=self.server.path,
             ssh_command=remote_command,
             network_compression=self.config.network_compression,
-            safe_horizon=safe_horizon)
+            safe_horizon=safe_horizon,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+        )
 
         # Dictionary for paths to be excluded from rsync
         exclude_and_protect = []
@@ -563,7 +564,14 @@ class RecoveryExecutor(object):
         # TODO: that were not within the data directory
 
         # Execute the copy
-        controller.copy()
+        try:
+            controller.copy()
+        # TODO: Improve the exception output
+        except CommandFailedException as e:
+            msg = "data transfer failure"
+            raise DataTransferFailure.from_command_error(
+                'rsync', e, msg)
+
 
     def _xlog_copy(self, required_xlog_files, wal_dest, remote_command):
         """

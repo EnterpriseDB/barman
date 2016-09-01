@@ -297,8 +297,7 @@ class PostgresBackupExecutor(BackupExecutor):
             # Start the copy
             self.current_action = "copying files"
             output.info("Copying files.")
-            self.backup_manager.retry_backup_copy(self.backup_copy,
-                                                  backup_info)
+            self.backup_copy(backup_info)
             output.info("Copy done.")
             self.strategy.stop_backup(backup_info)
 
@@ -631,10 +630,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             # Start the copy
             self.current_action = "copying files"
             output.info("Copying files.")
-            # perform the backup copy, honouring the retry option if set
-            self.backup_manager.retry_backup_copy(self.backup_copy,
-                                                  backup_info)
-
+            self.backup_copy(backup_info)
             output.info("Copy done.")
 
             # Try again to purge eventually unused WAL files. At this point
@@ -821,7 +817,10 @@ class RsyncBackupExecutor(SshBackupExecutor):
             ssh_options=self.ssh_options,
             network_compression=self.config.network_compression,
             reuse_backup=reuse_backup,
-            safe_horizon=safe_horizon)
+            safe_horizon=safe_horizon,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+        )
 
         # List of paths to be excluded by the PGDATA copy
         exclude_and_protect = []
@@ -915,7 +914,13 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 )
 
         # Execute the copy
-        controller.copy()
+        try:
+            controller.copy()
+        # TODO: Improve the exception output
+        except CommandFailedException as e:
+            msg = "data transfer failure"
+            raise DataTransferFailure.from_command_error(
+                'rsync', e, msg)
 
         # Check for any include directives in PostgreSQL configuration
         # Currently, include directives are not supported for files that

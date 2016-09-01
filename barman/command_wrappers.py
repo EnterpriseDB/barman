@@ -29,11 +29,12 @@ import select
 import signal
 import subprocess
 import sys
+import time
 
 from distutils.version import LooseVersion as Version
 
 import barman.utils
-from barman.exceptions import CommandFailedException
+from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
 
 _logger = logging.getLogger(__name__)
 
@@ -95,12 +96,77 @@ class StreamLineProcessor(object):
 
 class Command(object):
     """
-    Simple wrapper for a shell command
+    Wrapper for a system command
     """
 
     def __init__(self, cmd, args=None, env_append=None, path=None, shell=False,
-                 check=False, allowed_retval=(0,), debug=False,
-                 close_fds=True, out_handler=None, err_handler=None):
+                 check=False, allowed_retval=(0,),
+                 close_fds=True, out_handler=None, err_handler=None,
+                 retry_times=0, retry_sleep=0, retry_handler=None):
+        """
+        If the `args` argument is specified the arguments will be always added
+        to the ones eventually passed with the actual invocation.
+
+        If the `env_append` argument is present its content will be appended to
+        the environment of every invocation.
+
+        The subprocess output and error stream will be processed through
+        the output and error handler, respectively defined through the
+        `out_handler` and `err_handler` arguments. If not provided every line
+        will be sent to teh log respectively at INFO and WARNING level.
+
+        The `out_handler` and the `err_handler` functions will be invoked with
+        one single argument, which is a string containing the line that is
+        being processed.
+
+        If the `close_fds` argument is True, all file descriptors
+        except 0, 1 and 2 will be closed before the child process is executed.
+
+        If the `check` argument is True, the exit code will be checked
+        against the `allowed_retval` list, raising a CommandFailedException if
+        not in the list.
+
+        If `retry_times` is greater than 0, when the execution of a command
+        terminates with an error, it will be retried for
+        a maximum of `retry_times` times, waiting for `retry_sleep` seconds
+        between every attempt.
+
+        Everytime a command is retried the `retry_handler` is executed
+        before running the command again. The retry_handler must be a callable
+        that accepts the following fields:
+
+         * the Command object
+         * the arguments list
+         * the keyword arguments dictionary
+         * the number of the failed attempt
+         * the exception containing the error
+
+        An example of such a function is:
+
+            > def retry_handler(command, args, kwargs, attempt, exc):
+            >     print("Failed command!")
+
+        Some of the keyword arguments can be specified both in the class
+        constructor and during the method call. If specified in both places,
+        the method arguments will take the precedence over
+        the constructor arguments.
+
+        :param str cmd: The command to exexute
+        :param list[str]|None args: List of additional arguments to append
+        :param dict[str.str]|None env_append: additional environment variables
+        :param str path: PATH to be used while searching for `cmd`
+        :param bool shell: If true, use the shell instead of an "execve" call
+        :param bool check: Raise a CommandFailedException if the exit code
+            is not present in `allowed_retval`
+        :param list[int] allowed_retval: List of exit codes considered as a
+            successful termination.
+        :param bool close_fds: If set, close all the extra file descriptors
+        :param callable out_handler: handler for lines sent on stdout
+        :param callable err_handler: handler for lines sent on stderr
+        :param int retry_times: number of allowed retry attempts
+        :param int retry_sleep: wait seconds between every retry
+        :param callable retry_handler: handler invoked during a command retry
+        """
         self.pipe = None
         self.cmd = cmd
         self.args = args if args is not None else []
@@ -108,7 +174,9 @@ class Command(object):
         self.close_fds = close_fds
         self.check = check
         self.allowed_retval = allowed_retval
-        self.debug = debug
+        self.retry_times = retry_times
+        self.retry_sleep = retry_sleep
+        self.retry_handler = retry_handler
         self.ret = None
         self.out = None
         self.err = None
@@ -156,17 +224,116 @@ class Command(object):
         return cmd
 
     def __call__(self, *args, **kwargs):
-        self.getoutput(*args, **kwargs)
+        """
+        Run the command and return the exit code.
+
+        The output and error strings are not returned, but they can be accessed
+        as attributes of the Command object, as well as the exit code.
+
+        If `stdin` argument is specified, its content will be passed to the
+        executed command through the standard input descriptor.
+
+        If the `close_fds` argument is True, all file descriptors
+        except 0, 1 and 2 will be closed before the child process is executed.
+
+        If the `check` argument is True, the exit code will be checked
+        against the `allowed_retval` list, raising a CommandFailedException if
+        not in the list.
+
+        Every keyword argument can be specified both in the class constructor
+        and during the method call. If specified in both places,
+        the method arguments will take the precedence over
+        the constructor arguments.
+
+        :rtype: int
+        :raise: CommandFailedException
+        :raise: CommandMaxRetryExceeded
+        """
+        self.get_output(*args, **kwargs)
         return self.ret
 
-    def getoutput(self, *args, **kwargs):
+    def get_output(self, *args, **kwargs):
         """
-        Run the command and return the output and the error (if present)
+        Run the command and return the output and the error as a tuple.
+
+        The return code is not returned, but it can be accessed as an attribute
+        of the Command object, as well as the output and the error strings.
+
+        If `stdin` argument is specified, its content will be passed to the
+        executed command through the standard input descriptor.
+
+        If the `close_fds` argument is True, all file descriptors
+        except 0, 1 and 2 will be closed before the child process is executed.
+
+        If the `check` argument is True, the exit code will be checked
+        against the `allowed_retval` list, raising a CommandFailedException if
+        not in the list.
+
+        Every keyword argument can be specified both in the class constructor
+        and during the method call. If specified in both places,
+        the method arguments will take the precedence over
+        the constructor arguments.
+
+        :rtype: tuple[str, str]
+        :raise: CommandFailedException
+        :raise: CommandMaxRetryExceeded
+        """
+        attempt = 0
+        while True:
+            try:
+                return self._get_output_once(*args, **kwargs)
+            except CommandFailedException as exc:
+                # Try again if retry number is lower than the retry limit
+                if attempt < self.retry_times:
+                    # If a retry_handler is defined, invoke it passing the
+                    # Command instance and the exception
+                    if self.retry_handler:
+                        self.retry_handler(self, args, kwargs, attempt, exc)
+                    # Sleep for configured time, then try again
+                    time.sleep(self.retry_sleep)
+                    attempt += 1
+                else:
+                    if attempt == 0:
+                        # No retry requested by the user
+                        # Raise the original exception
+                        raise
+                    else:
+                        # If the max number of attempts is reached and
+                        # there is still an error, exit raising
+                        # a CommandMaxRetryExceeded exception and wrap the
+                        # original one
+                        raise CommandMaxRetryExceeded(exc)
+
+    def _get_output_once(self, *args, **kwargs):
+        """
+        Run the command and return the output and the error as a tuple.
+
+        The return code is not returned, but it can be accessed as an attribute
+        of the Command object, as well as the output and the error strings.
+
+        If `stdin` argument is specified, its content will be passed to the
+        executed command through the standard input descriptor.
+
+        If the `close_fds` argument is True, all file descriptors
+        except 0, 1 and 2 will be closed before the child process is executed.
+
+        If the `check` argument is True, the exit code will be checked
+        against the `allowed_retval` list, raising a CommandFailedException if
+        not in the list.
+
+        Every keyword argument can be specified both in the class constructor
+        and during the method call. If specified in both places,
+        the method arguments will take the precedence over
+        the constructor arguments.
+
+        :rtype: tuple[str, str]
+        :raises: CommandFailedException
         """
         out = []
         err = []
         # If check is true, it must be handled here
         check = kwargs.pop('check', self.check)
+        allowed_retval = kwargs.pop('allowed_retval', self.allowed_retval)
         self.execute(out_handler=out.append, err_handler=err.append,
                      check=False, *args, **kwargs)
         self.out = '\n'.join(out)
@@ -176,27 +343,53 @@ class Command(object):
 
         # Raise if check and the return code is not in the allowed list
         if check:
-            self.check_return_value()
+            self.check_return_value(allowed_retval)
         return self.out, self.err
 
-    def check_return_value(self):
+    def check_return_value(self, allowed_retval):
         """
         Check the current return code and raise CommandFailedException when
         it's not in the allowed_retval list
 
+        :param list[int] allowed_retval: list of return values considered
+            success
         :raises: CommandFailedException
         """
-        if self.ret not in self.allowed_retval:
+        if self.ret not in allowed_retval:
             raise CommandFailedException(dict(
                 ret=self.ret, out=self.out, err=self.err))
 
     def execute(self, *args, **kwargs):
         """
         Execute the command and pass the output to the configured handlers
+
+        If `stdin` argument is specified, its content will be passed to the
+        executed command through the standard input descriptor.
+
+        The subprocess output and error stream will be processed through
+        the output and error handler, respectively defined through the
+        `out_handler` and `err_handler` arguments. If not provided every line
+        will be sent to teh log respectively at INFO and WARNING level.
+
+        If the `close_fds` argument is True, all file descriptors
+        except 0, 1 and 2 will be closed before the child process is executed.
+
+        If the `check` argument is True, the exit code will be checked
+        against the `allowed_retval` list, raising a CommandFailedException if
+        not in the list.
+
+        Every keyword argument can be specified both in the class constructor
+        and during the method call. If specified in both places,
+        the method arguments will take the precedence over
+        the constructor arguments.
+
+        :rtype: int
+        :raise: CommandFailedException
         """
         # Check keyword arguments
         stdin = kwargs.pop('stdin', None)
         check = kwargs.pop('check', self.check)
+        allowed_retval = kwargs.pop('allowed_retval', self.allowed_retval)
         close_fds = kwargs.pop('close_fds', self.close_fds)
         out_handler = kwargs.pop('out_handler', self.out_handler)
         err_handler = kwargs.pop('err_handler', self.err_handler)
@@ -234,13 +427,11 @@ class Command(object):
 
         # Remove the closed pipe from the object
         self.pipe = None
-        if self.debug:
-            print("Command return code: %s" % self.ret, file=sys.stderr)
         _logger.debug("Command return code: %s", self.ret)
 
         # Raise if check and the return code is not in the allowed list
         if check:
-            self.check_return_value()
+            self.check_return_value(allowed_retval)
         return self.ret
 
     def _build_pipe(self, args, close_fds):
@@ -263,8 +454,6 @@ class Command(object):
         else:
             cmd = [self.cmd] + args
         # Log the command we are about to execute
-        if self.debug:
-            print("Command: %r" % cmd, file=sys.stderr)
         _logger.debug("Command: %r", cmd)
         return subprocess.Popen(cmd, shell=self.shell, env=self.env,
                                 stdin=subprocess.PIPE,
@@ -384,9 +573,24 @@ class Rsync(Command):
 
     def __init__(self, rsync='rsync', args=None, ssh=None, ssh_options=None,
                  bwlimit=None, exclude=None, exclude_and_protect=None,
-                 network_compression=None, check=True, allowed_retval=(0, 24),
-                 path=None, **kwargs):
-        # TODO: Add docstrings here
+                 network_compression=None, path=None, **kwargs):
+        """
+        :param str rsync: rsync executable name
+        :param list[str]|None args: List of additional argument to aways append
+        :param str ssh: the ssh executable to be used when building
+            the `-e` argument
+        :param list[str] ssh_options: the ssh options to be used when building
+            the `-e` argument
+        :param str bwlimit: optional bandwidth limit
+        :param list[str] exclude: list of file to be excluded from the copy
+        :param list[str] exclude_and_protect: list of file to be excluded from
+            the copy, preserving the destination if exists
+        :param bool network_compression: enable the network compression
+        :param check:
+        :param allowed_retval:
+        :param path:
+        :param kwargs:
+        """
         options = []
         # Try to find rsync in system PATH using the which method.
         # If not found, rsync is not installed and this class cannot
@@ -411,8 +615,13 @@ class Rsync(Command):
             options += self._args_for_suse(args)
         if bwlimit is not None and bwlimit > 0:
             options += ["--bwlimit=%s" % bwlimit]
-        Command.__init__(self, rsync, args=options, check=check,
-                         allowed_retval=allowed_retval, path=path, **kwargs)
+
+        # By default check is on and the allowed exit code are 0 and 24
+        if 'check' not in kwargs:
+            kwargs['check'] = True
+        if 'allowed_retval' not in kwargs:
+            kwargs['allowed_retval'] = (0, 24)
+        Command.__init__(self, rsync, args=options, path=path, **kwargs)
 
     def _args_for_suse(self, args):
         """
@@ -424,14 +633,14 @@ class Rsync(Command):
         # Workaround for SUSE rsync issue
         return [' ' + a if a.startswith(':') else a for a in args]
 
-    def getoutput(self, *args, **kwargs):
+    def get_output(self, *args, **kwargs):
         """
         Run the command and return the output and the error (if present)
         """
         # Prepares args for SUSE
         args = self._args_for_suse(args)
         # Invoke the base class method
-        return super(Rsync, self).getoutput(*args, **kwargs)
+        return super(Rsync, self).get_output(*args, **kwargs)
 
     def from_file_list(self, filelist, src, dst, *args, **kwargs):
         """
@@ -445,7 +654,7 @@ class Rsync(Command):
         input_string = ('\n'.join(filelist)).encode('UTF-8')
         _logger.debug("from_file_list: %r", filelist)
         kwargs['stdin'] = input_string
-        self.getoutput('--files-from=-', src, dst, *args, **kwargs)
+        self.get_output('--files-from=-', src, dst, *args, **kwargs)
         return self.ret
 
 

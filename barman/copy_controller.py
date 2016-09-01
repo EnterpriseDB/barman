@@ -26,6 +26,7 @@ import os.path
 import re
 import shutil
 import tempfile
+from functools import partial
 
 import dateutil.parser
 import dateutil.tz
@@ -88,6 +89,24 @@ class _RsyncCopyItem(object):
         self.item_class = item_class
         self.optional = optional
 
+    def __str__(self):
+        # Prepare strings for messages
+        formatted_class = self.item_class
+        formatted_name = self.src
+        if self.src.startswith(':'):
+            formatted_class = 'remote ' + self.item_class
+            formatted_name = self.src[1:]
+        formatted_class += ' directory' if self.is_directory else ' file'
+
+        # Log the operation that is being executed
+        if self.item_class in(RsyncCopyController.PGDATA_CLASS,
+                              RsyncCopyController.PGCONTROL_CLASS):
+            return "%s: %s" % (
+                formatted_class, formatted_name)
+        else:
+            return "%s '%s': %s" % (
+                formatted_class, self.label, formatted_name)
+
 
 class RsyncCopyController(object):
     """
@@ -95,7 +114,7 @@ class RsyncCopyController(object):
     """
 
     # Constants to be used as "item_class" values
-    PGDATA_CLASS = "pgdata"
+    PGDATA_CLASS = "PGDATA"
     TABLESPACE_CLASS = "tablespace"
     PGCONTROL_CLASS = "pg_control"
     CONFIG_CLASS = "config"
@@ -162,7 +181,7 @@ class RsyncCopyController(object):
     def __init__(self, path=None, ssh_command=None, ssh_options=None,
                  network_compression=False,
                  reuse_backup=None, safe_horizon=None,
-                 exclude=None):
+                 exclude=None, retry_times=0, retry_sleep=0):
         """
         :param str|None path: the PATH where rsync executable will be searched
         :param str|None ssh_command: the ssh executable to be used
@@ -177,6 +196,8 @@ class RsyncCopyController(object):
             files older than it are save to copy without checksum verification.
         :param list[str]|None exclude: list of patterns to be excluded
             from the copy
+        :param int retry_times: The number of times to retry a failed operation
+        :param int retry_sleep: Sleep time between two retry
         """
 
         super(RsyncCopyController, self).__init__()
@@ -187,6 +208,8 @@ class RsyncCopyController(object):
         self.reuse_backup = reuse_backup
         self.safe_horizon = safe_horizon
         self.exclude = exclude
+        self.retry_times = retry_times
+        self.retry_sleep = retry_sleep
 
         self.item_list = []
         """List of items to be copied"""
@@ -261,14 +284,6 @@ class RsyncCopyController(object):
         Execute the actual copy
         """
         for item in self.item_list:
-            # Prepare strings for messages
-            formatted_class = item.item_class
-            formatted_name = item.src
-            if item.src.startswith(':'):
-                formatted_class = 'remote ' + item.item_class
-                formatted_name = item.src[1:]
-            formatted_class += ' directory' if item.is_directory else ' file'
-
             # Prepare the command arguments
             args = self._reuse_args(item.reuse)
 
@@ -295,15 +310,13 @@ class RsyncCopyController(object):
                 network_compression=self.network_compression,
                 exclude=exclude,
                 exclude_and_protect=item.exclude_and_protect,
+                retry_times=self.retry_times,
+                retry_sleep=self.retry_sleep,
+                retry_handler=partial(self._retry_handler, item)
             )
 
             # Log the operation that is being executed
-            if item.item_class in(self.PGDATA_CLASS, self.PGCONTROL_CLASS):
-                _logger.info("Copying %s: %s",
-                             formatted_class, formatted_name)
-            else:
-                _logger.info("Copying %s '%s': %s",
-                             formatted_class, item.label, formatted_name)
+            _logger.info("Copying %s", item)
 
             # If the item is a directory use the smart copy algorithm,
             # otherwise run a plain rsync
@@ -311,15 +324,14 @@ class RsyncCopyController(object):
                 self._smart_copy(rsync, item.src, item.dst,
                                  self.safe_horizon, item.reuse)
             else:
-                try:
-                    rsync(item.src, item.dst)
-                except CommandFailedException as exc:
-                    if item.optional and exc.args[0]['ret'] == 23:
+                rsync(item.src, item.dst, allowed_retval=(0, 23, 24))
+                if rsync.ret == 23:
+                    if item.optional:
                         _logger.warning(
-                            "Ignoring error reading %s file '%s': %s",
-                            formatted_class, item.label, formatted_name)
+                            "Ignoring error reading %s", item)
                     else:
-                        raise
+                        raise CommandFailedException(dict(
+                            ret=rsync.ret, out=rsync.out, err=rsync.err))
 
     def _reuse_args(self, reuse_directory):
         """
@@ -330,10 +342,25 @@ class RsyncCopyController(object):
         :rtype: list[str]
         """
         if self.reuse_backup in ('copy', 'link') and \
-           reuse_directory is not None:
+                reuse_directory is not None:
             return ['--%s-dest=%s' % (self.reuse_backup, reuse_directory)]
         else:
             return []
+
+    def _retry_handler(self, item, command, args, kwargs, attempt, exc):
+        """
+
+        :param _RsyncCopyItem item: The item that is being processed
+        :param RsyncPgData command: Command object being executed
+        :param list args: command args
+        :param dict kwargs: command kwargs
+        :param int attempt: attempt number (starting from 0)
+        :param CommandFailedException exc: the exception which caused the
+            failure
+        """
+        _logger.warn("Failure executing rsync on %s (attempt %s)",
+                     item, attempt)
+        _logger.warn("Retrying in %s seconds", self.retry_sleep)
 
     def _smart_copy(self, rsync, src, dst, safe_horizon=None, ref=None):
         """
@@ -511,8 +538,8 @@ class RsyncCopyController(object):
         # Use the --no-human-readable option to avoid digit groupings
         # in "size" field with rsync >= 3.1.0.
         # Ref: http://ftp.samba.org/pub/rsync/src/rsync-3.1.0-NEWS
-        rsync.getoutput('--no-human-readable', '--list-only', '-r', path,
-                        check=True)
+        rsync.get_output('--no-human-readable', '--list-only', '-r', path,
+                         check=True)
         for line in rsync.out.splitlines():
             line = line.rstrip()
             match = self.LIST_ONLY_RE.match(line)
@@ -542,26 +569,24 @@ class RsyncCopyController(object):
 
     def _rsync_ignore_vanished_files(self, rsync, *args, **kwargs):
         """
-        Wrap an Rsync.getoutput() call and ignore missing args
+        Wrap an Rsync.get_output() call and ignore missing args
 
         TODO: when rsync 3.1 will be widespread, replace this
             with --ignore-missing-args argument
 
         :param Rsync rsync: the Rsync object used to execute the copy
         """
-        try:
-            rsync.getoutput(*args, **kwargs)
-        except CommandFailedException:
-            # if return code is different than 23
-            # or there is any error which doesn't match the VANISHED_RE regexp
-            # raise the error again
-            if rsync.ret == 23 and rsync.err is not None:
-                for line in rsync.err.splitlines():
-                    match = self.VANISHED_RE.match(line.rstrip())
-                    if match:
-                        continue
-                    else:
-                        raise
-            else:
-                raise
+        kwargs['allowed_retval'] = (0, 23, 24)
+        rsync.get_output(*args, **kwargs)
+        # If return code is 23 and there is any error which doesn't match
+        # the VANISHED_RE regexp raise an error
+        if rsync.ret == 23 and rsync.err is not None:
+            for line in rsync.err.splitlines():
+                match = self.VANISHED_RE.match(line.rstrip())
+                if match:
+                    continue
+                else:
+                    _logger.error("First rsync error line: %s", line)
+                    raise CommandFailedException(dict(
+                        ret=rsync.ret, out=rsync.out, err=rsync.err))
         return rsync.out, rsync.err

@@ -135,16 +135,17 @@ class TestRsyncBackupExecutor(object):
         assert err == ''
         assert 'ssh: FAILED' in out
 
-    @patch("barman.backup.BackupManager.retry_backup_copy")
+    @patch("barman.backup.RsyncBackupExecutor.backup_copy")
     @patch("barman.backup.BackupManager.get_previous_backup")
     @patch("barman.backup.BackupManager.remove_wal_before_backup")
-    def test_backup(self, rwbb_mock, gpb_mock, retry_mock, capsys, tmpdir):
+    def test_backup(self, rwbb_mock, gpb_mock, backup_copy_mock,
+                    capsys, tmpdir):
         """
         Test the execution of a backup
 
         :param rwbb_mock: mock for the remove_wal_before_backup method
         :param gpb_mock: mock for the get_previous_backup method
-        :param retry_mock: mock for the retry_backup_copy method
+        :param backup_copy_mock: mock for the executor's backup_copy method
         :param capsys: stdout capture module
         :param tmpdir: pytest temp directory
         """
@@ -180,8 +181,7 @@ class TestRsyncBackupExecutor(object):
         rwbb_mock.assert_called_with(backup_info)
         backup_manager.executor.strategy.start_backup.assert_called_once_with(
             backup_info)
-        retry_mock.assert_called_once_with(
-            backup_manager.executor.backup_copy, backup_info)
+        backup_copy_mock.assert_called_once_with(backup_info)
         backup_manager.executor.strategy.stop_backup.assert_called_once_with(
             backup_info)
 
@@ -194,7 +194,7 @@ class TestRsyncBackupExecutor(object):
         gpb_mock.reset_mock()
         rwbb_mock.reset_mock()
         backup_manager.executor.strategy.reset_mock()
-        retry_mock.reset_mock()
+        backup_copy_mock.reset_mock()
 
         # prepare data directory for backup_label generation
         backup_info.backup_label = 'test\nlabel\n'
@@ -215,8 +215,7 @@ class TestRsyncBackupExecutor(object):
         rwbb_mock.assert_called_with(backup_info)
         backup_manager.executor.strategy.start_backup.assert_called_once_with(
             backup_info)
-        retry_mock.assert_called_once_with(
-            backup_manager.executor.backup_copy, backup_info)
+        backup_copy_mock.assert_called_once_with(backup_info)
         backup_manager.executor.strategy.start_backup.assert_called_once_with(
             backup_info)
 
@@ -254,7 +253,8 @@ class TestRsyncBackupExecutor(object):
                       ssh_options=['-c', '"arcfour"', '-p', '22',
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
-                                   'StrictHostKeyChecking=no']),
+                                   'StrictHostKeyChecking=no'],
+                      retry_sleep=30, retry_times=0),
             mock.call().add_directory(
                 label='tbs1',
                 src=':/fake/location/',

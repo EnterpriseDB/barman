@@ -128,9 +128,10 @@ class TestRsyncCopyController(object):
         # This is to check that all the preparation is done correctly
         assert os.path.exists(backup_info.filename)
 
-        # Silence the access to string properties
+        # Silence the access to result properties
         rsync_mock.return_value.out = ''
         rsync_mock.return_value.err = ''
+        rsync_mock.return_value.ret = 0
 
         rcc.add_directory(
             label='tbs1',
@@ -180,7 +181,8 @@ class TestRsyncCopyController(object):
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no'],
-                      exclude=None, exclude_and_protect=None),
+                      exclude=None, exclude_and_protect=None,
+                      retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call(network_compression=False,
                       args=['--itemize-changes',
                             '--itemize-changes'],
@@ -189,7 +191,8 @@ class TestRsyncCopyController(object):
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no'],
-                      exclude=None, exclude_and_protect=None),
+                      exclude=None, exclude_and_protect=None,
+                      retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call(network_compression=False,
                       args=['--itemize-changes',
                             '--itemize-changes'],
@@ -205,7 +208,8 @@ class TestRsyncCopyController(object):
                           '/postmaster.pid'],
                       exclude_and_protect=[
                           'pg_tblspc/16387',
-                          'pg_tblspc/16405']),
+                          'pg_tblspc/16405'],
+                      retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call(network_compression=False,
                       args=['--itemize-changes',
                             '--itemize-changes'],
@@ -214,10 +218,12 @@ class TestRsyncCopyController(object):
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no'],
-                      exclude=None, exclude_and_protect=None),
+                      exclude=None, exclude_and_protect=None,
+                      retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call()(
                 ':/pg/data/global/pg_control',
-                '%s/global/pg_control' % backup_info.get_data_directory()),
+                '%s/global/pg_control' % backup_info.get_data_directory(),
+                allowed_retval=(0, 23, 24)),
             mock.call(network_compression=False,
                       args=['--itemize-changes',
                             '--itemize-changes'],
@@ -226,10 +232,12 @@ class TestRsyncCopyController(object):
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no'],
-                      exclude=None, exclude_and_protect=None),
+                      exclude=None, exclude_and_protect=None,
+                      retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call()(
                 ':/etc/postgresql.conf',
-                backup_info.get_data_directory()),
+                backup_info.get_data_directory(),
+                allowed_retval=(0, 23, 24)),
         ]
 
         assert smart_copy_mock.mock_calls == [
@@ -265,8 +273,8 @@ class TestRsyncCopyController(object):
         # Returned list must contain two elements
         assert len(return_values) == 2
 
-        # Check rsync.getoutput has called correctly
-        rsync_mock.getoutput.assert_called_with(
+        # Check rsync.get_output has called correctly
+        rsync_mock.get_output.assert_called_with(
             '--no-human-readable', '--list-only', '-r', 'some/path',
             check=True)
 
