@@ -455,7 +455,7 @@ class Server(RemoteStatusMixin):
             # If a streaming connection is available,
             # add its status to the output of the check
             if remote_status['streaming_supported'] is None:
-                hint = 'Streaming connection error'
+                hint = remote_status['connection_error']
             elif not remote_status['streaming_supported']:
                 hint = ('Streaming connection not supported'
                         ' for PostgreSQL < 9.2')

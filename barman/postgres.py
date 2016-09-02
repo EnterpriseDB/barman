@@ -29,7 +29,8 @@ from psycopg2.errorcodes import (DUPLICATE_OBJECT, OBJECT_IN_USE,
 from psycopg2.extensions import STATUS_IN_TRANSACTION
 from psycopg2.extras import DictCursor, NamedTupleCursor
 
-from barman.exceptions import (ConninfoException, PostgresConnectionError,
+from barman.exceptions import (ConninfoException, PostgresAppNameError,
+                               PostgresConnectionError,
                                PostgresDuplicateReplicationSlot,
                                PostgresException,
                                PostgresInvalidReplicationSlot,
@@ -136,8 +137,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             # If psycopg2 fails to connect to the host,
             # raise the appropriate exception
             except psycopg2.DatabaseError as e:
-                raise PostgresConnectionError(
-                    "Cannot connect to postgres: %s" % str(e).strip())
+                raise PostgresConnectionError(str(e).strip())
             # Register the connection to the live connections list
             _live_connections.append(self)
         return self._conn
@@ -246,7 +246,8 @@ class StreamingConnection(PostgreSQL):
         :rtype: dict[str, None|str]
         """
         result = dict.fromkeys(
-            ('streaming_supported', 'streaming', 'systemid',
+            ('connection_error', 'streaming_supported',
+                'streaming', 'systemid',
                 'timeline', 'xlogpos'),
             None)
         try:
@@ -276,6 +277,7 @@ class StreamingConnection(PostgreSQL):
             # This is not a streaming connection
             result['streaming'] = False
         except PostgresConnectionError as e:
+            result['connection_error'] = str(e).strip()
             _logger.warn("Error retrieving PostgreSQL status: %s",
                          str(e).strip())
         return result
@@ -368,8 +370,7 @@ class PostgreSQLConnection(PostgreSQL):
             # If psycopg2 fails to set the application name,
             # raise the appropriate exception
             except psycopg2.ProgrammingError as e:
-                raise PostgresConnectionError(
-                    "Cannot set the application name: %s" % str(e).strip())
+                raise PostgresAppNameError(str(e).strip())
         return self._conn
 
     @property

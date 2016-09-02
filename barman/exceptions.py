@@ -179,6 +179,18 @@ class PostgresConnectionError(PostgresException):
     """
     Error connecting to the PostgreSQL server
     """
+    def __str__(self):
+        # Returns the first line
+        if self.args and self.args[0]:
+            return str(self.args[0]).splitlines()[0].strip()
+        else:
+            return ''
+
+
+class PostgresAppNameError(PostgresConnectionError):
+    """
+    Error setting application name with PostgreSQL server
+    """
 
 
 class PostgresSuperuserRequired(PostgresException):
