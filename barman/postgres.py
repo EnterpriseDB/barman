@@ -1084,9 +1084,16 @@ class PostgreSQLConnection(PostgreSQL):
             if self.server_version < 90100:
                 raise PostgresUnsupportedFeature('9.1')
 
-            if self.server_version >= 90400:
-                # Current implementation (9.4+)
-                what = "* "
+            from_repslot = ""
+            if self.server_version >= 90500:
+                # Current implementation (9.5+)
+                what = "r.*, rs.slot_name"
+                # Look for replication slot name
+                from_repslot = "LEFT JOIN pg_replication_slots rs " \
+                               "ON (r.pid = rs.active_pid) "
+            elif self.server_version >= 90400:
+                # PostgreSQL 9.4
+                what = "*"
             elif self.server_version >= 90200:
                 # PostgreSQL 9.2/9.3
                 what = "pid," \
@@ -1142,9 +1149,12 @@ class PostgreSQLConnection(PostgreSQL):
                 "  THEN NULL "
                 "  ELSE pg_current_xlog_location() "
                 "END AS current_location "
-                "FROM pg_stat_replication "
+                "FROM pg_stat_replication r "
                 "%s"
-                "ORDER BY sync_state DESC, sync_priority" % (what, where))
+                "%s"
+                "ORDER BY sync_state DESC, sync_priority" % (what,
+                                                             from_repslot,
+                                                             where))
 
             # Generate a list of standby objects
             return cur.fetchall()

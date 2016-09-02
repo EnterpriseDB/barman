@@ -836,6 +836,8 @@ class ConsoleOutputWriter(object):
                 self.info("     Current state   : %s (%s)",
                           standby.state,
                           standby.sync_state)
+                if standby.slot_name:
+                    self.info("     Replication slot: %s", standby.slot_name)
                 self.info("     WAL sender PID  : %s", standby.pid)
                 self.info("     Started at      : %s", standby.backend_start)
                 if standby.backend_xmin:

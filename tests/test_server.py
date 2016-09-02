@@ -876,6 +876,7 @@ class TestServer(object):
             client_addr=None,
             client_hostname=None,
             client_port=-1,
+            slot_name=None,
             backend_start=datetime.datetime(
                 2016, 5, 6, 9, 29, 20, 98534,
                 tzinfo=FixedOffsetTimezone(offset=120)),

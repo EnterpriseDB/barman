@@ -891,6 +891,23 @@ class TestPostgres(object):
         cursor_mock = conn_mock.return_value.cursor.return_value
         is_superuser_mock.return_value = True
 
+        # 9.5 ALL
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 90500
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.ANY_STREAMING_CLIENT)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT r.*, rs.slot_name, "
+            "pg_is_in_recovery() AS is_in_recovery,"
+            "CASE WHEN pg_is_in_recovery() "
+            "  THEN NULL "
+            "  ELSE pg_current_xlog_location() "
+            "END AS current_location "
+            "FROM pg_stat_replication r "
+            "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
+            "ORDER BY sync_state DESC, sync_priority")
+
         # 9.4 ALL
         cursor_mock.reset_mock()
         server_version_mock.return_value = 90400
@@ -898,13 +915,13 @@ class TestPostgres(object):
             PostgreSQLConnection.ANY_STREAMING_CLIENT)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT * , "
+            "SELECT *, "
             "pg_is_in_recovery() AS is_in_recovery,"
             "CASE WHEN pg_is_in_recovery() "
             "  THEN NULL "
             "  ELSE pg_current_xlog_location() "
             "END AS current_location "
-            "FROM pg_stat_replication "
+            "FROM pg_stat_replication r "
             "ORDER BY sync_state DESC, sync_priority")
 
         # 9.4 WALSTREAMER
@@ -914,13 +931,13 @@ class TestPostgres(object):
             PostgreSQLConnection.WALSTREAMER)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT * , "
+            "SELECT *, "
             "pg_is_in_recovery() AS is_in_recovery,"
             "CASE WHEN pg_is_in_recovery() "
             "  THEN NULL "
             "  ELSE pg_current_xlog_location() "
             "END AS current_location "
-            "FROM pg_stat_replication "
+            "FROM pg_stat_replication r "
             "WHERE replay_location IS NULL "
             "ORDER BY sync_state DESC, sync_priority")
 
@@ -931,13 +948,13 @@ class TestPostgres(object):
             PostgreSQLConnection.STANDBY)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT * , "
+            "SELECT *, "
             "pg_is_in_recovery() AS is_in_recovery,"
             "CASE WHEN pg_is_in_recovery() "
             "  THEN NULL "
             "  ELSE pg_current_xlog_location() "
             "END AS current_location "
-            "FROM pg_stat_replication "
+            "FROM pg_stat_replication r "
             "WHERE replay_location IS NOT NULL "
             "ORDER BY sync_state DESC, sync_priority")
 
@@ -958,7 +975,7 @@ class TestPostgres(object):
             "  THEN NULL "
             "  ELSE pg_current_xlog_location() "
             "END AS current_location "
-            "FROM pg_stat_replication "
+            "FROM pg_stat_replication r "
             "ORDER BY sync_state DESC, sync_priority")
 
         # 9.2 WALSTREAMER
@@ -978,7 +995,7 @@ class TestPostgres(object):
             "  THEN NULL "
             "  ELSE pg_current_xlog_location() "
             "END AS current_location "
-            "FROM pg_stat_replication "
+            "FROM pg_stat_replication r "
             "WHERE replay_location IS NULL "
             "ORDER BY sync_state DESC, sync_priority")
 
@@ -999,7 +1016,7 @@ class TestPostgres(object):
             "  THEN NULL "
             "  ELSE pg_current_xlog_location() "
             "END AS current_location "
-            "FROM pg_stat_replication "
+            "FROM pg_stat_replication r "
             "WHERE replay_location IS NOT NULL "
             "ORDER BY sync_state DESC, sync_priority")
 
@@ -1020,7 +1037,7 @@ class TestPostgres(object):
             "  THEN NULL "
             "  ELSE pg_current_xlog_location() "
             "END AS current_location "
-            "FROM pg_stat_replication "
+            "FROM pg_stat_replication r "
             "ORDER BY sync_state DESC, sync_priority")
 
         # 9.1 WALSTREAMER
@@ -1040,7 +1057,7 @@ class TestPostgres(object):
             "  THEN NULL "
             "  ELSE pg_current_xlog_location() "
             "END AS current_location "
-            "FROM pg_stat_replication "
+            "FROM pg_stat_replication r "
             "WHERE replay_location IS NULL "
             "ORDER BY sync_state DESC, sync_priority")
 
@@ -1061,7 +1078,7 @@ class TestPostgres(object):
             "  THEN NULL "
             "  ELSE pg_current_xlog_location() "
             "END AS current_location "
-            "FROM pg_stat_replication "
+            "FROM pg_stat_replication r "
             "WHERE replay_location IS NOT NULL "
             "ORDER BY sync_state DESC, sync_priority")
 
