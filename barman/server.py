@@ -191,6 +191,27 @@ class Server(RemoteStatusMixin):
             self.config.msg_list.append("PostgreSQL connection: " +
                                         str(e).strip())
 
+        # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
+        # IMPORTANT: This is a back-compatibility feature that has
+        # been added in Barman 2.0. It highlights a deprecated
+        # behaviour, and helps users during this transition phase.
+        # It forces 'archiver=on' when both archiver and streaming_archiver
+        # are set to 'off' (default values) and displays a warning,
+        # requesting users to explicitly set the value in the configuration.
+        # When this back-compatibility feature will be removed from Barman
+        # (in a couple of major releases), developers will need to remove
+        # this block completely and reinstate the block of code you find
+        # a few lines below (search for ARCHIVER_OFF_BACKCOMPATIBILITY
+        # throughout the code).
+        if self.config.archiver is False and \
+                self.config.streaming_archiver is False:
+            output.warning("No archiver enabled for server '%s'. "
+                           "Please turn on 'archiver', 'streaming_archiver' "
+                           "or both", self.config.name)
+            output.warning("Forcing 'archiver = on'")
+            self.config.archiver = True
+        # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
+
         # Initialize the FileWalArchiver
         # WARNING: Order of items in self.archivers list is important!
         # The files will be archived in that order.
@@ -230,13 +251,21 @@ class Server(RemoteStatusMixin):
                 self.config.msg_list.append('Unable to initialise the '
                                             'streaming archiver')
 
-        # At least one of the available archive modes should be enabled
-        if len(self.archivers) < 1:
-            self.config.disabled = True
-            self.config.msg_list.append(
-                "No archiver enabled for server '%s'. "
-                "Please turn on 'archiver', 'streaming_archiver' or both"
-                % config.name)
+        # IMPORTANT: The following lines of code have been
+        # temporarily commented in order to make the code
+        # back-compatible after the introduction of 'archiver=off'
+        # as default value in Barman 2.0.
+        # When the back compatibility feature for archiver will be
+        # removed, the following lines need to be decommented.
+        # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
+        # # At least one of the available archive modes should be enabled
+        # if len(self.archivers) < 1:
+        #     self.config.disabled = True
+        #     self.config.msg_list.append(
+        #         "No archiver enabled for server '%s'. "
+        #         "Please turn on 'archiver', 'streaming_archiver' or both"
+        #         % config.name)
+        # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
 
         # Sanity check: if file based archiver is disabled, and only
         # WAL streaming is enabled, a replication slot name must be configured.
@@ -575,7 +604,7 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        if self.config.disabled:
+        if len(self.config.msg_list):
             check_strategy.result(self.config.name, 'configuration', False)
             for conflict_paths in self.config.msg_list:
                 output.info("\t\t%s" % conflict_paths)
