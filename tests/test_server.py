@@ -366,7 +366,7 @@ class TestServer(object):
                                       'server_txt_version': 'PostgresSQL 9_4',
                                       'data_directory': '/usr/local/postgres',
                                       'archive_mode': 'on',
-                                      'wal_level': 'archive'}
+                                      'wal_level': 'replica'}
 
         # Expect out: all parameters: OK
 
@@ -417,7 +417,7 @@ class TestServer(object):
             'server_txt_version': '9.3.1',
             'data_directory': '/usr/local/postgres',
             'archive_mode': 'on',
-            'wal_level': 'archive',
+            'wal_level': 'replica',
             'replication_slot_support': False,
             'replication_slot': None,
         }

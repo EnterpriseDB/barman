@@ -480,7 +480,8 @@ archive_command = 'rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
 Make sure you change the `INCOMING_WALS_DIRECTORY` placeholder with
 the value returned by the `barman show-server main` command above.
 
-In case you use Hot Standby, `wal_level` must be set to `hot_standby`.
+In case you use Hot Standby, `wal_level` must be set to `hot_standby`
+or, for PostgreSQL 9.6 or higher, `replica`.
 
 Restart the PostgreSQL server.
 
