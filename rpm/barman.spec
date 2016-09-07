@@ -78,9 +78,11 @@ EOF
 mkdir -p %{buildroot}%{_sysconfdir}/bash_completion.d
 mkdir -p %{buildroot}%{_sysconfdir}/cron.d/
 mkdir -p %{buildroot}%{_sysconfdir}/logrotate.d/
+mkdir -p %{buildroot}%{_sysconfdir}/barman.d/
 mkdir -p %{buildroot}/var/lib/barman
 mkdir -p %{buildroot}/var/log/barman
 install -pm 644 doc/barman.conf %{buildroot}%{_sysconfdir}/barman.conf
+install -pm 644 doc/barman.d/* %{buildroot}%{_sysconfdir}/barman.d/
 install -pm 644 scripts/barman.bash_completion %{buildroot}%{_sysconfdir}/bash_completion.d/barman
 install -pm 644 barman.cron %{buildroot}%{_sysconfdir}/cron.d/barman
 install -pm 644 barman.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/barman
@@ -101,6 +103,7 @@ rm -rf %{buildroot}
 %config(noreplace) %{_sysconfdir}/%{name}.conf
 %config(noreplace) %{_sysconfdir}/cron.d/%{name}
 %config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
+%config(noreplace) %{_sysconfdir}/barman.d/
 %attr(700,barman,barman) %dir /var/lib/%{name}
 %attr(755,barman,barman) %dir /var/log/%{name}
 %attr(600,barman,barman) %ghost /var/log/%{name}/%{name}.log
