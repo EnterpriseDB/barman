@@ -838,19 +838,26 @@ class TestPostgresBackupExecutor(object):
                                              backup_id='fake_backup_id')
         backup_manager.executor.backup_copy(backup_info)
         # check that the bwlimit option have been ignored
-        pg_basebackup_mock.assert_any_call(
-            connection=mock.ANY,
-            version='9.2',
-            app_name='barman_streaming_backup',
-            destination=mock.ANY,
-            command='/fake/path',
-            tbs_mapping=mock.ANY,
-            bwlimit=None,
-            immediate=False,
-            path=mock.ANY)
+        assert pg_basebackup_mock.mock_calls == [
+            mock.call(
+                connection=mock.ANY,
+                version='9.2',
+                app_name='barman_streaming_backup',
+                destination=mock.ANY,
+                command='/fake/path',
+                tbs_mapping=mock.ANY,
+                bwlimit=None,
+                immediate=False,
+                retry_times=0,
+                retry_sleep=30,
+                retry_handler=mock.ANY,
+                path=mock.ANY),
+            mock.call()(),
+        ]
 
         # Check with newer version
         remote_mock.reset_mock()
+        pg_basebackup_mock.reset_mock()
         backup_manager.executor._remote_status = None
         remote_mock.return_value = {
             'pg_basebackup_version': '9.5',
@@ -861,19 +868,27 @@ class TestPostgresBackupExecutor(object):
         backup_manager.executor.config.streaming_conninfo = 'fake=connstring'
         backup_manager.executor.backup_copy(backup_info)
         # check that the bwlimit option have been passed to the test call
-        pg_basebackup_mock.assert_any_call(
-            connection=mock.ANY,
-            version='9.5',
-            app_name='barman_streaming_backup',
-            destination=mock.ANY,
-            command='/fake/path',
-            tbs_mapping=mock.ANY,
-            bwlimit=1,
-            immediate=True,
-            path=mock.ANY)
+        assert pg_basebackup_mock.mock_calls == [
+            mock.call(
+                connection=mock.ANY,
+                version='9.5',
+                app_name='barman_streaming_backup',
+                destination=mock.ANY,
+                command='/fake/path',
+                tbs_mapping=mock.ANY,
+                bwlimit=1,
+                immediate=True,
+                retry_times=0,
+                retry_sleep=30,
+                retry_handler=mock.ANY,
+                path=mock.ANY),
+            mock.call()(),
+        ]
 
         # Raise a test CommandFailedException and expect it to be wrapped
         # inside a DataTransferFailure exception
+        remote_mock.reset_mock()
+        pg_basebackup_mock.reset_mock()
         pg_basebackup_mock.return_value.side_effect = \
             CommandFailedException(dict(ret='ret', out='out', err='err'))
         with pytest.raises(DataTransferFailure):

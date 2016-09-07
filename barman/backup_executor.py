@@ -29,7 +29,9 @@ A BackupExecutor is invoked by the BackupManager for backup operations.
 import logging
 import os
 import re
+import shutil
 from abc import ABCMeta, abstractmethod
+from functools import partial
 
 import dateutil.parser
 from distutils.version import LooseVersion as Version
@@ -408,7 +410,7 @@ class PostgresBackupExecutor(BackupExecutor):
 
         # Test pg_basebackup existence
         version_info = PgBaseBackup.get_version_info(
-            self.backup_manager.server.path)
+            self.server.path)
         if version_info['full_path']:
             remote_status["pg_basebackup_installed"] = True
             remote_status["pg_basebackup_path"] = version_info['full_path']
@@ -478,9 +480,7 @@ class PostgresBackupExecutor(BackupExecutor):
         # Make sure the destination directory exists, ensure the
         # right permissions to the destination dir
         backup_dest = backup_info.get_data_directory()
-        mkpath(backup_dest)
-        # chmod 0700 octal
-        os.chmod(backup_dest, 448)
+        dest_dirs = [backup_dest]
 
         # Manage tablespaces, we need to handle them now in order to
         # be able to relocate them inside the
@@ -491,10 +491,10 @@ class PostgresBackupExecutor(BackupExecutor):
                 source = tablespace.location
                 destination = backup_info.get_data_directory(tablespace.oid)
                 tbs_map[source] = destination
-                # Ensure the right permissions to the destination directory
-                mkpath(destination)
-                # chmod 0700 octal
-                os.chmod(destination, 448)
+                dest_dirs.append(destination)
+
+        # Prepare the destination directories for pgdata and tablespaces
+        self._prepare_backup_destination(dest_dirs)
 
         # Retrieve pg_basebackup version information
         remote_status = self.get_remote_status()
@@ -513,7 +513,11 @@ class PostgresBackupExecutor(BackupExecutor):
             tbs_mapping=tbs_map,
             bwlimit=bandwidth_limit,
             immediate=self.config.immediate_checkpoint,
-            path=self.backup_manager.server.path)
+            path=self.server.path,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            retry_handler=partial(self._retry_handler, dest_dirs))
+
         # Do the actual copy
         try:
             pg_basebackup()
@@ -522,6 +526,49 @@ class PostgresBackupExecutor(BackupExecutor):
                   backup_info.get_data_directory()
             raise DataTransferFailure.from_command_error(
                 'pg_basebackup', e, msg)
+
+    def _retry_handler(self, dest_dirs, command, args, kwargs,
+                       attempt, exc):
+        """
+        Handler invoked during a backup in case of retry.
+
+        The method simply warn the user of the failure and
+        remove the already existing directories of the backup.
+
+        :param list[str] dest_dirs: destination directories
+        :param RsyncPgData command: Command object being executed
+        :param list args: command args
+        :param dict kwargs: command kwargs
+        :param int attempt: attempt number (starting from 0)
+        :param CommandFailedException exc: the exception which caused the
+            failure
+        """
+        output.warning("Failure executing a backup using pg_basebackup "
+                       "(attempt %s)", attempt)
+        output.warning("The files copied so far will be removed and "
+                       "the backup process will restart in %s seconds",
+                       self.config.basebackup_retry_sleep)
+        # Remove all the destination directories and reinit the backup
+        self._prepare_backup_destination(dest_dirs)
+
+    def _prepare_backup_destination(self, dest_dirs):
+        """
+        Prepare the destination of the backup, including tablespaces.
+
+        This method is also responsible for removing a directory if
+        it already exists and for ensuring the correct permissions for
+        the created directories
+
+        :param list[str] dest_dirs: destination directories
+        """
+        for dest_dir in dest_dirs:
+            # Remove a dir if exists. Ignore eventual errors
+            shutil.rmtree(dest_dir, ignore_errors=True)
+            # create the dir
+            mkpath(dest_dir)
+            # Ensure the right permissions to the destination directory
+            # chmod 0700 octal
+            os.chmod(dest_dir, 448)
 
 
 class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
