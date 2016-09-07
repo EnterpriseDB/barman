@@ -572,7 +572,6 @@ class RecoveryExecutor(object):
             raise DataTransferFailure.from_command_error(
                 'rsync', e, msg)
 
-
     def _xlog_copy(self, required_xlog_files, wal_dest, remote_command):
         """
         Restore WAL segments
