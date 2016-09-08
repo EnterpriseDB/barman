@@ -48,6 +48,13 @@ def _mock_pipe(popen, pipe_processor_loop, ret=0, out='', err=''):
     return pipe
 
 
+@pytest.fixture(autouse=True)
+def which(request):
+    with mock.patch('barman.utils.which') as which:
+        which.side_effect = lambda cmd, path: cmd
+        yield which
+
+
 # noinspection PyMethodMayBeStatic
 @mock.patch('barman.command_wrappers.Command.pipe_processor_loop')
 @mock.patch('barman.command_wrappers.subprocess.Popen')
@@ -531,7 +538,7 @@ class TestCommand(object):
             test class
         """
 
-        command = 'test stringe'
+        command = 'test string'
         cmd = command_wrappers.Command(command, check=True,
                                        retry_times=5, retry_sleep=10)
 
@@ -674,20 +681,17 @@ class TestRsync(object):
         assert cmd.out == out
         assert cmd.err == err
 
-    @mock.patch("barman.utils.which")
-    def test_custom_ssh_invocation(self, mock_which,
-                                   popen, pipe_processor_loop):
+    def test_custom_ssh_invocation(self, popen, pipe_processor_loop, which):
         ret = 0
         out = 'out'
         err = 'err'
 
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
-        mock_which.return_value = True
         cmd = command_wrappers.Rsync('/custom/rsync', ssh='/custom/ssh',
                                      ssh_options=['-c', 'arcfour'])
         result = cmd('src', 'dst')
 
-        mock_which.assert_called_with('/custom/rsync', None)
+        which.assert_called_with('/custom/rsync', None)
         popen.assert_called_with(
             ['/custom/rsync', '-e', "/custom/ssh '-c' 'arcfour'",
                 'src', 'dst'],
@@ -702,12 +706,13 @@ class TestRsync(object):
         assert cmd.out == out
         assert cmd.err == err
 
-    def test_rsync_build_failure(self, popen, pipe_processor_loop):
+    def test_rsync_build_failure(self, popen, pipe_processor_loop, which):
         """
         Simple test that checks if a CommandFailedException is raised
         when Rsync object is build with an invalid path or rsync
         is not in system path
         """
+        which.side_effect = CommandFailedException()
         # Pass an invalid path to Rsync class constructor.
         # Expect a CommandFailedException
         with pytest.raises(CommandFailedException):

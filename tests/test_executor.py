@@ -753,25 +753,24 @@ class TestPostgresBackupExecutor(object):
         assert check_strat.has_error is True
 
     @mock.patch("barman.command_wrappers.Command")
-    @mock.patch("barman.utils.which")
-    def test_fetch_remote_status(self, mock_which, cmd_mock):
+    def test_fetch_remote_status(self, cmd_mock):
         """
         Test the fetch_remote_status method
-        :param mock_which: mock the which method from utils
         :param cmd_mock: mock the Command class
         """
         backup_manager = build_backup_manager(global_conf={
             'backup_method': 'postgres'
         })
         # Simulate the absence of pg_basebackup
-        mock_which.return_value = None
+        cmd_mock.side_effect = CommandFailedException
         backup_manager.server.streaming.server_major_version = '9.5'
         remote = backup_manager.executor.fetch_remote_status()
         assert remote['pg_basebackup_installed'] is False
         assert remote['pg_basebackup_path'] is None
 
         # Simulate the presence of pg_basebackup 9.5.1 and pg 95
-        mock_which.return_value = '/fake/path'
+        cmd_mock.side_effect = None
+        cmd_mock.return_value.cmd = '/fake/path'
         backup_manager.server.streaming.server_major_version = '9.5'
         backup_manager.server.path = 'fake/path2'
         cmd_mock.return_value.out = '9.5.1'

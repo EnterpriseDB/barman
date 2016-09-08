@@ -125,7 +125,8 @@ class TestRecoveryExecutor(object):
         assert recovery_info['results']['missing_files'] == [
             'pg_hba.conf', 'pg_ident.conf']
 
-    def test_setup(self):
+    @mock.patch('barman.recovery_executor.RsyncPgData')
+    def test_setup(self, rsync_mock):
         """
         Test the method that set up a recovery
         """

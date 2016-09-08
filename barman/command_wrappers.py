@@ -177,6 +177,7 @@ class Command(object):
         self.retry_times = retry_times
         self.retry_sleep = retry_sleep
         self.retry_handler = retry_handler
+        self.path = path
         self.ret = None
         self.out = None
         self.err = None
@@ -185,6 +186,13 @@ class Command(object):
         # If path has been provided, replace it in the environment
         if path:
             env_append['PATH'] = path
+        # Find the absolute path to the command to execute
+        if not self.shell:
+            full_path = barman.utils.which(self.cmd, self.path)
+            if not full_path:
+                raise CommandFailedException(
+                    '%s not in PATH' % self.cmd)
+            self.cmd = cmd
         # If env_append contains anything, build an env dict to be used during
         # subprocess call, otherwise set it to None and let the subprocesses
         # inherit the parent environment
@@ -453,6 +461,7 @@ class Command(object):
             cmd = self._cmd_quote(self.cmd, args)
         else:
             cmd = [self.cmd] + args
+
         # Log the command we are about to execute
         _logger.debug("Command: %r", cmd)
         return subprocess.Popen(cmd, shell=self.shell, env=self.env,
@@ -592,14 +601,6 @@ class Rsync(Command):
         :param kwargs:
         """
         options = []
-        # Try to find rsync in system PATH using the which method.
-        # If not found, rsync is not installed and this class cannot
-        # work properly.
-        # Raise CommandFailedException warning the user
-        rsync_path = barman.utils.which(rsync, path)
-        if not rsync_path:
-            raise CommandFailedException('rsync not in system PATH: '
-                                         'is rsync installed?')
         if ssh:
             options += ['-e', self._cmd_quote(ssh, ssh_options)]
         if network_compression:
@@ -702,14 +703,6 @@ class PostgreSQLClient(Command):
         """
         Command.__init__(self, command, path=path, **kwargs)
 
-        # Check if the command is actually available in path
-        command_path = barman.utils.which(command, path)
-        if not command_path:
-            # Raise an error if not
-            raise CommandFailedException('%s not in system PATH: '
-                                         'is %s installed?' % (command,
-                                                               command))
-
         if version and version >= Version("9.3"):
             # If version of the client is >= 9.3 we use the connection
             # string because allows the user to use all the parameters
@@ -745,15 +738,10 @@ class PostgreSQLClient(Command):
                                       'major_version'),
                                      None)
 
-        # Retrieve the path of the command
-        version_info['full_path'] = barman.utils.which(cls.COMMAND, path)
-        if version_info['full_path'] is None:
-            # The client is not installed or not working
-            return version_info
-
         # Get the version string
-        command = Command(version_info['full_path'], path=path, check=True)
         try:
+            command = Command(cls.COMMAND, path=path, check=True)
+            version_info['full_path'] = command.cmd
             command("--version")
         except CommandFailedException as e:
             _logger.debug("Error invoking %s: %s", cls.COMMAND, e)
