@@ -42,7 +42,7 @@ from barman.config import BackupOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (CommandFailedException, DataTransferFailure,
                                FsOperationFailed, PostgresConnectionError,
-                               SshCommandException)
+                               PostgresIsInRecovery, SshCommandException)
 from barman.fs import UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.remote_status import RemoteStatusMixin
@@ -1263,6 +1263,16 @@ class PostgresBackupStrategy(BackupStrategy):
         current_xlog_info = postgres.current_xlog_info.copy()
         self._backup_info_from_stop_location(backup_info, current_xlog_info)
 
+        # Ask PostgreSQL to switch to another XLOG file. This is needed
+        # to archive the transaction log file containing the backup
+        # end position, which is required to recover from the backup.
+        postgres = self.executor.server.postgres
+        try:
+            postgres.switch_xlog()
+        except PostgresIsInRecovery:
+            # Skip switching XLOG if a standby server
+            pass
+
         # TODO: display this warning only if needed
         output.warning("pg_basebackup does not copy the PostgreSQL "
                        "configuration files that reside outside PGDATA. "
@@ -1449,6 +1459,16 @@ class ConcurrentBackupStrategy(BackupStrategy):
         if backup_info.tablespaces:
             self.current_action = "writing tablespace map"
             self._write_tablespace_map(backup_info)
+
+        # Ask PostgreSQL to switch to another XLOG file. This is needed
+        # to archive the transaction log file containing the backup
+        # end position, which is required to recover from the backup.
+        postgres = self.executor.server.postgres
+        try:
+            postgres.switch_xlog()
+        except PostgresIsInRecovery:
+            # Skip switching XLOG if a standby server
+            pass
 
     def _pgespresso_start_backup(self, backup_info, label):
         """
