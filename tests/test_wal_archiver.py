@@ -898,6 +898,16 @@ class TestStreamingWalArchiver(object):
             "(PostgreSQL version: 9.5, pg_receivexlog version: None)\n" \
             "\treceive-wal running: OK\n"
 
+        # Case: streaming connection not configured
+        backup_manager.server.streaming = None
+        archiver.check(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == \
+               "\tpg_receivexlog: OK\n" \
+               "\tpg_receivexlog compatible: FAILED " \
+               "(PostgreSQL version: Unknown, pg_receivexlog version: None)\n" \
+               "\treceive-wal running: OK\n"
+
     @patch('barman.wal_archiver.glob')
     @patch('os.path.isfile')
     @patch('barman.wal_archiver.WalFileInfo.from_file')

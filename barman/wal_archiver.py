@@ -836,8 +836,11 @@ class StreamingWalArchiver(WalArchiver):
             remote_status['pg_receivexlog_installed'])
         hint = None
         if not remote_status['pg_receivexlog_compatible']:
+            pg_version = 'Unknown'
+            if self.server.streaming is not None:
+                pg_version = self.server.streaming.server_txt_version
             hint = "PostgreSQL version: %s, pg_receivexlog version: %s" % (
-                self.server.streaming.server_txt_version,
+                pg_version,
                 remote_status['pg_receivexlog_version']
             )
         check_strategy.result(
