@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# barman-wal-restore.py - Remote Barman WAL restore command for PostgreSQL
+# barman-wal-restore - Remote Barman WAL restore command for PostgreSQL
 #
 # This script remotely fetches WAL files from Barman via Ssh, on demand.
 # It is intended to be used as restore_command in recovery.conf files
