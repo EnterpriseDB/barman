@@ -48,7 +48,7 @@ setup_requires = pytest_runner
 
 install_requires = [
     'psycopg2 >= 2.4.2',
-    'argh >= 0.21.2',
+    'argh >= 0.21.2, <= 0.26.2',
     'python-dateutil',
     'argcomplete',
 ]
