@@ -1,4 +1,658 @@
+2016-09-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Prepare release 2.0a1
+
+	Run minimal and flake8 tox envs in travis-ci
+
+2016-09-09  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fix flake8 error
+
+2016-08-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	First stub of documentation for 2.0
+	This is a first attempt to change the documentation in Barman,
+	which creates two artifacts: a manual and a quickstart guide.
+
+	The work is currently incomplete, but it is ok for a first
+	alpha release, given that all required information from a
+	technical point of view is in man pages.
+
+	The reason for this is that now Barman does not have a sequential
+	installation procedure, but different options for backup and
+	WAL archiving that produce several possibile combinations of
+	setups.
+
+2016-09-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Set last supported version by argh for Python 2.x
+	Add minimal checks in Tox
+
+2016-09-09  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Release notes for 2.0a1
+
+2016-09-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Rename barman-wal-restore.py to barman-wal-restore
+
+2016-09-09  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Fix exception in barman check
+	Barman check raise an exception when streaming_archiver is on and
+	streaming_conninfo is not configured.
+
+	This patch controls if the streaming connection is correctly configured
+	before checking the pg_basebackup compatibility, removing the exception
+	cause.
+
+2016-09-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Remove unit test dependency on environment
+	Previously unit tests were failing the $USER environment variable was
+	not defined. This patch removes this requirement.
+
+2016-09-08  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Make sure path is used in every Command class
+
+	Switch xlog after a concurrent backup
+	For a backup to be usable, all the XLOG files written between the backup
+	start and the backup end must be archived.
+
+	This patch makes PostgreSQL switch the current XLOG file after a
+	concurrent backup either using rsync or streaming backup mode, in this
+	way the WAL file containing the backup end position will be archived as
+	soon as possible.
+
+2016-09-07  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add retry support when `backup_method=postgres`
+	Modify the backup executor to handle the retry of a streaming
+	backup with pg_basebackup (`backup_method=postgres`).
+	Between every retry attempt, the PGDATA and the directories that
+	contain the tablespaces are removed. Therefore, subsequent
+	backup attempts restart from scratch.
+
+2016-09-07  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fix E303 too many blank lines (flake8)
+
+2016-09-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support /etc/barman.d in rpm packaging
+
+2016-09-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Redesign retry logic for backup and recovery
+	The CommandWrapper class is now responsible to specifically
+	design the logic of a retry operation in case of failure.
+
+	Previously, retry was managed at an outer level, by the
+	backup manager and the executor classes.
+
+	With this new approach, every single command can now develop its
+	own retry logic.
+
+2016-09-05  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Force `archiver=on` when no archiver is active.
+	This is a back-compatibility feature that will be kept
+	in Barman for a few releases, and mitigate the upgrade
+	to version 2.0 (which requires explicit setting of
+	an archiving method - before, `archiver` was `on` by default)
+
+2016-09-05  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Change 'wal_level' to 'replica' in unit tests
+
+2016-08-29  Ian Barwick  <ian@2ndquadrant.com>
+
+	Enable barman-wal-restore.py to pass -c/--config to Barman
+	This enables barman-wal-restore.py to be used if the Barman
+	server uses a non-default configuration file.
+
+2016-09-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add slot name to `replication-status` (PostgreSQL 9.5+)
+
+	Handle PostgresConnectionError exception differently
+	Changed the way PostgresConnectionError works, in order
+	to be more easily used in 'check' methods for both
+	standard and streaming connection purposes.
+
+	Specified also a new exception (PostgresAppNameError).
+
+2016-09-01  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Remove any reference to Rsync.smart_copy()
+	Remove the smart copy logic from the command wrappers module,
+	as it is now part of RsyncCopyController.
+
+	Support 9.6 syntax for `synchronous_standby_names`
+
+2016-09-01  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Cosmetic changes in recovery_executor.py
+	Renamed also some methods as they are private
+
+2016-08-30  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Introduce the CopyController module for recovery
+	This patch introduces the use of the RsyncCopyController
+	inside the recovery_executor.py module.
+
+2016-08-31  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add Config.get_bwlimit() public method
+	Move the private method _bwlimit() from RsyncBackupExecutor
+	class into Config, and rename it into get_bwlimit().
+
+2016-08-30  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add status() method for archiver classes
+
+2016-08-30  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add StreamingWalArchiver._is_synchronous()
+	Make code clearer and easier to read by encapsulating
+	checks for synchronous replication in a separate method
+	of the StreamingWalArchiver class. Make code more resilient
+	by checking that PostgreSQL connection is working.
+
+2016-08-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Introduce the CopyController module for backup
+	This patch adds a new module called copy_controller.py.
+
+	The new module is responsible for containing the logic of
+	a physical copy of for a backup, starting with basic
+	rsync support.
+
+	This patch is a refactor of the existing code, with
+	no additional functionality yet. Only backup executor
+	is using this class for now.
+
+2016-08-30  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix exception in 'check' when postgres is unreachable
+	The check method of PostgresBackupExecutor and ConcurrentBackupStrategy
+	objects were raising an exception if PostgreSQL connection was not
+	working.
+
+	This commit fixes this behaviour by correctly handling this case.
+
+2016-08-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Set default value of 'archiver' to 'off'
+	This is a milestone in Barman's history as it
+	removes the need for standard WAL archiving through
+	the `archive_command` configuration option in
+	PostgreSQL (even though it is still recommended
+	to use it in conjunction with WAL streaming, for
+	more robust architectures).
+
+	**IMPORTANT**: When upgrading from 1.X.X versions
+	of Barman to 2.X versions, users must explicitly add
+	`archiver = on` (either globally or at server level).
+
+	Created configuration templates for streaming and Ssh use cases
+
+2016-08-24  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Enable streaming-only archiver with replication slots
+	Remove the previous restriction that required standard WAL archiver
+	(`archiver=on`) to be always present. Allow a server to operate
+	with just WAL streaming if a replication slot is set (PostgreSQL
+	9.4 or higher is required). Replication slots make sure that every
+	WAL file is streamed to the Barman server.
+
+	Basic checks have been implemented at configuration level, requiring
+	`streaming_archiver=on` and a `slot_name` if `archiver=off`.
+
+2016-08-25  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Improve replication slot error messages
+	Barman didn't catch connection related exceptions in the
+	`receive-wal` subcommand while creating and deleting a replication
+	slot.
+
+	This patch fixes that and reports to the user the connection error,
+	avoiding to print a stack trace.
+
+	This commit also adds a specific error message in case of drop of a
+	replication slot that is currently in use.
+
+2016-08-23  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Manage 'all replication slots are in use' error during slot creation
+	Display an informative message to the user instead of a raw exception
+	when the PostgreSQL's max_replication_slots setting is too low.
+
+2016-08-23  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Improve replication slot related messages
+	This patch improves the replicaiton slot creation and drop messages
+	quoting the names of the servers and of the replication slots.
+
+2016-08-23  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix error messages during create and drop of replication slots
+	Modified error message emitted in case of an already existing
+	replication slot during the execution of receive-wal --create-slot.  the
+	message have been changed to error from info, replicating the behaviour
+	of pg_receivexlog. Now, in case on error, the barman process exit code
+	will be 1.
+
+	The error message emitted during the execution of the receive-wal
+	--drop-slot in case of a not existing replication slot have been changed
+	to error as well.
+
+2016-08-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Set version to 2.0 alpha 1
+	Anticipating PostgreSQL's new versioning system kicking in
+	from version 10.0, development team has decided to adopt the same
+	policy to Barman's versioning system starting from version 2.0.
+
+	The development team has also decided that this version deserves
+	to be 2.0 due to the scope of the new features that will be introduced,
+	in particular streaming-only backup and "zero data loss" backups.
+
+2016-08-23  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Improve error messages for receive-wal subcommand
+	Error messages for the receive-wal subcommands were incoherent and this
+	patch improves them, using a common form.
+
+	In addition to that, the availability of the 'slot_name' configuration
+	parameter was checked before the server version, making that check
+	useless if the PostgreSQL server version has no support for replication
+	slots.
+
+2016-08-20  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Support zero data loss backup (synchronous WAL streaming)
+	Automatically start `pg_receivexlog` with `--synchronous`
+	if the following conditions are met:
+
+	- WAL streaming is active (see `streaming_archiver` and
+	  `streaming_conninfo`)
+	- the WAL streamer application name (see `streaming_archiver_name`)
+	  is in the `synchronous_standby_names` priority list of the PostgreSQL
+	  server (which defines the synchronous standby servers)
+	- PostgreSQL server 9.4 or higher
+	- pg_receivexlog 9.5 or higher
+
+	This feature allows a Barman backup solution to act like a
+	synchronous standby server in a PostgreSQL business continuity
+	cluster, bringing RPO=0 backups (zero data loss).
+	Currently, RPO=0 requires a replication slot to be properly configured
+	(see `slot_name`).
+
+2016-08-23  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix exception during `barman diagnose`
+	Barman diagnose was trying to serialize a LooseVersion object to the
+	JSON stream, which is not serializable by default.
+
+	This patch add the support for (Loose|Strict)Version objects to the
+	BarmanEncoder object treting them as a string.
+
+2016-08-22  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix archiver by catching ENOENT exception
+	Fixed a corner-case error that could occour when an unexpected
+	file (e.g. .partial file) was not found anymore by the archiver
+	process while trying to move it in the errors directory.
+
+	This commit also makes logging messages easier to read.
+
+2016-08-17  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add support for replication slots in `receive-wal` command
+	If `slot_name` option is set and `streaming_archiver` is enabled, the
+	`receive-wal` command will use the given replication slot to ensure
+	that no WAL file is lost before its archival.
+
+	The `check` command will monitor the status of the configured slot
+	on the PostgreSQL side, accordingly with the value of the
+	`streaming_archiver` option: if `streaming_archiver` is on, it will make
+	sure that the slot exists and it is used, otherwise it will warn the
+	user in case a stale slot is found.
+
+2016-08-19  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix directory permissions when backup_method=postgres
+	This patch fixes how pg_basebackup manages the permissions of
+	the destination directory of a backup on the barman server,
+	forcing 0700 at creation time.
+	The same rights are applied to the destination directory of every
+	tablespace copied.
+
+	Fix misleading message on pg_receivexlog termination
+	In case of termination of the pg_receivexlog subprocess using a signal,
+	a misleading entry was written in the log file.
+
+	This patch improves the error message.
+
+2016-08-13  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Introduce batch size for WAL archiving
+	Previously, the `archive-wal` command would scan the
+	incoming directories for both standard and streaming archiving
+	and then process all the available WAL files in one single
+	run.
+
+	While this remains the default behaviour, two global/server
+	options have been added to Barman: `archiver_batch_size` and
+	`streaming_archiver_batch_size`.
+
+	The first controls the batch size for the `archiver` process,
+	the latter for the `streaming_archiver` process.
+	The default value is 0, meaning unlimited batch (traditional
+	behaviour in Barman). A value greater than 0 would trigger
+	batch processing of WAL archiving in Barman, limiting a single
+	run of `archive-wal` for the specific incoming queue (file archival
+	or streaming) to that value.
+
+	For example, setting `archiver_batch_size` to `10` would allow
+	the `archive_wal` command to stop after processing a maximum of
+	10 WAL segments from `archive_command` in the same run (assuming
+	`archiver` is enabled). In those contexts where `streaming_archiver`
+	is enabled, setting `streaming_archiver_batch_size` to `10` would
+	reach the same goal for WAL segments that have been streamed to
+	Barman.
+
+	These settings should be tuned based on the server's workload
+	and the frequency of the `barman cron`. A more distributed
+	WAL processing certainly reduces the probability of xlog.db
+	locking (be careful not to set these value too low - the risk
+	is that your Barman server stays behind the server's WAL production).
+
+	Renamed WalArchiverBatch class into a more appropriate WalArchiverQueue.
+
+2016-08-02  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add to receive-wal the '--drop-slot' option
+	This patch adds to the 'receive-wal' Barman subcommand a '--drop-slot'
+	option. That option drop the replication slot named in the 'slot_name'
+	configuration parameter.
+
+	The patch also adds the relative documentation to the Barman man
+	page in the section 1.
+
+	TODO: section in the tutorial that explains replication slots
+
+2016-07-30  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add to receive-wal the '--create-slot' option
+	This patch adds to the 'receive-wal' Barman subcommand a
+	'--create-slot' option that creates a replication slot using the
+	PostgreSQL streaming connection.
+
+	The patch also adds the relative documentation to the Barman man page
+	in the section 1.
+
+	TODO: section in the tutorial that explains replication slots
+
+2016-08-12  Leonardo Cecchi  <leonardo.cecchi@2ndQuadrant.it>
+
+	Correctly handle history files from streaming
+	Since 9.3, `pg_receivexlog` follows timeline switches and creates
+	appropriate `.history` files when needed. Previous implementation
+	in Barman of WAL archiving from streaming connections erroneously
+	skipped history files and treated them as errors.
+	This patch fixes this behaviour.
+
+2016-08-04  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Avoid to lock XLOGDB while checking if WAL archiving is set up
+	The patch avoid to take a lock during the checking of the WAL
+	archiving setup.
+
+	This is important for invocations of `barman check` to work correctly
+	even when there are long activities on the XLOGDB file, i.e. when the
+	archive process is managing many WAL files.
+
+2016-07-29  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix flake8 version for Unit Tests
+
+2016-07-28  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Check tablespace-mapping option in pg_basebackup
+	With `postgres` backup method, tablespaces are supported only
+	for PostgreSQL servers 9.3 or higher and pg_basebackup 9.4 or higher.
+
+	The reason is that pg_basebackup supports the `tablespace-mapping`
+	option only from 9.4, and this option is needed in case there are
+	tablespaces in the server. Given that pg_basebackup 9.4 is not
+	compatible with PostgreSQL 9.1 and 9.2, these versions are not
+	supported in case of tablespace presence.
+
+	This patch adds a check for this scenario, providing users with
+	warnings and preventing them from starting a backup in case
+	the aforementioned requirements are not met.
+
+	Documentation has been modified accordingly.
+
+2016-07-19  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add the `slot_name` configuration parameter
+	Setting the `slot_name` parameter on a server running at least
+	PostgreSQL 9.4 will enable the usage of a physical replication slot
+	to track the position of the `receive-wal` process.
+
+2016-07-19  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Cosmetic changes in barman-wal-restore.py help page
+
+2016-07-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add a check for spurious messages in ssh_command output
+	The aim of this check is to early detect potential communication
+	problems through the configured ssh_command.
+
+	For example, if the login script on the PostgreSQL server outputs
+	any messages, this additional output could confuse Barman and
+	therefore trigger random backup failures.
+
+2016-07-13  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Fix replication-status command on PostgreSQL 9.1
+	Barman was using the `pg_xlog_location_diff` function to calculate the
+	difference in bytes between the master and the standby xlog locations.
+	As `pg_xlog_location_diff` is available only from PostgreSQL 9.2, the
+	`replication-status` command wasn't working on PostgreSQL 9.1.
+
+	Adds the diff_lsn function to calculate the difference between
+	two xlog locations.
+
+	Fixes #45
+
+2016-07-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	9.6 backup API support improvement
+	PostgreSQL 9.6 provides functions to read the control file,
+	so we can avoid parsing the backup_label to know the current
+	timeline.
+
+2016-06-16  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support backup from standby
+	This commit allows to backup standby servers using rsync or the new
+	PostgreSQL 9.6 backup API.
+
+	Allow invoking current_xlog_info on standby servers
+	Previously, `pg_current_xlog_location` was used to get the current
+	transaction log location, but this function can't be used on a standby
+	server. Now the code checks the server type and use
+	`pg_last_xlog_replay_location` if the server is in recovery mode.
+
+	Uniform backup_label parsing
+	The backup_label file was previouly parsed in multiple places of code.
+	This code has been moved in a dedicated method.
+
+2016-05-30  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add support for concurrent backups with PostgreSQL 9.6
+	As of version 9.6 PostgreSQL support concurrent backups natively.
+	Add support to the new API, using new calls for concurrent
+	backups. Users from PostgreSQL 9.2 to 9.5 can continue using
+	the pgespresso extension.
+
+	Code has been refactored accordingly.
+
+2016-06-14  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Introduce PostgreSQLClient base class
+	Refactor the PgBaseBackup and PgReceiveXlog classes, by moving common
+	code in the PostgreSQLClient base class.
+
+	Add PgBasebackup class unit tests.
+
+2016-06-16  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix flake8 problem in tox
+	See: https://github.com/gforcada/flake8-isort/issues/9
+
+2016-06-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Refine the logic to detect unused WAL files.
+	When multiple timelines are present in the archive, avoid purging
+	WAL files that could be used by a backup on a different timeline.
+
+2016-06-13  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Store detailed backup mode in backup.info file
+	The `mode` field is present since long time, but before was always set
+	to `default`.
+
+	From now on, the `mode` field contains a descriptive string that shows
+	the type of executor involved in the backup (rsync/postgres) and, if
+	present, the strategy of the backup executor (exclusive/concurrent)
+
+2016-06-03  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add a warning message to show-backup checking timelines
+	If after a backup there is a timeline switch, the "Last WAL" field from
+	the show-backup subcommand will show the last available WAL on the
+	timeline on which the backup was taken and not the last archived one.
+	This behaviour, while it's correct, can confuse the user.
+
+	Now barman handles such situation and emits a warning if there is more
+	than one timeline reachable from the displayed backup.
+
+2016-06-10  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fix replication-status with no sent and write locations
+
+	Fix bug with reuse_backup and backup_method=postgres
+
+2016-06-09  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add `streaming_backup_name` option
+	When `backup_method` is set to `postgres`, the `streaming_backup_name`
+	option sets the `application_name` of the managed `pg_basebackup`
+	connection, improving monitoring of backups taken using `pg_basebackup`.
+
+	By default, `streaming_backup_name` is set to `barman_streaming_backup`.
+
+	Available for PostgreSQL 9.3 and above.
+
+2016-06-05  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Refine documentation and messages
+
+2016-06-03  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Change psycopg2 cursor type to DictCursor
+	Instruct the cursor object to use DictCursor objects to manage the
+	results of the execute commands.
+
+	Update calling methods accordingly.
+
+2016-05-31  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Move exceptions in a dedicated module
+	Exceptions have been moved in a dedicated `exceptions` module and
+	organised into a hierarchy.
+
+2016-03-30  Stefano Bianucci  <stefano.bianucci@2ndquadrant.it>
+
+	Base backups through PostgreSQL streaming replication
+	Enable 'streamrep' only base backups with `backup_method=postgres`
+	configuration option (global/server). Requires a valid streaming
+	replication connection.
+
+	Barman's implementation relies on `pg_basebackup`, therefore the
+	following limitations apply:
+
+	- `bandwidth_limit` is available with `pg_basebackup` >= 9.4 only
+	- `network_compression`, `reuse_backup` and `tablespace_bandwidth_limit`
+	  are not supported
+	- configuration files outside PGDATA are not copied
+
+2016-05-30  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add contrib/barman-wal-restore.py
+	Python version of the WAL restore script to be used as
+	'restore_command' for recovery or fallback method with standby
+	servers. This script invokes 'barman get-wal' through
+	a secure shell channel, and supports also parallel fetching
+	of WAL files (requires Barman 1.6.1+).
+
+	Requires argparse. Supersedes barman-wal-restore for bash.
+
+2016-05-27  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Limit the maximum execution time of 'barman check' command
+	Add a configurable timeout for the execution of the 'barman check'
+	command. It limits the maximum execution time to 30 seconds per server
+	by default. The user can change this value using the 'check_timeout'
+	configuration parameter.
+
+2016-05-18  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add version properties to PostgreSQL base class
+	Add server_txt_version and server_major_version properties to the
+	PostgreSQL class to quickly retrieve the major version of the PostgreSQL
+	server.
+
+	Refactor current_xlog_* properties in PostgreSQLConnection
+	Introduce the current_xlog_info property that returns detailed info
+	about current xlog location.
+
+	Rename current_xlog property as current_xlog_file_name.
+
+	Now current_xlog_file_name and current_xlog_location properties have
+	been reimplemented and now they call current_xlog_info.
+
+	Generalise DataTransferFailure exception
+	A DataTransferFailure exception is not necessarily related to rsync only.
+	Make it generic by accepting the command name as argument in the
+	from_command_error factory method.
+
+	Extract _purge_unused_wal_files method from SshBackupExecutor
+	For reuse purposed, the code responsible for removing unused wal files
+	in the backup method of SshBackupExecutor has been extracted.
+	A new method called _purge_unused_wal_files is now part of the base class.
+
+2016-05-11  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Use UnixRemoteCommand to execute remote operations
+	When execute operation on remote server use UnixRemoteCommand instead of
+	manually build an ssh Command.
+
+	Some pre-existing UnixRemoteCommand invocations have also been fixed to
+	honour the path_prefix setting.
+
 2016-05-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Set version to 1.6.2a1
 
 	Update the ChangeLog file
 
