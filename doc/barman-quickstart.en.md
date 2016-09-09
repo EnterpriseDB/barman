@@ -1,6 +1,6 @@
 % Quickstart
 % 2ndQuadrant Italia
-% Month DD, 2016 (v2.0a1)
+% September 9, 2016 (v2.0a1)
 
 > **IMPORTANT:** This quickstart guide needs to be rewritten
 > for Barman 2.0 before the first stable release is out.
