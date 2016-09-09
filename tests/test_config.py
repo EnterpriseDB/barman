@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 from datetime import timedelta
 
 import mock
@@ -34,7 +33,7 @@ except ImportError:
 MINIMAL_CONFIG = """
 [barman]
 barman_home = /some/barman/home
-barman_user = {USER}
+barman_user = barman
 log_file = %(barman_home)s/log/barman.log
 [main]
 archiver = on
@@ -88,7 +87,7 @@ class TestConfig(object):
         """
         Test parsing of a config file
         """
-        fp = StringIO(TEST_CONFIG.format(**os.environ))
+        fp = StringIO(TEST_CONFIG)
         c = Config(fp)
         dbs = c.server_names()
         assert set(dbs) == set(['main', 'web'])
@@ -112,7 +111,7 @@ class TestConfig(object):
         """
         Test for a basic configuration object construction
         """
-        fp = StringIO(TEST_CONFIG.format(**os.environ))
+        fp = StringIO(TEST_CONFIG)
         c = Config(fp)
 
         main = c.get_server('main')
@@ -161,7 +160,7 @@ class TestConfig(object):
         """
         Test quotes management during configuration parsing
         """
-        fp = StringIO(MINIMAL_CONFIG.format(**os.environ))
+        fp = StringIO(MINIMAL_CONFIG)
         c = Config(fp)
         main = c.get_server('main')
         assert main.description == ' Text with quotes '
@@ -172,7 +171,7 @@ class TestConfig(object):
         """
         Basic interpolation test
         """
-        fp = StringIO(MINIMAL_CONFIG.format(**os.environ))
+        fp = StringIO(MINIMAL_CONFIG)
         c = Config(fp)
         main = c.get_server('main')
 
