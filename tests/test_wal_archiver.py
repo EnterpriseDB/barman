@@ -903,10 +903,10 @@ class TestStreamingWalArchiver(object):
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
         assert out == \
-               "\tpg_receivexlog: OK\n" \
-               "\tpg_receivexlog compatible: FAILED " \
-               "(PostgreSQL version: Unknown, pg_receivexlog version: None)\n" \
-               "\treceive-wal running: OK\n"
+            "\tpg_receivexlog: OK\n" \
+            "\tpg_receivexlog compatible: FAILED " \
+            "(PostgreSQL version: Unknown, pg_receivexlog version: None)\n" \
+            "\treceive-wal running: OK\n"
 
     @patch('barman.wal_archiver.glob')
     @patch('os.path.isfile')
