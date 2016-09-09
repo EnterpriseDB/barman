@@ -1,7 +1,67 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
-Version 1.6.1 - 23 May 2016
+Version 2.0a1 - 9 Sep 2016
+
+-   Support for pg_basebackup and base backups over the PostgreSQL
+    streaming replication protocol with backup_method=postgres
+    (PostgreSQL 9.1 or higher required)
+
+-   Support for physical replication slots through the slot_name
+    configuration option as well as the --create-slot and --drop-slot
+    options for the receive-wal command (PostgreSQL 9.4 or higher
+    required). When slot_name is specified and streaming_archiver is
+    enabled, receive-wal transparently integrates with pg_receivexlog,
+    and check makes sure that slots exist and are actively used
+
+-   Support for the new backup API introduced in PostgreSQL 9.6, which
+    transparently enables concurrent backups and backups from standby
+    servers using the standard rsync method of backup. Concurrent backup
+    was only possible for PostgreSQL 9.2 to 9.5 versions through the
+    pgespresso extension. The new backup API will make pgespresso
+    redundant in the future in this context
+
+-   If properly configured, Barman can be configured as a synchronous
+    standby in terms of WAL streaming. By properly setting the
+    streaming_archiver_name in the synchronous_standby_names priority
+    list on the master, and enabling replication slot support, the
+    receive-wal command can now be part of a PostgreSQL synchronous
+    replication cluster, bringing RPO=0 (PostgreSQL 9.5.5 or
+    higher required).
+
+-   Introduce barman-wal-restore, a standard and robust script written
+    in Python that can be used as restore_command in recovery.conf files
+    of any standby server of a cluster. It supports remote parallel
+    fetching of WAL files by efficiently invoking get-wal through Ssh.
+    Currently available as a contrib script
+
+-   Control the maximum execution time of the check command through the
+    check_timeout global/server configuration option (30 seconds
+    by default)
+
+-   Limit the number of WAL segments that are processed by an
+    archive-wal run, through the archiver_batch_size and
+    streaming_archiver_batch_size global/server options which control
+    archiving of WAL segments coming from, respectively, the standard
+    archiver and receive-wal
+
+-   Removed locking of the XLOG database during check operations
+
+-   The show-backup command is now aware of timelines and properly
+    displays which timelines can be used as recovery targets for a given
+    base backup. Internally, Barman is now capable of parsing
+    .history files.
+
+-   Code refactoring involving remote command and physical copy
+    interfaces
+
+-   Bug fixes:
+
+    -   Correctly handle .history files from streaming
+    -   Fix replication-status on PostgreSQL 9.1
+    -   Fix replication-status when sent and write locations are not
+        available
+    -   Fix misleading message on pg_receivexlog termination
 
 -   Add --peek option to get-wal command to discover existing WAL files
     from the Barman's archive
