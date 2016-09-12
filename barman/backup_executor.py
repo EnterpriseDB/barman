@@ -934,31 +934,29 @@ class RsyncBackupExecutor(SshBackupExecutor):
         )
 
         # Copy configuration files (if not inside PGDATA)
-        for key in ('config_file', 'hba_file', 'ident_file'):
-            cf = getattr(backup_info, key, None)
-            if cf:
-                # Consider only those that reside outside of the original
-                # PGDATA directory
-                if cf.startswith(backup_info.pgdata):
-                    _logger.debug("Config file '%s' already in PGDATA",
-                                  cf[len(backup_info.pgdata)+1:])
-                    continue
+        external_config_files = backup_info.get_external_config_files()
+        included_config_files = []
+        for config_file in external_config_files:
+            # Add included files to a list, they will be handled later
+            if config_file.file_type == 'include':
+                included_config_files.append(config_file)
+                continue
 
-                # If the ident file is missing, it isn't an error condition
-                # for PostgreSQL.
-                # Barman is consistent with this behavior.
-                optional = False
-                if key == 'ident_file':
-                    optional = True
+            # If the ident file is missing, it isn't an error condition
+            # for PostgreSQL.
+            # Barman is consistent with this behavior.
+            optional = False
+            if config_file.file_type == 'ident_file':
+                optional = True
 
-                # Create the actual copy jobs in the controller
-                controller.add_file(
-                    label=key,
-                    src=':%s' % cf,
-                    dst=backup_dest,
-                    optional=optional,
-                    item_class=controller.CONFIG_CLASS,
-                )
+            # Create the actual copy jobs in the controller
+            controller.add_file(
+                label=config_file.file_type,
+                src=':%s' % config_file.path,
+                dst=backup_dest,
+                optional=optional,
+                item_class=controller.CONFIG_CLASS,
+            )
 
         # Execute the copy
         try:
@@ -973,20 +971,14 @@ class RsyncBackupExecutor(SshBackupExecutor):
         # Currently, include directives are not supported for files that
         # reside outside PGDATA. These files must be manually backed up.
         # Barman will emit a warning and list those files
-        if backup_info.included_files:
-            filtered_files = [
-                included_file
-                for included_file in backup_info.included_files
-                if not included_file.startswith(backup_info.pgdata)
-            ]
-            if len(filtered_files) > 0:
-                output.warning(
-                    "The usage of include directives is not supported "
-                    "for files that reside outside PGDATA.\n"
-                    "Please manually backup the following files:\n"
-                    "\t%s\n",
-                    "\n\t".join(filtered_files)
-                )
+        if any(included_config_files):
+            output.warning(
+                "The usage of include directives is not supported "
+                "for files that reside outside PGDATA.\n"
+                "Please manually backup the following files:\n"
+                "\t%s\n",
+                "\n\t".join(icf.path for icf in included_config_files)
+            )
 
     def _reuse_path(self, previous_backup_info, tablespace=None):
         """
@@ -1273,10 +1265,14 @@ class PostgresBackupStrategy(BackupStrategy):
             # Skip switching XLOG if a standby server
             pass
 
-        # TODO: display this warning only if needed
-        output.warning("pg_basebackup does not copy the PostgreSQL "
-                       "configuration files that reside outside PGDATA. "
-                       "Those configuration files must be copied manually.")
+        # Check for the presence of configuration files outside the PGDATA
+        external_config = backup_info.get_external_config_files()
+        if any(external_config):
+            output.warning("pg_basebackup does not copy the PostgreSQL "
+                           "configuration files that reside outside PGDATA. "
+                           "Please manually backup the following files:\n"
+                           "\t%s\n",
+                           "\n\t".join(ecf.path for ecf in external_config))
 
 
 class ExclusiveBackupStrategy(BackupStrategy):

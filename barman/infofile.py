@@ -27,9 +27,12 @@ from barman import xlog
 from barman.compression import identify_compression
 from barman.exceptions import BackupInfoBadInitialisation
 
-# create a namedtuple object called Tablespace with 'name' 'oid' and 'location'
+# Named tuple representing a Tablespace with 'name' 'oid' and 'location'
 # as property.
 Tablespace = collections.namedtuple('Tablespace', 'name oid location')
+
+# Named tuple representing a file 'path' with an associated 'file_type'
+TypedFile = collections.namedtuple('ConfFile', 'file_type path')
 
 _logger = logging.getLogger(__name__)
 
@@ -574,6 +577,36 @@ class BackupInfo(FieldListFile):
                 path.extend(('pg_tblspc', str(tablespace_oid)))
         # Return the built path
         return os.path.join(*path)
+
+    def get_external_config_files(self):
+        """
+        Identify all the configuration files that reside outside the PGDATA.
+
+        Returns a list of TypedFile objects.
+
+        :rtype: list[TypedFile]
+        """
+
+        config_files = []
+        for file_type in ('config_file', 'hba_file', 'ident_file'):
+            config_file = getattr(self, file_type, None)
+            if config_file:
+                # Consider only those that reside outside of the original
+                # PGDATA directory
+                if config_file.startswith(self.pgdata):
+                    _logger.debug("Config file '%s' already in PGDATA",
+                                  config_file[len(self.pgdata) + 1:])
+                    continue
+                config_files.append(TypedFile(file_type, config_file))
+        # Check for any include directives in PostgreSQL configuration
+        # Currently, include directives are not supported for files that
+        # reside outside PGDATA. These files must be manually backed up.
+        # Barman will emit a warning and list those files
+        if self.included_files:
+            for included_file in self.included_files:
+                if not included_file.startswith(self.pgdata):
+                    config_files.append(TypedFile('include', included_file))
+        return config_files
 
     def get_filename(self):
         """

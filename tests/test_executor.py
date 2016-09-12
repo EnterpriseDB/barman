@@ -640,8 +640,14 @@ class TestPostgresBackupExecutor(object):
             'barman_home': tmp_home.strpath,
             'backup_method': 'postgres'
         })
-        backup_info = BackupInfo(backup_manager.server,
-                                 backup_id='fake_backup_id')
+        backup_info = build_test_backup_info(
+            backup_id='fake_backup_id',
+            server=backup_manager.server,
+            pgdata="/pg/data",
+            config_file="/pg/data/postgresql.conf",
+            hba_file="/pg/data/pg_hba.conf",
+            ident_file="/pg/pg_ident.conf",
+            begin_offset=28)
         timestamp = datetime.datetime(2015, 10, 26, 14, 38)
         backup_manager.server.postgres.current_xlog_info = dict(
             location='0/12000090',
@@ -649,7 +655,7 @@ class TestPostgresBackupExecutor(object):
             file_offset=144,
             timestamp=timestamp,
         )
-
+        backup_manager.server.postgres.get_setting.return_value = '/pg/data'
         tmp_backup_label = tmp_home.mkdir('main')\
             .mkdir('base').mkdir('fake_backup_id')\
             .mkdir('data').join('backup_label')
@@ -668,8 +674,9 @@ class TestPostgresBackupExecutor(object):
         gpb_mock.assert_called_once_with(backup_info.backup_id)
         assert err.strip() == 'WARNING: pg_basebackup does not copy ' \
                               'the PostgreSQL configuration files that '\
-                              'reside outside PGDATA. Those configuration '\
-                              'files must be copied manually.'
+                              'reside outside PGDATA. ' \
+                              'Please manually backup the following files:' \
+                              '\n\t/pg/pg_ident.conf'
         assert 'Copying files.' in out
         assert 'Copy done.' in out
         assert 'Finalising the backup.' in out
