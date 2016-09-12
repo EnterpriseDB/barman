@@ -423,14 +423,22 @@ def show_server(args):
     """
     Show all configuration parameters for the specified servers
     """
-    servers = get_server_list(args, skip_inactive=True)
+    servers = get_server_list(args)
     for name in sorted(servers):
         server = servers[name]
 
         # Skip the server (apply general rule)
-        if not manage_server_command(server, name):
+        if not manage_server_command(
+                server, name, skip_inactive=False,
+                skip_disabled=False, disabled_is_error=False):
             continue
 
+        # If the server has been manually disabled
+        if not server.config.active:
+            name += " (inactive)"
+        # If server has configuration errors
+        elif server.config.disabled:
+            name += " (WARNING: disabled)"
         output.init('show_server', name)
         with closing(server):
             server.show()
