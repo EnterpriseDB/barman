@@ -799,7 +799,7 @@ class PgBaseBackup(PostgreSQLClient):
             check=check, **kwargs)
 
         # Set the backup destination
-        self.args += ['-v', '--pgdata=%s' % destination]
+        self.args += ['-v', '--no-password', '--pgdata=%s' % destination]
 
         # The tablespace mapping option is repeated once for each tablespace
         if tbs_mapping:
@@ -863,6 +863,7 @@ class PgReceiveXlog(PostgreSQLClient):
         self.args += [
             "--verbose",
             "--no-loop",
+            "--no-password",
             "--directory=%s" % destination]
 
         # Add the replication slot name if set in the configuration.

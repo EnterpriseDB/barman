@@ -877,6 +877,7 @@ class TestPgBaseBackup(object):
         assert pgbasebackup.args == [
             "--dbname=test_conn",
             "-v",
+            "--no-password",
             '--pgdata=/fake/path']
         assert pgbasebackup.cmd == 'pg_basebackup'
         assert pgbasebackup.check is True
@@ -899,6 +900,7 @@ class TestPgBaseBackup(object):
             "--port=fake_port",
             "--username=fake_user",
             "-v",
+            "--no-password",
             '--pgdata=/fake/target']
 
         which_mock.return_value = None
@@ -926,6 +928,7 @@ class TestPgBaseBackup(object):
         assert pg_basebackup.args == [
             "--dbname=test_connstring",
             "-v",
+            "--no-password",
             "--pgdata=/dest/dir",
             "a",
             "b",
@@ -962,6 +965,7 @@ class TestPgBaseBackup(object):
 
         popen.assert_called_with(
             ['pg_basebackup', '--dbname=fake_connstring', '-v',
+             '--no-password',
              '--pgdata=/fake/target'],
             close_fds=True,
             env=None,
@@ -1001,6 +1005,7 @@ class TestReceiveXlog(object):
             "--dbname=test_conn",
             "--verbose",
             "--no-loop",
+            "--no-password",
             "--directory=/fake/target"
         ]
         assert receivexlog.cmd == 'pg_receivexlog'
@@ -1025,6 +1030,7 @@ class TestReceiveXlog(object):
             "--username=fake_user",
             "--verbose",
             "--no-loop",
+            "--no-password",
             "--directory=/fake/target"
         ]
 
@@ -1045,6 +1051,7 @@ class TestReceiveXlog(object):
             "--dbname=test_connstring",
             "--verbose",
             "--no-loop",
+            "--no-password",
             "--directory=/dest/dir",
             "a",
             "b",
@@ -1081,7 +1088,10 @@ class TestReceiveXlog(object):
         popen.assert_called_with(
             ['pg_receivexlog',
              "--dbname=fake_connstring",
-             '--verbose', '--no-loop', '--directory=/fake/target'],
+             '--verbose',
+             '--no-loop',
+             "--no-password",
+             '--directory=/fake/target'],
             close_fds=True,
             shell=False, env=None,
             stdout=PIPE, stderr=PIPE, stdin=PIPE,
