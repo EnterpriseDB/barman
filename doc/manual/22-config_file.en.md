@@ -4,18 +4,25 @@ Create a new file, called `pg.conf`, in `/etc/barman.d` directory, with the foll
 
 ``` ini
 [pg]
-active = false
 description =  "Our main PostgreSQL server"
-conninfo = host=pg user=barman database=postgres
+conninfo = host=pg user=barman dbname=postgres
+backup_method = postgres
+# backup_method = rsync
 ```
 
-The `active = false` line temporarily disables this server during maintenance operations triggered by the `barman cron` command, allowing you to continue with the configuration.
+The `conninfo` option is set accordingly to the section _"Preliminary
+steps: PostgreSQL connection"_.
 
-The `conninfo` option is set accordingly to the section _"Preliminary steps: PostgreSQL connection"_.
+The meaning of the `backup_method` option will be covered in the
+backup section of this guide.
 
-<!-- TODO
+If you plan to use the streaming connection for WAL archiving or to
+create a backup of your server, you also need a `streaming_conninfo`
+parameter in your server configuration file:
 
-- Execute barman check to create dirs?
-- Execute barman show-server to get information about incoming directory for WAL archiving
+``` ini
+streaming_conninfo = host=pg user=streaming_barman dbname=postgres
+```
 
--->
+This value must be choosen accordingly as described in the section
+_"Preliminary steps: PostgreSQL connection"_.

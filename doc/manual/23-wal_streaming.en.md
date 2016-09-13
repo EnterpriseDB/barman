@@ -1,26 +1,28 @@
 ## WAL streaming
 
-Barman can reduces Recovery Point Objective (RPO) by allowing users to add, on top of the standard `archive_command` strategy, continuous WAL streaming from a PostgreSQL server.
+Barman can reduce the Recovery Point Objective (RPO) by allowing users
+to add continuous WAL streaming from a PostgreSQL server, on top of
+the standard `archive_command` strategy
 
-Barman relies on [`pg_receivexlog`] [25], a utility that is available
-from PostgreSQL 9.2 which exploits the native streaming replication protocol
-and continuously receives transaction logs from a PostgreSQL
-server (be it a master or a standby).
+Barman relies on [`pg_receivexlog`] [25], a utility that has been
+available from PostgreSQL 9.2 which exploits the native streaming
+replication protocol and continuously receives transaction logs from a
+PostgreSQL server (master or standby).
 
 > **Important:**
-> Barman requires that `pg_receivexlog` is installed in the same server.
-> For PostgreSQL 9.2 servers, you need `pg_receivexlog` of version 9.2
-> installed alongside with Barman. For PostgreSQL 9.3 and above, it is
-> recommended to install the latest available version of `pg_receivexlog`,
-> as it is back compatible.
-> Otherwise, users can install multiple versions of `pg_receivexlog` in the
-> Barman server and properly point to the specific version for a server,
-> using the `path` option in the configuration file.
+> Barman requires that `pg_receivexlog` is installed on the same
+> server.  For PostgreSQL 9.2 servers, you need `pg_receivexlog` of
+> version 9.2 installed alongside Barman. For PostgreSQL 9.3 and
+> above, it is recommended to install the latest available version of
+> `pg_receivexlog`, as it is back compatible.  Otherwise, users can
+> install multiple versions of `pg_receivexlog` on the Barman server
+> and properly point to the specific version for a server, using the
+> `path` option in the configuration file.
 
 In order to enable streaming of transaction logs, you need to:
 
-1. setup a streaming connection, as previously described;
-2. set the `streaming_archiver` option to `on`.
+1. setup a streaming connection as previously described
+2. set the `streaming_archiver` option to `on`
 
 The `cron` command, if the aforementioned requirements are met,
 transparently manages log streaming through the execution of the
@@ -45,10 +47,58 @@ of the WAL streamer process to `barman_receive_wal`, allowing you to
 monitor its status in the `pg_stat_replication` system view of the
 PostgreSQL server.
 
+
 ### Replication slots
 
-**TODO:**
+> **Important:** replication slots are available since PostgreSQL 9.4
 
-- Explain how to configure replication slots, how to create them, etc.
-- Mention streaming-only scenarios
+Replication slots are an automated way to ensure that the PostgreSQL
+server will not remove WAL files until they were received by all
+archivers. Barman uses this mechanism to receive the transaction logs
+from PostgreSQL.
+
+You can find more information about replication slots in the
+[PostgreSQL manual][replication-slots].
+
+You can even base your backup architecture on streaming connection
+only. This scenario is useful to configure Docker-based PostgreSQL
+servers and even to work with PostgreSQL servers running on Windows.
+
+In this moment, the Windows support is still experimental, as it is
+not yet part of our continuous integration system.
+
+[replication-slots]: https://www.postgresql.org/docs/9.4/static/warm-standby.html#STREAMING-REPLICATION-SLOTS
+
+
+### How to configure the WAL streaming
+
+First, the PostgreSQL server must be configured to stream the
+transaction log files to the Barman server.
+
+To configure the streaming connection from Barman to the PostgreSQL
+server you need to enable the `streaming_archiver`, as already said,
+including this line in the server configuration file:
+
+``` ini
+streaming_archiver = on
+```
+
+Another essential option for the setup of the streaming-based
+transaction log archiving is the `slot_name` option:
+
+``` ini
+slot_name = barman
+```
+
+This option defines the name of the replication slot that will be
+used by Barman and is mandatory.
+
+When you configure the replication slot name, you can create a
+replication slot for Barman with this command:
+
+``` bash
+barman@backup$ barman receive-wal --create-slot pg
+Creating physical replication slot 'barman' on server 'pg'
+Replication slot 'barman' created
+```
 
