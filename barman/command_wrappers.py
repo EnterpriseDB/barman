@@ -192,7 +192,7 @@ class Command(object):
             if not full_path:
                 raise CommandFailedException(
                     '%s not in PATH' % self.cmd)
-            self.cmd = cmd
+            self.cmd = full_path
         # If env_append contains anything, build an env dict to be used during
         # subprocess call, otherwise set it to None and let the subprocesses
         # inherit the parent environment

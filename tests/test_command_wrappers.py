@@ -731,10 +731,8 @@ class TestRsync(object):
 
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
 
-        with mock.patch('os.environ.copy') as which_mock:
-            which_mock.return_value = {}
-            cmd = command_wrappers.Rsync(exclude_and_protect=['foo', 'bar'])
-            result = cmd('src', 'dst')
+        cmd = command_wrappers.Rsync(exclude_and_protect=['foo', 'bar'])
+        result = cmd('src', 'dst')
 
         popen.assert_called_with(
             ['rsync',
@@ -862,8 +860,7 @@ class TestPgBaseBackup(object):
     Simple class for testing of the PgBaseBackup obj
     """
 
-    @mock.patch('barman.utils.which')
-    def test_init_simple(self, which_mock):
+    def test_init_simple(self, which):
         """
         Test class build
         """
@@ -903,7 +900,8 @@ class TestPgBaseBackup(object):
             "--no-password",
             '--pgdata=/fake/target']
 
-        which_mock.return_value = None
+        which.return_value = None
+        which.side_effect = None
         with pytest.raises(CommandFailedException):
             # Expect an exception for pg_basebackup not in path
             command_wrappers.PgBaseBackup(destination='/fake/target',
@@ -912,8 +910,7 @@ class TestPgBaseBackup(object):
                                           version='9.3',
                                           app_name='fake_app_name')
 
-    @mock.patch("barman.utils.which")
-    def test_init_args(self, which_mock):
+    def test_init_args(self):
         """
         Test class build
         """
@@ -940,13 +937,11 @@ class TestPgBaseBackup(object):
         assert pg_basebackup.err_handler
         assert pg_basebackup.out_handler
 
-    @mock.patch("barman.utils.which")
     @mock.patch('barman.command_wrappers.Command.pipe_processor_loop')
     @mock.patch('barman.command_wrappers.subprocess.Popen')
     def test_simple_invocation(self,
                                popen,
                                pipe_processor_loop,
-                               which_mock,
                                caplog):
         ret = 0
         out = 'out'
@@ -955,7 +950,6 @@ class TestPgBaseBackup(object):
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
         connection_mock = mock.MagicMock()
         connection_mock.get_connection_string.return_value = 'fake_connstring'
-        which_mock.return_value = '/bin/pg_basebackup'
         cmd = command_wrappers.PgBaseBackup(
             destination='/fake/target',
             connection=connection_mock,
@@ -989,8 +983,7 @@ class TestReceiveXlog(object):
     Simple class for testing of the PgReceiveXlog obj
     """
 
-    @mock.patch("barman.utils.which")
-    def test_init_simple(self, which_mock):
+    def test_init_simple(self):
         """
         Test class build
         """
@@ -1034,8 +1027,7 @@ class TestReceiveXlog(object):
             "--directory=/fake/target"
         ]
 
-    @mock.patch("barman.utils.which")
-    def test_init_args(self, which_mock):
+    def test_init_args(self):
         """
         Test class build
         """
@@ -1063,13 +1055,11 @@ class TestReceiveXlog(object):
         assert receivexlog.err_handler
         assert receivexlog.out_handler
 
-    @mock.patch("barman.utils.which")
     @mock.patch('barman.command_wrappers.Command.pipe_processor_loop')
     @mock.patch('barman.command_wrappers.subprocess.Popen')
     def test_simple_invocation(self,
                                popen,
                                pipe_processor_loop,
-                               which_mock,
                                caplog):
         ret = 0
         out = 'out'
