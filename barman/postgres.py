@@ -110,7 +110,20 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         :rtype: dict[str,str]
         """
         # TODO: this might be made more robust in the future
-        return dict(x.split('=', 1) for x in dsn.split(' '))
+        return dict(x.split('=', 1) for x in dsn.split())
+
+    @staticmethod
+    def encode_dsn(parameters):
+        """
+        Build a connection string from a dictionary of connection
+        parameters
+
+        :param dict[str,str] parameters: Connection parameters
+        :rtype: str
+        """
+        # TODO: this might be made more robust in the future
+        return ' '.join(
+            ["%s=%s" % (k, v) for k, v in sorted(parameters.items())])
 
     def get_connection_string(self, application_name=None):
         """
@@ -220,9 +233,12 @@ class StreamingConnection(PostgreSQL):
                                                   config.streaming_conninfo)
         # Make sure we connect using the 'replication' option which
         # triggers streaming replication protocol communication
-        if 'replication' not in self.conn_parameters:
-            self.conn_parameters['replication'] = 'true'
-            self.conninfo += ' replication=true'
+        self.conn_parameters['replication'] = 'true'
+        # Override 'dbname' parameter. This operation is required to mimic
+        # the behaviour of pg_receivexlog and pg_basebackup
+        self.conn_parameters['dbname'] = 'replication'
+        # Rebuild the conninfo string from the modified parameter lists
+        self.conninfo = self.encode_dsn(self.conn_parameters)
 
     def connect(self):
         """

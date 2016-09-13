@@ -749,7 +749,7 @@ class StreamingWalArchiver(WalArchiver):
             else:
                 # Otherwise terminated with an error
                 msg = "pg_receivexlog terminated with error code: %s"\
-                      % (self.server.config.name, ret_code)
+                      % ret_code
 
             raise ArchiverFailure(msg)
         except KeyboardInterrupt:

@@ -1225,6 +1225,17 @@ class TestStreamingConnection(object):
         assert "Streaming connection: Missing 'streaming_conninfo' " \
                "parameter for server 'main'" in \
                server.config.msg_list
+        server = build_real_server(main_conf={
+            'streaming_archiver': True,
+            'streaming_conninfo': 'host=/test '
+                                  'port=5496 '
+                                  'user=test '
+                                  'dbname=test_db'})
+        assert server.streaming.conn_parameters['dbname'] == 'replication'
+        assert server.streaming.conninfo == 'dbname=replication ' \
+                                            'host=/test port=5496 ' \
+                                            'replication=true ' \
+                                            'user=test'
 
     @patch('barman.postgres.psycopg2.connect')
     def test_fetch_remote_status(self, conn_mock):
