@@ -110,7 +110,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         :rtype: dict[str,str]
         """
         # TODO: this might be made more robust in the future
-        return dict(x.split('=', 1) for x in dsn.split(' '))
+        return dict(x.split('=', 1) for x in dsn.split())
 
     def get_connection_string(self, application_name=None):
         """
