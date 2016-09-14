@@ -2,41 +2,52 @@
 
 # General commands
 
-**TODO:**
+Barman has many commands and, for the sake of exposition, we can
+organize them by scope.
 
-- Define general commands
-- do an updated inventory of general commands
-- order commands alphabetically
-- Remove all 'From version ...' paragraph. Assume that we start from scratch with 2.0
+The scope of the **general commands** is the entire Barman server,
+that can backup many PostgreSQL servers. **Server commands**, instead,
+act only on a specified server. **Backup commands** work on a backup,
+which is taken from a certain server.
+
+The following list includes the general commands.
 
 
 ## `cron`
 
 You can perform maintenance operations, on both WAL files and backups,
-using the command:
-
+using the `cron` command:
 
 ``` bash
 barman cron
 ```
 
-As of version 1.5.1 `barman cron` executes WAL archiving operations
-concurrently on a server basis.
+> **Note:**
+> This command should be executed in a _cron script_. Our
+> recommendation is to schedule `barman cron` to run every minute.  If
+> you installed Barman using the rpm or debian package, a cron entry
+> running on every minute will be created for you.
 
-This also enforces retention policies on those servers that have:
-
+`barman cron` executes WAL archiving operations concurrently on a
+server basis, and this also enforces retention policies on those
+servers that have:
 
 - `retention_policy` not empty and valid;
 - `retention_policy_mode` set to `auto`.
 
 
-> **Note:**
-> This command should be executed in a _cron script_. Our
-> recommendation is to schedule `barman cron` to run every minute.
-
 ## `diagnose`
 
-TODO
+The `diagnose` command create a JSON report useful for diagnostic and
+support purposes. This report contains information for all configured
+servers.
+
+> **Important:**
+> Even if the diagnose is written in JSON and that format is thought
+> to be machine readable, its structure is not be considered part to
+> the interface, i.e. it can be radically changed between Barman
+> versions.
+
 
 ## `list-server`
 
@@ -45,4 +56,10 @@ for your backup system with:
 
 ``` bash
 barman list-server
+```
+
+A machine readble output can be obtained with the `--minimal` option:
+
+``` bash
+barman list-server --minimal
 ```
