@@ -756,21 +756,33 @@ class RecoveryExecutor(object):
         # required wal files. Otherwise use the unix command "cp" to copy
         # them from the barman_xlog directory
         if recovery_info['get_wal']:
-            # We need to guess the right way to execute the "barman"
-            # command on the Barman server.
-            # If remote recovery we use the machine FQDN and the barman_user
-            # setting to build an ssh command.
+            # We need to create the right restore command.
+            # If we are doing a remote recovery,
+            # the barman-cli package is REQUIRED on the server that is hosting
+            # the PostgreSQL server.
+            # We use the machine FQDN and the barman_user
+            # setting to call the barman-wal-restore correctly.
             # If local recovery, we use barman directly, assuming
             # the postgres process will be executed with the barman user.
-            # It has to be reviewed by the user in any case.
+            # It MUST to be reviewed by the user in any case.
             if remote_command:
                 fqdn = socket.getfqdn()
-                barman_command = 'ssh "%s@%s" barman' % (
-                    self.config.config.user, fqdn)
+                print("# The 'barman-wal-restore' command "
+                      "is provided in the 'barman-cli' package",
+                      file=recovery)
+                print("restore_command = 'barman-wal-restore -U %s "
+                      "%s %s %%f %%p'" % (self.config.config.user,
+                                          fqdn, self.config.name),
+                      file=recovery)
             else:
-                barman_command = 'barman'
-            print("restore_command = '%s get-wal %s %%f > %%p'" % (
-                  barman_command, self.config.name), file=recovery)
+                print("# The 'barman get-wal' command "
+                      "must run as '%s' user" % self.config.config.user,
+                      file=recovery)
+                print("restore_command = 'sudo -u %s "
+                      "barman get-wal %s %%f > %%p'" % (
+                          self.config.config.user,
+                          self.config.name),
+                      file=recovery)
             recovery_info['results']['get_wal'] = True
         else:
             print("restore_command = 'cp barman_xlog/%f %p'", file=recovery)
