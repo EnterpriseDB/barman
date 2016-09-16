@@ -28,3 +28,6 @@ To start a backup you can use the `barman backup` command:
 ``` bash
 barman@backup$ barman backup pg
 ```
+
+> **Important:** `pg_basebackup` 9.4 or higher is required for
+> tablespace support if you use the `postgres` backup method.
