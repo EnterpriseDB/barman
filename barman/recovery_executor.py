@@ -127,8 +127,8 @@ class RecoveryExecutor(object):
         try:
             recovery_info['cmd'].create_dir_if_not_exists(dest)
         except FsOperationFailed as e:
-            output.exception("unable to initialise destination directory "
-                             "'%s': %s", dest, e)
+            output.error("unable to initialise destination directory "
+                         "'%s': %s", dest, e)
             output.close_and_exit()
 
         # Initialize tablespace directories
@@ -145,7 +145,7 @@ class RecoveryExecutor(object):
                 tablespaces, remote_command,
                 recovery_info['safe_horizon'])
         except DataTransferFailure as e:
-            output.exception("Failure copying base backup: %s", e)
+            output.error("Failure copying base backup: %s", e)
             output.close_and_exit()
 
         # Copy the backup.info file in the destination as
@@ -155,7 +155,7 @@ class RecoveryExecutor(object):
                 recovery_info['rsync'](backup_info.filename,
                                        ':%s/.barman-recover.info' % dest)
             except CommandFailedException as e:
-                output.exception(
+                output.error(
                     'copy of recovery metadata file failed: %s', e)
                 output.close_and_exit()
         else:
@@ -178,7 +178,7 @@ class RecoveryExecutor(object):
                                 recovery_info['wal_dest'],
                                 remote_command)
             except DataTransferFailure as e:
-                output.exception("Failure copying WAL files: %s", e)
+                output.error("Failure copying WAL files: %s", e)
                 output.close_and_exit()
             except BadXlogSegmentName as e:
                 output.error(
@@ -209,8 +209,8 @@ class RecoveryExecutor(object):
         try:
             recovery_info['cmd'].create_dir_if_not_exists(archive_status_dir)
         except FsOperationFailed as e:
-            output.exception("unable to create the archive_status directory "
-                             "'%s': %s", archive_status_dir, e)
+            output.error("unable to create the archive_status directory "
+                         "'%s': %s", archive_status_dir, e)
             output.close_and_exit()
 
         # As last step, analyse configuration files in order to spot
@@ -333,7 +333,7 @@ class RecoveryExecutor(object):
                 try:
                     target_datetime = dateutil.parser.parse(target_time)
                 except ValueError as e:
-                    output.exception(
+                    output.error(
                         "unable to parse the target time parameter %r: %s",
                         target_time, e)
                     self._teardown(recovery_info)
@@ -342,7 +342,7 @@ class RecoveryExecutor(object):
                     # this should not happen, but there is a known bug in
                     # dateutil.parser.parse() implementation
                     # ref: https://bugs.launchpad.net/dateutil/+bug/1247643
-                    output.exception(
+                    output.error(
                         "unable to parse the target time parameter %r",
                         target_time)
                     output.close_and_exit()
@@ -436,8 +436,8 @@ class RecoveryExecutor(object):
             # if it does not exists, create it
             cmd.create_dir_if_not_exists(tblspc_dir)
         except FsOperationFailed as e:
-            output.exception("unable to initialise tablespace directory "
-                             "'%s': %s", tblspc_dir, e)
+            output.error("unable to initialise tablespace directory "
+                         "'%s': %s", tblspc_dir, e)
             output.close_and_exit()
         for item in backup_info.tablespaces:
 
@@ -465,9 +465,9 @@ class RecoveryExecutor(object):
                 # create symlink between tablespace and recovery folder
                 cmd.create_symbolic_link(location, pg_tblspc_file)
             except FsOperationFailed as e:
-                output.exception("unable to prepare '%s' tablespace "
-                                 "(destination '%s'): %s",
-                                 item.name, location, e)
+                output.error("unable to prepare '%s' tablespace "
+                             "(destination '%s'): %s",
+                             item.name, location, e)
                 output.close_and_exit()
             output.info("\t%s, %s, %s", item.oid, item.name, location)
 
@@ -722,9 +722,8 @@ class RecoveryExecutor(object):
                                            recovery_info['wal_dest'],
                                            'archive_status'))
             except CommandFailedException as e:
-                output.exception(
-                    "unable to populate pg_xlog/archive_status"
-                    "directory: %s", e)
+                output.error("unable to populate pg_xlog/archive_status "
+                             "directory: %s", e)
                 output.close_and_exit()
 
     def _generate_recovery_conf(self, recovery_info, backup_info, dest,
@@ -812,8 +811,7 @@ class RecoveryExecutor(object):
                                            recovery_info['tempdir'],
                                            ':%s' % dest)
             except CommandFailedException as e:
-                output.exception(
-                    'remote copy of recovery.conf failed: %s', e)
+                output.error('remote copy of recovery.conf failed: %s', e)
                 output.close_and_exit()
 
     def _map_temporary_config_files(self, recovery_info, backup_info,
@@ -912,8 +910,8 @@ class RecoveryExecutor(object):
                                                       recovery_info['tempdir'],
                                                       ':%s' % dest)
             except CommandFailedException as e:
-                output.exception(
-                    'remote copy of configuration files failed: %s', e)
+                output.error('remote copy of configuration files failed: %s',
+                             e)
                 output.close_and_exit()
 
     def _teardown(self, recovery_info):
