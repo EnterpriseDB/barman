@@ -129,7 +129,9 @@ compression
     bzip2 compressor). Global/Server.
 
 conninfo
-:   Connection string used by Barman to connect to the Postgres server. Server.
+:   Connection string used by Barman to connect to the Postgres server. This is a libpq connection string (https://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-CONNSTRING)
+ Commonly used Keys are: host, hostaddr, port, dbname (default is barman), user, password
+ NOTE: you should use the .pgpass file for your password however. 
 
 custom_compression_filter
 :   Customised compression algorithm applied to WAL files. Global/Server.
