@@ -73,7 +73,7 @@ The example below, on the other hand, is a server configuration file that uses s
 ``` ini
 [streaming-pg]
 description =  "Example of PostgreSQL Database (Streaming-Only)"
-conninfo = host=pg user=barman database=postgres
+conninfo = host=pg user=barman dbname=postgres
 streaming_conninfo = host=pg user=streaming_barman
 backup_method = postgres
 streaming_archiver = on
@@ -86,7 +86,7 @@ The following code shows a basic example of traditional backup using `rsync`/SSH
 [ssh-pg]
 description =  "Example of PostgreSQL Database (via Ssh)"
 ssh_command = ssh postgres@pg
-conninfo = host=pg user=barman database=postgres
+conninfo = host=pg user=barman dbname=postgres
 backup_method = rsync
 reuse_backup = link
 archiver = on
