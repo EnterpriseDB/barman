@@ -194,7 +194,9 @@ Global/Server.
 .TP
 .B conninfo
 Connection string used by Barman to connect to the Postgres server.
-Server.
+Server. This is a libpq connection string (https://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-CONNSTRING)
+Commonly used Keys are: host, hostaddr, port, dbname, user, password
+NOTE: you should use the .pgpass file for your password however. by default dbname = barman.
 .RS
 .RE
 .TP
