@@ -1,4 +1,133 @@
+2016-09-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2016-09-19  csawyerYumaed  <csawyer@yumaed.org>
+
+	Improve barman(5) manual page, adding conninfo
+	Add additional information to documentation around conninfo.
+
+	Closes #53
+
+2016-09-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Set version to 2.0b1
+
+	Remove the quickstart guide
+	At the moment, it is an empty document. It may be reintroduced later.
+
+2016-09-20  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Improve configurantion error message
+	The configuration error message raised when a parameter has an invalid
+	value was not telling the wrong value but only the key.
+
+	This patch improves the error message in that case.
+
+2016-09-16  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add troubleshooting section to manual
+
+2016-09-16  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Improve "Features in detail" section
+
+2016-09-19  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Avoid logging tracebacks in case of expected failures
+	There was a few places in the code where an expected error was producing
+	a traceback in the logs. They have been replaced with a simple error
+	output.
+
+2016-09-16  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Integrate barman-wal-restore in barman recovery
+	During a remote restore, use the barman-wal-restore command instead of
+	calling `barman get-wal` on the remote machine. It requires the
+	barman-cli package to be installed on the target server.
+
+	Force special tox environments to use a specific Python version
+	Use Python 2.7 in the 'flake8' environment, because it doesn't work with
+	Python 2.6.
+
+	Use Python 2.6 in the 'minimal' envorinment, because it doesn't work
+	with Python 3.x due to the presence of Python-2-only modules.
+
+	Enable the minimal target in Travis-CI again, as it was failing due to
+	the default Python version used there (Python 3.5).
+
+2016-09-19  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix wrongly named database parameter in configuration examples
+	Thanks to Abhijit Menon-Sen <ams@2ndQuadrant.com> who found it.
+
+2016-09-14  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add "server commands" documentation section
+	This patch complete the section "Server commands" inside the Barman manual
+
+2016-09-14  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Backup command section of the manual
+
+2016-09-14  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add the "general commands" documentation section
+	This patch complete the section "general commands" inside the Barman
+	manual.
+
+2016-09-13  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add the "setup new server" documentation section
+	This patch complete the work on the "Setup of a new server in Barman"
+	documentation section.
+
+2016-09-13  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Make sure 'dbname' parameter is not set for streaming connections
+	Also fix an issue in the parse_dsn method, many thanks to
+	Théophile Helleboid <chtitux@gmail.com> for reporting it.
+
+2016-09-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix flake8 plugin versions
+
+2016-09-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make sure path_prefix is honored in every Command subclass
+	Commit ad8002745326fe20a2c4ce2a5e9115a26c5a5f49 contains a typo
+	so it was not working at all. The typo is fixed in this commit.
+
+2016-09-13  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Pass `--no-password` option to pg_basebackup and pg_receivexlog
+	Barman will never send any password through the pg_basebackup or
+	pg_receivexlog standard input channel. Invoking them with the
+	`--no-password` option will produce a cleaner error message in case of
+	authentication failure.
+
+	Modify tests accordingly.
+
+2016-09-12  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Improve the warning message for configuration files outside PGDATA
+	Now the `backup_method=postgres` code emits the warning message for
+	configuration files that are located outside PGDATA only when that's
+	the actual case.
+
+2016-09-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Moved barman-wal-restore in barman-cli project
+
+2016-09-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Enable `show-server` command on inactive or disabled servers
+
 2016-09-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add missing release date on manual front page
+
+	Disable minimal tox env on travis-ci as it doesn't work on py35
 
 	Update the ChangeLog file
 
