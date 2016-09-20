@@ -1,18 +1,10 @@
 MANPAGES=barman.1 barman.5
-DOCS= \
-			barman-quickstart.en.pdf barman-quickstart.en.html
-
+DOCS=
 SUBDIRS=manual
 
 .PHONY: all clean help subdirs $(SUBDIRS)
 
 all: $(MANPAGES) $(DOCS) $(SUBDIRS)
-
-barman-quickstart.en.pdf: barman-quickstart.en.md images/*.png
-	pandoc $< -o $@ -s -f markdown
-
-barman-quickstart.en.html: barman-quickstart.en.md images/*.png
-	pandoc -o $@ -t html5 -f markdown -s -S --toc $<
 
 barman.1: barman.1.md
 	pandoc -s -t man -o $@ $<
