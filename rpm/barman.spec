@@ -22,9 +22,9 @@
 
 %global main_version 2.0
 # comment out the next line if not a pre-release (use '#%%global ...')
-%global extra_version a1
+%global extra_version b1
 # Usually 1 - unique sequence for all pre-release version
-%global package_release 1
+%global package_release 2
 
 %{!?pybasever: %define pybasever %(%{__python} -c "import sys;print(sys.version[0:3])")}
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
@@ -114,26 +114,29 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
-* Fri Sep  9 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 2.0-0.1.alpha.1
-- New release 2.0-0.1.alpha.1
+* Tue Sep 20 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 2.0-0.2.b1
+- New release 2.0-0.2.b1
+
+* Fri Sep  9 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 2.0-0.1.a1
+- New release 2.0-0.1.a1
 
 * Mon May 23 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.1-1
 - New release 1.6.1-1
 
-* Mon May  9 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.1-0.1.alpha.1
-- New release 1.6.1-0.1.alpha.1
+* Mon May  9 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.1-0.1.a1
+- New release 1.6.1-0.1.a1
 
 * Mon Feb 29 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.0-1
 - New release 1.6.0-1
 
-* Wed Feb 17 2016 - Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> 1.6.0-0.3.beta.3
-- New release 1.6.0-0.3.beta.3
+* Wed Feb 17 2016 - Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> 1.6.0-0.3.b3
+- New release 1.6.0-0.3.b3
 
-* Wed Feb 10 2016 - Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> 1.6.0-0.2.beta.2
-- New release 1.6.0-0.2.beta.2
+* Wed Feb 10 2016 - Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> 1.6.0-0.2.b2
+- New release 1.6.0-0.2.b2
 
-* Mon Feb  1 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.0-0.1.beta.1
-- New release 1.6.0-0.1.beta.1
+* Mon Feb  1 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.0-0.1.b1
+- New release 1.6.0-0.1.b1
 
 * Mon Nov 16 2015 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.5.1-1
 - New release 1.5.1

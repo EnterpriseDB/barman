@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
-Version 2.0a1 - 9 Sep 2016
+Version 2.0b1 - 20 Sep 2016
 
 -   Support for pg_basebackup and base backups over the PostgreSQL
     streaming replication protocol with backup_method=postgres
