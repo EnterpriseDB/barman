@@ -435,10 +435,9 @@ class ServerConfig(object):
                 else:
                     value = parser(new_value)
             except Exception as e:
-                output.warning("Invalid configuration value '%s' for key %s"
-                               " in %s: %s",
-                               value, key, source, e)
-                _logger.exception(e)
+                output.warning("Ignoring invalid configuration value '%s' "
+                               "for key %s in %s: %s",
+                               new_value, key, source, e)
         else:
             value = new_value
         return value
