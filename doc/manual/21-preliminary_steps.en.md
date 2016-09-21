@@ -117,20 +117,20 @@ max_wal_senders = 2
 This option represents the maximum number of concurrent streaming
 connection that the server will be allowed to manage.
 
-Another important parameter is `max_replication_slot`, which represent
-the maximum number of replication slots that the server will be
-allowed to manage. This parameter is needed if you are planning to use
-the streaming connection to receive WAL files over the streaming
+Another important parameter is `max_replication_slots`, which
+represent the maximum number of replication slots that the server will
+be allowed to manage. This parameter is needed if you are planning to
+use the streaming connection to receive WAL files over the streaming
 connection:
 
 ``` ini
 max_replication_slots = 2
 ```
 
-The `max_replication_slot` option represents the maximum number of
+The `max_replication_slots` option represents the maximum number of
 replication slots that the server will be allowed to manage.
 
-The values proposed for `max_replication_slot` and `max_wal_senders`
+The values proposed for `max_replication_slots` and `max_wal_senders`
 must be considered as examples, and the values you will use in your
 actual setup must be choosen after a careful evaluation of the
 architecture. Please consult the PostgreSQL documentation for
