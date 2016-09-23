@@ -106,34 +106,43 @@ recovery operation Barman will prepare the `recovery.conf` file by
 setting the `restore_command` so that `barman get-wal` is used to
 fetch the required WAL files.
 
-This is an example of a `restore_command` for a remote recovery:
-
-``` ini
-restore_command = 'ssh barman@backup barman get-wal SERVER %f > %p'
-```
-
 This is an example of a `restore_command` for a local recovery:
 
 ``` ini
-restore_command = 'barman get-wal SERVER %f > %p'
+restore_command = 'sudo -u barman barman get-wal SERVER %f > %p'
 ```
+
+Please note that the `get-wal` command should always be invoked as
+`barman` user, and that it requires the correct permission to
+read the WAL files from the catalog. This is the reason why we are
+using `sudo -u barman` in the example.
+
+Setting `recovery_options` to `get-wal` for a remote recovery will instead
+generate a `restore_command` using the `barman-wal-restore` script.
+`barman-wal-restore` is a more resilient shell script which manages SSH
+connection errors.
+
+This script has many useful options such as the automatic compression and
+decompression of the WAL file and the *peek* feature, which allows you
+to retrieve the next WAL files while PostgreSQL is applying one of them. It is
+an excellent way to optimise the bandwidth usage between the PostgreSQL and the
+Barman server.
+
+`barman-wal-restore` is available in the `barman-cli` project or package.
+
+This is an example of a `restore_command` for a remote recovery:
+
+``` ini
+restore_command = 'barman-wal-restore -U barman backup SERVER %f %p'
+```
+
+Since it uses SSH to communicate with the Barman server, SSH key authentication
+is required for the `postgres` user to login as `barman` on the backup server.
 
 > **Important:**
 > Even though `recovery_options` aims to automate the process, using
 > the `get-wal` facility requires manual intervention and proper
 > testing.
-
-On top of this Barman command, the `barman-wal-restore` script can be
-used to retrieve a WAL file from the Barman server. This script has
-many useful options such as the automatic compression and
-decompression of the WAL file and the *peek* feature, which allows you
-to retrieve the next WAL files while PostgreSQL is applying one of
-them.
-
-The `barman-wal-restore` command is an excellent way to optimize the bandwidth
-usage between the PostgreSQL and the Barman server.
-
-This script is available in the `barman-cli` project or package.
 
 ## `list-backup`
 
