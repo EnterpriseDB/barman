@@ -17,7 +17,7 @@ The `backup_method` option activates the `rsync` backup method, and
 the `ssh_command` option is needed to correctly create an SSH
 connection from the Barman server to the PostgreSQL server.
 
-> **Important:** keep in mind that if the WAL archiving is not
+> **Important:** Keep in mind that if the WAL archiving is not
 > currently configured, you will not be able to start a backup.
 
 To check if the server configuration is valid you can use the `barman
