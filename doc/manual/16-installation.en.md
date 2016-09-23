@@ -76,3 +76,23 @@ barman@backup$ ./setup.py install --user
 The `barman` application will be installed in your user directory ([make sure that your `PATH` environment variable is set properly] [setup_user]).
 
 [Barman is also available on the Python Package Index (PyPI)] [pypi] and can be installed through `pip`.
+
+## Upgrading from Barman 1.X
+
+Version 2.0 requires that users explicitly configure
+their archiving strategy. Before, the file based
+archiver, controlled by `archiver`, was enabled by default.
+
+When you upgrade your Barman installation to 2.0, make sure
+you add the following line either globally or for any server
+that requires it:
+
+``` ini
+archiver = on
+```
+
+Additionally, for a few releases, Barman will transparently set
+`archiver = on` with any server that has not explicitly set
+an archiving strategy and emit a warning.
+
+Besides that, version 2.0 is fully compatible with older ones.
