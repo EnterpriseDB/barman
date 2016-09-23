@@ -2,4 +2,5 @@ Barman INSTALL instructions
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
 For further information, see the "Installation" section in the
-doc/barman-tutorial.en.md file.
+official manual of Barman or the Markdown source file:
+doc/manual/16-installation.en.md.

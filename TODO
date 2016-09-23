@@ -3,8 +3,7 @@ Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
 * TAR storage strategy for backups
 * SSH only connections
-* libpq only connections (pg_basebackup support, WAL streaming for "0 Data Loss")
-* Centralised WAL hub capability
+* Centralised WAL hub capability (streaming server)
 * Barman passive nodes (for asynchronous geographical redundancy)
 * Hook scripts for backup delete, WAL archiving, etc.
 * Export/Import of backups
@@ -12,7 +11,7 @@ Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 * Improve recovery support
 * Sandbox recovery
 * Logical backup integration (pg_dump on sandbox instances)
-* Windows support
 * JSON output for full automation
 * Backup validation
+* Windows support
 * ...
