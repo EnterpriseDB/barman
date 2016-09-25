@@ -25,7 +25,7 @@ Within business continuity, it is important to familiarise with two fundamental 
 
 In a few words, RPO represents the maximum amount of data you can afford to lose, while RTO represents the maximum down-time you can afford for your service.
 
-Understandably, we all want **RPO=0** (*"zero data loss"*) and **RTO=0** (*zero down-time*, utopia) - even if it is our grandmothers's recipes book that we are serving.
+Understandably, we all want **RPO=0** (*"zero data loss"*) and **RTO=0** (*zero down-time*, utopia) - even if it is our grandmothers's recipe website.
 In reality, a careful cost analysis phase allows you to determine your business continuity requirements.
 
 Fortunately, with an open source stack composed of **Barman** and **PostgreSQL**, you can achieve RPO=0 thanks to synchronous streaming replication. RTO is more the focus of a *High Availability* solution, like [**repmgr**] [repmgr]. Therefore, by integrating Barman and repmgr, you can dramatically reduce RTO to nearly zero.
@@ -37,11 +37,11 @@ In any case, it is important for us to emphasise more on cultural aspects relate
 Our mission with Barman is to promote a culture of disaster recovery that:
 
 - focuses on backup procedures
-- focuses even more on recovery procedures (hence the name Barman with the 'B' and the 'R')
+- focuses even more on recovery procedures
 - relies on education and training on strong theoretical and practical concepts of PostgreSQL's crash recovery, backup, Point-In-Time-Recovery, and replication for your team members
 - promotes testing your backups (only a backup that is tested can be considered to be valid), either manually or automatically (be creative with Barman's hook scripts!)
 - fosters regular practice of recovery procedures, by all members of your devops team (yes, developers too, not just system administrators and DBAs)
-- solicites to regularly scheduled drills and disaster recovery simulations with your team every 3-6 months
+- solicites to regularly scheduled drills and disaster recovery simulations with the team every 3-6 months
 - relies on continuous monitoring of PostgreSQL and Barman, and that is able to promptly identify any anomalies
 
 Moreover, do everything you can to prepare yourself and your team for when the disaster happens (yes, *when*), because when it happens:

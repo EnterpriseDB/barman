@@ -5,26 +5,26 @@
 Backup commands are those that works directly on backups already existing in
 Barman's backup catalog.
 
-> **Note:**
+> **NOTE:**
 > Remember a backup ID can be retrieved with `barman list-backup
 > <server_name>`
 
-## shortcuts
+## Backup ID shortcuts
 
-Barman allow the user to use special keywords to identify certain backups:
+Barman allows you to use special keywords to identify a specific backup:
 
 * `last/latest`: identifies the newest backup in the catalog
 * `first/oldest`: identifies the oldest backup in the catalog
 
 Using those keywords with Barman commands allows you to execute actions
-without knowing the exact id of a backup for a server.
+without knowing the exact ID of a backup for a server.
 For example we can issue:
 
 ``` bash
 barman delete <server_name> oldest
 ```
 
-to remove the oldest backup available in the catalog and egain disk space.
+to remove the oldest backup available in the catalog and reclaim disk space.
 
 ## `delete`
 
@@ -34,7 +34,7 @@ You can delete a given backup with:
 barman delete <server_name> <backup_id>
 ```
 
-The delete command accepts any [shortcut](#shortcuts) to identify backups
+The `delete` command accepts any [shortcut](#shortcuts) to identify backups.
 
 ## `list-files`
 
@@ -59,7 +59,7 @@ Possible values for `TARGET_TYPE` are:
 
 The default value for `TARGET_TYPE` is `standalone`.
 
-> **Important:**
+> **IMPORTANT:**
 > The `list-files` command facilitates interaction with external
 > tools, and can therefore be extremely useful to integrate
 > Barman into your archiving procedures.
@@ -79,20 +79,20 @@ At the end of the execution of the recovery, the selected backup is recovered
 locally and the destination path contains a data directory ready to be used
 to start a PostgreSQL instance.
 
-> **Important:**
+> **IMPORTANT:**
 > Running this command as user `barman`, it will become the database superuser.
 
-The specific id of a backup can be retrieved using the [list-backup](#list-backup)
+The specific ID of a backup can be retrieved using the [list-backup](#list-backup)
 command.
 
-> **Important:**
+> **IMPORTANT:**
 > Barman does not currently keep track of symbolic links inside PGDATA
 > (except for tablespaces inside pg_tblspc). We encourage
 > system administrators to keep track of symbolic links and to add them
 > to the disaster recovery plans/procedures in case they need to be restored
 > in their original location.
 
-The recovery command has several options that modify the command behaviour.
+The recovery command has several options that modify the command behavior.
 
 ### Remote recovery
 
@@ -101,7 +101,7 @@ of the recovery command. Doing this will allow Barman to execute
 the copy on a remote server, using the provided command to connect
 to the remote host.
 
-> **Note:**
+> **NOTE:**
 > It is advisable to use the `postgres` user to perform
 > the recovery on the remote host.
 
@@ -128,13 +128,13 @@ The option accepts a pair of values as arguments using the
 * `DIRECTORY` is the new destination path for the tablespace
 
 If the destination directory does not exists,
-Barman will try to create it (assuming you have enough privileges).
+Barman will try to create it (assuming you have the required permissions).
 
 ### Point in time recovery
 
-Barman employs PostgreSQL’s Point-in-Time Recovery (PITR),
-allowing it to specify a recovery target, either as a timestamp
-or as a transaction ID.
+Barman wraps PostgreSQL's Point-in-Time Recovery (PITR),
+allowing you to specify a recovery target, either as a timestamp,
+as a restore label, or as a transaction ID.
 
 The recovery target can be specified using one of
 three mutually exclusive options:
@@ -152,8 +152,9 @@ You can use the --exclusive option to specify whether to stop immediately
 before or immediately after the recovery target.
 
 Barman allows you to specify a target timeline for recovery,
-using the target-tli option. The notion of timeline goes beyond the scope of
-this document; you can find more details in the PostgreSQL documentation.
+using the `target-tli` option. The notion of timeline goes beyond the scope of
+this document; you can find more details in the PostgreSQL documentation,
+as mentioned in the _"Before you start"_ section.
 
 ## `show-backup`
 
@@ -164,4 +165,4 @@ a given server with:
 barman show-backup <server_name> <backup_id>
 ```
 
-The show-backup command accepts any [shortcut](#shortcuts) to identify backups.
+The `show-backup` command accepts any [shortcut](#shortcuts) to identify backups.

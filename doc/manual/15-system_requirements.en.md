@@ -14,12 +14,12 @@
 - PostgreSQL >= 8.3
 - rsync >= 3.0.4 (optional for PostgreSQL >= 9.2)
 
-> **Important:**
+> **IMPORTANT:**
 > Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
 > required to install the
 > [Extra Packages Enterprise Linux (EPEL) repository] [epel].
 
-> **Note:**
+> **NOTE:**
 > Python 3 support is experimental. Report any bug through
 > the ticketing system on Github or the mailing list.
 

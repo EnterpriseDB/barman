@@ -23,6 +23,8 @@
   [authpghba]: http://www.postgresql.org/docs/current/static/auth-pg-hba-conf.html
   [streamprot]: http://www.postgresql.org/docs/current/static/protocol-replication.html
   [roles]: http://www.postgresql.org/docs/current/static/role-attributes.html
+  [replication-slots]: https://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION-SLOTS
+  [synch]: http://www.postgresql.org/docs/current/static/warm-standby.html#SYNCHRONOUS-REPLICATION
 
 
 

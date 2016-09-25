@@ -2,7 +2,7 @@
 
 # Installation
 
-> **Important:**
+> **IMPORTANT:**
 > The recommended way to install Barman is by using the available
 > packages for your GNU/Linux distribution.
 
@@ -36,10 +36,10 @@ It is directly available in the official repository for Debian and Ubuntu, howev
 If you want to have the latest version of Barman, the recommended method is to install it through the [PostgreSQL Community APT repository] [aptpgdg].
 Instructions can be found in the [APT section of the PostgreSQL Wiki] [aptpgdgwiki].
 
-> **Note:**
+> **NOTE:**
 > Thanks to the direct involvement of Barman developers in the
-> PostgreSQL Community APT repository project, you will have access to
-> the most updated versions of Barman.
+> PostgreSQL Community APT repository project, you will always have access
+> to the most updated versions of Barman.
 
 Installing Barman is as easy. As `root` user simply type:
 

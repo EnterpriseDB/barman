@@ -22,7 +22,7 @@ using the `cron` command:
 barman cron
 ```
 
-> **Note:**
+> **NOTE:**
 > This command should be executed in a _cron script_. Our
 > recommendation is to schedule `barman cron` to run every minute.  If
 > you installed Barman using the rpm or debian package, a cron entry
@@ -35,18 +35,21 @@ servers that have:
 - `retention_policy` not empty and valid;
 - `retention_policy_mode` set to `auto`.
 
+The `cron` command ensures that WAL streaming is started for those
+servers that have requested it, by transparently executing the
+`receive-wal` command.
+
 
 ## `diagnose`
 
-The `diagnose` command create a JSON report useful for diagnostic and
+The `diagnose` command creates a JSON report useful for diagnostic and
 support purposes. This report contains information for all configured
 servers.
 
-> **Important:**
+> **IMPORTANT:**
 > Even if the diagnose is written in JSON and that format is thought
-> to be machine readable, its structure is not be considered part to
-> the interface, i.e. it can be radically changed between Barman
-> versions.
+> to be machine readable, its structure is not to be considered part
+> of the interface. Format can change between different Barman versions.
 
 
 ## `list-server`

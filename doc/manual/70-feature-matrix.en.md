@@ -19,7 +19,7 @@ Below you will find a matrix of PostgreSQL versions and Barman features for back
 | _8.3_ | Yes | No | Yes | No | No |
 
 
-**Note:**
+**NOTE:**
 
 a) `pg_basebackup` and `pg_receivexlog` 9.2 required
 b) WAL streaming-only not supported (standard archiving required)

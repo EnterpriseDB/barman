@@ -3,13 +3,13 @@
 You can backup a PostgreSQL server running on Windows using the
 streaming connection for both WAL archiving and for backups.
 
-> **Important**: This feature is still experimental because it is not
+> **IMPORTANT:** This feature is still experimental because it is not
 > yet part of our continuous integration system.
 
 Follow every step discussed previously for a streaming connection
 setup.
 
-> **Warning:**: At this moment, `pg_basebackup` interoperability from
+> **WARNING:**: At this moment, `pg_basebackup` interoperability from
 > Windows to Linux is still experimental. If you are having issues
 > taking a backup from a Windows server and your PostgreSQL locale is
 > not in English, a possible workaround for the issue is instructing

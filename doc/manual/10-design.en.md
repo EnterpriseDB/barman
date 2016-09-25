@@ -36,7 +36,7 @@ Remember that no decision is forever. You can start this way and adapt over time
 
 Another relevant feature that was first introduced by Barman is support for multiple servers. Barman can store backup data coming from multiple PostgreSQL instances, even with different versions, in a centralised way. [^recver]
 
-  [^recver]: The same [requirements for PostgreSQL's PITR] [requirements_recovery] apply for recovery.
+  [^recver]: The same [requirements for PostgreSQL's PITR][requirements_recovery] apply for recovery, as detailed in the section _"Requirements for recovery"_.
 
 As a result, you can model complex disaster recovery architectures, forming a "star schema", where PostgreSQL servers rotate around a central Barman server.
 
@@ -49,7 +49,7 @@ From this point forward, for the sake of simplicity, this guide will assume a ba
 
 ## Streaming backup vs rsync/SSH
 
-Traditionally, Barman has always operated remotely via SSH, taking advantage of `rsync` for physical backup operations. Version 2 introduces native support for PostgreSQL's streaming replication protocol for backup operations, via `pg_basebackup`. [^fmatrix]
+Traditionally, Barman has always operated remotely via SSH, taking advantage of `rsync` for physical backup operations. Version 2.0 introduces native support for PostgreSQL's streaming replication protocol for backup operations, via `pg_basebackup`. [^fmatrix]
 
   [^fmatrix]: Check in the "Feature matrix" which PostgreSQL versions support streaming replication backups with Barman.
 
@@ -64,7 +64,7 @@ Traditional backup via `rsync`/SSH is available for all versions of PostgreSQL s
 
 The reason why we recommend streaming backup is that, based on our experience, it is easier to setup than the traditional one. Also, streaming backup allows you to backup a PostgreSQL server on Windows[^windows], and makes life easier when working with Docker.
 
-  [^windows]: Backup of a PostgreSQL server on Windows is possible, but it is still experimental because it is not yet part of our continuous integration system.
+  [^windows]: Backup of a PostgreSQL server on Windows is possible, but it is still experimental because it is not yet part of our continuous integration system. See section _"How to setup a Windows based server"_ for details.
 
 ## Standard archiving, WAL streaming ... or both
 
@@ -85,11 +85,11 @@ In order to make life easier for you, below we summarise the two most typical sc
 
 Bear in mind that this is a decision that you must make for every single server that you decide to back up with Barman. This means that you can have heterogeneous setups within the same installation.
 
-As mentioned before, we will only worry about the PostgreSQL server (`pg`) and the Barman server (`backup`). However, in real life, your architecture will most likely contain other technologies such as repmgr, pgBouncer, Nagios/Icinga, etc.
+As mentioned before, we will only worry about the PostgreSQL server (`pg`) and the Barman server (`backup`). However, in real life, your architecture will most likely contain other technologies such as repmgr, pgBouncer, Nagios/Icinga, and so on.
 
 ### Scenario 1: Backup via streaming protocol
 
-If you are using PostgreSQL 9.4 or higher, and your database falls under a general use case scenario, you will likely end up deciding for a streaming backup installation - see figure \ref{scenario1-design} below.
+If you are using PostgreSQL 9.4 or higher, and your database falls under a general use case scenario, you will likely end up deciding on a streaming backup installation - see figure \ref{scenario1-design} below.
 
 <!-- TODO: This way of referencing won't work in HTML -->
 ![Streaming-only backup (Scenario 1)\label{scenario1-design}](../images/barman-architecture-scenario1.png){ width=10cm }

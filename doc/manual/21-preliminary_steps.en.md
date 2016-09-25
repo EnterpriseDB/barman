@@ -76,8 +76,9 @@ wal_level = 'replica'
 ```
 
 For PostgreSQL versions older than 9.6, `wal_level` must be set to
-`hot_standby`. Restart the PostgreSQL server for the configuration to
-be refreshed.
+`hot_standby`.
+
+Restart the PostgreSQL server for the configuration to be refreshed.
 
 
 ### PostgreSQL streaming connection
@@ -104,8 +105,9 @@ barman@backup$ psql -U streaming_barman -h pg \
   replication=1
 ```
 
-Please make sure you are able to connect via streaming replication
-before going any further.
+> **IMPORTANT:**
+> Please make sure you are able to connect via streaming replication
+> before going any further.
 
 You also need to configure the `max_wal_senders` parameter in the
 PostgreSQL configuration file:
@@ -115,11 +117,12 @@ max_wal_senders = 2
 ```
 
 This option represents the maximum number of concurrent streaming
-connection that the server will be allowed to manage.
+connections that the server will be allowed to manage.
 
 Another important parameter is `max_replication_slots`, which
-represent the maximum number of replication slots that the server will
-be allowed to manage. This parameter is needed if you are planning to
+represents the maximum number of replication slots [^replslot94]
+that the server will be allowed to manage.
+This parameter is needed if you are planning to
 use the streaming connection to receive WAL files over the streaming
 connection:
 
@@ -127,8 +130,9 @@ connection:
 max_replication_slots = 2
 ```
 
-The `max_replication_slots` option represents the maximum number of
-replication slots that the server will be allowed to manage.
+  [^replslot94]: Replication slots have been introduced in PostgreSQL 9.4.
+                 See section _"WAL Streaming / Replication slots"_ for
+                 details.
 
 The values proposed for `max_replication_slots` and `max_wal_senders`
 must be considered as examples, and the values you will use in your
@@ -140,17 +144,18 @@ guidelines and clarifications.
 ### SSH connections
 
 SSH is a protocol and a set of tools that allows you to open a remote
-shell to remote server and copy files between the server and the local
+shell to a remote server and copy files between the server and the local
 system. You can find more documentation about SSH usage in the article
-[SSH Essentials][ssh_essentials] by Digital Ocean.
+["SSH Essentials"][ssh_essentials] by Digital Ocean.
 
 SSH key exchange is a very common practice that is used to implement
 secure passwordless connections between users on different machines,
 and it's needed to use `rsync` for WAL archiving and for backups.
 
-This procedure is not needed if you plan to use the streaming
-connection only to archive transaction logs and backup your PostgreSQL
-server.
+> **NOTE:**
+> This procedure is not needed if you plan to use the streaming
+> connection only to archive transaction logs and backup your PostgreSQL
+> server.
 
 [ssh_essentials]: https://www.digitalocean.com/community/tutorials/ssh-essentials-working-with-ssh-servers-clients-and-keys
 
@@ -189,7 +194,7 @@ To successfully connect from the PostgreSQL server to the backup
 server, the PostgreSQL public key has to be configured into the
 authorized keys of the backup server for the `barman` user.
 
-The public key to be authorized is stored inside the postgres user
+The public key to be authorized is stored inside the `postgres` user
 home directory in a file named `.ssh/id_rsa.pub`, and its content
 should be included in a file named `.ssh/authorized_keys` inside the
 home directory of the `barman` user in the backup server. If the
@@ -215,7 +220,7 @@ connection from the PostgreSQL server to the backup server, we should
 authorize the public key of the backup server in the PostgreSQL server
 for the `postgres` user.
 
-The content of the file `.ssh/id_rsa.pub` in the barman server should
+The content of the file `.ssh/id_rsa.pub` in the `barman` server should
 be put in the file named `.ssh/authorized_keys` in the PostgreSQL
 server. The permissions of that file should be `600`.
 

@@ -14,14 +14,14 @@ common patterns.
 
 Barman implements **file-level incremental backup**. Incremental
 backup is a type of full periodic backup which only saves data changes
-from the latest full backup available in the catalogue for a specific
+from the latest full backup available in the catalog for a specific
 PostgreSQL server. It must not be confused with differential backup,
 which is implemented by _WAL continuous archiving_.
 
-> **Note:** block level incremental backup will be available in
-> future versions
+> **NOTE:** Block level incremental backup will be available in
+> future versions.
 
-> **Important:** The `reuse_backup` option can't be used with the
+> **IMPORTANT:** The `reuse_backup` option can't be used with the
 > `postgres` backup method at this time.
 
 The main goals of incremental backups in Barman are:
@@ -79,7 +79,7 @@ It is possible to limit the usage of I/O bandwidth through the
 maximum number of kilobytes per second. By default it is set to 0,
 meaning no limit.
 
-> **Important:** the `bandwidth_limit` and the
+> **IMPORTANT:** the `bandwidth_limit` and the
 > `tablespace_bandwidth_limit` options are not supported with the
 > `postgres` backup method
 
@@ -106,7 +106,7 @@ It is possible to reduce the size of transferred data using
 compression. It can be enabled using the `network_compression` option
 (global/per server):
 
-> **Important:** the `network_compression` option is not available
+> **IMPORTANT:** the `network_compression` option is not available
 > with the `postgres` backup method.
 
 ``` ini
@@ -138,7 +138,7 @@ parameter.[^ABOUT_CONCURRENT_BACKUP]
 This introduces a new architecture scenario with Barman: **backup from
 a standby server**, using `rsync`.
 
-> **Important:** **Concurrent backup** requires users of PostgreSQL
+> **IMPORTANT:** **Concurrent backup** requires users of PostgreSQL
 > 9.2, 9.3, 9.4, and 9.5 to install the `pgespresso` open source
 > extension on every PostgreSQL server of the cluster. For more
 > detailed information and the source code, please visit the
@@ -164,21 +164,20 @@ rules:
 The destination Postgres server can be either the master or a
 streaming replicated standby server.
 
-> **Note:**
+> **NOTE:**
 > When backing up from a standby server, continuous archiving of WAL
 > files must be configured on the master to ship files to the Barman
-> server (as outlined in the "Continuous WAL archiving" section
+> server (as outlined in the _"WAL archiving via archive_command"_ section
 > above)[^CONCURRENT_ARCHIVING].
 
 [^CONCURRENT_ARCHIVING]:
-  In case of a concurrent backup, currently Barman does not currently
-  have to determine that the closing WAL file of a full backup has
-  actually been shipped - opposite to the case of an exclusive backup
-  where Postgres itself makes sure that the WAL file is correctly
+  In case of a concurrent backup, currently Barman has no way
+  to determine that the closing WAL file of a full backup has
+  actually been shipped - opposite of an exclusive backup
+  where PostgreSQL itself makes sure that the WAL file is correctly
   archived. Be aware that the full backup cannot be considered
   consistent until that WAL file has been received and archived by
-  Barman. We encourage Barman users to wait to delete the previous
-  backup - at least until that moment.
+  Barman.
 
 
 ## Archiving features
@@ -203,7 +202,7 @@ values:
 
 ### Synchronous WAL streaming
 
-> **Important:** This feature is available only from PostgreSQL 9.5
+> **IMPORTANT:** This feature is available only from PostgreSQL 9.5
 > and above.
 
 Barman can also reduce the Recovery Point Objective to zero, by
@@ -215,7 +214,7 @@ archive WALs via the [streaming connection](#streaming_connection),
 and the `receive-wal` process should figure as a synchronous standby
 of the PostgreSQL server.
 
-First of all, we needs to retrieve the application name of the Barman
+First of all, you need to retrieve the application name of the Barman
 `receive-wal` process with the `show-server` command:
 
 ``` bash
@@ -230,11 +229,11 @@ file as a synchronous standby:
 synchronous_standby_names = 'barman_receive_wal'
 ```
 
-> **Important:** this is only an example of configuration, to show you that
-> barman is eligible to be a synchronous standby node.
-> We are not suggesting to use ONLY barman.
-> You can read more information on this topic here: 
-> https://www.postgresql.org/docs/9.5/static/warm-standby.html#SYNCHRONOUS-REPLICATION
+> **IMPORTANT:** this is only an example of configuration, to show you that
+> Barman is eligible to be a synchronous standby node.
+> We are not suggesting to use ONLY Barman.
+> You can read _["Synchronous Replication"][synch]_ from the PostgreSQL
+> documentation for further information on this topic.
 
 The PostgreSQL server needs to be restarted for the configuration to
 be reloaded.
@@ -265,20 +264,6 @@ Status of streaming clients for server 'pg':
 ```
 
 
-## User interface features
-### Backup ID shortcuts
-
-You can use any of the following **shortcuts** to
-identify a particular backup for a given server:
-
-- `latest`: the latest available backup for that server, in
-  chronological order. You can also use the `last` synonym.
-- `oldest`: the oldest available backup for that server, in
-  chronological order. You can also use the `first` synonym.
-
-These aliases can be used with any of the following commands:
-`show-backup`, `delete`, `list-files` and `recover`.
-
 ## Catalog management features
 ### Minimum redundancy safety
 
@@ -288,12 +273,12 @@ server, using the global/per server configuration option called
 
 By setting this value to any number greater than 0, Barman makes sure
 that at any time you will have at least that number of backups in a
-server catalogue.
+server catalog.
 
 This will protect you from accidental `barman delete` operations.
 
-> **Important:**
-> Make sure that your policy retention settings do not collide with
+> **IMPORTANT:**
+> Make sure that your retention policy settings do not collide with
 > minimum redundancy requirements. Regularly check Barman's log for
 > messages on this topic.
 
@@ -342,7 +327,7 @@ Retention policies can be defined for:
 - **Archive logs**, for Point-In-Time-Recovery: through the
   `wal_retention_policy` configuration option
 
-> **Important:**
+> **IMPORTANT:**
 > In a temporal dimension, archive logs must be included in the time
 > window of periodic backups.
 
@@ -352,7 +337,7 @@ recovery.
 Full point in time recovery scenario:
 
   : Base backups and archive logs share the same retention policy,
-    allowing DBAs to recover at any point in time from the first
+    allowing you to recover at any point in time from the first
     available backup.
 
 Partial point in time recovery scenario:
@@ -363,7 +348,7 @@ Partial point in time recovery scenario:
     recover at any point in time starting from the last 4 periodic
     weekly backups).
 
-> **Important:**
+> **IMPORTANT:**
 > Currently, Barman implements only the **full point in time
 > recovery** scenario, by constraining the `wal_retention_policy`
 > option to `main`.
@@ -373,10 +358,10 @@ Partial point in time recovery scenario:
 Retention policies in Barman can be:
 
 - **automated**: enforced by `barman cron`
-- **manual**: Barman simply reports obsolete backups and allows DBAs
+- **manual**: Barman simply reports obsolete backups and allows you
   to delete them
 
-> **Important:**
+> **IMPORTANT:**
 > Currently Barman does not implement manual enforcement. This feature
 > will be available in future versions.
 
@@ -440,15 +425,15 @@ two events:
 
 There are two types of hook scripts that Barman can manage:
 
-- standard hook scripts,
-- retry hook scripts.
+- standard hook scripts
+- retry hook scripts
 
 The only difference between these two types of hook scripts is that
 Barman executes a standard hook script only once, without checking its
 return code, whereas a retry hook script may be executed more than
-once depending on its return code.
+once, depending on its return code.
 
-Precisely, when executing a retry hook script, Barman checks the
+Specifically, when executing a retry hook script, Barman checks the
 return code and retries indefinitely until the script returns either
 `SUCCESS` (with standard return code `0`), or `ABORT_CONTINUE` (return
 code `62`), or `ABORT_STOP` (return code `63`). Barman treats any
@@ -470,7 +455,7 @@ Hook scripts are executed in the following order:
 The output generated by any hook script is written in the log file of
 Barman.
 
-> **Note:**
+> **NOTE:**
 > Currently, `ABORT_STOP` is ignored by retry 'post' hook scripts. In
 > these cases, apart from lodging an additional warning, `ABORT_STOP`
 > will behave like `ABORT_CONTINUE`.
@@ -545,20 +530,21 @@ Following variables are specific to archive scripts:
 - `BARMAN_COMPRESSION`: type of compression used for the WAL file
 
 
-## Customisation
+## Customization
+
 ### Lock file directory
 
-Barman allows DBAs to specify a directory for lock files through the
+Barman allows you to specify a directory for lock files through the
 `barman_lock_directory` global option.
 
 Lock files are used to coordinate concurrent work at global and server
 level (for example, cron operations, backup operations, access to the
-WAL archive, etc.).
+WAL archive, and so on.).
 
 By default (for backward compatibility reasons),
 `barman_lock_directory` is set to `barman_home`.
 
-> **Tip:**
+> **TIP:**
 > Users are encouraged to use a directory in a volatile partition,
 > such as the one dedicated to run-time variable data (e.g.
 > `/var/run/barman`).
@@ -583,7 +569,11 @@ availability tools like [repmgr] [repmgr].
 
 From an architectural point of view, PostgreSQL must be configured to
 archive WAL files directly to the Barman server.
+Barman, thanks to the `get-wal` framework, can also be used as a WAL hub.
+For this purpose, you can use the `barman-wal-restore` script, part
+of the `barman-cli` package, with all your standby servers.
 
-Version 1.6.1 introduces the `replication-status` command which allows
-users to get information about any streaming client attached to the
+The `replication-status` command allows
+you to get information about any streaming client attached to the
 managed server, in particular hot standby servers and WAL streamers.
+

@@ -45,10 +45,10 @@ There are two reserved words that cannot be used as server names in Barman:
 - `barman`: identifier of the global section
 - `all`: a handy shortcut that allows you to execute some commands on every server managed by Barman in sequence
 
-Barman implements the **convention over configuration** design paradigm, which attempts to reduce the number of options that you are required to configure without losing flexibility. Therefore, some server options can be defined at global level and overridden at server level, allowing users to specify a generic behaviour and refine it for one or more servers. These options have a global/server scope.
+Barman implements the **convention over configuration** design paradigm, which attempts to reduce the number of options that you are required to configure without losing flexibility. Therefore, some server options can be defined at global level and overridden at server level, allowing users to specify a generic behavior and refine it for one or more servers. These options have a global/server scope.
 
 For a list of all the available configurations
-and their scope, please refer to [section 5 of the man page] [man5].
+and their scope, please refer to [section 5 of the 'man' page] [man5].
 
 ``` bash
 man 5 barman

@@ -14,8 +14,8 @@ barman@backup$ barman show-server pg |grep incoming_wals_directory
         incoming_wals_directory: /var/lib/barman/pg/incoming
 ```
 
-> **Important:**
-> PostgreSQL 9.5 introduces support for WAL file archiving using
+> **IMPORTANT:**
+> PostgreSQL 9.5 introduced support for WAL file archiving using
 > `archive_command` from a standby. This feature is not yet implemented
 > in Barman.
 
@@ -39,7 +39,7 @@ particular, you need to check that WAL files are correctly collected
 in the destination directory.
 
 
-## How to check the WAL archiving configuration
+### How to check the WAL archiving configuration
 
 In order to improve the verification of the WAL archiving process, the
 `switch-xlog` command has been developed:

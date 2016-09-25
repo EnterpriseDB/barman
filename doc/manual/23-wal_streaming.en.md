@@ -9,7 +9,7 @@ available from PostgreSQL 9.2 which exploits the native streaming
 replication protocol and continuously receives transaction logs from a
 PostgreSQL server (master or standby).
 
-> **Important:**
+> **IMPORTANT:**
 > Barman requires that `pg_receivexlog` is installed on the same
 > server.  For PostgreSQL 9.2 servers, you need `pg_receivexlog` of
 > version 9.2 installed alongside Barman. For PostgreSQL 9.3 and
@@ -34,7 +34,7 @@ However, users can manually execute the `receive-wal` command:
 barman receive-wal <server_name>
 ```
 
-> **Note:**
+> **NOTE:**
 > The `receive-wal` command is a foreground process.
 
 Transaction logs are streamed directly in the directory specified by the
@@ -50,7 +50,7 @@ PostgreSQL server.
 
 ### Replication slots
 
-> **Important:** replication slots are available since PostgreSQL 9.4
+> **IMPORTANT:** replication slots are available since PostgreSQL 9.4
 
 Replication slots are an automated way to ensure that the PostgreSQL
 server will not remove WAL files until they were received by all
@@ -64,10 +64,9 @@ You can even base your backup architecture on streaming connection
 only. This scenario is useful to configure Docker-based PostgreSQL
 servers and even to work with PostgreSQL servers running on Windows.
 
-In this moment, the Windows support is still experimental, as it is
-not yet part of our continuous integration system.
-
-[replication-slots]: https://www.postgresql.org/docs/9.4/static/warm-standby.html#STREAMING-REPLICATION-SLOTS
+> **IMPORTANT:**
+> In this moment, the Windows support is still experimental, as it is
+> not yet part of our continuous integration system.
 
 
 ### How to configure the WAL streaming
@@ -83,7 +82,8 @@ including this line in the server configuration file:
 streaming_archiver = on
 ```
 
-Another essential option for the setup of the streaming-based
+If you plan to use replication slots (recommended),
+another essential option for the setup of the streaming-based
 transaction log archiving is the `slot_name` option:
 
 ``` ini
@@ -91,7 +91,7 @@ slot_name = barman
 ```
 
 This option defines the name of the replication slot that will be
-used by Barman and is mandatory.
+used by Barman. It is mandatory if you want to use replication slots.
 
 When you configure the replication slot name, you can create a
 replication slot for Barman with this command:

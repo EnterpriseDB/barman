@@ -373,14 +373,17 @@ the `barman diagnose` command.
 
 In alphabetical order:
 
-- Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> (project leader)
-- Stefano Bianucci <stefano.bianucci@2ndquadrant.it> (developer)
-- Giuseppe Broccolo <giuseppe.broccolo@2ndquadrant.it> (QA/testing)
-- Giulio Calacoci <giulio.calacoci@2ndquadrant.it> (developer)
-- Francesco Canovai <francesco.canovai@2ndquadrant.it> (QA/testing)
-- Leonardo Cecchi <leonardo.cecchi@2ndquadrant.it> (developer)
-- Gianni Ciolli <gianni.ciolli@2ndquadrant.it> (QA/testing)
-- Marco Nenciarini <marco.nenciarini@2ndquadrant.it> (lead developer)
+* Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> (project leader)
+* Jonathan Battiato <jonathan.battiato@2ndquadrant.it> (QA/testing)
+* Stefano Bianucci (developer, intern from University of Florence)
+* Giuseppe Broccolo <giuseppe.broccolo@2ndquadrant.it> (QA/testing)
+* Giulio Calacoci <giulio.calacoci@2ndquadrant.it> (developer)
+* Francesco Canovai <francesco.canovai@2ndquadrant.it> (QA/testing)
+* Leonardo Cecchi <leonardo.cecchi@2ndquadrant.it> (developer)
+* Gianni Ciolli <gianni.ciolli@2ndquadrant.it> (QA/testing)
+* Britt Cole <britt.cole@2ndquadrant.it> (documentation)
+* Marco Nenciarini <marco.nenciarini@2ndquadrant.it> (lead developer)
+* Rubens Souza <rubens.souza@2ndquadrant.it> (QA/testing)
 
 Past contributors:
 

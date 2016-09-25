@@ -15,8 +15,8 @@ For further information, please visit:
 - [Barman website] [11]
 - [Support section] [12]
 - [2ndQuadrant website] [13]
-- [FAQs] [14]
-- [2ndQuadrant blog] [15]
+- [Barman FAQs] [14]
+- [2ndQuadrant blog: Barman] [15]
 
 ## Contributing to Barman
 
@@ -32,13 +32,13 @@ stages of the production pipeline.
 Even though this is our preferred way of developing Barman, we gladly
 accept patches from external developers, as long as:
 
-- user documentation (tutorial and man pages) is provided;
-- source code is properly documented and contains relevant comments;
-- code supplied is covered by unit tests;
-- no unrelated feature is compromised or broken;
-- source code is rebased on the current master branch;
+- user documentation (tutorial and man pages) is provided.
+- source code is properly documented and contains relevant comments.
+- code supplied is covered by unit tests.
+- no unrelated feature is compromised or broken.
+- source code is rebased on the current master branch.
 - commits and pull requests are limited to a single feature (multi-feature
-patches are hard to test and review);
+patches are hard to test and review).
 - changes to the user interface are discussed beforehand with 2ndQuadrant.
 
 We also require that any contributions provide a copyright assignment
@@ -51,17 +51,17 @@ You can use Github's pull requests system for this purpose.
 
 In alphabetical order:
 
-- Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> (project leader)
-- Jonathan Battiato <jonathan.battiato@2ndquadrant.it> (QA/testing)
-- Stefano Bianucci (developer)
-- Giuseppe Broccolo <giuseppe.broccolo@2ndquadrant.it> (QA/testing)
-- Giulio Calacoci <giulio.calacoci@2ndquadrant.it> (developer)
-- Francesco Canovai <francesco.canovai@2ndquadrant.it> (QA/testing)
-- Leonardo Cecchi <leonardo.cecchi@2ndquadrant.it> (developer)
-- Gianni Ciolli <gianni.ciolli@2ndquadrant.it> (QA/testing)
-- Britt Cole <britt.cole@2ndquadrant.it> (documentation)
-- Marco Nenciarini <marco.nenciarini@2ndquadrant.it> (lead developer)
-- Rubens Souza <rubens.souza@2ndquadrant.it> (QA/testing)
+- Gabriele Bartolini, <gabriele.bartolini@2ndquadrant.it> (project leader)
+- Jonathan Battiato, <jonathan.battiato@2ndquadrant.it> (QA/testing)
+- Stefano Bianucci, (developer, intern from University of Florence)
+- Giuseppe Broccolo, <giuseppe.broccolo@2ndquadrant.it> (QA/testing)
+- Giulio Calacoci, <giulio.calacoci@2ndquadrant.it> (developer)
+- Francesco Canovai, <francesco.canovai@2ndquadrant.it> (QA/testing)
+- Leonardo Cecchi, <leonardo.cecchi@2ndquadrant.it> (developer)
+- Gianni Ciolli, <gianni.ciolli@2ndquadrant.it> (QA/testing)
+- Britt Cole, <britt.cole@2ndquadrant.it> (documentation)
+- Marco Nenciarini, <marco.nenciarini@2ndquadrant.it> (lead developer)
+- Rubens Souza, <rubens.souza@2ndquadrant.it> (QA/testing)
 
 Past contributors:
 
@@ -77,7 +77,7 @@ Past contributors:
 
 ## License and Contributions
 
-Barman is the exclusive property of 2ndQuadrant Italia and its code is
+Barman is the property of 2ndQuadrant Italia and its code is
 distributed under GNU General Public License 3.
 
 Copyright (C) 2011-2016 [2ndQuadrant.it S.r.l.] [19].

@@ -4,7 +4,7 @@ Barman can backup a PostgreSQL server using the streaming connection,
 relying on `pg_basebackup`, a utility that has been available from
 PostgreSQL 9.1.
 
-> **Important:** Barman requires that `pg_basebackup` is installed in
+> **IMPORTANT:** Barman requires that `pg_basebackup` is installed in
 > the same server. For PostgreSQL 9.2 servers, you need the
 > `pg_basebackup` of version 9.2 installed alongside with Barman.  For
 > PostgreSQL 9.3 and above, it is recommented to install the last
@@ -20,8 +20,15 @@ need to use `postgres` as your backup method:
 backup_method = postgres
 ```
 
-> **Important:** keep in mind that if the WAL archiving is not
+> **IMPORTANT:** keep in mind that if the WAL archiving is not
 > currently configured, you will not be able to start a backup.
+
+To check if the server configuration is valid you can use the `barman
+check` command:
+
+``` bash
+barman@backup$ barman check pg
+```
 
 To start a backup you can use the `barman backup` command:
 
@@ -29,5 +36,5 @@ To start a backup you can use the `barman backup` command:
 barman@backup$ barman backup pg
 ```
 
-> **Important:** `pg_basebackup` 9.4 or higher is required for
+> **IMPORTANT:** `pg_basebackup` 9.4 or higher is required for
 > tablespace support if you use the `postgres` backup method.

@@ -16,23 +16,25 @@ providing useful information, such as global configuration, SSH version,
 Python version, `rsync` version, PostgreSQL clients version,
 as well as current configuration and status of all servers.
 
-The diagnose command is extremelly usefull for troubleshooting problems and
-having a global view of the barman status.
+The `diagnose` command is extremely useful for troubleshooting problems,
+as it gives a global view on the status of your Barman installation.
 
-## Requesting for help
+## Requesting help
 
-Although Barman is extensively documented there are a lot of scenarios that
+Although Barman is extensively documented, there are a lot of scenarios that
 are not covered.
 
-For any question around Barman and disaster recovery scenarios using Barman,
-you can reach the dev team using the official mailing list:
+For any questions around Barman and disaster recovery scenarios using Barman,
+you can reach the dev team using the community mailing list:
 https://groups.google.com/group/pgbarman
 
 or the IRC channel on freenode:
 irc://irc.freenode.net/barman
 
-In case you discover a bug, you can open a ticket using Github:
+In the event you discover a bug, you can open a ticket using Github:
 https://github.com/2ndquadrant-it/barman/issues
+
+2ndQuadrant provides professional support for Barman, including 24/7 service.
 
 ### Submitting a bug
 
