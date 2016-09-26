@@ -24,6 +24,7 @@ with Barman:
 * barman    : sources in Python
 * doc       : tutorial and man pages
 * rpm       : SPEC files for RHEL distributions
+* scripts   : auxiliary scripts
 * tests     : unit tests
 
 
@@ -36,7 +37,7 @@ with Barman:
 * Man page, section 5  : http://docs.pgbarman.org/barman.5.html
 * Community support    : http://www.pgbarman.org/support/
 * Professional support : http://www.2ndquadrant.com/
-- Client utilities     : https://github.com/2ndquadrant-it/barman-cli
+* Client utilities     : https://github.com/2ndquadrant-it/barman-cli
 * pgespresso extension : https://github.com/2ndquadrant-it/pgespresso
 
 

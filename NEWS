@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
-Version 2.0b1 - 20 Sep 2016
+Version 2.0 - 27 Sep 2016
 
 -   Support for pg_basebackup and base backups over the PostgreSQL
     streaming replication protocol with backup_method=postgres
@@ -19,21 +19,23 @@ Version 2.0b1 - 20 Sep 2016
     servers using the standard rsync method of backup. Concurrent backup
     was only possible for PostgreSQL 9.2 to 9.5 versions through the
     pgespresso extension. The new backup API will make pgespresso
-    redundant in the future in this context
+    redundant in the future
 
--   If properly configured, Barman can be configured as a synchronous
-    standby in terms of WAL streaming. By properly setting the
+-   If properly configured, Barman can function as a synchronous standby
+    in terms of WAL streaming. By properly setting the
     streaming_archiver_name in the synchronous_standby_names priority
     list on the master, and enabling replication slot support, the
     receive-wal command can now be part of a PostgreSQL synchronous
     replication cluster, bringing RPO=0 (PostgreSQL 9.5.5 or
-    higher required).
+    higher required)
 
 -   Introduce barman-wal-restore, a standard and robust script written
     in Python that can be used as restore_command in recovery.conf files
     of any standby server of a cluster. It supports remote parallel
-    fetching of WAL files by efficiently invoking get-wal through Ssh.
-    Currently available as a contrib script
+    fetching of WAL files by efficiently invoking get-wal through SSH.
+    Currently available as a separate project called barman-cli. The
+    barman-cli package is required for remote recovery when get-wal is
+    listed in recovery_options
 
 -   Control the maximum execution time of the check command through the
     check_timeout global/server configuration option (30 seconds
@@ -49,8 +51,12 @@ Version 2.0b1 - 20 Sep 2016
 
 -   The show-backup command is now aware of timelines and properly
     displays which timelines can be used as recovery targets for a given
-    base backup. Internally, Barman is now capable of parsing
-    .history files.
+    base backup. Internally, Barman is now capable of parsing .history
+    files
+
+-   Improved the logic behind the retry mechanism when copy operations
+    experience problems. This involves backup (rsync and postgres) as
+    well as remote recovery (rsync)
 
 -   Code refactoring involving remote command and physical copy
     interfaces
@@ -62,6 +68,8 @@ Version 2.0b1 - 20 Sep 2016
     -   Fix replication-status when sent and write locations are not
         available
     -   Fix misleading message on pg_receivexlog termination
+
+Version 1.6.1 - 23 May 2016
 
 -   Add --peek option to get-wal command to discover existing WAL files
     from the Barman's archive

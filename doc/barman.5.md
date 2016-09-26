@@ -1,6 +1,6 @@
-% BARMAN(5) Barman User manuals | Version 2.0b1
+% BARMAN(5) Barman User manuals | Version 2.0
 % 2ndQuadrant Italy <http://www.2ndQuadrant.it>
-% September 20, 2016
+% September 27, 2016
 
 # NAME
 barman - Backup and Recovery Manager for PostgreSQL
@@ -56,7 +56,7 @@ active
 archiver
 :   This option allows you to activate log file shipping through PostgreSQL's
     `archive_command` for a server. If set to `true` (default), Barman expects
-    that continous archiving for a server is in place and will activate
+    that continuous archiving for a server is in place and will activate
     checks as well as management (including compression) of WAL files that
     Postgres deposits in the *incoming* directory. Setting it to `false`,
     will disable standard continuous archiving for a server. Global/Server.

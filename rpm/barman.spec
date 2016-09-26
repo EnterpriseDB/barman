@@ -22,9 +22,9 @@
 
 %global main_version 2.0
 # comment out the next line if not a pre-release (use '#%%global ...')
-%global extra_version b1
+#%%global extra_version b1
 # Usually 1 - unique sequence for all pre-release version
-%global package_release 2
+%global package_release 1
 
 %{!?pybasever: %define pybasever %(%{__python} -c "import sys;print(sys.version[0:3])")}
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print get_python_lib()")}
@@ -114,103 +114,6 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
-* Tue Sep 20 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 2.0-0.2.b1
-- New release 2.0-0.2.b1
-
-* Fri Sep  9 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 2.0-0.1.a1
-- New release 2.0-0.1.a1
-
-* Mon May 23 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.1-1
-- New release 1.6.1-1
-
-* Mon May  9 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.1-0.1.a1
-- New release 1.6.1-0.1.a1
-
-* Mon Feb 29 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.0-1
-- New release 1.6.0-1
-
-* Wed Feb 17 2016 - Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> 1.6.0-0.3.b3
-- New release 1.6.0-0.3.b3
-
-* Wed Feb 10 2016 - Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> 1.6.0-0.2.b2
-- New release 1.6.0-0.2.b2
-
-* Mon Feb  1 2016 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.6.0-0.1.b1
-- New release 1.6.0-0.1.b1
-
-* Mon Nov 16 2015 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.5.1-1
-- New release 1.5.1
-
-* Mon Sep 28 2015 - Francesco Canovai <francesco.canovai@2ndquadrant.it> 1.5.0-1
-- New release 1.5.0
-
-* Tue Sep 15 2015 - Francesco Canovai <francesco.canovai@2ndquadrant.it> 1.5.0-0.1.a1
-- New release 1.5.0 alpha 1
-
-* Tue May  5 2015 - Francesco Canovai <francesco.canovai@2ndquadrant.it> 1.4.1-1
-- New release 1.4.1
-
-* Mon Jan 26 2015 - Francesco Canovai <francesco.canovai@2ndquadrant.it> 1.4.0-1
-- New release 1.4.0
-
-* Mon Jan 12 2015 - Francesco Canovai <francesco.canovai@2ndquadrant.it> 1.4.0-0.1.alpha.1
-- New release 1.4.0-alpha.1
-
-* Thu Aug 21 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.3-1
-- New release 1.3.3
-
-* Tue Jun 24 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.3-0.1.alpha.1
-- New release 1.3.3-alpha.1
-
-* Tue Apr 15 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.2-1
-- New release 1.3.2
-
-* Mon Apr 14 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.1-1
-- New release 1.3.1
-
-* Mon Feb  3 2014 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.3.0-1
-- New release 1.3.0
-
-* Thu Sep  5 2013 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.2.3-1
-- New release 1.2.3
-
-* Mon Jun 24 2013 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.2.2-1
-- New release 1.2.2
-
-* Mon Jun 17 2013 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.2.1-1
-- New release 1.2.1
-
-* Thu Jan 31 2013 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.2.0-1
-- New release 1.2.0
-- Depend on python-argh >= 0.21.2 and python-argcomplete
-
-* Thu Nov 29 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.1.2-1
-- New release 1.1.2
-
-* Tue Oct 16 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.1.1-1
-- New release 1.1.1
-
-* Fri Oct 12 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.1.0-1
-- New release 1.1.0
-- Some improvements from Devrim Gunduz <devrim@gunduz.org>
-
-* Fri Jul  6 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 1.0.0-1
-- Open source release
-
-* Thu May 17 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 0.99.0-5
-- Fixed exception handling and documentation
-
-* Thu May 17 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 0.99.0-4
-- Fixed documentation
-
-* Tue May 15 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 0.99.0-3
-- Fixed cron job
-
-* Tue May 15 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 0.99.0-2
-- Add cron job
-
-* Wed May 9 2012 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 0.99.0-1
-- Update to version 0.99.0
-
-* Tue Dec 6 2011 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 0.3.1-1
-- Initial packaging.
+* Tue Sep 27 2016 - Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> 2.0-1
+- New release 2.0-1
+- Trim changelog for releases 1.X
