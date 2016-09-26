@@ -12,7 +12,7 @@ description =  "Example of PostgreSQL Database (Streaming-Only)"
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; PostgreSQL connection string (mandatory)
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-conninfo = host=pg user=barman
+conninfo = host=pg user=barman dbname=postgres
 
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; PostgreSQL streaming connection string

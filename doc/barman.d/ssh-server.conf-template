@@ -2,12 +2,12 @@
 ; http://www.pgbarman.org/ - http://www.2ndQuadrant.com/
 ;
 ; Template configuration file for a server using
-; Ssh connections and rsync for copy.
+; SSH connections and rsync for copy.
 ;
 
 [ssh]
 ; Human readable description
-description =  "Example of PostgreSQL Database (via Ssh)"
+description =  "Example of PostgreSQL Database (via SSH)"
 
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; SSH options (mandatory)
@@ -17,10 +17,10 @@ ssh_command = ssh postgres@pg
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; PostgreSQL connection string (mandatory)
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-conninfo = host=pg user=barman
+conninfo = host=pg user=barman dbname=postgres
 
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Backup settings (via rsync over Ssh)
+; Backup settings (via rsync over SSH)
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 backup_method = rsync
 ; Incremental backup support: possible values are None (default), link or copy
@@ -36,4 +36,4 @@ archiver = on
 ;archiver_batch_size = 50
 
 ; PATH setting for this server
-;path_prefix = "/usr/pgsql-9.3/bin"
+;path_prefix = "/usr/pgsql-9.6/bin"
