@@ -1,3 +1,53 @@
+2016-09-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2016-09-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Update architecture diagrams
+
+2016-09-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Review of example configurations in doc/barman.d/
+
+2016-09-26  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Fix image size in manual
+
+2016-09-26  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Set version to 2.0
+
+2016-09-25  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	General review of the manual before 2.0 release
+
+2016-09-23  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add section `Upgrade from Barman 1.X` to manual.
+
+2016-09-23  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Improve documentation of get-wal command
+	This patch improves the documentation of the get-wal command for the
+	local recovery, specifying that the command must be executed as `barman`
+	user and not as the user which is running the PostgreSQL server.
+	It also includes details about the barman-wal-restore command.
+
+2016-09-23  Gabriele Bartolini  <gabriele.bartolini@2ndquadrant.it>
+
+	Update INSTALL, README and TODO files
+
+2016-09-23  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add Windows server documentation
+	Add a Windows server section in the "Setup a new server in Barman"
+	chapter.
+
+2016-09-21  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Fix wrongly named max_replication_slots configuration parameter
+
 2016-09-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
