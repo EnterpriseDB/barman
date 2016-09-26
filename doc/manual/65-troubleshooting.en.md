@@ -24,8 +24,9 @@ as it gives a global view on the status of your Barman installation.
 Although Barman is extensively documented, there are a lot of scenarios that
 are not covered.
 
-For any questions around Barman and disaster recovery scenarios using Barman,
+For any questions about Barman and disaster recovery scenarios using Barman,
 you can reach the dev team using the community mailing list:
+
 https://groups.google.com/group/pgbarman
 
 or the IRC channel on freenode:

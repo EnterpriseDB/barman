@@ -92,7 +92,7 @@ As mentioned before, we will only worry about the PostgreSQL server (`pg`) and t
 If you are using PostgreSQL 9.4 or higher, and your database falls under a general use case scenario, you will likely end up deciding on a streaming backup installation - see figure \ref{scenario1-design} below.
 
 <!-- TODO: This way of referencing won't work in HTML -->
-![Streaming-only backup (Scenario 1)\label{scenario1-design}](../images/barman-architecture-scenario1.png){ width=10cm }
+![Streaming-only backup (Scenario 1)\label{scenario1-design}](../images/barman-architecture-scenario1.png){ width=80% }
 
 In this scenario, you will need to configure:
 
@@ -103,7 +103,7 @@ This setup, in Barman's terminology, is known as **streaming-only** setup, as it
 
 However, as mentioned before, you can configure standard archiving as well and implement a more robust architecture - see figure \ref{scenario1b-design} below.
 
-![Streaming backup with WAL archiving (Scenario 1b)\label{scenario1b-design}](../images/barman-architecture-scenario1b.png){ width=10cm }
+![Streaming backup with WAL archiving (Scenario 1b)\label{scenario1b-design}](../images/barman-architecture-scenario1b.png){ width=80% }
 
 This alternate approach requires:
 
@@ -123,7 +123,7 @@ The _traditional_ setup of `rsync` over SSH is the only available option for:
 - network compression during backups
 - finer control of bandwidth usage, including on a tablespace basis
 
-![Scenario 2 - Backup via rsync/SSH](../images/barman-architecture-scenario2.png){ width=10cm }
+![Scenario 2 - Backup via rsync/SSH](../images/barman-architecture-scenario2.png){ width=80% }
 
 In this scenario, you will need to configure:
 
@@ -133,6 +133,6 @@ In this scenario, you will need to configure:
 
 Starting from PostgreSQL 9.2, you can add a streaming replication connection that is used for WAL streaming and significantly reduce RPO. This more robust implementation is depicted in figure \ref{scenario2b-design}.
 
-![Backup via rsync/SSH with WAL streaming (Scenario 2b)\label{scenario2b-design}](../images/barman-architecture-scenario2b.png){ width=10cm }
+![Backup via rsync/SSH with WAL streaming (Scenario 2b)\label{scenario2b-design}](../images/barman-architecture-scenario2b.png){ width=80% }
 
 <!-- TODO - Add a section on architecture for recovery? -->
