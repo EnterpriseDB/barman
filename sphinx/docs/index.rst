@@ -15,17 +15,15 @@
 Welcome to barman |version|
 ===========================
 
-Barman (Backup and Recovery Manager) is an open source administration
+Barman (Backup and Recovery Manager) is an open-source administration
 tool for disaster recovery of PostgreSQL servers written in Python.
 It allows your organisation to perform remote backups of multiple
-servers in business critical environments and to help DBAs during
-the recovery phase.
+servers in business critical environments to reduce risk and help DBAs
+during the recovery phase.
 
-Barman's most requested features include backup catalogues, incremental
-backup, retention policies, remote backup and recovery, archiving and
-compression of WAL files and backups.
+Barman is distributed under GNU GPL 3 and maintained by 2ndQuadrant.
 
-Barman is maintained by 2ndQuadrant and is distributed under GNU GPL 3.
+For further information, look at the "Web resources" section below.
 
 Contents:
 
@@ -37,13 +35,15 @@ Contents:
 Web resources
 =============
 
-* Website             : http://www.pgbarman.org/
-* Documentation       : http://www.pgbarman.org/documentation/
-* Man page, section 1 : http://docs.pgbarman.org/barman.1.html
-* Man page, section 5 : http://docs.pgbarman.org/barman.5.html
-* Community support   : http://www.pgbarman.org/support/
-* Professional support: http://www.2ndquadrant.com/
-* pgespresso extension: https://github.com/2ndquadrant-it/pgespresso
+* Website              : http://www.pgbarman.org/
+* Download             : http://sourceforge.net/projects/pgbarman/files/
+* Documentation        : http://www.pgbarman.org/documentation/
+* Man page, section 1  : http://docs.pgbarman.org/barman.1.html
+* Man page, section 5  : http://docs.pgbarman.org/barman.5.html
+* Community support    : http://www.pgbarman.org/support/
+* Professional support : http://www.2ndquadrant.com/
+* Client utilities     : https://github.com/2ndquadrant-it/barman-cli
+* pgespresso extension : https://github.com/2ndquadrant-it/pgespresso
 
 Licence
 =======
