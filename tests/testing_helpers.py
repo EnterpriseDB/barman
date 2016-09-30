@@ -164,7 +164,8 @@ def build_config_from_dicts(global_conf=None, main_conf=None,
     base_barman = {
         'barman_home': '/some/barman/home',
         'barman_user': '{USER}',
-        'log_file': '%(barman_home)s/log/barman.log'
+        'log_file': '%(barman_home)s/log/barman.log',
+        'archiver': True
     }
     # base main section
     base_main = {

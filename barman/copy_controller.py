@@ -89,6 +89,12 @@ class _RsyncCopyItem(object):
         self.item_class = item_class
         self.optional = optional
 
+        # Attributes that will e filled during the analysis
+        self.dir_file = None
+        self.safe_file = None
+        self.check_file = None
+        self.exclude_and_protect_file = None
+
     def __str__(self):
         # Prepare strings for messages
         formatted_class = self.item_class
@@ -214,6 +220,17 @@ class RsyncCopyController(object):
         self.item_list = []
         """List of items to be copied"""
 
+        self.rsync_cache = {}
+        """A cache of RsyncPgData objects"""
+
+        # Attributes used for progress reporting
+
+        self.total_steps = None
+        """Total number of steps"""
+
+        self.current_step = None
+        """Current step number"""
+
     def add_directory(self, label, src, dst,
                       exclude=None,
                       exclude_and_protect=None,
@@ -279,59 +296,149 @@ class RsyncCopyController(object):
                 item_class=item_class,
                 optional=optional))
 
+    def rsync_factory(self, item):
+        """
+        Build the RsyncPgData object required for copying the provided item
+
+        :param _RsyncCopyItem item: information about a copy operation
+        :rtype: RsyncPgData
+        """
+        # If the object already exists, use it
+        if item in self.rsync_cache:
+            return self.rsync_cache[item]
+
+        # Prepare the command arguments
+        args = self._reuse_args(item.reuse)
+        # Merge the global exclude with the one into the item object
+        if self.exclude and item.exclude:
+            exclude = self.exclude + item.exclude
+        else:
+            exclude = self.exclude or item.exclude
+
+        # TODO: remove debug output or use it to progress tracking
+        # By adding a double '--itemize-changes' option, the rsync
+        # output will contain the full list of files that have been
+        # touched, even those that have not changed
+        args.append('--itemize-changes')
+        args.append('--itemize-changes')
+
+        # Build the rsync object that will execute the copy
+        rsync = RsyncPgData(
+            path=self.path,
+            ssh=self.ssh_command,
+            ssh_options=self.ssh_options,
+            args=args,
+            bwlimit=item.bwlimit,
+            network_compression=self.network_compression,
+            exclude=exclude,
+            exclude_and_protect=item.exclude_and_protect,
+            retry_times=self.retry_times,
+            retry_sleep=self.retry_sleep,
+            retry_handler=partial(self._retry_handler, item)
+        )
+        self.rsync_cache[item] = rsync
+        return rsync
+
     def copy(self):
         """
         Execute the actual copy
         """
+        # Create a temporary directory to hold the file lists.
+        temp_dir = tempfile.mkdtemp(suffix='', prefix='barman-')
+        # The following try block is to make sure the temporary directory
+        # will be removed on exit.
+        try:
+            # Initialize the counters used by progress reporting
+            self._progress_init()
+            _logger.info("Copy started (safe before %r)", self.safe_horizon)
+
+            # Execute some preliminary steps for each item to be copied
+            for item in self.item_list:
+
+                # The initial preparation is necessary only for directories
+                if not item.is_directory:
+                    continue
+
+                # Analyze the source and destination directory content
+                self._progress_report("analyze %s" % item)
+                self._analyze_directory(item, temp_dir)
+
+                # Prepare the target directories, removing any unneeded file
+                self._progress_report(
+                    "create destination directories and delete unknown files "
+                    "for %s" % item)
+                self._create_dir_and_purge(item)
+
+            # Do the actual copy
+            for item in self.item_list:
+
+                # Build the rsync object required for the copy
+                rsync = self.rsync_factory(item)
+
+                # If the item is a directory use the copy method,
+                # otherwise run a plain rsync
+                if item.is_directory:
+
+                    # Log the operation that is being executed
+                    self._progress_report("copy safe files from %s" %
+                                          item)
+
+                    # Copy the safe files
+                    self._copy(rsync,
+                               item.src,
+                               item.dst,
+                               file_list=item.safe_file,
+                               checksum=False)
+
+                    # Log the operation that is being executed
+                    self._progress_report("copy files with checksum from %s" %
+                                          item)
+
+                    # Copy the files with rsync
+                    self._copy(rsync,
+                               item.src,
+                               item.dst,
+                               file_list=item.check_file,
+                               checksum=True)
+                else:
+                    # Log the operation that is being executed
+                    self._progress_report("copy %s" % item)
+                    rsync(item.src, item.dst, allowed_retval=(0, 23, 24))
+                    if rsync.ret == 23:
+                        if item.optional:
+                            _logger.warning(
+                                "Ignoring error reading %s", item)
+                        else:
+                            raise CommandFailedException(dict(
+                                ret=rsync.ret, out=rsync.out, err=rsync.err))
+        finally:
+            # Clean tmp dir and log, exception management is delegeted to
+            # the executor class
+            shutil.rmtree(temp_dir)
+            _logger.info("Copy finished (safe before %s)", self.safe_horizon)
+
+    def _progress_init(self):
+        """
+        Init counters used by progress logging
+        """
+        self.total_steps = 0
         for item in self.item_list:
-            # Prepare the command arguments
-            args = self._reuse_args(item.reuse)
-
-            # Merge the global exclude with the one into the item object
-            if self.exclude and item.exclude:
-                exclude = self.exclude + item.exclude
-            else:
-                exclude = self.exclude or item.exclude
-
-            # TODO: remove debug output or use it to progress tracking
-            # By adding a double '--itemize-changes' option, the rsync
-            # output will contain the full list of files that have been
-            # touched, even those that have not changed
-            args.append('--itemize-changes')
-            args.append('--itemize-changes')
-
-            # Build the rsync object that will execute the copy
-            rsync = RsyncPgData(
-                path=self.path,
-                ssh=self.ssh_command,
-                ssh_options=self.ssh_options,
-                args=args,
-                bwlimit=item.bwlimit,
-                network_compression=self.network_compression,
-                exclude=exclude,
-                exclude_and_protect=item.exclude_and_protect,
-                retry_times=self.retry_times,
-                retry_sleep=self.retry_sleep,
-                retry_handler=partial(self._retry_handler, item)
-            )
-
-            # Log the operation that is being executed
-            _logger.info("Copying %s", item)
-
-            # If the item is a directory use the smart copy algorithm,
-            # otherwise run a plain rsync
+            # Directories require 4 steps, files only one
             if item.is_directory:
-                self._smart_copy(rsync, item.src, item.dst,
-                                 self.safe_horizon, item.reuse)
+                self.total_steps += 4
             else:
-                rsync(item.src, item.dst, allowed_retval=(0, 23, 24))
-                if rsync.ret == 23:
-                    if item.optional:
-                        _logger.warning(
-                            "Ignoring error reading %s", item)
-                    else:
-                        raise CommandFailedException(dict(
-                            ret=rsync.ret, out=rsync.out, err=rsync.err))
+                self.total_steps += 1
+        self.current_step = 0
+
+    def _progress_report(self, msg):
+        """
+        Log a message containing the progress
+
+        :param str msg: the message
+        """
+        self.current_step += 1
+        _logger.info("Copy step %s of %s: %s",
+                     self.current_step, self.total_steps, msg)
 
     def _reuse_args(self, reuse_directory):
         """
@@ -362,17 +469,18 @@ class RsyncCopyController(object):
                      item, attempt)
         _logger.warn("Retrying in %s seconds", self.retry_sleep)
 
-    def _smart_copy(self, rsync, src, dst, safe_horizon=None, ref=None):
+    def _analyze_directory(self, item, temp_dir):
         """
-        Recursively copies files from "src" to "dst" in a way that is safe from
-        the point of view of a PostgreSQL backup.
-        The "safe_horizon" parameter is the timestamp of the beginning of the
+        Analyzes the status of source and destination directories identifying
+        the files that are safe from the point of view of a PostgreSQL backup.
+
+        The safe_horizon value is the timestamp of the beginning of the
         older backup involved in copy (as source or destination). Any files
         updated after that timestamp, must be checked as they could have been
         modified during the backup - and we do not reply WAL files to update
         them.
 
-        The "dst" directory must exist.
+        The destination directory must exist.
 
         If the "safe_horizon" parameter is None, we cannot make any
         assumptions about what can be considered "safe", so we must check
@@ -384,24 +492,20 @@ class RsyncCopyController(object):
         In this case, both the "dst" and "ref" dir must exist and
         the "dst" dir must be empty.
 
-        If "src" or "dst" content begin with a ':' character, it is a remote
-        path. Only local paths are supported in "ref" argument.
+        If source or destination path begin with a ':' character,
+        it is a remote path. Only local paths are supported in "ref" argument.
 
-        :param Rsync rsync: the Rsync object used to execute the copy
-        :param str src: the source path
-        :param str dst: the destination path
-        :param datetime.datetime safe_horizon: anything after this time
-            has to be checked
-        :param str ref: the reference path
-        :except CommandFailedException: If rsync failed at any time
-        :except RsyncListFilesFailure: If source rsync output format is unknown
+        :param _RsyncCopyItem item: information about a copy operation
+        :param temp_dir: path to a temporary directory used to store file lists
         """
-        _logger.info("Smart copy: %r -> %r (ref: %r, safe before %r)",
-                     src, dst, ref, safe_horizon)
+
+        # Build the rsync object required for the analysis
+        rsync = self.rsync_factory(item)
 
         # If reference is not set we use dst as reference path
+        ref = item.reuse
         if ref is None:
-            ref = dst
+            ref = item.dst
 
         # Make sure the ref path ends with a '/' or rsync will add the
         # last path component to all the returned items during listing
@@ -410,7 +514,6 @@ class RsyncCopyController(object):
 
         # Build a hash containing all files present on reference directory.
         # Directories are not included
-        _logger.info("Smart copy step 1/4: preparation")
         try:
             ref_hash = dict((
                 (item.path, item)
@@ -427,102 +530,108 @@ class RsyncCopyController(object):
                 "Using only source file information to decide which files"
                 " need to be copied with checksums enabled: %s" % e)
 
-        # We need a temporary directory to store the files containing the lists
-        # we are building in order to instruct rsync about which files need to
-        # be copied at different stages
-        temp_dir = tempfile.mkdtemp(suffix='', prefix='barman-')
-        try:
-            # The 'dir.list' file will contain every directory in the
-            # source tree
-            dir_list = open(os.path.join(temp_dir, 'dir.list'), 'w+')
-            # The 'safe.list' file will contain all files older than
-            # safe_horizon, as well as files that we know rsync will
-            # check anyway due to a difference in mtime or size
-            safe_list = open(os.path.join(temp_dir, 'safe.list'), 'w+')
-            # The 'check.list' file will contain all files that need
-            # to be copied with checksum option enabled
-            check_list = open(os.path.join(temp_dir, 'check.list'), 'w+')
-            # The 'protect.list' file will contain a filter rule to protect
-            # each file present in the source tree. It will be used during
-            # the first phase to delete all the extra files on destination.
-            exclude_and_protect_filter = open(
-                os.path.join(temp_dir, 'exclude_and_protect.filter'), 'w+')
-            for item in self._list_files(rsync, src):
-                # If item is a directory, we only need to save it in 'dir.list'
-                if item.mode[0] == 'd':
-                    dir_list.write(item.path + '\n')
-                    continue
+        # The 'dir.list' file will contain every directory in the
+        # source tree
+        item.dir_file = os.path.join(temp_dir, '%s_dir.list' % item.label)
+        dir_list = open(item.dir_file, 'w+')
+        # The 'safe.list' file will contain all files older than
+        # safe_horizon, as well as files that we know rsync will
+        # check anyway due to a difference in mtime or size
+        item.safe_file = os.path.join(temp_dir, '%s_safe.list' % item.label)
+        safe_list = open(item.safe_file, 'w+')
+        # The 'check.list' file will contain all files that need
+        # to be copied with checksum option enabled
+        item.check_file = os.path.join(temp_dir, '%s_check.list' % item.label)
+        check_list = open(item.check_file,  'w+')
+        # The 'protect.list' file will contain a filter rule to protect
+        # each file present in the source tree. It will be used during
+        # the first phase to delete all the extra files on destination.
+        item.exclude_and_protect_file = os.path.join(
+            temp_dir, '%s_exclude_and_protect.filter' % item.label)
+        exclude_and_protect_filter = open(item.exclude_and_protect_file,
+                                          'w+')
+        for item in self._list_files(rsync, item.src):
+            # If item is a directory, we only need to save it in 'dir.list'
+            if item.mode[0] == 'd':
+                dir_list.write(item.path + '\n')
+                continue
 
-                # Add every file in the source path to the list of files
-                # to be protected from deletion ('exclude_and_protect.filter')
-                exclude_and_protect_filter.write('P ' + item.path + '\n')
-                exclude_and_protect_filter.write('- ' + item.path + '\n')
+            # Add every file in the source path to the list of files
+            # to be protected from deletion ('exclude_and_protect.filter')
+            exclude_and_protect_filter.write('P ' + item.path + '\n')
+            exclude_and_protect_filter.write('- ' + item.path + '\n')
 
-                # If source item is older than safe_horizon,
-                # add it to 'safe.list'
-                if safe_horizon and item.date < safe_horizon:
-                    safe_list.write(item.path + '\n')
-                    continue
+            # If source item is older than safe_horizon,
+            # add it to 'safe.list'
+            if self.safe_horizon and item.date < self.safe_horizon:
+                safe_list.write(item.path + '\n')
+                continue
 
-                # If ref_hash is None, it means we failed to retrieve the
-                # destination file list. We assume the only safe way is to
-                # check every file that is older than safe_horizon
-                if ref_hash is None:
-                    check_list.write(item.path + '\n')
-                    continue
-
-                # If source file differs by time or size from the matching
-                # destination, rsync will discover the difference in any case.
-                # It is then safe to skip checksum check here.
-                dst_item = ref_hash.get(item.path, None)
-                if (dst_item is None or
-                        dst_item.size != item.size or
-                        dst_item.date != item.date):
-                    safe_list.write(item.path + '\n')
-                    continue
-
-                # All remaining files must be checked with checksums enabled
+            # If ref_hash is None, it means we failed to retrieve the
+            # destination file list. We assume the only safe way is to
+            # check every file that is older than safe_horizon
+            if ref_hash is None:
                 check_list.write(item.path + '\n')
+                continue
 
-            # Close all the control files
-            dir_list.close()
-            safe_list.close()
-            check_list.close()
-            exclude_and_protect_filter.close()
+            # If source file differs by time or size from the matching
+            # destination, rsync will discover the difference in any case.
+            # It is then safe to skip checksum check here.
+            dst_item = ref_hash.get(item.path, None)
+            if (dst_item is None or dst_item.size != item.size or
+                    dst_item.date != item.date):
+                safe_list.write(item.path + '\n')
+                continue
 
-            # Create directories and delete/copy unknown files
-            _logger.info("Smart copy step 2/4: create directories and "
-                         "delete/copy unknown files")
-            self._rsync_ignore_vanished_files(
-                rsync,
-                '--recursive',
-                '--delete',
-                '--files-from=%s' % dir_list.name,
-                '--filter', 'merge %s' % exclude_and_protect_filter.name,
-                src, dst,
-                check=True)
+            # All remaining files must be checked with checksums enabled
+            check_list.write(item.path + '\n')
 
-            # Copy safe files
-            _logger.info("Smart copy step 3/4: safe copy")
-            self._rsync_ignore_vanished_files(
-                rsync,
-                '--files-from=%s' % safe_list.name,
-                src, dst,
-                check=True)
+        # Close all the control files
+        dir_list.close()
+        safe_list.close()
+        check_list.close()
+        exclude_and_protect_filter.close()
 
-            # Copy remaining files with checksums
-            _logger.info("Smart copy step 4/4: copy with checksums")
-            self._rsync_ignore_vanished_files(
-                rsync,
-                '--checksum',
-                '--files-from=%s' % check_list.name,
-                src, dst,
-                check=True)
+    def _create_dir_and_purge(self, item):
+        """
+        Create destination directories and delete any unknown file
 
-        finally:
-            shutil.rmtree(temp_dir)
-            _logger.info("Smart copy finished: %s -> %s (safe before %s)",
-                         src, dst, safe_horizon)
+        :param _RsyncCopyItem item: information about a copy operation
+        """
+
+        # Build the rsync object required for the analysis
+        rsync = self.rsync_factory(item)
+
+        # Create directories and delete any unknown file
+        self._rsync_ignore_vanished_files(
+            rsync,
+            '--recursive',
+            '--delete',
+            '--files-from=%s' % item.dir_file,
+            '--filter', 'merge %s' % item.exclude_and_protect_file,
+            item.src, item.dst,
+            check=True)
+
+    def _copy(self, rsync, src, dst, file_list, checksum=False):
+        """
+        The method execute the call to rsync, using as source a
+        a list of files, and adding the the checksum option if required by the
+        caller.
+
+        :param Rsync rsync: the Rsync object used to retrieve the list of files
+            inside the directories
+            for copy purposes
+        :param str src: source directory
+        :param str dst: destination directory
+        :param str file_list: path to the file containing the sources for rsync
+        :param bool checksum: if checksum argument for rsync is required
+        """
+        # Build the rsync call args
+        args = ['--files-from=%s' % file_list]
+        if checksum:
+            # Add checksum option if needed
+            args.append('--checksum')
+        self._rsync_ignore_vanished_files(rsync, src, dst, *args, check=True)
 
     def _list_files(self, rsync, path):
         """

@@ -91,16 +91,19 @@ class TestRsyncCopyController(object):
             ['--copy-dest=some/dir']
 
     @patch('barman.copy_controller.RsyncPgData')
-    @patch('barman.copy_controller.RsyncCopyController._smart_copy')
-    def test_full_copy(self, smart_copy_mock, rsync_mock, tmpdir):
+    @patch('barman.copy_controller.RsyncCopyController._analyze_directory')
+    @patch('barman.copy_controller.RsyncCopyController._create_dir_and_purge')
+    @patch('barman.copy_controller.RsyncCopyController._copy')
+    @patch('tempfile.mkdtemp')
+    def test_full_copy(self, tempfile_mock, copy_mock, create_and_purge_mock,
+                       analyse_mock, rsync_mock, tmpdir):
         """
-        Test the execution of a rsync copy
-
-        :param rsync_mock: mock for the rsync command
-        :param tmpdir: temporary dir
+        Test the execution of a full copy
         """
 
         # Build the prerequisites
+        tempdir = tmpdir.mkdir('tmp')
+        tempfile_mock.return_value = tempdir.strpath
         server = build_real_server(global_conf={
             'barman_home': tmpdir.mkdir('home').strpath
         })
@@ -172,6 +175,7 @@ class TestRsyncCopyController(object):
             optional=False),
         rcc.copy(),
 
+        # Check the order of calls to the Rsync mock
         assert rsync_mock.mock_calls == [
             mock.call(network_compression=False,
                       args=['--itemize-changes',
@@ -240,19 +244,44 @@ class TestRsyncCopyController(object):
                 allowed_retval=(0, 23, 24)),
         ]
 
-        assert smart_copy_mock.mock_calls == [
-            mock.call(mock.ANY,
-                      ':/fake/location/',
-                      backup_info.get_data_directory(16387),
-                      None, None),
-            mock.call(mock.ANY,
-                      ':/another/location/',
-                      backup_info.get_data_directory(16405),
-                      None, None),
-            mock.call(mock.ANY,
-                      ':/pg/data/',
-                      backup_info.get_data_directory(),
-                      None, None),
+        # Check calls to _analyse_directory method
+        assert analyse_mock.mock_calls == [
+            mock.call(item, tempdir.strpath) for item in rcc.item_list
+            if item.is_directory
+        ]
+
+        # Check calls to _create_dir_and_purge method
+        assert create_and_purge_mock.mock_calls == [
+            mock.call(item) for item in rcc.item_list
+            if item.is_directory
+        ]
+
+        # Check the order of calls to the copy method
+        # All the file_list arguments are None because the analyze part
+        # has not really been executed
+        assert copy_mock.mock_calls == [
+            mock.call(
+                mock.ANY, ':/fake/location/',
+                backup_info.get_data_directory(16387), checksum=False,
+                file_list=None),
+            mock.call(
+                mock.ANY, ':/fake/location/',
+                backup_info.get_data_directory(16387), checksum=True,
+                file_list=None),
+            mock.call(
+                mock.ANY, ':/another/location/',
+                backup_info.get_data_directory(16405), checksum=False,
+                file_list=None),
+            mock.call(
+                mock.ANY, ':/another/location/',
+                backup_info.get_data_directory(16405), checksum=True,
+                file_list=None),
+            mock.call(mock.ANY, ':/pg/data/',
+                      backup_info.get_data_directory(), checksum=False,
+                      file_list=None),
+            mock.call(mock.ANY, ':/pg/data/',
+                      backup_info.get_data_directory(), checksum=True,
+                      file_list=None),
         ]
 
     def test_list_files(self):
