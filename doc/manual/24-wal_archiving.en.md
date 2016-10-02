@@ -39,7 +39,7 @@ particular, you need to check that WAL files are correctly collected
 in the destination directory.
 
 
-### How to check the WAL archiving configuration
+## Verification of WAL archiving configuration
 
 In order to improve the verification of the WAL archiving process, the
 `switch-xlog` command has been developed:
