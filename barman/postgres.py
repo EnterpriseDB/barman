@@ -566,7 +566,7 @@ class PostgreSQLConnection(PostgreSQL):
                 "OR last_failed_wal LIKE '%.history' "
                 "AND substring(last_failed_wal from 1 for 8) "
                 "<= substring(last_archived_wal from 1 for 8) "
-                "OR last_failed_wal <= last_archived_wal) "
+                "OR last_failed_time <= last_archived_time) "
                 "AS is_archiving, "
                 "CAST (archived_count AS NUMERIC) "
                 "/ EXTRACT (EPOCH FROM age(now(), stats_reset)) "
