@@ -148,7 +148,8 @@ a standby server**, using `rsync`.
 > version of PostgreSQL.
 
 By default, `backup_options` is transparently set to
-`exclusive_backup`.
+`exclusive_backup` for back compatibility reasons.
+Users of PostgreSQL 9.6 should set `backup_options` to `concurrent_backup`.
 
 When `backup_options` is set to `concurrent_backup`, Barman activates
 the _concurrent backup mode_ for a server and follows these two simple
