@@ -807,7 +807,7 @@ class ConsoleOutputWriter(object):
                         sync_stage = '1/%s 1-safe' % max_level
 
                 # Synchronous standby
-                if standby.sync_priority > 0:
+                if getattr(standby, 'sync_priority', None) > 0:
                     self.info("  %s. #%s %s %s",
                               n,
                               standby.sync_priority,
@@ -823,7 +823,7 @@ class ConsoleOutputWriter(object):
                           standby.application_name)
                 self.info("     Sync stage      : %s",
                           sync_stage)
-                if standby.client_addr:
+                if getattr(standby, 'client_addr', None):
                     self.info("     Communication   : TCP/IP")
                     self.info("     IP Address      : %s "
                               "/ Port: %s / Host: %s",
@@ -836,26 +836,26 @@ class ConsoleOutputWriter(object):
                 self.info("     Current state   : %s (%s)",
                           standby.state,
                           standby.sync_state)
-                if standby.slot_name:
+                if getattr(standby, 'slot_name', None):
                     self.info("     Replication slot: %s", standby.slot_name)
                 self.info("     WAL sender PID  : %s", standby.pid)
                 self.info("     Started at      : %s", standby.backend_start)
-                if standby.backend_xmin:
+                if getattr(standby, 'backend_xmin', None):
                     self.info("     Standby's xmin  : %s",
                               standby.backend_xmin or '-')
-                if standby.sent_location:
+                if getattr(standby, 'sent_location', None):
                     self.info("     Sent location   : %s (diff: %s)",
                               standby.sent_location,
                               pretty_size(sent_diff))
-                if standby.write_location:
+                if getattr(standby, 'write_location', None):
                     self.info("     Write location  : %s (diff: %s)",
                               standby.write_location,
                               pretty_size(write_diff))
-                if standby.flush_location:
+                if getattr(standby, 'flush_location', None):
                     self.info("     Flush location  : %s (diff: %s)",
                               standby.flush_location,
                               pretty_size(flush_diff))
-                if standby.replay_location:
+                if getattr(standby, 'replay_location', None):
                     self.info("     Replay location : %s (diff: %s)",
                               standby.replay_location,
                               pretty_size(replay_diff))

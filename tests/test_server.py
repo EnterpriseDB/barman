@@ -943,6 +943,13 @@ class TestServer(object):
         server.postgres.get_replication_stats.assert_called_once_with(
             PostgreSQLConnection.ANY_STREAMING_CLIENT)
 
+        # Test output reaction to missing attributes
+        del replication_stats_data['slot_name']
+        server.postgres.reset_mock()
+        server.replication_status('all')
+        (out, err) = capsys.readouterr()
+        assert 'Replication slot' not in out
+
     def test_timeline_has_children(self, tmpdir):
         """
         Test for the timeline_has_children
