@@ -95,9 +95,9 @@ setup(
     ],
     setup_requires=setup_requires,
     tests_require=[
-        'pytest',
         'mock',
         'pytest-catchlog>=1.2.1',
         'pytest-timeout',
+        'pytest',
     ],
 )
