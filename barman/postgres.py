@@ -278,6 +278,9 @@ class StreamingConnection(PostgreSQL):
         # Make sure we connect using the 'replication' option which
         # triggers streaming replication protocol communication
         self.conn_parameters['replication'] = 'true'
+        # ensure that the datestyle is set to iso, working around an
+        # issue in some psycopg2 versions
+        self.conn_parameters['options'] = '-cdatestyle=iso'
         # Override 'dbname' parameter. This operation is required to mimic
         # the behaviour of pg_receivexlog and pg_basebackup
         self.conn_parameters['dbname'] = 'replication'

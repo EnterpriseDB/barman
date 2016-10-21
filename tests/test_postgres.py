@@ -1597,7 +1597,9 @@ class TestStreamingConnection(object):
                                   'dbname=test_db'})
         assert server.streaming.conn_parameters['dbname'] == 'replication'
         assert server.streaming.conninfo == 'dbname=replication ' \
-                                            'host=/test port=5496 ' \
+                                            'host=/test ' \
+                                            'options=-cdatestyle=iso ' \
+                                            'port=5496 ' \
                                             'replication=true ' \
                                             'user=test'
 
