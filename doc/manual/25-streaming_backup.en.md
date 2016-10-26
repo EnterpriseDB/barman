@@ -11,7 +11,7 @@ PostgreSQL 9.1.
 > available version of `pg_basebackup`, as it is back compatible.  You
 > can even install multiple versions of `pg_basebackup` on the Barman
 > server and properly point to the specific version for a server,
-> using the `path` option in the configuration file.
+> using the `path_prefix` option in the configuration file.
 
 To successfully backup your server with the streaming connection, you
 need to use `postgres` as your backup method:
