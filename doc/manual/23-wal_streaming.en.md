@@ -17,7 +17,7 @@ PostgreSQL server (master or standby).
 > `pg_receivexlog`, as it is back compatible.  Otherwise, users can
 > install multiple versions of `pg_receivexlog` on the Barman server
 > and properly point to the specific version for a server, using the
-> `path` option in the configuration file.
+> `path_prefix` option in the configuration file.
 
 In order to enable streaming of transaction logs, you need to:
 
