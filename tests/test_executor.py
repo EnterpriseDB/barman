@@ -278,6 +278,7 @@ class TestRsyncBackupExecutor(object):
                 item_class=rsync_mock.return_value.PGDATA_CLASS,
                 exclude=['/pg_xlog/*',
                          '/pg_log/*',
+                         '/pg_replslot/*',
                          '/recovery.conf',
                          '/postmaster.pid'],
                 exclude_and_protect=['pg_tblspc/16387', 'pg_tblspc/16405']),

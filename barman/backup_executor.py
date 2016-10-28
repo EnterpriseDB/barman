@@ -917,6 +917,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
             exclude=[
                 '/pg_xlog/*',
                 '/pg_log/*',
+                '/pg_replslot/*',
                 '/recovery.conf',
                 '/postmaster.pid'],
             exclude_and_protect=exclude_and_protect,
