@@ -482,7 +482,11 @@ class TestBarmanEncoder(object):
         # Test encoding with a timedelta object
         assert json.dumps(
             timedelta(days=35, seconds=12345),
-            cls=barman.utils.BarmanEncoder) == '"35 days, 3 hours, 25 minutes"'
+            cls=barman.utils.BarmanEncoder) == '"35 days, 3 hours, ' \
+                                               '25 minutes, 45 seconds"'
+        assert json.dumps(
+            timedelta(seconds=0.1),
+            cls=barman.utils.BarmanEncoder) == '"less than one second"'
 
         # Test encoding with a Decimal object
         num = decimal.Decimal("123456789.9876543210")

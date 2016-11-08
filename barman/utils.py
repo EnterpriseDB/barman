@@ -154,9 +154,10 @@ def human_readable_timedelta(timedelta):
     delta = abs(timedelta)
     # Calculate time units for the given interval
     time_map = {
-        'day': int(delta.days % 365),
+        'day': int(delta.days),
         'hour': int(delta.seconds / 3600),
         'minute': int(delta.seconds / 60) % 60,
+        'second': int(delta.seconds % 60),
     }
     # Build the resulting string
     time_list = []
@@ -182,7 +183,19 @@ def human_readable_timedelta(timedelta):
         else:
             time_list.append('%s minutes' % time_map['minute'])
 
+    # 'Second' part
+    if time_map['second'] > 0:
+        if time_map['second'] == 1:
+            time_list.append('%s second' % time_map['second'])
+        else:
+            time_list.append('%s seconds' % time_map['second'])
+
     human = ', '.join(time_list)
+
+    # Take care of timedelta when is shorter than a second
+    if delta < datetime.timedelta(seconds=1):
+        human = 'less than one second'
+
     # If timedelta is negative append 'ago' suffix
     if delta != timedelta:
         human += " ago"

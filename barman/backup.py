@@ -28,7 +28,7 @@ from glob import glob
 import dateutil.parser
 import dateutil.tz
 
-from barman import output, xlog
+from barman import output, utils, xlog
 from barman.backup_executor import PostgresBackupExecutor, RsyncBackupExecutor
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
@@ -258,7 +258,8 @@ class BackupManager(RemoteStatusMixin):
                            len(available_backups),
                            minimum_redundancy)
             return
-
+        # Keep track of when the delete operation started.
+        delete_start_time = datetime.datetime.now()
         output.info("Deleting backup %s for server %s",
                     backup.backup_id, self.config.name)
         previous_backup = self.get_previous_backup(backup.backup_id)
@@ -315,7 +316,13 @@ class BackupManager(RemoteStatusMixin):
                          backup.get_basebackup_directory())
             return
         self.backup_cache_remove(backup)
-        output.info("Done")
+        # Save the time of the complete removal of the backup
+        delete_end_time = datetime.datetime.now()
+        output.info("Deleted backup %s (start time: %s, elapsed time: %s)",
+                    backup.backup_id,
+                    delete_start_time.ctime(),
+                    utils.human_readable_timedelta(
+                        delete_end_time - delete_start_time))
 
     def backup(self):
         """
