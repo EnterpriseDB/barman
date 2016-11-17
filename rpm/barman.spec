@@ -93,7 +93,7 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root)
-%doc INSTALL NEWS README
+%doc INSTALL NEWS README.rst
 %{python_sitelib}/%{name}-%{version}%{?extra_version:%{extra_version}}-py%{pybasever}.egg-info
 %{python_sitelib}/%{name}/
 %{_bindir}/%{name}

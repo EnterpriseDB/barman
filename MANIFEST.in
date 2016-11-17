@@ -4,4 +4,4 @@ recursive-include doc *.md
 recursive-include doc/barman.d *
 include doc/Makefile doc/barman.1 doc/barman.5 doc/barman.conf
 include scripts/barman.bash_completion
-include AUTHORS NEWS ChangeLog LICENSE MANIFEST.in setup.py INSTALL README
+include AUTHORS NEWS ChangeLog LICENSE MANIFEST.in setup.py INSTALL README.rst
