@@ -81,31 +81,24 @@ class UnixLocalCommand(object):
             else:
                 raise FsOperationFailed('mkdir execution failed')
 
-    def delete_if_exists(self, dir_path):
+    def delete_if_exists(self, path):
         """
-            This method check for the existence of a directory.
-            if exists and is not a directory an exception is raised
-            if is a directory, then is removed using a rm -fr command,
-            and returns True.
-            if the command fails an exception is raised.
-            If the directory does not exists returns False
+        This method check for the existence of a path.
+        If it exists, then is removed using a rm -fr command,
+        and returns True.
+        If the command fails an exception is raised.
+        If the path does not exists returns False
 
-            :param dir_path the full path for the directory
+        :param path the full path for the directory
         """
-        _logger.debug('Delete if directory %s exists' % dir_path)
-        exists = self.exists(dir_path)
+        _logger.debug('Delete path %s if exists' % path)
+        exists = self.exists(path, False)
         if exists:
-            is_dir = self.cmd('test -d %s' % dir_path)
-            if is_dir != 0:
-                raise FsOperationFailed(
-                    'A file with the same name exists, but is not a '
-                    'directory')
+            rm_ret = self.cmd('rm -fr %s' % path)
+            if rm_ret == 0:
+                return True
             else:
-                rm_ret = self.cmd('rm -fr %s' % dir_path)
-                if rm_ret == 0:
-                    return True
-                else:
-                    raise FsOperationFailed('rm execution failed')
+                raise FsOperationFailed('rm execution failed')
         else:
             return False
 
@@ -243,15 +236,20 @@ class UnixLocalCommand(object):
 
         return self.cmd.out
 
-    def exists(self, path):
+    def exists(self, path, dereference=True):
         """
         Check for the existence of a path.
 
         :param str path: full path to check
+        :param bool dereference: whether dereference symlinks, defaults
+            to True
         :return bool: if the file exists or not.
         """
         _logger.debug('check for existence of: %s' % path)
-        result = self.cmd("test -e '%s'" % path)
+        cmd_str = "test -e '%s'" % path
+        if not dereference:
+            cmd_str += " -o -L '%s'" % path
+        result = self.cmd(cmd_str)
         return result == 0
 
     def ping(self):

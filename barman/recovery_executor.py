@@ -455,7 +455,6 @@ class RecoveryExecutor(object):
 
             try:
                 # remove the current link in pg_tblspc, if it exists
-                # (raise an exception if it is a directory)
                 cmd.delete_if_exists(pg_tblspc_file)
                 # create tablespace location, if does not exist
                 # (raise an exception if it is not possible)
