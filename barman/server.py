@@ -1818,8 +1818,13 @@ class Server(RemoteStatusMixin):
             if not os.path.exists(history_path):
                 break
 
-            # Get content of the file
-            history_info = xlog.decode_history_file(history_path)
+            # Create the WalFileInfo object using the file
+            wal_info = WalFileInfo.from_file(history_path)
+            # Get content of the file. We need to pass a compressor manager
+            # here to handle an eventual compression of the history file
+            history_info = xlog.decode_history_file(
+                wal_info,
+                self.backup_manager.compression_manager)
 
             # Save the history only if is reachable from this timeline.
             for tinfo in history_info:

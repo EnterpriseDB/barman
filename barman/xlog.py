@@ -23,10 +23,11 @@ files
 import collections
 import os
 import re
+from tempfile import NamedTemporaryFile
 
-# xlog file segment name parser (regular expression)
 from barman.exceptions import BadHistoryFileContents, BadXlogSegmentName
 
+# xlog file segment name parser (regular expression)
 _xlog_re = re.compile(r'''
     ^
     ([\dA-Fa-f]{8})                    # everything has a timeline
@@ -321,7 +322,7 @@ def location_from_xlogfile_name_offset(file_name, file_offset):
     return format_lsn(location)
 
 
-def decode_history_file(path):
+def decode_history_file(wal_info, comp_manager):
     """
     Read an history file and parse its contents.
 
@@ -334,9 +335,30 @@ def decode_history_file(path):
     "switchpoint" is the WAL position where the switch happened
     "reason" is an human-readable explanation of why the timeline was changed
 
-    :param path: history file location
+    The method requires a CompressionManager object to handle the eventual
+     compression of the history file.
+
+    :param barman.infofile.WalFileInfo wal_info: history file obj
+    :param comp_manager: compression manager used in case
+        of history file compression
     :return List[HistoryFileData]: information from the history file
     """
+
+    path = wal_info.orig_filename
+    # Decompress the file if needed
+    if wal_info.compression:
+        # Use a NamedTemporaryFile to avoid explicit cleanup
+        uncompressed_file = NamedTemporaryFile(
+                    dir=os.path.dirname(path),
+                    prefix='.%s.' % wal_info.name,
+                    suffix='.uncompressed')
+        path = uncompressed_file.name
+        comp_manager.get_compressor(wal_info.compression).decompress(
+            wal_info.orig_filename, path)
+
+    # Extract the timeline from history file name
+    tli, _, _ = decode_segment_name(wal_info.name)
+
     lines = []
     with open(path) as fp:
         for line in fp:
@@ -352,8 +374,6 @@ def decode_history_file(path):
             if len(contents) != 3:
                 # Invalid content of the line
                 raise BadHistoryFileContents(path)
-
-            tli, _, _ = decode_segment_name(path)
 
             history = HistoryFileData(
                 tli=tli,
