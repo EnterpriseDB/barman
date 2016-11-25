@@ -183,7 +183,7 @@ The `receive-wal` process uses a status file to track last written
 record of the transaction log. When the status file needs to be
 cleaned, the `--reset` option can be used.
 
-> **IMPORTANT:** If you are using replication slots, you rely
+> **IMPORTANT:** If you are not using replication slots, you rely
 > on the value of `wal_keep_segments`. Be aware that under high peeks
 > of workload on the database, the `receive-wal` process
 > might fall behind and go out of sync. As a precautionary measure,
