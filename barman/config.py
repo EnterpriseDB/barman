@@ -344,6 +344,8 @@ class ServerConfig(object):
         'slot_name',
         'streaming_archiver',
         'streaming_archiver_batch_size',
+        'streaming_archiver_name',
+        'streaming_backup_name',
         'tablespace_bandwidth_limit',
         'wal_retention_policy'
     ]
