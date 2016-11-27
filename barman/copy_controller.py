@@ -173,6 +173,9 @@ class RsyncCopyController(object):
         # files which vanished after rsync start
         file\ has\ vanished:\ ".+"
         |
+        # files which have been truncated during transfer
+        rsync:\ read\ errors\ mapping\ ".+":\ No\ data\ available\ \(61\)
+        |
         # final summary
         rsync\ error:\ .* \(code\ 23\)\ at\ main\.c\(\d+\)
             \ \[generator=[^\]]+\]
