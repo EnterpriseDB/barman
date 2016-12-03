@@ -25,6 +25,7 @@ import logging
 import os
 import shutil
 import sys
+import time
 from collections import namedtuple
 from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
@@ -1734,11 +1735,19 @@ class Server(RemoteStatusMixin):
                          'no such process for server %s',
                          task, self.config.name)
 
-    def switch_xlog(self, force=False):
+    def switch_xlog(self, force=False, archive=None, archive_timeout=None):
         """
         Execute the switch-xlog command on the target server
         """
         try:
+
+            # If the user has asked to wait for a WAL file to be archived,
+            # store the last WAL file present before executing the
+            # switch
+            last_wal = None
+            if archive:
+                last_wal = self.backup_manager.get_latest_archived_wal()
+
             if force:
                 # If called with force, execute a checkpoint before the
                 # switch_xlog command
@@ -1759,6 +1768,38 @@ class Server(RemoteStatusMixin):
                 output.info(
                     "Switch to %s for server '%s'" %
                     (switch_xlogfile, self.config.name))
+                # If the user has asked to wait for a WAL file to be archived,
+                # wait until a new WAL file has been found
+                # or the timeout has expired
+                if archive:
+                    output.info(
+                        "Waiting for one xlog file from server '%s' "
+                        "(max: %s seconds)",
+                        self.config.name, archive_timeout)
+                    # Wait for a new file until end_time
+                    end_time = time.time() + archive_timeout
+                    while time.time() < end_time:
+                        self.backup_manager.archive_wal(verbose=False)
+                        current_last_wal = (
+                            self.backup_manager.get_latest_archived_wal())
+
+                        # If initially we had no files, having any file
+                        # is enough to finish.
+                        if not last_wal:
+                            if current_last_wal:
+                                break
+                        # Compare the file names and exit if a newer WAL file
+                        # is present
+                        elif (current_last_wal and
+                                last_wal.name < current_last_wal.name):
+                            break
+
+                        # sleep a bit before retrying
+                        time.sleep(.1)
+                    else:
+                        output.error("No xlog file received in %s seconds",
+                                     archive_timeout)
+
             else:
                 # Is not necessary to perform a switch_xlog
                 output.info("No switch required for server '%s'" %

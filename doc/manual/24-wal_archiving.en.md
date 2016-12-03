@@ -45,8 +45,14 @@ In order to improve the verification of the WAL archiving process, the
 `switch-xlog` command has been developed:
 
 ``` bash
-barman@backup$ barman switch-xlog --force pg
+barman@backup$ barman switch-xlog --force --archive pg
 ```
+
+The above command will force PostgreSQL to switch WAL file and
+trigger the archiving process in Barman. Barman will wait for one
+file to arrive within 30 seconds (you can change the timeout through
+the `--archive-timeout` option). If no WAL file is received, an error
+is returned.
 
 You can verify if the WAL archiving has been correctly configured using
 the `barman check` command.

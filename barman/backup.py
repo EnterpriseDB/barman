@@ -705,6 +705,40 @@ class BackupManager(RemoteStatusMixin):
                     '(history: %s, backup_labels: %s, wal_file: %s)',
                     self.config.name, history_count, label_count, wal_count)
 
+    def get_latest_archived_wal(self):
+        """
+        Return the WalFileInfo of the last WAL file in the archive,
+        or None if the archive doesn't contain any WAL file.
+
+        :rtype: WalFileInfo|None
+        """
+        # TODO: consider timeline?
+        from os.path import isdir, join
+
+        root = self.config.wals_directory
+
+        # If the WAL archive directory doesn't exists the archive is empty
+        if not isdir(root):
+            return None
+
+        # Traverse all the directory in the archive in reverse order,
+        # returning the first WAL file found
+        for name in sorted(os.listdir(root), reverse=True):
+            fullname = join(root, name)
+            # All relevant files are in subdirectories, so
+            # we skip any non-directory entry
+            if isdir(fullname):
+                hash_dir = fullname
+                # Inspect contained files in reverse order
+                for wal_name in sorted(os.listdir(hash_dir), reverse=True):
+                    fullname = join(hash_dir, wal_name)
+                    # Return the first file that has the correct name
+                    if not isdir(fullname) and xlog.is_wal_file(fullname):
+                        return WalFileInfo.from_file(fullname)
+
+        # If we get here, no WAL files have been found
+        return None
+
     def remove_wal_before_backup(self, backup_info, timelines_to_protect=None):
         """
         Remove WAL files which have been archived before the start of

@@ -591,3 +591,57 @@ class TestBackup(object):
             'compression settings',
             False
         )
+
+    def test_get_latest_archived_wal(self, tmpdir):
+        """
+        Test the get_latest_archived_wal method
+        """
+        # build a backup_manager and setup a basic configuration
+        backup_manager = build_backup_manager(
+            main_conf={
+                'backup_directory': tmpdir.strpath,
+            })
+
+        # Test: insistent wals directory
+        assert backup_manager.get_latest_archived_wal() is None
+
+        # Test: empty wals directory
+        wals = tmpdir.join('wals').ensure(dir=True)
+        assert backup_manager.get_latest_archived_wal() is None
+
+        # Test: ignore WAL-like files in the root
+        wals.join('000000010000000000000003').ensure()
+        assert backup_manager.get_latest_archived_wal() is None
+
+        # Test: find the fist WAL
+        wals.join('0000000100000000').join(
+            '000000010000000000000001').ensure()
+        latest = backup_manager.get_latest_archived_wal()
+        assert latest
+        assert latest.name == '000000010000000000000001'
+
+        # Test: find the 2nd WAL in the same dir
+        wals.join('0000000100000000').join(
+            '000000010000000000000002').ensure()
+        latest = backup_manager.get_latest_archived_wal()
+        assert latest
+        assert latest.name == '000000010000000000000002'
+
+        # Test: the newer dir is empty
+        wals.join('0000000100000001').ensure(dir=True)
+        latest = backup_manager.get_latest_archived_wal()
+        assert latest
+        assert latest.name == '000000010000000000000002'
+
+        # Test: the newer contains a newer file
+        wals.join('0000000100000001').join(
+            '000000010000000100000001').ensure()
+        latest = backup_manager.get_latest_archived_wal()
+        assert latest
+        assert latest.name == '000000010000000100000001'
+
+        # Test: ignore out of order files
+        wals.join('0000000100000000').join('000000010000000100000005').ensure()
+        latest = backup_manager.get_latest_archived_wal()
+        assert latest
+        assert latest.name == '000000010000000100000001'

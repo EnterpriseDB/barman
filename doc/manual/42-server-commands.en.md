@@ -252,3 +252,8 @@ barman switch-xlog <server_name>
 If there has been no transaction activity since the last transaction
 log file switch, the switch needs to be forced using the
 `--force` option.
+
+The `--archive` option requests Barman to trigger WAL archiving after
+the xlog switch. By default, a 30 seconds timeout is enforced (this
+can be changed with `--archive-timeout`). If no WAL file is received,
+an error is returned.

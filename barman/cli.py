@@ -454,6 +454,17 @@ def show_server(args):
      dest='force',
      action='store_true',
      default=False)
+@arg('--archive',
+     help='wait for one xlog file to be archived',
+     dest='archive',
+     action='store_true',
+     default=False)
+@arg('--archive-timeout',
+     help='the time, in seconds, the archiver will wait for a new xlog file '
+          'to be archived before timing out',
+     metavar='TIMEOUT',
+     default='30',
+     type=check_non_negative)
 @expects_obj
 def switch_xlog(args):
     """
@@ -466,7 +477,7 @@ def switch_xlog(args):
         if not manage_server_command(server, name):
             continue
         with closing(server):
-            server.switch_xlog(args.force)
+            server.switch_xlog(args.force, args.archive, args.archive_timeout)
     output.close_and_exit()
 
 

@@ -289,6 +289,16 @@ switch-xlog *SERVER_NAME*
         *IMPORTANT:* executing a CHECKPOINT might increase I/O load on
         a PostgreSQL server. Use this option with care.
 
+    --archive
+    :   Wait for one xlog file to be archived.
+        If after a defined amount of time (default: 30 seconds) no xlog
+        file is archived, Barman will teminate with failure exit code.
+
+    --archive-timeout *TIMEOUT*
+    :   Specifies the amount of time in seconds (default: 30 seconds)
+        the archiver will wait for a new xlog file to be archived
+        before timing out.
+
 receive-wal *SERVER_NAME*
 :   Start the stream of transaction logs for a server.
     The process relies on `pg_receivexlog` to receive WAL files
