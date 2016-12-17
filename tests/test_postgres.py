@@ -841,7 +841,7 @@ class TestPostgres(object):
         xlog = server.postgres.switch_xlog()
 
         # Check for the right invocation
-        assert xlog == '000000010000000000000002'
+        assert xlog == '000000010000000000000001'
         cursor_mock.execute.assert_has_calls([
             call('SELECT pg_xlogfile_name(pg_current_xlog_insert_location())'),
             call('SELECT pg_xlogfile_name(pg_switch_xlog())'),

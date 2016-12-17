@@ -801,8 +801,8 @@ class TestServer(object):
         server.postgres.switch_xlog.return_value = '000000010000000000000001'
         server.switch_xlog(force=False)
         out, err = capsys.readouterr()
-        assert "Switch to 000000010000000000000001 for server 'main'" \
-               in out
+        assert "The xlog file 000000010000000000000001 has been closed " \
+               "on server 'main'" in out
         assert server.postgres.checkpoint.called is False
 
         server.postgres.reset_mock()
@@ -810,8 +810,8 @@ class TestServer(object):
         server.switch_xlog(force=True)
 
         out, err = capsys.readouterr()
-        assert "Switch to 000000010000000000000001 for server 'main'" \
-               in out
+        assert "The xlog file 000000010000000000000001 has been closed " \
+               "on server 'main'" in out
         assert server.postgres.checkpoint.called is True
         server.postgres.reset_mock()
         server.postgres.switch_xlog.return_value = ''

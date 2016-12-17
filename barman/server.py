@@ -1741,13 +1741,6 @@ class Server(RemoteStatusMixin):
         """
         try:
 
-            # If the user has asked to wait for a WAL file to be archived,
-            # store the last WAL file present before executing the
-            # switch
-            last_wal = None
-            if archive:
-                last_wal = self.backup_manager.get_latest_archived_wal()
-
             if force:
                 # If called with force, execute a checkpoint before the
                 # switch_xlog command
@@ -1756,49 +1749,41 @@ class Server(RemoteStatusMixin):
 
             # Perform the switch_xlog. expect a WAL name only if the switch
             # has been successfully executed, False otherwise.
-            switch_xlogfile = self.postgres.switch_xlog()
-            if switch_xlogfile is None:
+            closed_xlog = self.postgres.switch_xlog()
+            if closed_xlog is None:
                 # Something went wrong during the execution of the
                 # pg_switch_xlog command
                 output.error("Unable to perform pg_switch_xlog "
                              "for server '%s'." % self.config.name)
                 return
-            if switch_xlogfile:
+            if closed_xlog:
                 # The switch_xlog command have been executed successfully
                 output.info(
-                    "Switch to %s for server '%s'" %
-                    (switch_xlogfile, self.config.name))
+                    "The xlog file %s has been closed on server '%s'" %
+                    (closed_xlog, self.config.name))
                 # If the user has asked to wait for a WAL file to be archived,
                 # wait until a new WAL file has been found
                 # or the timeout has expired
                 if archive:
                     output.info(
-                        "Waiting for one xlog file from server '%s' "
+                        "Waiting for the xlog file %s from server '%s' "
                         "(max: %s seconds)",
-                        self.config.name, archive_timeout)
+                        closed_xlog, self.config.name, archive_timeout)
                     # Wait for a new file until end_time
                     end_time = time.time() + archive_timeout
                     while time.time() < end_time:
                         self.backup_manager.archive_wal(verbose=False)
-                        current_last_wal = (
-                            self.backup_manager.get_latest_archived_wal())
 
-                        # If initially we had no files, having any file
-                        # is enough to finish.
-                        if not last_wal:
-                            if current_last_wal:
+                        # Finish if the closed wal file is in the archive.
+                        if os.path.exists(self.get_wal_full_path(closed_xlog)):
                                 break
-                        # Compare the file names and exit if a newer WAL file
-                        # is present
-                        elif (current_last_wal and
-                                last_wal.name < current_last_wal.name):
-                            break
 
                         # sleep a bit before retrying
                         time.sleep(.1)
                     else:
-                        output.error("No xlog file received in %s seconds",
-                                     archive_timeout)
+                        output.error("The xlog file %s has not been received "
+                                     "in %s seconds",
+                                     closed_xlog, archive_timeout)
 
             else:
                 # Is not necessary to perform a switch_xlog

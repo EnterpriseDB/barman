@@ -1004,9 +1004,8 @@ class PostgreSQLConnection(PostgreSQL):
 
         To be SURE of the switch of a xlog, we collect the xlogfile name
         before and after the switch.
-        If the name of the xlog file post switch is greater than the one
-        collected before the switch have been executed.
-        Returns an empty string otherwise.
+        The method returns the just closed xlog file name if the current xlog
+        file has changed, it returns an empty string otherwise.
 
         The method returns None if something went wrong during the execution
         of the pg_switch_xlog command.
@@ -1035,7 +1034,7 @@ class PostgreSQLConnection(PostgreSQL):
                         'pg_current_xlog_insert_location())')
             post_switch = cur.fetchone()[0]
             if pre_switch < post_switch:
-                return post_switch
+                return pre_switch
             else:
                 return ''
         except (PostgresConnectionError, psycopg2.Error) as e:
