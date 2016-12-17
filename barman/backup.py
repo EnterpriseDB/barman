@@ -705,14 +705,14 @@ class BackupManager(RemoteStatusMixin):
                     '(history: %s, backup_labels: %s, wal_file: %s)',
                     self.config.name, history_count, label_count, wal_count)
 
-    def get_latest_archived_wal(self):
+    def get_latest_archived_wals_info(self):
         """
-        Return the WalFileInfo of the last WAL file in the archive,
+        Return a dictionary of timelines associated with the
+        WalFileInfo of the last WAL file in the archive,
         or None if the archive doesn't contain any WAL file.
 
-        :rtype: WalFileInfo|None
+        :rtype: dict[str, WalFileInfo]|None
         """
-        # TODO: consider timeline?
         from os.path import isdir, join
 
         root = self.config.wals_directory
@@ -723,21 +723,34 @@ class BackupManager(RemoteStatusMixin):
 
         # Traverse all the directory in the archive in reverse order,
         # returning the first WAL file found
+        timelines = {}
         for name in sorted(os.listdir(root), reverse=True):
             fullname = join(root, name)
             # All relevant files are in subdirectories, so
             # we skip any non-directory entry
             if isdir(fullname):
+                # Extract the timeline. If it is not valid, skip this directory
+                try:
+                    timeline = name[0:8]
+                    int(timeline, 16)
+                except ValueError:
+                    continue
+
+                # If this timeline already has a file, skip this directory
+                if timeline in timelines:
+                    continue
+
                 hash_dir = fullname
                 # Inspect contained files in reverse order
                 for wal_name in sorted(os.listdir(hash_dir), reverse=True):
                     fullname = join(hash_dir, wal_name)
                     # Return the first file that has the correct name
                     if not isdir(fullname) and xlog.is_wal_file(fullname):
-                        return WalFileInfo.from_file(fullname)
+                        timelines[timeline] = WalFileInfo.from_file(fullname)
+                        break
 
-        # If we get here, no WAL files have been found
-        return None
+        # Return the timeline map or None if it is empty
+        return timelines or None
 
     def remove_wal_before_backup(self, backup_info, timelines_to_protect=None):
         """

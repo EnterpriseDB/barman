@@ -592,9 +592,9 @@ class TestBackup(object):
             False
         )
 
-    def test_get_latest_archived_wal(self, tmpdir):
+    def test_get_latest_archived_wals_info(self, tmpdir):
         """
-        Test the get_latest_archived_wal method
+        Test the get_latest_archived_wals_info method
         """
         # build a backup_manager and setup a basic configuration
         backup_manager = build_backup_manager(
@@ -603,45 +603,59 @@ class TestBackup(object):
             })
 
         # Test: insistent wals directory
-        assert backup_manager.get_latest_archived_wal() is None
+        assert backup_manager.get_latest_archived_wals_info() is None
 
         # Test: empty wals directory
         wals = tmpdir.join('wals').ensure(dir=True)
-        assert backup_manager.get_latest_archived_wal() is None
+        assert backup_manager.get_latest_archived_wals_info() is None
 
         # Test: ignore WAL-like files in the root
         wals.join('000000010000000000000003').ensure()
-        assert backup_manager.get_latest_archived_wal() is None
+        assert backup_manager.get_latest_archived_wals_info() is None
 
         # Test: find the fist WAL
         wals.join('0000000100000000').join(
             '000000010000000000000001').ensure()
-        latest = backup_manager.get_latest_archived_wal()
+        latest = backup_manager.get_latest_archived_wals_info()
         assert latest
-        assert latest.name == '000000010000000000000001'
+        assert len(latest) == 1
+        assert latest['00000001'].name == '000000010000000000000001'
 
         # Test: find the 2nd WAL in the same dir
         wals.join('0000000100000000').join(
             '000000010000000000000002').ensure()
-        latest = backup_manager.get_latest_archived_wal()
+        latest = backup_manager.get_latest_archived_wals_info()
         assert latest
-        assert latest.name == '000000010000000000000002'
+        assert len(latest) == 1
+        assert latest['00000001'].name == '000000010000000000000002'
 
         # Test: the newer dir is empty
         wals.join('0000000100000001').ensure(dir=True)
-        latest = backup_manager.get_latest_archived_wal()
+        latest = backup_manager.get_latest_archived_wals_info()
         assert latest
-        assert latest.name == '000000010000000000000002'
+        assert len(latest) == 1
+        assert latest['00000001'].name == '000000010000000000000002'
 
         # Test: the newer contains a newer file
         wals.join('0000000100000001').join(
             '000000010000000100000001').ensure()
-        latest = backup_manager.get_latest_archived_wal()
+        latest = backup_manager.get_latest_archived_wals_info()
         assert latest
-        assert latest.name == '000000010000000100000001'
+        assert len(latest) == 1
+        assert latest['00000001'].name == '000000010000000100000001'
 
         # Test: ignore out of order files
         wals.join('0000000100000000').join('000000010000000100000005').ensure()
-        latest = backup_manager.get_latest_archived_wal()
+        latest = backup_manager.get_latest_archived_wals_info()
         assert latest
-        assert latest.name == '000000010000000100000001'
+        assert len(latest) == 1
+        assert latest['00000001'].name == '000000010000000100000001'
+
+        # Test: find the 2nd timeline
+        wals.join('0000000200000000').join(
+            '000000020000000000000003').ensure()
+        latest = backup_manager.get_latest_archived_wals_info()
+        assert latest
+        assert len(latest) == 2
+        assert latest['00000001'].name == '000000010000000100000001'
+        assert latest['00000002'].name == '000000020000000000000003'

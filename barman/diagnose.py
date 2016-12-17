@@ -77,6 +77,11 @@ def exec_diagnose(servers, errors_list):
         # backup list
         backups = server.get_available_backups(BackupInfo.STATUS_ALL)
         diagnosis['servers'][name]['backups'] = backups
+        # wal status
+        diagnosis['servers'][name]['wals'] = {
+            'last_archived_wal_per_timeline':
+                server.backup_manager.get_latest_archived_wals_info(),
+        }
         # Release any PostgreSQL resource
         server.close()
     output.info(json.dumps(diagnosis, sys.stdout, cls=BarmanEncoder, indent=4,
