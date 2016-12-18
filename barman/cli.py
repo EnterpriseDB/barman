@@ -638,7 +638,7 @@ def get_wal(args):
     The content will be streamed on standard output unless
     the --output-directory option is specified.
     """
-    server = get_server(args)
+    server = get_server(args, inactive_is_error=True)
 
     # Retrieve optional arguments. If an argument is not specified,
     # the namespace doesn't contain it due to SUPPRESS default.
@@ -780,6 +780,7 @@ def global_config(args):
 
 
 def get_server(args, skip_inactive=True, skip_disabled=False,
+               inactive_is_error=False,
                on_error_stop=True, suppress_error=False):
     """
     Get a single server retrieving its configuration (wraps get_server_list())
@@ -792,8 +793,9 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
     :param args: an argparse namespace containing a single
         server_name parameter
         WARNING: the function modifies the content of this parameter
-    :param bool skip_inactive: skip inactive servers when 'all' is required
-    :param bool skip_disabled: skip disabled servers when 'all' is required
+    :param bool skip_inactive: do nothing if the server is inactive
+    :param bool skip_disabled: do nothing if the server is disabled
+    :param bool inactive_is_error: treat inactive server as error
     :param bool on_error_stop: stop if an error is found
     :param bool suppress_error: suppress display of errors (e.g. diagnose)
     :rtype: barman.server.Server|None
@@ -813,6 +815,10 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
     # Builds a list from a single given name
     args.server_name = [name]
 
+    # Skip_inactive is reset if inactive_is_error is set, because
+    # it needs to retrieve the inactive server to emit the error.
+    skip_inactive &= not inactive_is_error
+
     # Retrieve the requested server
     servers = get_server_list(args, skip_inactive, skip_disabled,
                               on_error_stop, suppress_error)
@@ -830,7 +836,9 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
     # Apply standard validation control and skips
     # the server if inactive or disabled, displaying standard
     # error messages. If on_error_stop (default) exits
-    if not manage_server_command(server, name) and on_error_stop:
+    if not manage_server_command(server, name,
+                                 inactive_is_error) and \
+            on_error_stop:
         output.close_and_exit()
         # The following return statement will never be reached
         # but it is here for clarity
