@@ -822,6 +822,35 @@ class RsyncBackupExecutor(SshBackupExecutor):
     from which it derives.
     """
 
+    PGDATA_EXCLUDE_LIST = [
+        # Exclude this to avoid log files copy
+        '/pg_log/*',
+        # Exclude this for (PostgreSQL < 10) to avoid WAL files copy
+        '/pg_xlog/*',
+        # This have been renamed on PostgreSQL 10
+        '/pg_wal/*',
+        # We handle this on a different step of the copy
+        '/global/pg_control',
+    ]
+
+    EXCLUDE_LIST = [
+        # Files: see excludeFiles const in PostgreSQL source
+        'pgsql_tmp*',
+        'postgresql.auto.conf.tmp',
+        'postmaster.pid',
+        'postmaster.opts',
+        'recovery.conf',
+
+        # Directories: see excludeDirContents const in PostgreSQL source
+        'pg_dynshmem/*',
+        'pg_notify/*',
+        'pg_replslot/*',
+        'pg_serial/*',
+        'pg_stat_tmp/*',
+        'pg_snapshots/*',
+        'pg_subtrans/*',
+    ]
+
     def __init__(self, backup_manager):
         """
         Constructor
@@ -898,6 +927,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
                     label=tablespace.name,
                     src=':%s/' % tablespace.location,
                     dst=tablespace_dest,
+                    exclude=self.EXCLUDE_LIST,
                     bwlimit=self.config.get_bwlimit(tablespace),
                     reuse=self._reuse_path(previous_backup, tablespace),
                     item_class=controller.TABLESPACE_CLASS,
@@ -914,12 +944,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
             label='pgdata',
             src=':%s/' % backup_info.pgdata,
             dst=backup_dest,
-            exclude=[
-                '/pg_xlog/*',
-                '/pg_log/*',
-                '/pg_replslot/*',
-                '/recovery.conf',
-                '/postmaster.pid'],
+            exclude=self.PGDATA_EXCLUDE_LIST + self.EXCLUDE_LIST,
             exclude_and_protect=exclude_and_protect,
             bwlimit=self.config.get_bwlimit(),
             reuse=self._reuse_path(previous_backup),

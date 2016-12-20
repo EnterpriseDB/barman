@@ -261,14 +261,16 @@ class TestRsyncBackupExecutor(object):
                 dst=backup_info.get_data_directory(16387),
                 reuse=None,
                 bwlimit=None,
-                item_class=rsync_mock.return_value.TABLESPACE_CLASS),
+                item_class=rsync_mock.return_value.TABLESPACE_CLASS,
+                exclude=RsyncBackupExecutor.EXCLUDE_LIST),
             mock.call().add_directory(
                 label='tbs2',
                 src=':/another/location/',
                 dst=backup_info.get_data_directory(16405),
                 reuse=None,
                 bwlimit=None,
-                item_class=rsync_mock.return_value.TABLESPACE_CLASS),
+                item_class=rsync_mock.return_value.TABLESPACE_CLASS,
+                exclude=RsyncBackupExecutor.EXCLUDE_LIST),
             mock.call().add_directory(
                 label='pgdata',
                 src=':/pg/data/',
@@ -276,11 +278,8 @@ class TestRsyncBackupExecutor(object):
                 reuse=None,
                 bwlimit=None,
                 item_class=rsync_mock.return_value.PGDATA_CLASS,
-                exclude=['/pg_xlog/*',
-                         '/pg_log/*',
-                         '/pg_replslot/*',
-                         '/recovery.conf',
-                         '/postmaster.pid'],
+                exclude=RsyncBackupExecutor.PGDATA_EXCLUDE_LIST +
+                    RsyncBackupExecutor.EXCLUDE_LIST,
                 exclude_and_protect=['pg_tblspc/16387', 'pg_tblspc/16405']),
             mock.call().add_file(
                 label='pg_control',
