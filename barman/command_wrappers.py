@@ -582,7 +582,7 @@ class Rsync(Command):
 
     def __init__(self, rsync='rsync', args=None, ssh=None, ssh_options=None,
                  bwlimit=None, exclude=None, exclude_and_protect=None,
-                 network_compression=None, path=None, **kwargs):
+                 include=None, network_compression=None, path=None, **kwargs):
         """
         :param str rsync: rsync executable name
         :param list[str]|None args: List of additional argument to aways append
@@ -594,17 +594,26 @@ class Rsync(Command):
         :param list[str] exclude: list of file to be excluded from the copy
         :param list[str] exclude_and_protect: list of file to be excluded from
             the copy, preserving the destination if exists
+        :param list[str] include: list of files to be included in the copy
+            even if excluded.
         :param bool network_compression: enable the network compression
-        :param check:
-        :param allowed_retval:
-        :param path:
-        :param kwargs:
+        :param str path: PATH to be used while searching for `cmd`
+        :param bool check: Raise a CommandFailedException if the exit code
+            is not present in `allowed_retval`
+        :param list[int] allowed_retval: List of exit codes considered as a
+            successful termination.
         """
         options = []
         if ssh:
             options += ['-e', self._cmd_quote(ssh, ssh_options)]
         if network_compression:
             options += ['-z']
+        # Include patterns must be before the exclude ones, because the exclude
+        # patterns actually short-circuit the directory traversal stage
+        # when rsync finds the files to send.
+        if include:
+            for pattern in include:
+                options += ["--include=%s" % (pattern,)]
         if exclude:
             for pattern in exclude:
                 options += ["--exclude=%s" % (pattern,)]

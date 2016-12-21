@@ -185,7 +185,7 @@ class TestRsyncCopyController(object):
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no'],
-                      exclude=None, exclude_and_protect=None,
+                      exclude=None, exclude_and_protect=None, include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call(network_compression=False,
                       args=['--itemize-changes',
@@ -195,7 +195,7 @@ class TestRsyncCopyController(object):
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no'],
-                      exclude=None, exclude_and_protect=None,
+                      exclude=None, exclude_and_protect=None, include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call(network_compression=False,
                       args=['--itemize-changes',
@@ -213,6 +213,7 @@ class TestRsyncCopyController(object):
                       exclude_and_protect=[
                           'pg_tblspc/16387',
                           'pg_tblspc/16405'],
+                      include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call(network_compression=False,
                       args=['--itemize-changes',
@@ -222,7 +223,7 @@ class TestRsyncCopyController(object):
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no'],
-                      exclude=None, exclude_and_protect=None,
+                      exclude=None, exclude_and_protect=None, include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call()(
                 ':/pg/data/global/pg_control',
@@ -236,7 +237,7 @@ class TestRsyncCopyController(object):
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no'],
-                      exclude=None, exclude_and_protect=None,
+                      exclude=None, exclude_and_protect=None, include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call()(
                 ':/etc/postgresql.conf',

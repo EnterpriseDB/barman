@@ -922,12 +922,21 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 mkpath(tablespace_dest)
 
                 # Add the tablespace directory to the list of objects
-                # to be copied by the controller
+                # to be copied by the controller.
+                # NOTE: Barman should archive only the content of directory
+                #    "PG_" + PG_MAJORVERSION + "_" + CATALOG_VERSION_NO
+                # but CATALOG_VERSION_NO is not easy to retrieve, so we copy
+                #    "PG_" + PG_MAJORVERSION + "_*"
+                # It could select some spurious directory if a development or
+                # a beta version have been used, but it's good enough for a
+                # production system as it filters out other major versions.
                 controller.add_directory(
                     label=tablespace.name,
                     src=':%s/' % tablespace.location,
                     dst=tablespace_dest,
-                    exclude=self.EXCLUDE_LIST,
+                    exclude=['/*'] + self.EXCLUDE_LIST,
+                    include=['/PG_%s_*' %
+                             self.server.postgres.server_major_version],
                     bwlimit=self.config.get_bwlimit(tablespace),
                     reuse=self._reuse_path(previous_backup, tablespace),
                     item_class=controller.TABLESPACE_CLASS,

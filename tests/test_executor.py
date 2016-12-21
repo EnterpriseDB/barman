@@ -231,6 +231,7 @@ class TestRsyncBackupExecutor(object):
             'barman_home': tmpdir.mkdir('home').strpath
         })
         backup_manager.server.path = None
+        backup_manager.server.postgres.server_major_version = '9.6'
         backup_info = build_test_backup_info(
             server=backup_manager.server,
             pgdata="/pg/data",
@@ -262,7 +263,8 @@ class TestRsyncBackupExecutor(object):
                 reuse=None,
                 bwlimit=None,
                 item_class=rsync_mock.return_value.TABLESPACE_CLASS,
-                exclude=RsyncBackupExecutor.EXCLUDE_LIST),
+                exclude=["/*"] + RsyncBackupExecutor.EXCLUDE_LIST,
+                include=["/PG_9.6_*"]),
             mock.call().add_directory(
                 label='tbs2',
                 src=':/another/location/',
@@ -270,7 +272,8 @@ class TestRsyncBackupExecutor(object):
                 reuse=None,
                 bwlimit=None,
                 item_class=rsync_mock.return_value.TABLESPACE_CLASS,
-                exclude=RsyncBackupExecutor.EXCLUDE_LIST),
+                exclude=["/*"] + RsyncBackupExecutor.EXCLUDE_LIST,
+                include=["/PG_9.6_*"]),
             mock.call().add_directory(
                 label='pgdata',
                 src=':/pg/data/',

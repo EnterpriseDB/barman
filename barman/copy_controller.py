@@ -46,6 +46,7 @@ class _RsyncCopyItem(object):
     def __init__(self, label, src, dst,
                  exclude=None,
                  exclude_and_protect=None,
+                 include=None,
                  is_directory=False,
                  bwlimit=None,
                  reuse=None,
@@ -69,6 +70,8 @@ class _RsyncCopyItem(object):
             copy. The destination will be deleted if present.
         :param list[str] exclude_and_protect: list of patterns to be excluded
             from the copy. The destination will be preserved if present.
+        :param list[str] include: list of patterns to be included in the
+            copy even if excluded.
         :param bool is_directory: Whether the item points to a directory.
         :param bwlimit: bandwidth limit to be enforced. (KiB)
         :param str|None reuse: the reference path for incremental mode.
@@ -83,6 +86,7 @@ class _RsyncCopyItem(object):
         self.dst = dst
         self.exclude = exclude
         self.exclude_and_protect = exclude_and_protect
+        self.include = include
         self.is_directory = is_directory
         self.bwlimit = bwlimit
         self.reuse = reuse
@@ -237,6 +241,7 @@ class RsyncCopyController(object):
     def add_directory(self, label, src, dst,
                       exclude=None,
                       exclude_and_protect=None,
+                      include=None,
                       bwlimit=None, reuse=None, item_class=None):
         """
         Add a directory that we want to copy.
@@ -256,6 +261,8 @@ class RsyncCopyController(object):
             copy. The destination will be deleted if present.
         :param list[str] exclude_and_protect: list of patterns to be excluded
             from the copy. The destination will be preserved if present.
+        :param list[str] include: list of patterns to be included in the
+            copy even if excluded.
         :param bwlimit: bandwidth limit to be enforced. (KiB)
         :param str|None reuse: the reference path for incremental mode.
         :param string item_class: If specified carries a meta information about
@@ -272,7 +279,8 @@ class RsyncCopyController(object):
                 item_class=item_class,
                 optional=False,
                 exclude=exclude,
-                exclude_and_protect=exclude_and_protect))
+                exclude_and_protect=exclude_and_protect,
+                include=include))
 
     def add_file(self, label, src, dst, item_class=None, optional=False):
         """
@@ -335,6 +343,7 @@ class RsyncCopyController(object):
             network_compression=self.network_compression,
             exclude=exclude,
             exclude_and_protect=item.exclude_and_protect,
+            include=item.include,
             retry_times=self.retry_times,
             retry_sleep=self.retry_sleep,
             retry_handler=partial(self._retry_handler, item)
