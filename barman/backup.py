@@ -28,7 +28,7 @@ from glob import glob
 import dateutil.parser
 import dateutil.tz
 
-from barman import output, utils, xlog
+from barman import output, xlog
 from barman.backup_executor import PostgresBackupExecutor, RsyncBackupExecutor
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
@@ -321,7 +321,7 @@ class BackupManager(RemoteStatusMixin):
         output.info("Deleted backup %s (start time: %s, elapsed time: %s)",
                     backup.backup_id,
                     delete_start_time.ctime(),
-                    utils.human_readable_timedelta(
+                    human_readable_timedelta(
                         delete_end_time - delete_start_time))
 
     def backup(self):
