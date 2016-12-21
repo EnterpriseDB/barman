@@ -1306,11 +1306,11 @@ class TestStreamingConnection(object):
         conn_mock.return_value.server_version = 90005
         assert server.streaming.server_txt_version == '9.0.5'
 
-        conn_mock.return_value.server_version = 100201
-        assert server.streaming.server_txt_version == '10.2.1'
+        conn_mock.return_value.server_version = 100001
+        assert server.streaming.server_txt_version == '10.1'
 
-        conn_mock.return_value.server_version = 101811
-        assert server.streaming.server_txt_version == '10.18.11'
+        conn_mock.return_value.server_version = 110011
+        assert server.streaming.server_txt_version == '11.11'
 
         conn_mock.return_value.server_version = 0
         assert server.streaming.server_txt_version == '0.0.0'

@@ -194,7 +194,13 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             major = int(conn.server_version / 10000)
             minor = int(conn.server_version / 100 % 100)
             patch = int(conn.server_version % 100)
-            return "%d.%d.%d" % (major, minor, patch)
+            if major < 10:
+                return "%d.%d.%d" % (major, minor, patch)
+            if minor != 0:
+                _logger.warning(
+                    "Unexpected non zero minor version %s in %s",
+                    minor, conn.server_version)
+            return "%d.%d" % (major, patch)
         except PostgresConnectionError as e:
             _logger.debug("Error retrieving PostgreSQL version: %s",
                           str(e).strip())

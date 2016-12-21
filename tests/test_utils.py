@@ -568,3 +568,25 @@ class TestTimeout(object):
                 raise ZeroDivisionError("Fake Error")
         signal_mock.assert_called_once_with(signal.SIGALRM, signal.SIG_DFL)
         alarm_mock.assert_called_once_with(0)
+
+
+# noinspection PyMethodMayBeStatic
+class TestSimplifyVersion(object):
+    """
+    Tests for simplify_version function
+    """
+    def test_normal_releases(self):
+        assert barman.utils.simplify_version('9.1.2') == '9.1'
+        assert barman.utils.simplify_version('10.1') == '10'
+
+    def test_dev_releases(self):
+        assert barman.utils.simplify_version('9.1devel') == '9.1'
+        assert barman.utils.simplify_version('10devel') == '10'
+
+    def test_rc_releases(self):
+        assert barman.utils.simplify_version('9.1rc1') == '9.1'
+        assert barman.utils.simplify_version('10rc1') == '10'
+
+    def test_beta_releases(self):
+        assert barman.utils.simplify_version('9.1beta4') == '9.1'
+        assert barman.utils.simplify_version('10beta4') == '10'

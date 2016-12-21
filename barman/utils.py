@@ -28,6 +28,7 @@ import logging
 import logging.handlers
 import os
 import pwd
+import re
 import signal
 from contextlib import contextmanager
 
@@ -288,7 +289,7 @@ def fsync_dir(dir_path):
 
 def simplify_version(version_string):
     """
-    Simplify a version number using a major.minor format
+    Simplify a version number by removing the patch level
 
     :param version_string: the version number to simplify
     :return str: the simplified version number
@@ -296,7 +297,14 @@ def simplify_version(version_string):
     if version_string is None:
         return None
     version = version_string.split('.')
-    return '.'.join(version[:2])
+    # If a development/beta/rc version, split out the string part
+    unreleased = re.search(r'[^0-9.]', version[-1])
+    if unreleased:
+        last_component = version.pop()
+        number = last_component[:unreleased.start()]
+        string = last_component[unreleased.start():]
+        version += [number, string]
+    return '.'.join(version[:-1])
 
 
 def with_metaclass(meta, *bases):

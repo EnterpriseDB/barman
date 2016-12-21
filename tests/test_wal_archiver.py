@@ -628,24 +628,24 @@ class TestStreamingWalArchiver(object):
         archiver = StreamingWalArchiver(backup_manager)
         which_mock.return_value = '/some/path/to/pg_receivexlog'
 
-        command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.2"
+        command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.2.1"
         result = archiver.get_remote_status()
         assert result["pg_receivexlog_compatible"] is True
 
-        command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.5"
+        command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.5.3"
         archiver.reset_remote_status()
         result = archiver.get_remote_status()
         assert result["pg_receivexlog_compatible"] is False
 
         # Every pg_receivexlog is compatible with older PostgreSQL
         backup_manager.server.streaming.server_major_version = "9.3"
-        command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.5"
+        command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.5.3"
         archiver.reset_remote_status()
         result = archiver.get_remote_status()
         assert result["pg_receivexlog_compatible"] is True
 
         backup_manager.server.streaming.server_major_version = "9.5"
-        command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.3"
+        command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.3.0"
         archiver.reset_remote_status()
         result = archiver.get_remote_status()
         assert result["pg_receivexlog_compatible"] is False
