@@ -1,6 +1,34 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
+Version 2.1a1 - 27 Dec 2016
+
+-   Add --archive and --archive-timeout options to switch-xlog command
+
+-   Preliminary support for PostgreSQL 10 (#73)
+
+-   Minor additions:
+
+    -   Add last archived WAL info to diagnose output
+    -   Add start time and execution time to the output of delete
+        command
+
+-   Minor bug fixes:
+
+    -   Return failure for get-wal command on inactive server
+    -   Make streaming_archiver_names and streaming_backup_name options
+        global (#57)
+    -   Fix rsync failures due to files truncated during transfer (#64)
+    -   Correctly handle compressed history files (#66)
+    -   Avoid de-referencing symlinks in pg_tblspc when preparing
+        recovery (#55)
+    -   Fix comparison of last archiving failure (#40, #58)
+    -   Avoid failing recovery if postgresql.conf is not writable (#68)
+    -   Fix output of replication-status command (#56)
+    -   Exclude files from backups like pg_basebackup (#65, #72)
+    -   Exclude directories from other Postgres versions while copying
+        tablespaces (#74)
+
 Version 2.0 - 27 Sep 2016
 
 -   Support for pg_basebackup and base backups over the PostgreSQL
