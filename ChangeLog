@@ -1,3 +1,187 @@
+2016-12-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2016-12-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Release 2.1a1
+
+2016-12-21  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add PostgreSQL 10 versioning scheme compatibility
+	Fix #73
+
+	Exclude extraneous files during tablespace copy
+	PostgreSQL stores the tablespace data in a directory defined in the
+	PostgreSQL source as:
+
+	    "PG_" PG_MAJORVERSION "_" CATALOG_VERSION_NO
+
+	The CATALOG_VERSION_NO is not easy to retrieve, so we copy
+
+	    "PG_" + PG_MAJORVERSION + "_*"
+
+	It could select some spurious directory if a development or a beta
+	version have been used, but it's good enough for a production system
+	as it filters out other major versions.
+
+	Fix #74
+
+2016-12-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Align the list of excluded files to pg_basebackup
+	Fixes #72
+
+2016-12-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Return failure when 'barman get-wal' command is used on inactive servers
+	The 'barman get-wal' command is meant to be used used as PostgreSQL's
+	restore_command, so it must succeed only if the target WAL file has
+	been actually returned.
+
+2016-12-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add last archived WAL info to diagnose output
+	Show in diagnose the last archived WAL per timeline
+
+	switch-xlog --archive waits for the closed WAL file
+	Modify the switch-xlog --archive behaviour to wait for the specific WAL
+	file, instead of a generic one. This is faster and it avoids possible
+	issues when a higher timeline is present in the archive.
+
+2016-12-03  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add --archive and --archive-timeout options to switch-xlog command
+	Improve the switch-xlog command adding the --archive and
+	--archive-timeout options.
+
+	The --archive option will start an archiver process for the selected
+	server, and will wait for 30 seconds for a new xlog to be archived.
+
+	The --archive-timeout TIMEOUT will allow the user to increase or
+	decrease the number of seconds the archiver process will wait
+	for the archival of a new xlog file, before exiting.
+
+2016-11-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Make streaming application name options global
+	Make both 'streaming_archiver_name' and 'streaming_backup_name'
+	global options, as per documentation. Bugfix.
+
+	Fixes #57
+
+2016-11-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix rsync failures due to files truncated during transfer
+	Fixes #64
+
+2016-11-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fix typo in documentation
+
+2016-11-17  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Convert README in README.rst
+	Suggested by ckeeney. Closes #69
+
+2016-11-24  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Correctly handle compressed history files
+	Fix how barman behave when a compressed history files is found.
+
+	Fixes: #66
+
+	Avoid dereferencing symlinks in pg_tblspc when preparing recovery
+	This commit fixes a bug triggered by the presence of a broken tablespace
+	symlink in the target pg_tblspc directory when recovery starts.
+
+	Fixes: #55
+
+2016-10-06  Martin Swiech  <martin.swiech@zonky.cz>
+
+	Fix comparation of last archiving failure
+	Compare the time of last failure instead of the WAL name to detect
+	archiving failures.
+
+	Closes: #40, #58
+
+2016-11-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid failing recovery if postgresql.conf is not writable
+	Fixes: #68
+
+2016-11-08  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add start time and execution time to delete output
+	Improve the output of `barman delete` command by adding some execution
+	time statistics.
+
+	Additionally, the utility function that prints human readable time deltas
+	has been improved to correctly handle a wider range of values.
+
+	Closes #67
+
+2016-10-26  Ian Barwick  <ian@2ndquadrant.com>
+
+	Change references from non-existent `path` option to `path_prefix`
+
+2016-10-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Exclude files within pg_replslot from backups
+	Thanks to Magnus Hagander for reporting the issue.
+
+	Ref: https://www.postgresql.org/docs/current/static/continuous-archiving.html#BACKUP-LOWLEVEL-BASE-BACKUP-DATA
+
+	Fixes #65
+
+2016-10-20  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Workaroud to setuptools testrunner bug.
+	Ref links:
+
+	* https://bitbucket.org/pypa/setuptools/issue/196
+	* https://github.com/pypa/setuptools/issues/196
+
+2016-10-17  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix output of the replication-status command.
+	The replication-status command used to emit an exception in some
+	PostgreSQL releases, due to the different structure of the
+	`pg_stat_replication` view.
+
+	This patch fixes the issue checking for the existence of the fields
+	before writing them to the output.
+
+	Fixes #56
+
+2016-10-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Move isort configuration in setup.cfg
+
+2016-10-11  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add a note in docs about concurrent backup for 9.6
+
+2016-09-30  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Split the logic of the copy method in CopyController
+	This patch creates an analisys phase and a copy phase. the analisys
+	phase is responsible for the preparation of the list of files that we
+	want to copy. The copy phase is responsible for the execution of the
+	actual copy using rsync.
+
+2016-10-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fix level of section about WAL verification
+
+2016-09-27  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Update sphinx index page
+
+2016-09-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Set version 2.1a1
+
 2016-09-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
