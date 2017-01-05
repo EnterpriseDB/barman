@@ -1,3 +1,17 @@
+2017-01-05  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Set version to 2.1
+
+2016-12-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid importing barman.utils module twice
+
+2017-01-03  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Make retry hook script options global (bugfix)
+
 2016-12-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
