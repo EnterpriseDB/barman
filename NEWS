@@ -1,7 +1,7 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2016 2ndQuadrant Italia Srl
 
-Version 2.1a1 - 27 Dec 2016
+Version 2.1 - 5 Jan 2017
 
 -   Add --archive and --archive-timeout options to switch-xlog command
 
@@ -28,6 +28,7 @@ Version 2.1a1 - 27 Dec 2016
     -   Exclude files from backups like pg_basebackup (#65, #72)
     -   Exclude directories from other Postgres versions while copying
         tablespaces (#74)
+    -   Make retry hook script options global
 
 Version 2.0 - 27 Sep 2016
 
