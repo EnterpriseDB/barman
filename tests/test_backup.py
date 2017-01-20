@@ -503,9 +503,8 @@ class TestBackup(object):
         # Expect a failure from the method
         strategy_mock.result.assert_called_with(
             'TestServer',
-            'minimum redundancy requirements',
             False,
-            'have 0 backups, expected at least 1'
+            hint='have 0 backups, expected at least 1'
         )
         # Test the satisfied minimum_redundancy option
         b_info = build_test_backup_info(
@@ -520,9 +519,8 @@ class TestBackup(object):
         # Expect a success from the method
         strategy_mock.result.assert_called_with(
             'TestServer',
-            'minimum redundancy requirements',
             True,
-            'have 1 backups, expected at least 1'
+            hint='have 1 backups, expected at least 1'
         )
 
         # Test for no failed backups
@@ -532,9 +530,8 @@ class TestBackup(object):
         # Expect a failure from the method
         strategy_mock.result.assert_any_call(
             'TestServer',
-            'failed backups',
             True,
-            'there are 0 failed backups'
+            hint='there are 0 failed backups'
         )
 
         # Test for failed backups in catalog
@@ -550,9 +547,8 @@ class TestBackup(object):
         # Expect a failure from the method
         strategy_mock.result.assert_any_call(
             'TestServer',
-            'failed backups',
             False,
-            'there are 1 failed backups'
+            hint='there are 1 failed backups'
         )
 
         # Test unknown compression
@@ -563,7 +559,6 @@ class TestBackup(object):
         # Expect a failure from the method
         strategy_mock.result.assert_any_call(
             'TestServer',
-            'compression settings',
             False
         )
 
@@ -575,7 +570,6 @@ class TestBackup(object):
         # Expect a success from the method
         strategy_mock.result.assert_any_call(
             'TestServer',
-            'compression settings',
             True
         )
         # Test failure retrieving a compressor
@@ -588,7 +582,6 @@ class TestBackup(object):
         # Expect a failure from the method
         strategy_mock.result.assert_any_call(
             'TestServer',
-            'compression settings',
             False
         )
 

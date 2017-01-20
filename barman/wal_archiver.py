@@ -506,35 +506,38 @@ class FileWalArchiver(WalArchiver):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        check_strategy.init_check('archive_mode')
         remote_status = self.get_remote_status()
         # If archive_mode is None, there are issues connecting to PostgreSQL
         if remote_status['archive_mode'] is None:
             return
         # Check archive_mode parameter: must be on
         if remote_status['archive_mode'] in ('on', 'always'):
-            check_strategy.result(self.config.name, 'archive_mode', True)
+            check_strategy.result(self.config.name, True)
         else:
             msg = "please set it to 'on'"
             if self.server.postgres.server_version >= 90500:
                 msg += " or 'always'"
-            check_strategy.result(self.config.name, 'archive_mode', False, msg)
-
+            check_strategy.result(self.config.name, False, hint=msg)
+        check_strategy.init_check('archive_command')
         if remote_status['archive_command'] and \
                 remote_status['archive_command'] != '(disabled)':
-            check_strategy.result(self.config.name, 'archive_command',
-                                  True)
+            check_strategy.result(self.config.name,
+                                  True,
+                                  check='archive_command')
 
             # Report if the archiving process works without issues.
             # Skip if the archive_command check fails
             # It can be None if PostgreSQL is older than 9.4
             if remote_status.get('is_archiving') is not None:
                 check_strategy.result(
-                    self.config.name, 'continuous archiving',
-                    remote_status['is_archiving'])
+                    self.config.name,
+                    remote_status['is_archiving'],
+                    check='continuous archiving')
         else:
             check_strategy.result(
-                self.config.name, 'archive_command', False,
-                'please set it accordingly to documentation')
+                self.config.name, False,
+                hint='please set it accordingly to documentation')
 
     def status(self):
         """
@@ -822,19 +825,21 @@ class StreamingWalArchiver(WalArchiver):
 
     def check(self, check_strategy):
         """
-        Perform additional checks for FileWalArchiver - invoked
+        Perform additional checks for StreamingWalArchiver - invoked
         by server.check_postgres
 
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
 
+        check_strategy.init_check('pg_receivexlog')
         # Check the version of pg_receivexlog
         remote_status = self.get_remote_status()
         check_strategy.result(
-            self.config.name, 'pg_receivexlog',
+            self.config.name,
             remote_status['pg_receivexlog_installed'])
         hint = None
+        check_strategy.init_check('pg_receivexlog compatible')
         if not remote_status['pg_receivexlog_compatible']:
             pg_version = 'Unknown'
             if self.server.streaming is not None:
@@ -843,9 +848,9 @@ class StreamingWalArchiver(WalArchiver):
                 pg_version,
                 remote_status['pg_receivexlog_version']
             )
-        check_strategy.result(
-            self.config.name, 'pg_receivexlog compatible',
-            remote_status['pg_receivexlog_compatible'], hint=hint)
+        check_strategy.result(self.config.name,
+                              remote_status['pg_receivexlog_compatible'],
+                              hint=hint)
 
         # Check if pg_receivexlog is running, by retrieving a list
         # of running 'receive-wal' processes from the process manager.
@@ -853,13 +858,15 @@ class StreamingWalArchiver(WalArchiver):
 
         # If there's at least one 'receive-wal' process running for this
         # server, the test is passed
+        check_strategy.init_check('receive-wal running')
         if receiver_list:
             check_strategy.result(
-                self.config.name, 'receive-wal running', True)
+                self.config.name, True)
         else:
             check_strategy.result(
-                self.config.name, 'receive-wal running', False,
-                'See the Barman log file for more details')
+                self.config.name,
+                False,
+                hint='See the Barman log file for more details')
 
     def _is_synchronous(self):
         """

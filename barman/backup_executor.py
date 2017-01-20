@@ -316,17 +316,18 @@ class PostgresBackupExecutor(BackupExecutor):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        check_strategy.init_check('pg_basebackup')
         remote_status = self.get_remote_status()
 
         # Check for the presence of pg_basebackup
         check_strategy.result(
-            self.config.name, 'pg_basebackup',
-            remote_status['pg_basebackup_installed'])
+            self.config.name, remote_status['pg_basebackup_installed'])
 
         # remote_status['pg_basebackup_compatible'] is None if
         # pg_basebackup cannot be executed and False if it is
         # not compatible.
         hint = None
+        check_strategy.init_check('pg_basebackup compatible')
         if not remote_status['pg_basebackup_compatible']:
             pg_version = 'Unknown'
             basebackup_version = 'Unknown'
@@ -338,7 +339,7 @@ class PostgresBackupExecutor(BackupExecutor):
                 pg_version, basebackup_version
             )
         check_strategy.result(
-            self.config.name, 'pg_basebackup compatible',
+            self.config.name,
             remote_status['pg_basebackup_compatible'], hint=hint)
 
         # Skip further checks if the postgres connection doesn't work.
@@ -348,6 +349,7 @@ class PostgresBackupExecutor(BackupExecutor):
         if postgres is None or postgres.server_txt_version is None:
             return
 
+        check_strategy.init_check('pg_basebackup supports tablespaces mapping')
         # We can't backup a cluster with tablespaces if the tablespace
         # mapping option is not available in the installed version
         # of pg_basebackup.
@@ -387,7 +389,6 @@ class PostgresBackupExecutor(BackupExecutor):
 
         check_strategy.result(
             self.config.name,
-            'pg_basebackup supports tablespaces mapping',
             check_result,
             hint=hint
         )
@@ -707,7 +708,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-
+        check_strategy.init_check('ssh')
         hint = "PostgreSQL server"
         cmd = None
         minimal_ssh_output = None
@@ -720,16 +721,16 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                 hint = str(e).strip()
 
         # Output the result
-        check_strategy.result(self.config.name, 'ssh', cmd is not None, hint)
+        check_strategy.result(self.config.name, cmd is not None, hint=hint)
 
         # Check if the communication channel is "clean"
         if minimal_ssh_output:
+            check_strategy.init_check('ssh output clean')
             check_strategy.result(
                 self.config.name,
-                'ssh output clean',
                 False,
-                "the configured ssh_command must not add anything "
-                "to the remote command output")
+                hint="the configured ssh_command must not add anything to "
+                     "the remote command output")
 
         # If SSH works but PostgreSQL is not responding
         if (cmd is not None and
@@ -741,6 +742,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             )
             # Look for the latest backup in the catalogue
             if last_backup:
+                check_strategy.init_check('backup_label')
                 # Get PGDATA and build path to 'backup_label'
                 backup_label = os.path.join(last_backup.pgdata,
                                             'backup_label')
@@ -750,9 +752,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                 if exists:
                     hint = "Check that the PostgreSQL server is up " \
                            "and no 'backup_label' file is in PGDATA."
-                    check_strategy.result(self.config.name,
-                                          'backup_label', False,
-                                          hint)
+                    check_strategy.result(self.config.name, False, hint=hint)
 
         try:
             # Invoke specific checks for the backup strategy
@@ -1378,15 +1378,16 @@ class ExclusiveBackupStrategy(BackupStrategy):
              of the results of the various checks
         """
         # Make sure PostgreSQL is not in recovery (i.e. is a master)
+        check_strategy.init_check('not in recovery')
         if self.executor.server.postgres:
             is_in_recovery = self.executor.server.postgres.is_in_recovery
             if not is_in_recovery:
                 check_strategy.result(
-                    self.executor.config.name, 'not in recovery', True)
+                    self.executor.config.name, True)
             else:
                 check_strategy.result(
-                    self.executor.config.name, 'not in recovery', False,
-                    'cannot perform exclusive backup on a standby')
+                    self.executor.config.name, False,
+                    hint='cannot perform exclusive backup on a standby')
 
 
 class ConcurrentBackupStrategy(BackupStrategy):
@@ -1536,6 +1537,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        check_strategy.init_check('pgespresso extension')
         postgres = self.executor.server.postgres
         try:
             # We execute this check only if the postgres connection is non None
@@ -1543,14 +1545,12 @@ class ConcurrentBackupStrategy(BackupStrategy):
             # there is a native API for concurrent backups.
             if postgres and postgres.server_version < 90600:
                 if postgres.has_pgespresso:
-                    check_strategy.result(self.executor.config.name,
-                                          'pgespresso extension', True)
+                    check_strategy.result(self.executor.config.name, True)
                 else:
-                    check_strategy.result(self.executor.config.name,
-                                          'pgespresso extension', False,
-                                          'required for concurrent backups on '
-                                          'PostgreSQL %s' %
-                                          postgres.server_major_version)
+                    check_strategy.result(self.executor.config.name, False,
+                                          hint='required for concurrent '
+                                               'backups on PostgreSQL %s' %
+                                               postgres.server_major_version)
         except PostgresConnectionError:
             # Skip the check if the postgres connection doesn't work.
             # We assume that this error condition will be reported by

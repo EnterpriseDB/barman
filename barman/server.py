@@ -89,17 +89,34 @@ class CheckStrategy(object):
         self.ignore_list = ignore_checks
         self.check_result = []
         self.has_error = False
+        self.running_check = None
 
-    def result(self, server_name, check, status, hint=None):
+    def init_check(self, check_name):
+        """
+        Mark in the debug log when barman starts the execution of a check
+
+        :param str check_name: the name of the check that is starting
+        """
+        self.running_check = check_name
+        _logger.debug("Starting check: %s" % check_name)
+
+    def _check_name(self, check):
+        if not check:
+            check = self.running_check
+        assert check
+        return check
+
+    def result(self, server_name, status, hint=None, check=None):
         """
         Store the result of a check (with no output).
         Log any check result (error or debug level).
 
         :param str server_name: the server is being checked
-        :param str check: the check name
         :param bool status: True if succeeded
         :param str,None hint: hint to print if not None:
+        :param str,None check: the check name
         """
+        check = self._check_name(check)
         if not status:
             # If the name of the check is not in the filter list,
             # treat it as a blocking error, then notify the error
@@ -122,6 +139,7 @@ class CheckStrategy(object):
         # Store the result and does not output anything
         result = self.CheckResult(server_name, check, status)
         self.check_result.append(result)
+        self.running_check = None
 
 
 class CheckOutputStrategy(CheckStrategy):
@@ -138,18 +156,20 @@ class CheckOutputStrategy(CheckStrategy):
         """
         super(CheckOutputStrategy, self).__init__(ignore_checks=())
 
-    def result(self, server_name, check, status, hint=None):
+    def result(self, server_name, status, hint=None, check=None):
         """
-        Output Strategy constructor
+        Store the result of a check.
+        Log any check result (error or debug level).
+        Output the result to the user
 
         :param str server_name: the server being checked
         :param str check: the check name
         :param bool status: True if succeeded
         :param str,None hint: hint to print if not None:
         """
-        # Call the basic method
+        check = self._check_name(check)
         super(CheckOutputStrategy, self).result(
-            server_name, check, status, hint)
+            server_name, status, hint, check)
         # Send result to output
         output.result('check', server_name, check, status, hint)
 
@@ -429,8 +449,11 @@ class Server(RemoteStatusMixin):
         except TimeoutError:
             # The check timed out.
             # Add a failed entry to the check strategy for this.
-            check_strategy.result(self.config.name, 'check timeout', False,
-                                  'barman check command timed out')
+            _logger.debug("Check command timed out executing '%s' check"
+                          % check_strategy.running_check)
+            check_strategy.result(self.config.name, False,
+                                  hint='barman check command timed out',
+                                  check='check timeout')
 
     def check_archive(self, check_strategy):
         """
@@ -439,7 +462,7 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-
+        check_strategy.init_check("WAL archive")
         # Make sure that WAL archiving has been setup
         # XLOG_DB needs to exist and its size must be > 0
         # NOTE: we do not need to acquire a lock in this phase
@@ -452,8 +475,8 @@ class Server(RemoteStatusMixin):
         # NOTE: This check needs to be only visible if it fails
         if xlogdb_empty:
             check_strategy.result(
-                self.config.name, 'WAL archive', False,
-                'please make sure WAL shipping is setup')
+                self.config.name, False,
+                hint='please make sure WAL shipping is setup')
 
     def check_postgres(self, check_strategy):
         """
@@ -462,24 +485,30 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        check_strategy.init_check('PostgreSQL')
         # Take the status of the remote server
         remote_status = self.get_remote_status()
         if remote_status.get('server_txt_version'):
-            check_strategy.result(self.config.name, 'PostgreSQL', True)
+            check_strategy.result(self.config.name, True)
         else:
-            check_strategy.result(self.config.name, 'PostgreSQL', False)
+            check_strategy.result(self.config.name, False)
             return
         # Check for superuser privileges in PostgreSQL
         if remote_status.get('is_superuser') is not None:
+            check_strategy.init_check('is_superuser')
             if remote_status.get('is_superuser'):
                 check_strategy.result(
-                    self.config.name, 'superuser', True)
+                    self.config.name, True)
             else:
                 check_strategy.result(
-                    self.config.name, 'not superuser', False,
-                    'superuser privileges for PostgreSQL connection required')
+                    self.config.name, False,
+                    hint='superuser privileges for PostgreSQL '
+                         'connection required',
+                    check='not superuser'
+                )
 
         if 'streaming_supported' in remote_status:
+            check_strategy.init_check("PostgreSQL streaming")
             hint = None
 
             # If a streaming connection is available,
@@ -489,22 +518,24 @@ class Server(RemoteStatusMixin):
             elif not remote_status['streaming_supported']:
                 hint = ('Streaming connection not supported'
                         ' for PostgreSQL < 9.2')
-            check_strategy.result(self.config.name, 'PostgreSQL streaming',
-                                  remote_status.get('streaming'), hint)
+            check_strategy.result(self.config.name,
+                                  remote_status.get('streaming'), hint=hint)
         # Check wal_level parameter: must be different from 'minimal'
         # the parameter has been introduced in postgres >= 9.0
         if 'wal_level' in remote_status:
+            check_strategy.init_check("wal_level")
             if remote_status['wal_level'] != 'minimal':
                 check_strategy.result(
-                    self.config.name, 'wal_level', True)
+                    self.config.name, True)
             else:
                 check_strategy.result(
-                    self.config.name, 'wal_level', False,
-                    "please set it to a higher level than 'minimal'")
+                    self.config.name, False,
+                    hint="please set it to a higher level than 'minimal'")
 
         # Check the presence and the status of the configured replication slot
         # This check will be skipped if `slot_name` is undefined
         if self.config.slot_name:
+            check_strategy.init_check("replication slot")
             slot = remote_status['replication_slot']
             # The streaming_archiver is enabled
             if self.config.streaming_archiver is True:
@@ -512,39 +543,37 @@ class Server(RemoteStatusMixin):
                 if not remote_status['replication_slot_support']:
                     check_strategy.result(
                         self.config.name,
-                        'replication slot',
                         False,
-                        "slot_name parameter set but "
-                        "PostgreSQL server is too old (%s < 9.4)" % (
-                            remote_status['server_txt_version']))
+                        hint="slot_name parameter set but PostgreSQL server "
+                             "is too old (%s < 9.4)" %
+                             remote_status['server_txt_version'])
                 # Replication slots are supported
                 else:
                     # The slot is not present
                     if slot is None:
                         check_strategy.result(
-                            self.config.name, 'replication slot', False,
-                            "replication slot '%s' doesn't exist. "
-                            "Please execute "
-                            "'barman receive-wal --create-slot %s'" %
-                            (self.config.slot_name, self.config.name))
+                            self.config.name, False,
+                            hint="replication slot '%s' doesn't exist. "
+                                 "Please execute 'barman receive-wal "
+                                 "--create-slot %s'" % (self.config.slot_name,
+                                                        self.config.name))
                     else:
                         # The slot is present but not initialised
                         if slot.restart_lsn is None:
                             check_strategy.result(
-                                self.config.name, 'replication slot', False,
-                                "slot '%s' not initialised: "
-                                "is 'receive-wal' running?" %
-                                self.config.slot_name)
+                                self.config.name, False,
+                                hint="slot '%s' not initialised: is "
+                                     "'receive-wal' running?" %
+                                     self.config.slot_name)
                         # The slot is present but not active
                         elif slot.active is False:
                             check_strategy.result(
-                                self.config.name, 'replication slot', False,
-                                "slot '%s' not active: "
-                                "is 'receive-wal' running?" %
-                                self.config.slot_name)
+                                self.config.name, False,
+                                hint="slot '%s' not active: is "
+                                     "'receive-wal' running?" %
+                                     self.config.slot_name)
                         else:
                             check_strategy.result(self.config.name,
-                                                  'replication slot',
                                                   True)
             else:
                 # If the streaming_archiver is disabled and the slot_name
@@ -564,11 +593,10 @@ class Server(RemoteStatusMixin):
                         # Warn the user
                         check_strategy.result(
                             self.config.name,
-                            'replication slot',
                             True,
-                            "WARNING: slot '%s' is %s but not required "
-                            "by the current config" % (
-                                self.config.slot_name, slot_status))
+                            hint="WARNING: slot '%s' is %s but not required "
+                                 "by the current config" % (
+                                  self.config.slot_name, slot_status))
 
     def _make_directories(self):
         """
@@ -588,14 +616,15 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        check_strategy.init_check("directories")
         if not self.config.disabled:
             try:
                 self._make_directories()
             except OSError as e:
-                check_strategy.result(self.config.name, 'directories', False,
+                check_strategy.result(self.config.name, False,
                                       "%s: %s" % (e.filename, e.strerror))
             else:
-                check_strategy.result(self.config.name, 'directories', True)
+                check_strategy.result(self.config.name, True)
 
     def check_configuration(self, check_strategy):
         """
@@ -605,8 +634,9 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        check_strategy.init_check('configuration')
         if len(self.config.msg_list):
-            check_strategy.result(self.config.name, 'configuration', False)
+            check_strategy.result(self.config.name, False)
             for conflict_paths in self.config.msg_list:
                 output.info("\t\t%s" % conflict_paths)
 
@@ -617,14 +647,12 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        check_strategy.init_check("retention policy settings")
         if (self.config.retention_policy and
                 not self.enforce_retention_policies):
-            check_strategy.result(self.config.name,
-                                  'retention policy settings', False,
-                                  'see log')
+            check_strategy.result(self.config.name, False, hint='see log')
         else:
-            check_strategy.result(self.config.name,
-                                  'retention policy settings', True)
+            check_strategy.result(self.config.name, True)
 
     def check_backup_validity(self, check_strategy):
         """
@@ -633,6 +661,7 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        check_strategy.init_check('backup maximum age')
         # first check: check backup maximum age
         if self.config.last_backup_maximum_age is not None:
             # get maximum age information
@@ -641,16 +670,16 @@ class Server(RemoteStatusMixin):
 
             # format the output
             check_strategy.result(
-                self.config.name, 'backup maximum age',
-                backup_age[0],
-                "interval provided: %s, latest backup age: %s" % (
+                self.config.name, backup_age[0],
+                hint="interval provided: %s, latest backup age: %s" % (
                     human_readable_timedelta(
                         self.config.last_backup_maximum_age), backup_age[1]))
         else:
             # last_backup_maximum_age provided by the user
             check_strategy.result(
-                self.config.name, 'backup maximum age', True,
-                "no last_backup_maximum_age provided")
+                self.config.name,
+                True,
+                hint="no last_backup_maximum_age provided")
 
     def check_archiver_errors(self, check_strategy):
         """
@@ -659,7 +688,7 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the check
         """
-
+        check_strategy.init_check('archiver errors')
         if os.path.isdir(self.config.errors_directory):
             errors = os.listdir(self.config.errors_directory)
         else:
@@ -667,9 +696,8 @@ class Server(RemoteStatusMixin):
 
         check_strategy.result(
             self.config.name,
-            "archiver errors",
             len(errors) == 0,
-            WalArchiver.summarise_error_files(errors)
+            hint=WalArchiver.summarise_error_files(errors)
         )
 
     def status_postgres(self):

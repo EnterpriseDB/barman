@@ -745,9 +745,8 @@ class TestServer(object):
         server.check_archiver_errors(check_strategy)
         check_strategy.result.assert_called_with(
             'main',
-            'archiver errors',
             True,
-            None,
+            hint=None
         )
 
         # There is one duplicate file
@@ -756,9 +755,8 @@ class TestServer(object):
         server.check_archiver_errors(check_strategy)
         check_strategy.result.assert_called_with(
             'main',
-            'archiver errors',
             False,
-            'duplicates: 1',
+            hint='duplicates: 1',
         )
 
         # There is one unknown file
@@ -767,9 +765,8 @@ class TestServer(object):
         server.check_archiver_errors(check_strategy)
         check_strategy.result.assert_called_with(
             'main',
-            'archiver errors',
             False,
-            'unknown: 1',
+            hint='unknown: 1',
         )
 
         # There is one not relevant file
@@ -778,9 +775,8 @@ class TestServer(object):
         server.check_archiver_errors(check_strategy)
         check_strategy.result.assert_called_with(
             'main',
-            'archiver errors',
             False,
-            'not relevant: 1',
+            hint='not relevant: 1',
         )
 
         # There is one extraneous file
@@ -789,9 +785,8 @@ class TestServer(object):
         server.check_archiver_errors(check_strategy)
         check_strategy.result.assert_called_with(
             'main',
-            'archiver errors',
             False,
-            'unknown failure: 1'
+            hint='unknown failure: 1'
         )
 
     def test_switch_xlog(self, capsys):
@@ -1080,11 +1075,11 @@ class TestCheckStrategy(object):
         """
         strategy = CheckOutputStrategy()
         # Expected result OK
-        strategy.result('test_server_one', 'wal_level', True)
+        strategy.result('test_server_one', True, check='wal_level')
         out, err = capsys.readouterr()
         assert out == '	wal_level: OK\n'
         # Expected result FAILED
-        strategy.result('test_server_one', 'wal_level', False)
+        strategy.result('test_server_one', False, check='wal_level')
         out, err = capsys.readouterr()
         assert out == '	wal_level: FAILED\n'
 
@@ -1096,7 +1091,7 @@ class TestCheckStrategy(object):
         """
         strategy = CheckOutputStrategy()
         # Expected result OK
-        strategy.result('test_server_one', 'wal_level', True)
+        strategy.result('test_server_one', True, check='wal_level')
         records = list(caplog.records)
         assert len(records) == 1
         record = records.pop()
@@ -1105,8 +1100,8 @@ class TestCheckStrategy(object):
         assert record.levelname == 'DEBUG'
         # Expected result FAILED
         strategy = CheckOutputStrategy()
-        strategy.result('test_server_one', 'wal_level', False)
-        strategy.result('test_server_one', 'backup maximum age', False)
+        strategy.result('test_server_one', False, check='wal_level')
+        strategy.result('test_server_one', False, check='backup maximum age')
         records = list(caplog.records)
         assert len(records) == 3
         record = records.pop()
@@ -1126,16 +1121,16 @@ class TestCheckStrategy(object):
         """
         strategy = CheckStrategy()
         # Expected no errors
-        strategy.result('test_server_one', 'wal_level', True)
-        strategy.result('test_server_one', 'archive mode', True)
+        strategy.result('test_server_one', True, check='wal_level')
+        strategy.result('test_server_one', True, check='archive_mode')
         assert ('', '') == capsys.readouterr()
         assert strategy.has_error is False
         assert strategy.check_result
         assert len(strategy.check_result) == 2
         # Expected two errors
         strategy = CheckStrategy()
-        strategy.result('test_server_one', 'wal_level', False)
-        strategy.result('test_server_one', 'archive mode', False)
+        strategy.result('test_server_one', False, check='wal_level')
+        strategy.result('test_server_one', False, check='archive_mode')
         assert ('', '') == capsys.readouterr()
         assert strategy.has_error is True
         assert strategy.check_result
@@ -1145,8 +1140,8 @@ class TestCheckStrategy(object):
                     if not result.status]) == 2
         # Test Non blocking error behaviour (one non blocking error)
         strategy = CheckStrategy()
-        strategy.result('test_server_one', 'backup maximum age', False)
-        strategy.result('test_server_one', 'archive mode', True)
+        strategy.result('test_server_one', False, check='backup maximum age')
+        strategy.result('test_server_one', True, check='archive mode')
         assert ('', '') == capsys.readouterr()
         assert strategy.has_error is False
         assert strategy.check_result
@@ -1157,8 +1152,8 @@ class TestCheckStrategy(object):
 
         # Test Non blocking error behaviour (2 errors one is non blocking)
         strategy = CheckStrategy()
-        strategy.result('test_server_one', 'backup maximum age', False)
-        strategy.result('test_server_one', 'archive mode', False)
+        strategy.result('test_server_one', False, check='backup maximum age')
+        strategy.result('test_server_one', False, check='archive mode')
         assert ('', '') == capsys.readouterr()
         assert strategy.has_error is True
         assert strategy.check_result
@@ -1175,7 +1170,7 @@ class TestCheckStrategy(object):
         """
         strategy = CheckStrategy()
         # Expected result OK
-        strategy.result('test_server_one', 'wal_level', True)
+        strategy.result('test_server_one', True, check='wal_level')
         records = list(caplog.records)
         assert len(records) == 1
         record = records.pop()
@@ -1183,7 +1178,7 @@ class TestCheckStrategy(object):
             "Check 'wal_level' succeeded for server 'test_server_one'"
         assert record.levelname == 'DEBUG'
         # Expected result FAILED
-        strategy.result('test_server_one', 'wal_level', False)
+        strategy.result('test_server_one', False, check='wal_level')
         records = list(caplog.records)
         assert len(records) == 2
         record = records.pop()
