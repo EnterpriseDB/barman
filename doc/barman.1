@@ -1,4 +1,4 @@
-.TH "BARMAN" "1" "January 5, 2017" "Barman User manuals" "Version 2.1"
+.TH "BARMAN" "1" "January 20, 2017" "Barman User manuals" "Version 2.2a1"
 .SH NAME
 .PP
 barman \- Backup and Recovery Manager for PostgreSQL
@@ -240,8 +240,7 @@ Backup\ 20150828T130001:
 \f[]
 .fi
 .TP
-.B list\-files \f[I][OPTIONS]\f[] \f[I]SERVER_NAME\f[]
-\f[I]BACKUP_ID\f[]
+.B list\-files \f[I][OPTIONS]\f[] \f[I]SERVER_NAME\f[] \f[I]BACKUP_ID\f[]
 List all the files in a particular backup, identified by the server name
 and the backup ID.
 See the Backup ID shortcuts (#shortcuts) section below for available
@@ -277,8 +276,7 @@ file, and every Barman server has its own copy.
 .RS
 .RE
 .TP
-.B recover \f[I][OPTIONS]\f[] \f[I]SERVER_NAME\f[] \f[I]BACKUP_ID\f[]
-\f[I]DESTINATION_DIRECTORY\f[]
+.B recover \f[I][OPTIONS]\f[] \f[I]SERVER_NAME\f[] \f[I]BACKUP_ID\f[] \f[I]DESTINATION_DIRECTORY\f[]
 Recover a backup in a given directory (local or remote, depending on the
 \f[C]\-\-remote\-ssh\-command\f[] option settings).
 See the Backup ID shortcuts (#shortcuts) section below for available
