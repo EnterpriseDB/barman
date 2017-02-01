@@ -139,9 +139,9 @@ as a restore label, or as a transaction ID.
 The recovery target can be specified using one of
 three mutually exclusive options:
 
-* --target-time TARGET_TIME: to specify a timestamp
-* --target-xid TARGET_XID: to specify a transaction ID
-* --target-name TARGET_NAME: to specify a named restore point
+* `--target-time TARGET_TIME`: to specify a timestamp
+* `--target-xid TARGET_XID`: to specify a transaction ID
+* `--target-name TARGET_NAME`: to specify a named restore point
   previously created with the pg_create_restore_point(name)
   function[^TARGET_NAME]
 
