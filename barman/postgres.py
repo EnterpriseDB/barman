@@ -91,6 +91,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         self.config = config
         self.conninfo = conninfo
         self._conn = None
+        self.allow_reconnect = True
         # Build a dictionary with connection info parameters
         # This is mainly used to speed up search in conninfo
         try:
@@ -144,6 +145,16 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         """
         Generic function for Postgres connection (using psycopg2)
         """
+        if self._conn and self._conn.closed:
+            # Close the broken connection and let the following code to open
+            # it again
+            self.close()
+            # Raise an error if the connection is broken
+            # and reconnect is not allowed
+            if not self.allow_reconnect:
+                raise PostgresConnectionError(
+                    "The connection is broken and reconnection is not allowed")
+
         if not self._conn:
             try:
                 self._conn = psycopg2.connect(self.conninfo)
@@ -160,11 +171,13 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         Close the connection to PostgreSQL
         """
         if self._conn:
-            if self._conn.status == STATUS_IN_TRANSACTION:
-                self._conn.rollback()
-            self._conn.close()
-            self._conn = None
+            # If the connection is still alive, rollback and close it
+            if not self._conn.closed:
+                if self._conn.status == STATUS_IN_TRANSACTION:
+                    self._conn.rollback()
+                self._conn.close()
             # Remove the connection from the live connections list
+            self._conn = None
             _live_connections.remove(self)
 
     def _cursor(self, *args, **kwargs):
@@ -252,10 +265,12 @@ class StreamingConnection(PostgreSQL):
 
         :returns: the connection to the server
         """
-        if not self._conn:
-            # Build a connection and set autocommit
-            self._conn = super(StreamingConnection, self).connect()
-            self._conn.autocommit = True
+        if self._conn and not self._conn.closed:
+            return self._conn
+
+        # Build a connection and set autocommit
+        self._conn = super(StreamingConnection, self).connect()
+        self._conn.autocommit = True
         return self._conn
 
     def fetch_remote_status(self):
@@ -379,7 +394,7 @@ class PostgreSQLConnection(PostgreSQL):
         """
         Connect to the PostgreSQL server. It reuses an existing connection.
         """
-        if self._conn:
+        if self._conn and not self._conn.closed:
             return self._conn
 
         self._conn = super(PostgreSQLConnection, self).connect()

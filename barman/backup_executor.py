@@ -1287,13 +1287,14 @@ class PostgresBackupStrategy(BackupStrategy):
 
         # Get the current xlog position
         postgres = self.executor.server.postgres
-        current_xlog_info = postgres.current_xlog_info.copy()
-        self._backup_info_from_stop_location(backup_info, current_xlog_info)
+        current_xlog_info = postgres.current_xlog_info
+        if current_xlog_info:
+            self._backup_info_from_stop_location(
+                backup_info, current_xlog_info)
 
         # Ask PostgreSQL to switch to another XLOG file. This is needed
         # to archive the transaction log file containing the backup
         # end position, which is required to recover from the backup.
-        postgres = self.executor.server.postgres
         try:
             postgres.switch_xlog()
         except PostgresIsInRecovery:
@@ -1567,6 +1568,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         """
         postgres = self.executor.server.postgres
         start_info = postgres.start_concurrent_backup(label)
+        postgres.allow_reconnect = False
         self._backup_info_from_start_location(backup_info, start_info)
 
     def _concurrent_stop_backup(self, backup_info):
@@ -1578,5 +1580,6 @@ class ConcurrentBackupStrategy(BackupStrategy):
         """
         postgres = self.executor.server.postgres
         stop_info = postgres.stop_concurrent_backup()
+        postgres.allow_reconnect = True
         backup_info.set_attribute('backup_label', stop_info['backup_label'])
         self._backup_info_from_stop_location(backup_info, stop_info)

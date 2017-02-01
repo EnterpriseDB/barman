@@ -69,6 +69,7 @@ class TestPostgres(object):
         server.postgres.conninfo = "valid conninfo"
         conn_mock = pg_connect_mock.return_value
         conn_mock.server_version = 90401
+        conn_mock.closed = False
         cursor_mock = conn_mock.cursor.return_value
 
         # Connection failure
@@ -96,15 +97,34 @@ class TestPostgres(object):
         assert new_conn is conn_mock
         assert not pg_connect_mock.called
 
+        # call again with a broken connection
+        pg_connect_mock.reset_mock()
+        conn_mock.closed = True
+
+        new_conn = server.postgres.connect()
+
+        assert new_conn is conn_mock
+        pg_connect_mock.assert_called_with("valid conninfo")
+
         # close it
         pg_connect_mock.reset_mock()
+        conn_mock.closed = False
 
         server.postgres.close()
 
         assert conn_mock.close.called
 
+        # close it with a broken connection
+        pg_connect_mock.reset_mock()
+        conn_mock.closed = True
+
+        server.postgres.close()
+
+        assert not conn_mock.close.called
+
         # open again and verify that it is a new object
         pg_connect_mock.reset_mock()
+        conn_mock.closed = False
 
         server.postgres.connect()
 
