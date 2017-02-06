@@ -99,7 +99,7 @@ class TestPostgres(object):
 
         # call again with a broken connection
         pg_connect_mock.reset_mock()
-        conn_mock.closed = True
+        conn_mock.cursor.side_effect = [psycopg2.DatabaseError, cursor_mock]
 
         new_conn = server.postgres.connect()
 
@@ -108,13 +108,14 @@ class TestPostgres(object):
 
         # close it
         pg_connect_mock.reset_mock()
+        conn_mock.cursor.side_effect = None
         conn_mock.closed = False
 
         server.postgres.close()
 
         assert conn_mock.close.called
 
-        # close it with a broken connection
+        # close it with an already closed connection
         pg_connect_mock.reset_mock()
         conn_mock.closed = True
 
@@ -1279,7 +1280,7 @@ class TestStreamingConnection(object):
         cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.fetchone.return_value = ('12345', 1, 'DE/ADBEEF')
         result = server.streaming.fetch_remote_status()
-        cursor_mock.execute.assert_called_once_with("IDENTIFY_SYSTEM")
+        cursor_mock.execute.assert_called_with("IDENTIFY_SYSTEM")
         assert result["streaming_supported"] is True
         assert result['streaming'] is True
 
@@ -1287,7 +1288,7 @@ class TestStreamingConnection(object):
         conn_mock.reset_mock()
         cursor_mock.execute.side_effect = psycopg2.ProgrammingError
         result = server.streaming.fetch_remote_status()
-        cursor_mock.execute.assert_called_once_with("IDENTIFY_SYSTEM")
+        cursor_mock.execute.assert_called_with("IDENTIFY_SYSTEM")
         assert result["streaming_supported"] is True
         assert result['streaming'] is False
 

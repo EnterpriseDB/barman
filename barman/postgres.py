@@ -79,6 +79,8 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
     This abstract class represents a generic interface to a PostgreSQL server.
     """
 
+    CHECK_QUERY = 'SELECT 1'
+
     def __init__(self, config, conninfo):
         """
         Abstract base class constructor for PostgreSQL interface.
@@ -145,26 +147,46 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         """
         Generic function for Postgres connection (using psycopg2)
         """
-        if self._conn and self._conn.closed:
-            # Close the broken connection and let the following code to open
-            # it again
-            self.close()
-            # Raise an error if the connection is broken
-            # and reconnect is not allowed
-            if not self.allow_reconnect:
-                raise PostgresConnectionError(
-                    "The connection is broken and reconnection is not allowed")
 
-        if not self._conn:
+        if not self._check_connection():
             try:
                 self._conn = psycopg2.connect(self.conninfo)
             # If psycopg2 fails to connect to the host,
             # raise the appropriate exception
             except psycopg2.DatabaseError as e:
                 raise PostgresConnectionError(str(e).strip())
-            # Register the connection to the live connections list
+            # Register the connection to the list of live connections
             _live_connections.append(self)
         return self._conn
+
+    def _check_connection(self):
+        """
+        Return false if the connection is broken
+
+        :rtype: bool
+        """
+        # If the connection is not present return False
+        if not self._conn:
+            return False
+
+        # Check if the connection works by running 'SELECT 1'
+        cursor = None
+        try:
+            cursor = self._conn.cursor()
+            cursor.execute(self.CHECK_QUERY)
+        except psycopg2.DatabaseError:
+            # Connection is broken, so we need to reconnect
+            self.close()
+            # Raise an error if reconnect is not allowed
+            if not self.allow_reconnect:
+                raise PostgresConnectionError(
+                    "Connection lost, reconnection not allowed")
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+
+        return True
 
     def close(self):
         """
@@ -237,6 +259,8 @@ class StreamingConnection(PostgreSQL):
     This class represents a streaming connection to a PostgreSQL server.
     """
 
+    CHECK_QUERY = 'IDENTIFY_SYSTEM'
+
     def __init__(self, config):
         """
         Streaming connection constructor
@@ -265,7 +289,7 @@ class StreamingConnection(PostgreSQL):
 
         :returns: the connection to the server
         """
-        if self._conn and not self._conn.closed:
+        if self._check_connection():
             return self._conn
 
         # Build a connection and set autocommit
@@ -394,7 +418,7 @@ class PostgreSQLConnection(PostgreSQL):
         """
         Connect to the PostgreSQL server. It reuses an existing connection.
         """
-        if self._conn and not self._conn.closed:
+        if self._check_connection():
             return self._conn
 
         self._conn = super(PostgreSQLConnection, self).connect()
