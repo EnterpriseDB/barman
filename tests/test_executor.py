@@ -675,11 +675,11 @@ class TestPostgresBackupExecutor(object):
         backup_manager.executor.backup(backup_info)
         out, err = capsys.readouterr()
         gpb_mock.assert_called_once_with(backup_info.backup_id)
-        assert err.strip() == 'WARNING: pg_basebackup does not copy ' \
-                              'the PostgreSQL configuration files that '\
-                              'reside outside PGDATA. ' \
-                              'Please manually backup the following files:' \
-                              '\n\t/pg/pg_ident.conf'
+        assert 'pg_basebackup does not copy ' \
+               'the PostgreSQL configuration files that '\
+               'reside outside PGDATA. ' \
+               'Please manually backup the following files:' \
+               '\n\t/pg/pg_ident.conf' in out
         assert 'Copying files.' in out
         assert 'Copy done.' in out
         assert 'Finalising the backup.' in out
