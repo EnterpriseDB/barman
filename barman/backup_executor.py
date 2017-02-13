@@ -1304,7 +1304,7 @@ class PostgresBackupStrategy(BackupStrategy):
         # Check for the presence of configuration files outside the PGDATA
         external_config = backup_info.get_external_config_files()
         if any(external_config):
-            output.warning("pg_basebackup does not copy the PostgreSQL "
+            output.info("pg_basebackup does not copy the PostgreSQL "
                            "configuration files that reside outside PGDATA. "
                            "Please manually backup the following files:\n"
                            "\t%s\n",
