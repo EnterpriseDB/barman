@@ -276,6 +276,7 @@ def build_config_dictionary(config_keys=None):
         'streaming_archiver': False,
         'streaming_wals_directory': '/some/barman/home/main/streaming',
         'errors_directory': '/some/barman/home/main/errors',
+        'rsync_exclude': '/some/barman/excluded/dir',
     }
     # Check for overriding keys
     if config_keys is not None:

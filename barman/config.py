@@ -306,6 +306,7 @@ class ServerConfig(object):
         'retention_policy',
         'retention_policy_mode',
         'reuse_backup',
+        'rsync_exclude',
         'slot_name',
         'ssh_command',
         'streaming_archiver',
@@ -353,6 +354,7 @@ class ServerConfig(object):
         'retention_policy',
         'retention_policy_mode',
         'reuse_backup',
+        'rsync_exclude',
         'slot_name',
         'streaming_archiver',
         'streaming_archiver_batch_size',
@@ -410,6 +412,7 @@ class ServerConfig(object):
         'network_compression': parse_boolean,
         'recovery_options': RecoveryOptions,
         'reuse_backup': parse_reuse_backup,
+        'rsync_exclude': CsvOption,
         'streaming_archiver': parse_boolean,
         'streaming_archiver_batch_size': int,
     }
