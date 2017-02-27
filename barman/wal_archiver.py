@@ -683,7 +683,8 @@ class StreamingWalArchiver(WalArchiver):
         streaming_status = self.server.streaming.get_remote_status()
         if streaming_status["streaming_supported"] is None:
             raise ArchiverFailure(
-                'failed opening the PostgreSQL streaming connection')
+                'failed opening the PostgreSQL streaming connection '
+                'for server %s' % (self.config.name))
         elif not streaming_status["streaming_supported"]:
             raise ArchiverFailure(
                 'PostgreSQL version too old (%s < 9.2)' %
