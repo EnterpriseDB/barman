@@ -688,11 +688,12 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         except:
             # we do not need to do anything here besides re-raising the
             # exception. It will be handled in the external try block.
+            output.error("The backup has failed %s", self.current_action)
             raise
         else:
             self.current_action = "issuing stop of the backup"
-            output.info("Asking PostgreSQL server to finalize the backup.")
         finally:
+            output.info("Asking PostgreSQL server to finalize the backup.")
             try:
                 self.strategy.stop_backup(backup_info)
             except BaseException:

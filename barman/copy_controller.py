@@ -423,11 +423,15 @@ class RsyncCopyController(object):
                         else:
                             raise CommandFailedException(dict(
                                 ret=rsync.ret, out=rsync.out, err=rsync.err))
+        except:
+            _logger.info("Copy failed (safe before %s)", self.safe_horizon)
+            raise
+        else:
+            _logger.info("Copy finished (safe before %s)", self.safe_horizon)
         finally:
             # Clean tmp dir and log, exception management is delegeted to
             # the executor class
             shutil.rmtree(temp_dir)
-            _logger.info("Copy finished (safe before %s)", self.safe_horizon)
 
     def _progress_init(self):
         """
