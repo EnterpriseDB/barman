@@ -17,6 +17,17 @@ Server configuration files, one for each server to be backed up by Barman, are l
 
 Configuration files in Barman follow the _INI_ format.
 
+Configuration files accept distinct types of parameters:
+
+- string
+- enum
+- integer
+- boolean, `on/true/1` are accepted as well are `off/false/0`.
+
+None of them requires to be quoted.
+
+> *NOTE*: some `enum` allows `off` but not `false`.
+
 ## Options scope
 
 Every configuration option has a _scope_:
