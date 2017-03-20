@@ -236,7 +236,7 @@ The `status` command shows live information and status of a PostgreSQL
 server or of all servers if you use `all` as server name.
 
 ``` bash
-barman show-server <server_name>
+barman status <server_name>
 ```
 
 ## `switch-xlog`
