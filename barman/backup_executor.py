@@ -1489,11 +1489,6 @@ class ConcurrentBackupStrategy(BackupStrategy):
         self.current_action = "writing backup label"
         self._write_backup_label(backup_info)
 
-        # Write the tablespaces map only if at least a tablespace is present
-        if backup_info.tablespaces:
-            self.current_action = "writing tablespace map"
-            self._write_tablespace_map(backup_info)
-
         # Ask PostgreSQL to switch to another XLOG file. This is needed
         # to archive the transaction log file containing the backup
         # end position, which is required to recover from the backup.

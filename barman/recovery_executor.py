@@ -551,10 +551,12 @@ class RecoveryExecutor(object):
             dst=dest_prefix + dest,
             bwlimit=self.config.get_bwlimit(),
             exclude=[
-                '/pg_xlog/*',
                 '/pg_log/*',
+                '/pg_xlog/*',
+                '/postmaster.pid',
                 '/recovery.conf',
-                '/postmaster.pid'],
+                '/tablespace_map',
+            ],
             exclude_and_protect=exclude_and_protect,
             item_class=controller.PGDATA_CLASS
         )
