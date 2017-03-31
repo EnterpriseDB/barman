@@ -113,7 +113,7 @@ class Command(object):
         The subprocess output and error stream will be processed through
         the output and error handler, respectively defined through the
         `out_handler` and `err_handler` arguments. If not provided every line
-        will be sent to teh log respectively at INFO and WARNING level.
+        will be sent to the log respectively at INFO and WARNING level.
 
         The `out_handler` and the `err_handler` functions will be invoked with
         one single argument, which is a string containing the line that is
@@ -377,7 +377,7 @@ class Command(object):
         The subprocess output and error stream will be processed through
         the output and error handler, respectively defined through the
         `out_handler` and `err_handler` arguments. If not provided every line
-        will be sent to teh log respectively at INFO and WARNING level.
+        will be sent to the log respectively at INFO and WARNING level.
 
         If the `close_fds` argument is True, all file descriptors
         except 0, 1 and 2 will be closed before the child process is executed.
