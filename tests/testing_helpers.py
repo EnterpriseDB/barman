@@ -244,6 +244,10 @@ def build_config_dictionary(config_keys=None):
         'network_compression': False,
         'post_backup_script': None,
         'pre_backup_script': None,
+        'post_recovery_script': None,
+        'pre_recovery_script': None,
+        'post_recovery_retry_script': None,
+        'pre_recovery_retry_script': None,
         'slot_name': None,
         'streaming_archiver_name': 'barman_receive_wal',
         'streaming_archiver_batch_size': 0,
@@ -272,6 +276,7 @@ def build_config_dictionary(config_keys=None):
         'streaming_archiver': False,
         'streaming_wals_directory': '/some/barman/home/main/streaming',
         'errors_directory': '/some/barman/home/main/errors',
+        'rsync_exclude': '/some/barman/excluded/dir',
     }
     # Check for overriding keys
     if config_keys is not None:
