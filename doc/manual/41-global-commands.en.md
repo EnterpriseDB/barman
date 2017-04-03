@@ -44,6 +44,15 @@ The `cron` command ensures that WAL streaming is started for those
 servers that have requested it, by transparently executing the
 `receive-wal` command.
 
+In order to stop the operations started by the `cron` command, comment out
+the cron entry and execute:
+
+```bash
+barman receive-wal --stop SERVER_NAME
+```
+
+You might want to check `barman list-server` to make sure you get all of
+your servers.
 
 ## `diagnose`
 
