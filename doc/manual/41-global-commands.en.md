@@ -15,6 +15,11 @@ The following list includes the general commands.
 
 ## `cron`
 
+`barman` doesn't include a long-running daemon or service file (there's
+nothing to `systemctl start`, `service start`, etc.).  Instead, the `barman
+cron` subcommand is provided to perform `barman`'s background
+"steady-state" backup operations.
+
 You can perform maintenance operations, on both WAL files and backups,
 using the `cron` command:
 
