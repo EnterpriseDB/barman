@@ -75,7 +75,7 @@ class UnixLocalCommand(object):
             else:
                 return False
         else:
-            mkdir_ret = self.cmd('mkdir %s' % dir_path)
+            mkdir_ret = self.cmd('mkdir -p %s' % dir_path)
             if mkdir_ret == 0:
                 return True
             else:
