@@ -463,9 +463,8 @@ class BackupManager(RemoteStatusMixin):
 
         :param bool verbose: report even if no actions
         """
-        with self.server.xlogdb('a') as fxlogdb:
-            for archiver in self.server.archivers:
-                archiver.archive(fxlogdb, verbose)
+        for archiver in self.server.archivers:
+            archiver.archive(verbose)
 
     def cron_retention_policy(self):
         """
@@ -673,6 +672,12 @@ class BackupManager(RemoteStatusMixin):
                                     wal_count += 1
                                 elif xlog.is_backup_file(fullname):
                                     label_count += 1
+                                elif fullname.endswith('.tmp'):
+                                    _logger.warning(
+                                        'temporary file found '
+                                        'rebuilding the wal database: %s',
+                                        fullname)
+                                    continue
                                 else:
                                     _logger.warning(
                                         'unexpected file '

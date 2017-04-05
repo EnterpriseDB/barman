@@ -126,11 +126,10 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         :raise ArchiverFailure: when something goes wrong
         """
 
-    def archive(self, fxlogdb, verbose=True):
+    def archive(self, verbose=True):
         """
         Archive WAL files, discarding duplicates or those that are not valid.
 
-        :param file fxlogdb: File object for xlogdb interactions
         :param boolean verbose: Flag for verbose output
         """
         compressor = self.backup_manager.compression_manager.get_compressor()
@@ -218,12 +217,6 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                                                 wal_info.name,
                                                 e))
                 return
-            # Updates the information of the WAL archive with
-            # the latest segments
-            fxlogdb.write(wal_info.to_xlogdb_line())
-            # flush and fsync for every line
-            fxlogdb.flush()
-            os.fsync(fxlogdb.fileno())
 
         if processed:
             _logger.debug("Archived %s out of %s xlog segments from %s for %s",
@@ -322,36 +315,48 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
             # Compress the file only if not already compressed
             if compressor and not wal_info.compression:
                 compressor.compress(src_file, tmp_file)
-                shutil.copystat(src_file, tmp_file)
-                os.rename(tmp_file, dst_file)
-                os.unlink(src_file)
-                # Update wal_info
-                stat = os.stat(dst_file)
-                wal_info.size = stat.st_size
-                wal_info.compression = compressor.compression
-            else:
-                # Try to atomically rename the file. If successful,
-                # the renaming will be an atomic operation
-                # (this is a POSIX requirement).
-                try:
-                    os.rename(src_file, dst_file)
-                except OSError:
-                    # Source and destination are probably on different
-                    # filesystems
-                    shutil.copy2(src_file, tmp_file)
+
+            # Perform the real filesystem operation with the xlogdb lock taken.
+            # This makes the operation atomic from the xlogdb file POV
+            with self.server.xlogdb('a') as fxlogdb:
+                if compressor and not wal_info.compression:
+                    shutil.copystat(src_file, tmp_file)
                     os.rename(tmp_file, dst_file)
                     os.unlink(src_file)
-            # At this point the original file has been removed
-            wal_info.orig_filename = None
+                    # Update wal_info
+                    stat = os.stat(dst_file)
+                    wal_info.size = stat.st_size
+                    wal_info.compression = compressor.compression
+                else:
+                    # Try to atomically rename the file. If successful,
+                    # the renaming will be an atomic operation
+                    # (this is a POSIX requirement).
+                    try:
+                        os.rename(src_file, dst_file)
+                    except OSError:
+                        # Source and destination are probably on different
+                        # filesystems
+                        shutil.copy2(src_file, tmp_file)
+                        os.rename(tmp_file, dst_file)
+                        os.unlink(src_file)
+                # At this point the original file has been removed
+                wal_info.orig_filename = None
 
-            # Execute fsync() on the archived WAL file
-            file_fd = os.open(dst_file, os.O_RDONLY)
-            os.fsync(file_fd)
-            os.close(file_fd)
-            # Execute fsync() on the archived WAL containing directory
-            fsync_dir(dst_dir)
-            # Execute fsync() also on the incoming directory
-            fsync_dir(src_dir)
+                # Execute fsync() on the archived WAL file
+                file_fd = os.open(dst_file, os.O_RDONLY)
+                os.fsync(file_fd)
+                os.close(file_fd)
+                # Execute fsync() on the archived WAL containing directory
+                fsync_dir(dst_dir)
+                # Execute fsync() also on the incoming directory
+                fsync_dir(src_dir)
+                # Updates the information of the WAL archive with
+                # the latest segments
+                fxlogdb.write(wal_info.to_xlogdb_line())
+                # flush and fsync for every line
+                fxlogdb.flush()
+                os.fsync(fxlogdb.fileno())
+
         except Exception as e:
             # In case of failure save the exception for the post scripts
             error = e
