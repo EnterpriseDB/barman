@@ -56,14 +56,11 @@ class UnixLocalCommand(object):
 
     def create_dir_if_not_exists(self, dir_path):
         """
-            This method check for the existence of a directory.
-            if exist and is not a directory throws exception.
-            if is a directory everything is ok and no
-            mkdir operation is required.
-            Otherwise creates the directory using mkdir
-            if the mkdir fails an error is raised
+        This method recursively creates a directory if not exists
 
-            :param dir_path full path for the directory
+        If the path exists and is not a directory raise an exception.
+
+        :param str dir_path: full path for the directory
         """
         _logger.debug('Create directory %s if it does not exists' % dir_path)
         exists = self.exists(dir_path)
@@ -75,7 +72,8 @@ class UnixLocalCommand(object):
             else:
                 return False
         else:
-            mkdir_ret = self.cmd('mkdir %s' % dir_path)
+            # Make parent directories if needed
+            mkdir_ret = self.cmd('mkdir -p %s' % dir_path)
             if mkdir_ret == 0:
                 return True
             else:
