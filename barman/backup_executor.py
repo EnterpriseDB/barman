@@ -897,6 +897,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
             safe_horizon=safe_horizon,
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
+            workers=self.config.parallel_jobs,
         )
 
         # List of paths to be excluded by the PGDATA copy

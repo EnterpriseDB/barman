@@ -14,12 +14,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+
 """
 Copy controller module
 
 A copy controller will handle the copy between a series of files and directory,
 and their final destination.
 """
+
 import collections
 import logging
 import os.path
@@ -27,6 +29,7 @@ import re
 import shutil
 import tempfile
 from functools import partial
+from multiprocessing import Lock, Pool
 
 import dateutil.parser
 import dateutil.tz
@@ -35,6 +38,53 @@ from barman.command_wrappers import RsyncPgData
 from barman.exceptions import CommandFailedException, RsyncListFilesFailure
 
 _logger = logging.getLogger(__name__)
+_logger_lock = Lock()
+
+_worker_callable = None
+"""
+Global variable containing a callable used to execute the jobs.
+Initialized by `_init_worker` and used by `_run_worker` function.
+This variable must be None outside a multiprocessing worker Process.
+"""
+
+
+def _init_worker(func):
+    """
+    Store the callable used to execute jobs passed to `_run_worker` function
+
+    :type func: callable
+    """
+    global _worker_callable
+    _worker_callable = func
+
+
+def _run_worker(job):
+    """
+    Execute a job using the callable set using `_init_worker` function
+
+    :param _RsyncJob job: the job to be executed
+    """
+    global _worker_callable
+    assert _worker_callable is not None, \
+        "Worker has not been initialized with `_init_worker`"
+    return _worker_callable(job)
+
+
+class _RsyncJob(object):
+    """
+    A job to be executed by a worker Process
+    """
+    def __init__(self, item, description, file_list=None, checksum=None):
+        """
+        :param _RsyncCopyItem item: The copy item containing this job
+        :param str description: The description od the job, used for logging
+        :param str file_list: Path to the file containing the file list
+        :param bool checksum: Whether to force the checksum verification
+        """
+        self.item = item
+        self.description = description
+        self.file_list = file_list
+        self.checksum = checksum
 
 
 class _RsyncCopyItem(object):
@@ -132,7 +182,7 @@ class RsyncCopyController(object):
     # This regular expression is used to parse each line of the output
     # of a "rsync --list-only" call. This regexp has been tested with any known
     # version of upstream rsync that is supported (>= 3.0.4)
-    LIST_ONLY_RE = re.compile('''
+    LIST_ONLY_RE = re.compile("""
         (?x) # Enable verbose mode
 
         ^ # start of the line
@@ -160,13 +210,13 @@ class RsyncCopyController(object):
         (?P<path>.+)
 
         $ # end of the line
-    ''')
+    """)
 
     # This regular expression is used to ignore error messages regarding
     # vanished files that are not really an error. It is used because
     # in some cases rsync reports it with exit code 23 which could also mean
     # a fatal error
-    VANISHED_RE = re.compile('''
+    VANISHED_RE = re.compile("""
         (?x) # Enable verbose mode
 
         ^ # start of the line
@@ -185,7 +235,7 @@ class RsyncCopyController(object):
             \ \[generator=[^\]]+\]
         )
         $ # end of the line
-    ''')
+    """)
 
     # This named tuple is used to parse each line of the output
     # of a "rsync --list-only" call
@@ -194,7 +244,7 @@ class RsyncCopyController(object):
     def __init__(self, path=None, ssh_command=None, ssh_options=None,
                  network_compression=False,
                  reuse_backup=None, safe_horizon=None,
-                 exclude=None, retry_times=0, retry_sleep=0):
+                 exclude=None, retry_times=0, retry_sleep=0, workers=1):
         """
         :param str|None path: the PATH where rsync executable will be searched
         :param str|None ssh_command: the ssh executable to be used
@@ -211,6 +261,7 @@ class RsyncCopyController(object):
             from the copy
         :param int retry_times: The number of times to retry a failed operation
         :param int retry_sleep: Sleep time between two retry
+        :param int workers: The number of parallel copy workers
         """
 
         super(RsyncCopyController, self).__init__()
@@ -223,6 +274,7 @@ class RsyncCopyController(object):
         self.exclude = exclude
         self.retry_times = retry_times
         self.retry_sleep = retry_sleep
+        self.workers = workers
 
         self.item_list = []
         """List of items to be copied"""
@@ -372,57 +424,28 @@ class RsyncCopyController(object):
                     continue
 
                 # Analyze the source and destination directory content
-                self._progress_report("analyze %s" % item)
+                _logger.info(self._progress_message("analyze %s" % item))
                 self._analyze_directory(item, temp_dir)
 
                 # Prepare the target directories, removing any unneeded file
-                self._progress_report(
+                _logger.info(self._progress_message(
                     "create destination directories and delete unknown files "
-                    "for %s" % item)
+                    "for %s" % item))
                 self._create_dir_and_purge(item)
 
-            # Do the actual copy
-            for item in self.item_list:
+            # The jobs are executed using a parallel processes pool
+            # Each job is generated by `self._job_generator`, it is executed by
+            # `_run_worker` using `self._execute_job`, which has been set
+            # calling `_init_worker` function during the Pool initialization.
+            pool = Pool(processes=self.workers,
+                        initializer=_init_worker,
+                        initargs=(self._execute_job,))
+            for _ in pool.imap_unordered(_run_worker, self._job_generator()):
+                # Nothing to do here
+                pass
 
-                # Build the rsync object required for the copy
-                rsync = self.rsync_factory(item)
+            # TODO: make sure PGCONTROL_CLASS items are executed as final step
 
-                # If the item is a directory use the copy method,
-                # otherwise run a plain rsync
-                if item.is_directory:
-
-                    # Log the operation that is being executed
-                    self._progress_report("copy safe files from %s" %
-                                          item)
-
-                    # Copy the safe files
-                    self._copy(rsync,
-                               item.src,
-                               item.dst,
-                               file_list=item.safe_file,
-                               checksum=False)
-
-                    # Log the operation that is being executed
-                    self._progress_report("copy files with checksum from %s" %
-                                          item)
-
-                    # Copy the files with rsync
-                    self._copy(rsync,
-                               item.src,
-                               item.dst,
-                               file_list=item.check_file,
-                               checksum=True)
-                else:
-                    # Log the operation that is being executed
-                    self._progress_report("copy %s" % item)
-                    rsync(item.src, item.dst, allowed_retval=(0, 23, 24))
-                    if rsync.ret == 23:
-                        if item.optional:
-                            _logger.warning(
-                                "Ignoring error reading %s", item)
-                        else:
-                            raise CommandFailedException(dict(
-                                ret=rsync.ret, out=rsync.out, err=rsync.err))
         except:
             _logger.info("Copy failed (safe before %s)", self.safe_horizon)
             raise
@@ -432,6 +455,81 @@ class RsyncCopyController(object):
             # Clean tmp dir and log, exception management is delegeted to
             # the executor class
             shutil.rmtree(temp_dir)
+
+    def _job_generator(self):
+        """
+        Generate the jobs to be executed by the workers
+
+        :rtype: iter[_RsyncJob]
+        """
+
+        # TODO: batch logic for parallel file transfer
+        for item in self.item_list:
+
+            # If the item is a directory then copy it in two stages,
+            # otherwise copy it using a plain rsync
+            if item.is_directory:
+
+                # Copy the safe files using the default rsync algorithm
+                msg = self._progress_message(
+                    "%%s copy safe files from %s" % item)
+                yield _RsyncJob(item,
+                                description=msg,
+                                file_list=item.safe_file,
+                                checksum=False)
+
+                # Copy the check files forcing rsync to verify the checksum
+                msg = self._progress_message(
+                    "%%s copy files with checksum from %s" % item)
+                yield _RsyncJob(item,
+                                description=msg,
+                                file_list=item.check_file,
+                                checksum=True)
+            else:
+                # Copy the file using plain rsync
+                msg = self._progress_message("%%s copy %s" % item)
+                yield _RsyncJob(item, description=msg)
+
+    def _execute_job(self, job):
+        """
+        Execute a `_RsyncJob` in a worker process
+
+        :type job: _RsyncJob
+        """
+        item = job.item
+        # Build the rsync object required for the copy
+        rsync = self.rsync_factory(item)
+        # Write in the log that the job is starting
+        with _logger_lock:
+            _logger.info(job.description, 'starting')
+        if item.is_directory:
+            # A directory item must always have checksum and file_list set
+            assert job.file_list is not None, \
+                'A directory item must not have a None `file_list` attribute'
+            assert job.checksum is not None, \
+                'A directory item must not have a None `checksum` attribute'
+            self._copy(rsync,
+                       item.src,
+                       item.dst,
+                       file_list=job.file_list,
+                       checksum=job.checksum)
+        else:
+            # A file must never have checksum and file_list set
+            assert job.file_list is None, \
+                'A file item must have a None `file_list` attribute'
+            assert job.checksum is None, \
+                'A file item must have a None `checksum` attribute'
+            rsync(item.src, item.dst, allowed_retval=(0, 23, 24))
+            if rsync.ret == 23:
+                if item.optional:
+                    _logger.warning(
+                        "Ignoring error reading %s", item)
+                else:
+                    raise CommandFailedException(dict(
+                        ret=rsync.ret, out=rsync.out, err=rsync.err))
+        # Write in the log that the job is finished
+        with _logger_lock:
+            _logger.info(job.description, 'finished')
 
     def _progress_init(self):
         """
@@ -446,14 +544,15 @@ class RsyncCopyController(object):
                 self.total_steps += 1
         self.current_step = 0
 
-    def _progress_report(self, msg):
+    def _progress_message(self, msg):
         """
         Log a message containing the progress
 
         :param str msg: the message
+        :return srt: message to log
         """
         self.current_step += 1
-        _logger.info("Copy step %s of %s: %s",
+        return "Copy step %s of %s: %s" % (
                      self.current_step, self.total_steps, msg)
 
     def _reuse_args(self, reuse_directory):

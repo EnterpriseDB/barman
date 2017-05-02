@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import multiprocessing.dummy
 import os
 from datetime import datetime
 
@@ -90,6 +91,8 @@ class TestRsyncCopyController(object):
         assert rcc._reuse_args(reuse_dir) == \
             ['--copy-dest=some/dir']
 
+    @patch('barman.copy_controller.Pool',
+           new=multiprocessing.dummy.Pool)
     @patch('barman.copy_controller.RsyncPgData')
     @patch('barman.copy_controller.RsyncCopyController._analyze_directory')
     @patch('barman.copy_controller.RsyncCopyController._create_dir_and_purge')
@@ -135,6 +138,15 @@ class TestRsyncCopyController(object):
         rsync_mock.return_value.out = ''
         rsync_mock.return_value.err = ''
         rsync_mock.return_value.ret = 0
+
+        # Mock analyze directory
+        def analyse_func(item, _):
+            l = item.label
+            item.dir_file = l + '_dir_file'
+            item.safe_file = l + '_safe_file'
+            item.check_file = l + '_check_file'
+            item.exclude_and_protect_file = l + '_exclude_and_protect_file'
+        analyse_mock.side_effect = analyse_func
 
         rcc.add_directory(
             label='tbs1',
@@ -264,25 +276,25 @@ class TestRsyncCopyController(object):
             mock.call(
                 mock.ANY, ':/fake/location/',
                 backup_info.get_data_directory(16387), checksum=False,
-                file_list=None),
+                file_list='tbs1_safe_file'),
             mock.call(
                 mock.ANY, ':/fake/location/',
                 backup_info.get_data_directory(16387), checksum=True,
-                file_list=None),
+                file_list='tbs1_check_file'),
             mock.call(
                 mock.ANY, ':/another/location/',
                 backup_info.get_data_directory(16405), checksum=False,
-                file_list=None),
+                file_list='tbs2_safe_file'),
             mock.call(
                 mock.ANY, ':/another/location/',
                 backup_info.get_data_directory(16405), checksum=True,
-                file_list=None),
+                file_list='tbs2_check_file'),
             mock.call(mock.ANY, ':/pg/data/',
                       backup_info.get_data_directory(), checksum=False,
-                      file_list=None),
+                      file_list='pgdata_safe_file'),
             mock.call(mock.ANY, ':/pg/data/',
                       backup_info.get_data_directory(), checksum=True,
-                      file_list=None),
+                      file_list='pgdata_check_file'),
         ]
 
     def test_list_files(self):

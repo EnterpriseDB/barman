@@ -270,7 +270,7 @@ class TestRecoveryExecutor(object):
                 path=None,
                 safe_horizon=None,
                 ssh_command=None,
-                retry_sleep=30, retry_times=0),
+                retry_sleep=30, retry_times=0, workers=1),
             mock.call().add_directory(
                 bwlimit='',
                 dst='/fake/location',

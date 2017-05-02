@@ -255,7 +255,7 @@ class TestRsyncBackupExecutor(object):
                                    'postgres@pg01.nowhere', '-o',
                                    'BatchMode=yes', '-o',
                                    'StrictHostKeyChecking=no'],
-                      retry_sleep=30, retry_times=0),
+                      retry_sleep=30, retry_times=0, workers=1),
             mock.call().add_directory(
                 label='tbs1',
                 src=':/fake/location/',

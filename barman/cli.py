@@ -183,6 +183,9 @@ def backup_completer(prefix, parsed_args, **kwargs):
      type=check_non_negative)
 @arg('--no-retry', help='Disable base backup copy retry logic.',
      dest='retry_times', action='store_const', const=0)
+@arg('--jobs', '-j',
+     help='Run the copy in parallel using NJOBS processes.',
+     type=check_positive, metavar='NJOBS')
 @expects_obj
 def backup(args):
     """
@@ -204,6 +207,8 @@ def backup(args):
             server.config.basebackup_retry_times = args.retry_times
         if hasattr(args, 'immediate_checkpoint'):
             server.config.immediate_checkpoint = args.immediate_checkpoint
+        if args.jobs is not None:
+            server.config.parallel_jobs = args.jobs
         with closing(server):
             server.backup()
     output.close_and_exit()
@@ -345,6 +350,9 @@ def rebuild_xlogdb(args):
      type=check_non_negative)
 @arg('--no-retry', help='Disable base backup copy retry logic.',
      dest='retry_times', action='store_const', const=0)
+@arg('--jobs', '-j',
+     help='Run the copy in parallel using NJOBS processes.',
+     type=check_positive, metavar='NJOBS')
 @expects_obj
 def recover(args):
     """
@@ -399,6 +407,8 @@ def recover(args):
         server.config.basebackup_retry_sleep = args.retry_sleep
     if args.retry_times is not None:
         server.config.basebackup_retry_times = args.retry_times
+    if args.jobs is not None:
+        server.config.parallel_jobs = args.jobs
     with closing(server):
         server.recover(backup_id,
                        args.destination_directory,

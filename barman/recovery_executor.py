@@ -507,6 +507,7 @@ class RecoveryExecutor(object):
             safe_horizon=safe_horizon,
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
+            workers=self.config.parallel_jobs,
         )
 
         # Dictionary for paths to be excluded from rsync
