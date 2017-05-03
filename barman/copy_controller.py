@@ -52,7 +52,7 @@ def _init_worker(func):
     """
     Store the callable used to execute jobs passed to `_run_worker` function
 
-    :type func: callable
+    :param callable func: the callable to invoke for every job
     """
     global _worker_callable
     _worker_callable = func
@@ -78,13 +78,21 @@ class _RsyncJob(object):
         """
         :param _RsyncCopyItem item: The copy item containing this job
         :param str description: The description od the job, used for logging
-        :param str file_list: Path to the file containing the file list
+        :param list[RsyncCopyController._FileItem] file_list: Path to the file
+            containing the file list
         :param bool checksum: Whether to force the checksum verification
         """
         self.item = item
         self.description = description
         self.file_list = file_list
         self.checksum = checksum
+
+
+class _FileItem(collections.namedtuple('_FileItem', 'mode size date path')):
+    """
+    This named tuple is used to store the content each line of the output
+    of a "rsync --list-only" call
+    """
 
 
 class _RsyncCopyItem(object):
@@ -144,10 +152,11 @@ class _RsyncCopyItem(object):
         self.optional = optional
 
         # Attributes that will e filled during the analysis
+        self.temp_dir = None
         self.dir_file = None
-        self.safe_file = None
-        self.check_file = None
         self.exclude_and_protect_file = None
+        self.safe_list = None
+        self.check_list = None
 
     def __str__(self):
         # Prepare strings for messages
@@ -237,10 +246,6 @@ class RsyncCopyController(object):
         $ # end of the line
     """)
 
-    # This named tuple is used to parse each line of the output
-    # of a "rsync --list-only" call
-    _FileItem = collections.namedtuple('FileItem', 'mode size date path')
-
     def __init__(self, path=None, ssh_command=None, ssh_options=None,
                  network_compression=False,
                  reuse_backup=None, safe_horizon=None,
@@ -289,6 +294,9 @@ class RsyncCopyController(object):
 
         self.current_step = None
         """Current step number"""
+
+        self.temp_dir = None
+        """Temp dir used to store the status during the copy"""
 
     def add_directory(self, label, src, dst,
                       exclude=None,
@@ -408,7 +416,7 @@ class RsyncCopyController(object):
         Execute the actual copy
         """
         # Create a temporary directory to hold the file lists.
-        temp_dir = tempfile.mkdtemp(suffix='', prefix='barman-')
+        self.temp_dir = tempfile.mkdtemp(suffix='', prefix='barman-')
         # The following try block is to make sure the temporary directory
         # will be removed on exit.
         try:
@@ -425,7 +433,7 @@ class RsyncCopyController(object):
 
                 # Analyze the source and destination directory content
                 _logger.info(self._progress_message("analyze %s" % item))
-                self._analyze_directory(item, temp_dir)
+                self._analyze_directory(item)
 
                 # Prepare the target directories, removing any unneeded file
                 _logger.info(self._progress_message(
@@ -454,7 +462,8 @@ class RsyncCopyController(object):
         finally:
             # Clean tmp dir and log, exception management is delegeted to
             # the executor class
-            shutil.rmtree(temp_dir)
+            shutil.rmtree(self.temp_dir)
+            self.temp_dir = None
 
     def _job_generator(self):
         """
@@ -475,7 +484,7 @@ class RsyncCopyController(object):
                     "%%s copy safe files from %s" % item)
                 yield _RsyncJob(item,
                                 description=msg,
-                                file_list=item.safe_file,
+                                file_list=item.safe_list,
                                 checksum=False)
 
                 # Copy the check files forcing rsync to verify the checksum
@@ -483,7 +492,7 @@ class RsyncCopyController(object):
                     "%%s copy files with checksum from %s" % item)
                 yield _RsyncJob(item,
                                 description=msg,
-                                file_list=item.check_file,
+                                file_list=item.check_list,
                                 checksum=True)
             else:
                 # Copy the file using plain rsync
@@ -508,10 +517,24 @@ class RsyncCopyController(object):
                 'A directory item must not have a None `file_list` attribute'
             assert job.checksum is not None, \
                 'A directory item must not have a None `checksum` attribute'
+
+            # Generate a unique name for the file containing the list of files
+            file_list_path = os.path.join(
+                self.temp_dir, '%s_%s_%s.list' % (
+                    item.label,
+                    'check' if job.checksum else 'safe',
+                    os.getpid()))
+
+            # Write the list, one path per line
+            with open(file_list_path, 'w') as file_list:
+                for entry in job.file_list:
+                    assert isinstance(entry, _FileItem), repr(entry)
+                    file_list.write(entry.path + "\n")
+
             self._copy(rsync,
                        item.src,
                        item.dst,
-                       file_list=job.file_list,
+                       file_list=file_list_path,
                        checksum=job.checksum)
         else:
             # A file must never have checksum and file_list set
@@ -584,7 +607,7 @@ class RsyncCopyController(object):
                      item, attempt)
         _logger.warn("Retrying in %s seconds", self.retry_sleep)
 
-    def _analyze_directory(self, item, temp_dir):
+    def _analyze_directory(self, item):
         """
         Analyzes the status of source and destination directories identifying
         the files that are safe from the point of view of a PostgreSQL backup.
@@ -611,7 +634,6 @@ class RsyncCopyController(object):
         it is a remote path. Only local paths are supported in "ref" argument.
 
         :param _RsyncCopyItem item: information about a copy operation
-        :param temp_dir: path to a temporary directory used to store file lists
         """
 
         # Build the rsync object required for the analysis
@@ -647,64 +669,60 @@ class RsyncCopyController(object):
 
         # The 'dir.list' file will contain every directory in the
         # source tree
-        item.dir_file = os.path.join(temp_dir, '%s_dir.list' % item.label)
+        item.dir_file = os.path.join(self.temp_dir, '%s_dir.list' % item.label)
         dir_list = open(item.dir_file, 'w+')
-        # The 'safe.list' file will contain all files older than
-        # safe_horizon, as well as files that we know rsync will
-        # check anyway due to a difference in mtime or size
-        item.safe_file = os.path.join(temp_dir, '%s_safe.list' % item.label)
-        safe_list = open(item.safe_file, 'w+')
-        # The 'check.list' file will contain all files that need
-        # to be copied with checksum option enabled
-        item.check_file = os.path.join(temp_dir, '%s_check.list' % item.label)
-        check_list = open(item.check_file,  'w+')
         # The 'protect.list' file will contain a filter rule to protect
         # each file present in the source tree. It will be used during
         # the first phase to delete all the extra files on destination.
         item.exclude_and_protect_file = os.path.join(
-            temp_dir, '%s_exclude_and_protect.filter' % item.label)
+            self.temp_dir, '%s_exclude_and_protect.filter' % item.label)
         exclude_and_protect_filter = open(item.exclude_and_protect_file,
                                           'w+')
-        for item in self._list_files(rsync, item.src):
+        # The `safe_list` will contain all items older than
+        # safe_horizon, as well as files that we know rsync will
+        # check anyway due to a difference in mtime or size
+        item.safe_list = []
+        # The `check_list` will contain all items that need
+        # to be copied with checksum option enabled
+        item.check_list = []
+        for entry in self._list_files(rsync, item.src):
             # If item is a directory, we only need to save it in 'dir.list'
-            if item.mode[0] == 'd':
-                dir_list.write(item.path + '\n')
+            if entry.mode[0] == 'd':
+                dir_list.write(entry.path + '\n')
                 continue
 
             # Add every file in the source path to the list of files
             # to be protected from deletion ('exclude_and_protect.filter')
-            exclude_and_protect_filter.write('P ' + item.path + '\n')
-            exclude_and_protect_filter.write('- ' + item.path + '\n')
+            exclude_and_protect_filter.write('P ' + entry.path + '\n')
+            exclude_and_protect_filter.write('- ' + entry.path + '\n')
 
             # If source item is older than safe_horizon,
             # add it to 'safe.list'
-            if self.safe_horizon and item.date < self.safe_horizon:
-                safe_list.write(item.path + '\n')
+            if self.safe_horizon and entry.date < self.safe_horizon:
+                item.safe_list.append(entry)
                 continue
 
             # If ref_hash is None, it means we failed to retrieve the
             # destination file list. We assume the only safe way is to
             # check every file that is older than safe_horizon
             if ref_hash is None:
-                check_list.write(item.path + '\n')
+                item.check_list.append(entry)
                 continue
 
             # If source file differs by time or size from the matching
             # destination, rsync will discover the difference in any case.
             # It is then safe to skip checksum check here.
-            dst_item = ref_hash.get(item.path, None)
-            if (dst_item is None or dst_item.size != item.size or
-                    dst_item.date != item.date):
-                safe_list.write(item.path + '\n')
+            dst_item = ref_hash.get(entry.path, None)
+            if (dst_item is None or dst_item.size != entry.size or
+                    dst_item.date != entry.date):
+                item.safe_list.append(entry)
                 continue
 
             # All remaining files must be checked with checksums enabled
-            check_list.write(item.path + '\n')
+            item.check_list.append(entry)
 
         # Close all the control files
         dir_list.close()
-        safe_list.close()
-        check_list.close()
         exclude_and_protect_filter.close()
 
     def _create_dir_and_purge(self, item):
@@ -781,7 +799,7 @@ class RsyncCopyController(object):
                     _logger.exception(msg)
                     raise RsyncListFilesFailure(msg)
                 path = match.group('path')
-                yield self._FileItem(mode, size, date, path)
+                yield _FileItem(mode, size, date, path)
             else:
                 # This is a hard error, as we are unable to parse the output
                 # of rsync. It can only happen with a modified or unknown

@@ -23,7 +23,7 @@ import dateutil.tz
 import mock
 from mock import patch
 
-from barman.copy_controller import RsyncCopyController
+from barman.copy_controller import RsyncCopyController, _FileItem
 from testing_helpers import (build_backup_manager, build_real_server,
                              build_test_backup_info)
 
@@ -140,12 +140,12 @@ class TestRsyncCopyController(object):
         rsync_mock.return_value.ret = 0
 
         # Mock analyze directory
-        def analyse_func(item, _):
+        def analyse_func(item):
             l = item.label
             item.dir_file = l + '_dir_file'
-            item.safe_file = l + '_safe_file'
-            item.check_file = l + '_check_file'
             item.exclude_and_protect_file = l + '_exclude_and_protect_file'
+            item.safe_list = []
+            item.check_list = []
         analyse_mock.side_effect = analyse_func
 
         rcc.add_directory(
@@ -259,7 +259,7 @@ class TestRsyncCopyController(object):
 
         # Check calls to _analyse_directory method
         assert analyse_mock.mock_calls == [
-            mock.call(item, tempdir.strpath) for item in rcc.item_list
+            mock.call(item) for item in rcc.item_list
             if item.is_directory
         ]
 
@@ -269,6 +269,14 @@ class TestRsyncCopyController(object):
             if item.is_directory
         ]
 
+        # Utility function to build the file_list name
+        def file_list_name(label, kind):
+            return '%s/%s_%s_%s.list' % (
+                tempdir.strpath,
+                label,
+                kind,
+                os.getpid())
+
         # Check the order of calls to the copy method
         # All the file_list arguments are None because the analyze part
         # has not really been executed
@@ -276,25 +284,27 @@ class TestRsyncCopyController(object):
             mock.call(
                 mock.ANY, ':/fake/location/',
                 backup_info.get_data_directory(16387), checksum=False,
-                file_list='tbs1_safe_file'),
+                file_list=file_list_name('tbs1', 'safe')),
             mock.call(
                 mock.ANY, ':/fake/location/',
                 backup_info.get_data_directory(16387), checksum=True,
-                file_list='tbs1_check_file'),
+                file_list=file_list_name('tbs1', 'check')),
             mock.call(
                 mock.ANY, ':/another/location/',
                 backup_info.get_data_directory(16405), checksum=False,
-                file_list='tbs2_safe_file'),
+                file_list=file_list_name('tbs2', 'safe')),
             mock.call(
                 mock.ANY, ':/another/location/',
                 backup_info.get_data_directory(16405), checksum=True,
-                file_list='tbs2_check_file'),
-            mock.call(mock.ANY, ':/pg/data/',
-                      backup_info.get_data_directory(), checksum=False,
-                      file_list='pgdata_safe_file'),
-            mock.call(mock.ANY, ':/pg/data/',
-                      backup_info.get_data_directory(), checksum=True,
-                      file_list='pgdata_check_file'),
+                file_list=file_list_name('tbs2', 'check')),
+            mock.call(
+                mock.ANY, ':/pg/data/',
+                backup_info.get_data_directory(), checksum=False,
+                file_list=file_list_name('pgdata', 'safe')),
+            mock.call(
+                mock.ANY, ':/pg/data/',
+                backup_info.get_data_directory(), checksum=True,
+                file_list=file_list_name('pgdata', 'check')),
         ]
 
     def test_list_files(self):
@@ -321,14 +331,14 @@ class TestRsyncCopyController(object):
             check=True)
 
         # Check the result
-        assert return_values[0] == rcc._FileItem(
+        assert return_values[0] == _FileItem(
             'drwxrwxrwt',
             69632,
             datetime(year=2015, month=2, day=9,
                      hour=15, minute=1, second=0,
                      tzinfo=dateutil.tz.tzlocal()),
             'tmp')
-        assert return_values[1] == rcc._FileItem(
+        assert return_values[1] == _FileItem(
             'drwxrwxrwt',
             69612,
             datetime(year=2015, month=2, day=19,
