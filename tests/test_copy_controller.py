@@ -144,8 +144,8 @@ class TestRsyncCopyController(object):
             l = item.label
             item.dir_file = l + '_dir_file'
             item.exclude_and_protect_file = l + '_exclude_and_protect_file'
-            item.safe_list = []
-            item.check_list = []
+            item.safe_list = [_FileItem('mode', 1, 'date', 'path')]
+            item.check_list = [_FileItem('mode', 1, 'date', 'path')]
         analyse_mock.side_effect = analyse_func
 
         rcc.add_directory(

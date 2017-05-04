@@ -47,6 +47,9 @@ Initialized by `_init_worker` and used by `_run_worker` function.
 This variable must be None outside a multiprocessing worker Process.
 """
 
+# Parallel copy bucket size (10GB)
+BUCKET_SIZE = (1024 * 1024 * 1024 * 10)
+
 
 def _init_worker(func):
     """
@@ -471,8 +474,6 @@ class RsyncCopyController(object):
 
         :rtype: iter[_RsyncJob]
         """
-
-        # TODO: batch logic for parallel file transfer
         for item in self.item_list:
 
             # If the item is a directory then copy it in two stages,
@@ -482,22 +483,69 @@ class RsyncCopyController(object):
                 # Copy the safe files using the default rsync algorithm
                 msg = self._progress_message(
                     "%%s copy safe files from %s" % item)
-                yield _RsyncJob(item,
-                                description=msg,
-                                file_list=item.safe_list,
-                                checksum=False)
+                for i, bucket in enumerate(
+                        self._fill_buckets(item.safe_list)):
+                    yield _RsyncJob(item,
+                                    description="%s (bucket %s)" % (msg, i),
+                                    file_list=bucket,
+                                    checksum=False)
 
                 # Copy the check files forcing rsync to verify the checksum
                 msg = self._progress_message(
                     "%%s copy files with checksum from %s" % item)
-                yield _RsyncJob(item,
-                                description=msg,
-                                file_list=item.check_list,
-                                checksum=True)
+                for i, bucket in enumerate(
+                        self._fill_buckets(item.check_list)):
+                    yield _RsyncJob(item,
+                                    description="%s (bucket %s)" % (msg, i),
+                                    file_list=bucket,
+                                    checksum=True)
             else:
                 # Copy the file using plain rsync
                 msg = self._progress_message("%%s copy %s" % item)
                 yield _RsyncJob(item, description=msg)
+
+    def _fill_buckets(self, file_list):
+        """
+        Generate buckets for parallel copy
+
+        :param list[_FileItem] file_list: list of file to transfer
+        :rtype: iter[list[_FileItem]]
+        """
+        # If there is only one worker, fall back to copying all file at once
+        if self.workers < 2:
+            yield file_list
+            return
+
+        # Create `self.workers` buckets
+        buckets = [[] for _ in range(self.workers)]
+        bucket_sizes = [0 for _ in range(self.workers)]
+        pos = -1
+        # Sort the list by size
+        for entry in sorted(file_list, key=lambda item: item.size):
+            # Try to fill the file in a bucket
+            for i in range(self.workers):
+                pos = (pos + 1) % self.workers
+                new_size = bucket_sizes[pos] + entry.size
+                if new_size < BUCKET_SIZE:
+                    bucket_sizes[pos] = new_size
+                    buckets[pos].append(entry)
+                    break
+            else:
+                # All the buckets are filled, so return them all
+                for i in range(self.workers):
+                    if len(buckets[i]) > 0:
+                        yield buckets[i]
+                    # Clear the bucket
+                    buckets[i] = []
+                    bucket_sizes[i] = 0
+                # Put the current file in the first bucket
+                bucket_sizes[0] = entry.size
+                buckets[0].append(entry)
+                pos = 0
+        # Send all the remaining buckets
+        for i in range(self.workers):
+            if len(buckets[i]) > 0:
+                yield buckets[i]
 
     def _execute_job(self, job):
         """
@@ -528,7 +576,8 @@ class RsyncCopyController(object):
             # Write the list, one path per line
             with open(file_list_path, 'w') as file_list:
                 for entry in job.file_list:
-                    assert isinstance(entry, _FileItem), repr(entry)
+                    assert isinstance(entry, _FileItem), \
+                        "expect %r to be a _FileItem" % entry
                     file_list.write(entry.path + "\n")
 
             self._copy(rsync,
