@@ -136,7 +136,7 @@ class _RsyncCopyItem(object):
         :param bool is_directory: Whether the item points to a directory.
         :param bwlimit: bandwidth limit to be enforced. (KiB)
         :param str|None reuse: the reference path for incremental mode.
-        :param string|None item_class: If specified carries a meta information
+        :param str|None item_class: If specified carries a meta information
             about what the object to be copied is.
         :param bool optional: Whether a failure copying this object should be
             treated as a fatal failure. This only works if "is_directory" is
@@ -328,7 +328,7 @@ class RsyncCopyController(object):
             copy even if excluded.
         :param bwlimit: bandwidth limit to be enforced. (KiB)
         :param str|None reuse: the reference path for incremental mode.
-        :param string item_class: If specified carries a meta information about
+        :param str item_class: If specified carries a meta information about
             what the object to be copied is.
         """
         self.item_list.append(
@@ -354,7 +354,7 @@ class RsyncCopyController(object):
         :param str src: source directory.
         :param str dst: destination directory.
         :param bwlimit: bandwidth limit to be enforced. (KiB)
-        :param string item_class: If specified carries a meta information about
+        :param str item_class: If specified carries a meta information about
             what the object to be copied is.
         :param bool optional: Whether a failure copying this object should be
             treated as a fatal failure.
@@ -451,11 +451,16 @@ class RsyncCopyController(object):
             pool = Pool(processes=self.workers,
                         initializer=_init_worker,
                         initargs=(self._execute_job,))
-            for _ in pool.imap_unordered(_run_worker, self._job_generator()):
+            for _ in pool.imap_unordered(_run_worker, self._job_generator(
+                    exclude_classes=[self.PGCONTROL_CLASS])):
                 # Nothing to do here
                 pass
 
-            # TODO: make sure PGCONTROL_CLASS items are executed as final step
+            # The PGCONTROL_CLASS items must always be copied last
+            for _ in pool.imap_unordered(_run_worker, self._job_generator(
+                    include_classes=[self.PGCONTROL_CLASS])):
+                # Nothing to do here
+                pass
 
         except:
             _logger.info("Copy failed (safe before %s)", self.safe_horizon)
@@ -468,13 +473,23 @@ class RsyncCopyController(object):
             shutil.rmtree(self.temp_dir)
             self.temp_dir = None
 
-    def _job_generator(self):
+    def _job_generator(self, include_classes=None, exclude_classes=None):
         """
         Generate the jobs to be executed by the workers
 
+        :param list[str]|None include_classes: If not none, copy only the items
+            which have one of the specified classes.
+        :param list[str]|None exclude_classes: If not none, skip all items
+            which have one of the specified classes.
         :rtype: iter[_RsyncJob]
         """
         for item in self.item_list:
+
+            # Skip items of classes which are not required
+            if include_classes and item.item_class not in include_classes:
+                continue
+            if exclude_classes and item.item_class in exclude_classes:
+                continue
 
             # If the item is a directory then copy it in two stages,
             # otherwise copy it using a plain rsync

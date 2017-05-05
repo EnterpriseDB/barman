@@ -238,8 +238,8 @@ class TestRsyncCopyController(object):
                       exclude=None, exclude_and_protect=None, include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call()(
-                ':/pg/data/global/pg_control',
-                '%s/global/pg_control' % backup_info.get_data_directory(),
+                ':/etc/postgresql.conf',
+                backup_info.get_data_directory(),
                 allowed_retval=(0, 23, 24)),
             mock.call(network_compression=False,
                       args=['--itemize-changes',
@@ -252,8 +252,8 @@ class TestRsyncCopyController(object):
                       exclude=None, exclude_and_protect=None, include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call()(
-                ':/etc/postgresql.conf',
-                backup_info.get_data_directory(),
+                ':/pg/data/global/pg_control',
+                '%s/global/pg_control' % backup_info.get_data_directory(),
                 allowed_retval=(0, 23, 24)),
         ]
 
