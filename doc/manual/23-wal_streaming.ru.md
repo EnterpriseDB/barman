@@ -1,52 +1,50 @@
-## WAL streaming
+## Потоковая передача WAL
 
-Barman can reduce the Recovery Point Objective (RPO) by allowing users
-to add continuous WAL streaming from a PostgreSQL server, on top of
-the standard `archive_command` strategy
+Потоковая передача журналов транзакций в дополнении к стандартной
+процедуре архивирования журналов позволяет уменьшить RPO.
 
-Barman relies on [`pg_receivexlog`] [25], a utility that has been
-available from PostgreSQL 9.2 which exploits the native streaming
-replication protocol and continuously receives transaction logs from a
-PostgreSQL server (master or standby).
+Barman опирается на [`pg_receivexlog`] [25], утилиту, которая стала
+доступна в PostgreSQL версии 9.2. Она использует собственный протокол
+потоковой репликации и непрерывно получает журналы транзакций с сервера
+PostgreSQL (основного или резервного).
 
-> **IMPORTANT:**
-> Barman requires that `pg_receivexlog` is installed on the same
-> server.  For PostgreSQL 9.2 servers, you need `pg_receivexlog` of
-> version 9.2 installed alongside Barman. For PostgreSQL 9.3 and
-> above, it is recommended to install the latest available version of
-> `pg_receivexlog`, as it is back compatible.  Otherwise, users can
-> install multiple versions of `pg_receivexlog` on the Barman server
-> and properly point to the specific version for a server, using the
-> `path_prefix` option in the configuration file.
+> **Внимание:**
+> Утилита `pg_receivexlog` должна быть установлена на том же сервере
+> что и Barman. Для серверов PostgreSQL версии 9.2 вам понадобится
+> `pg_receivexlog` версии 9.2. Для PostgreSQL версии 9.3 и выше
+> рекомендуется установить последнюю доступную версию `pg_receivexlog`,
+> так как они обратно совместимы. В качестве альтернативы можно установить
+> несколько версий файла `pg_receivexlog` на сервере Barman и правильно
+> указать конкретную версию для сервера, используя опцию` path_prefix`
+> в файле конфигурации.
 
-In order to enable streaming of transaction logs, you need to:
+Для включения потоковой передачи журналов транзакций необходимо:
 
-1. setup a streaming connection as previously described
-2. set the `streaming_archiver` option to `on`
+1. настроить потоковое соединение, как описано выше
+2. установить для параметра `streaming_archiver` значение` on`
 
-The `cron` command, if the aforementioned requirements are met,
-transparently manages log streaming through the execution of the
-`receive-wal` command. This is the recommended scenario.
+Если вышеупомянутые требования выполнены, команда `cron`,
+прозрачно управляет потоком журнала через выполнение `Receive-wal`.
+Это рекомендуемый сценарий.
 
-However, users can manually execute the `receive-wal` command:
+Однако, можно вручную выполнить команду `receive-wal`:
 
 ``` bash
 barman receive-wal <server_name>
 ```
 
-> **NOTE:**
-> The `receive-wal` command is a foreground process.
+> **Замечание:**
+> Комманда `receive-wal` работает в фоновом режиме.
 
-Transaction logs are streamed directly in the directory specified by the
-`streaming_wals_directory` configuration option and are then archived
-by the `archive-wal` command.
+Журналы транзакций транслируются непосредственно в каталог, указанный
+параметром конфигурации `streaming wals directory`, и затем
+архивируются командой `archive-wal`.
 
-Unless otherwise specified in the `streaming_archiver_name` parameter,
-and only for PostgreSQL 9.3 or above, Barman will set `application_name`
-of the WAL streamer process to `barman_receive_wal`, allowing you to
-monitor its status in the `pg_stat_replication` system view of the
-PostgreSQL server.
-
+Если иное не указано в параметре `streaming_archiver_name` и только для
+PostgreSQL 9.3 или выше, Barman установит `application_name` процесса
+потокой передачи WAL на `barman_receive_wal`, что позволит вам
+отслеживать его статус в системном представлении pg_stat_replication`
+сервера PostgreSQL
 
 ### Replication slots
 
