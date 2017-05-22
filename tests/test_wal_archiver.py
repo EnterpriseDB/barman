@@ -952,9 +952,9 @@ class TestStreamingWalArchiver(object):
             '000000010000000000000002.partial',
         ]
         batch = archiver.get_next_batch()
-        assert ['000000010000000000000001.partial'] == batch.errors
+        assert [':000000010000000000000001.partial:'] == batch
         assert ['000000010000000000000002.partial'] == batch.skip
-        assert ('Multiple partial files found for server %s: '
+        assert ('Archiving partial files for server %s: '
                 '000000010000000000000001.partial'
                 % archiver.config.name) in caplog.text
 

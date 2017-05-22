@@ -811,12 +811,13 @@ class StreamingWalArchiver(WalArchiver):
             else:
                 errors.append(file_name)
         # In case of more than a partial file, keep the last
-        # and treat the rest as errors
+        # and treat the rest as normal files
         if len(skip) > 1:
-            errors.extend(skip[:-1])
-            _logger.warning('Multiple partial files found for server %s: %s' %
-                            (self.config.name,
-                             ", ".join([os.path.basename(f) for f in errors])))
+            partials = skip[:-1]
+            _logger.info('Archiving partial files for server %s: %s' %
+                         (self.config.name,
+                          ", ".join([os.path.basename(f) for f in partials])))
+            files.extend(partials)
             skip = skip[-1:]
 
         # Keep the last full WAL file in case no partial file is present
