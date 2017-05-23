@@ -270,6 +270,10 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         value of the parameter `parallel_jobs`, if present in the
         configuration file. Works only for servers configured through `rsync`/SSH.
 
+    --get-wal, --no-get-wal
+    :   Enable/Disable usage of `get-wal` for WAL fetching during recovery.
+        Default is based on `recovery_options` setting.
+
 get-wal *\[OPTIONS\]* *SERVER_NAME* *WAL_ID*
 :   Retrieve a WAL file from the `xlog` archive of a given server.
     By default, the requested WAL file, if found, is returned as

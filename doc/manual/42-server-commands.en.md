@@ -90,6 +90,8 @@ comma separated values. If the keyword `get-wal` is present during a
 recovery operation, Barman will prepare the `recovery.conf` file by
 setting the `restore_command` so that `barman get-wal` is used to
 fetch the required WAL files.
+Similarly, one can use the `--get-wal` option for the `recover` command
+at run-time.
 
 This is an example of a `restore_command` for a local recovery:
 

@@ -363,6 +363,13 @@ the configuration file.
 Works only for servers configured through \f[C]rsync\f[]/SSH.
 .RS
 .RE
+.TP
+.B \-\-get\-wal, \-\-no\-get\-wal
+Enable/Disable usage of \f[C]get\-wal\f[] for WAL fetching during
+recovery.
+Default is based on \f[C]recovery_options\f[] setting.
+.RS
+.RE
 .RE
 .TP
 .B get\-wal \f[I][OPTIONS]\f[] \f[I]SERVER_NAME\f[] \f[I]WAL_ID\f[]

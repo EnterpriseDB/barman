@@ -30,6 +30,7 @@ from argh import ArghParser, arg, expects_obj, named
 import barman.config
 import barman.diagnose
 from barman import output
+from barman.config import RecoveryOptions
 from barman.exceptions import BadXlogSegmentName
 from barman.infofile import BackupInfo
 from barman.server import Server
@@ -353,6 +354,16 @@ def rebuild_xlogdb(args):
 @arg('--jobs', '-j',
      help='Run the copy in parallel using NJOBS processes.',
      type=check_positive, metavar='NJOBS')
+@arg('--get-wal',
+     help='Enable the get-wal option during the recovery.',
+     dest='get_wal',
+     action='store_true',
+     default=SUPPRESS)
+@arg('--no-get-wal',
+     help='Disable the get-wal option during recovery.',
+     dest='get_wal',
+     action='store_false',
+     default=SUPPRESS)
 @expects_obj
 def recover(args):
     """
@@ -407,6 +418,11 @@ def recover(args):
         server.config.basebackup_retry_sleep = args.retry_sleep
     if args.retry_times is not None:
         server.config.basebackup_retry_times = args.retry_times
+    if hasattr(args, 'get_wal'):
+        if args.get_wal:
+            server.config.recovery_options.add(RecoveryOptions.GET_WAL)
+        else:
+            server.config.recovery_options.remove(RecoveryOptions.GET_WAL)
     if args.jobs is not None:
         server.config.parallel_jobs = args.jobs
     with closing(server):
