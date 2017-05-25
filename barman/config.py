@@ -142,27 +142,14 @@ class BackupOptions(CsvOption):
     # constants containing labels for allowed values
     EXCLUSIVE_BACKUP = 'exclusive_backup'
     CONCURRENT_BACKUP = 'concurrent_backup'
+    EXTERNAL_CONFIGURATION = 'external_configuration'
 
     # list holding all the allowed values for the BackupOption class
-    value_list = [EXCLUSIVE_BACKUP, CONCURRENT_BACKUP]
+    value_list = [EXCLUSIVE_BACKUP, CONCURRENT_BACKUP, EXTERNAL_CONFIGURATION]
     # map holding all the possible conflicts between the allowed values
     conflicts = {
         EXCLUSIVE_BACKUP: CONCURRENT_BACKUP,
         CONCURRENT_BACKUP: EXCLUSIVE_BACKUP, }
-
-    def validate(self, key, source):
-        """
-        Validates backup_option values: currently it makes sure
-        that either exclusive_backup or concurrent_backup are set.
-        """
-        if len(self) == 0:
-            return
-        if self.CONCURRENT_BACKUP not in self \
-                and self.EXCLUSIVE_BACKUP not in self:
-            raise ValueError("Invalid configuration value for "
-                             "key %s in %s: it must contain either "
-                             "exclusive_backup or concurrent_backup option"
-                             % (key, source))
 
 
 class RecoveryOptions(CsvOption):

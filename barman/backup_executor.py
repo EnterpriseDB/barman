@@ -528,6 +528,22 @@ class PostgresBackupExecutor(BackupExecutor):
             raise DataTransferFailure.from_command_error(
                 'pg_basebackup', e, msg)
 
+        # Check for the presence of configuration files outside the PGDATA
+        external_config = backup_info.get_external_config_files()
+        if any(external_config):
+            msg = ("pg_basebackup does not copy the PostgreSQL "
+                   "configuration files that reside outside PGDATA. "
+                   "Please manually backup the following files:\n"
+                   "\t%s\n" %
+                   "\n\t".join(ecf.path for ecf in external_config))
+            # Show the warning only if the EXTERNAL_CONFIGURATION option
+            # is not specified in the backup_options.
+            if (BackupOptions.EXTERNAL_CONFIGURATION
+                    not in self.config.backup_options):
+                output.warning(msg)
+            else:
+                _logger.debug(msg)
+
     def _retry_handler(self, dest_dirs, command, args, kwargs,
                        attempt, exc):
         """
@@ -1009,13 +1025,18 @@ class RsyncBackupExecutor(SshBackupExecutor):
         # reside outside PGDATA. These files must be manually backed up.
         # Barman will emit a warning and list those files
         if any(included_config_files):
-            output.warning(
-                "The usage of include directives is not supported "
-                "for files that reside outside PGDATA.\n"
-                "Please manually backup the following files:\n"
-                "\t%s\n",
-                "\n\t".join(icf.path for icf in included_config_files)
-            )
+            msg = ("The usage of include directives is not supported "
+                   "for files that reside outside PGDATA.\n"
+                   "Please manually backup the following files:\n"
+                   "\t%s\n" %
+                   "\n\t".join(icf.path for icf in included_config_files))
+            # Show the warning only if the EXTERNAL_CONFIGURATION option
+            # is not specified in the backup_options.
+            if (BackupOptions.EXTERNAL_CONFIGURATION
+                    not in self.config.backup_options):
+                output.warning(msg)
+            else:
+                _logger.debug(msg)
 
     def _reuse_path(self, previous_backup_info, tablespace=None):
         """
@@ -1302,15 +1323,6 @@ class PostgresBackupStrategy(BackupStrategy):
         except PostgresIsInRecovery:
             # Skip switching XLOG if a standby server
             pass
-
-        # Check for the presence of configuration files outside the PGDATA
-        external_config = backup_info.get_external_config_files()
-        if any(external_config):
-            output.warning("pg_basebackup does not copy the PostgreSQL "
-                           "configuration files that reside outside PGDATA. "
-                           "Please manually backup the following files:\n"
-                           "\t%s\n",
-                           "\n\t".join(ecf.path for ecf in external_config))
 
 
 class ExclusiveBackupStrategy(BackupStrategy):

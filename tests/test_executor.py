@@ -326,6 +326,38 @@ class TestRsyncBackupExecutor(object):
         # check that the additional configuration file is present in the output
         assert backup_info.included_files[0] in err
 
+    @patch('barman.backup_executor.RsyncCopyController')
+    def test_backup_copy_with_included_files_nowarning(self, rsync_moc,
+                                                       tmpdir, capsys):
+        backup_manager = build_backup_manager(
+            global_conf={
+                'barman_home': tmpdir.mkdir('home').strpath,
+            },
+            main_conf={
+                'backup_options': 'exclusive_backup, external_configuration',
+            },
+        )
+        # Create a backup info with additional configuration files
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            pgdata="/pg/data",
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/data/pg_hba.conf",
+            ident_file="/pg/data/pg_ident.conf",
+            begin_xlog="0/2000028",
+            begin_wal="000000010000000000000002",
+            included_files=["/tmp/config/file.conf"],
+            begin_offset=28)
+        backup_info.save()
+        # This is to check that all the preparation is done correctly
+        assert os.path.exists(backup_info.filename)
+        # Execute a backup
+        backup_manager.executor.backup_copy(backup_info)
+        out, err = capsys.readouterr()
+        # check for the presence of the warning in the stderr
+        assert ("WARNING: The usage of include directives "
+                "is not supported") not in err
+
 
 # noinspection PyMethodMayBeStatic
 class TestStrategy(object):
@@ -675,11 +707,7 @@ class TestPostgresBackupExecutor(object):
         backup_manager.executor.backup(backup_info)
         out, err = capsys.readouterr()
         gpb_mock.assert_called_once_with(backup_info.backup_id)
-        assert err.strip() == 'WARNING: pg_basebackup does not copy ' \
-                              'the PostgreSQL configuration files that '\
-                              'reside outside PGDATA. ' \
-                              'Please manually backup the following files:' \
-                              '\n\t/pg/pg_ident.conf'
+        assert err == ''
         assert 'Copying files.' in out
         assert 'Copy done.' in out
         assert 'Finalising the backup.' in out
@@ -815,7 +843,8 @@ class TestPostgresBackupExecutor(object):
 
     @patch("barman.backup_executor.PgBaseBackup")
     @patch("barman.backup_executor.PostgresBackupExecutor.fetch_remote_status")
-    def test_backup_copy(self, remote_mock, pg_basebackup_mock, tmpdir):
+    def test_backup_copy(self, remote_mock, pg_basebackup_mock,
+                         tmpdir, capsys):
         """
         Test backup folder structure
 
@@ -846,6 +875,9 @@ class TestPostgresBackupExecutor(object):
         backup_info = build_test_backup_info(server=backup_manager.server,
                                              backup_id='fake_backup_id')
         backup_manager.executor.backup_copy(backup_info)
+        out, err = capsys.readouterr()
+        assert out == ''
+        assert err == ''
         # check that the bwlimit option have been ignored
         assert pg_basebackup_mock.mock_calls == [
             mock.call(
@@ -876,6 +908,67 @@ class TestPostgresBackupExecutor(object):
         backup_manager.executor.config.immediate_checkpoint = True
         backup_manager.executor.config.streaming_conninfo = 'fake=connstring'
         backup_manager.executor.backup_copy(backup_info)
+        out, err = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+        # check that the bwlimit option have been passed to the test call
+        assert pg_basebackup_mock.mock_calls == [
+            mock.call(
+                connection=mock.ANY,
+                version='9.5',
+                app_name='barman_streaming_backup',
+                destination=mock.ANY,
+                command='/fake/path',
+                tbs_mapping=mock.ANY,
+                bwlimit=1,
+                immediate=True,
+                retry_times=0,
+                retry_sleep=30,
+                retry_handler=mock.ANY,
+                path=mock.ANY),
+            mock.call()(),
+        ]
+
+        # Check with a config file outside the data directory
+        remote_mock.reset_mock()
+        pg_basebackup_mock.reset_mock()
+        backup_info.ident_file = '/pg/pg_ident.conf'
+        backup_manager.executor.backup_copy(backup_info)
+        out, err = capsys.readouterr()
+        assert out == ''
+        assert err.strip() == 'WARNING: pg_basebackup does not copy ' \
+                              'the PostgreSQL configuration files that '\
+                              'reside outside PGDATA. ' \
+                              'Please manually backup the following files:' \
+                              '\n\t/pg/pg_ident.conf'
+        # check that the bwlimit option have been passed to the test call
+        assert pg_basebackup_mock.mock_calls == [
+            mock.call(
+                connection=mock.ANY,
+                version='9.5',
+                app_name='barman_streaming_backup',
+                destination=mock.ANY,
+                command='/fake/path',
+                tbs_mapping=mock.ANY,
+                bwlimit=1,
+                immediate=True,
+                retry_times=0,
+                retry_sleep=30,
+                retry_handler=mock.ANY,
+                path=mock.ANY),
+            mock.call()(),
+        ]
+
+        # Check with a config file outside the data directory and
+        # external_configurations backup option
+        remote_mock.reset_mock()
+        pg_basebackup_mock.reset_mock()
+        backup_manager.config.backup_options.add(
+            BackupOptions.EXTERNAL_CONFIGURATION)
+        backup_manager.executor.backup_copy(backup_info)
+        out, err = capsys.readouterr()
+        assert out == ''
+        assert err == ''
         # check that the bwlimit option have been passed to the test call
         assert pg_basebackup_mock.mock_calls == [
             mock.call(
