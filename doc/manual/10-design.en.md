@@ -58,7 +58,7 @@ Choosing one of these two methods is a decision you will need to make.
 On a general basis, starting from Barman 2.0, backup over streaming replication is the recommended setup for PostgreSQL 9.4 or higher. Moreover, if you do not make use of tablespaces, backup over streaming can be used starting from PostgreSQL 9.2.
 
 > **IMPORTANT:** \newline
-> Because Barman transparently makes use of `pg_basebackup`, features such as incremental backup, deduplication, and network compression are currently not available. In this case, bandwidth limitation has some restrictions - compared to the traditional method via `rsync`.
+> Because Barman transparently makes use of `pg_basebackup`, features such as incremental backup, parallel backup, deduplication, and network compression are currently not available. In this case, bandwidth limitation has some restrictions - compared to the traditional method via `rsync`.
 
 Traditional backup via `rsync`/SSH is available for all versions of PostgreSQL starting from 8.3, and it is recommended in all cases where `pg_basebackup` limitations occur (for example, a very large database that can benefit from incremental backup and deduplication).
 
@@ -119,7 +119,7 @@ The _traditional_ setup of `rsync` over SSH is the only available option for:
 
 - PostgreSQL servers version 8.3, 8.4, 9.0 or 9.1
 - PostgreSQL servers version 9.2 or 9.3 that are using tablespaces
-- incremental backup and deduplication
+- incremental backup, parallel backup and deduplication
 - network compression during backups
 - finer control of bandwidth usage, including on a tablespace basis
 

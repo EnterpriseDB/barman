@@ -186,6 +186,11 @@ network_compression
     If set to `true`, compression is enabled, reducing network usage.
     Global/Server.
 
+parallel_jobs
+:   This option controls how many parallel workers will copy files during a
+    backup or recovery command. Default 1. Global/Server. For backup purposes,
+    it works only when `backup_method` is `rsync`.
+
 path_prefix
 :   One or more absolute paths, separated by colon, where Barman looks for
     executable files. The paths specified in `path_prefix` are tried before

@@ -138,6 +138,11 @@ backup *SERVER_NAME*
         Overrides value of the parameter `basebackup_retry_sleep`,
         if present in the configuration file.
 
+    -j , --jobs
+    :   Number of parallel workers to copy files during backup. Overrides
+        value of the parameter `parallel_jobs`, if present in the
+        configuration file.
+
 list-backup *SERVER_NAME*
 :   Show available backups for `SERVER_NAME`. This command is useful to
     retrieve a backup ID. For example:
@@ -259,6 +264,11 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
     :   Number of seconds of wait after a failed copy, before retrying.
         Overrides value of the parameter `basebackup_retry_sleep`,
         if present in the configuration file.
+
+    -j , --jobs
+    :   Number of parallel workers to copy files during recovery. Overrides
+        value of the parameter `parallel_jobs`, if present in the
+        configuration file. Works only for servers configured through `rsync`/SSH.
 
 get-wal *\[OPTIONS\]* *SERVER_NAME* *WAL_ID*
 :   Retrieve a WAL file from the `xlog` archive of a given server.

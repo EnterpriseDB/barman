@@ -99,6 +99,7 @@ description =  "Example of PostgreSQL Database (via Ssh)"
 ssh_command = ssh postgres@pg
 conninfo = host=pg user=barman dbname=postgres
 backup_method = rsync
+parallel_jobs = 1
 reuse_backup = link
 archiver = on
 ```

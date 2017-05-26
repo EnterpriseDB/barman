@@ -29,6 +29,9 @@ backup_method = rsync
 ; exclusive_backup (default), concurrent_backup
 ;backup_options = exclusive_backup
 
+; Number of parallel workers to perform file copy during backup and recover
+;parallel_jobs = 1
+
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Continuous WAL archiving (via 'archive_command')
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

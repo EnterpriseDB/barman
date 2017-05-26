@@ -578,3 +578,39 @@ The `replication-status` command allows
 you to get information about any streaming client attached to the
 managed server, in particular hot standby servers and WAL streamers.
 
+## Parallel jobs
+
+By default, Barman uses only one worker for file copy during both backup and
+recover operations. Starting from version 2.2, it is possible to customize the
+number of workers that will perform file copy. In this case, the
+files to be copied will be equally distributed among all parallel workers.
+
+It can be configured in global and server scopes, adding these in the
+corresponding configuration file:
+
+``` ini
+parallel_jobs = n
+```
+
+where `n` is the desired number of parallel workers to be used in file copy
+operations. The default value is 1.
+
+In any case, users can override this value at run-time when executing
+`backup` or `recover` commands. For example, you can use 4 parallel workers
+as follows:
+
+``` bash
+barman backup --jobs 4 server1 
+```
+
+Or, alternatively:
+
+``` bash
+barman backup --j 4 server1 
+```
+
+Please note that this parallel jobs feature is only available for servers
+configured through `rsync`/SSH. For servers configured through streaming
+protocol, Barman will rely on `pg_basebackup` which is currently limited
+to only one worker.
+
