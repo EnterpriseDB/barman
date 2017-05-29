@@ -78,7 +78,8 @@ class CheckStrategy(object):
     NON_CRITICAL_CHECKS = ['minimum redundancy requirements',
                            'backup maximum age',
                            'failed backups',
-                           'archiver errors']
+                           'archiver errors',
+                           'empty incoming directory']
 
     def __init__(self, ignore_checks=NON_CRITICAL_CHECKS):
         """
@@ -477,6 +478,17 @@ class Server(RemoteStatusMixin):
             check_strategy.result(
                 self.config.name, False,
                 hint='please make sure WAL shipping is setup')
+        # If archiver is disabled, check the incoming folder for stale files.
+        # If the directory is NOT empty, fail the check and warn the user.
+        # NOTE: This check is visible only when it fails
+        check_strategy.init_check("empty incoming directory")
+        if (self.config.archiver is False and
+                os.path.isdir(self.config.incoming_wals_directory) and
+                os.listdir(self.config.incoming_wals_directory)):
+            check_strategy.result(
+                self.config.name, False,
+                hint="'%s' must be empty when archiver=off"
+                     % self.config.incoming_wals_directory)
 
     def check_postgres(self, check_strategy):
         """

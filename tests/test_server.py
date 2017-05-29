@@ -827,7 +827,8 @@ class TestServer(object):
                 "barman_lock_directory": tmpdir.mkdir('lock').strpath
             },
             main_conf={
-                "wals_directory": tmpdir.mkdir('wals').strpath
+                "wals_directory": tmpdir.mkdir('wals').strpath,
+                "incoming_wals_directory": tmpdir.mkdir('incoming').strpath
             })
         strategy = CheckStrategy()
 
@@ -855,6 +856,17 @@ class TestServer(object):
         server.check_archive(strategy)
         assert strategy.has_error is False
         assert len(strategy.check_result) == 0
+
+        # Call the server on with archive = off and
+        # the incoming directory not empty
+        with open("%s/00000000000000000000" %
+                  server.config.incoming_wals_directory, 'w') as f:
+            f.write('fake WAL')
+        server.config.archiver = False
+        server.check_archive(strategy)
+        assert strategy.has_error is False
+        assert strategy.check_result[0].check == 'empty incoming directory'
+        assert strategy.check_result[0].status is False
 
     def test_replication_status(self, capsys):
         """
