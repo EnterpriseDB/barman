@@ -26,7 +26,8 @@ import mock
 import pytest
 
 from barman import command_wrappers
-from barman.command_wrappers import StreamLineProcessor
+from barman.command_wrappers import (StreamLineProcessor, full_command_quote,
+                                     shell_quote)
 from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
 
 
@@ -1168,3 +1169,24 @@ class TestBarmanSubProcess(object):
         assert ('barman.command_wrappers', DEBUG,
                 'BarmanSubProcess: subprocess started. '
                 'pid: 12345') in caplog.record_tuples
+
+
+def test_shell_quote():
+    """
+    Test the shell_quote function
+    """
+    assert "''" == shell_quote('')
+    assert "'a safe string'" == shell_quote('a safe string')
+    assert "'an un$@fe string containing a '\\'' quote'" == \
+           shell_quote("an un$@fe string containing a ' quote")
+
+
+def test_full_command_quote():
+    """
+    Test the full_command_quote function
+    """
+    assert "command" == full_command_quote('command')
+    assert "a 'b' 'c'" == full_command_quote('a', ['b', 'c'])
+    assert "safe" == full_command_quote('safe', [])
+    assert "a command 'with' 'unsafe '\\''argument'\\'''" == \
+           full_command_quote("a command", ["with", "unsafe 'argument'"])

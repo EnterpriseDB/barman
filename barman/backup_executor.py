@@ -833,7 +833,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                     archive_dir = os.path.join(
                         self.server.postgres.get_setting('data_directory'),
                         'pg_xlog', 'archive_status')
-                    out = str(cmd.list_dir_content('-t', archive_dir))
+                    out = str(cmd.list_dir_content(archive_dir, ['-t']))
                     for line in out.splitlines():
                         if line.endswith('.done'):
                             name = line[:-5]

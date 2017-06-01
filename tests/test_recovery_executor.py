@@ -439,7 +439,7 @@ class TestRecoveryExecutor(object):
         # test local recovery
         rec_info = executor.recover(backup_info, dest.strpath, None, None,
                                     None, None, None, True, None)
-        # remove not usefull keys from the result
+        # remove not useful keys from the result
         del rec_info['cmd']
         sys_tempdir = rec_info['tempdir']
         assert rec_info == {

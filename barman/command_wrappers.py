@@ -219,18 +219,6 @@ class Command(object):
         """restore default signal handler (http://bugs.python.org/issue1652)"""
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # pragma: no cover
 
-    @staticmethod
-    def _cmd_quote(cmd, args):
-        """
-        Quote all cmd's arguments.
-
-        This is needed to avoid command string breaking.
-        WARNING: this function does not protect against injection.
-        """
-        if args is not None and len(args) > 0:
-            cmd = "%s '%s'" % (cmd, "' '".join(args))
-        return cmd
-
     def __call__(self, *args, **kwargs):
         """
         Run the command and return the exit code.
@@ -458,7 +446,7 @@ class Command(object):
         args = self.args + list(args)
         # If shell is True, properly quote the command
         if self.shell:
-            cmd = self._cmd_quote(self.cmd, args)
+            cmd = full_command_quote(self.cmd, args)
         else:
             cmd = [self.cmd] + args
 
@@ -605,7 +593,7 @@ class Rsync(Command):
         """
         options = []
         if ssh:
-            options += ['-e', self._cmd_quote(ssh, ssh_options)]
+            options += ['-e', full_command_quote(ssh, ssh_options)]
         if network_compression:
             options += ['-z']
         # Include patterns must be before the exclude ones, because the exclude
@@ -936,3 +924,51 @@ class BarmanSubProcess(object):
             stdin=devnull, stdout=devnull, stderr=devnull)
         _logger.debug("BarmanSubProcess: subprocess started. pid: %s",
                       proc.pid)
+
+
+def shell_quote(arg):
+    """
+    Quote a string argument to be safely included in a shell command line.
+
+    :param str arg: The script argument
+    :return: The argument quoted
+    """
+
+    # This is an excerpt of the Bash manual page, and the same applies for
+    # every Posix compliant shell:
+    #
+    #     A  non-quoted backslash (\) is the escape character.  It preserves
+    #     the literal value of the next character that follows, with the
+    #     exception of <newline>.  If a \<newline> pair appears, and the
+    #     backslash is not itself quoted, the \<newline> is treated as a
+    #     line continuation (that is, it is removed  from  the  input
+    #     stream  and  effectively ignored).
+    #
+    #     Enclosing characters in single quotes preserves the literal value
+    #     of each character within the quotes.  A single quote may not occur
+    #     between single quotes, even when pre-ceded by a backslash.
+    #
+    # This means that, as long as the original string doesn't contain any
+    # apostrophe character, it can be safely included between single quotes.
+    #
+    # If a single quote is contained in the string, we must terminate the
+    # string with a quote, insert an apostrophe character escaping it with
+    # a backslash, and then start another string using a quote character.
+
+    assert arg is not None
+    return "'%s'" % arg.replace("'", "'\\''")
+
+
+def full_command_quote(command, args=None):
+    """
+    Produce a command with quoted arguments
+
+    :param str command: the command to be executed
+    :param list[str] args: the command arguments
+    :rtype: str
+    """
+    if args is not None and len(args) > 0:
+        return "%s %s" % (
+            command, ' '.join([shell_quote(arg) for arg in args]))
+    else:
+        return command

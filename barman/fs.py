@@ -17,7 +17,7 @@
 
 import logging
 
-from barman.command_wrappers import Command
+from barman.command_wrappers import Command, full_command_quote
 from barman.exceptions import FsOperationFailed
 
 _logger = logging.getLogger(__name__)
@@ -44,7 +44,13 @@ class UnixLocalCommand(object):
 
     def __init__(self, path=None):
         # initialize a shell
-        self.cmd = Command(cmd='sh -c', shell=True, path=path)
+        self.internal_cmd = Command(cmd='sh', args=['-c'], path=path)
+
+    def cmd(self, cmd_name, args=[]):
+        """
+        Execute a command string, escaping it, if necessary
+        """
+        return self.internal_cmd(full_command_quote(cmd_name, args))
 
     def get_last_output(self):
         """
@@ -52,7 +58,7 @@ class UnixLocalCommand(object):
 
         :rtype: tuple[str,str]
         """
-        return _str(self.cmd.out), _str(self.cmd.err)
+        return _str(self.internal_cmd.out), _str(self.internal_cmd.err)
 
     def create_dir_if_not_exists(self, dir_path):
         """
@@ -65,7 +71,7 @@ class UnixLocalCommand(object):
         _logger.debug('Create directory %s if it does not exists' % dir_path)
         exists = self.exists(dir_path)
         if exists:
-            is_dir = self.cmd('test -d %s' % dir_path)
+            is_dir = self.cmd('test', args=['-d', dir_path])
             if is_dir != 0:
                 raise FsOperationFailed(
                     'A file with the same name already exists')
@@ -73,7 +79,7 @@ class UnixLocalCommand(object):
                 return False
         else:
             # Make parent directories if needed
-            mkdir_ret = self.cmd('mkdir -p %s' % dir_path)
+            mkdir_ret = self.cmd('mkdir', args=['-p', dir_path])
             if mkdir_ret == 0:
                 return True
             else:
@@ -92,7 +98,7 @@ class UnixLocalCommand(object):
         _logger.debug('Delete path %s if exists' % path)
         exists = self.exists(path, False)
         if exists:
-            rm_ret = self.cmd('rm -fr %s' % path)
+            rm_ret = self.cmd('rm', args=['-fr', path])
             if rm_ret == 0:
                 return True
             else:
@@ -112,7 +118,7 @@ class UnixLocalCommand(object):
         _logger.debug('Check if directory %s exists' % dir_path)
         exists = self.exists(dir_path)
         if exists:
-            is_dir = self.cmd('test -d %s' % dir_path)
+            is_dir = self.cmd('test', args=['-d', dir_path])
             if is_dir != 0:
                 raise FsOperationFailed(
                     'A file with the same name exists, but is not a directory')
@@ -134,12 +140,13 @@ class UnixLocalCommand(object):
         _logger.debug('Check if directory %s is writable' % dir_path)
         exists = self.exists(dir_path)
         if exists:
-            is_dir = self.cmd('test -d %s' % dir_path)
+            is_dir = self.cmd('test', args=['-d', dir_path])
             if is_dir == 0:
-                can_write = self.cmd('touch %s/.barman_write_check' % dir_path)
+                can_write = self.cmd(
+                    'touch', args=["%s/.barman_write_check" % dir_path])
                 if can_write == 0:
                     can_remove = self.cmd(
-                        'rm %s/.barman_write_check' % dir_path)
+                        'rm', args=["%s/.barman_write_check" % dir_path])
                     if can_remove == 0:
                         return True
                     else:
@@ -163,12 +170,12 @@ class UnixLocalCommand(object):
             :param src full path to the source of the symlink
             :param dst full path for the destination of the symlink
         """
-        _logger.debug('Create symbolic link %s -> %s' % (src, dst))
+        _logger.debug('Create symbolic link %s -> %s' % (dst, src))
         exists = self.exists(src)
         if exists:
             exists_dst = self.exists(dst)
             if not exists_dst:
-                link = self.cmd('ln -s %s %s' % (src, dst))
+                link = self.cmd('ln', args=['-s', src, dst])
                 if link == 0:
                     return True
                 else:
@@ -183,32 +190,34 @@ class UnixLocalCommand(object):
             Gather important system information for 'barman diagnose' command
         """
         result = {}
-        # self.cmd.out can be None. The str() call will ensure it will be
-        # translated to a literal 'None'
+        # self.internal_cmd.out can be None. The str() call will ensure it
+        # will be translated to a literal 'None'
         release = ''
-        if self.cmd("lsb_release -a") == 0:
-            release = _str(self.cmd.out).rstrip()
+        if self.cmd("lsb_release", args=['-a']) == 0:
+            release = _str(self.internal_cmd.out).rstrip()
         elif self.exists('/etc/lsb-release'):
-            self.cmd('cat /etc/lsb-release ')
-            release = "Ubuntu Linux %s" % _str(self.cmd.out).rstrip()
+            self.cmd('cat', args=['/etc/lsb-release'])
+            release = "Ubuntu Linux %s" % _str(self.internal_cmd.out).rstrip()
         elif self.exists('/etc/debian_version'):
-            self.cmd('cat /etc/debian_version')
-            release = "Debian GNU/Linux %s" % _str(self.cmd.out).rstrip()
+            self.cmd('cat', args=['/etc/debian_version'])
+            release = "Debian GNU/Linux %s" % _str(
+                self.internal_cmd.out).rstrip()
         elif self.exists('/etc/redhat-release'):
-            self.cmd('cat /etc/redhat-release')
-            release = "RedHat Linux %s" % _str(self.cmd.out).rstrip()
+            self.cmd('cat', args=['/etc/redhat-release'])
+            release = "RedHat Linux %s" % _str(self.internal_cmd.out).rstrip()
         elif self.cmd('sw_vers') == 0:
-            release = _str(self.cmd.out).rstrip()
+            release = _str(self.internal_cmd.out).rstrip()
         result['release'] = release
 
-        self.cmd('uname -a')
-        result['kernel_ver'] = _str(self.cmd.out).rstrip()
-        self.cmd('python --version 2>&1')
-        result['python_ver'] = _str(self.cmd.out).rstrip()
-        self.cmd('rsync --version 2>&1')
-        result['rsync_ver'] = _str(self.cmd.out).splitlines(True)[0].rstrip()
-        self.cmd('ssh -V 2>&1')
-        result['ssh_ver'] = _str(self.cmd.out).rstrip()
+        self.cmd('uname', args=['-a'])
+        result['kernel_ver'] = _str(self.internal_cmd.out).rstrip()
+        self.cmd('python', args=['--version', '2>&1'])
+        result['python_ver'] = _str(self.internal_cmd.out).rstrip()
+        self.cmd('rsync', args=['--version', '2>&1'])
+        result['rsync_ver'] = _str(self.internal_cmd.out).splitlines(
+            True)[0].rstrip()
+        self.cmd('ssh', args=['-V', '2>&1'])
+        result['ssh_ver'] = _str(self.internal_cmd.out).rstrip()
         return result
 
     def get_file_content(self, path):
@@ -224,15 +233,15 @@ class UnixLocalCommand(object):
         if not result:
             raise FsOperationFailed('The %s file does not exist' % path)
 
-        result = self.cmd("test -r '%s'" % path)
+        result = self.cmd('test', args=['-r', path])
         if result != 0:
             raise FsOperationFailed('The %s file is not readable' % path)
 
-        result = self.cmd("cat '%s'" % path)
+        result = self.cmd('cat', args=['%s', path])
         if result != 0:
             raise FsOperationFailed('Failed to execute "cat \'%s\'"' % path)
 
-        return self.cmd.out
+        return self.internal_cmd.out
 
     def exists(self, path, dereference=True):
         """
@@ -244,10 +253,10 @@ class UnixLocalCommand(object):
         :return bool: if the file exists or not.
         """
         _logger.debug('check for existence of: %s' % path)
-        cmd_str = "test -e '%s'" % path
+        options = ['-e', path]
         if not dereference:
-            cmd_str += " -o -L '%s'" % path
-        result = self.cmd(cmd_str)
+            options += ['-o', '-L', path]
+        result = self.cmd('test', args=options)
         return result == 0
 
     def ping(self):
@@ -261,18 +270,22 @@ class UnixLocalCommand(object):
         result = self.cmd("true")
         return result
 
-    def list_dir_content(self, dir_path, options=''):
+    def list_dir_content(self, dir_path, options=[]):
         """
         List the contents of a given directory.
 
         :param str dir_path: the path where we want the ls to be executed
-        :param str options: a string containing the options for the ls command
+        :param list[str] options: a string containing the options for the ls
+            command
         :return str: the ls cmd output
         """
         _logger.debug('list the content of a directory')
-        ls_command = "ls %s '%s'" % (options, dir_path)
-        self.cmd(ls_command)
-        return self.cmd.out
+        ls_options = []
+        if options:
+            ls_options += options
+        ls_options.append(dir_path)
+        self.cmd('ls', args=ls_options)
+        return self.internal_cmd.out
 
 
 class UnixRemoteCommand(UnixLocalCommand):
@@ -298,10 +311,10 @@ class UnixRemoteCommand(UnixLocalCommand):
 
         if ssh_command is None:
             raise FsOperationFailed('No ssh command provided')
-        self.cmd = Command(ssh_command,
-                           ssh_options,
-                           path=path,
-                           shell=True)
+        self.internal_cmd = Command(ssh_command,
+                                    args=ssh_options,
+                                    path=path,
+                                    shell=True)
         try:
             ret = self.cmd("true")
         except OSError:
