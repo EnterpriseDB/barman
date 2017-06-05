@@ -26,6 +26,7 @@ through Ssh).
 A BackupExecutor is invoked by the BackupManager for backup operations.
 """
 
+import datetime
 import logging
 import os
 import re
@@ -46,7 +47,7 @@ from barman.exceptions import (CommandFailedException, DataTransferFailure,
 from barman.fs import UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import mkpath, with_metaclass
+from barman.utils import mkpath, total_seconds, with_metaclass
 
 _logger = logging.getLogger(__name__)
 
@@ -483,6 +484,9 @@ class PostgresBackupExecutor(BackupExecutor):
         backup_dest = backup_info.get_data_directory()
         dest_dirs = [backup_dest]
 
+        # Store the start time
+        copy_start_time = datetime.datetime.now()
+
         # Manage tablespaces, we need to handle them now in order to
         # be able to relocate them inside the
         # destination directory of the basebackup
@@ -527,6 +531,14 @@ class PostgresBackupExecutor(BackupExecutor):
                   backup_info.get_data_directory()
             raise DataTransferFailure.from_command_error(
                 'pg_basebackup', e, msg)
+
+        # Store statistics about the copy
+        copy_end_time = datetime.datetime.now()
+        copy_time = total_seconds(copy_end_time - copy_start_time)
+        backup_info.copy_stats = {
+            'copy_time': copy_time,
+            'total_time': copy_time,
+        }
 
         # Check for the presence of configuration files outside the PGDATA
         external_config = backup_info.get_external_config_files()
@@ -1019,6 +1031,9 @@ class RsyncBackupExecutor(SshBackupExecutor):
             msg = "data transfer failure"
             raise DataTransferFailure.from_command_error(
                 'rsync', e, msg)
+
+        # Store statistics about the copy
+        backup_info.copy_stats = controller.statistics()
 
         # Check for any include directives in PostgreSQL configuration
         # Currently, include directives are not supported for files that

@@ -296,6 +296,7 @@ class TestRsyncBackupExecutor(object):
                 item_class=rsync_mock.return_value.CONFIG_CLASS,
                 optional=False),
             mock.call().copy(),
+            mock.call().statistics(),
         ]
 
     @patch('barman.backup_executor.RsyncCopyController')

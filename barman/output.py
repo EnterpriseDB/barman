@@ -21,12 +21,13 @@ This module control how the output of Barman will be rendered
 
 from __future__ import print_function
 
+import datetime
 import inspect
 import logging
 import sys
 
 from barman.infofile import BackupInfo
-from barman.utils import pretty_size
+from barman.utils import human_readable_timedelta, pretty_size
 from barman.xlog import diff_lsn
 
 __all__ = [
@@ -611,6 +612,25 @@ class ConsoleOutputWriter(object):
             self.info("    Begin time           : %s",
                       data['begin_time'])
             self.info("    End time             : %s", data['end_time'])
+            # If copy statistics are available print a summary
+            copy_stats = data.get('copy_stats')
+            if copy_stats:
+                copy_time = copy_stats.get('copy_time')
+                analysis_time = copy_stats.get('analysis_time')
+                if copy_time:
+                    value = human_readable_timedelta(
+                        datetime.timedelta(seconds=copy_time))
+                    # Show analysis time if it is more than a second
+                    if analysis_time >= 1:
+                        value += " + %s startup" % (human_readable_timedelta(
+                            datetime.timedelta(seconds=analysis_time)))
+                    self.info("    Copy time            : %s", value)
+                    size = data['deduplicated_size'] or data['size']
+                    value = "%s/s" % pretty_size(size/copy_time)
+                    number_of_workers = copy_stats.get('number_of_workers', 1)
+                    if number_of_workers > 1:
+                        value += " (%s jobs)" % number_of_workers
+                    self.info("    Estimated throughput : %s", value)
             self.info("    Begin Offset         : %s",
                       data['begin_offset'])
             self.info("    End Offset           : %s",

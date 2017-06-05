@@ -443,6 +443,7 @@ class BackupInfo(FieldListFile):
     included_files = Field('included_files',
                            load=ast.literal_eval, dump=null_repr)
     backup_label = Field('backup_label', load=ast.literal_eval, dump=null_repr)
+    copy_stats = Field('copy_stats', load=ast.literal_eval, dump=null_repr)
 
     __slots__ = ('server', 'config', 'backup_manager',
                  'backup_id', 'backup_version')
@@ -639,7 +640,9 @@ class BackupInfo(FieldListFile):
         """
         result = dict(self.items())
         result.update(backup_id=self.backup_id, server_name=self.server_name,
-                      mode=self.mode, tablespaces=self.tablespaces)
+                      mode=self.mode, tablespaces=self.tablespaces,
+                      included_files=self.included_files,
+                      copy_stats=self.copy_stats)
         return result
 
     def to_json(self):

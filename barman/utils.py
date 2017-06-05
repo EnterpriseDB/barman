@@ -203,6 +203,22 @@ def human_readable_timedelta(timedelta):
     return human
 
 
+def total_seconds(timedelta):
+    """
+    Compatibility method because the total_seconds method has been introduced
+    in Python 2.7
+
+    :param timedelta: a timedelta object
+    :rtype: float
+    """
+    if hasattr(timedelta, 'total_seconds'):
+        return timedelta.total_seconds()
+    else:
+        return (timedelta.microseconds +
+                (timedelta.seconds + timedelta.days * 24 * 3600) * 10**6
+                ) / 10**6
+
+
 def which(executable, path=None):
     """
     This method is useful to find if a executable is present into the
