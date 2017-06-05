@@ -370,7 +370,7 @@ class RsyncCopyController(object):
                 item_class=item_class,
                 optional=optional))
 
-    def rsync_factory(self, item):
+    def _rsync_factory(self, item):
         """
         Build the RsyncPgData object required for copying the provided item
 
@@ -570,7 +570,7 @@ class RsyncCopyController(object):
         """
         item = job.item
         # Build the rsync object required for the copy
-        rsync = self.rsync_factory(item)
+        rsync = self._rsync_factory(item)
         # Write in the log that the job is starting
         with _logger_lock:
             _logger.info(job.description, 'starting')
@@ -701,7 +701,7 @@ class RsyncCopyController(object):
         """
 
         # Build the rsync object required for the analysis
-        rsync = self.rsync_factory(item)
+        rsync = self._rsync_factory(item)
 
         # If reference is not set we use dst as reference path
         ref = item.reuse
@@ -797,7 +797,7 @@ class RsyncCopyController(object):
         """
 
         # Build the rsync object required for the analysis
-        rsync = self.rsync_factory(item)
+        rsync = self._rsync_factory(item)
 
         # Create directories and delete any unknown file
         self._rsync_ignore_vanished_files(
