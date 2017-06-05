@@ -1731,7 +1731,7 @@ class Server(RemoteStatusMixin):
             output.error(
                 "invalid xlog segment name %r\n"
                 "HINT: Please run \"barman rebuild-xlogdb %s\" "
-                "to solve this issue" %
+                "to solve this issue",
                 str(e), self.config.name)
             output.close_and_exit()
 
