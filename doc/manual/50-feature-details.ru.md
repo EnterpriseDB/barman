@@ -265,120 +265,83 @@ Status of streaming clients for server 'pg':
 ```
 
 
-## Catalog management features
-### Minimum redundancy safety
 
-You can define the minimum number of periodic backups for a PostgreSQL
-server, using the global/per server configuration option called
-`minimum_redundancy`, by default set to 0.
+## Функции управления каталогом
+### Минимальная безопасность избыточности
 
-By setting this value to any number greater than 0, Barman makes sure
-that at any time you will have at least that number of backups in a
-server catalog.
+Вы можете определить минимальное количество периодических резервных копий для PostgreSQL сервера, используя глобальный/серверный параметр конфигурации `minimum_redundancy`, по умолчанию установлено значение 0.
 
-This will protect you from accidental `barman delete` operations.
+Установив это значение на любое число, большее 0, Barman уверен что в любое время у вас будет хотя бы указанное количество резервных копий в каталоге хранения резернвых копий сервера.
 
-> **IMPORTANT:**
-> Make sure that your retention policy settings do not collide with
-> minimum redundancy requirements. Regularly check Barman's log for
-> messages on this topic.
+Это защитит вас от случайных операций «barman delete».
+
+> **ВАЖНО:**
+> Убедитесь, что ваши политики политики хранения не противоречат 
+> минимальным требованиям к резервированию. Регулярно проверяйте журнал Barman на
+> сообщения по этому параметру.
+
+### Правила хранения
+
+Barman поддерживает **политику хранения** для резервного копирования.
+
+Политика хранения резервных копий - это политика, определяемая пользователем, который определяет, как долго резервные копии и связанные журналы архива (WAL сегменты) необходимо сохранить для корректного восстановления.
+
+По запросу пользователя Barman сохраняет периодические резервные копии, необходимые для соответствия текущей политике хранения и любые архивные копии WAL-файлов, необходимых для полного восстановления этих резервных копий.
+
+Пользователи Barman могут определить политику хранения в терминах **избыточности резервных копий** (сколько периодических резервных копий) или **окна восстановления** (как долго будет происходить восстановление).
+
+Политика хранения, основанная на избыточности
+
+   : В политике хранения, основанной на избыточности, пользователь определяет количество периодических резервных копий. Политика хранения на основе избыточности сопоставляется с политиками хранения, которые используют окно восстановления.
+
+Политика хранения на основе окна восстановления
+
+   : Окно восстановления - это тип политики хранения резервных копий Barman, в котором администратор баз данных указывает период времени, и Barman обеспечивает сохранение резервных копий и/или архивных файлов WAL, необходимых для восстановления в определенный момент времени в окне восстановления. Интервал всегда заканчивается текущим временем и продолжается во времени для количества дней, указанных пользователем. Например, если политика хранения установлена для окна восстановления в течение семи дней, а текущее время составляет 9:30 утра в пятницу, Barman сохраняет резервные копии, необходимые для восстановления времени в 9:30 утра на предыдущую пятницу.
+
+#### Объем
+
+Политики хранения могут быть определены для:
+
+- **Периодические базовые резервные копии PostgreSQL**: через опцию `retention_policy`
+- **Архивные журналы**, для восстановления по времени: через опцию  `wal_retention_policy`
+
+> **ВАЖНО:**
+> Во временном измерении архивные журналы должны быть включены в временное окно периодических резервных копий.
+
+Здесь есть два типичных варианта использования: полный или частичный момент времени восстановления.
+
+Полный сценарий восстановления по времени:
+
+   : Базовые резервные копии и архивные журналы используют одну и ту же политику хранения, позволяющую восстановится в любой момент времени из первой доступной резервной копии.
+
+Частичное восстановление по времени:
+
+   : Политика хранения резервных копий шире, чем в архивных журналов, например, позволяет пользователям хранить полные еженедельные резервные копии последних 6 месяцев, но архивные журналы за последние 4 недели (предоставление восстановления в любой момент времени, начиная с последнего 4 периодических еженедельных резервных копий).
+
+> **ВАЖНО:**
+> В настоящее время Barman реализует только сценарий **полного восстановления по времени**, ограничивая опцию `wal_retention_policy` на` main`.
+
+#### Как они работают
+
+Политика сохранения в Barman может быть:
+
+- **автоматическое**: принудительное использование `barman cron`
+- **ручное**: Barman только сообщает об устаревших резервных копиях и позволяет удалить их
+
+> **ВАЖНО:**
+> В настоящее время Barman не выполняет ручное принудительное исполнение. Эта функция будет доступна в будущих версиях.
+
+#### Конфигурация и синтаксис
+
+Политики хранения можно определить с помощью следующих опций:
+
+- `retention_policy`: для резервного хранения резервной копии
+- `wal_retention_policy`: для хранения архивных журналов
+- `retention_policy_mode`: может быть установлен только` auto` (политики хранения автоматически применяются командой `barman cron`)
+
+Эти параметры конфигурации могут быть определены как на глобальном уровне, так и на уровене сервера, это позволяет пользователям максимально гибко управлять несколькими серверами.
 
 
-### Retention policies
-
-Barman supports **retention policies** for backups.
-
-A backup retention policy is a user-defined policy that determines how
-long backups and related archive logs (Write Ahead Log segments) need
-to be retained for recovery procedures.
-
-Based on the user's request, Barman retains the periodic backups
-required to satisfy the current retention policy and any archived WAL
-files required for the complete recovery of those backups.
-
-Barman users can define a retention policy in terms of **backup
-redundancy** (how many periodic backups) or a **recovery window** (how
-long).
-
-Retention policy based on redundancy
-
-  : In a redundancy based retention policy, the user determines how
-    many periodic backups to keep. A redundancy-based retention policy
-    is contrasted with retention policies that use a recovery window.
-
-Retention policy based on recovery window
-
-  : A recovery window is one type of Barman backup retention policy,
-    in which the DBA specifies a period of time and Barman ensures
-    retention of backups and/or archived WAL files required for
-    point-in-time recovery to any time during the recovery window. The
-    interval always ends with the current time and extends back in
-    time for the number of days specified by the user. For example, if
-    the retention policy is set for a recovery window of seven days,
-    and the current time is 9:30 AM on Friday, Barman retains the
-    backups required to allow point-in-time recovery back to 9:30 AM
-    on the previous Friday.
-
-#### Scope
-
-Retention policies can be defined for:
-
-- **PostgreSQL periodic base backups**: through the `retention_policy`
-  configuration option
-- **Archive logs**, for Point-In-Time-Recovery: through the
-  `wal_retention_policy` configuration option
-
-> **IMPORTANT:**
-> In a temporal dimension, archive logs must be included in the time
-> window of periodic backups.
-
-There are two typical use cases here: full or partial point-in-time
-recovery.
-
-Full point in time recovery scenario:
-
-  : Base backups and archive logs share the same retention policy,
-    allowing you to recover at any point in time from the first
-    available backup.
-
-Partial point in time recovery scenario:
-
-  : Base backup retention policy is wider than that of archive logs,
-    for example allowing users to keep full, weekly backups of the
-    last 6 months, but archive logs for the last 4 weeks (granting to
-    recover at any point in time starting from the last 4 periodic
-    weekly backups).
-
-> **IMPORTANT:**
-> Currently, Barman implements only the **full point in time
-> recovery** scenario, by constraining the `wal_retention_policy`
-> option to `main`.
-
-#### How they work
-
-Retention policies in Barman can be:
-
-- **automated**: enforced by `barman cron`
-- **manual**: Barman simply reports obsolete backups and allows you
-  to delete them
-
-> **IMPORTANT:**
-> Currently Barman does not implement manual enforcement. This feature
-> will be available in future versions.
-
-#### Configuration and syntax
-
-Retention policies can be defined through the following configuration
-options:
-
-- `retention_policy`: for base backup retention
-- `wal_retention_policy`: for archive logs retention
-- `retention_policy_mode`: can only be set to `auto` (retention
-  policies are automatically enforced by the `barman cron` command)
-
-These configuration options can be defined both at a global level and
-a server level, allowing users maximum flexibility on a multi-server
-environment.
 
 ##### Syntax for `retention_policy`
 

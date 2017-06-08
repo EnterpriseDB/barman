@@ -1,138 +1,139 @@
 \newpage
 
-# Design and architecture
+# Дизайн и архитектура
 
-## Where to install Barman
+## Где устанавливать Barman
 
-One of the foundations of Barman is the ability to operate remotely from the database server, via the network.
+Одной из основных возможностей Barman является способность работать с серверами базы данных через сеть.
 
-Theoretically, you could have your Barman server located in a data centre in another part of the world, thousands of miles away from your PostgreSQL server.
-Realistically, you do not want your Barman server to be too far from your PostgreSQL server, so that both backup and recovery times are kept under control.
+Теоретически, вы могли бы разместить свой сервер Barman в центре обработки данных в другой части мира, за тысячи километров от вашего сервера PostgreSQL.
 
-Even though there is no _"one size fits all"_ way to setup Barman, there are a couple of recommendations that we suggest you abide by, in particular:
+В реальности разнесение сервера Barman и сервера PostgreSQL на большое расстояние влечет увеличение времени резервного копирования и восстановления.
 
-- Install Barman on a dedicated server
-- Do not share the same storage with your PostgreSQL server
-- Integrate Barman with your monitoring infrastructure [^nagios]
-- Test everything before you deploy it to production
+Несмотря на то, что не существует метода настройки Barman подходящего всем, есть несколько рекомендаций, которые мы предлагаем вам соблюдать, в частности:
 
-  [^nagios]: Integration with Nagios/Icinga is straightforward thanks to the `barman check --nagios` command, one of the most important features of Barman and a true lifesaver.
+- Установите Barman на выделенный сервер
+- Не используйте одно и то же хранилище для сервера PostgreSQL и для резервных копий
+- Интегрируйте Barman с вашей инфраструктурой мониторинга [^ nagios]
+- Проверяйте все, прежде чем использовать в продуктивной среде
 
-A reasonable way to start modelling your disaster recovery architecture is to:
+  [^nagios]: Интеграция с Nagios / Icinga проста благодаря команде «barman check --nagios», одной из самых важных функций бармена.
 
-- design a couple of possibile architectures in respect to PostgreSQL and Barman, such as:
-    1. same data centre
-    2. different data centre in the same metropolitan area
-    3. different data centre
-- elaborate the pros and the cons of each hypothesis
-- evaluate the single points of failure (SPOF) of your system, with cost-benefit analysis
-- make your decision and implement the initial solution
+Разумным способом начать моделирование архитектуры аварийного восстановления является:
 
-Having said this, a very common setup for Barman is to be installed in the same data centre where your PostgreSQL servers are. In this case, the single point of failure is the data centre. Fortunately, the impact of such a SPOF can be alleviated thanks to a feature called _hook scripts_. Indeed, backups of Barman can be exported on different media, such as _tape_ via `tar`, or locations, like an _S3 bucket_ in the Amazon cloud.
+- разработать несколько возможных сценариев расположения PostgreSQL и Barman, таких как:
+     1. тот же центр обработки данных
+     2. другой центр обработки данных (соседний)
+     3. другой центр обработки данных
+- разработать плюсы и минусы каждой гипотезы
+- оценить отдельные точки отказа (SPOF) вашей системы, с анализом затрат и результатов
+- принять решение и реализовать его
 
-Remember that no decision is forever. You can start this way and adapt over time to the solution that suits you best. However, try and keep it simple to start with.
+Как уже было сказано, самая простая схема для Barman это установка в том же центре обработки данных что и ваши серверы PostgreSQL. В этом случае единственной точкой отказа является центр обработки данных. К счастью, влияние такого SPOF можно облегчить благодаря функции, называемой _hook scripts_. Действительно, резервные копии Barman могут быть экспортированы на разных носителях, таких как _tape_ через «tar» или хранилища, например, _S3 bucket_ в облаке Amazon.
 
-## One Barman, many PostgreSQL servers
+Помните, что выбранное решение не навсегда. Вы можете начать с простого и со временем изменять настройки, выбрав те которые вам подходят лучше всего.
 
-Another relevant feature that was first introduced by Barman is support for multiple servers. Barman can store backup data coming from multiple PostgreSQL instances, even with different versions, in a centralised way. [^recver]
+## Один Barman, много серверов PostgreSQL
 
-  [^recver]: The same [requirements for PostgreSQL's PITR][requirements_recovery] apply for recovery, as detailed in the section _"Requirements for recovery"_.
+Еще одна важная функция, впервые введенная Barman, - это поддержка нескольких серверов. Бармен может централизованно хранить резервные копии, поступающие из нескольких экземпляров PostgreSQL, даже с разными версиями. [^recver]
 
-As a result, you can model complex disaster recovery architectures, forming a "star schema", where PostgreSQL servers rotate around a central Barman server.
+   [^recver]: Такие же [требования для PITR PostgreSQL] [requirements_recovery] применяются для восстановления, как описано в разделе _"Требования к восстановлению"_.
 
-Every architecture makes sense in its own way. Choose the one that resonates with you, and most importantly, the one you trust, based on real experimentation and testing.
+В результате вы можете моделировать сложные архитектуры аварийного восстановления, формируя «звездную схему», где серверы PostgreSQL вращаются вокруг центрального сервера Barman.
 
-From this point forward, for the sake of simplicity, this guide will assume a basic architecture:
+Каждая архитектура имеет свой смысл. Выберите тот, который нравится вам, и, самое главное, тот, которому вы доверяете, на основе реальных экспериментов и тестирования.
 
-- one PostgreSQL instance (with host name `pg`)
-- one backup server with Barman (with host name `backup`)
+С этой точки зрения, для простоты, это руководство возьмет на себя основную архитектуру:
 
-## Streaming backup vs rsync/SSH
+- один экземпляр PostgreSQL (с именем хоста `pg`)
+- один резервный сервер с Barman (с именем хоста `backup`)
 
-Traditionally, Barman has always operated remotely via SSH, taking advantage of `rsync` for physical backup operations. Version 2.0 introduces native support for PostgreSQL's streaming replication protocol for backup operations, via `pg_basebackup`. [^fmatrix]
+## Потоковое резервное копирование vs rsync/SSH
 
-  [^fmatrix]: Check in the "Feature matrix" which PostgreSQL versions support streaming replication backups with Barman.
+Традиционно, Barman всегда работал удаленно через SSH, используя `rsync` для физических операций резервного копирования. Версия 2.0 представляет встроенную поддержку протокола потоковой репликации PostgreSQL для операций резервного копирования через `pg_basebackup`. [^fmatrix]
 
-Choosing one of these two methods is a decision you will need to make.
+   [^fmatrix]: см. "Feature matrix", в которой указано какие версии PostgreSQL поддерживают потоковое резервное копироание с помощью Barman.
 
-On a general basis, starting from Barman 2.0, backup over streaming replication is the recommended setup for PostgreSQL 9.4 or higher. Moreover, if you do not make use of tablespaces, backup over streaming can be used starting from PostgreSQL 9.2.
+Выбор одного из этих двух методов - это решение, которое вам нужно будет сделать.
 
-> **IMPORTANT:** \newline
-> Because Barman transparently makes use of `pg_basebackup`, features such as incremental backup, deduplication, and network compression are currently not available. In this case, bandwidth limitation has some restrictions - compared to the traditional method via `rsync`.
-
-Traditional backup via `rsync`/SSH is available for all versions of PostgreSQL starting from 8.3, and it is recommended in all cases where `pg_basebackup` limitations occur (for example, a very large database that can benefit from incremental backup and deduplication).
-
-The reason why we recommend streaming backup is that, based on our experience, it is easier to setup than the traditional one. Also, streaming backup allows you to backup a PostgreSQL server on Windows[^windows], and makes life easier when working with Docker.
-
-  [^windows]: Backup of a PostgreSQL server on Windows is possible, but it is still experimental because it is not yet part of our continuous integration system. See section _"How to setup a Windows based server"_ for details.
-
-## Standard archiving, WAL streaming ... or both
-
-PostgreSQL's Point-In-Time-Recovery requires that transactional logs, also known as _xlog_ or WAL files, are stored alongside of base backups.
-
-Traditionally, Barman has supported standard WAL file shipping through PostgreSQL's `archive_command` (usually via `rsync`/SSH). With this method, WAL files are archived only when PostgreSQL _switches_ to a new WAL file. To keep it simple, this normally happens every 16MB worth of data changes.
-
-Barman 1.6.0 introduces streaming of WAL files for PostgreSQL servers 9.2 or higher, as an additional method for transactional log archiving, through `pg_receivexlog`. WAL streaming is able to reduce the risk of data loss, bringing RPO down to _near zero_ values.
-
-Barman 2.0 introduces support for replication slots with PostgreSQL servers 9.4 or above, therefore allowing WAL streaming-only configurations. Moreover, you can now add Barman as a synchronous WAL receiver in your PostgreSQL 9.5 (or higher) cluster, and achieve **zero data loss** (RPO=0).
-
-In some cases you have no choice and you are forced to use traditional archiving. In others, you can choose whether to use both or just WAL streaming.
-Unless you have strong reasons not to do it, we recommend to use both channels, for maximum reliability and robustness.
-
-## Two typical scenarios for backups
-
-In order to make life easier for you, below we summarise the two most typical scenarios for a given PostgreSQL server in Barman.
-
-Bear in mind that this is a decision that you must make for every single server that you decide to back up with Barman. This means that you can have heterogeneous setups within the same installation.
-
-As mentioned before, we will only worry about the PostgreSQL server (`pg`) and the Barman server (`backup`). However, in real life, your architecture will most likely contain other technologies such as repmgr, pgBouncer, Nagios/Icinga, and so on.
-
-### Scenario 1: Backup via streaming protocol
-
-If you are using PostgreSQL 9.4 or higher, and your database falls under a general use case scenario, you will likely end up deciding on a streaming backup installation - see figure \ref{scenario1-design} below.
-
-<!-- TODO: This way of referencing won't work in HTML -->
-![Streaming-only backup (Scenario 1)\label{scenario1-design}](../images/barman-architecture-scenario1.png){ width=80% }
-
-In this scenario, you will need to configure:
-
-1. a standard connection to PostgreSQL, for management, coordination, and monitoring purposes
-2. a streaming replication connection that will be used by both `pg_basebackup` (for base backup operations) and `pg_receivexlog` (for WAL streaming)
-
-This setup, in Barman's terminology, is known as **streaming-only** setup, as it does not require any SSH connection for backup and archiving operations. This is particularly suitable and extremely practical for Docker environments.
-
-However, as mentioned before, you can configure standard archiving as well and implement a more robust architecture - see figure \ref{scenario1b-design} below.
-
-![Streaming backup with WAL archiving (Scenario 1b)\label{scenario1b-design}](../images/barman-architecture-scenario1b.png){ width=80% }
-
-This alternate approach requires:
-
-- an additional SSH connection that allows the `postgres` user on the PostgreSQL server to connect as `barman` user on the Barman server
-- the `archive_command` in PostgreSQL be configured to ship WAL files to Barman
-
-This architecture is available also to PostgreSQL 9.2/9.3 users that do not use tablespaces.
+На общем основании, начиная с Barman 2.0, резервная копия по потоковой репликации является рекомендуемой установкой для PostgreSQL 9.4 или выше. Более того, если вы не используете табличные пространства, можно использовать резервное копирование поверх потоковой передачи, начиная с PostgreSQL 9.2.
 
 
-### Scenario 2: Backup via `rsync`/SSH
+> **Важно:** \newline
+> Поскольку Barman прозрачно использует `pg_basebackup`, такие функции, как инкрементное резервное копирование, дедупликация и сетевое сжатие, в настоящее время недоступны. В этом случае ограничение полосы пропускания имеет некоторые ограничения - по сравнению с традиционным методом через `rsync`.
 
-The _traditional_ setup of `rsync` over SSH is the only available option for:
+Традиционная резервная копия через `rsync` / SSH доступна для всех версий PostgreSQL, начиная с 8.3, и рекомендуется во всех случаях, где существуют ограничения` pg_basebackup` (например, очень большая база данных, которая может выиграть от инкрементного резервного копирования и дедупликации).
 
-- PostgreSQL servers version 8.3, 8.4, 9.0 or 9.1
-- PostgreSQL servers version 9.2 or 9.3 that are using tablespaces
-- incremental backup and deduplication
-- network compression during backups
-- finer control of bandwidth usage, including on a tablespace basis
+Причина, по которой мы рекомендуем потоковое резервное копирование, состоит в том, что, основываясь на нашем опыте, его проще настроить, чем традиционный. Кроме того, потоковая резервная копия позволяет вам создавать резервные копии сервера PostgreSQL в Windows [^windows] и облегчает жизнь при работе с Docker.
 
-![Scenario 2 - Backup via rsync/SSH](../images/barman-architecture-scenario2.png){ width=80% }
+  [^windows]: Резервное копирование сервера PostgreSQL в Windows возможно, но оно все еще экспериментально, потому что оно еще не является частью нашей системы непрерывной интеграции. Подробнее см. В разделе _"Как настроить сервер на базе Windows"_.
 
-In this scenario, you will need to configure:
+## Стандартное архивирование, потоковая передача WAL или оба
 
-1. a standard connection to PostgreSQL for management, coordination, and monitoring purposes
-2. an SSH connection for base backup operations to be used by `rsync` that allows the `barman` user on the Barman server to connect as `postgres` user on the PostgreSQL server
-3. an SSH connection for WAL archiving to be used by the `archive_command` in PostgreSQL and that allows the `postgres` user on the PostgreSQL server to connect as `barman` user on the Barman server
+PITR для PostgreSQL требует, чтобы транзакционные журналы, также известные как _xlog_ или WAL-файлы, сохранялись вместе с базовыми резервными копиями.
 
-Starting from PostgreSQL 9.2, you can add a streaming replication connection that is used for WAL streaming and significantly reduce RPO. This more robust implementation is depicted in figure \ref{scenario2b-design}.
+Традиционно Barman поддерживал стандартную доставку WAL-файлов через `archive_command` PostgreSQL (обычно через `rsync` / SSH). С помощью этого метода файлы WAL архивируются только тогда, когда произойдет _переключение_ PostgreSQL на новый WAL-файл. Для простоты это происходит каждые 16 МБ данных.
 
-![Backup via rsync/SSH with WAL streaming (Scenario 2b)\label{scenario2b-design}](../images/barman-architecture-scenario2b.png){ width=80% }
+Barman с версии 1.6.0 позволяет организовать потоковую передачу WAL-файлов через `pg_receivexlog` для серверов PostgreSQL версии 9.2 или новее в качестве дополнительного метода для архивирования журналов транзакций. Потоковая передача WAL-файлов способна снизить риск потери данных, приведя RPO близким к нулю.
 
-<!-- TODO - Add a section on architecture for recovery? -->
+Barman 2.0 поддерживает слоты репликации с серверами PostgreSQL 9.4 или выше, это позволяет обойтись только потоковой передачей. Кроме того, теперь вы можете добавить Barman в качестве синхронного приемника WAL в своем кластере PostgreSQL 9.5 (или выше) и добиться **нулевой потери данных** (RPO = 0).
+
+В некоторых случаях у вас нет выбора, и вы вынуждены использовать традиционное архивирование. В других случаях вы можете выбрать, использовать ли оба метода или только потоковую передачу.
+Если у вас нет серьезных причин не делать этого, мы рекомендуем использовать оба канала для максимальной надежности.
+
+## Два типичных сценария для резервного копирования
+
+Чтобы облегчить вам жизнь, ниже мы кратко опишем два наиболее типичных сценария работы с Barman.
+
+Имейте в виду, что это решение, которое вы должны сделать для каждого отдельного сервера, который вы решили резервировать с помощью Barman. Это означает, что вы можете иметь гетерогенные настройки в рамках одной и той же установки.
+
+Как упоминалось ранее, мы будем использовать только сервер PostgreSQL (`pg`) и сервер Barman (` backup`). Однако в реальной жизни ваша архитектура, скорее всего, будет содержать другие технологии, такие как repmgr, pgBouncer, Nagios/Icinga и т.д.
+
+### Сценарий 1: Резервное копирование по протоколу потоковой передачи
+
+Если вы используете PostgreSQL 9.4 или выше, и ваша база данных попадает в общий сценарий использования, скорее всего, вы решите установить потоковое резервное копирование - см. Рисунок \ref{script1-design} ниже.
+
+<!-- TODO: Этот способ ссылок не будет работать в HTML -->
+! [Резервное копирование с помощью потоковой передачи (сценарий 1)\label{script1-design}](../images/barman-architecture-scene1.png){width = 80%}
+
+В этом случае вам необходимо настроить:
+
+1. стандартное подключение к PostgreSQL для целей управления, координации и мониторинга
+2. соединение потоковой репликации, которое будет использоваться и как `pg_basebackup` (для операций резервного копирования), так и `pg_receivexlog` (для потоковой передачи WAL)
+
+Эта настройка в терминологии Barman звучит как **потоковая настройка**, так как она не требует SSH-соединения для операций резервного копирования и архивирования. Это особенно удобно и чрезвычайно практично в среде Docker.
+
+Однако, как упоминалось ранее, вы можете также настроить стандартное архивирование и внедрить более надежную архитектуру - см. Рисунок \ref{script1b-design} ниже.
+
+![Потоковая резервная копия с архивированием WAL (сценарий 1b)\label{script1b-design}](../images/barman-architecture-scene1b.png) {width = 80%}
+
+Этот альтернативный подход требует:
+
+- дополнительное SSH-соединение, которое позволяет пользователю postgres на сервере PostgreSQL подключаться как пользователь barman на сервере Barman
+- команда «archive_command» в PostgreSQL настроена на отправку файлов WAL в Barman
+
+Эта архитектура доступна также пользователям PostgreSQL 9.2 / 9.3, которые не используют табличные пространства.
+
+### Сценарий 2: Резервное копирование через `rsync`/SSH
+
+Это _обычная_ настройка `rsync` через SSH является единственной доступной опцией для:
+
+- Серверов PostgreSQL версии 8.3, 8.4, 9.0 или 9.1
+- Серверов PostgreSQL версии 9.2 или 9.3, которые используют табличные пространства
+- Инкрементного резервного копирования и дедупликации
+- Сжатие данных при передаче по сети во время резервного копирования
+- Более тонкое управление использованием полосы пропускания, в том числе на основе табличного пространства
+
+![Сценарий 2 - Резервное копирование через rsync/SSH] (../images/barman-architecture-scene2.png){width = 80%}
+
+В этом случае вам необходимо настроить:
+
+1. стандартное подключение к PostgreSQL для целей управления, координации и мониторинга
+2. SSH-соединение для базовых операций резервного копирования, которое будет использоваться `rsync`, что позволяет пользователю `barman` с сервера Barman подключаться как пользователь `postgres` на сервере PostgreSQL
+3. SSH-соединение для архивации WAL, которое будет использоваться командой `archive_command` в PostgreSQL, и которое позволяет пользователю postgres на сервере PostgreSQL подключаться как пользователь `barman` на сервере Barman.
+
+Начиная с PostgreSQL 9.2 вы можете добавить потоковое репликационное соединение, которое используется для потоковой передачи WAL и значительно сократить RPO. Эта более надежная реализация изображена на рисунке \ref{script2b-design}.
+
+![Резервное копирование через rsync/SSH с потоковой передачей WAL-файлов (сценарий 2b) \label{script2b-design}](../images/barman-architecture-scene2b.png){width = 80%}
+
+<!-- TODO - Добавить раздел об архитектуре для восстановления? -->
