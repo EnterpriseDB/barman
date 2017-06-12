@@ -70,6 +70,8 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
         self.config = backup_manager.config
         self.strategy = None
         self._mode = mode
+        self.copy_start_time = None
+        self.copy_end_time = None
 
         # Holds the action being executed. Used for error messages.
         self.current_action = None
@@ -485,7 +487,7 @@ class PostgresBackupExecutor(BackupExecutor):
         dest_dirs = [backup_dest]
 
         # Store the start time
-        copy_start_time = datetime.datetime.now()
+        self.copy_start_time = datetime.datetime.now()
 
         # Manage tablespaces, we need to handle them now in order to
         # be able to relocate them inside the
@@ -532,9 +534,11 @@ class PostgresBackupExecutor(BackupExecutor):
             raise DataTransferFailure.from_command_error(
                 'pg_basebackup', e, msg)
 
+        # Store the end time
+        self.copy_end_time = datetime.datetime.now()
+
         # Store statistics about the copy
-        copy_end_time = datetime.datetime.now()
-        copy_time = total_seconds(copy_end_time - copy_start_time)
+        copy_time = total_seconds(self.copy_end_time - self.copy_start_time)
         backup_info.copy_stats = {
             'copy_time': copy_time,
             'total_time': copy_time,
@@ -907,6 +911,10 @@ class RsyncBackupExecutor(SshBackupExecutor):
             backup_info.backup_id)
         safe_horizon = None
         reuse_backup = None
+
+        # Store the start time
+        self.copy_start_time = datetime.datetime.now()
+
         if previous_backup:
             # safe_horizon is a tz-aware timestamp because BackupInfo class
             # ensures that property
@@ -1031,6 +1039,9 @@ class RsyncBackupExecutor(SshBackupExecutor):
             msg = "data transfer failure"
             raise DataTransferFailure.from_command_error(
                 'rsync', e, msg)
+
+        # Store the end time
+        self.copy_end_time = datetime.datetime.now()
 
         # Store statistics about the copy
         backup_info.copy_stats = controller.statistics()

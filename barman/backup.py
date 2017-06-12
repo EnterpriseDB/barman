@@ -389,7 +389,11 @@ class BackupManager(RemoteStatusMixin):
                         backup_info.end_xlog,
                         backup_info.end_wal,
                         backup_info.end_offset)
-            output.info("Backup completed")
+            output.info("Backup completed (start time: %s, elapsed time: %s)",
+                        self.executor.copy_start_time,
+                        human_readable_timedelta(
+                            self.executor.copy_end_time
+                            - self.executor.copy_start_time))
             # Create a restore point after a backup
             target_name = 'barman_%s' % backup_info.backup_id
             self.server.postgres.create_restore_point(target_name)
