@@ -1,65 +1,69 @@
 \newpage
 
-# Installation
+# Установка
 
-> **IMPORTANT:**
-> The recommended way to install Barman is by using the available
-> packages for your GNU/Linux distribution.
+> **ВНИМАНИЕ:**
+> Рекомендуемый способ установки Barman - использовать
+> доступные пакеты для вашего дистрибутива GNU / Linux.
 
-## Installation on RedHat/CentOS using RPM packages
+## Установка на дистрибутивы семейства RedHat/CentOS используя RPM пакеты
 
-Barman can be installed on RHEL7, RHEL6 and RHEL5 Linux systems using
-RPM packages. It is required to install the Extra Packages Enterprise
-Linux (EPEL) repository beforehand.
+Barman может быть установлен на системах RHEL7, RHEL6 и RHEL5 Linux
+с использованием пакетов RPM. Предварительно необходимо добавить
+репозиторий Extra Packages Enterprise Linux (EPEL).
 
-RPM packages for Barman are available via Yum through the
-[PostgreSQL Global Development Group RPM repository] [yumpgdg].
-You need to follow the instructions for your distribution (for example RedHat,
-CentOS, or Fedora) and architecture as detailed at
-[yum.postgresql.org] [yumpgdg].
+Пакеты RPM для Barman доступны в RPM репозитории 
+[PostgreSQL Global Development Group RPM] [yumpgdg].
+Следуйте инструкциям для своего дистрибутива
+(например, RedHat, CentOS или Fedora) и архитектуре,
+как описано в [yum.postgresql.org] [yumpgdg].
 
-Then, as `root` simply type:
+Затем от имени пользователя `root` выполните:
 
 ``` bash
 yum install barman
 ```
 
-2ndQuadrant also maintains RPM packages for Barman and distributes
-them through [Sourceforge.net] [3].
+2ndQuadrant также собирает RPM пакеты Barman и распространяет их через [Sourceforge.net] [3].
 
-## Installation on Debian/Ubuntu using packages
+## Установка на Debian/Ubuntu с помощью пакетов
 
-Barman can be installed on Debian and Ubuntu Linux systems using
-packages.
+Barman может быть установлен на системах Debian and Ubuntu Linux
+с использованием DEB-пакетов 
 
-It is directly available in the official repository for Debian and Ubuntu, however, these repositories might not contain the latest available version.
-If you want to have the latest version of Barman, the recommended method is to install it through the [PostgreSQL Community APT repository] [aptpgdg].
-Instructions can be found in the [APT section of the PostgreSQL Wiki] [aptpgdgwiki].
+Он напрямую доступен в официальном репозитории для
+Debian и Ubuntu, однако эти репозитории могут
+не содержать последней доступной версии.
 
-> **NOTE:**
-> Thanks to the direct involvement of Barman developers in the
-> PostgreSQL Community APT repository project, you will always have access
-> to the most updated versions of Barman.
+Если вы хотите иметь последнюю версию Barman,
+рекомендуемый метод - установить его через репозиторий [PostgreSQL Community APT] [aptpgdg]. Инструкции можно найти в разделе [PostgreSQL Community APT repository] [aptpgdg].
 
-Installing Barman is as easy. As `root` user simply type:
+> **ПРИМЕЧАНИЕ:**
+> Благодаря непосредственному участию разработчиков Barman
+> в проекте репозитория APT PostgreSQL Community
+> вы всегда будете иметь доступ к самым последним версиям Barman.
+
+Установка Barman очень проста. От имени пользователя `root` выполните:
 
 ``` bash
 apt-get install barman
 ```
 
-## Installation from sources
+## Установка из исходных кодов
 
-> **WARNING:**
-> Manual installation of Barman from sources should only be performed
-> by expert GNU/Linux users. Installing Barman this way requires
-> system administration activities such as dependencies management,
-> `barman` user creation, configuration of the `barman.conf` file,
-> cron setup for the `barman cron` command, log management, and so on.
+> **ВНИМАНИЕ:**
+> Ручная установка Barman из источников должна
+> выполняться только экспертами GNU/Linux
+> Для установки Barman этот способ требует
+> действий по администрированию системы, таких как
+> управление зависимостями, создание пользователя barman,
+> настройка файла barman.conf, настройка cron для
+> команды barman cron, управление журналами и т. д.
 
-Create a system user called `barman` on the `backup` server.
-As `barman` user, download the sources and uncompress them.
+Создайте системного пользователя barman на резервном сервере.
+Как пользователь barman, загрузите исходные коды  и распакуйте их.
 
-For a system-wide installation, type:
+Для установки на всю систему целиком введите:
 
 ``` bash
 barman@backup$ ./setup.py build
@@ -67,32 +71,32 @@ barman@backup$ ./setup.py build
 barman@backup# ./setup.py install
 ```
 
-For a local installation, type:
+Для локальной установки только вашему пользователю:
 
 ``` bash
 barman@backup$ ./setup.py install --user
 ```
 
-The `barman` application will be installed in your user directory ([make sure that your `PATH` environment variable is set properly] [setup_user]).
+Приложение barman будет установлено в вашем каталоге пользователя ([убедитесь, что ваша переменная среды PATH установлена правильно] [setup_user]). 
 
-[Barman is also available on the Python Package Index (PyPI)] [pypi] and can be installed through `pip`.
+[Barman также доступен в индексе пакетов Python (PyPI)] [pypi] и может быть установлен с помощью `pip`.
 
-## Upgrading from Barman 1.X
+## Обновление Barman с версий 1.X
 
-Version 2.0 requires that users explicitly configure
-their archiving strategy. Before, the file based
-archiver, controlled by `archiver`, was enabled by default.
+Версия 2.0 требует, чтобы пользователи явно настраивали
+свою стратегию архивации. Ранее файловый архиватор,
+управляемый параметром `archiver`, был включен по умолчанию.
 
-When you upgrade your Barman installation to 2.0, make sure
-you add the following line either globally or for any server
-that requires it:
+Когда вы обновляете установку Barman до версии 2.0,
+убедитесь, что вы добавили следующую строку либо глобально,
+либо для любого сервера, который этого требует:
 
 ``` ini
 archiver = on
 ```
 
-Additionally, for a few releases, Barman will transparently set
-`archiver = on` with any server that has not explicitly set
-an archiving strategy and emit a warning.
-
-Besides that, version 2.0 is fully compatible with older ones.
+Кроме того, для нескольких выпусков Barman будет прозрачно
+устанавливать значение параметра `archiver` в включено, 
+на любой сервер, который явно не задал стратегию
+архивирования и не выдавал предупреждение.
+Кроме того, версия 2.0 полностью совместима со старыми.
