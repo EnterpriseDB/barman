@@ -43,7 +43,7 @@ from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
                                DataTransferFailure, FsOperationFailed)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
-from barman.utils import mkpath, human_readable_timedelta
+from barman.utils import human_readable_timedelta, mkpath
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
