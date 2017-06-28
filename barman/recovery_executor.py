@@ -22,6 +22,7 @@ This module contains the methods necessary to perform a recovery
 from __future__ import print_function
 
 import collections
+import datetime
 import logging
 import os
 import re
@@ -277,6 +278,7 @@ class RecoveryExecutor(object):
             'delete_barman_xlog': False,
             'missing_files': [],
             'get_wal': False,
+            'recovery_start_time': datetime.datetime.now()
         }
         recovery_info['results'] = results
 

@@ -461,6 +461,9 @@ class TestRecoveryExecutor(object):
                 dest.join('postgresql.auto.conf').strpath],
             'results': {
                 'delete_barman_xlog': False,
+                'recovery_start_time': rec_info['results'][
+                    'recovery_start_time'
+                ],
                 'get_wal': False,
                 'changes': [
                     Assertion._make([
@@ -512,6 +515,9 @@ class TestRecoveryExecutor(object):
             'results': {
                 'delete_barman_xlog': False,
                 'get_wal': False,
+                'recovery_start_time': rec_info['results'][
+                    'recovery_start_time'
+                ],
                 'changes': [
                     Assertion._make([
                         'postgresql.conf',

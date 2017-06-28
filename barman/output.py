@@ -469,6 +469,12 @@ class ConsoleOutputWriter(object):
                       "'restore_command' can be executed by "
                       "the PostgreSQL user.")
         self.info("")
+        self.info("Recovery completed (start time: %s, elapsed time: %s)",
+                  results['recovery_start_time'],
+                  human_readable_timedelta(
+                      datetime.datetime.now() -
+                      results['recovery_start_time']))
+        self.info("")
         self.info("Your PostgreSQL server has been successfully "
                   "prepared for recovery!")
 
