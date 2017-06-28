@@ -22,6 +22,7 @@ This module contains the methods necessary to perform a recovery
 from __future__ import print_function
 
 import collections
+import datetime
 import logging
 import os
 import re
@@ -42,7 +43,7 @@ from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
                                DataTransferFailure, FsOperationFailed)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
-from barman.utils import mkpath
+from barman.utils import mkpath, human_readable_timedelta
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ class RecoveryExecutor(object):
         self.backup_manager = backup_manager
         self.server = backup_manager.server
         self.config = backup_manager.config
+        self.recovery_start_time = None
 
     def recover(self, backup_info, dest, tablespaces, target_tli,
                 target_time, target_xid, target_name,
@@ -103,6 +105,9 @@ class RecoveryExecutor(object):
         :param str|None remote_command: The remote command to recover
                                the base backup, in case of remote backup.
         """
+
+        # Store the start time
+        self.recovery_start_time = datetime.datetime.now()
 
         # Run the cron to be sure the wal catalog is up to date
         # Prepare a map that contains all the objects required for a recovery
@@ -233,6 +238,12 @@ class RecoveryExecutor(object):
 
         # Cleanup operations
         self._teardown(recovery_info)
+
+        output.info("Recovery completed (start time: %s, elapsed time: %s)",
+                    self.recovery_start_time,
+                    human_readable_timedelta(
+                        datetime.datetime.now()
+                        - self.recovery_start_time))
 
         return recovery_info
 
