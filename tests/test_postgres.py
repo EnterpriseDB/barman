@@ -29,6 +29,7 @@ from barman.exceptions import (PostgresConnectionError,
                                PostgresIsInRecovery, PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
 from barman.postgres import PostgreSQLConnection
+from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 from testing_helpers import build_real_server
 
 
@@ -1229,6 +1230,51 @@ class TestPostgres(object):
         setting_mock.assert_called_once_with(
             'synchronous_standby_names')
         assert names == ['a']
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_xlog_segment_size(self, conn_mock):
+        """
+        Test the xlog_segment_size method
+        """
+
+        default_wal_file_size = 16777216
+        default_wal_block_size = 8192
+        default_wal_segments_number = 2048
+
+        # Build a server
+        server = build_real_server()
+        conn_mock.return_value.server_version = 90300
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        cursor_mock.fetchone.side_effect = \
+            [[str(default_wal_block_size)], [str(default_wal_segments_number)]]
+
+        result = server.postgres.xlog_segment_size
+        assert result == default_wal_file_size
+
+        execute_calls = [
+            call("SELECT setting FROM pg_settings "
+                 "WHERE name='wal_block_size'"),
+            call("SELECT setting FROM pg_settings "
+                 "WHERE name='wal_segment_size'")]
+        cursor_mock.execute.assert_has_calls(execute_calls)
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_xlog_segment_size_83(self, conn_mock):
+        """
+        If you use PostgreSQL 8.3 you can't change the WAL segment size even
+        at compilation level. Barman shouldn't ask the server for this data,
+        as this will result in an error
+        """
+
+        # Build a server
+        server = build_real_server()
+        conn_mock.return_value.server_version = 80300
+        cursor_mock = conn_mock.return_value.cursor.return_value
+
+        result = server.postgres.xlog_segment_size
+        assert result == DEFAULT_XLOG_SEG_SIZE
+
+        cursor_mock.execute.assert_not_called()
 
 
 # noinspection PyMethodMayBeStatic

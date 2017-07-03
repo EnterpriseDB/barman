@@ -48,9 +48,11 @@ _xlog_re = re.compile(r'''
 _location_re = re.compile(r'^([\dA-F]+)/([\dA-F]+)$')
 
 # Taken from xlog_internal.h from PostgreSQL sources
-XLOG_SEG_SIZE = 1 << 24
-XLOG_SEG_PER_FILE = 0xffffffff // XLOG_SEG_SIZE
-XLOG_FILE_SIZE = XLOG_SEG_SIZE * XLOG_SEG_PER_FILE
+
+#: XLOG_SEG_SIZE is the size of a single WAL file.  This must be a power of 2
+#: and larger than XLOG_BLCKSZ (preferably, a great deal larger than
+#: XLOG_BLCKSZ).
+DEFAULT_XLOG_SEG_SIZE = 1 << 24
 
 #: This namedtuple is a container for the information
 #: contained inside history files
@@ -176,16 +178,59 @@ def encode_history_file_name(tli):
     return "%08X.history" % (tli,)
 
 
-def generate_segment_names(begin, end=None, version=None):
+def xlog_segments_per_file(xlog_segment_size):
+    """
+    Given that WAL files are named using the following pattern:
+
+        <timeline_number><xlog_file_number><xlog_segment_number>
+
+    this is the number of XLOG segments in an XLOG file. By XLOG file
+    we don't mean an actual file on the filesystem, but the definition
+    used in the PostgreSQL sources: meaning a set of files containing the
+    same file number.
+
+    :param int xlog_segment_size: The XLOG segment size in bytes
+    :return int: The number of segments in an XLOG file
+    """
+    return 0xffffffff // xlog_segment_size
+
+
+def xlog_file_size(xlog_segment_size):
+    """
+    Given that WAL files are named using the following pattern:
+
+        <timeline_number><xlog_file_number><xlog_segment_number>
+
+    this is the size in bytes of an XLOG file, which is composed on many
+    segments. See the documentation of `xlog_segments_per_file` for a
+    commentary on the definition of `XLOG` file.
+
+    :param int xlog_segment_size: The XLOG segment size in bytes
+    :return int: The size of an XLOG file
+    """
+    return xlog_segment_size * xlog_segments_per_file(xlog_segment_size)
+
+
+def generate_segment_names(begin, end=None, version=None,
+                           xlog_segment_size=None):
     """
     Generate a sequence of XLOG segments starting from ``begin``
     If an ``end`` segment is provided the sequence will terminate after
     returning it, otherwise the sequence will never terminate.
 
+    If the XLOG segment size is known, this generator is precise,
+    switching to the next file when required.
+
+    It the XLOG segment size is unknown, this generator will generate
+    all the possible XLOG file names.
+    The size of an XLOG segment can be every power of 2 between
+    the XLOG block size (8Kib) and the size of a log segment (4Gib)
+
     :param str begin: begin segment name
     :param str|None end: optional end segment name
     :param int|None version: optional postgres version as an integer
         (e.g. 90301 for 9.3.1)
+    :param int xlog_segment_size: the size of a XLOG segment
     :rtype: collections.Iterable[str]
     :raise: BadXlogSegmentName
     """
@@ -202,6 +247,19 @@ def generate_segment_names(begin, end=None, version=None):
     # If version is less than 9.3 the last segment must be skipped
     skip_last_segment = version is not None and version < 90300
 
+    # This is the number of XLOG segments in an XLOG file. By XLOG file
+    # we don't mean an actual file on the filesystem, but the definition
+    # used in the PostgreSQL sources: a set of files containing the
+    # same file number.
+    if xlog_segment_size:
+        # The generator is operating is precise and correct mode:
+        # knowing exactly when a switch to the next file is required
+        xlog_seg_per_file = xlog_segments_per_file(xlog_segment_size)
+    else:
+        # The generator is operating only in precise mode: generating every
+        # possible XLOG file name.
+        xlog_seg_per_file = 0x7ffff
+
     # Start from the first xlog and generate the segments sequentially
     # If ``end`` has been provided, the while condition ensure the termination
     # otherwise this generator will never stop
@@ -211,8 +269,8 @@ def generate_segment_names(begin, end=None, version=None):
             (cur_log == end_log and cur_seg <= end_seg):
         yield encode_segment_name(begin_tli, cur_log, cur_seg)
         cur_seg += 1
-        if cur_seg > XLOG_SEG_PER_FILE or (
-                skip_last_segment and cur_seg == XLOG_SEG_PER_FILE):
+        if cur_seg > xlog_seg_per_file or (
+                skip_last_segment and cur_seg == xlog_seg_per_file):
             cur_seg = 0
             cur_log += 1
 
@@ -279,7 +337,7 @@ def format_lsn(lsn):
     return "%X/%X" % (lsn >> 32, lsn & 0xFFFFFFFF)
 
 
-def location_to_xlogfile_name_offset(location, timeline):
+def location_to_xlogfile_name_offset(location, timeline, xlog_segment_size):
     """
     Convert transaction log location string to file_name and file_offset
 
@@ -292,11 +350,12 @@ def location_to_xlogfile_name_offset(location, timeline):
 
     :param str location: XLOG location
     :param int timeline: timeline
+    :param int xlog_segment_size: the size of a XLOG segment
     :rtype: dict
     """
     lsn = parse_lsn(location)
     log = lsn >> 32
-    seg = (lsn & XLOG_FILE_SIZE) >> 24
+    seg = (lsn & xlog_file_size(xlog_segment_size)) >> 24
     offset = lsn & 0xFFFFFF
     return {
         'file_name': encode_segment_name(timeline, log, seg),

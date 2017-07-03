@@ -26,6 +26,7 @@ from barman.config import BackupOptions, Config
 from barman.infofile import BackupInfo, Tablespace
 from barman.server import Server
 from barman.utils import mkpath
+from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 
 try:
     from cStringIO import StringIO
@@ -320,6 +321,7 @@ def build_mocked_server(name=None, config=None,
     server.backup_manager.server = server
     server.backup_manager.config = server.config
     server.config.name = name or 'main'
+    server.postgres.xlog_segment_size = DEFAULT_XLOG_SEG_SIZE
     return server
 
 

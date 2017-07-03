@@ -1173,6 +1173,10 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         # Set server version
         backup_info.set_attribute('version', server.postgres.server_version)
 
+        # Set XLOG segment size
+        backup_info.set_attribute('xlog_segment_size',
+                                  server.postgres.xlog_segment_size)
+
         # Set configuration files location
         cf = server.postgres.get_configuration_files()
         for key in cf:
@@ -1209,7 +1213,8 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
             start_info = start_info.copy()
             start_info.update(xlog.location_to_xlogfile_name_offset(
                 start_info['location'],
-                start_info['timeline']))
+                start_info['timeline'],
+                backup_info.xlog_segment_size))
 
         # If file_name and file_offset are available, use them
         if (start_info.get('file_name') is not None and
@@ -1248,7 +1253,8 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
                 timeline = backup_info.timeline
             stop_info.update(xlog.location_to_xlogfile_name_offset(
                 stop_info['location'],
-                timeline))
+                timeline,
+                backup_info.xlog_segment_size))
 
         backup_info.set_attribute('end_time', stop_info['timestamp'])
         backup_info.set_attribute('end_xlog', stop_info['location'])
@@ -1284,7 +1290,7 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         backup_info.set_attribute('begin_xlog', wal_info.group(1))
         backup_info.set_attribute('begin_wal', wal_info.group(2))
         backup_info.set_attribute('begin_offset', xlog.parse_lsn(
-            wal_info.group(1)) % xlog.XLOG_SEG_SIZE)
+            wal_info.group(1)) % backup_info.xlog_segment_size)
         backup_info.set_attribute('begin_time', dateutil.parser.parse(
             start_time.group(1)))
 

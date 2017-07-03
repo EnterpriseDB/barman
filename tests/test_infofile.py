@@ -555,3 +555,24 @@ class TestBackupInfo(object):
         new_binfo = BackupInfo.from_json(server, b_info.to_json())
 
         assert b_info.to_dict() == new_binfo.to_dict()
+
+    def test_xlog_segment_size(self, tmpdir):
+        """
+        Test the `xlog_segment_size` field of BackupInfo
+        """
+
+        # Create an empty backup info file, to test the
+        # default value of xlog_segment_size. It's relevent
+        # also for retrocompatibility with backup info which
+        # doesn't contain the xlog_segment_size field.
+
+        infofile = tmpdir.join("backup.info")
+        infofile.write('')
+
+        # Mock the server, we don't need it at the moment
+        server = build_mocked_server(name='test_server')
+        server.backup_manager.mode = 'test-mode'
+
+        # load the data from the backup.info file
+        b_info = BackupInfo(server, info_file=infofile.strpath)
+        assert b_info.xlog_segment_size == 1 << 24

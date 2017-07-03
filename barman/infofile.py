@@ -444,6 +444,8 @@ class BackupInfo(FieldListFile):
                            load=ast.literal_eval, dump=null_repr)
     backup_label = Field('backup_label', load=ast.literal_eval, dump=null_repr)
     copy_stats = Field('copy_stats', load=ast.literal_eval, dump=null_repr)
+    xlog_segment_size = Field('xlog_segment_size', load=int,
+                              default=xlog.DEFAULT_XLOG_SEG_SIZE)
 
     __slots__ = ('server', 'config', 'backup_manager',
                  'backup_id', 'backup_version')
@@ -504,8 +506,10 @@ class BackupInfo(FieldListFile):
         """
         Get the list of required WAL segments for the current backup
         """
-        return xlog.generate_segment_names(self.begin_wal, self.end_wal,
-                                           self.version)
+        return xlog.generate_segment_names(
+            self.begin_wal, self.end_wal,
+            self.version,
+            self.xlog_segment_size)
 
     def get_list_of_files(self, target):
         """

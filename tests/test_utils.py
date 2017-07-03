@@ -590,3 +590,17 @@ class TestSimplifyVersion(object):
     def test_beta_releases(self):
         assert barman.utils.simplify_version('9.1beta4') == '9.1'
         assert barman.utils.simplify_version('10beta4') == '10'
+
+
+class TestPowerOfTwo(object):
+    """
+    Test for the is_power_of_two function
+    """
+    def test_zero(self):
+        assert not barman.utils.is_power_of_two(0)
+
+    def test_power_of_two(self):
+        assert barman.utils.is_power_of_two(64)
+
+    def test_not_power_of_two(self):
+        assert not barman.utils.is_power_of_two(33)

@@ -71,12 +71,13 @@ class Test(object):
         with pytest.raises(barman.exceptions.BadXlogSegmentName):
             xlog.decode_segment_name('000000000000X00000000000')
 
-    def test_generate_segment_names(self):
+    def test_generate_segment_names_xlog_file_size_known(self):
         assert tuple(
             xlog.generate_segment_names(
                 '0000000100000001000000FD',
                 '000000010000000200000002',
-                90200
+                90200,
+                xlog.DEFAULT_XLOG_SEG_SIZE
             )) == (
                 '0000000100000001000000FD',
                 '0000000100000001000000FE',
@@ -87,7 +88,8 @@ class Test(object):
             xlog.generate_segment_names(
                 '0000000100000001000000FD',
                 '0000000100000001000000FF',
-                90200
+                90200,
+                xlog.DEFAULT_XLOG_SEG_SIZE
             )) == (
                 '0000000100000001000000FD',
                 '0000000100000001000000FE')
@@ -96,7 +98,8 @@ class Test(object):
             xlog.generate_segment_names(
                 '0000000100000001000000FD',
                 '000000010000000200000002',
-                90300
+                90300,
+                xlog.DEFAULT_XLOG_SEG_SIZE
             )) == (
                 '0000000100000001000000FD',
                 '0000000100000001000000FE',
@@ -109,7 +112,8 @@ class Test(object):
             xlog.generate_segment_names(
                 '0000000100000001000000FD',
                 '0000000100000001000000FF',
-                90300
+                90300,
+                xlog.DEFAULT_XLOG_SEG_SIZE
             )) == (
                 '0000000100000001000000FD',
                 '0000000100000001000000FE',
@@ -119,7 +123,8 @@ class Test(object):
         # for recent versions
         assert tuple(itertools.islice(
             xlog.generate_segment_names(
-                '0000000300000004000000FD'), 6
+                '0000000300000004000000FD',
+                xlog_segment_size=xlog.DEFAULT_XLOG_SEG_SIZE), 6
             )) == (
                 '0000000300000004000000FD',
                 '0000000300000004000000FE',
@@ -132,7 +137,8 @@ class Test(object):
         assert tuple(itertools.islice(
             xlog.generate_segment_names(
                 '0000000300000004000000FD',
-                version=90201), 6
+                version=90201,
+                xlog_segment_size=xlog.DEFAULT_XLOG_SEG_SIZE), 6
             )) == (
                 '0000000300000004000000FD',
                 '0000000300000004000000FE',
@@ -146,7 +152,8 @@ class Test(object):
             1 for _ in
             xlog.generate_segment_names(
                 '000000040000000500000067',
-                '000000040000000700000067'
+                '000000040000000700000067',
+                xlog_segment_size=xlog.DEFAULT_XLOG_SEG_SIZE
             )) == 513
 
         # The number of items produced between the same two segments is lower
@@ -156,8 +163,48 @@ class Test(object):
             xlog.generate_segment_names(
                 '000000040000000500000067',
                 '000000040000000700000067',
-                version=90201
+                version=90201,
+                xlog_segment_size=xlog.DEFAULT_XLOG_SEG_SIZE
             )) == 511
+
+    def test_generate_segment_names_xlog_file_size_unknown(self):
+        assert tuple(
+            xlog.generate_segment_names(
+                '0000000100000001000000FD',
+                '000000010000000100000102',
+                90200
+            )) == (
+                '0000000100000001000000FD',
+                '0000000100000001000000FE',
+                '0000000100000001000000FF',
+                '000000010000000100000100',
+                '000000010000000100000101',
+                '000000010000000100000102')
+
+        assert tuple(
+            xlog.generate_segment_names(
+                '00000001000000010007FFFE',
+                '000000010000000200000002',
+                90300
+            )) == (
+                '00000001000000010007FFFE',
+                '00000001000000010007FFFF',
+                '000000010000000200000000',
+                '000000010000000200000001',
+                '000000010000000200000002')
+
+        # The last segment of a file is skipped in
+        # PostgreSQL < 9.3
+        assert tuple(
+            xlog.generate_segment_names(
+                '00000001000000010007FFFE',
+                '000000010000000200000002',
+                90200
+            )) == (
+                '00000001000000010007FFFE',
+                '000000010000000200000000',
+                '000000010000000200000001',
+                '000000010000000200000002')
 
     def test_hash_dir(self):
         assert xlog.hash_dir(
@@ -367,7 +414,9 @@ class Test(object):
         assert xlog.diff_lsn('2/8300168', None) is None
 
     def test_location_to_xlogfile_name_offset(self):
-        assert xlog.location_to_xlogfile_name_offset('A/12345678', 3) == {
+        result = xlog.location_to_xlogfile_name_offset(
+            'A/12345678', 3, xlog.DEFAULT_XLOG_SEG_SIZE)
+        assert result == {
             'file_name': '000000030000000A00000012',
             'file_offset': 0x345678
         }
@@ -375,3 +424,25 @@ class Test(object):
     def test_location_from_xlogfile_name_offset(self):
         assert xlog.location_from_xlogfile_name_offset(
             '000000030000000A00000012', 0x345678) == 'A/12345678'
+
+    @pytest.mark.parametrize("segments, size", [
+        # There are 255 segments with default XLOG file size
+        [255, 1 << 24],
+        # There are 63 segments with 64 MiB XLOG file size
+        [63, 1 << 26],
+        # There are 1023 segments with 4 MiB XLOG file size
+        [1023, 1 << 22]
+    ])
+    def test_xlog_segment_in_file(self, segments, size):
+        assert segments == xlog.xlog_segments_per_file(size)
+
+    @pytest.mark.parametrize("segments, size", [
+        # There are 255 segments with default XLOG file size
+        [255, 1 << 24],
+        # There are 63 segments with 64 MiB XLOG file size
+        [63, 1 << 26],
+        # There are 1023 segments with 4 MiB XLOG file size
+        [1023, 1 << 22]
+    ])
+    def test_xlog_file_size(self, segments, size):
+        assert segments * size == xlog.xlog_file_size(size)

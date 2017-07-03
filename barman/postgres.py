@@ -42,6 +42,7 @@ from barman.exceptions import (ConninfoException, PostgresAppNameError,
 from barman.infofile import Tablespace
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import simplify_version, with_metaclass
+from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 
 # This is necessary because the CONFIGURATION_LIMIT_EXCEEDED constant
 # has been added in psycopg2 2.5, but Barman supports version 2.4.2+ so
@@ -550,6 +551,47 @@ class PostgreSQLConnection(PostgreSQL):
         if current_xlog_info is not None:
             return current_xlog_info['file_name']
         return None
+
+    @property
+    def xlog_segment_size(self):
+        """
+        Retrieve the size of one WAL file.
+
+        In PostgreSQL 11, users will be able to change the WAL size
+        at runtime. Up to PostgreSQL 10, included, the WAL size can be changed
+        at compile time
+
+        :return: The wal size (In bytes)
+        """
+
+        # Prior to PostgreSQL 8.4, the wal segment size was not configurable,
+        # even in compilation
+        if self.server_version < 80400:
+            return DEFAULT_XLOG_SEG_SIZE
+
+        try:
+            cur = self._cursor(cursor_factory=DictCursor)
+
+            # We can't use the `get_setting` method here, because it
+            # use `SHOW`, returning an human readable value such as "16MB",
+            # while we prefer a raw value such as 16777216.
+            cur.execute("SELECT setting "
+                        "FROM pg_settings "
+                        "WHERE name='wal_block_size'")
+            result = cur.fetchone()
+            wal_block_size = int(result[0])
+
+            cur.execute("SELECT setting "
+                        "FROM pg_settings "
+                        "WHERE name='wal_segment_size'")
+            result = cur.fetchone()
+            wal_segment_size = int(result[0])
+            return wal_block_size * wal_segment_size
+        except ValueError as e:
+            _logger.error("Error retrieving current xlog "
+                          "segment size: %s",
+                          str(e).strip())
+            return None
 
     @property
     def current_xlog_location(self):

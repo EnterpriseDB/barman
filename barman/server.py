@@ -20,7 +20,6 @@ This module represents a Server.
 Barman is able to manage multiple servers.
 """
 
-import itertools
 import logging
 import os
 import shutil
@@ -55,7 +54,8 @@ from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
-from barman.utils import human_readable_timedelta, pretty_size, timeout
+from barman.utils import (human_readable_timedelta, is_power_of_two,
+                          pretty_size, timeout)
 from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
                                  WalArchiver)
 
@@ -1161,7 +1161,7 @@ class Server(RemoteStatusMixin):
 
             # evaluation of compression ratio for basebackup WAL files
             wal_info['wal_theoretical_size'] = \
-                wal_info['wal_num'] * float(xlog.XLOG_SEG_SIZE)
+                wal_info['wal_num'] * float(backup_info.xlog_segment_size)
             try:
                 wal_info['wal_compression_ratio'] = 1 - (
                     wal_info['wal_size'] /
@@ -1171,7 +1171,8 @@ class Server(RemoteStatusMixin):
 
             # evaluation of compression ratio of WAL files
             wal_info['wal_until_next_theoretical_size'] = \
-                wal_info['wal_until_next_num'] * float(xlog.XLOG_SEG_SIZE)
+                wal_info['wal_until_next_num'] * \
+                float(backup_info.xlog_segment_size)
             try:
                 wal_info['wal_until_next_compression_ratio'] = 1 - (
                     wal_info['wal_until_next_size'] /
@@ -1228,17 +1229,53 @@ class Server(RemoteStatusMixin):
             # we cannot guess the names of the following WAL files.
             # So ``wal_name`` is the only possible result, if exists.
             if xlog.is_wal_file(wal_name):
-                wal_peek_list = itertools.islice(
-                    xlog.generate_segment_names(wal_name), peek)
+                # We can't know what was the segment size of PostgreSQL WAL
+                # files at backup time. Because of this, we generate all
+                # the possible names for a WAL segment, and then we check
+                # if the requested one is included.
+                wal_peek_list = xlog.generate_segment_names(wal_name)
             else:
                 wal_peek_list = [wal_name]
-            # Output the content of wal_peek_list until we find a missing file
-            for wal_peek_name in wal_peek_list:
+
+            # Output the content of wal_peek_list until we have displayed
+            # enough files or find a missing file
+            count = 0
+            while count < peek:
+                try:
+                    wal_peek_name = next(wal_peek_list)
+                except StopIteration:
+                    # No more item in wal_peek_list
+                    break
+
                 wal_peek_file = self.get_wal_full_path(wal_peek_name)
-                # If ``wal_peek_file`` doesn't exist, stop the process
-                if not os.path.exists(wal_peek_file):
-                    return
-                output.info(wal_peek_name, log=False)
+
+                # If the next WAL file is found, output the name
+                # and continue to the next one
+                if os.path.exists(wal_peek_file):
+                    count += 1
+                    output.info(wal_peek_name, log=False)
+                    continue
+
+                # If ``wal_peek_file`` doesn't exist, check if we need to
+                # look in the following segment
+                tli, log, seg = xlog.decode_segment_name(wal_peek_name)
+
+                # If `seg` is not a power of two, it is not possible that we
+                # are at the end of a WAL group, so we are done
+                if not is_power_of_two(seg):
+                    break
+
+                # This is a possible WAL group boundary, let's try the
+                # following group
+                seg = 0
+                log += 1
+
+                # Install a new generator from the start of the next segment.
+                # If the file doesn't exists we will terminate because
+                # zero is not a power of two
+                wal_peek_name = xlog.encode_segment_name(tli, log, seg)
+                wal_peek_list = xlog.generate_segment_names(wal_peek_name)
+
             # Do not output anything else
             return
 

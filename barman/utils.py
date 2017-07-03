@@ -364,3 +364,18 @@ def timeout(timeout_duration):
         # Reset the signal
         signal.alarm(0)
         signal.signal(signal.SIGALRM, signal.SIG_DFL)
+
+
+def is_power_of_two(number):
+    """
+    Check if a number is a power of two or not
+    """
+
+    # This is a fast method to check for a power of two.
+    #
+    # A power of two has this structure:  100000 (one or more zeroes)
+    # This is the same number minus one:  011111 (composed by ones)
+    # This is the bitwise and:            000000
+    #
+    # This is true only for every power of two
+    return number != 0 and (number & (number-1)) == 0
