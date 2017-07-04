@@ -616,12 +616,12 @@ class ConsoleOutputWriter(object):
             copy_stats = data.get('copy_stats')
             if copy_stats:
                 copy_time = copy_stats.get('copy_time')
-                analysis_time = copy_stats.get('analysis_time')
                 if copy_time:
                     value = human_readable_timedelta(
                         datetime.timedelta(seconds=copy_time))
                     # Show analysis time if it is more than a second
-                    if analysis_time >= 1:
+                    analysis_time = copy_stats.get('analysis_time')
+                    if analysis_time is not None and analysis_time >= 1:
                         value += " + %s startup" % (human_readable_timedelta(
                             datetime.timedelta(seconds=analysis_time)))
                     self.info("    Copy time            : %s", value)
