@@ -1206,7 +1206,7 @@ class PostgreSQLConnection(PostgreSQL):
                 "SELECT %s, "
                 "pg_is_in_recovery() AS is_in_recovery,"
                 "CASE WHEN pg_is_in_recovery() "
-                "  THEN NULL "
+                "  THEN pg_last_xlog_receive_location() "
                 "  ELSE pg_current_xlog_location() "
                 "END AS current_location "
                 "FROM pg_stat_replication r "
