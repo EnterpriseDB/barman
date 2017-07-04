@@ -511,6 +511,10 @@ class PostgresBackupExecutor(BackupExecutor):
         if remote_status['pg_basebackup_bwlimit']:
             bandwidth_limit = self.config.bandwidth_limit
 
+        # Make sure we are not wasting precious PostgreSQL resources
+        # for the whole duration of the copy
+        self.server.close()
+
         pg_basebackup = PgBaseBackup(
             connection=self.server.streaming,
             destination=backup_dest,
