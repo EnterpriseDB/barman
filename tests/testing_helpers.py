@@ -60,7 +60,8 @@ def build_test_backup_info(
         ),
         timeline=1,
         version=90302,
-        server=None):
+        server=None,
+        copy_stats=None):
     """
     Create an 'Ad Hoc' BackupInfo object for testing purposes.
 
@@ -91,6 +92,7 @@ def build_test_backup_info(
     :param int timeline: timeline of the backup
     :param int version: postgres version of the backup
     :param barman.server.Server|None server: Server object for the backup
+    :param dict|None: Copy stats dictionary
     :rtype: barman.infofile.BackupInfo
     """
     if begin_time is None:

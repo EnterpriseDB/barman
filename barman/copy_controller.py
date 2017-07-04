@@ -87,14 +87,17 @@ class _RsyncJob(object):
     """
     A job to be executed by a worker Process
     """
-    def __init__(self, item, description, file_list=None, checksum=None):
+    def __init__(self, item, description,
+                 id=None, file_list=None, checksum=None):
         """
         :param _RsyncCopyItem item: The copy item containing this job
-        :param str description: The description od the job, used for logging
+        :param str description: The description of the job, used for logging
+        :param int id: Job ID (as in bucket)
         :param list[RsyncCopyController._FileItem] file_list: Path to the file
             containing the file list
         :param bool checksum: Whether to force the checksum verification
         """
+        self.id = id
         self.item = item
         self.description = description
         self.file_list = file_list
@@ -470,13 +473,14 @@ class RsyncCopyController(object):
                 item.analysis_start_time = datetime.datetime.now()
 
                 # Analyze the source and destination directory content
-                _logger.info(self._progress_message("analyze %s" % item))
+                _logger.info(self._progress_message(
+                             "[global] analyze %s" % item))
                 self._analyze_directory(item)
 
                 # Prepare the target directories, removing any unneeded file
                 _logger.info(self._progress_message(
-                    "create destination directories and delete unknown files "
-                    "for %s" % item))
+                    "[global] create destination directories and delete "
+                    "unknown files for %s" % item))
                 self._create_dir_and_purge(item)
 
                 # Store the analysis end time
@@ -552,26 +556,37 @@ class RsyncCopyController(object):
 
                 # Copy the safe files using the default rsync algorithm
                 msg = self._progress_message(
-                    "%%s copy safe files from %s" % item)
+                    "[%%s] %%s copy safe files from %s" % item)
+                phase_skipped = True
                 for i, bucket in enumerate(
                         self._fill_buckets(item.safe_list)):
+                    phase_skipped = False
                     yield _RsyncJob(item,
-                                    description="%s (bucket %s)" % (msg, i),
+                                    id=i,
+                                    description=msg,
                                     file_list=bucket,
                                     checksum=False)
+                if phase_skipped:
+                    _logger.info(msg, 'global', 'skipping')
 
                 # Copy the check files forcing rsync to verify the checksum
                 msg = self._progress_message(
-                    "%%s copy files with checksum from %s" % item)
+                    "[%%s] %%s copy files with checksum from %s" % item)
+                phase_skipped = True
                 for i, bucket in enumerate(
                         self._fill_buckets(item.check_list)):
+                    phase_skipped = False
                     yield _RsyncJob(item,
-                                    description="%s (bucket %s)" % (msg, i),
+                                    id=i,
+                                    description=msg,
                                     file_list=bucket,
                                     checksum=True)
+                if phase_skipped:
+                    _logger.info(msg, 'global', 'skipping')
+
             else:
                 # Copy the file using plain rsync
-                msg = self._progress_message("%%s copy %s" % item)
+                msg = self._progress_message("[%%s] %%s copy %s" % item)
                 yield _RsyncJob(item, description=msg)
 
     def _fill_buckets(self, file_list):
@@ -624,13 +639,17 @@ class RsyncCopyController(object):
         :type job: _RsyncJob
         """
         item = job.item
+        if job.id is not None:
+            bucket = 'bucket %s' % job.id
+        else:
+            bucket = 'global'
         # Build the rsync object required for the copy
         rsync = self._rsync_factory(item)
         # Store the start time
         job.copy_start_time = datetime.datetime.now()
         # Write in the log that the job is starting
         with _logger_lock:
-            _logger.info(job.description, 'starting')
+            _logger.info(job.description, bucket, 'starting')
         if item.is_directory:
             # A directory item must always have checksum and file_list set
             assert job.file_list is not None, \
@@ -675,8 +694,8 @@ class RsyncCopyController(object):
         job.copy_end_time = datetime.datetime.now()
         # Write in the log that the job is finished
         with _logger_lock:
-            _logger.info(job.description, 'finished (duration: %s)' %
-                         human_readable_timedelta(
+            _logger.info(job.description, bucket,
+                         'finished (duration: %s)' % human_readable_timedelta(
                              job.copy_end_time - job.copy_start_time))
         # Return the job to the caller, for statistics purpose
         return job

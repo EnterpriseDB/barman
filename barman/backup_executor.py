@@ -47,7 +47,8 @@ from barman.exceptions import (CommandFailedException, DataTransferFailure,
 from barman.fs import UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import mkpath, total_seconds, with_metaclass
+from barman.utils import (human_readable_timedelta, mkpath, total_seconds,
+                          with_metaclass)
 
 _logger = logging.getLogger(__name__)
 
@@ -160,6 +161,24 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
                     output.info("\t%s from server %s "
                                 "has been removed",
                                 wal_name, self.config.name)
+
+    def _start_backup_copy_message(self, backup_info):
+        """
+        Output message for backup start
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        output.info("Copying files for %s", backup_info.backup_id)
+
+    def _stop_backup_copy_message(self, backup_info):
+        """
+        Output message for backup end
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        output.info("Copy done (time: %s)",
+                    human_readable_timedelta(datetime.timedelta(
+                        seconds=backup_info.copy_stats['copy_time'])))
 
 
 def _parse_ssh_command(ssh_command):
@@ -301,9 +320,9 @@ class PostgresBackupExecutor(BackupExecutor):
 
             # Start the copy
             self.current_action = "copying files"
-            output.info("Copying files.")
+            self._start_backup_copy_message(backup_info)
             self.backup_copy(backup_info)
-            output.info("Copy done.")
+            self._stop_backup_copy_message(backup_info)
             self.strategy.stop_backup(backup_info)
 
             # If this is the first backup, purge eventually unused WAL files
@@ -607,6 +626,10 @@ class PostgresBackupExecutor(BackupExecutor):
             # chmod 0700 octal
             os.chmod(dest_dir, 448)
 
+    def _start_backup_copy_message(self, backup_info):
+        output.info("Starting backup copy via pg_basebackup for %s",
+                    backup_info.backup_id)
+
 
 class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
     """
@@ -713,9 +736,9 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
             # Start the copy
             self.current_action = "copying files"
-            output.info("Copying files.")
+            self._start_backup_copy_message(backup_info)
             self.backup_copy(backup_info)
-            output.info("Copy done.")
+            self._stop_backup_copy_message(backup_info)
 
             # Try again to purge eventually unused WAL files. At this point
             # the begin_wal value is surely known. Doing it twice is safe
@@ -847,6 +870,14 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         except (PostgresConnectionError, FsOperationFailed) as e:
             _logger.warn("Error retrieving PostgreSQL status: %s", e)
         return remote_status
+
+    def _start_backup_copy_message(self, backup_info):
+        number_of_workers = self.config.parallel_jobs
+        message = "Starting backup copy via rsync/SSH for %s" % (
+            backup_info.backup_id,)
+        if number_of_workers > 1:
+            message += " (%s jobs)" % number_of_workers
+        output.info(message)
 
 
 class RsyncBackupExecutor(SshBackupExecutor):

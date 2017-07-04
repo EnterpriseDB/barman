@@ -158,6 +158,7 @@ class TestRsyncBackupExecutor(object):
         backup_info.begin_wal = "000000010000000000000002"
         backup_info.begin_offset = 40
         backup_info.status = BackupInfo.EMPTY
+        backup_info.copy_stats = dict(copy_time=100)
 
         gpb_mock.return_value = None
 
@@ -174,8 +175,8 @@ class TestRsyncBackupExecutor(object):
             "This is the first backup for server main\n"
             "WAL segments preceding the current backup have been found:\n"
             "\t000000010000000000000001 from server main has been removed\n"
-            "Copying files.\n"
-            "Copy done.") in out
+            "Starting backup copy via rsync/SSH for fake_backup_id\n"
+            "Copy done (time: 1 minute, 40 seconds)") in out
 
         gpb_mock.assert_called_with(backup_info.backup_id)
         rwbb_mock.assert_called_with(backup_info)
@@ -208,8 +209,8 @@ class TestRsyncBackupExecutor(object):
             "This is the first backup for server main\n"
             "WAL segments preceding the current backup have been found:\n"
             "\t000000010000000000000001 from server main has been removed\n"
-            "Copying files.\n"
-            "Copy done.") in out
+            "Starting backup copy via rsync/SSH for fake_backup_id\n"
+            "Copy done (time: 1 minute, 40 seconds)") in out
 
         gpb_mock.assert_called_with(backup_info.backup_id)
         rwbb_mock.assert_called_with(backup_info)
@@ -683,7 +684,8 @@ class TestPostgresBackupExecutor(object):
             config_file="/pg/data/postgresql.conf",
             hba_file="/pg/data/pg_hba.conf",
             ident_file="/pg/pg_ident.conf",
-            begin_offset=28)
+            begin_offset=28,
+            copy_stats=dict(copy_time=100, total_time=105))
         timestamp = datetime.datetime(2015, 10, 26, 14, 38)
         backup_manager.server.postgres.current_xlog_info = dict(
             location='0/12000090',
@@ -709,8 +711,8 @@ class TestPostgresBackupExecutor(object):
         out, err = capsys.readouterr()
         gpb_mock.assert_called_once_with(backup_info.backup_id)
         assert err == ''
-        assert 'Copying files.' in out
-        assert 'Copy done.' in out
+        assert 'Starting backup copy via pg_basebackup' in out
+        assert 'Copy done' in out
         assert 'Finalising the backup.' in out
         assert backup_info.end_xlog == '0/12000090'
         assert backup_info.end_offset == 144
