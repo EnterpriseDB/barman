@@ -28,6 +28,7 @@ import logging
 import os.path
 import re
 import shutil
+import signal
 import tempfile
 from functools import partial
 from multiprocessing import Lock, Pool
@@ -72,6 +73,13 @@ def _run_worker(job):
     global _worker_callable
     assert _worker_callable is not None, \
         "Worker has not been initialized with `_init_worker`"
+
+    # This is the entrypoint of the worker process. Since the KeyboardInterrupt
+    # exceptions is handled by the main process, let's forget about Ctrl-C
+    # here.
+    # When the parent process will receive a KeyboardInterrupt, is will ask
+    # the pool to terminate its workers and then terminate itself.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     return _worker_callable(job)
 
 
@@ -497,6 +505,15 @@ class RsyncCopyController(object):
                 # Store the finished job for further analysis
                 self.jobs_done.append(job)
 
+        except KeyboardInterrupt:
+            # The parent process has been interrupted with a Ctrl-C. Since we
+            # handle this signal only from the main process (the workers will
+            # discard it), let's ask the pool to terminate its workers, wait
+            # for them to be really terminated, and than recover from the
+            # interruption in the usual way.
+            pool.terminate()
+            pool.join()
+            raise
         except:
             _logger.info("Copy failed (safe before %s)", self.safe_horizon)
             raise

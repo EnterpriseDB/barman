@@ -98,8 +98,10 @@ class TestRsyncCopyController(object):
     @patch('barman.copy_controller.RsyncCopyController._create_dir_and_purge')
     @patch('barman.copy_controller.RsyncCopyController._copy')
     @patch('tempfile.mkdtemp')
-    def test_full_copy(self, tempfile_mock, copy_mock, create_and_purge_mock,
-                       analyse_mock, rsync_mock, tmpdir):
+    @patch('signal.signal')
+    def test_full_copy(self, signal_mock, tempfile_mock, copy_mock,
+                       create_and_purge_mock, analyse_mock, rsync_mock,
+                       tmpdir):
         """
         Test the execution of a full copy
         """
