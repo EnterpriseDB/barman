@@ -524,7 +524,7 @@ class RsyncCopyController(object):
         else:
             _logger.info("Copy finished (safe before %s)", self.safe_horizon)
         finally:
-            # Clean tmp dir and log, exception management is delegeted to
+            # Clean tmp dir and log, exception management is delegated to
             # the executor class
             shutil.rmtree(self.temp_dir)
             self.temp_dir = None

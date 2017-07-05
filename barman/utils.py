@@ -216,7 +216,7 @@ def total_seconds(timedelta):
     else:
         return (timedelta.microseconds +
                 (timedelta.seconds + timedelta.days * 24 * 3600) * 10**6
-                ) / 10**6
+                ) / 10.0**6
 
 
 def which(executable, path=None):
