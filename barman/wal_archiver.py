@@ -470,7 +470,6 @@ class FileWalArchiver(WalArchiver):
         pg_stat_archiver = postgres.get_archiver_stats()
         if pg_stat_archiver is not None:
             result.update(pg_stat_archiver)
-
         return result
 
     def get_next_batch(self):

@@ -246,6 +246,7 @@ def build_config_dictionary(config_keys=None):
         'description': ' Text with quotes ',
         'immediate_checkpoint': False,
         'incoming_wals_directory': '/some/barman/home/main/incoming',
+        'max_incoming_wals_queue': None,
         'minimum_redundancy': '0',
         'name': 'main',
         'network_compression': False,

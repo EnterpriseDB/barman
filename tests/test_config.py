@@ -128,7 +128,8 @@ class TestConfig(object):
             'custom_compression_filter': 'bzip2 -c -9',
             'wals_directory': 'wals',
             'custom_decompression_filter': 'bzip2 -c -d',
-            'backup_method': 'rsync'
+            'backup_method': 'rsync',
+            'max_incoming_wals_queue': None,
         })
         assert main.__dict__ == expected
 
@@ -153,6 +154,7 @@ class TestConfig(object):
             'streaming_conninfo': 'host=web01 user=postgres port=5432',
             'streaming_wals_directory': '/some/barman/home/web/streaming',
             'errors_directory': '/some/barman/home/web/errors',
+            'max_incoming_wals_queue': None,
         })
         assert web.__dict__ == expected
 

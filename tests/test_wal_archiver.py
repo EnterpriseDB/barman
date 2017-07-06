@@ -58,7 +58,7 @@ class TestFileWalArchiver(object):
         result = {
             'archive_mode': 'value1',
             'archive_command': 'value2',
-            'pg_stat_archiver': 'value3'
+            'pg_stat_archiver': 'value3',
         }
         # Compare results of the check method
         assert archiver.get_remote_status() == result
@@ -94,6 +94,7 @@ class TestFileWalArchiver(object):
             'archive_mode': 'on',
             'archive_command': 'wal to archive',
             'is_archiving': True,
+            'incoming_wals_count': 0,
         }
         # Expect out: all parameters: OK
         archiver.check(strategy)
@@ -108,6 +109,7 @@ class TestFileWalArchiver(object):
             'archive_command': None,
             'archive_mode': 'on',
             'is_archiving': False,
+            'incoming_wals_count': 0,
         }
         # Expect out: some parameters: FAILED
         archiver.check(strategy)
@@ -121,6 +123,7 @@ class TestFileWalArchiver(object):
             'archive_mode': 'on',
             'archive_command': 'wal to archive',
             'is_archiving': False,
+            'incoming_wals_count': 0,
         }
         # Expect out: all parameters: OK
         archiver.check(strategy)
@@ -129,6 +132,22 @@ class TestFileWalArchiver(object):
             "\tarchive_mode: OK\n" \
             "\tarchive_command: OK\n" \
             "\tcontinuous archiving: FAILED\n"
+        # Case: too many wal files in the incoming queue
+        archiver.config.max_incoming_wals_queue = 10
+        remote_mock.return_value = {
+            'archive_mode': 'on',
+            'archive_command': 'wal to archive',
+            'is_archiving': False,
+            'incoming_wals_count': 20,
+        }
+        # Expect out: the wals incoming queue is too big
+        archiver.check(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == \
+            "\tarchive_mode: OK\n" \
+            "\tarchive_command: OK\n" \
+            "\tcontinuous archiving: FAILED\n" \
+
 
     @patch('os.unlink')
     @patch('barman.wal_archiver.FileWalArchiver.get_next_batch')
@@ -839,6 +858,7 @@ class TestStreamingWalArchiver(object):
             'pg_receivexlog_installed': True,
             'pg_receivexlog_compatible': True,
             'pg_receivexlog_path': 'fake/path',
+            'incoming_wals_count': 0,
         }
         # Expect out: all parameters: OK
         backup_manager.server.process_manager.list.return_value = []
@@ -856,6 +876,7 @@ class TestStreamingWalArchiver(object):
             'pg_receivexlog_compatible': False,
             'pg_receivexlog_path': 'fake/path',
             'pg_receivexlog_version': '9.2',
+            'incoming_wals_count': 0,
         }
         # Expect out: some parameters: FAILED
         strategy = CheckOutputStrategy()
@@ -873,6 +894,7 @@ class TestStreamingWalArchiver(object):
             'pg_receivexlog_compatible': None,
             'pg_receivexlog_path': 'fake/path',
             'pg_receivexlog_version': None,
+            'incoming_wals_count': 0,
         }
         # Expect out: all parameters: OK
         archiver.check(strategy)
@@ -907,6 +929,24 @@ class TestStreamingWalArchiver(object):
             "\tpg_receivexlog compatible: FAILED " \
             "(PostgreSQL version: Unknown, pg_receivexlog version: None)\n" \
             "\treceive-wal running: OK\n"
+        # Case: too many wal files in the incoming queue
+        archiver.config.max_incoming_wals_queue = 10
+        remote_mock.return_value = {
+            'pg_receivexlog_installed': True,
+            'pg_receivexlog_compatible': None,
+            'pg_receivexlog_path': 'fake/path',
+            'pg_receivexlog_version': None,
+            'incoming_wals_count': 20,
+        }
+        # Expect out: the wals incoming queue is too big
+        archiver.check(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == \
+            "\tpg_receivexlog: OK\n" \
+            "\tpg_receivexlog compatible: FAILED " \
+            "(PostgreSQL version: Unknown, pg_receivexlog version: None)\n" \
+            "\treceive-wal running: OK\n" \
+
 
     @patch('barman.wal_archiver.glob')
     @patch('os.path.isfile')

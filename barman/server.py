@@ -27,6 +27,7 @@ import sys
 import time
 from collections import namedtuple
 from contextlib import contextmanager
+from glob import glob
 from tempfile import NamedTemporaryFile
 
 import barman
@@ -79,7 +80,11 @@ class CheckStrategy(object):
                            'backup maximum age',
                            'failed backups',
                            'archiver errors',
-                           'empty incoming directory']
+                           'empty incoming directory',
+                           'empty streaming directory',
+                           'incoming WALs directory',
+                           'streaming WALs directory',
+                           ]
 
     def __init__(self, ignore_checks=NON_CRITICAL_CHECKS):
         """
@@ -478,17 +483,64 @@ class Server(RemoteStatusMixin):
             check_strategy.result(
                 self.config.name, False,
                 hint='please make sure WAL shipping is setup')
-        # If archiver is disabled, check the incoming folder for stale files.
+
+        # Check the number of wals in the incoming directory
+        self._check_wal_queue(check_strategy,
+                              'incoming',
+                              'archiver')
+
+        # Check the number of wals in the streaming directory
+        self._check_wal_queue(check_strategy,
+                              'streaming',
+                              'streaming_archiver')
+
+    def _check_wal_queue(self, check_strategy, dir_name, archiver_name):
+        """
+        Check if one of the wal queue directories beyond the
+        max file threshold
+        """
+        # Read the wal queue location from the configuration
+        config_name = "%s_wals_directory" % dir_name
+        assert hasattr(self.config, config_name)
+        incoming_dir = getattr(self.config, config_name)
+
+        # Check if the archiver is enabled
+        assert hasattr(self.config, archiver_name)
+        enabled = getattr(self.config, archiver_name)
+
+        # Inspect the wal queue directory
+        file_count = len(glob(os.path.join(incoming_dir, '*')))
+        max_incoming_wal = self.config.max_incoming_wals_queue
+
+        # Subtract one from the count because of .partial file inside the
+        # streaming directory
+        if dir_name == 'streaming':
+            file_count -= 1
+
+        # If this archiver is disabled, check the number of files in the
+        # corresponding directory.
         # If the directory is NOT empty, fail the check and warn the user.
         # NOTE: This check is visible only when it fails
-        check_strategy.init_check("empty incoming directory")
-        if (self.config.archiver is False and
-                os.path.isdir(self.config.incoming_wals_directory) and
-                os.listdir(self.config.incoming_wals_directory)):
-            check_strategy.result(
-                self.config.name, False,
-                hint="'%s' must be empty when archiver=off"
-                     % self.config.incoming_wals_directory)
+        check_strategy.init_check("empty %s directory" % dir_name)
+        if not enabled:
+            if file_count > 0:
+                check_strategy.result(
+                    self.config.name, False,
+                    hint="'%s' must be empty when %s=off"
+                         % (incoming_dir, archiver_name))
+            # No more checks are required if the archiver
+            # is not enabled
+            return
+
+        # At this point if max_wals_count is none,
+        # means that no limit is set so we just need to return
+        if max_incoming_wal is None:
+            return
+        check_strategy.init_check("%s WALs directory" % dir_name)
+        if file_count > max_incoming_wal:
+            msg = 'there are too many WALs in queue: ' \
+                  '%s, max %s' % (file_count, max_incoming_wal)
+            check_strategy.result(self.config.name, False, hint=msg)
 
     def check_postgres(self, check_strategy):
         """

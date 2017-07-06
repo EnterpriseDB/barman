@@ -832,7 +832,8 @@ class TestServer(object):
             },
             main_conf={
                 "wals_directory": tmpdir.mkdir('wals').strpath,
-                "incoming_wals_directory": tmpdir.mkdir('incoming').strpath
+                "incoming_wals_directory": tmpdir.mkdir('incoming').strpath,
+                "streaming_wals_directory": tmpdir.mkdir('streaming').strpath
             })
         strategy = CheckStrategy()
 
@@ -870,6 +871,115 @@ class TestServer(object):
         server.check_archive(strategy)
         assert strategy.has_error is False
         assert strategy.check_result[0].check == 'empty incoming directory'
+        assert strategy.check_result[0].status is False
+
+    @pytest.mark.parametrize('icoming_name, archiver_name',
+                             [
+                                 ['incoming', 'archiver'],
+                                 ['streaming', 'streaming_archiver'],
+                             ])
+    def test_incoming_thresholds(self, icoming_name, archiver_name, tmpdir):
+        """
+        Test the check_archive method thresholds
+        """
+        # Setup temp dir and server
+        server = build_real_server(
+            global_conf={
+                "barman_lock_directory": tmpdir.mkdir('lock').strpath
+            },
+            main_conf={
+                "wals_directory": tmpdir.mkdir('wals').strpath,
+                "%s_wals_directory" % icoming_name:
+                    tmpdir.mkdir(icoming_name).strpath,
+            }
+        )
+
+        # Make sure the test has configured correctly
+        incoming_dir_setting = '%s_wals_directory' % icoming_name
+        incoming_dir = getattr(server.config, incoming_dir_setting)
+        assert incoming_dir
+
+        # Create some content in the fake xlog.db to avoid triggering
+        # empty xlogdb errors
+        with open(server.xlogdb_file_name, "a") as fxlogdb:
+            # write something
+            fxlogdb.write("00000000000000000000")
+
+        # Utility function to generare fake WALs
+        def write_wal(target_dir, wal_number, partial=False):
+            wal_name = "%s/0000000000000000%08d" % (target_dir, wal_number)
+            if partial:
+                wal_name += '.partial'
+            with open(wal_name, 'w') as wal_file:
+                wal_file.write('fake WAL %s' % wal_number)
+
+        # Case one, queue below the threshold
+
+        # Enable the archiver we are checking and put max_incoming_wals_queue
+        # files inside the directory
+        setattr(server.config, archiver_name, True)
+        server.config.max_incoming_wals_queue = 2
+        # Fill the incoming dir to the threshold limit, we leave out the wal 0
+        # to add it in a further test
+        for x in range(1, server.config.max_incoming_wals_queue + 1):
+            write_wal(incoming_dir, x)
+        # If streaming, add a fake .partial file
+        if icoming_name == 'streaming':
+            write_wal(incoming_dir,
+                      server.config.max_incoming_wals_queue + 1,
+                      partial=True)
+
+        # Expect this to succeed
+        strategy = CheckStrategy()
+        server.check_archive(strategy)
+        assert not strategy.has_error
+        assert len(strategy.check_result) == 0
+
+        # Case two, queue over the threshold
+
+        # Add one more file to go over the threshold
+        write_wal(incoming_dir, 0)
+        # Expect this to fail, but with not critical errors
+        strategy = CheckStrategy()
+        server.check_archive(strategy)
+        # Errors are not critical
+        assert strategy.has_error is False
+        assert len(strategy.check_result) == 1
+        assert strategy.check_result[0].check == (
+            '%s WALs directory' % icoming_name)
+        assert strategy.check_result[0].status is False
+
+        # Case three, disable the archiver and clean the incoming
+
+        # Disable the archiver and clean the incoming dir
+        setattr(server.config, archiver_name, False)
+        for wal_file in os.listdir(incoming_dir):
+            os.remove(os.path.join(incoming_dir, wal_file))
+
+        # If streaming, add a fake .partial file
+        if icoming_name == 'streaming':
+            write_wal(incoming_dir, 1, partial=True)
+
+        # Expect this to succeed
+        strategy = CheckStrategy()
+        server.check_archive(strategy)
+        assert not strategy.has_error
+        assert len(strategy.check_result) == 0
+
+        # Case four, disable the archiver an add something inside the
+        # incoming directory. expect the check to fail
+
+        # Disable the streaming archiver and add something inside the dir
+        setattr(server.config, archiver_name, False)
+        write_wal(incoming_dir, 0)
+        # Expect this to fail, but with not critical errors
+        strategy = CheckStrategy()
+        server.check_archive(strategy)
+        # Errors are not critical
+        assert not strategy.has_error
+        assert len(strategy.check_result) == 1
+        assert strategy.check_result[0].check == (
+            'empty %s directory' % icoming_name)
         assert strategy.check_result[0].status is False
 
     def test_replication_status(self, capsys):
