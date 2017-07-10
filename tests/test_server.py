@@ -292,8 +292,10 @@ class TestServer(object):
         assert result['current_archived_wals_per_second'] == \
             str(stats['current_archived_wals_per_second'])
 
+    @patch('barman.server.Server.status_postgres')
     @patch('barman.wal_archiver.FileWalArchiver.get_remote_status')
-    def test_pg_stat_archiver_status(self, remote_mock, capsys):
+    def test_pg_stat_archiver_status(self, remote_mock, status_postgres_mock,
+                                     capsys):
         """
         Test management of pg_stat_archiver view output in status command
 
@@ -313,6 +315,8 @@ class TestServer(object):
             "current_archived_wals_per_second": 1.0002,
         }
         remote_mock.return_value = dict(archiver_remote_status)
+
+        status_postgres_mock.return_value = dict()
 
         server = build_real_server(
             global_conf={
