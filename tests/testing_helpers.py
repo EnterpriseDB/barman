@@ -139,9 +139,12 @@ def mock_backup_ext_info(
     # make a dictionary with all the arguments
     ext_info = dict(locals())
     del ext_info['backup_info']
-
     if backup_info is None:
         backup_info = build_test_backup_info(**kwargs)
+
+    # If the status is not DONE, the ext_info is empty
+    if backup_info.status != BackupInfo.DONE:
+        ext_info = {}
 
     # merge the backup_info values
     ext_info.update(backup_info.to_dict())

@@ -671,16 +671,15 @@ class ConsoleOutputWriter(object):
             self.info("    Next Backup          : %s",
                       data.setdefault('next_backup_id', 'not available') or
                       '- (this is the latest base backup)')
+            if data['children_timelines']:
+                self.info("")
+                self.info(
+                    "WARNING: WAL information is inaccurate due to "
+                    "multiple timelines interacting with this backup")
         else:
             if data['error']:
                 self.info("  Error:            : %s",
                           data['error'])
-
-        if data['children_timelines']:
-            self.info("")
-            self.info(
-                "WARNING: WAL information is inaccurate due to "
-                "multiple timelines interacting with this backup")
 
     def init_status(self, server_name):
         """

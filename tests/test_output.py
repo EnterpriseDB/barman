@@ -918,7 +918,8 @@ class TestConsoleWriter(object):
     def test_result_show_backup(self, capsys):
         # mock the backup ext info
         wal_per_second = 0.01
-        ext_info = mock_backup_ext_info(wals_per_second=wal_per_second)
+        ext_info = mock_backup_ext_info(status=BackupInfo.DONE,
+                                        wals_per_second=wal_per_second)
 
         writer = output.ConsoleOutputWriter()
 
