@@ -1269,9 +1269,19 @@ class Server(RemoteStatusMixin):
         :param int|None peek: if defined list the next N WAL file
         """
 
+        # If used through SSH identify the client to add it to logs
+        source_suffix = ''
+        ssh_connection = os.environ.get('SSH_CONNECTION')
+        if ssh_connection:
+            # The client IP is the first value contained in `SSH_CONNECTION`
+            # which contains four space-separated values: client IP address,
+            # client port number, server IP address, and server port number.
+            source_suffix = ' (SSH host: %s)' % (ssh_connection.split()[0],)
+
         # Sanity check
         if not xlog.is_any_xlog_file(wal_name):
-            output.error("'%s' is not a valid wal file name", wal_name)
+            output.error("'%s' is not a valid wal file name%s",
+                         wal_name, source_suffix)
             return
 
         # If peek is requested we only output a list of files
@@ -1336,8 +1346,8 @@ class Server(RemoteStatusMixin):
 
         # Check for file existence
         if not os.path.exists(wal_file):
-            output.error("WAL file '%s' not found in server '%s'",
-                         wal_name, self.config.name)
+            output.error("WAL file '%s' not found in server '%s'%s",
+                         wal_name, self.config.name, source_suffix)
             return
 
         # If an output directory was provided write the file inside it
@@ -1346,14 +1356,19 @@ class Server(RemoteStatusMixin):
             destination_path = os.path.join(output_directory, wal_name)
             try:
                 destination = open(destination_path, 'w')
-                output.info("Writing WAL '%s' for server '%s' into '%s' file",
-                            wal_name, self.config.name, destination_path)
+                output.info(
+                    "Writing WAL '%s' for server '%s' into '%s' file%s",
+                    wal_name, self.config.name, destination_path,
+                    source_suffix)
             except IOError as e:
-                output.error("Unable to open '%s' file: %s" %
-                             destination_path, e)
+                output.error("Unable to open '%s' file%s: %s",
+                             destination_path, source_suffix, e)
                 return
         else:
             destination = sys.stdout
+            _logger.info(
+                "Writing WAL '%s' for server '%s' to standard output%s",
+                wal_name, self.config.name, source_suffix)
 
         # Get a decompressor for the file (None if not compressed)
         wal_compressor = self.backup_manager.compression_manager \
