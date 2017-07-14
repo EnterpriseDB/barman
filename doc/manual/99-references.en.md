@@ -7,7 +7,7 @@
   [recoveryconfig]: https://www.postgresql.org/docs/current/static/recovery-config.html
   [physicalbackup]: https://www.postgresql.org/docs/current/static/backup-file.html
   [pitr]: https://www.postgresql.org/docs/current/static/continuous-archiving.html
-  [adminbook]: http://www.2ndquadrant.com/en/books/postgresql-9-administration-cookbook/
+  [adminbook]: https://www.2ndquadrant.com/en/books/postgresql-9-administration-cookbook/
   [wal]: https://www.postgresql.org/docs/current/static/wal.html
   [49340627f9821e447f135455d942f7d5e96cae6d]: https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=49340627f9821e447f135455d942f7d5e96cae6d
   [requirements_recovery]: https://www.postgresql.org/docs/current/static/warm-standby.html#STANDBY-PLANNING
@@ -34,13 +34,12 @@
   [9]: https://github.com/2ndquadrant-it/pgespresso
   [11]: http://www.pgbarman.org/
   [12]: http://www.pgbarman.org/support/
-  [13]: http://www.2ndquadrant.com/
+  [13]: https://www.2ndquadrant.com/
   [14]: http://www.pgbarman.org/faq/
   [15]: http://blog.2ndquadrant.com/tag/barman/
   [16]: https://github.com/hamann/check-barman
   [17]: https://github.com/2ndquadrant-it/puppet-barman
   [18]: http://4caast.morfeo-project.org/
-  [19]: http://www.2ndquadrant.it/
   [20]: http://www.postgresql.org/docs/current/static/functions-admin.html
   [24]: http://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION
   [25]: http://www.postgresql.org/docs/current/static/app-pgreceivexlog.html

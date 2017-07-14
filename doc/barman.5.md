@@ -1,5 +1,5 @@
 % BARMAN(5) Barman User manuals | Version 2.2a1
-% 2ndQuadrant Italy <http://www.2ndQuadrant.it>
+% 2ndQuadrant Limited <https://www.2ndQuadrant.com>
 % January 20, 2017
 
 # NAME
@@ -474,11 +474,11 @@ Past contributors:
 
 * Homepage: <http://www.pgbarman.org/>
 * Documentation: <http://docs.pgbarman.org/>
-* Professional support: <http://www.2ndQuadrant.com/>
+* Professional support: <https://www.2ndQuadrant.com/>
 
 # COPYING
 
-Barman is the exclusive property of 2ndQuadrant Italia
+Barman is the property of 2ndQuadrant Limited
 and its code is distributed under GNU General Public License v3.
 
-Copyright (C) 2011-2016 2ndQuadrant Italia Srl - http://www.2ndQuadrant.it/.
+Copyright (C) 2011-2017 2ndQuadrant Limited - https://www.2ndQuadrant.com/.

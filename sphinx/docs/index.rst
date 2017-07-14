@@ -1,5 +1,5 @@
 
-..  Copyright (C) 2011-2016 2ndQuadrant Italia Srl
+..  Copyright (C) 2011-2017 2ndQuadrant Limited
     Barman is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -41,14 +41,14 @@ Web resources
 * Man page, section 1  : http://docs.pgbarman.org/barman.1.html
 * Man page, section 5  : http://docs.pgbarman.org/barman.5.html
 * Community support    : http://www.pgbarman.org/support/
-* Professional support : http://www.2ndquadrant.com/
+* Professional support : https://www.2ndquadrant.com/
 * Client utilities     : https://github.com/2ndquadrant-it/barman-cli
 * pgespresso extension : https://github.com/2ndquadrant-it/pgespresso
 
 Licence
 =======
 
-Copyright (C) 2011-2016 2ndQuadrant Italia Srl
+Copyright (C) 2011-2017 2ndQuadrant Limited
 
 Barman is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

@@ -2,7 +2,7 @@
 #
 # barman - Backup and Recovery Manager for PostgreSQL
 #
-# Copyright (C) 2011-2016 2ndQuadrant Italia Srl <info@2ndquadrant.it>
+# Copyright (C) 2011-2017 2ndQuadrant Limited <info@2ndquadrant.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -63,8 +63,8 @@ with open('barman/version.py', 'r') as fversion:
 setup(
     name='barman',
     version=barman['__version__'],
-    author='2ndQuadrant Italia Srl',
-    author_email='info@2ndquadrant.it',
+    author='2ndQuadrant Limited',
+    author_email='info@2ndquadrant.com',
     url='http://www.pgbarman.org/',
     packages=['barman', ],
     scripts=['bin/barman', ],

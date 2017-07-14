@@ -2,7 +2,7 @@
 #
 # barman - Backup and Recovery Manager for PostgreSQL
 #
-# Copyright (C) 2011-2016 2ndQuadrant Italia Srl <info@2ndquadrant.it>
+# Copyright (C) 2011-2017 2ndQuadrant Limited <info@2ndquadrant.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -63,7 +63,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Barman'
-copyright = u'2011-2016 2ndQuadrant Italia Srl]'
+copyright = u'2011-2017 2ndQuadrant Limited]'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -221,7 +221,7 @@ latex_elements = {
 # (source start file, target name, title, author,
 #  documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'Barman.tex', u'Barman Documentation', u'2ndQuadrant Italia Srl',
+    ('index', 'Barman.tex', u'Barman Documentation', u'2ndQuadrant Limited',
      'manual'),
 ]
 
@@ -252,7 +252,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'barman', u'Barman Documentation',
-     [u'2ndQuadrant Italia Srl'], 1)
+     [u'2ndQuadrant Limited'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -266,7 +266,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     ('index', 'Barman', u'Barman Documentation',
-     u'2ndQuadrant Italia Srl', 'Barman',
+     u'2ndQuadrant Limited', 'Barman',
      'Barman, Backup and Recovery Manager for PostgreSQL',
      'Miscellaneous'),
 ]
@@ -285,9 +285,9 @@ texinfo_documents = [
 
 # Bibliographic Dublin Core info.
 epub_title = u'Barman'
-epub_author = u'2ndQuadrant Italia Srl'
-epub_publisher = u'2ndQuadrant Italia Srl'
-epub_copyright = u'2011-2016, 2ndQuadrant Italia Srl'
+epub_author = u'2ndQuadrant Limited'
+epub_publisher = u'2ndQuadrant Limited'
+epub_copyright = u'2011-2016, 2ndQuadrant Limited'
 
 # The language of the text. It defaults to the language option
 # or en if the language is not set.

@@ -77,19 +77,19 @@ Past contributors:
 
 ## License and Contributions
 
-Barman is the property of 2ndQuadrant Italia and its code is
+Barman is the property of 2ndQuadrant Limited and its code is
 distributed under GNU General Public License 3.
 
-Copyright (C) 2011-2016 [2ndQuadrant.it S.r.l.] [19].
+Copyright (C) 2011-2017 [2ndQuadrant Limited] [13].
 
 Barman has been partially funded through [4CaaSt] [18], a research
 project funded by the European Commission's Seventh Framework
 programme.
 
 Contributions to Barman are welcome, and will be listed in the
-`AUTHORS` file. 2ndQuadrant Italia requires that any contributions
+`AUTHORS` file. 2ndQuadrant Limited requires that any contributions
 provide a copyright assignment and a disclaimer of any work-for-hire
 ownership claims from the employer of the developer. This lets us make
 sure that all of the Barman distribution remains free code. Please
-contact info@2ndQuadrant.it for a copy of the relevant Copyright
+contact info@2ndQuadrant.com for a copy of the relevant Copyright
 Assignment Form.
