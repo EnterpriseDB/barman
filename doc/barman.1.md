@@ -1,6 +1,6 @@
-% BARMAN(1) Barman User manuals | Version 2.2a1
+% BARMAN(1) Barman User manuals | Version 2.2
 % 2ndQuadrant Limited <https://www.2ndQuadrant.com>
-% January 20, 2017
+% July 17, 2017
 
 # NAME
 
@@ -397,21 +397,21 @@ the `barman diagnose` command.
 
 In alphabetical order:
 
-* Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> (project leader)
+* Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> (architect)
 * Jonathan Battiato <jonathan.battiato@2ndquadrant.it> (QA/testing)
-* Stefano Bianucci (developer, intern from University of Florence)
-* Giuseppe Broccolo <giuseppe.broccolo@2ndquadrant.it> (QA/testing)
 * Giulio Calacoci <giulio.calacoci@2ndquadrant.it> (developer)
 * Francesco Canovai <francesco.canovai@2ndquadrant.it> (QA/testing)
 * Leonardo Cecchi <leonardo.cecchi@2ndquadrant.it> (developer)
 * Gianni Ciolli <gianni.ciolli@2ndquadrant.it> (QA/testing)
-* Britt Cole <britt.cole@2ndquadrant.it> (documentation)
-* Marco Nenciarini <marco.nenciarini@2ndquadrant.it> (lead developer)
+* Britt Cole <britt.cole@2ndquadrant.com> (documentation)
+* Marco Nenciarini <marco.nenciarini@2ndquadrant.it> (project leader)
 * Rubens Souza <rubens.souza@2ndquadrant.it> (QA/testing)
 
 Past contributors:
 
 * Carlo Ascani
+* Stefano Bianucci
+* Giuseppe Broccolo
 
 # RESOURCES
 

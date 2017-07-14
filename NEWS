@@ -1,6 +1,55 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2017 2ndQuadrant Limited
 
+Version 2.2 - 17 Jul 2017
+
+-   Implement parallel copy for backup/recovery through the
+    parallel_jobs global/server option to be overridden by the --jobs or
+    -j runtime option for the backup and recover command. Parallel
+    backup is available only for the rsync copy method. By default, it
+    is set to 1 (for behaviour compatibility with previous versions).
+
+-   Support custom WAL size for PostgreSQL 8.4 and newer. At backup
+    time, Barman retrieves from PostgreSQL wal_segment_size and
+    wal_block_size values and computes the necessary calculations.
+
+-   Improve check command to ensure that incoming directory is empty
+    when archiver=off, and streaming directory is empty when
+    streaming_archiver=off (#80).
+
+-   Add external_configuration to backup_options so that users can
+    instruct Barman to ignore backup of configuration files when they
+    are not inside PGDATA (default for Debian/Ubuntu installations). In
+    this case, Barman does not display a warning anymore.
+
+-   Add --get-wal and --no-get-wal options to barman recover
+
+-   Add max_incoming_wals_queue global/server option for the check
+    command so that a non blocking error is returned in case incoming
+    WAL directories for both archiver and the streaming_archiver contain
+    more files than the specified value.
+
+-   Documentation improvements
+
+-   File format changes:
+
+    -   The format of backup.info file has changed. For this reason a
+        backup taken with Barman 2.2 cannot be read by a previous
+        version of Barman. But, backups taken by previous versions can
+        be read by Barman 2.2.
+
+-   Minor bug fixes:
+
+    -   Allow replication-status to work against a standby
+    -   Close any PostgreSQL connection before starting pg_basebackup
+        (#104, #108)
+    -   Safely handle paths containing special characters
+    -   Archive .partial files after promotion of streaming source
+    -   Recursively create directories during recovery (SF#44)
+    -   Improve xlog.db locking (#99)
+    -   Remove tablespace_map file during recover (#95)
+    -   Reconnect to PostgreSQL if connection drops (SF#82)
+
 Version 2.1 - 5 Jan 2017
 
 -   Add --archive and --archive-timeout options to switch-xlog command
