@@ -1,3 +1,298 @@
+2017-07-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2017-07-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Set version to 2.2
+
+	Update copyright
+
+2017-07-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Log get-wal source host when called through SSH
+
+2017-07-06  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Check the number of files in the archiving queue
+	Add a new configuration parameter, named `max_incoming_wals_queue`, that
+	enables a new check for the number of files in the incoming directories.
+
+	This check will fail if the number of WALs to be archived
+	goes over the allowed threshold.
+
+	This check does not block normal operations.
+
+	The purpose of this check is to improve robustness of the Barman
+	system when integrated in an alerting/monitoring infrastructure,
+	by warning users in case Barman is not archiving fast enough.
+
+2017-07-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix missing mock in test_pg_stat_archiver_status
+
+2017-07-11  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Show-backup fails on incomplete backups
+	The barman `show-backup` command was failing on failed backups
+	with a stacktrace. Fixed unit tests as well as the bug.
+
+2017-07-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update copy_controller unit tests
+
+2017-07-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improve copy output messages
+
+2017-07-03  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Support dynamic WAL size
+	Barman now asks PostgreSQL for the current WAL file size at every start of
+	backup. This information is stored in the backup info and then used while
+	showing statistics.
+
+	Previously the size of WAL files was hardcoded into Barman, giving wrong
+	statistics when PostgreSQL was compiled with a different value.
+
+	IMPORTANT: Release notes must mention that the format of the backup info
+	file has changed. A backup made with Barman 2.2 cannot be read by a
+	previous version of Barman (in the rare event that a user downgrades
+	version).
+
+2017-07-05  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Make cuncurrent backup killable
+	Barman was able to recover from a KeyboardInterrupt while
+	executing a backup, so you were not able to interrupt a backup anymore.
+
+	This patch disable the handling of the SIGINT signal from the worker processes.
+	The signal is now handled by the parent process, which is responsible
+	for the termination of the children processes.
+	The backup will be then stopped in the usual way.
+
+2017-07-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Allow replication-status to work against a standby
+
+2017-07-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Close all PostgreSQL connections before starting pg_basebackup
+	With this commit we avoid keeping an idle transaction during the file
+	copy and fix incorrect end time reported at the end of the backup.
+
+	Closes: #108, #104
+
+	Fix exception in show-backup with postgres backup_method
+
+2017-06-01  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Safely handle paths containing special characters
+	This patch makes Barman correctly handle path containing those
+	characters having special meaning to the Unix shells such as quotes,
+	double quotes, spaces, and so on.
+
+2017-06-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improve backup completed message
+
+2017-06-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Display statistics about the copy gathered during backup
+	The statistics will be displayed in `barman show-backup` output as
+	'Copy time' and 'Estimated throughput' values.
+
+	Fix an error message interpolation
+
+	Make the method rsync_factory private
+	The method rsync_factory should be private, as it must be used only from the
+	copy controller.
+
+2017-05-29  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Ensure incoming directory is empty when `archiver=off`
+	This commit adds a check that warns the user when there are files in
+	the incoming directory but the `archiver` option is disabled.
+
+	This is something that could happen when the archiver is disabled in
+	favor of the `streaming_archiver`, but PostgreSQL is still configured to
+	ship WAL files to the incoming directory.
+
+	This check is a non blocking check with the purpose of warning the
+	user about the disk filling up with unarchived WALs.
+
+	Closes: #80
+
+2017-05-25  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add `external_configuration` to `backup_options`
+	It is now possible to instruct Barman that we are aware that
+	configuration files reside outside of PGDATA, through the
+	`external_configuration` value for the `backup_options` option.
+	By doing so, users will suppress any warning regarding external
+	configuration files during backup.
+
+2017-05-23  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Command line options to enable/disable `get-wal` usage during recovery
+	Add two options `--get-wal` and `--no-get-wal` to the `barman recover`
+	command. They will control the usage of the `get-wal` option during
+	the recovery, overriding what is specified in the configuration file.
+
+2017-05-26  William Ivanski  <william.ivanski@2ndquadrant.com>
+
+	Documentation on parallel copy
+	Updated documentation and man pages regarding parallel
+	copy feature for both backup and recovery.
+
+2017-05-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Archive .partial files coming from promotion of streaming source
+	Change the way Barman handles multiple partial files during
+	the archiving process.
+
+	Archive older partial files as normal files, instead of aborting.
+
+	Fix .gitignore syntax under sphinx directory
+
+2017-05-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Update TODO
+
+2017-04-03  Mitchel Humpherys  <mitch@directangular.com>
+
+	Document how to stop `cron`
+	It's not immediately clear from the docs how to stop all of the processes
+	that get started by the `cron` command.  Add some instructions to the
+	section on `cron` documenting how to stop things properly.
+
+	Fixes #97
+
+	Documentation improvement: clarification about cron
+	It can be a bit surprising to discover that barman doesn't have any sort of
+	daemon program, as many long-running services do.  Make this clear up front
+	to avoid confusion.
+
+2017-03-20  Cédric Villemain  <cedric@2ndquadrant.fr>
+
+	Documentation improvements
+
+2017-05-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Ensure that PGCONTROL_CLASS items are copied as last step
+
+2017-05-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Implement parallel copy for backup/recovery
+	When `parallel_jobs` configuration option (or the `--jobs` run-time
+	option) is set to a value greater than 1, the files to be copied
+	are equally distributed between a number of buckets equal to the
+	number of workers.
+
+	The current maximum size of a bucket is 10GB.
+
+2017-05-03  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	In RsyncCopyController use an in-memory file_list instead of a file
+	This provides enough information to the _generate_job to implement a
+	job sharding strategy in a future commit.
+
+2017-05-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Use a process pool to execute backup and recovery
+	Add initial multiprocessing infrastructure to support parallel backup
+	and recovery using rsync.
+
+	Added the 'parallel_jobs' global/server configuration option,
+	that specifies the number of parallel processes used for both
+	backup and recovery operations. Default value is 1 (for
+	retro-compatibility).
+
+	Added also the `--jobs` and `-j` run-time option for the `backup`
+	and `recover` commands to override the server behaviour.
+
+	At the moment, when the value is set to 2 or more, copy operations
+	are parallelized, but the logic to split them in smaller chunks is not
+	yet implemented.
+
+2017-04-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Recursively create directories during recovery
+	Closes: SF#44
+
+2017-04-05  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Reduce time ServerXLOGDBLock is held while archiving
+	The ServerXLOGDBLock was held from the start to the end of the
+	archiving process, but that was not how it was supposed to be.
+
+	The implicit contract of a waiting lock such as the ServerXLOGDBLock
+	requires that the lock is kept for the shortest possible time.
+	However, that is not the case when archiving a large number of WAL
+	files or when executing the pre/post archive hooks.
+
+	This commit changes the acquisition strategy to acquire and
+	release the lock on a per-WAL file basis.
+
+	Fixes #99
+
+2017-03-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix a docstring typo
+
+2017-03-31  Giulio Calacoci  <giulio.calacoci@2ndquadrant.com>
+
+	Remove `tablespace_map` file during `recover`
+	Barman takes care of tablespaces relocation during `recover` by creating
+	the appropriate links into `pg_tblspc` directory. The eventual
+	presence of `tablespace_map` file would instruct PostgreSQL to
+	rollback these changes, so it is mandatory to remove this file during
+	`recover`.
+
+	For the same reason the code that was writing the `tablespace_map`
+	file during `backup` was disabled.
+
+	Fixes #95
+
+2017-03-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improve log messages when a backup fails
+
+2017-02-27  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improve log message for streaming connections
+	Add the server name in log messages when opening
+	a streaming connection to PostgreSQL fails.
+
+	Reported by Andreas Kretschmer <andreas.kretschmer@2ndquadrant.com>
+
+2017-02-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Properly detect broken Postgres connections
+	When a Postgres cursor is required, issue a 'SELECT 1'
+	query to check that connection is properly working.
+
+2017-02-01  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Cosmetic change in documentation
+
+2017-02-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Reconnect to PostgreSQL if the connection drops
+	Now Barman will try to reconnect automatically if the connection to
+	PostgreSQL drops.
+
+	Closes: SF#82
+
+2017-01-20  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add a init_check method to CheckStrategy
+	Add a init_check method to the CheckStrategy object, the method
+	will help keeping track of the check execution and produce a clear
+	output in case of timeout failure.
+
+	Set version 2.2a1
+
 2017-01-05  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
 
 	Update the ChangeLog file
