@@ -845,30 +845,6 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         :rtype: dict[str, None|str]
         """
         remote_status = {}
-        # Retrieve the last archived WAL using a Ssh connection on
-        # the remote server and executing an 'ls' command. Only
-        # for pre-9.4 versions of PostgreSQL.
-        try:
-            if self.server.postgres and \
-                    self.server.postgres.server_version < 90400:
-                remote_status['last_archived_wal'] = None
-                if self.server.postgres.get_setting('data_directory') and \
-                        self.server.postgres.get_setting('archive_command'):
-                    cmd = UnixRemoteCommand(self.ssh_command,
-                                            self.ssh_options,
-                                            path=self.server.path)
-                    archive_dir = os.path.join(
-                        self.server.postgres.get_setting('data_directory'),
-                        'pg_xlog', 'archive_status')
-                    out = str(cmd.list_dir_content(archive_dir, ['-t']))
-                    for line in out.splitlines():
-                        if line.endswith('.done'):
-                            name = line[:-5]
-                            if xlog.is_any_xlog_file(name):
-                                remote_status['last_archived_wal'] = name
-                                break
-        except (PostgresConnectionError, FsOperationFailed) as e:
-            _logger.warn("Error retrieving PostgreSQL status: %s", e)
         return remote_status
 
     def _start_backup_copy_message(self, backup_info):

@@ -30,11 +30,14 @@ from distutils.version import LooseVersion as Version
 from barman import output, xlog
 from barman.command_wrappers import CommandFailedException, PgReceiveXlog
 from barman.exceptions import (AbortedRetryHookScript, ArchiverFailure,
-                               DuplicateWalFile, MatchingDuplicateWalFile)
+                               DuplicateWalFile, MatchingDuplicateWalFile,
+                               FsOperationFailed, PostgresConnectionError)
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import WalFileInfo
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import fsync_dir, mkpath, with_metaclass
+from barman.backup_executor import _parse_ssh_command
+from barman.fs import UnixRemoteCommand
 
 _logger = logging.getLogger(__name__)
 
@@ -447,6 +450,17 @@ class FileWalArchiver(WalArchiver):
 
         super(FileWalArchiver, self).__init__(backup_manager, 'file archival')
 
+        # Retrieve the ssh command and the options necessary for the
+        # remote ssh access.
+        self.ssh_command, self.ssh_options = _parse_ssh_command(
+            backup_manager.config.ssh_command)
+
+        # Requires ssh_command to be set
+        if not self.ssh_command:
+            raise SshCommandException(
+                'Missing or invalid ssh_command in barman configuration '
+                'for server %s' % backup_manager.config.name)
+
     def fetch_remote_status(self):
         """
         Returns the status of the FileWalArchiver.
@@ -470,6 +484,33 @@ class FileWalArchiver(WalArchiver):
         pg_stat_archiver = postgres.get_archiver_stats()
         if pg_stat_archiver is not None:
             result.update(pg_stat_archiver)
+
+
+        # Retrieve the last archived WAL using a Ssh connection on
+        # the remote server and executing an 'ls' command. Only
+        # for pre-9.4 versions of PostgreSQL.
+        try:
+            if self.server.postgres and \
+                    self.server.postgres.server_version < 90400:
+                result['last_archived_wal'] = None
+                if self.server.postgres.get_setting('data_directory') and \
+                        self.server.postgres.get_setting('archive_command'):
+                    cmd = UnixRemoteCommand(self.ssh_command,
+                                            self.ssh_options,
+                                            path=self.server.path)
+                    archive_dir = os.path.join(
+                        self.server.postgres.get_setting('data_directory'),
+                        'pg_xlog', 'archive_status')
+                    out = str(cmd.list_dir_content(archive_dir, ['-t']))
+                    for line in out.splitlines():
+                        if line.endswith('.done'):
+                            name = line[:-5]
+                            if xlog.is_any_xlog_file(name):
+                                result['last_archived_wal'] = name
+                                break
+        except (PostgresConnectionError, FsOperationFailed) as e:
+            _logger.warn("Error retrieving PostgreSQL status: %s", e)
+
         return result
 
     def get_next_batch(self):
