@@ -41,7 +41,8 @@ class TestFileWalArchiver(object):
         backup_manager = build_backup_manager()
         FileWalArchiver(backup_manager)
 
-    def test_get_remote_status(self):
+    @patch('barman.wal_archiver.UnixRemoteCommand')
+    def test_get_remote_status(self, cmd_mock):
         """
         Basic test for the check method of the FileWalArchiver class
         """
@@ -49,10 +50,16 @@ class TestFileWalArchiver(object):
         backup_manager = build_backup_manager()
         # Set up mock responses
         postgres = backup_manager.server.postgres
-        postgres.get_setting.side_effect = ["value1", "value2"]
+        settings = {
+                'archive_mode': 'value1',
+                'archive_command': 'value2',
+                'data_directory': 'XXX',
+        }
+        postgres.get_setting.side_effect = settings.get
         postgres.get_archiver_stats.return_value = {
             'pg_stat_archiver': 'value3'
         }
+        postgres.server_version = 90400
         # Instantiate a FileWalArchiver obj
         archiver = FileWalArchiver(backup_manager)
         result = {
@@ -61,6 +68,18 @@ class TestFileWalArchiver(object):
             'pg_stat_archiver': 'value3',
         }
         # Compare results of the check method
+        assert archiver.get_remote_status() == result
+
+        postgres.server_version = 90300
+        cmd_mock.return_value.list_dir_content.return_value = \
+            "000000010000000000000006.done"
+        archiver = FileWalArchiver(backup_manager)
+        result = {
+            'archive_mode': 'value1',
+            'archive_command': 'value2',
+            'pg_stat_archiver': 'value3',
+            'last_archived_wal': '000000010000000000000006'
+        }
         assert archiver.get_remote_status() == result
 
     @patch('barman.wal_archiver.FileWalArchiver.get_remote_status')
