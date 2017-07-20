@@ -141,6 +141,7 @@ class TestRecoveryExecutor(object):
         assert os.path.exists(ret['tempdir'])
         executor._teardown(ret)
         assert not os.path.exists(ret['tempdir'])
+        assert ret['wal_dest'].endswith('/pg_xlog')
 
         # no postgresql.auto.conf on version 9.3
         ret = executor._setup(backup_info, None, "/tmp")
@@ -157,6 +158,11 @@ class TestRecoveryExecutor(object):
         with pytest.raises(SystemExit):
             executor.server.path = None
             executor._setup(backup_info, "invalid", "/tmp")
+
+        # Test for PostgreSQL 10
+        backup_info.version = 100000
+        ret = executor._setup(backup_info, None, "/tmp")
+        assert ret['wal_dest'].endswith('/pg_wal')
 
     def test_set_pitr_targets(self, tmpdir):
         """
@@ -283,6 +289,7 @@ class TestRecoveryExecutor(object):
                 exclude=[
                     '/pg_log/*',
                     '/pg_xlog/*',
+                    '/pg_wal/*',
                     '/postmaster.pid',
                     '/recovery.conf',
                     '/tablespace_map',

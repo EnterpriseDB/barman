@@ -26,8 +26,8 @@ import mock
 import pytest
 
 from barman import command_wrappers
-from barman.command_wrappers import (StreamLineProcessor, full_command_quote,
-                                     shell_quote)
+from barman.command_wrappers import (PgReceiveXlog, StreamLineProcessor,
+                                     full_command_quote, shell_quote)
 from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
 
 
@@ -869,6 +869,7 @@ class TestPgBaseBackup(object):
         connection_mock.get_connection_string.return_value = 'test_conn'
         pgbasebackup = command_wrappers.PgBaseBackup(
             destination='/fake/path',
+            command='/usr/bin/pg_basebackup',
             connection=connection_mock,
             version='9.3',
             app_name='fake_app_name')
@@ -877,7 +878,7 @@ class TestPgBaseBackup(object):
             "-v",
             "--no-password",
             '--pgdata=/fake/path']
-        assert pgbasebackup.cmd == 'pg_basebackup'
+        assert pgbasebackup.cmd == '/usr/bin/pg_basebackup'
         assert pgbasebackup.check is True
         assert pgbasebackup.close_fds is True
         assert pgbasebackup.allowed_retval == (0,)
@@ -889,6 +890,7 @@ class TestPgBaseBackup(object):
                                            'user': 'fake_user'}
         pgbasebackup = command_wrappers.PgBaseBackup(
             destination='/fake/target',
+            command='/usr/bin/pg_basebackup',
             connection=connection_mock,
             version='9.2',
             app_name='fake_app_name'
@@ -953,13 +955,14 @@ class TestPgBaseBackup(object):
         connection_mock.get_connection_string.return_value = 'fake_connstring'
         cmd = command_wrappers.PgBaseBackup(
             destination='/fake/target',
+            command='/usr/bin/pg_basebackup',
             connection=connection_mock,
             version='9.4',
             app_name='fake_app_name')
         result = cmd.execute()
 
         popen.assert_called_with(
-            ['pg_basebackup', '--dbname=fake_connstring', '-v',
+            ['/usr/bin/pg_basebackup', '--dbname=fake_connstring', '-v',
              '--no-password',
              '--pgdata=/fake/target'],
             close_fds=True,
@@ -992,6 +995,7 @@ class TestReceiveXlog(object):
         connection_mock.get_connection_string.return_value = 'test_conn'
         receivexlog = command_wrappers.PgReceiveXlog(
             destination='/fake/target',
+            command='/usr/bin/pg_receivexlog',
             connection=connection_mock,
             version='9.3',
             app_name='fake_app_name')
@@ -1002,7 +1006,7 @@ class TestReceiveXlog(object):
             "--no-password",
             "--directory=/fake/target"
         ]
-        assert receivexlog.cmd == 'pg_receivexlog'
+        assert receivexlog.cmd == '/usr/bin/pg_receivexlog'
         assert receivexlog.check is True
         assert receivexlog.close_fds is True
         assert receivexlog.allowed_retval == (0,)
@@ -1071,13 +1075,14 @@ class TestReceiveXlog(object):
         connection_mock.get_connection_string.return_value = 'fake_connstring'
         cmd = command_wrappers.PgReceiveXlog(
             destination='/fake/target',
+            command='/usr/bin/pg_receivexlog',
             connection=connection_mock,
             version='9.4',
             app_name='fake_app_name')
         result = cmd.execute()
 
         popen.assert_called_with(
-            ['pg_receivexlog',
+            ['/usr/bin/pg_receivexlog',
              "--dbname=fake_connstring",
              '--verbose',
              '--no-loop',
@@ -1096,6 +1101,54 @@ class TestReceiveXlog(object):
         assert cmd.err is None
         assert ('PgReceiveXlog', INFO, out) in caplog.record_tuples
         assert ('PgReceiveXlog', WARNING, err) in caplog.record_tuples
+
+    @mock.patch('barman.utils.which')
+    @mock.patch('barman.command_wrappers.Command')
+    def test_find_command(self, command_mock, which_mock):
+        """
+        Test the `find_command` class method
+        """
+
+        which_mapping = {}
+        which_mock.side_effect = \
+            lambda cmd, path=None: which_mapping.get(cmd, None)
+
+        # Neither pg_receivewal, neither pg_receivexlog are
+        # available, and the result is a CommandFailedException
+        with pytest.raises(CommandFailedException):
+            PgReceiveXlog.find_command()
+
+        # pg_receivexlog is available, but pg_receivewal is not
+        which_mapping['pg_receivexlog'] = '/usr/bin/pg_receivexlog'
+        command = PgReceiveXlog.find_command()
+        assert command_mock.mock_calls == [
+            mock.call('/usr/bin/pg_receivexlog', check=True, path=None),
+            mock.call()('--version'),
+        ]
+        assert command == command_mock.return_value
+
+        # pg_receivewal is also available, but it's only a shim
+        which_mapping['pg_receivewal'] = '/usr/bin/pg_receivewal'
+        command_mock.reset_mock()
+        command_mock.return_value.side_effect = [CommandFailedException, None]
+        command = PgReceiveXlog.find_command()
+        assert command_mock.mock_calls == [
+            mock.call('/usr/bin/pg_receivewal', check=True, path=None),
+            mock.call()('--version'),
+            mock.call('/usr/bin/pg_receivexlog', check=True, path=None),
+            mock.call()('--version'),
+        ]
+        assert command == command_mock.return_value
+
+        # pg_receivewal is available and works well
+        command_mock.reset_mock()
+        command_mock.return_value.side_effect = None
+        command = PgReceiveXlog.find_command()
+        assert command_mock.mock_calls == [
+            mock.call('/usr/bin/pg_receivewal', check=True, path=None),
+            mock.call()('--version'),
+        ]
+        assert command == command_mock.return_value
 
 
 # noinspection PyMethodMayBeStatic

@@ -184,7 +184,7 @@ class RecoveryExecutor(object):
                 output.error(
                     "invalid xlog segment name %r\n"
                     "HINT: Please run \"barman rebuild-xlogdb %s\" "
-                    "to solve this issue" %
+                    "to solve this issue",
                     str(e), self.config.name)
                 output.close_and_exit()
             # If WAL files are put directly in the pg_xlog directory,
@@ -205,7 +205,8 @@ class RecoveryExecutor(object):
                                          target_tli, target_xid)
 
         # Create archive_status directory if necessary
-        archive_status_dir = os.path.join(dest, 'pg_xlog', 'archive_status')
+        archive_status_dir = os.path.join(recovery_info['wal_dest'],
+                                          'archive_status')
         try:
             recovery_info['cmd'].create_dir_if_not_exists(archive_status_dir)
         except FsOperationFailed as e:
@@ -247,6 +248,12 @@ class RecoveryExecutor(object):
         :return dict: recovery_info dictionary, holding the basic values for a
             recovery
         """
+        # Calculate the name of the WAL directory
+        if backup_info.version < 100000:
+            wal_dest = os.path.join(dest, 'pg_xlog')
+        else:
+            wal_dest = os.path.join(dest, 'pg_wal')
+
         recovery_info = {
             'cmd': None,
             'recovery_dest': 'local',
@@ -256,7 +263,7 @@ class RecoveryExecutor(object):
             'temporary_configuration_files': [],
             'tempdir': tempfile.mkdtemp(prefix='barman_recovery-'),
             'is_pitr': False,
-            'wal_dest': os.path.join(dest, 'pg_xlog'),
+            'wal_dest': wal_dest,
             'get_wal': RecoveryOptions.GET_WAL in self.config.recovery_options,
         }
         # A map that will keep track of the results of the recovery.
@@ -554,6 +561,7 @@ class RecoveryExecutor(object):
             exclude=[
                 '/pg_log/*',
                 '/pg_xlog/*',
+                '/pg_wal/*',
                 '/postmaster.pid',
                 '/recovery.conf',
                 '/tablespace_map',
@@ -724,7 +732,7 @@ class RecoveryExecutor(object):
                                            recovery_info['wal_dest'],
                                            'archive_status'))
             except CommandFailedException as e:
-                output.error("unable to populate pg_xlog/archive_status "
+                output.error("unable to populate archive_status "
                              "directory: %s", e)
                 output.close_and_exit()
 

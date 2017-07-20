@@ -598,14 +598,13 @@ class TestStreamingWalArchiver(object):
         backup_manager = build_backup_manager()
         StreamingWalArchiver(backup_manager)
 
-    @patch("barman.command_wrappers.Command")
-    def test_check_receivexlog_installed(self, command_mock):
+    @patch("barman.command_wrappers.PostgreSQLClient.find_command")
+    def test_check_receivexlog_installed(self, find_command):
         """
         Test for the check method of the StreamingWalArchiver class
         """
         backup_manager = build_backup_manager()
-        backup_manager.server.postgres.server_txt_version = "9.2"
-        command_mock.side_effect = CommandFailedException
+        find_command.side_effect = CommandFailedException
 
         archiver = StreamingWalArchiver(backup_manager)
         result = archiver.get_remote_status()
@@ -619,10 +618,10 @@ class TestStreamingWalArchiver(object):
             "pg_receivexlog_supports_slots": None,
         }
 
-        backup_manager.server.postgres.server_txt_version = "9.2"
-        command_mock.side_effect = None
-        command_mock.return_value.cmd = '/some/path/to/pg_receivexlog'
-        command_mock.return_value.side_effect = CommandFailedException
+        backup_manager.server.streaming.server_major_version = "9.2"
+        find_command.side_effect = None
+        find_command.return_value.cmd = '/some/path/to/pg_receivexlog'
+        find_command.return_value.out = ''
         archiver.reset_remote_status()
         result = archiver.get_remote_status()
 

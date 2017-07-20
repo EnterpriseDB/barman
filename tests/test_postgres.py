@@ -351,6 +351,21 @@ class TestPostgres(object):
         # reset the mock for the next test
         conn.reset_mock()
 
+        # 10 test
+        conn.return_value.server_version = 100000
+        assert server.postgres.start_exclusive_backup(backup_label)
+        # check for the correct call on the execute method
+        cursor_mock.execute.assert_called_once_with(
+            'SELECT location, '
+            '(pg_walfile_name_offset(location)).*, '
+            'now() AS timestamp '
+            'FROM pg_start_backup(%s,%s) AS location',
+            ('test label', False)
+        )
+        conn.return_value.rollback.assert_has_calls([call(), call()])
+        # reset the mock for the next test
+        conn.reset_mock()
+
         # test error management
         cursor_mock.execute.side_effect = psycopg2.Error
         with pytest.raises(PostgresException):
@@ -661,7 +676,8 @@ class TestPostgres(object):
         )
         cursor_mock.fetchone.return_value = current_xlog_info
 
-        # Test call on master
+        # Test call on master, PostgreSQL older than 10
+        conn_mock.return_value.server_version = 90300
         is_in_recovery_mock.return_value = False
         remote_loc = server.postgres.current_xlog_info
         assert remote_loc == current_xlog_info
@@ -670,8 +686,9 @@ class TestPostgres(object):
             'CURRENT_TIMESTAMP AS timestamp '
             'FROM pg_current_xlog_location() AS location')
 
-        # Check call on standby
+        # Check call on standby, PostgreSQL older than 10
         conn_mock.reset_mock()
+        conn_mock.return_value.server_version = 90300
         is_in_recovery_mock.return_value = True
         current_xlog_info['file_name'] = None
         current_xlog_info['file_offset'] = None
@@ -681,6 +698,30 @@ class TestPostgres(object):
             'SELECT location, NULL AS file_name, NULL AS file_offset, '
             'CURRENT_TIMESTAMP AS timestamp '
             'FROM pg_last_xlog_replay_location() AS location')
+
+        # Test call on master, PostgreSQL older than 10
+        conn_mock.reset_mock()
+        conn_mock.return_value.server_version = 100000
+        is_in_recovery_mock.return_value = False
+        remote_loc = server.postgres.current_xlog_info
+        assert remote_loc == current_xlog_info
+        cursor_mock.execute.assert_called_once_with(
+            'SELECT location, (pg_walfile_name_offset(location)).*, '
+            'CURRENT_TIMESTAMP AS timestamp '
+            'FROM pg_current_wal_lsn() AS location')
+
+        # Check call on standby, PostgreSQL older than 10
+        conn_mock.reset_mock()
+        conn_mock.return_value.server_version = 100000
+        is_in_recovery_mock.return_value = True
+        current_xlog_info['file_name'] = None
+        current_xlog_info['file_offset'] = None
+        remote_loc = server.postgres.current_xlog_info
+        assert remote_loc == current_xlog_info
+        cursor_mock.execute.assert_called_once_with(
+            'SELECT location, NULL AS file_name, NULL AS file_offset, '
+            'CURRENT_TIMESTAMP AS timestamp '
+            'FROM pg_last_wal_replay_lsn() AS location')
 
         # Reset mock
         conn_mock.reset_mock()
@@ -701,6 +742,7 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
+        conn_mock.return_value.server_version = 90300
         cursor_mock = conn_mock.return_value.cursor.return_value
 
         timestamp = datetime.datetime(2016, 3, 30, 17, 4, 20, 271376)
@@ -855,19 +897,38 @@ class TestPostgres(object):
         cursor_mock = conn_mock.return_value.cursor.return_value
         is_in_recovery_mock.return_value = False
         is_superuser_mock.return_value = True
-        # Test for the response of a correct switch
+
+        # Test for the response of a correct switch for PostgreSQL < 10
+        conn_mock.return_value.server_version = 90100
         cursor_mock.fetchone.side_effect = [
             ('000000010000000000000001',),
             ('000000010000000000000002',)
         ]
         xlog = server.postgres.switch_xlog()
 
-        # Check for the right invocation
+        # Check for the right invocation for PostgreSQL < 10
         assert xlog == '000000010000000000000001'
         cursor_mock.execute.assert_has_calls([
             call('SELECT pg_xlogfile_name(pg_current_xlog_insert_location())'),
             call('SELECT pg_xlogfile_name(pg_switch_xlog())'),
             call('SELECT pg_xlogfile_name(pg_current_xlog_insert_location())'),
+        ])
+
+        # Test for the response of a correct switch for PostgreSQL 10
+        conn_mock.return_value.server_version = 100000
+        cursor_mock.reset_mock()
+        cursor_mock.fetchone.side_effect = [
+            ('000000010000000000000001',),
+            ('000000010000000000000002',)
+        ]
+        xlog = server.postgres.switch_xlog()
+
+        # Check for the right invocation for PostgreSQL 10
+        assert xlog == '000000010000000000000001'
+        cursor_mock.execute.assert_has_calls([
+            call('SELECT pg_walfile_name(pg_current_wal_insert_lsn())'),
+            call('SELECT pg_walfile_name(pg_switch_wal())'),
+            call('SELECT pg_walfile_name(pg_current_wal_insert_lsn())'),
         ])
 
         cursor_mock.reset_mock()
@@ -912,6 +973,23 @@ class TestPostgres(object):
         server = build_real_server()
         cursor_mock = conn_mock.return_value.cursor.return_value
         is_superuser_mock.return_value = True
+
+        # 10 ALL
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 100000
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.ANY_STREAMING_CLIENT)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT r.*, rs.slot_name, "
+            "pg_is_in_recovery() AS is_in_recovery,"
+            "CASE WHEN pg_is_in_recovery() "
+            "  THEN pg_last_wal_receive_lsn() "
+            "  ELSE pg_current_wal_lsn() "
+            "END AS current_location "
+            "FROM pg_stat_replication r "
+            "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
+            "ORDER BY sync_state DESC, sync_priority")
 
         # 9.5 ALL
         cursor_mock.reset_mock()
@@ -1275,6 +1353,134 @@ class TestPostgres(object):
         assert result == DEFAULT_XLOG_SEG_SIZE
 
         cursor_mock.execute.assert_not_called()
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_switch_xlog_function(self, conn_mock):
+        """
+        Test the `switch_xlog_function` name
+        :return:
+        """
+        server = build_real_server()
+
+        conn_mock.return_value.server_version = 90300
+        assert server.postgres.name_map[
+            'pg_switch_wal'] == 'pg_switch_xlog'
+
+        conn_mock.return_value.server_version = 100000
+        assert server.postgres.name_map[
+            'pg_switch_wal'] == 'pg_switch_wal'
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_xlogfile_name_function(self, conn_mock):
+        """
+        Test the `xlogfile_name_function` property.
+        :return:
+        """
+        server = build_real_server()
+
+        conn_mock.return_value.server_version = 90300
+        assert server.postgres.name_map[
+            'pg_walfile_name'] == 'pg_xlogfile_name'
+
+        conn_mock.return_value.server_version = 100000
+        assert server.postgres.name_map[
+            'pg_walfile_name'] == 'pg_walfile_name'
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_xlogfile_name_offset_function(self, conn_mock):
+        """
+        Test the `xlogfile_name_function` property.
+        :return:
+        """
+        server = build_real_server()
+
+        conn_mock.return_value.server_version = 90300
+        assert server.postgres.name_map[
+            'pg_walfile_name_offset'] == 'pg_xlogfile_name_offset'
+
+        conn_mock.return_value.server_version = 100000
+        assert server.postgres.name_map[
+            'pg_walfile_name_offset'] == 'pg_walfile_name_offset'
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_xlog_directory(self, conn_mock):
+        """
+        Test the `xlog_directory` property.
+        :return:
+        """
+        server = build_real_server()
+
+        conn_mock.return_value.server_version = 90300
+        assert server.postgres.name_map[
+            'pg_wal'] == 'pg_xlog'
+
+        conn_mock.return_value.server_version = 100000
+        assert server.postgres.name_map[
+            'pg_wal'] == 'pg_wal'
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_last_xlog_replay_location_function(self, conn_mock):
+        """
+        Test the `last_xlog_replay_location_function` property.
+        :return:
+        """
+        server = build_real_server()
+
+        conn_mock.return_value.server_version = 90300
+        assert server.postgres.name_map[
+            'pg_last_wal_replay_lsn'] == 'pg_last_xlog_replay_location'
+
+        conn_mock.return_value.server_version = 100000
+        assert server.postgres.name_map[
+            'pg_last_wal_replay_lsn'] == 'pg_last_wal_replay_lsn'
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_current_xlog_location_function(self, conn_mock):
+        """
+        Test the `current_xlog_location_function` property
+        :return:
+        """
+        server = build_real_server()
+
+        conn_mock.return_value.server_version = 90300
+        assert server.postgres.name_map[
+            'pg_current_wal_lsn'] == 'pg_current_xlog_location'
+
+        conn_mock.return_value.server_version = 100000
+        assert server.postgres.name_map[
+            'pg_current_wal_lsn'] == 'pg_current_wal_lsn'
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_current_xlog_insert_location_function(self, conn_mock):
+        """
+        Test the `current_xlog_insert_location_function` property
+        :return:
+        """
+        server = build_real_server()
+
+        conn_mock.return_value.server_version = 90300
+        assert server.postgres.name_map[
+            'pg_current_wal_insert_lsn'] == 'pg_current_xlog_insert_location'
+
+        conn_mock.return_value.server_version = 100000
+        assert server.postgres.name_map[
+            'pg_current_wal_insert_lsn'] == 'pg_current_wal_insert_lsn'
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_last_xlog_receive_location_function(self, conn_mock):
+        """
+        Test the `current_xlog_insert_location_function` property
+        :return:
+        """
+        server = build_real_server()
+
+        conn_mock.return_value.server_version = 90300
+        assert server.postgres.name_map[
+            'pg_last_wal_receive_lsn'] == 'pg_last_xlog_receive_location'
+
+        conn_mock.return_value.server_version = 100000
+        assert server.postgres.name_map[
+            'pg_last_wal_receive_lsn'] == 'pg_last_wal_receive_lsn'
 
 
 # noinspection PyMethodMayBeStatic

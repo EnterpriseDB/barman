@@ -806,8 +806,8 @@ class TestPostgresBackupExecutor(object):
         backup_manager.executor.check(check_strategy=check_strat)
         assert check_strat.has_error is True
 
-    @mock.patch("barman.command_wrappers.Command")
-    def test_fetch_remote_status(self, cmd_mock):
+    @patch("barman.command_wrappers.PostgreSQLClient.find_command")
+    def test_fetch_remote_status(self, find_command):
         """
         Test the fetch_remote_status method
         :param cmd_mock: mock the Command class
@@ -816,18 +816,18 @@ class TestPostgresBackupExecutor(object):
             'backup_method': 'postgres'
         })
         # Simulate the absence of pg_basebackup
-        cmd_mock.side_effect = CommandFailedException
+        find_command.side_effect = CommandFailedException
         backup_manager.server.streaming.server_major_version = '9.5'
         remote = backup_manager.executor.fetch_remote_status()
         assert remote['pg_basebackup_installed'] is False
         assert remote['pg_basebackup_path'] is None
 
         # Simulate the presence of pg_basebackup 9.5.1 and pg 95
-        cmd_mock.side_effect = None
-        cmd_mock.return_value.cmd = '/fake/path'
+        find_command.side_effect = None
+        find_command.return_value.cmd = '/fake/path'
+        find_command.return_value.out = '9.5.1'
         backup_manager.server.streaming.server_major_version = '9.5'
         backup_manager.server.path = 'fake/path2'
-        cmd_mock.return_value.out = '9.5.1'
         remote = backup_manager.executor.fetch_remote_status()
         assert remote['pg_basebackup_installed'] is True
         assert remote['pg_basebackup_path'] == '/fake/path'
@@ -837,8 +837,8 @@ class TestPostgresBackupExecutor(object):
 
         # Simulate the presence of pg_basebackup 9.5.1 and no Pg
         backup_manager.server.streaming.server_major_version = None
-        cmd_mock.reset_mock()
-        cmd_mock.return_value.out = '9.5.1'
+        find_command.reset_mock()
+        find_command.return_value.out = '9.5.1'
         remote = backup_manager.executor.fetch_remote_status()
         assert remote['pg_basebackup_installed'] is True
         assert remote['pg_basebackup_path'] == '/fake/path'
@@ -848,8 +848,8 @@ class TestPostgresBackupExecutor(object):
 
         # Simulate the presence of pg_basebackup 9.3.3 and Pg 9.5
         backup_manager.server.streaming.server_major_version = '9.5'
-        cmd_mock.reset_mock()
-        cmd_mock.return_value.out = '9.3.3'
+        find_command.reset_mock()
+        find_command.return_value.out = '9.3.3'
         remote = backup_manager.executor.fetch_remote_status()
         assert remote['pg_basebackup_installed'] is True
         assert remote['pg_basebackup_path'] == '/fake/path'

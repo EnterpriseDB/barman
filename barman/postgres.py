@@ -522,9 +522,10 @@ class PostgreSQLConnection(PostgreSQL):
             if not self.is_in_recovery:
                 cur.execute(
                     "SELECT location, "
-                    "(pg_xlogfile_name_offset(location)).*, "
+                    "({pg_walfile_name_offset}(location)).*, "
                     "CURRENT_TIMESTAMP AS timestamp "
-                    "FROM pg_current_xlog_location() AS location")
+                    "FROM {pg_current_wal_lsn}() AS location"
+                    .format(**self.name_map))
                 return cur.fetchone()
             else:
                 cur.execute(
@@ -532,7 +533,8 @@ class PostgreSQLConnection(PostgreSQL):
                     "NULL AS file_name, "
                     "NULL AS file_offset, "
                     "CURRENT_TIMESTAMP AS timestamp "
-                    "FROM pg_last_xlog_replay_location() AS location")
+                    "FROM {pg_last_wal_replay_lsn}() AS location"
+                    .format(**self.name_map))
                 return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving current xlog "
@@ -873,16 +875,18 @@ class PostgreSQLConnection(PostgreSQL):
             if self.server_version < 80400:
                 cur.execute(
                     "SELECT location, "
-                    "(pg_xlogfile_name_offset(location)).*, "
+                    "({pg_walfile_name_offset}(location)).*, "
                     "now() AS timestamp "
-                    "FROM pg_start_backup(%s) AS location",
+                    "FROM pg_start_backup(%s) AS location"
+                    .format(**self.name_map),
                     (label,))
             else:
                 cur.execute(
                     "SELECT location, "
-                    "(pg_xlogfile_name_offset(location)).*, "
+                    "({pg_walfile_name_offset}(location)).*, "
                     "now() AS timestamp "
-                    "FROM pg_start_backup(%s,%s) AS location",
+                    "FROM pg_start_backup(%s,%s) AS location"
+                    .format(**self.name_map),
                     (label, self.config.immediate_checkpoint))
 
             start_row = cur.fetchone()
@@ -1111,14 +1115,17 @@ class PostgreSQLConnection(PostgreSQL):
 
             cur = conn.cursor()
             # Collect the xlog file name before the switch
-            cur.execute('SELECT pg_xlogfile_name('
-                        'pg_current_xlog_insert_location())')
+            cur.execute('SELECT {pg_walfile_name}('
+                        '{pg_current_wal_insert_lsn}())'
+                        .format(**self.name_map))
             pre_switch = cur.fetchone()[0]
             # Switch
-            cur.execute('SELECT pg_xlogfile_name(pg_switch_xlog())')
+            cur.execute('SELECT {pg_walfile_name}({pg_switch_wal}())'
+                        .format(**self.name_map))
             # Collect the xlog file name after the switch
-            cur.execute('SELECT pg_xlogfile_name('
-                        'pg_current_xlog_insert_location())')
+            cur.execute('SELECT {pg_walfile_name}('
+                        '{pg_current_wal_insert_lsn}())'
+                        .format(**self.name_map))
             post_switch = cur.fetchone()[0]
             if pre_switch < post_switch:
                 return pre_switch
@@ -1248,15 +1255,15 @@ class PostgreSQLConnection(PostgreSQL):
                 "SELECT %s, "
                 "pg_is_in_recovery() AS is_in_recovery,"
                 "CASE WHEN pg_is_in_recovery() "
-                "  THEN pg_last_xlog_receive_location() "
-                "  ELSE pg_current_xlog_location() "
+                "  THEN {pg_last_wal_receive_lsn}() "
+                "  ELSE {pg_current_wal_lsn}() "
                 "END AS current_location "
                 "FROM pg_stat_replication r "
                 "%s"
                 "%s"
-                "ORDER BY sync_state DESC, sync_priority" % (what,
-                                                             from_repslot,
-                                                             where))
+                "ORDER BY sync_state DESC, sync_priority"
+                .format(**self.name_map)
+                % (what, from_repslot, where))
 
             # Generate a list of standby objects
             return cur.fetchall()
@@ -1326,3 +1333,37 @@ class PostgreSQLConnection(PostgreSQL):
                 names_end = len(synchronous_standby_names)
             names_list = synchronous_standby_names[names_start:names_end]
             return [x.strip() for x in names_list.split(',')]
+
+    @property
+    def name_map(self):
+        """
+        Return a map with function and directory names according to the current
+        PostgreSQL version.
+
+        Each entry has the `current` name as key and the name for the specific
+        version as value.
+
+        :rtype: dict[str]
+        """
+        if self.server_version < 100000:
+            return {
+                'pg_switch_wal': 'pg_switch_xlog',
+                'pg_walfile_name': 'pg_xlogfile_name',
+                'pg_wal': 'pg_xlog',
+                'pg_walfile_name_offset': 'pg_xlogfile_name_offset',
+                'pg_last_wal_replay_lsn': 'pg_last_xlog_replay_location',
+                'pg_current_wal_lsn': 'pg_current_xlog_location',
+                'pg_current_wal_insert_lsn': 'pg_current_xlog_insert_location',
+                'pg_last_wal_receive_lsn': 'pg_last_xlog_receive_location',
+            }
+        else:
+            return {
+                'pg_switch_wal': 'pg_switch_wal',
+                'pg_walfile_name': 'pg_walfile_name',
+                'pg_wal': 'pg_wal',
+                'pg_walfile_name_offset': 'pg_walfile_name_offset',
+                'pg_last_wal_replay_lsn': 'pg_last_wal_replay_lsn',
+                'pg_current_wal_lsn': 'pg_current_wal_lsn',
+                'pg_current_wal_insert_lsn': 'pg_current_wal_insert_lsn',
+                'pg_last_wal_receive_lsn': 'pg_last_wal_receive_lsn',
+            }

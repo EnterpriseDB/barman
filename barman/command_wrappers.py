@@ -679,7 +679,16 @@ class PostgreSQLClient(Command):
     Superclass of all the PostgreSQL client commands.
     """
 
-    COMMAND = None
+    COMMAND_ALTERNATIVES = None
+    """
+    Sometimes the name of a command has been changed during the PostgreSQL
+    evolution. I.e. that happened with pg_receivexlog, that has been renamed
+    to pg_receivewal. In that case, we should try using pg_receivewal (the
+    newer auternative) and, if that command doesn't exist, we should try
+    using `pg_receivewal`.
+
+    This is a list of command names to be used to find the installed command.
+    """
 
     def __init__(self,
                  connection,
@@ -719,6 +728,62 @@ class PostgreSQLClient(Command):
         self.enable_signal_forwarding(signal.SIGTERM)
 
     @classmethod
+    def find_command(cls, path=None):
+        """
+        Find the active command, given all the alternatives as set in the
+        property named `COMMAND_ALTERNATIVES` in this class.
+
+        :param str path: The path to use while searching for the command
+        :rtype: Command
+        """
+
+        # TODO: Unit tests of this one
+
+        # To search for an available command, testing if the command
+        # exists in PATH is not sufficient. Debian will install wrappers for
+        # all commands, even if the real command doesn't work.
+        #
+        # I.e. we may have a wrapper for `pg_receivewal` even it PostgreSQL
+        # 10 isn't installed.
+        #
+        # This is an example of what can happen in this case:
+        #
+        # ```
+        # $ pg_receivewal --version; echo $?
+        # Error: pg_wrapper: pg_receivewal was not found in
+        #   /usr/lib/postgresql/9.6/bin
+        # 1
+        # $ pg_receivexlog --version; echo $?
+        # pg_receivexlog (PostgreSQL) 9.6.3
+        # 0
+        # ```
+        #
+        # That means we should not only ensure the existence of the command,
+        # but we also need to invoke the command to see if it is a shim
+        # or not.
+        for cmd in cls.COMMAND_ALTERNATIVES:
+            full_path = barman.utils.which(cmd, path)
+
+            # It doesn't exist.
+            if not full_path:
+                continue
+
+            # It exists, let's try invoking it with `--version` to check if
+            # it's real or not.
+            try:
+                command = Command(full_path, path=path, check=True)
+                command("--version")
+                return command
+            except CommandFailedException:
+                # It's only a inactive shim
+                continue
+
+        # We don't have such a command
+        raise CommandFailedException(
+            'command not in PATH, tried: %s' %
+            ' '.join(cls.COMMAND_ALTERNATIVES))
+
+    @classmethod
     def get_version_info(cls, path=None):
         """
         Return a dictionary containing all the info about
@@ -726,7 +791,7 @@ class PostgreSQLClient(Command):
 
         :param str path: the PATH env
         """
-        if cls.COMMAND is None:
+        if cls.COMMAND_ALTERNATIVES is None:
             raise NotImplementedError(
                 "get_version_info cannot be invoked on %s" % cls.__name__)
 
@@ -737,16 +802,21 @@ class PostgreSQLClient(Command):
 
         # Get the version string
         try:
-            command = Command(cls.COMMAND, path=path, check=True)
-            version_info['full_path'] = command.cmd
-            command("--version")
+            command = cls.find_command(path)
         except CommandFailedException as e:
-            _logger.debug("Error invoking %s: %s", cls.COMMAND, e)
+            _logger.debug("Error invoking %s: %s", cls.__name__, e)
             return version_info
 
+        version_info['full_path'] = command.cmd
         # Parse the full text version
-        full_version = command.out.strip().split()[-1]
-        version_info['full_version'] = Version(full_version)
+        try:
+            full_version = command.out.strip().split()[-1]
+            version_info['full_version'] = Version(full_version)
+        except IndexError:
+            _logger.debug("Error parsing %s version output",
+                          version_info['full_path'])
+            return version_info
+
         # Extract the major version
         version_info['major_version'] = Version(barman.utils.simplify_version(
             full_version))
@@ -759,12 +829,12 @@ class PgBaseBackup(PostgreSQLClient):
     Wrapper class for the pg_basebackup system command
     """
 
-    COMMAND = 'pg_basebackup'
+    COMMAND_ALTERNATIVES = ['pg_basebackup']
 
     def __init__(self,
                  connection,
                  destination,
-                 command=COMMAND,
+                 command,
                  version=None,
                  app_name=None,
                  bwlimit=None,
@@ -822,12 +892,12 @@ class PgReceiveXlog(PostgreSQLClient):
     Wrapper class for pg_receivexlog
     """
 
-    COMMAND = "pg_receivexlog"
+    COMMAND_ALTERNATIVES = ["pg_receivewal", "pg_receivexlog"]
 
     def __init__(self,
                  connection,
                  destination,
-                 command=COMMAND,
+                 command,
                  version=None,
                  app_name=None,
                  synchronous=False,

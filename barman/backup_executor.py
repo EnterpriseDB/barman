@@ -857,6 +857,9 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                     cmd = UnixRemoteCommand(self.ssh_command,
                                             self.ssh_options,
                                             path=self.server.path)
+                    # Here the name of the PostgreSQL WALs directory is
+                    # hardcoded, but that doesn't represent a problem as
+                    # this code runs only for PostgreSQL < 9.4
                     archive_dir = os.path.join(
                         self.server.postgres.get_setting('data_directory'),
                         'pg_xlog', 'archive_status')
