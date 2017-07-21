@@ -1297,7 +1297,7 @@ class Server(RemoteStatusMixin):
                 # if the requested one is included.
                 wal_peek_list = xlog.generate_segment_names(wal_name)
             else:
-                wal_peek_list = [wal_name]
+                wal_peek_list = iter([wal_name])
 
             # Output the content of wal_peek_list until we have displayed
             # enough files or find a missing file
