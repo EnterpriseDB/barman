@@ -1367,6 +1367,9 @@ class PostgreSQLConnection(PostgreSQL):
         else:
             synchronous_standby_names = (
                 self.get_setting('synchronous_standby_names'))
+            # Return empty list if not defined
+            if synchronous_standby_names is None:
+                return []
             # Normalise the list of sync standby names
             # On PostgreSQL 9.6 it is possible to specify the number of
             # required synchronous standby using this format:
