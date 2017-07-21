@@ -385,7 +385,6 @@ class RsyncCopyController(object):
             and logging.
         :param str src: source directory.
         :param str dst: destination directory.
-        :param bwlimit: bandwidth limit to be enforced. (KiB)
         :param str item_class: If specified carries a meta information about
             what the object to be copied is.
         :param bool optional: Whether a failure copying this object should be
@@ -456,7 +455,9 @@ class RsyncCopyController(object):
         # Create a temporary directory to hold the file lists.
         self.temp_dir = tempfile.mkdtemp(suffix='', prefix='barman-')
         # The following try block is to make sure the temporary directory
-        # will be removed on exit.
+        # will be removed on exit and all the pool workers
+        # have been terminated.
+        pool = None
         try:
             # Initialize the counters used by progress reporting
             self._progress_init()
@@ -510,13 +511,8 @@ class RsyncCopyController(object):
                 self.jobs_done.append(job)
 
         except KeyboardInterrupt:
-            # The parent process has been interrupted with a Ctrl-C. Since we
-            # handle this signal only from the main process (the workers will
-            # discard it), let's ask the pool to terminate its workers, wait
-            # for them to be really terminated, and than recover from the
-            # interruption in the usual way.
-            pool.terminate()
-            pool.join()
+            _logger.info("Copy interrupted by the user (safe before %s)",
+                         self.safe_horizon)
             raise
         except:
             _logger.info("Copy failed (safe before %s)", self.safe_horizon)
@@ -524,9 +520,20 @@ class RsyncCopyController(object):
         else:
             _logger.info("Copy finished (safe before %s)", self.safe_horizon)
         finally:
-            # Clean tmp dir and log, exception management is delegated to
-            # the executor class
-            shutil.rmtree(self.temp_dir)
+            # The parent process may have finished naturally or have been
+            # interrupted by an exception (i.e. due to a copy error or
+            # the user pressing Ctrl-C).
+            # At this point we must make sure that all the workers have been
+            # correctly terminated before continuing.
+            if pool:
+                pool.terminate()
+                pool.join()
+            # Clean up the temp dir, any exception raised here is logged
+            # and discarded to not clobber an eventual exception being handled.
+            try:
+                shutil.rmtree(self.temp_dir)
+            except EnvironmentError as e:
+                _logger.error("Error cleaning up '%s' (%s)", self.temp_dir, e)
             self.temp_dir = None
 
             # Store the end time
