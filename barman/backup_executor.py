@@ -794,7 +794,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
         # If SSH works but PostgreSQL is not responding
         if (cmd is not None and
-                self.server.get_remote_status()['server_txt_version']
+                self.server.get_remote_status().get('server_txt_version')
                 is None):
             # Check for 'backup_label' presence
             last_backup = self.server.get_backup(

@@ -125,7 +125,20 @@ class TestRsyncBackupExecutor(object):
         assert err == ''
         assert 'ssh: OK' in out
         assert "Check that the PostgreSQL server is up and no " \
-               "'backup_label' file is in PGDATA."
+               "'backup_label' file is in PGDATA." in out
+
+        # Test 3-err: ssh ok and PostgreSQL is not configured
+        command_mock.reset_mock()
+        command_mock.return_value.get_last_output.return_value = ('', '')
+        check_strategy = CheckOutputStrategy()
+        # No postgres instance, so no remote status keys available
+        backup_manager.server.get_remote_status.return_value = {}
+        backup_manager.server.get_backup.return_value.pgdata = 'test/'
+        # No exception must raise
+        backup_manager.executor.check(check_strategy)
+        out, err = capsys.readouterr()
+        assert err == ''
+        assert 'ssh: OK' in out
 
         # Test 4: ssh failed
         command_mock.reset_mock()
