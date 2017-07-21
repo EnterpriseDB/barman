@@ -163,6 +163,7 @@ class TestFileWalArchiver(object):
         backup_manager = MagicMock()
         archiver = FileWalArchiver(backup_manager)
         archiver.config.name = "test_server"
+        archiver.config.errors_directory = "/server/errors"
 
         wal_info = WalFileInfo(name="test_wal_file")
         wal_info.orig_filename = "test_wal_file"
@@ -172,6 +173,7 @@ class TestFileWalArchiver(object):
         assert batch.run_size == 1
         get_next_batch_mock.return_value = batch
         archive_wal_mock.side_effect = DuplicateWalFile
+        datetime_mock.utcnow.return_value.strftime.return_value = 'test_time'
 
         archiver.archive(fxlogdb_mock)
 
@@ -190,7 +192,6 @@ class TestFileWalArchiver(object):
 
         # Test batch errors
         caplog_reset(caplog)
-        datetime_mock.utcnow.strftime.return_value = 'test_time'
         batch.errors = ['testfile_1', 'testfile_2']
         archive_wal_mock.side_effect = DuplicateWalFile
         archiver.archive(fxlogdb_mock)
