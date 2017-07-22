@@ -87,10 +87,10 @@ class _RsyncJob(object):
     """
     A job to be executed by a worker Process
     """
-    def __init__(self, item, description,
+    def __init__(self, item_idx, description,
                  id=None, file_list=None, checksum=None):
         """
-        :param _RsyncCopyItem item: The copy item containing this job
+        :param int item_idx: The index of copy item containing this job
         :param str description: The description of the job, used for logging
         :param int id: Job ID (as in bucket)
         :param list[RsyncCopyController._FileItem] file_list: Path to the file
@@ -98,7 +98,7 @@ class _RsyncJob(object):
         :param bool checksum: Whether to force the checksum verification
         """
         self.id = id
-        self.item = item
+        self.item_idx = item_idx
         self.description = description
         self.file_list = file_list
         self.checksum = checksum
@@ -549,7 +549,7 @@ class RsyncCopyController(object):
             which have one of the specified classes.
         :rtype: iter[_RsyncJob]
         """
-        for item in self.item_list:
+        for item_idx, item in enumerate(self.item_list):
 
             # Skip items of classes which are not required
             if include_classes and item.item_class not in include_classes:
@@ -568,7 +568,7 @@ class RsyncCopyController(object):
                 for i, bucket in enumerate(
                         self._fill_buckets(item.safe_list)):
                     phase_skipped = False
-                    yield _RsyncJob(item,
+                    yield _RsyncJob(item_idx,
                                     id=i,
                                     description=msg,
                                     file_list=bucket,
@@ -583,7 +583,7 @@ class RsyncCopyController(object):
                 for i, bucket in enumerate(
                         self._fill_buckets(item.check_list)):
                     phase_skipped = False
-                    yield _RsyncJob(item,
+                    yield _RsyncJob(item_idx,
                                     id=i,
                                     description=msg,
                                     file_list=bucket,
@@ -594,7 +594,7 @@ class RsyncCopyController(object):
             else:
                 # Copy the file using plain rsync
                 msg = self._progress_message("[%%s] %%s copy %s" % item)
-                yield _RsyncJob(item, description=msg)
+                yield _RsyncJob(item_idx, description=msg)
 
     def _fill_buckets(self, file_list):
         """
@@ -645,7 +645,7 @@ class RsyncCopyController(object):
 
         :type job: _RsyncJob
         """
-        item = job.item
+        item = self.item_list[job.item_idx]
         if job.id is not None:
             bucket = 'bucket %s' % job.id
         else:
@@ -1036,7 +1036,7 @@ class RsyncCopyController(object):
             # contained in self.item_list, as it has gone through two
             # pickling/unpickling cycle
             # Build a human readable name to refer to an item in the output
-            ident = job.item.label
+            ident = self.item_list[job.item_idx].label
             # If this is the first time we see this item we just store the
             # values from the job
             if ident not in item_data:
