@@ -26,7 +26,7 @@ import sys
 import barman
 from barman import fs, output
 from barman.backup import BackupInfo
-from barman.exceptions import FsOperationFailed, CommandFailedException
+from barman.exceptions import CommandFailedException, FsOperationFailed
 from barman.utils import BarmanEncoder
 
 _logger = logging.getLogger(__name__)
