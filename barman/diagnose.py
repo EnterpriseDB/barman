@@ -26,7 +26,7 @@ import sys
 import barman
 from barman import fs, output
 from barman.backup import BackupInfo
-from barman.exceptions import FsOperationFailed
+from barman.exceptions import FsOperationFailed, CommandFailedException
 from barman.utils import BarmanEncoder
 
 _logger = logging.getLogger(__name__)
@@ -47,9 +47,12 @@ def exec_diagnose(servers, errors_list):
     # barman global config
     diagnosis['global']['config'] = dict(barman.__config__._global_config)
     diagnosis['global']['config']['errors_list'] = errors_list
-    command = fs.UnixLocalCommand()
-    # basic system info
-    diagnosis['global']['system_info'] = command.get_system_info()
+    try:
+        command = fs.UnixLocalCommand()
+        # basic system info
+        diagnosis['global']['system_info'] = command.get_system_info()
+    except CommandFailedException as e:
+        diagnosis['global']['system_info'] = {'error': repr(e)}
     diagnosis['global']['system_info']['barman_ver'] = barman.__version__
     # per server section
     for name in sorted(servers):

@@ -231,6 +231,9 @@ def which(executable, path=None):
     # Get the system path and split.
     if path is None:
         path = os.getenv('PATH')
+    # If the path is None at this point we have nothing to search
+    if path is None:
+        return None
     # If executable is an absolute path, check if it exists and is executable
     # otherwise return failure.
     if os.path.isabs(executable):

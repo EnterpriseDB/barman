@@ -214,8 +214,11 @@ class UnixLocalCommand(object):
         self.cmd('python', args=['--version', '2>&1'])
         result['python_ver'] = _str(self.internal_cmd.out).rstrip()
         self.cmd('rsync', args=['--version', '2>&1'])
-        result['rsync_ver'] = _str(self.internal_cmd.out).splitlines(
-            True)[0].rstrip()
+        try:
+            result['rsync_ver'] = _str(self.internal_cmd.out).splitlines(
+                True)[0].rstrip()
+        except IndexError:
+            result['rsync_ver'] = ''
         self.cmd('ssh', args=['-V', '2>&1'])
         result['ssh_ver'] = _str(self.internal_cmd.out).rstrip()
         return result
