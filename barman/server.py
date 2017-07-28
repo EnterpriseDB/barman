@@ -509,7 +509,12 @@ class Server(RemoteStatusMixin):
         enabled = getattr(self.config, archiver_name)
 
         # Inspect the wal queue directory
-        file_count = len(glob(os.path.join(incoming_dir, '*')))
+        file_count = 0
+        for file_item in glob(os.path.join(incoming_dir, '*')):
+            # Ignore temporary files
+            if file_item.endswith('.tmp'):
+                continue
+            file_count += 1
         max_incoming_wal = self.config.max_incoming_wals_queue
 
         # Subtract one from the count because of .partial file inside the

@@ -491,6 +491,9 @@ class FileWalArchiver(WalArchiver):
         files = []
         errors = []
         for file_name in file_names:
+            # Ignore temporary files
+            if file_name.endswith('.tmp'):
+                continue
             if xlog.is_any_xlog_file(file_name) and os.path.isfile(file_name):
                 files.append(file_name)
             else:
@@ -801,6 +804,9 @@ class StreamingWalArchiver(WalArchiver):
         skip = []
         errors = []
         for file_name in file_names:
+            # Ignore temporary files
+            if file_name.endswith('.tmp'):
+                continue
             if not os.path.isfile(file_name):
                 errors.append(file_name)
             elif xlog.is_partial_file(file_name):

@@ -873,6 +873,19 @@ class TestServer(object):
         assert strategy.check_result[0].check == 'empty incoming directory'
         assert strategy.check_result[0].status is False
 
+        # Check that .tmp files are ignored
+        # Create a nonempty tmp file
+        with open(os.path.join(server.config.incoming_wals_directory,
+                  "00000000000000000000.tmp"), 'w') as wal:
+            wal.write('a')
+        # The check strategy should contain no errors.
+        strategy = CheckStrategy()
+        server.config.archiver = True
+        server.check_archive(strategy)
+        # Check that is ignored
+        assert strategy.has_error is False
+        assert len(strategy.check_result) == 0
+
     @pytest.mark.parametrize('icoming_name, archiver_name',
                              [
                                  ['incoming', 'archiver'],
