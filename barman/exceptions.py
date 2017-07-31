@@ -58,6 +58,12 @@ class WALFileException(BarmanException):
     """
     Base exception for all the errors related to WAL files.
     """
+    def __str__(self):
+        """
+        Human readable string representation
+        """
+        return "%s:%s" % (self.__class__.__name__,
+                          self.args[0] if self.args else None)
 
 
 class HookScriptException(BarmanException):

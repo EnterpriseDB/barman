@@ -63,7 +63,7 @@ class HookScriptRunner(object):
             'BARMAN_RETRY': str(1 if self.retry else 0),
         })
         if self.error:
-            self.environment['BARMAN_ERROR'] = self.error
+            self.environment['BARMAN_ERROR'] = str(self.error)
         if self.phase:
             self.environment['BARMAN_PHASE'] = self.phase
             script_config_name = "%s_%s" % (self.phase, self.name)
