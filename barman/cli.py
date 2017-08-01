@@ -364,6 +364,16 @@ def rebuild_xlogdb(args):
      dest='get_wal',
      action='store_false',
      default=SUPPRESS)
+@arg('--network-compression',
+     help='Enable network compression during remote recovery.',
+     dest='network_compression',
+     action='store_true',
+     default=SUPPRESS)
+@arg('--no-network-compression',
+     help='Disable network compression during remote recovery.',
+     dest='network_compression',
+     action='store_false',
+     default=SUPPRESS)
 @expects_obj
 def recover(args):
     """
@@ -425,6 +435,15 @@ def recover(args):
             server.config.recovery_options.remove(RecoveryOptions.GET_WAL)
     if args.jobs is not None:
         server.config.parallel_jobs = args.jobs
+    if hasattr(args, 'network_compression'):
+        if args.network_compression and args.remote_ssh_command is None:
+            output.error(
+                "Network compression can only be used with "
+                "remote recovery.\n"
+                "HINT: If you want to do a remote recovery "
+                "you have to use the --remote-ssh-command option")
+            output.close_and_exit()
+        server.config.network_compression = args.network_compression
     with closing(server):
         server.recover(backup_id,
                        args.destination_directory,

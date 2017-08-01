@@ -274,6 +274,10 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
     :   Enable/Disable usage of `get-wal` for WAL fetching during recovery.
         Default is based on `recovery_options` setting.
 
+    --network-compression, --no-network-compression
+    :   Enable/Disable network compression during remote recovery.
+        Default is based on `network_compression` configuration setting.
+
 get-wal *\[OPTIONS\]* *SERVER_NAME* *WAL_ID*
 :   Retrieve a WAL file from the `xlog` archive of a given server.
     By default, the requested WAL file, if found, is returned as
