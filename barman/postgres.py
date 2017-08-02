@@ -967,9 +967,11 @@ class PostgreSQLConnection(PostgreSQL):
             cur = conn.cursor(cursor_factory=DictCursor)
             cur.execute(
                 "SELECT location, "
-                "(pg_xlogfile_name_offset(location)).*, "
+                "({pg_walfile_name_offset}(location)).*, "
                 "now() AS timestamp "
-                "FROM pg_stop_backup() AS location")
+                "FROM pg_stop_backup() AS location"
+                .format(**self.name_map)
+            )
 
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:

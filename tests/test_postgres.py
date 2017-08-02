@@ -221,29 +221,45 @@ class TestPostgres(object):
             "Test_20151026T092241") is None
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
-    def test_stop_exclusive_backup(self, conn):
+    def test_stop_exclusive_backup(self, conn_mock):
         """
         Basic test for the stop_exclusive_backup method
 
-        :param conn: a mock that imitates a connection to PostgreSQL
+        :param conn_mock: a mock that imitates a connection to PostgreSQL
         """
         # Build a server
         server = build_real_server()
 
+        # Test call on master, PostgreSQL older than 10
+        conn_mock.return_value.server_version = 90300
         # Expect no errors on normal call
         assert server.postgres.stop_exclusive_backup()
-
         # check the correct invocation of the execute method
-        cursor_mock = conn.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
             'SELECT location, '
             '(pg_xlogfile_name_offset(location)).*, '
             'now() AS timestamp '
             'FROM pg_stop_backup() AS location'
         )
-        # Test 2: Setup the mock to trigger an exception
+
+        # Test call on master, PostgreSQL 10
+        conn_mock.reset_mock()
+        conn_mock.return_value.server_version = 100000
+        # Expect no errors on normal call
+        assert server.postgres.stop_exclusive_backup()
+        # check the correct invocation of the execute method
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        cursor_mock.execute.assert_called_once_with(
+            'SELECT location, '
+            '(pg_walfile_name_offset(location)).*, '
+            'now() AS timestamp '
+            'FROM pg_stop_backup() AS location'
+        )
+
+        # Test Error: Setup the mock to trigger an exception
         # expect the method to raise a PostgresException
-        conn.reset_mock()
+        conn_mock.reset_mock()
         cursor_mock.execute.side_effect = psycopg2.Error
         # Check that the method raises a PostgresException
         with pytest.raises(PostgresException):
@@ -699,7 +715,7 @@ class TestPostgres(object):
             'CURRENT_TIMESTAMP AS timestamp '
             'FROM pg_last_xlog_replay_location() AS location')
 
-        # Test call on master, PostgreSQL older than 10
+        # Test call on master, PostgreSQL 10
         conn_mock.reset_mock()
         conn_mock.return_value.server_version = 100000
         is_in_recovery_mock.return_value = False
@@ -710,7 +726,7 @@ class TestPostgres(object):
             'CURRENT_TIMESTAMP AS timestamp '
             'FROM pg_current_wal_lsn() AS location')
 
-        # Check call on standby, PostgreSQL older than 10
+        # Check call on standby, PostgreSQL 10
         conn_mock.reset_mock()
         conn_mock.return_value.server_version = 100000
         is_in_recovery_mock.return_value = True
