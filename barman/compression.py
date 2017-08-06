@@ -168,10 +168,10 @@ class CommandCompressor(Compressor):
         :param pipe_command: the command used to compress/decompress
         :rtype: Command
         """
-        command = 'command(){ '
+        command = 'barman_command(){ '
         command += pipe_command
         command += ' > "$2" < "$1"'
-        command += ';}; command'
+        command += ';}; barman_command'
         return Command(command, shell=True, check=True, path=self.path)
 
 
