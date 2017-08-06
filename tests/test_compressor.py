@@ -133,8 +133,8 @@ class TestCommandCompressors(object):
 
         command = compressor._build_command("dummy_command")
 
-        assert command.cmd == 'command(){ dummy_command > "$2" < "$1";}; ' \
-                              'command'
+        assert command.cmd == 'barman_command()' \
+                              '{ dummy_command > "$2" < "$1";}; barman_command'
 
     def test_gzip(self, tmpdir):
 
@@ -238,9 +238,11 @@ class TestCustomCompressor(object):
 
         assert compressor is not None
         assert compressor._compress.cmd == (
-            'command(){ dummy_compression_filter > "$2" < "$1";}; command')
+            'barman_command(){ dummy_compression_filter > "$2" < "$1";}; '
+            'barman_command')
         assert compressor._decompress.cmd == (
-            'command(){ dummy_decompression_filter > "$2" < "$1";}; command')
+            'barman_command(){ dummy_decompression_filter > "$2" < "$1";}; '
+            'barman_command')
 
     def test_validate(self):
         config_mock = mock.Mock()
