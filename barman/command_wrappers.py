@@ -868,6 +868,13 @@ class PgBaseBackup(PostgreSQLClient):
         # Set the backup destination
         self.args += ['-v', '--no-password', '--pgdata=%s' % destination]
 
+        if version and version >= Version("10"):
+            # If version of the client is >= 10 it would use
+            # a temporary replication slot by default to keep WALs.
+            # We don't need it because Barman already stores the full
+            # WAL stream, so we disable this feature to avoid wasting one slot.
+            self.args += ['--no-slot']
+
         # The tablespace mapping option is repeated once for each tablespace
         if tbs_mapping:
             for (tbs_source, tbs_destination) in tbs_mapping.items():

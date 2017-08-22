@@ -940,6 +940,35 @@ class TestPgBaseBackup(object):
         assert pg_basebackup.err_handler
         assert pg_basebackup.out_handler
 
+    def test_no_slot(self):
+        """
+        Test that --no-slot option is correctly passed if the pg_basebakup
+        client is version >= 10
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = 'test_connstring'
+        pg_basebackup = command_wrappers.PgBaseBackup(
+            command='/path/to/pg_basebackup',
+            connection=connection_mock,
+            version='10',
+            destination='/dest/dir',
+            args=['a', 'b'])
+        assert pg_basebackup.args == [
+            "--dbname=test_connstring",
+            "-v",
+            "--no-password",
+            "--pgdata=/dest/dir",
+            "--no-slot",
+            "a",
+            "b",
+        ]
+        assert pg_basebackup.cmd == '/path/to/pg_basebackup'
+        assert pg_basebackup.check is True
+        assert pg_basebackup.close_fds is True
+        assert pg_basebackup.allowed_retval == (0,)
+        assert pg_basebackup.err_handler
+        assert pg_basebackup.out_handler
+
     @mock.patch('barman.command_wrappers.Command.pipe_processor_loop')
     @mock.patch('barman.command_wrappers.subprocess.Popen')
     def test_simple_invocation(self,
