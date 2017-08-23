@@ -762,14 +762,14 @@ class ConsoleOutputWriter(object):
         if self.minimal:
             n = 1
             for standby in standby_info:
-                if not standby.replay_location:
+                if not standby.replay_lsn:
                     # WAL streamer
                     self.info("  %s. W) %s@%s S:%s W:%s P:%s AN:%s",
                               n,
                               standby.usename,
                               standby.client_addr or 'socket',
-                              standby.sent_location,
-                              standby.write_location,
+                              standby.sent_lsn,
+                              standby.write_lsn,
                               standby.sync_priority,
                               standby.application_name)
                 else:
@@ -779,9 +779,9 @@ class ConsoleOutputWriter(object):
                               standby.sync_state[0].upper(),
                               standby.usename,
                               standby.client_addr or 'socket',
-                              standby.sent_location,
-                              standby.flush_location,
-                              standby.replay_location,
+                              standby.sent_lsn,
+                              standby.flush_lsn,
+                              standby.replay_lsn,
                               standby.sync_priority,
                               standby.application_name)
                 n += 1
@@ -793,18 +793,18 @@ class ConsoleOutputWriter(object):
                 self.info("")
 
                 # Calculate differences in bytes
-                sent_diff = diff_lsn(standby.sent_location,
-                                     standby.current_location)
-                write_diff = diff_lsn(standby.write_location,
-                                      standby.current_location)
-                flush_diff = diff_lsn(standby.flush_location,
-                                      standby.current_location)
-                replay_diff = diff_lsn(standby.replay_location,
-                                       standby.current_location)
+                sent_diff = diff_lsn(standby.sent_lsn,
+                                     standby.current_lsn)
+                write_diff = diff_lsn(standby.write_lsn,
+                                      standby.current_lsn)
+                flush_diff = diff_lsn(standby.flush_lsn,
+                                      standby.current_lsn)
+                replay_diff = diff_lsn(standby.replay_lsn,
+                                       standby.current_lsn)
 
                 # Determine the sync stage of the client
                 sync_stage = None
-                if not standby.replay_location:
+                if not standby.replay_lsn:
                     client_type = 'WAL streamer'
                     max_level = 3
                 else:
@@ -862,21 +862,21 @@ class ConsoleOutputWriter(object):
                 if getattr(standby, 'backend_xmin', None):
                     self.info("     Standby's xmin  : %s",
                               standby.backend_xmin or '-')
-                if getattr(standby, 'sent_location', None):
+                if getattr(standby, 'sent_lsn', None):
                     self.info("     Sent location   : %s (diff: %s)",
-                              standby.sent_location,
+                              standby.sent_lsn,
                               pretty_size(sent_diff))
-                if getattr(standby, 'write_location', None):
+                if getattr(standby, 'write_lsn', None):
                     self.info("     Write location  : %s (diff: %s)",
-                              standby.write_location,
+                              standby.write_lsn,
                               pretty_size(write_diff))
-                if getattr(standby, 'flush_location', None):
+                if getattr(standby, 'flush_lsn', None):
                     self.info("     Flush location  : %s (diff: %s)",
-                              standby.flush_location,
+                              standby.flush_lsn,
                               pretty_size(flush_diff))
-                if getattr(standby, 'replay_location', None):
+                if getattr(standby, 'replay_lsn', None):
                     self.info("     Replay location : %s (diff: %s)",
-                              standby.replay_location,
+                              standby.replay_lsn,
                               pretty_size(replay_diff))
                 n += 1
 

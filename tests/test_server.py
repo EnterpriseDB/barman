@@ -1019,11 +1019,11 @@ class TestServer(object):
                 tzinfo=FixedOffsetTimezone(offset=120)),
             backend_xmin='940',
             state='streaming',
-            sent_location='0/3005FF0',
-            write_location='0/3005FF0',
-            flush_location='0/3005FF0',
-            replay_location='0/3005FF0',
-            current_location='0/3005FF0',
+            sent_lsn='0/3005FF0',
+            write_lsn='0/3005FF0',
+            flush_lsn='0/3005FF0',
+            replay_lsn='0/3005FF0',
+            current_lsn='0/3005FF0',
             sync_priority=0,
             sync_state='async'
         )

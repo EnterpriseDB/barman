@@ -998,11 +998,11 @@ class TestPostgres(object):
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
             "SELECT r.*, rs.slot_name, "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_wal_receive_lsn() "
             "  ELSE pg_current_wal_lsn() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
             "ORDER BY sync_state DESC, sync_priority")
@@ -1014,12 +1014,19 @@ class TestPostgres(object):
             PostgreSQLConnection.ANY_STREAMING_CLIENT)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT r.*, rs.slot_name, "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT pid, usesysid, usename, application_name, client_addr, "
+            "client_hostname, client_port, "
+            "backend_start, backend_xmin, state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, rs.slot_name, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
             "ORDER BY sync_state DESC, sync_priority")
@@ -1031,12 +1038,19 @@ class TestPostgres(object):
             PostgreSQLConnection.ANY_STREAMING_CLIENT)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT *, "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT pid, usesysid, usename, application_name, client_addr, "
+            "client_hostname, client_port, "
+            "backend_start, backend_xmin, state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "ORDER BY sync_state DESC, sync_priority")
 
@@ -1047,12 +1061,19 @@ class TestPostgres(object):
             PostgreSQLConnection.WALSTREAMER)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT *, "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT pid, usesysid, usename, application_name, client_addr, "
+            "client_hostname, client_port, "
+            "backend_start, backend_xmin, state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "WHERE replay_location IS NULL "
             "ORDER BY sync_state DESC, sync_priority")
@@ -1064,12 +1085,19 @@ class TestPostgres(object):
             PostgreSQLConnection.STANDBY)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT *, "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT pid, usesysid, usename, application_name, client_addr, "
+            "client_hostname, client_port, "
+            "backend_start, backend_xmin, state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "WHERE replay_location IS NOT NULL "
             "ORDER BY sync_state DESC, sync_priority")
@@ -1081,16 +1109,20 @@ class TestPostgres(object):
             PostgreSQLConnection.ANY_STREAMING_CLIENT)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT pid,usesysid,usename,application_name,client_addr,"
-            "client_hostname,client_port,backend_start,"
-            "CAST (NULL AS xid) AS backend_xmin,"
-            "state,sent_location,write_location,flush_location,"
-            "replay_location,sync_priority,sync_state , "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT pid, usesysid, usename, application_name, client_addr, "
+            "client_hostname, client_port, backend_start, "
+            "CAST (NULL AS xid) AS backend_xmin, "
+            "state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "ORDER BY sync_state DESC, sync_priority")
 
@@ -1101,16 +1133,20 @@ class TestPostgres(object):
             PostgreSQLConnection.WALSTREAMER)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT pid,usesysid,usename,application_name,client_addr,"
-            "client_hostname,client_port,backend_start,"
-            "CAST (NULL AS xid) AS backend_xmin,"
-            "state,sent_location,write_location,flush_location,"
-            "replay_location,sync_priority,sync_state , "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT pid, usesysid, usename, application_name, client_addr, "
+            "client_hostname, client_port, backend_start, "
+            "CAST (NULL AS xid) AS backend_xmin, "
+            "state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "WHERE replay_location IS NULL "
             "ORDER BY sync_state DESC, sync_priority")
@@ -1122,16 +1158,20 @@ class TestPostgres(object):
             PostgreSQLConnection.STANDBY)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT pid,usesysid,usename,application_name,client_addr,"
-            "client_hostname,client_port,backend_start,"
-            "CAST (NULL AS xid) AS backend_xmin,"
-            "state,sent_location,write_location,flush_location,"
-            "replay_location,sync_priority,sync_state , "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT pid, usesysid, usename, application_name, client_addr, "
+            "client_hostname, client_port, backend_start, "
+            "CAST (NULL AS xid) AS backend_xmin, "
+            "state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "WHERE replay_location IS NOT NULL "
             "ORDER BY sync_state DESC, sync_priority")
@@ -1143,16 +1183,20 @@ class TestPostgres(object):
             PostgreSQLConnection.ANY_STREAMING_CLIENT)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT procpid AS pid,usesysid,usename,application_name,"
-            "client_addr,client_hostname,client_port,backend_start,"
-            "CAST (NULL AS xid) AS backend_xmin,"
-            "state,sent_location,write_location,flush_location,"
-            "replay_location,sync_priority,sync_state , "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT procpid AS pid, usesysid, usename, application_name, "
+            "client_addr, client_hostname, client_port, backend_start, "
+            "CAST (NULL AS xid) AS backend_xmin, "
+            "state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "ORDER BY sync_state DESC, sync_priority")
 
@@ -1163,16 +1207,20 @@ class TestPostgres(object):
             PostgreSQLConnection.WALSTREAMER)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT procpid AS pid,usesysid,usename,application_name,"
-            "client_addr,client_hostname,client_port,backend_start,"
-            "CAST (NULL AS xid) AS backend_xmin,"
-            "state,sent_location,write_location,flush_location,"
-            "replay_location,sync_priority,sync_state , "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT procpid AS pid, usesysid, usename, application_name, "
+            "client_addr, client_hostname, client_port, backend_start, "
+            "CAST (NULL AS xid) AS backend_xmin, "
+            "state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "WHERE replay_location IS NULL "
             "ORDER BY sync_state DESC, sync_priority")
@@ -1184,16 +1232,20 @@ class TestPostgres(object):
             PostgreSQLConnection.STANDBY)
         assert standby_info is cursor_mock.fetchall.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT procpid AS pid,usesysid,usename,application_name,"
-            "client_addr,client_hostname,client_port,backend_start,"
-            "CAST (NULL AS xid) AS backend_xmin,"
-            "state,sent_location,write_location,flush_location,"
-            "replay_location,sync_priority,sync_state , "
-            "pg_is_in_recovery() AS is_in_recovery,"
+            "SELECT procpid AS pid, usesysid, usename, application_name, "
+            "client_addr, client_hostname, client_port, backend_start, "
+            "CAST (NULL AS xid) AS backend_xmin, "
+            "state, "
+            "sent_location AS sent_lsn, "
+            "write_location AS write_lsn, "
+            "flush_location AS flush_lsn, "
+            "replay_location AS replay_lsn, "
+            "sync_priority, sync_state, "
+            "pg_is_in_recovery() AS is_in_recovery, "
             "CASE WHEN pg_is_in_recovery() "
             "  THEN pg_last_xlog_receive_location() "
             "  ELSE pg_current_xlog_location() "
-            "END AS current_location "
+            "END AS current_lsn "
             "FROM pg_stat_replication r "
             "WHERE replay_location IS NOT NULL "
             "ORDER BY sync_state DESC, sync_priority")

@@ -1184,10 +1184,10 @@ class PostgreSQLConnection(PostgreSQL):
             # - backend_start
             # - backend_xmin (9.4+)
             # - state
-            # - sent_location
-            # - write_location
-            # - flush_location
-            # - replay_location
+            # - sent_lsn (sent_location before 10)
+            # - write_lsn (write_location before 10)
+            # - flush_lsn (flush_location before 10)
+            # - replay_lsn (replay_location before 10)
             # - sync_priority
             # - sync_state
             #
@@ -1196,70 +1196,109 @@ class PostgreSQLConnection(PostgreSQL):
                 raise PostgresUnsupportedFeature('9.1')
 
             from_repslot = ""
-            if self.server_version >= 90500:
-                # Current implementation (9.5+)
+            if self.server_version >= 100000:
+                # Current implementation (10+)
                 what = "r.*, rs.slot_name"
+                # Look for replication slot name
+                from_repslot = "LEFT JOIN pg_replication_slots rs " \
+                               "ON (r.pid = rs.active_pid) "
+            elif self.server_version >= 90500:
+                # PostgreSQL 9.5/9.6
+                what = "pid, " \
+                    "usesysid, " \
+                    "usename, " \
+                    "application_name, " \
+                    "client_addr, " \
+                    "client_hostname, " \
+                    "client_port, " \
+                    "backend_start, " \
+                    "backend_xmin, " \
+                    "state, " \
+                    "sent_location AS sent_lsn, " \
+                    "write_location AS write_lsn, " \
+                    "flush_location AS flush_lsn, " \
+                    "replay_location AS replay_lsn, " \
+                    "sync_priority, " \
+                    "sync_state, " \
+                    "rs.slot_name"
                 # Look for replication slot name
                 from_repslot = "LEFT JOIN pg_replication_slots rs " \
                                "ON (r.pid = rs.active_pid) "
             elif self.server_version >= 90400:
                 # PostgreSQL 9.4
-                what = "*"
+                what = "pid, " \
+                    "usesysid, " \
+                    "usename, " \
+                    "application_name, " \
+                    "client_addr, " \
+                    "client_hostname, " \
+                    "client_port, " \
+                    "backend_start, " \
+                    "backend_xmin, " \
+                    "state, " \
+                    "sent_location AS sent_lsn, " \
+                    "write_location AS write_lsn, " \
+                    "flush_location AS flush_lsn, " \
+                    "replay_location AS replay_lsn, " \
+                    "sync_priority, " \
+                    "sync_state"
             elif self.server_version >= 90200:
                 # PostgreSQL 9.2/9.3
-                what = "pid," \
-                    "usesysid," \
-                    "usename," \
-                    "application_name," \
-                    "client_addr," \
-                    "client_hostname," \
-                    "client_port," \
-                    "backend_start," \
-                    "CAST (NULL AS xid) AS backend_xmin," \
-                    "state," \
-                    "sent_location," \
-                    "write_location," \
-                    "flush_location," \
-                    "replay_location," \
-                    "sync_priority," \
-                    "sync_state "
+                what = "pid, " \
+                    "usesysid, " \
+                    "usename, " \
+                    "application_name, " \
+                    "client_addr, " \
+                    "client_hostname, " \
+                    "client_port, " \
+                    "backend_start, " \
+                    "CAST (NULL AS xid) AS backend_xmin, " \
+                    "state, " \
+                    "sent_location AS sent_lsn, " \
+                    "write_location AS write_lsn, " \
+                    "flush_location AS flush_lsn, " \
+                    "replay_location AS replay_lsn, " \
+                    "sync_priority, " \
+                    "sync_state"
             else:
                 # PostgreSQL 9.1
-                what = "procpid AS pid," \
-                    "usesysid," \
-                    "usename," \
-                    "application_name," \
-                    "client_addr," \
-                    "client_hostname," \
-                    "client_port," \
-                    "backend_start," \
-                    "CAST (NULL AS xid) AS backend_xmin," \
-                    "state," \
-                    "sent_location," \
-                    "write_location," \
-                    "flush_location," \
-                    "replay_location," \
-                    "sync_priority," \
-                    "sync_state "
+                what = "procpid AS pid, " \
+                    "usesysid, " \
+                    "usename, " \
+                    "application_name, " \
+                    "client_addr, " \
+                    "client_hostname, " \
+                    "client_port, " \
+                    "backend_start, " \
+                    "CAST (NULL AS xid) AS backend_xmin, " \
+                    "state, " \
+                    "sent_location AS sent_lsn, " \
+                    "write_location AS write_lsn, " \
+                    "flush_location AS flush_lsn, " \
+                    "replay_location AS replay_lsn, " \
+                    "sync_priority, " \
+                    "sync_state"
 
             # Streaming client
             if client_type == self.STANDBY:
                 # Standby server
-                where = 'WHERE replay_location IS NOT NULL '
+                where = 'WHERE {replay_lsn} IS NOT NULL '.format(
+                    **self.name_map)
             elif client_type == self.WALSTREAMER:
                 # WAL streamer
-                where = 'WHERE replay_location IS NULL '
+                where = 'WHERE {replay_lsn} IS NULL '.format(
+                    **self.name_map)
             else:
                 where = ''
 
             # Execute the query
             cur.execute(
                 "SELECT %s, "
-                "pg_is_in_recovery() AS is_in_recovery,"
+                "pg_is_in_recovery() AS is_in_recovery, "
                 "CASE WHEN pg_is_in_recovery() "
                 "  THEN {pg_last_wal_receive_lsn}() "
                 "  ELSE {pg_current_wal_lsn}() "
-                "END AS current_location "
+                "END AS current_lsn "
                 "FROM pg_stat_replication r "
                 "%s"
                 "%s"
@@ -1357,6 +1396,10 @@ class PostgreSQLConnection(PostgreSQL):
                 'pg_current_wal_lsn': 'pg_current_xlog_location',
                 'pg_current_wal_insert_lsn': 'pg_current_xlog_insert_location',
                 'pg_last_wal_receive_lsn': 'pg_last_xlog_receive_location',
+                'sent_lsn': 'sent_location',
+                'write_lsn': 'write_location',
+                'flush_lsn': 'flush_location',
+                'replay_lsn': 'replay_location',
             }
         else:
             return {
@@ -1368,4 +1411,8 @@ class PostgreSQLConnection(PostgreSQL):
                 'pg_current_wal_lsn': 'pg_current_wal_lsn',
                 'pg_current_wal_insert_lsn': 'pg_current_wal_insert_lsn',
                 'pg_last_wal_receive_lsn': 'pg_last_wal_receive_lsn',
+                'sent_lsn': 'sent_lsn',
+                'write_lsn': 'write_lsn',
+                'flush_lsn': 'flush_lsn',
+                'replay_lsn': 'replay_lsn',
             }
