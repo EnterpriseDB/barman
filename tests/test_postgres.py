@@ -833,6 +833,7 @@ class TestPostgres(object):
         assert result == {
             'a': 'b',
             'is_superuser': True,
+            'is_in_recovery': False,
             'current_xlog': 'DE/ADBEEF',
             'data_directory': 'dummy_setting',
             'pgespresso_installed': True,
@@ -849,6 +850,7 @@ class TestPostgres(object):
         conn_mock.side_effect = psycopg2.DatabaseError
         assert server.postgres.fetch_remote_status() == {
             'is_superuser': None,
+            'is_in_recovery': None,
             'current_xlog': None,
             'data_directory': None,
             'pgespresso_installed': None,
@@ -861,6 +863,7 @@ class TestPostgres(object):
         get_setting_mock.side_effect = psycopg2.ProgrammingError
         assert server.postgres.fetch_remote_status() == {
             'is_superuser': None,
+            'is_in_recovery': None,
             'current_xlog': None,
             'data_directory': None,
             'pgespresso_installed': None,

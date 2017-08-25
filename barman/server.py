@@ -785,6 +785,13 @@ class Server(RemoteStatusMixin):
                           "PostgreSQL version",
                           "FAILED trying to get PostgreSQL version")
             return
+        # Define the cluster state as pg_controldata do.
+        if remote_status['is_in_recovery']:
+            output.result('status', self.config.name, 'is_in_recovery',
+                          'Cluster state', "in archive recovery")
+        else:
+            output.result('status', self.config.name, 'is_in_recovery',
+                          'Cluster state', "in production")
         if remote_status['pgespresso_installed']:
             output.result('status', self.config.name, 'pgespresso',
                           'pgespresso extension', "Available")

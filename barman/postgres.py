@@ -684,6 +684,7 @@ class PostgreSQLConnection(PostgreSQL):
         pg_query_keys = [
             'server_txt_version',
             'is_superuser',
+            'is_in_recovery',
             'current_xlog',
             'pgespresso_installed',
             'replication_slot_support',
@@ -710,6 +711,7 @@ class PostgreSQLConnection(PostgreSQL):
                 result[name] = self.get_setting(name)
 
             result['is_superuser'] = self.is_superuser
+            result['is_in_recovery'] = self.is_in_recovery
             result['server_txt_version'] = self.server_txt_version
             result['pgespresso_installed'] = self.has_pgespresso
             result['current_xlog'] = self.current_xlog_file_name
