@@ -186,7 +186,7 @@ class TestRecoveryExecutor(object):
         executor = RecoveryExecutor(backup_manager)
         executor._set_pitr_targets(recovery_info, backup_info,
                                    dest.strpath,
-                                   '', '', '', '')
+                                   '', '', '', '', False)
         # Test with empty values (no PITR)
         assert recovery_info['target_epoch'] is None
         assert recovery_info['target_datetime'] is None
@@ -197,7 +197,7 @@ class TestRecoveryExecutor(object):
                                    'target_name',
                                    '2015-06-03 16:11:03.71038+02',
                                    '2',
-                                   None,)
+                                   None, False)
         target_datetime = dateutil.parser.parse(
             '2015-06-03 16:11:03.710380+02:00')
         target_epoch = (time.mktime(target_datetime.timetuple()) +
@@ -226,7 +226,7 @@ class TestRecoveryExecutor(object):
         executor = RecoveryExecutor(server.backup_manager)
         executor._generate_recovery_conf(recovery_info, backup_info,
                                          dest.strpath,
-                                         True, 'remote@command',
+                                         True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
                                          '')
@@ -244,6 +244,7 @@ class TestRecoveryExecutor(object):
         assert 'recovery_target_timeline' in recovery_conf
         assert 'recovery_target_xid' not in recovery_conf
         assert 'recovery_target_name' in recovery_conf
+        assert 'recovery_target' not in recovery_conf
         assert recovery_conf['recovery_end_command'] == "'rm -fr barman_xlog'"
         assert recovery_conf['recovery_target_time'] == \
             "'2015-06-03 16:11:03.71038+02'"
@@ -445,7 +446,7 @@ class TestRecoveryExecutor(object):
         executor = RecoveryExecutor(server.backup_manager)
         # test local recovery
         rec_info = executor.recover(backup_info, dest.strpath, None, None,
-                                    None, None, None, True, None)
+                                    None, None, None, None, True, None)
         # remove not useful keys from the result
         del rec_info['cmd']
         sys_tempdir = rec_info['tempdir']
@@ -495,7 +496,7 @@ class TestRecoveryExecutor(object):
         }
         # test remote recovery
         rec_info = executor.recover(backup_info, dest.strpath, {}, None, None,
-                                    None, None, True, "remote@command")
+                                    None, None, None, True, "remote@command")
         # remove not useful keys from the result
         del rec_info['cmd']
         del rec_info['rsync']
@@ -547,4 +548,4 @@ class TestRecoveryExecutor(object):
         rsync_pg_mock.side_effect = CommandFailedException()
         with pytest.raises(CommandFailedException):
             executor.recover(backup_info, dest.strpath, {}, None, None, None,
-                             None, True, "remote@command")
+                             None, None, True, "remote@command")

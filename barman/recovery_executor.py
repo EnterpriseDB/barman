@@ -86,7 +86,7 @@ class RecoveryExecutor(object):
 
     def recover(self, backup_info, dest, tablespaces, target_tli,
                 target_time, target_xid, target_name,
-                exclusive, remote_command):
+                target_immediate, exclusive, remote_command):
         """
         Performs a recovery of a backup
 
@@ -99,6 +99,8 @@ class RecoveryExecutor(object):
         :param str|None target_xid: the target xid
         :param str|None target_name: the target name created previously with
                             pg_create_restore_point() function call
+        :param str|None target_immediate: end recovery as soon as consistency
+            is reached
         :param bool exclusive: whether the recovery is exclusive or not
         :param str|None remote_command: The remote command to recover
                                the base backup, in case of remote backup.
@@ -118,7 +120,8 @@ class RecoveryExecutor(object):
                                target_name,
                                target_time,
                                target_tli,
-                               target_xid)
+                               target_xid,
+                               target_immediate)
 
         # Retrieve the safe_horizon for smart copy
         self._retrieve_safe_horizon(recovery_info, backup_info, dest)
@@ -200,9 +203,9 @@ class RecoveryExecutor(object):
         if recovery_info['is_pitr']:
             output.info("Generating recovery.conf")
             self._generate_recovery_conf(recovery_info, backup_info, dest,
-                                         exclusive, remote_command,
-                                         target_name, target_time,
-                                         target_tli, target_xid)
+                                         target_immediate, exclusive,
+                                         remote_command, target_name,
+                                         target_time, target_tli, target_xid)
 
         # Create archive_status directory if necessary
         archive_status_dir = os.path.join(recovery_info['wal_dest'],
@@ -312,7 +315,8 @@ class RecoveryExecutor(object):
         return recovery_info
 
     def _set_pitr_targets(self, recovery_info, backup_info, dest, target_name,
-                          target_time, target_tli, target_xid):
+                          target_time, target_tli, target_xid,
+                          target_immediate):
         """
         Set PITR targets - as specified by the user
 
@@ -325,14 +329,18 @@ class RecoveryExecutor(object):
         :param str|None target_time: recovery target time for PITR
         :param str|None target_tli: recovery target timeline for PITR
         :param str|None target_xid: recovery target transaction id for PITR
+        :param bool|None target_immediate: end recovery as soon as consistency
+            is reached
         """
         target_epoch = None
         target_datetime = None
+        # Detect PITR
         if (target_time or
                 target_xid or
                 (target_tli and target_tli != backup_info.timeline) or
                 target_name or
-                recovery_info['get_wal']):
+                recovery_info['get_wal'] or
+                (backup_info.version >= 90400 and target_immediate)):
             recovery_info['is_pitr'] = True
             targets = {}
             if target_time:
@@ -364,6 +372,8 @@ class RecoveryExecutor(object):
                 targets['timeline'] = str(target_tli)
             if target_name:
                 targets['name'] = str(target_name)
+            if target_immediate:
+                targets['immediate'] = target_immediate
             output.info(
                 "Doing PITR. Recovery target %s",
                 (", ".join(["%s: %r" % (k, v) for k, v in targets.items()])))
@@ -737,8 +747,9 @@ class RecoveryExecutor(object):
                 output.close_and_exit()
 
     def _generate_recovery_conf(self, recovery_info, backup_info, dest,
-                                exclusive, remote_command, target_name,
-                                target_time, target_tli, target_xid):
+                                immediate, exclusive, remote_command,
+                                target_name, target_time, target_tli,
+                                target_xid):
         """
         Generate a recovery.conf file for PITR containing
         all the required configurations
@@ -748,6 +759,8 @@ class RecoveryExecutor(object):
         :param barman.infofile.BackupInfo backup_info: representation of a
             backup
         :param str dest: destination directory of the recovery
+        :param str|None immediate: end recovery as soon as consistency
+            is reached
         :param boolean exclusive: exclusive backup or concurrent
         :param str remote_command: ssh command for remote connection
         :param str target_name: recovery target name for PITR
@@ -798,17 +811,25 @@ class RecoveryExecutor(object):
         if backup_info.version >= 80400 and \
                 not recovery_info['get_wal']:
             print("recovery_end_command = 'rm -fr barman_xlog'", file=recovery)
+
+        # Writes recovery target
         if target_time:
             print("recovery_target_time = '%s'" % target_time, file=recovery)
-        if target_tli:
-            print("recovery_target_timeline = %s" % target_tli, file=recovery)
         if target_xid:
             print("recovery_target_xid = '%s'" % target_xid, file=recovery)
         if target_name:
             print("recovery_target_name = '%s'" % target_name, file=recovery)
+        # TODO: log a warning if PostgreSQL < 9.4 and --immediate
+        if (backup_info.version >= 90400 and immediate):
+            print("recovery_target = 'immediate'", file=recovery)
+
+        # Manage what happens after recovery target is reached
         if (target_xid or target_time) and exclusive:
             print("recovery_target_inclusive = '%s'" % (
                 not exclusive), file=recovery)
+        if target_tli:
+            print("recovery_target_timeline = %s" % target_tli, file=recovery)
+
         recovery.close()
         if remote_command:
             plain_rsync = RsyncPgData(

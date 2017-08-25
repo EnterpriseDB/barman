@@ -326,6 +326,10 @@ def rebuild_xlogdb(args):
 @arg('--target-name',
      help='target name created previously with '
           'pg_create_restore_point() function call')
+@arg('--target-immediate',
+     help='end recovery as soon as a consistent state is reached',
+     action='store_true',
+     default=False)
 @arg('--exclusive',
      help='set target xid to be non inclusive', action="store_true")
 @arg('--tablespace',
@@ -435,6 +439,26 @@ def recover(args):
             server.config.recovery_options.remove(RecoveryOptions.GET_WAL)
     if args.jobs is not None:
         server.config.parallel_jobs = args.jobs
+
+    # PostgreSQL supports multiple parameters to specify when the recovery
+    # process will end, and in that case the last entry in recovery.conf
+    # will be used. See [1]
+    #
+    # Since the meaning of the target options is not dependent on the order
+    # of parameters, we decided to make the target options mutually exclusive.
+    #
+    # [1]: https://www.postgresql.org/docs/current/static/
+    #   recovery-target-settings.html
+
+    target_options = ['target_tli', 'target_time', 'target_xid',
+                      'target_name', 'target_immediate']
+    specified_target_options = len(
+        [option for option in target_options if getattr(args, option)])
+    if specified_target_options > 1:
+        output.error(
+            "You cannot specify multiple targets for the recovery operation")
+        output.close_and_exit()
+
     if hasattr(args, 'network_compression'):
         if args.network_compression and args.remote_ssh_command is None:
             output.error(
@@ -452,6 +476,7 @@ def recover(args):
                        target_time=args.target_time,
                        target_xid=args.target_xid,
                        target_name=args.target_name,
+                       target_immediate=args.target_immediate,
                        exclusive=args.exclusive,
                        remote_command=args.remote_ssh_command)
 

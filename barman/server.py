@@ -1248,7 +1248,7 @@ class Server(RemoteStatusMixin):
 
     def recover(self, backup_info, dest, tablespaces=None, target_tli=None,
                 target_time=None, target_xid=None, target_name=None,
-                exclusive=False, remote_command=None):
+                target_immediate=False, exclusive=False, remote_command=None):
         """
         Performs a recovery of a backup
 
@@ -1261,13 +1261,16 @@ class Server(RemoteStatusMixin):
         :param str|None target_xid: the target xid
         :param str|None target_name: the target name created previously with
                             pg_create_restore_point() function call
+        :param bool|None target_immediate: end recovery as soon as consistency
+            is reached
         :param bool exclusive: whether the recovery is exclusive or not
         :param str|None remote_command: default None. The remote command to
             recover the base backup, in case of remote backup.
         """
         return self.backup_manager.recover(
             backup_info, dest, tablespaces, target_tli, target_time,
-            target_xid, target_name, exclusive, remote_command)
+            target_xid, target_name, target_immediate, exclusive,
+            remote_command)
 
     def get_wal(self, wal_name, compression=None, output_directory=None,
                 peek=None):

@@ -136,17 +136,31 @@ Barman wraps PostgreSQL's Point-in-Time Recovery (PITR),
 allowing you to specify a recovery target, either as a timestamp,
 as a restore label, or as a transaction ID.
 
+> **IMPORTANT:**
+> The earliest PITR for a given backup is the end of the base
+> backup itself. If you want to recover at any point in time
+> between the start and the end of a backup, you must use
+> the previous backup. From Barman 2.3 you can exit recovery
+> when consistency is reached by using `--target-immediate` option
+> (available only for PostgreSQL 9.4 and newer).
+
 The recovery target can be specified using one of
-three mutually exclusive options:
+four mutually exclusive options:
 
 * `--target-time TARGET_TIME`: to specify a timestamp
 * `--target-xid TARGET_XID`: to specify a transaction ID
 * `--target-name TARGET_NAME`: to specify a named restore point
   previously created with the pg_create_restore_point(name)
   function[^TARGET_NAME]
+* `--target-immediate`: recovery ends when a consistent state is reached
+                 (that is the end of the base backup process)
+                 [^RECOVERY_TARGET_IMMEDIATE]
 
 [^TARGET_NAME]:
   Only available on PostgreSQL 9.1 and above
+
+[^RECOVERY_TARGET_IMMEDIATE]:
+  Only available on PostgreSQL 9.4 and above
 
 You can use the --exclusive option to specify whether to stop immediately
 before or immediately after the recovery target.

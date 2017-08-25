@@ -239,6 +239,10 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
     :   Recover to the named restore point previously created with
         the `pg_create_restore_point(name)` (for PostgreSQL 9.1 and above users).
 
+    --target-immediate
+    :   Recover ends when a consistent state is reached (end of the base
+        backup)
+
     --exclusive
     :   Set target xid to be non inclusive.
 
