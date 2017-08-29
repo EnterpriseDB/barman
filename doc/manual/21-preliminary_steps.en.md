@@ -19,7 +19,7 @@ We recommend creating a specific user in PostgreSQL, named `barman`,
 as follows:
 
 ``` bash
-postgres@pg$ createuser -s -W barman
+postgres@pg$ createuser -s -P barman
 ```
 
 > **IMPORTANT:** The above command will prompt for a password,
@@ -88,7 +88,7 @@ setup a streaming connection. We recommend creating a specific user in
 PostgreSQL, named `streaming_barman`, as follows:
 
 ``` bash
-postgres@pg$ createuser -W --replication streaming_barman
+postgres@pg$ createuser -P --replication streaming_barman
 ```
 
 > **IMPORTANT:** The above command will prompt for a password,
