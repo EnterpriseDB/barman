@@ -303,8 +303,9 @@ get-wal *\[OPTIONS\]* *SERVER_NAME* *WAL_ID*
         When invoked with this option, get-wal returns a
         list of zero to 'SIZE' WAL segment names, one per row.
 
-switch-xlog *SERVER_NAME*
-:   Execute pg_switch_xlog() on the target server
+switch-wal *SERVER_NAME*
+:   Execute pg_switch_wal() on the target server (from PostgreSQL 10),
+    or pg_switch_xlog (for PostgreSQL 8.3 to 9.6).
 
     --force
     :   Forces the switch by executing CHECKPOINT before pg_switch_xlog().
@@ -320,6 +321,9 @@ switch-xlog *SERVER_NAME*
     :   Specifies the amount of time in seconds (default: 30 seconds)
         the archiver will wait for a new xlog file to be archived
         before timing out.
+
+switch-xlog *SERVER_NAME*
+:   Alias for switch-wal (kept for back-compatibility)
 
 receive-wal *SERVER_NAME*
 :   Start the stream of transaction logs for a server.

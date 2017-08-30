@@ -42,10 +42,10 @@ in the destination directory.
 ## Verification of WAL archiving configuration
 
 In order to improve the verification of the WAL archiving process, the
-`switch-xlog` command has been developed:
+`switch-wal` command has been developed:
 
 ``` bash
-barman@backup$ barman switch-xlog --force --archive pg
+barman@backup$ barman switch-wal --force --archive pg
 ```
 
 The above command will force PostgreSQL to switch WAL file and

@@ -241,14 +241,14 @@ server or of all servers if you use `all` as server name.
 barman status <server_name>
 ```
 
-## `switch-xlog`
+## `switch-wal`
 
 This command makes the PostgreSQL server switch to another transaction
-log file, allowing the current log file to be closed, received and then
+log file (WAL), allowing the current log file to be closed, received and then
 archived.
 
 ``` bash
-barman switch-xlog <server_name>
+barman switch-wal <server_name>
 ```
 
 If there has been no transaction activity since the last transaction
@@ -259,3 +259,6 @@ The `--archive` option requests Barman to trigger WAL archiving after
 the xlog switch. By default, a 30 seconds timeout is enforced (this
 can be changed with `--archive-timeout`). If no WAL file is received,
 an error is returned.
+
+> **NOTE:** In Barman 2.1 and 2.2 this command was called `switch-xlog`.
+> It has been renamed for naming consistency with PostgreSQL 10 and higher.

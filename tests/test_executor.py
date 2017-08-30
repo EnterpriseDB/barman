@@ -183,7 +183,7 @@ class TestRsyncBackupExecutor(object):
         out, err = capsys.readouterr()
         assert err == ''
         assert (
-            "Backup start at xlog location: "
+            "Backup start at LSN: "
             "0/2000028 (000000010000000000000002, 00000028)\n"
             "This is the first backup for server main\n"
             "WAL segments preceding the current backup have been found:\n"
@@ -217,7 +217,7 @@ class TestRsyncBackupExecutor(object):
         out, err = capsys.readouterr()
         assert err == ''
         assert (
-            "Backup start at xlog location: "
+            "Backup start at LSN: "
             "0/2000028 (000000010000000000000002, 00000028)\n"
             "This is the first backup for server main\n"
             "WAL segments preceding the current backup have been found:\n"

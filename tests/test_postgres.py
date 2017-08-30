@@ -906,8 +906,8 @@ class TestPostgres(object):
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.is_superuser',
            new_callable=PropertyMock)
-    def test_switch_xlog(self, is_superuser_mock,
-                         is_in_recovery_mock, conn_mock):
+    def test_switch_wal(self, is_superuser_mock,
+                        is_in_recovery_mock, conn_mock):
         """
         Simple test for the execution of a switch of a xlog on a given server
         """
@@ -923,7 +923,7 @@ class TestPostgres(object):
             ('000000010000000000000001',),
             ('000000010000000000000002',)
         ]
-        xlog = server.postgres.switch_xlog()
+        xlog = server.postgres.switch_wal()
 
         # Check for the right invocation for PostgreSQL < 10
         assert xlog == '000000010000000000000001'
@@ -940,7 +940,7 @@ class TestPostgres(object):
             ('000000010000000000000001',),
             ('000000010000000000000002',)
         ]
-        xlog = server.postgres.switch_xlog()
+        xlog = server.postgres.switch_wal()
 
         # Check for the right invocation for PostgreSQL 10
         assert xlog == '000000010000000000000001'
@@ -956,7 +956,7 @@ class TestPostgres(object):
             ('000000010000000000000001',),
             ('000000010000000000000001',)
         ]
-        xlog = server.postgres.switch_xlog()
+        xlog = server.postgres.switch_wal()
         # Check for the right invocation
         assert xlog is ''
 
@@ -965,7 +965,7 @@ class TestPostgres(object):
         is_in_recovery_mock.return_value = False
         is_superuser_mock.return_value = False
         with pytest.raises(PostgresSuperuserRequired):
-            server.postgres.switch_xlog()
+            server.postgres.switch_wal()
         # Check for the right invocation
         assert not cursor_mock.execute.called
 
@@ -974,7 +974,7 @@ class TestPostgres(object):
         is_in_recovery_mock.return_value = True
         is_superuser_mock.return_value = True
         with pytest.raises(PostgresIsInRecovery):
-            server.postgres.switch_xlog()
+            server.postgres.switch_wal()
         # Check for the right invocation
         assert not cursor_mock.execute.called
 
@@ -1426,9 +1426,29 @@ class TestPostgres(object):
         cursor_mock.execute.assert_not_called()
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
-    def test_switch_xlog_function(self, conn_mock):
+    def test_name_map(self, conn_mock):
         """
-        Test the `switch_xlog_function` name
+        Test the `name_map` behaviour
+        :return:
+        """
+        server = build_real_server()
+
+        conn_mock.return_value.server_version = 100000
+        map_10 = server.postgres.name_map
+        assert map_10
+
+        conn_mock.return_value.server_version = 90300
+        map_93 = server.postgres.name_map
+        assert map_93
+
+        conn_mock.side_effect = PostgresConnectionError
+        map_error = server.postgres.name_map
+        assert map_10 == map_error
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_switch_wal_function(self, conn_mock):
+        """
+        Test the `switch_wal_function` name
         :return:
         """
         server = build_real_server()

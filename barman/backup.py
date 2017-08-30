@@ -385,7 +385,7 @@ class BackupManager(RemoteStatusMixin):
                          '\n'.join(msg_lines[1:]))
 
         else:
-            output.info("Backup end at xlog location: %s (%s, %08X)",
+            output.info("Backup end at LSN: %s (%s, %08X)",
                         backup_info.end_xlog,
                         backup_info.end_wal,
                         backup_info.end_offset)
@@ -785,7 +785,7 @@ class BackupManager(RemoteStatusMixin):
                     wal_info = WalFileInfo.from_xlogdb_line(line)
                     if not xlog.is_any_xlog_file(wal_info.name):
                         output.error(
-                            "invalid xlog segment name %r\n"
+                            "invalid WAL segment name %r\n"
                             "HINT: Please run \"barman rebuild-xlogdb %s\" "
                             "to solve this issue",
                             wal_info.name, self.config.name)

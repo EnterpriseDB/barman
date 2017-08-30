@@ -318,7 +318,7 @@ users).
 .RS
 .RE
 .TP
-.B \-\-immediate
+.B \-\-target\-immediate
 Recover ends when a consistent state is reached (end of the base backup)
 .RS
 .RE
@@ -416,8 +416,9 @@ When invoked with this option, get\-wal returns a list of zero to
 .RE
 .RE
 .TP
-.B switch\-xlog \f[I]SERVER_NAME\f[]
-Execute pg_switch_xlog() on the target server
+.B switch\-wal \f[I]SERVER_NAME\f[]
+Execute pg_switch_wal() on the target server (from PostgreSQL 10), or
+pg_switch_xlog (for PostgreSQL 8.3 to 9.6).
 .RS
 .TP
 .B \-\-force
@@ -440,6 +441,11 @@ Specifies the amount of time in seconds (default: 30 seconds) the
 archiver will wait for a new xlog file to be archived before timing out.
 .RS
 .RE
+.RE
+.TP
+.B switch\-xlog \f[I]SERVER_NAME\f[]
+Alias for switch\-wal (kept for back\-compatibility)
+.RS
 .RE
 .TP
 .B receive\-wal \f[I]SERVER_NAME\f[]

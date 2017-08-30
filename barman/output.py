@@ -635,9 +635,9 @@ class ConsoleOutputWriter(object):
                       data['begin_offset'])
             self.info("    End Offset           : %s",
                       data['end_offset'])
-            self.info("    Begin XLOG           : %s",
+            self.info("    Begin LSN           : %s",
                       data['begin_xlog'])
-            self.info("    End XLOG             : %s", data['end_xlog'])
+            self.info("    End LSN             : %s", data['end_xlog'])
             self.info("")
             self.info("  WAL information:")
             self.info("    No of files          : %s",
@@ -715,7 +715,7 @@ class ConsoleOutputWriter(object):
         """
         self.minimal = minimal
 
-    def result_replication_status(self, server_name, target, xlog_location,
+    def result_replication_status(self, server_name, target, server_lsn,
                                   standby_info):
         """
         Record a result line of a server status command
@@ -724,7 +724,7 @@ class ConsoleOutputWriter(object):
 
         :param str server_name: the replication server
         :param str target: all|hot-standby|wal-streamer
-        :param str xlog_location: server's xlog location
+        :param str server_lsn: server's current lsn
         :param StatReplication standby_info: status info of a standby
         """
 
@@ -737,10 +737,10 @@ class ConsoleOutputWriter(object):
 
         if self.minimal:
             # Minimal output
-            if xlog_location:
-                # xlog location from the master
-                self.info("%s for master '%s' (xlog @ %s):",
-                          title.capitalize(), server_name, xlog_location)
+            if server_lsn:
+                # current lsn from the master
+                self.info("%s for master '%s' (LSN @ %s):",
+                          title.capitalize(), server_name, server_lsn)
             else:
                 # We are connected to a standby
                 self.info("%s for slave '%s':",
@@ -749,10 +749,10 @@ class ConsoleOutputWriter(object):
             # Full output
             self.info("Status of %s for server '%s':",
                       title, server_name)
-            # xlog location from the master
-            if xlog_location:
-                self.info("  Current xlog location on master: %s",
-                          xlog_location)
+            # current lsn from the master
+            if server_lsn:
+                self.info("  Current LSN on master: %s",
+                          server_lsn)
 
         if standby_info is not None and not len(standby_info):
             self.info("  No %s attached", title)
@@ -863,19 +863,19 @@ class ConsoleOutputWriter(object):
                     self.info("     Standby's xmin  : %s",
                               standby.backend_xmin or '-')
                 if getattr(standby, 'sent_lsn', None):
-                    self.info("     Sent location   : %s (diff: %s)",
+                    self.info("     Sent LSN   : %s (diff: %s)",
                               standby.sent_lsn,
                               pretty_size(sent_diff))
                 if getattr(standby, 'write_lsn', None):
-                    self.info("     Write location  : %s (diff: %s)",
+                    self.info("     Write LSN  : %s (diff: %s)",
                               standby.write_lsn,
                               pretty_size(write_diff))
                 if getattr(standby, 'flush_lsn', None):
-                    self.info("     Flush location  : %s (diff: %s)",
+                    self.info("     Flush LSN  : %s (diff: %s)",
                               standby.flush_lsn,
                               pretty_size(flush_diff))
                 if getattr(standby, 'replay_lsn', None):
-                    self.info("     Replay location : %s (diff: %s)",
+                    self.info("     Replay LSN : %s (diff: %s)",
                               standby.replay_lsn,
                               pretty_size(replay_diff))
                 n += 1

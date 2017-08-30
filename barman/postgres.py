@@ -1093,9 +1093,9 @@ class PostgreSQLConnection(PostgreSQL):
                 'pgespresso_abort_backup() on your PostgreSQL '
                 'server' % msg)
 
-    def switch_xlog(self):
+    def switch_wal(self):
         """
-        Execute a pg_switch_xlog()
+        Execute a pg_switch_wal()
 
         To be SURE of the switch of a xlog, we collect the xlogfile name
         before and after the switch.
@@ -1103,7 +1103,7 @@ class PostgreSQLConnection(PostgreSQL):
         file has changed, it returns an empty string otherwise.
 
         The method returns None if something went wrong during the execution
-        of the pg_switch_xlog command.
+        of the pg_switch_wal command.
 
         :rtype: str|None
         """
@@ -1137,7 +1137,8 @@ class PostgreSQLConnection(PostgreSQL):
                 return ''
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
-                "Error issuing pg_switch_xlog() command: %s",
+                "Error issuing {pg_switch_wal}() command: %s"
+                .format(**self.name_map),
                 str(e).strip())
             return None
 
@@ -1388,7 +1389,15 @@ class PostgreSQLConnection(PostgreSQL):
 
         :rtype: dict[str]
         """
-        if self.server_version < 100000:
+        # Avoid raising an error if the connection is not available
+        try:
+            server_version = self.server_version
+        except PostgresConnectionError:
+            _logger.debug('Impossible to detect the PostgreSQL version, '
+                          'name_map will return names from latest version')
+            server_version = None
+
+        if server_version and server_version < 100000:
             return {
                 'pg_switch_wal': 'pg_switch_xlog',
                 'pg_walfile_name': 'pg_xlogfile_name',
@@ -1403,18 +1412,18 @@ class PostgreSQLConnection(PostgreSQL):
                 'flush_lsn': 'flush_location',
                 'replay_lsn': 'replay_location',
             }
-        else:
-            return {
-                'pg_switch_wal': 'pg_switch_wal',
-                'pg_walfile_name': 'pg_walfile_name',
-                'pg_wal': 'pg_wal',
-                'pg_walfile_name_offset': 'pg_walfile_name_offset',
-                'pg_last_wal_replay_lsn': 'pg_last_wal_replay_lsn',
-                'pg_current_wal_lsn': 'pg_current_wal_lsn',
-                'pg_current_wal_insert_lsn': 'pg_current_wal_insert_lsn',
-                'pg_last_wal_receive_lsn': 'pg_last_wal_receive_lsn',
-                'sent_lsn': 'sent_lsn',
-                'write_lsn': 'write_lsn',
-                'flush_lsn': 'flush_lsn',
-                'replay_lsn': 'replay_lsn',
-            }
+
+        return {
+            'pg_switch_wal': 'pg_switch_wal',
+            'pg_walfile_name': 'pg_walfile_name',
+            'pg_wal': 'pg_wal',
+            'pg_walfile_name_offset': 'pg_walfile_name_offset',
+            'pg_last_wal_replay_lsn': 'pg_last_wal_replay_lsn',
+            'pg_current_wal_lsn': 'pg_current_wal_lsn',
+            'pg_current_wal_insert_lsn': 'pg_current_wal_insert_lsn',
+            'pg_last_wal_receive_lsn': 'pg_last_wal_receive_lsn',
+            'sent_lsn': 'sent_lsn',
+            'write_lsn': 'write_lsn',
+            'flush_lsn': 'flush_lsn',
+            'replay_lsn': 'replay_lsn',
+        }

@@ -24,6 +24,7 @@ import os
 import sys
 from argparse import SUPPRESS, ArgumentTypeError
 from contextlib import closing
+from functools import wraps
 
 from argh import ArghParser, arg, expects_obj, named
 
@@ -515,30 +516,30 @@ def show_server(args):
     output.close_and_exit()
 
 
-@named('switch-xlog')
+@named('switch-wal')
 @arg('server_name', nargs='+',
      completer=server_completer_all,
-     help="specifies the server name target of the switch-xlog command")
+     help="specifies the server name target of the switch-wal command")
 @arg('--force',
-     help='forces the switch of a xlog by executing a checkpoint before',
+     help='forces the switch of a WAL by executing a checkpoint before',
      dest='force',
      action='store_true',
      default=False)
 @arg('--archive',
-     help='wait for one xlog file to be archived',
+     help='wait for one WAL file to be archived',
      dest='archive',
      action='store_true',
      default=False)
 @arg('--archive-timeout',
-     help='the time, in seconds, the archiver will wait for a new xlog file '
+     help='the time, in seconds, the archiver will wait for a new WAL file '
           'to be archived before timing out',
      metavar='TIMEOUT',
      default='30',
      type=check_non_negative)
 @expects_obj
-def switch_xlog(args):
+def switch_wal(args):
     """
-    Execute the switch-xlog command on the target server
+    Execute the switch-wal command on the target server
     """
     servers = get_server_list(args, skip_inactive=True)
     for name in sorted(servers):
@@ -547,8 +548,18 @@ def switch_xlog(args):
         if not manage_server_command(server, name):
             continue
         with closing(server):
-            server.switch_xlog(args.force, args.archive, args.archive_timeout)
+            server.switch_wal(args.force, args.archive, args.archive_timeout)
     output.close_and_exit()
+
+
+@named('switch-xlog')
+# Set switch-xlog as alias of switch-wal.
+# We cannot use the @argh.aliases decorator, because it needs Python >= 3.2,
+# so we create a wraqpper function and use @wraps to copy all the function
+# attributes needed by argh
+@wraps(switch_wal)
+def switch_xlog(args):
+    return switch_wal(args)
 
 
 @arg('server_name', nargs='+',
@@ -1103,6 +1114,7 @@ def main():
             show_server,
             replication_status,
             status,
+            switch_wal,
             switch_xlog,
         ]
     )

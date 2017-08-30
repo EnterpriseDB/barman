@@ -310,12 +310,12 @@ class PostgresBackupExecutor(BackupExecutor):
             backup_info.save()
 
             if backup_info.begin_wal is not None:
-                output.info("Backup start at xlog location: %s (%s, %08X)",
+                output.info("Backup start at LSN: %s (%s, %08X)",
                             backup_info.begin_xlog,
                             backup_info.begin_wal,
                             backup_info.begin_offset)
             else:
-                output.info("Backup start at xlog location: %s",
+                output.info("Backup start at LSN: %s",
                             backup_info.begin_xlog)
 
             # Start the copy
@@ -723,12 +723,12 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             backup_info.save()
 
             if backup_info.begin_wal is not None:
-                output.info("Backup start at xlog location: %s (%s, %08X)",
+                output.info("Backup start at LSN: %s (%s, %08X)",
                             backup_info.begin_xlog,
                             backup_info.begin_wal,
                             backup_info.begin_offset)
             else:
-                output.info("Backup start at xlog location: %s",
+                output.info("Backup start at LSN: %s",
                             backup_info.begin_xlog)
 
             # If this is the first backup, purge eventually unused WAL files
@@ -1385,11 +1385,11 @@ class PostgresBackupStrategy(BackupStrategy):
             self._backup_info_from_stop_location(
                 backup_info, current_xlog_info)
 
-        # Ask PostgreSQL to switch to another XLOG file. This is needed
+        # Ask PostgreSQL to switch to another WAL file. This is needed
         # to archive the transaction log file containing the backup
         # end position, which is required to recover from the backup.
         try:
-            postgres.switch_xlog()
+            postgres.switch_wal()
         except PostgresIsInRecovery:
             # Skip switching XLOG if a standby server
             pass
@@ -1572,12 +1572,12 @@ class ConcurrentBackupStrategy(BackupStrategy):
         self.current_action = "writing backup label"
         self._write_backup_label(backup_info)
 
-        # Ask PostgreSQL to switch to another XLOG file. This is needed
+        # Ask PostgreSQL to switch to another WAL file. This is needed
         # to archive the transaction log file containing the backup
         # end position, which is required to recover from the backup.
         postgres = self.executor.server.postgres
         try:
-            postgres.switch_xlog()
+            postgres.switch_wal()
         except PostgresIsInRecovery:
             # Skip switching XLOG if a standby server
             pass

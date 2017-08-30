@@ -1047,7 +1047,7 @@ class Server(RemoteStatusMixin):
                     wal_size = wal_info['wal_until_next_size']
                 except BadXlogSegmentName as e:
                     output.error(
-                        "invalid xlog segment name %r\n"
+                        "invalid WAL segment name %r\n"
                         "HINT: Please run \"barman rebuild-xlogdb %s\" "
                         "to solve this issue",
                         str(e), self.config.name)
@@ -1894,66 +1894,66 @@ class Server(RemoteStatusMixin):
                          'no such process for server %s',
                          task, self.config.name)
 
-    def switch_xlog(self, force=False, archive=None, archive_timeout=None):
+    def switch_wal(self, force=False, archive=None, archive_timeout=None):
         """
-        Execute the switch-xlog command on the target server
+        Execute the switch-wal command on the target server
         """
         try:
 
             if force:
                 # If called with force, execute a checkpoint before the
-                # switch_xlog command
-                _logger.info('Force a CHECKPOINT before pg_switch_xlog()')
+                # switch_wal command
+                _logger.info('Force a CHECKPOINT before pg_switch_wal()')
                 self.postgres.checkpoint()
 
-            # Perform the switch_xlog. expect a WAL name only if the switch
+            # Perform the switch_wal. expect a WAL name only if the switch
             # has been successfully executed, False otherwise.
-            closed_xlog = self.postgres.switch_xlog()
-            if closed_xlog is None:
+            closed_wal = self.postgres.switch_wal()
+            if closed_wal is None:
                 # Something went wrong during the execution of the
-                # pg_switch_xlog command
-                output.error("Unable to perform pg_switch_xlog "
+                # pg_switch_wal command
+                output.error("Unable to perform pg_switch_wal "
                              "for server '%s'." % self.config.name)
                 return
-            if closed_xlog:
-                # The switch_xlog command have been executed successfully
+            if closed_wal:
+                # The switch_wal command have been executed successfully
                 output.info(
-                    "The xlog file %s has been closed on server '%s'" %
-                    (closed_xlog, self.config.name))
+                    "The WAL file %s has been closed on server '%s'" %
+                    (closed_wal, self.config.name))
                 # If the user has asked to wait for a WAL file to be archived,
                 # wait until a new WAL file has been found
                 # or the timeout has expired
                 if archive:
                     output.info(
-                        "Waiting for the xlog file %s from server '%s' "
+                        "Waiting for the WAL file %s from server '%s' "
                         "(max: %s seconds)",
-                        closed_xlog, self.config.name, archive_timeout)
+                        closed_wal, self.config.name, archive_timeout)
                     # Wait for a new file until end_time
                     end_time = time.time() + archive_timeout
                     while time.time() < end_time:
                         self.backup_manager.archive_wal(verbose=False)
 
                         # Finish if the closed wal file is in the archive.
-                        if os.path.exists(self.get_wal_full_path(closed_xlog)):
+                        if os.path.exists(self.get_wal_full_path(closed_wal)):
                                 break
 
                         # sleep a bit before retrying
                         time.sleep(.1)
                     else:
-                        output.error("The xlog file %s has not been received "
+                        output.error("The WAL file %s has not been received "
                                      "in %s seconds",
-                                     closed_xlog, archive_timeout)
+                                     closed_wal, archive_timeout)
 
             else:
-                # Is not necessary to perform a switch_xlog
+                # Is not necessary to perform a switch_wal
                 output.info("No switch required for server '%s'" %
                             self.config.name)
         except PostgresIsInRecovery:
             output.info("No switch performed because server '%s' "
                         "is a standby." % self.config.name)
         except PostgresSuperuserRequired:
-            # Superuser rights are required to perform the switch_xlog
-            output.error("Barman switch-xlog requires superuser rights")
+            # Superuser rights are required to perform the switch_wal
+            output.error("Barman switch-wal requires superuser rights")
 
     def replication_status(self, target='all'):
         """
