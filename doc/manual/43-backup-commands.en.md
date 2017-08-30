@@ -156,13 +156,19 @@ four mutually exclusive options:
                  (that is the end of the base backup process)
                  [^RECOVERY_TARGET_IMMEDIATE]
 
+> **IMPORTANT:**
+> Recovery target via _time_ and _xid_  **must be** subsequent to the
+> end of the backup. If you want to recover to a point in time between
+> the start and the end of a backup, you must recover from the
+> previous backup in the catalogue.
+
 [^TARGET_NAME]:
   Only available on PostgreSQL 9.1 and above
 
 [^RECOVERY_TARGET_IMMEDIATE]:
   Only available on PostgreSQL 9.4 and above
 
-You can use the --exclusive option to specify whether to stop immediately
+You can use the `--exclusive` option to specify whether to stop immediately
 before or immediately after the recovery target.
 
 Barman allows you to specify a target timeline for recovery,
