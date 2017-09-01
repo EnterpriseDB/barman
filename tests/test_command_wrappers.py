@@ -1145,13 +1145,25 @@ class TestReceiveXlog(object):
         # Neither pg_receivewal, neither pg_receivexlog are
         # available, and the result is a CommandFailedException
         with pytest.raises(CommandFailedException):
-            PgReceiveXlog.find_command()
+            PgReceiveXlog.find_command(path='/test/bin:/other/bin')
+        assert which_mock.mock_calls == [
+            mock.call('pg_receivewal', '/test/bin'),
+            mock.call('pg_receivexlog', '/test/bin'),
+            mock.call('pg_receivewal', '/other/bin'),
+            mock.call('pg_receivexlog', '/other/bin'),
+        ]
 
         # pg_receivexlog is available, but pg_receivewal is not
         which_mapping['pg_receivexlog'] = '/usr/bin/pg_receivexlog'
-        command = PgReceiveXlog.find_command()
+        command_mock.reset_mock()
+        which_mock.reset_mock()
+        command = PgReceiveXlog.find_command(path='/test/bin')
+        assert which_mock.mock_calls == [
+            mock.call('pg_receivewal', '/test/bin'),
+            mock.call('pg_receivexlog', '/test/bin'),
+        ]
         assert command_mock.mock_calls == [
-            mock.call('/usr/bin/pg_receivexlog', check=True, path=None),
+            mock.call('/usr/bin/pg_receivexlog', check=True, path='/test/bin'),
             mock.call()('--version'),
         ]
         assert command == command_mock.return_value
@@ -1159,22 +1171,31 @@ class TestReceiveXlog(object):
         # pg_receivewal is also available, but it's only a shim
         which_mapping['pg_receivewal'] = '/usr/bin/pg_receivewal'
         command_mock.reset_mock()
+        which_mock.reset_mock()
         command_mock.return_value.side_effect = [CommandFailedException, None]
-        command = PgReceiveXlog.find_command()
+        command = PgReceiveXlog.find_command(path='/test/bin')
+        assert which_mock.mock_calls == [
+            mock.call('pg_receivewal', '/test/bin'),
+            mock.call('pg_receivexlog', '/test/bin'),
+        ]
         assert command_mock.mock_calls == [
-            mock.call('/usr/bin/pg_receivewal', check=True, path=None),
+            mock.call('/usr/bin/pg_receivewal', check=True, path='/test/bin'),
             mock.call()('--version'),
-            mock.call('/usr/bin/pg_receivexlog', check=True, path=None),
+            mock.call('/usr/bin/pg_receivexlog', check=True, path='/test/bin'),
             mock.call()('--version'),
         ]
         assert command == command_mock.return_value
 
         # pg_receivewal is available and works well
         command_mock.reset_mock()
+        which_mock.reset_mock()
         command_mock.return_value.side_effect = None
-        command = PgReceiveXlog.find_command()
+        command = PgReceiveXlog.find_command(path='/test/bin')
+        assert which_mock.mock_calls == [
+            mock.call('pg_receivewal', '/test/bin'),
+        ]
         assert command_mock.mock_calls == [
-            mock.call('/usr/bin/pg_receivewal', check=True, path=None),
+            mock.call('/usr/bin/pg_receivewal', check=True, path='/test/bin'),
             mock.call()('--version'),
         ]
         assert command == command_mock.return_value

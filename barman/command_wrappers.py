@@ -761,22 +761,34 @@ class PostgreSQLClient(Command):
         # That means we should not only ensure the existence of the command,
         # but we also need to invoke the command to see if it is a shim
         # or not.
-        for cmd in cls.COMMAND_ALTERNATIVES:
-            full_path = barman.utils.which(cmd, path)
 
-            # It doesn't exist.
-            if not full_path:
-                continue
+        # Get the system path if needed
+        if path is None:
+            path = os.getenv('PATH')
+        # If the path is None at this point we have nothing to search
+        if path is None:
+            path = ''
 
-            # It exists, let's try invoking it with `--version` to check if
-            # it's real or not.
-            try:
-                command = Command(full_path, path=path, check=True)
-                command("--version")
-                return command
-            except CommandFailedException:
-                # It's only a inactive shim
-                continue
+        # Search the requested executable in every directory present
+        # in path and return a Command object first occurrence that exists,
+        # is executable and runs without errors.
+        for path_entry in path.split(os.path.pathsep):
+            for cmd in cls.COMMAND_ALTERNATIVES:
+                full_path = barman.utils.which(cmd, path_entry)
+
+                # It doesn't exist try another
+                if not full_path:
+                    continue
+
+                # It exists, let's try invoking it with `--version` to check if
+                # it's real or not.
+                try:
+                    command = Command(full_path, path=path, check=True)
+                    command("--version")
+                    return command
+                except CommandFailedException:
+                    # It's only a inactive shim
+                    continue
 
         # We don't have such a command
         raise CommandFailedException(

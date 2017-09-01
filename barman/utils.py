@@ -228,7 +228,7 @@ def which(executable, path=None):
     :param str|None path: An optional search path to override the current one.
     :return str|None: the path of the executable or None
     """
-    # Get the system path and split.
+    # Get the system path if needed
     if path is None:
         path = os.getenv('PATH')
     # If the path is None at this point we have nothing to search
@@ -241,7 +241,7 @@ def which(executable, path=None):
             return executable
         else:
             return None
-    # Search the requested executable in eery directory present in path and
+    # Search the requested executable in every directory present in path and
     # return the first occurrence that exists and is executable.
     for file_path in path.split(os.path.pathsep):
         file_path = os.path.join(file_path, executable)
