@@ -1,6 +1,34 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2017 2ndQuadrant Limited
 
+Version 2.3 - 5 Sep 2017
+
+-   Add support to PostgreSQL 10
+
+-   Follow naming changes in PostgreSQL 10:
+
+    -   The switch-xlog command has been renamed to switch-wal.
+    -   In commands output, the xlog word has been changed to WAL and
+        location has been changed to LSN when appropriate.
+
+-   Add the --network-compression/--no-network-compression options to
+    barman recover to enable or disable network compression at run-time
+
+-   Add --target-immediate option to recover command, in order to exit
+    recovery when a consistent state is reached (end of the backup,
+    available from PostgreSQL 9.4)
+
+-   Show cluster state (master or standby) with barman status command
+
+-   Documentation improvements
+
+-   Bug fixes:
+
+    -   Fix high memory usage with parallel_jobs > 1 (#116)
+    -   Better handling of errors using parallel copy (#114)
+    -   Make barman diagnose more robust with system exceptions
+    -   Let archive-wal ignore files with .tmp extension
+
 Version 2.2 - 17 Jul 2017
 
 -   Implement parallel copy for backup/recovery through the
