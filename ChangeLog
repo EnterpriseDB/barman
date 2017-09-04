@@ -1,3 +1,134 @@
+2017-09-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Set version to 2.3
+
+2017-09-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support `path_prefix` for PostgreSQL 10
+	With PostgreSQL 10, `pg_receivexlog` has been renamed to
+	`pg_receivewal`. Barman will try both and will pick `pg_receivewal` in
+	case it find both of them.
+
+	The user can override this behavior by using the `path_prefix` setting
+	and prepending a directory containing only the desired command
+	version.
+
+2017-08-30  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improve naming consistency with PostgreSQL 10
+	The `switch-xlog` command has been renamed to `switch-wal`.
+
+	In commands output, the `xlog` word has been changed to `WAL` and
+	`location` has been changed to `LSN` when appropriate.
+
+	Improve documentation about recovery target
+
+2017-08-29  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fix typo in doc for createuser
+
+2017-08-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add `--target-immediate` option to `recover` command
+	Throught the `--target-immediate` option, Barman writes the
+	`recovery_target = 'immediate'` line to recovery.conf.
+	By doing so, PostgreSQL will exit from recovery mode as soon as a
+	consistent state is reached (end of the base backup).
+
+	Only available for PostgreSQL 9.4 or newer.
+
+2017-08-25  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Show cluster state with `barman status`
+	Similarly to `pg_controldata`, the `status` command now
+	displays the cluster state of a PostgreSQL server ('in production'
+	or 'in archive recovery').
+
+2017-08-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support PostgreSQL 10 in `barman replication-status` command
+
+	Invoke pg_basebackup with --no-slot option in PostgreSQL 10+
+	Starting from PostgreSQL 10 pg_basebackup uses a temporary
+	replication slot unless explicitly instructed.
+
+	Barman don't need it because it already stores the full
+	WAL stream
+
+2017-08-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix exception during exclusive backup with PostgreSQL 10
+
+2017-08-01  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add `--network-compression` option to remote recovery
+	Enable/disable network compression at run-time to remote recovery
+	with `--network-compression` and `--no-network-compression` options.
+
+2017-08-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Describe the actual error when invoking archiving hooks script
+	In case of error the `BARMAN_ERROR` variable will contain a string
+	starting with the name of the actual WALFileException subclass.
+
+2017-07-28  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Ignore `.tmp` files in `incoming` and `streaming` directories
+	The pg_receivewal utility occasionally writes to a `.tmp` file and
+	then renames it to the final name to ensure an atomic creation.
+	Barman must ignore this temporary file.
+	Other programs could do the same, so Barman will ignore any file name
+	with a `.tmp` suffix in the incoming and streaming directories.
+
+2017-07-20  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Add support to PostgreSQL 10
+	PostgreSQL 10 renames SQL functions, tools and options that references
+	`xlog` to `wal`. Also WAL related functions referencing `location` have
+	been renamed to `lsn`.
+
+	That change have been made to improve consistency of terminology.
+
+	This patch improves Barman adding support to PostgreSQL 10.
+
+2017-07-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make flake8 happy again
+
+	Improve `barman diagnose` robustness
+
+2017-07-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix high memory usage with parallel_jobs > 1
+	This patch avoids bloating the memory with objects duplicated by
+	pickle/unpickle cycles.
+
+	Fixes #116
+
+2017-07-21  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improve travis integration
+
+	Fix unit test for FileWalArchiver to work with Python 3.6
+	Python 3.6 is stricter about what the `os.path.join` function can
+	receive as input. This change has highlighted missing prerequisite
+	setting in the FileWalArchiver.archive test.
+
+	Set version 2.3a1
+
+	Fix exception in `barman get-wal --peek` requiring history files
+
+	Fix exception during check if ssh works and conninfo is invalid
+
+	Make sure that parallel workers are cleaned up in case of errors
+	In CopyController code, at the end of parallel copy, it is necessary
+	to terminate all the parallel workers, whether the copy finishes
+	naturally or it is terminated by an error.
+
+	Closes: #114
+
 2017-07-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
