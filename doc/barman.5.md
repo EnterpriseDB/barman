@@ -277,6 +277,33 @@ retention_policy
 retention_policy_mode
 :   Currently only "auto" is implemented. Global/Server.
 
+last_backup_maximum_age
+:   This option identifies a time frame that must contain the latest backup.
+    If the latest backup is older than the time frame, barman check command will
+    report an error to the user.
+    If empty (default), latest backup is always considered valid.
+    Syntax for this option is: "i (DAYS | WEEKS | MONTHS | HOURS)" where i is an integer
+    greater than zero, representing the number of hours | days | weeks | months
+    of the time frame. Global/Server.
+
+last_backup_minimum_size
+:   This option identifies lower limit to the acceptable size of the latest successful backup
+    If the latest backup is smaller than the specified size, barman check command will
+    report an error to the user.
+    If empty (default), latest backup is always considered valid.
+    Syntax for this option is: "i (k|Ki|M|Mi|G|Gi|T|Ti)" where i is an integer
+    greater than zero, with an optional SI or IEC suffix. k=kilo=1000, Ki=Kibi=1024 and so forth.
+    Note that the suffix is case-sensitive.
+    Global/Server.
+
+last_wal_maximum_age
+:   This option identifies a time frame that must contain the latest WAL file archived.
+    If the latest WAL file is older than the time frame, barman check command
+    will report an error to the user.
+    If empty (default), the age of the WAL files is not checked.
+    Syntax is the same as last_backup_maximum_age (above).
+    Global/Server.
+
 reuse_backup
 :   This option controls incremental backup support. Global/Server.
     Possible values are:

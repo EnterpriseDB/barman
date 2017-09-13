@@ -851,6 +851,32 @@ class BackupManager(RemoteStatusMixin):
             # If no backup is available return false
             return False, "No available backups"
 
+    def validate_last_backup_min_size(self, last_backup_minimum_size):
+        """
+        Evaluate the size of the last available backup in a catalogue.
+        If the last backup is smaller than the specified size
+        the function returns False.
+        Otherwise, the function returns True.
+
+        :param last_backup_minimum_size: size in bytes
+            representing the maximum allowed age for the last backup
+            in a server catalogue
+        :return tuple: a tuple containing the boolean result of the check and
+            auxiliary information about the last backup current age
+        """
+        # Get the ID of the last available backup
+        backup_id = self.get_last_backup_id()
+        if backup_id:
+            # Get the backup object
+            backup = BackupInfo(self.server, backup_id=backup_id)
+            if backup.size < last_backup_minimum_size:
+                return False, backup.size
+            else:
+                return True, backup.size
+        else:
+            # If no backup is available return false
+            return False, 0
+
     def backup_fsync_and_set_sizes(self, backup_info):
         """
         Fsync all files in a backup and set the actual size on disk

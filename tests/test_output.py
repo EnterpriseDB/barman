@@ -1188,7 +1188,7 @@ class TestNagiosWriter(object):
         writer.close()
         (out, err) = capsys.readouterr()
         assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
-                      'for a\n'
+                      'for a|\n'
         assert err == ''
         assert not output.error_occurred
 
@@ -1200,11 +1200,13 @@ class TestNagiosWriter(object):
         writer.result_check('a', 'test', True, None)
         writer.result_check('b', 'test', True, None)
         writer.result_check('c', 'test', True, None)
+        writer.result_check('c', 'backup minimum size', True,
+                            789, perfdata=789)
 
         writer.close()
         (out, err) = capsys.readouterr()
         assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
-                      'for 3 server(s) * a * b * c\n'
+                      'for 3 server(s) * a * b * c|c=789B\n'
         assert err == ''
         assert not output.error_occurred
 
@@ -1218,7 +1220,7 @@ class TestNagiosWriter(object):
         writer.close()
         (out, err) = capsys.readouterr()
         assert out == 'BARMAN CRITICAL - server a has issues * ' \
-                      'a FAILED: test\na.test: FAILED\n'
+                      'a FAILED: test|\na.test: FAILED\n'
         assert err == ''
         assert output.error_occurred
         assert output.error_exit_code == 2
@@ -1231,11 +1233,12 @@ class TestNagiosWriter(object):
         writer.result_check('a', 'test', True, None)
         writer.result_check('b', 'test', False, None)
         writer.result_check('c', 'test', True, None)
+        writer.result_check('c', 'wal size', True, 789, perfdata=789)
 
         writer.close()
         (out, err) = capsys.readouterr()
         assert out == 'BARMAN CRITICAL - 1 server out of 3 have issues * ' \
-                      'b FAILED: test\nb.test: FAILED\n'
+                      'b FAILED: test|c_wals=789B\nb.test: FAILED\n'
         assert err == ''
         assert output.error_occurred
         assert output.error_exit_code == 2
