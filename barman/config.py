@@ -54,12 +54,14 @@ _FALSE_RE = re.compile(r"""^(false|f|no|0|off)$""", re.IGNORECASE)
 _TIME_INTERVAL_RE = re.compile(
     r"""
       ^\s*
-      (\d+)\s+(day|month|week)s?  # N (day|month|week) with optional 's'
+      # N (day|month|week|hour) with optional 's'
+      (\d+)\s+(day|month|week|hour)s?
       \s*$
       """,
     re.IGNORECASE | re.VERBOSE,
 )
 _SLOT_NAME_RE = re.compile("^[0-9a-z_]+$")
+_SI_SUFFIX_RE = re.compile(r"""(\d+)\s*(k|Ki|M|Mi|G|Gi|T|Ti)?\s*$""")
 
 REUSE_BACKUP_VALUES = ("copy", "link", "off")
 
@@ -215,11 +217,55 @@ def parse_time_interval(value):
         time_delta = datetime.timedelta(weeks=value)
     elif unit == "m":
         time_delta = datetime.timedelta(days=(31 * value))
+    elif unit == "h":
+        time_delta = datetime.timedelta(hours=value)
     else:
         # This should never happen
         raise ValueError("Invalid unit time %s" % unit)
 
     return time_delta
+
+
+def parse_si_suffix(value):
+    """
+    Parse a string, transforming it into integer and multiplying by
+    the SI or IEC suffix
+    eg a suffix of Ki multiplies the integer value by 1024
+    and returns the new value
+
+    Accepted format: N (k|Ki|M|Mi|G|Gi|T|Ti)
+
+    :param str value: the string to evaluate
+    """
+    # if empty string or none return none
+    if value is None or value == "":
+        return None
+    result = _SI_SUFFIX_RE.match(value)
+    if not result:
+        raise ValueError("Invalid value for a number %s" % value)
+    # if the int conversion
+    value = int(result.groups()[0])
+    unit = result.groups()[1]
+
+    # Calculates the value
+    if unit == "k":
+        value *= 1000
+    elif unit == "Ki":
+        value *= 1024
+    elif unit == "M":
+        value *= 1000000
+    elif unit == "Mi":
+        value *= 1048576
+    elif unit == "G":
+        value *= 1000000000
+    elif unit == "Gi":
+        value *= 1073741824
+    elif unit == "T":
+        value *= 1000000000000
+    elif unit == "Ti":
+        value *= 1099511627776
+
+    return value
 
 
 def parse_reuse_backup(value):
@@ -328,6 +374,8 @@ class ServerConfig(object):
         "immediate_checkpoint",
         "incoming_wals_directory",
         "last_backup_maximum_age",
+        "last_backup_minimum_size",
+        "last_wal_maximum_age",
         "max_incoming_wals_queue",
         "minimum_redundancy",
         "network_compression",
@@ -389,6 +437,8 @@ class ServerConfig(object):
         "forward_config_path",
         "immediate_checkpoint",
         "last_backup_maximum_age",
+        "last_backup_minimum_size",
+        "last_wal_maximum_age",
         "max_incoming_wals_queue",
         "minimum_redundancy",
         "network_compression",
@@ -478,6 +528,8 @@ class ServerConfig(object):
         "forward_config_path": parse_boolean,
         "immediate_checkpoint": parse_boolean,
         "last_backup_maximum_age": parse_time_interval,
+        "last_backup_minimum_size": parse_si_suffix,
+        "last_wal_maximum_age": parse_time_interval,
         "max_incoming_wals_queue": int,
         "network_compression": parse_boolean,
         "parallel_jobs": int,

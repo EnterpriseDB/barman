@@ -20,6 +20,7 @@
 This module represents a Server.
 Barman is able to manage multiple servers.
 """
+import datetime
 import errno
 import json
 import logging
@@ -33,6 +34,8 @@ from collections import namedtuple
 from contextlib import closing, contextmanager
 from glob import glob
 from tempfile import NamedTemporaryFile
+
+import dateutil.tz
 
 import barman
 from barman import output, xlog
@@ -116,12 +119,14 @@ class CheckStrategy(object):
     NON_CRITICAL_CHECKS = [
         "minimum redundancy requirements",
         "backup maximum age",
+        "backup minimum size",
         "failed backups",
         "archiver errors",
         "empty incoming directory",
         "empty streaming directory",
         "incoming WALs directory",
         "streaming WALs directory",
+        "wal maximum age",
     ]
 
     def __init__(self, ignore_checks=NON_CRITICAL_CHECKS):
@@ -150,7 +155,7 @@ class CheckStrategy(object):
         assert check
         return check
 
-    def result(self, server_name, status, hint=None, check=None):
+    def result(self, server_name, status, hint=None, check=None, perfdata=None):
         """
         Store the result of a check (with no output).
         Log any check result (error or debug level).
@@ -198,7 +203,7 @@ class CheckOutputStrategy(CheckStrategy):
         """
         super(CheckOutputStrategy, self).__init__(ignore_checks=())
 
-    def result(self, server_name, status, hint=None, check=None):
+    def result(self, server_name, status, hint=None, check=None, perfdata=None):
         """
         Store the result of a check.
         Log any check result (error or debug level).
@@ -210,9 +215,11 @@ class CheckOutputStrategy(CheckStrategy):
         :param str,None hint: hint to print if not None:
         """
         check = self._check_name(check)
-        super(CheckOutputStrategy, self).result(server_name, status, hint, check)
+        super(CheckOutputStrategy, self).result(
+            server_name, status, hint, check, perfdata
+        )
         # Send result to output
-        output.result("check", server_name, check, status, hint)
+        output.result("check", server_name, check, status, hint, perfdata)
 
 
 class Server(RemoteStatusMixin):
@@ -571,6 +578,8 @@ class Server(RemoteStatusMixin):
                 self.check_retention_policy_settings(check_strategy)
                 # Check for backup validity
                 self.check_backup_validity(check_strategy)
+                # Check WAL archiving is happening
+                self.check_wal_validity(check_strategy)
                 # Executes the backup manager set of checks
                 self.backup_manager.check(check_strategy)
                 # Check if the msg_list of the server
@@ -908,6 +917,89 @@ class Server(RemoteStatusMixin):
             check_strategy.result(
                 self.config.name, True, hint="no last_backup_maximum_age provided"
             )
+
+        # second check: check backup minimum size
+        check_strategy.init_check("backup minimum size")
+        if self.config.last_backup_minimum_size is not None:
+            backup_size = self.backup_manager.validate_last_backup_min_size(
+                self.config.last_backup_minimum_size
+            )
+            gtlt = ">" if backup_size[0] else "<"
+            check_strategy.result(
+                self.config.name,
+                backup_size[0],
+                hint="last backup size %s %s %s minimum"
+                % (
+                    pretty_size(backup_size[1]),
+                    gtlt,
+                    pretty_size(self.config.last_backup_minimum_size),
+                ),
+                perfdata=backup_size[1],
+            )
+        else:
+            # no last_backup_minimum_size provided by the user
+            backup_size = self.backup_manager.validate_last_backup_min_size(0)
+            check_strategy.result(
+                self.config.name,
+                True,
+                hint=pretty_size(backup_size[1]),
+                perfdata=backup_size[1],
+            )
+
+    def check_wal_validity(self, check_strategy):
+        """
+        Check if wal archiving requirements are satisfied
+        """
+        check_strategy.init_check("wal maximum age")
+        backup_id = self.backup_manager.get_last_backup_id()
+        backup_info = self.get_backup(backup_id)
+        if backup_info is not None:
+            wal_info = self.get_wal_info(backup_info)
+        # first check: check wal maximum age
+        if self.config.last_wal_maximum_age is not None:
+            # get maximum age information
+            if backup_info is None or wal_info["wal_last_timestamp"] is None:
+                # No WAL files received
+                # (we should have the .backup file, as a minimum)
+                # This may also be an indication that 'barman cron' is not
+                # running
+                wal_age_isok = False
+                wal_message = "No WAL files archived for last backup"
+                wal_size = 0
+            else:
+                wal_last = datetime.datetime.fromtimestamp(
+                    wal_info["wal_last_timestamp"], dateutil.tz.tzlocal()
+                )
+                now = datetime.datetime.now(dateutil.tz.tzlocal())
+                wal_age = now - wal_last
+                if wal_age <= self.config.last_wal_maximum_age:
+                    wal_age_isok = True
+                else:
+                    wal_age_isok = False
+                wal_message = "interval provided: %s, latest wal age: %s" % (
+                    human_readable_timedelta(self.config.last_wal_maximum_age),
+                    human_readable_timedelta(wal_age),
+                )
+                if wal_info["wal_until_next_size"] is None:
+                    wal_size = 0
+                else:
+                    wal_size = wal_info["wal_until_next_size"]
+            # format the output
+            check_strategy.result(self.config.name, wal_age_isok, hint=wal_message)
+        else:
+            # no last_wal_maximum_age provided by the user
+            if backup_info is None or wal_info["wal_until_next_size"] is None:
+                wal_size = 0
+            else:
+                wal_size = wal_info["wal_until_next_size"]
+            check_strategy.result(
+                self.config.name, True, hint="no last_wal_maximum_age provided"
+            )
+
+        check_strategy.init_check("wal size")
+        check_strategy.result(
+            self.config.name, True, pretty_size(wal_size), perfdata=wal_size
+        )
 
     def check_archiver_errors(self, check_strategy):
         """

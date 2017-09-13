@@ -582,7 +582,7 @@ class ConsoleOutputWriter(object):
         self.info("")
         self.info("Your PostgreSQL server has been successfully prepared for recovery!")
 
-    def _record_check(self, server_name, check, status, hint):
+    def _record_check(self, server_name, check, status, hint, perfdata):
         """
         Record the check line in result_check_map attribute
 
@@ -594,7 +594,13 @@ class ConsoleOutputWriter(object):
         :param str,None hint: hint to print if not None
         """
         self.result_check_list.append(
-            dict(server_name=server_name, check=check, status=status, hint=hint)
+            dict(
+                server_name=server_name,
+                check=check,
+                status=status,
+                hint=hint,
+                perfdata=perfdata,
+            )
         )
         if not status and self.active:
             global error_occurred
@@ -618,7 +624,7 @@ class ConsoleOutputWriter(object):
         self.info("Server %s:" % display_name)
         self.active = active
 
-    def result_check(self, server_name, check, status, hint=None):
+    def result_check(self, server_name, check, status, hint=None, perfdata=None):
         """
         Record a server result of a server check
         and output it as INFO
@@ -628,14 +634,19 @@ class ConsoleOutputWriter(object):
         :param bool status: True if succeeded
         :param str,None hint: hint to print if not None
         """
-        self._record_check(server_name, check, status, hint)
-        if hint:
+        self._record_check(server_name, check, status, hint, perfdata)
+        if hint is None:
+            self.info("\t%s: %s" % (check, _green("OK") if status else _red("FAILED")))
+        elif type(hint) is int:
+            self.info(
+                "\t%s: %s (%s)"
+                % (check, _green("OK") if status else _red("FAILED"), pretty_size(hint))
+            )
+        else:
             self.info(
                 "\t%s: %s (%s)"
                 % (check, _green("OK") if status else _red("FAILED"), hint)
             )
-        else:
-            self.info("\t%s: %s" % (check, _green("OK") if status else _red("FAILED")))
 
     def init_list_backup(self, server_name, minimal=False):
         """
@@ -1739,6 +1750,8 @@ class NagiosOutputWriter(ConsoleOutputWriter):
         servers = []
         # List of servers reporting issues
         issues = []
+        # Nagios performance data
+        perf_detail = []
         for item in self.result_check_list:
             # Keep track of all the checked servers
             if item["server_name"] not in servers:
@@ -1746,6 +1759,15 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             # Keep track of the servers with issues
             if not item["status"] and item["server_name"] not in issues:
                 issues.append(item["server_name"])
+            # Build the performance data list
+            if item["check"] == "backup minimum size":
+                perf_detail.append(
+                    "%s=%dB" % (item["server_name"], int(item["perfdata"]))
+                )
+            if item["check"] == "wal size":
+                perf_detail.append(
+                    "%s_wals=%dB" % (item["server_name"], int(item["perfdata"]))
+                )
 
         # Global error (detected at configuration level)
         if len(issues) == 0 and error_occurred:
@@ -1790,13 +1812,19 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             # using * as delimiter
             if len(servers) == 1:
                 print(
-                    "BARMAN CRITICAL - server %s has issues * %s"
-                    % (servers[0], " * ".join(fail_summary))
+                    "BARMAN CRITICAL - server %s has issues * %s|%s"
+                    % (servers[0], " * ".join(fail_summary), " ".join(perf_detail))
                 )
             else:
                 print(
                     "BARMAN CRITICAL - %d server out of %d have issues * "
-                    "%s" % (len(issues), len(servers), " * ".join(fail_summary))
+                    "%s|%s"
+                    % (
+                        len(issues),
+                        len(servers),
+                        " * ".join(fail_summary),
+                        " ".join(perf_detail),
+                    )
                 )
 
             # add the detailed list to the output
@@ -1833,14 +1861,19 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             elif len(servers) == 1:
                 print(
                     "BARMAN OK - Ready to serve the Espresso backup "
-                    "for %s" % (servers[0])
+                    "for %s|%s" % (servers[0], " ".join(perf_detail))
                 )
             else:
                 # Display the output message for several servers, using
                 # '*' as delimiter
                 print(
                     "BARMAN OK - Ready to serve the Espresso backup "
-                    "for %d servers * %s" % (len(servers), " * ".join(servers))
+                    "for %d server(s) * %s|%s"
+                    % (
+                        len(servers),
+                        " * ".join([server for server in servers]),
+                        " ".join(perf_detail),
+                    )
                 )
 
 
