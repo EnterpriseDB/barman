@@ -20,9 +20,9 @@
 %global __python_ver python
 %endif
 
-%global main_version 2.3
+%global main_version 2.4
 # comment out the next line if not a pre-release (use '#%%global ...')
-#%%global extra_version a1
+%global extra_version a1
 # Usually 1 - unique sequence for all pre-release version
 %global package_release 1
 
