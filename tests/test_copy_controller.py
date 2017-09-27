@@ -779,6 +779,26 @@ class TestRsyncCopyController(object):
         )
         rcc._rsync_ignore_vanished_files(rsync_mock, 1, 2, a=3, b=4)
 
+        # Check with return code != 0
+        # 23 - Partial transfer due to error
+        # Version with 'receiver' as error source
+        # This should not raise
+        rsync_mock.reset_mock()
+        rsync_mock.ret = 23
+        rsync_mock.err = (
+            # a file has vanished before rsync start
+            'rsync: link_stat "a/file" failed: No such file or directory (2)\n'
+            # files which vanished after rsync start
+            'file has vanished: "some/other/file"\n'
+            # files which have been truncated during transfer
+            'rsync: read errors mapping "/truncated": No data available (61)\n'
+            # final summary
+            'rsync error: some files/attrs were not transferred '
+            '(see previous errors) (code 23) at main.c(1249) '
+            '[Receiver=3.1.2]\n'
+        )
+        rcc._rsync_ignore_vanished_files(rsync_mock, 1, 2, a=3, b=4)
+
     # This test runs for 1, 4 and 16 workers
     @pytest.mark.parametrize("workers", [1, 4, 16])
     @patch('barman.copy_controller.Pool',

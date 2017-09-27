@@ -251,6 +251,7 @@ class RsyncCopyController(object):
     # a fatal error
     VANISHED_RE = re.compile("""
         (?x) # Enable verbose mode
+        (?i) # Case insensitive
 
         ^ # start of the line
         (
@@ -265,7 +266,7 @@ class RsyncCopyController(object):
         |
         # final summary
         rsync\ error:\ .* \(code\ 23\)\ at\ main\.c\(\d+\)
-            \ \[generator=[^\]]+\]
+            \ \[(generator|receiver)=[^\]]+\]
         )
         $ # end of the line
     """)
