@@ -458,7 +458,7 @@ Barman.
 
 > **NOTE:**
 > Currently, `ABORT_STOP` is ignored by retry 'post' hook scripts. In
-> these cases, apart from lodging an additional warning, `ABORT_STOP`
+> these cases, apart from logging an additional warning, `ABORT_STOP`
 > will behave like `ABORT_CONTINUE`.
 
 ### Backup scripts
