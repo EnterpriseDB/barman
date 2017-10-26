@@ -146,9 +146,9 @@ class TestRsyncCopyController(object):
 
         # Mock analyze directory
         def analyse_func(item):
-            l = item.label
-            item.dir_file = l + '_dir_file'
-            item.exclude_and_protect_file = l + '_exclude_and_protect_file'
+            label = item.label
+            item.dir_file = label + '_dir_file'
+            item.exclude_and_protect_file = label + '_exclude_and_protect_file'
             item.safe_list = [_FileItem('mode', 1, 'date', 'path')]
             item.check_list = [_FileItem('mode', 1, 'date', 'path')]
         analyse_mock.side_effect = analyse_func
@@ -855,9 +855,9 @@ class TestRsyncCopyController(object):
 
         # Mock analyze directory
         def analyse_func(item):
-            l = item.label
-            item.dir_file = l + '_dir_file'
-            item.exclude_and_protect_file = l + '_exclude_and_protect_file'
+            label = item.label
+            item.dir_file = label + '_dir_file'
+            item.exclude_and_protect_file = label + '_exclude_and_protect_file'
             item.safe_list = [_FileItem('mode', 1, 'date', 'path')]
             item.check_list = [_FileItem('mode', 1, 'date', 'path')]
         analyse_mock.side_effect = analyse_func

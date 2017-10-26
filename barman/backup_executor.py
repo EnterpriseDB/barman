@@ -744,7 +744,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             # the begin_wal value is surely known. Doing it twice is safe
             # because this function is useful only during the first backup.
             self._purge_unused_wal_files(backup_info)
-        except:
+        except BaseException:
             # we do not need to do anything here besides re-raising the
             # exception. It will be handled in the external try block.
             output.error("The backup has failed %s", self.current_action)

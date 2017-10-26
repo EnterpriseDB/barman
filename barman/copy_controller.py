@@ -515,7 +515,7 @@ class RsyncCopyController(object):
             _logger.info("Copy interrupted by the user (safe before %s)",
                          self.safe_horizon)
             raise
-        except:
+        except BaseException:
             _logger.info("Copy failed (safe before %s)", self.safe_horizon)
             raise
         else:
