@@ -940,10 +940,10 @@ class TestPgBaseBackup(object):
         assert pg_basebackup.err_handler
         assert pg_basebackup.out_handler
 
-    def test_no_slot(self):
+    def test_version_10(self):
         """
-        Test that --no-slot option is correctly passed if the pg_basebakup
-        client is version >= 10
+        Test that --no-slot and --wal-method options are correctly passed
+        if the pg_basebakup client is version >= 10
         """
         connection_mock = mock.MagicMock()
         connection_mock.get_connection_string.return_value = 'test_connstring'
@@ -959,6 +959,7 @@ class TestPgBaseBackup(object):
             "--no-password",
             "--pgdata=/dest/dir",
             "--no-slot",
+            "--wal-method=none",
             "a",
             "b",
         ]
