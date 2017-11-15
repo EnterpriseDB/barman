@@ -91,17 +91,23 @@ class TestProcessManager(object):
         config = build_config_from_dicts({
             'barman_lock_directory': tmpdir.strpath})
         config.name = 'main'
-        with ServerWalReceiveLock(tmpdir.strpath, 'main'):
+
+        lockfile = tmpdir.join('.%s-receive-wal.lock' % config.name)
+
+        # Listing the processes should not modify the lockfile content
+        lockfile.write('0\n')
+        pm = ProcessManager(config)
+        assert pm.list('receive-wal') == []
+        assert '0\n' == lockfile.read()
+
+        # If there is a running process it must correctly read its pid
+        with ServerWalReceiveLock(tmpdir.strpath, config.name):
             pm = ProcessManager(config)
             process = pm.list('receive-wal')[0]
-
-        assert process.server_name == 'main'
-        assert process.task == 'receive-wal'
-        with open(os.path.join(
-                tmpdir.strpath,
-                '.%s-receive-wal.lock' % config.name)) as lockfile:
-            pid = lockfile.read().strip()
-            assert int(pid) == process.pid
+        assert 'main' == process.server_name
+        assert 'receive-wal' == process.task
+        assert os.getpid() == process.pid
+        assert str(os.getpid()) == lockfile.read().strip()
 
     @mock.patch('os.kill')
     def test_kill(self, kill_mock, tmpdir):

@@ -97,7 +97,7 @@ class LockFile(object):
         self.raise_if_fail = raise_if_fail
         self.wait = wait
 
-    def acquire(self, raise_if_fail=None, wait=None):
+    def acquire(self, raise_if_fail=None, wait=None, update_pid=True):
         """
         Creates and holds on to the lock file.
 
@@ -110,6 +110,7 @@ class LockFile(object):
 
         :param bool raise_if_fail: If True raise an exception on failure
         :param bool wait: If True issue a blocking request
+        :param bool update_pid: Whether to write our pid in the lockfile
         :returns bool: whether the lock has been acquired
         """
         if self.fd:
@@ -126,11 +127,12 @@ class LockFile(object):
             if not wait:
                 flags |= fcntl.LOCK_NB
             fcntl.flock(fd, flags)
-            # Once locked, replace the content of the file
-            os.lseek(fd, 0, os.SEEK_SET)
-            os.write(fd, ("%s\n" % os.getpid()).encode('ascii'))
-            # Truncate the file at the current position
-            os.ftruncate(fd, os.lseek(fd, 0, os.SEEK_CUR))
+            if update_pid:
+                # Once locked, replace the content of the file
+                os.lseek(fd, 0, os.SEEK_SET)
+                os.write(fd, ("%s\n" % os.getpid()).encode('ascii'))
+                # Truncate the file at the current position
+                os.ftruncate(fd, os.lseek(fd, 0, os.SEEK_CUR))
             self.fd = fd
             return True
         except (OSError, IOError) as e:
@@ -186,7 +188,7 @@ class LockFile(object):
         :raises LockFilePermissionDenied: when the lockfile is not accessible
         """
         try:
-            self.acquire(raise_if_fail=True, wait=False)
+            self.acquire(raise_if_fail=True, wait=False, update_pid=False)
         except LockFileBusy:
             try:
                 # Read the lock content and parse the PID
