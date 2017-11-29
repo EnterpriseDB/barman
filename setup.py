@@ -99,6 +99,6 @@ setup(
         'mock',
         'pytest-catchlog>=1.2.1',
         'pytest-timeout',
-        'pytest',
+        'pytest<3.3.0',
     ],
 )
