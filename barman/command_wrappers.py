@@ -886,6 +886,8 @@ class PgBaseBackup(PostgreSQLClient):
             # We don't need it because Barman already stores the full
             # WAL stream, so we disable this feature to avoid wasting one slot.
             self.args += ['--no-slot']
+            # We also need to specify that we do not want to fetch any WAL file
+            self.args += ['--wal-method=none']
 
         # The tablespace mapping option is repeated once for each tablespace
         if tbs_mapping:
