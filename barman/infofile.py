@@ -17,6 +17,7 @@
 
 import ast
 import collections
+import inspect
 import logging
 import os
 
@@ -218,8 +219,7 @@ class FieldListFile(object):
                 'either a valid filename or a file_object must be specified')
 
         with info:
-            for name in sorted(vars(type(self))):
-                field = getattr(type(self), name)
+            for name, field in sorted(inspect.getmembers(type(self))):
                 value = getattr(self, name, None)
                 if isinstance(field, Field):
                     if callable(field.to_str):
@@ -289,8 +289,7 @@ class FieldListFile(object):
 
         If a filed has a dump function defined, it will be used.
         """
-        for name in sorted(vars(type(self))):
-            field = getattr(type(self), name)
+        for name, field in sorted(inspect.getmembers(type(self))):
             value = getattr(self, name, None)
             if isinstance(field, Field):
                 if callable(field.to_str):
