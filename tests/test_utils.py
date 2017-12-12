@@ -604,3 +604,6 @@ class TestPowerOfTwo(object):
 
     def test_not_power_of_two(self):
         assert not barman.utils.is_power_of_two(33)
+
+    def test_none(self):
+        assert not barman.utils.is_power_of_two(None)

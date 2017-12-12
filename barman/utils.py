@@ -374,6 +374,10 @@ def is_power_of_two(number):
     Check if a number is a power of two or not
     """
 
+    # Returns None if number is set to None.
+    if number is None:
+        return None
+
     # This is a fast method to check for a power of two.
     #
     # A power of two has this structure:  100000 (one or more zeroes)
