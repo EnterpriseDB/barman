@@ -244,8 +244,9 @@ file, and every Barman server has its own copy.
 .TP
 .B receive\-wal \f[I]SERVER_NAME\f[]
 Start the stream of transaction logs for a server.
-The process relies on \f[C]pg_receivexlog\f[] to receive WAL files from
-the PostgreSQL servers through the streaming protocol.
+The process relies on \f[C]pg_receivewal\f[]/\f[C]pg_receivexlog\f[] to
+receive WAL files from the PostgreSQL servers through the streaming
+protocol.
 .RS
 .TP
 .B \-\-stop
@@ -386,7 +387,7 @@ Possible values for TARGET_TYPE are:
 \f[I]hot\-standby\f[]: lists only hot standby servers
 .IP \[bu] 2
 \f[I]wal\-streamer\f[]: lists only WAL streaming clients, such as
-pg_receivexlog
+pg_receivewal
 .IP \[bu] 2
 \f[I]all\f[]: any streaming client (default)
 .RE

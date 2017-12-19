@@ -171,7 +171,7 @@ connection.
 ### receive-wal process management
 
 If the command is run without options, a `receive-wal` process will
-be started. This command is based on the `pg_receivexlog` PostgreSQL
+be started. This command is based on the `pg_receivewal` PostgreSQL
 command.
 
 ``` bash

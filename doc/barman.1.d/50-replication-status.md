@@ -11,5 +11,5 @@ replication-status *\[OPTIONS\]* *SERVER_NAME*
 
          - *hot-standby*: lists only hot standby servers
          - *wal-streamer*: lists only WAL streaming clients, such as
-                          pg_receivexlog
+                          pg_receivewal
          - *all*: any streaming client (default)

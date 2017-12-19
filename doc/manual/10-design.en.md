@@ -72,7 +72,7 @@ PostgreSQL's Point-In-Time-Recovery requires that transactional logs, also known
 
 Traditionally, Barman has supported standard WAL file shipping through PostgreSQL's `archive_command` (usually via `rsync`/SSH). With this method, WAL files are archived only when PostgreSQL _switches_ to a new WAL file. To keep it simple, this normally happens every 16MB worth of data changes.
 
-Barman 1.6.0 introduces streaming of WAL files for PostgreSQL servers 9.2 or higher, as an additional method for transactional log archiving, through `pg_receivexlog`. WAL streaming is able to reduce the risk of data loss, bringing RPO down to _near zero_ values.
+Barman 1.6.0 introduces streaming of WAL files for PostgreSQL servers 9.2 or higher, as an additional method for transactional log archiving, through `pg_receivewal` (also known as `pg_receivexlog` before PostgreSQL 10). WAL streaming is able to reduce the risk of data loss, bringing RPO down to _near zero_ values.
 
 Barman 2.0 introduces support for replication slots with PostgreSQL servers 9.4 or above, therefore allowing WAL streaming-only configurations. Moreover, you can now add Barman as a synchronous WAL receiver in your PostgreSQL 9.5 (or higher) cluster, and achieve **zero data loss** (RPO=0).
 
@@ -97,7 +97,7 @@ If you are using PostgreSQL 9.4 or higher, and your database falls under a gener
 In this scenario, you will need to configure:
 
 1. a standard connection to PostgreSQL, for management, coordination, and monitoring purposes
-2. a streaming replication connection that will be used by both `pg_basebackup` (for base backup operations) and `pg_receivexlog` (for WAL streaming)
+2. a streaming replication connection that will be used by both `pg_basebackup` (for base backup operations) and `pg_receivewal` (for WAL streaming)
 
 This setup, in Barman's terminology, is known as **streaming-only** setup, as it does not require any SSH connection for backup and archiving operations. This is particularly suitable and extremely practical for Docker environments.
 

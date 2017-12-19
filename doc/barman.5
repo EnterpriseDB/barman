@@ -465,9 +465,10 @@ Server.
 .B streaming_archiver
 This option allows you to use the PostgreSQL\[aq]s streaming protocol to
 receive transaction logs from a server.
-If set to \f[C]on\f[], Barman expects to find \f[C]pg_receivexlog\f[] in
-the PATH (see \f[C]path_prefix\f[] option) and that streaming connection
-for the server is working.
+If set to \f[C]on\f[], Barman expects to find \f[C]pg_receivewal\f[]
+(known as \f[C]pg_receivexlog\f[] prior to PostgreSQL 10) in the PATH
+(see \f[C]path_prefix\f[] option) and that streaming connection for the
+server is working.
 This activates connection checks as well as management (including
 compression) of WAL files.
 If set to \f[C]off\f[] (default) barman will rely only on continuous
@@ -493,7 +494,8 @@ Global/Server.
 .B streaming_archiver_name
 Identifier to be used as \f[C]application_name\f[] by the
 \f[C]receive\-wal\f[] command.
-Only available with \f[C]pg_receivexlog\f[] >= 9.3.
+Only available with \f[C]pg_receivewal\f[] (or \f[C]pg_receivexlog\f[]
+>= 9.3).
 By default it is set to \f[C]barman_receive_wal\f[].
 Global/Server.
 .RS

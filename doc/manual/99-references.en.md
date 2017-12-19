@@ -42,7 +42,7 @@
   [18]: http://4caast.morfeo-project.org/
   [20]: http://www.postgresql.org/docs/current/static/functions-admin.html
   [24]: http://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION
-  [25]: http://www.postgresql.org/docs/current/static/app-pgreceivexlog.html
+  [25]: http://www.postgresql.org/docs/current/static/app-pgreceivewal.html
   [26]: https://goo.gl/218Ghl
   [27]: https://github.com/emin100/barmanapi
 

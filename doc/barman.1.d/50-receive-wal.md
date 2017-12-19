@@ -1,7 +1,7 @@
 receive-wal *SERVER_NAME*
 :   Start the stream of transaction logs for a server.
-    The process relies on `pg_receivexlog` to receive WAL files
-    from the PostgreSQL servers through the streaming protocol.
+    The process relies on `pg_receivewal`/`pg_receivexlog` to receive
+    WAL files from the PostgreSQL servers through the streaming protocol.
 
     --stop
     :   stop the receive-wal process for the server

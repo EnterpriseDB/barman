@@ -4,18 +4,19 @@ Barman can reduce the Recovery Point Objective (RPO) by allowing users
 to add continuous WAL streaming from a PostgreSQL server, on top of
 the standard `archive_command` strategy
 
-Barman relies on [`pg_receivexlog`] [25], a utility that has been
+Barman relies on [`pg_receivewal`] [25], a utility that has been
 available from PostgreSQL 9.2 which exploits the native streaming
 replication protocol and continuously receives transaction logs from a
 PostgreSQL server (master or standby).
+Prior to PostgreSQL 10, `pg_receivewal` was named `pg_receivexlog`.
 
 > **IMPORTANT:**
-> Barman requires that `pg_receivexlog` is installed on the same
+> Barman requires that `pg_receivewal` is installed on the same
 > server.  For PostgreSQL 9.2 servers, you need `pg_receivexlog` of
 > version 9.2 installed alongside Barman. For PostgreSQL 9.3 and
 > above, it is recommended to install the latest available version of
-> `pg_receivexlog`, as it is back compatible.  Otherwise, users can
-> install multiple versions of `pg_receivexlog` on the Barman server
+> `pg_receivewal`, as it is back compatible.  Otherwise, users can
+> install multiple versions of `pg_receivewal`/`pg_receivexlog` on the Barman server
 > and properly point to the specific version for a server, using the
 > `path_prefix` option in the configuration file.
 
