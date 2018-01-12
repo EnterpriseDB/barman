@@ -554,8 +554,8 @@ class TestRecoveryExecutor(object):
             })
         executor = RecoveryExecutor(server.backup_manager)
         # test local recovery
-        rec_info = executor.recover(backup_info, dest.strpath, None, None,
-                                    None, None, None, None, True, None, None)
+        rec_info = executor.recover(backup_info, dest.strpath,
+                                    exclusive=True)
         # remove not useful keys from the result
         del rec_info['cmd']
         sys_tempdir = rec_info['tempdir']
@@ -607,9 +607,9 @@ class TestRecoveryExecutor(object):
             'get_wal': False,
         }
         # test remote recovery
-        rec_info = executor.recover(backup_info, dest.strpath, {}, None, None,
-                                    None, None, None, True, "remote@command",
-                                    None)
+        rec_info = executor.recover(backup_info, dest.strpath,
+                                    remote_command="remote@command",
+                                    exclusive=True)
         # remove not useful keys from the result
         del rec_info['cmd']
         del rec_info['rsync']
@@ -663,5 +663,5 @@ class TestRecoveryExecutor(object):
         # test failed rsync
         rsync_pg_mock.side_effect = CommandFailedException()
         with pytest.raises(CommandFailedException):
-            executor.recover(backup_info, dest.strpath, {}, None, None, None,
-                             None, None, True, "remote@command", None)
+            executor.recover(backup_info, dest.strpath,
+                             exclusive=True, remote_command="remote@command")

@@ -634,3 +634,135 @@ class TestHooks(object):
         assert command_mock.call_count == 1
         assert command_mock.call_args[1]['env_append'] == expected_env
         assert script.script == backup_manager.config.post_wal_delete_script
+
+    @patch('barman.hooks.Command')
+    def test_recovery_pre_script(self, command_mock):
+        """
+        Unit test specific for the execution of a pre recovery script.
+
+        test case:
+        simulate the execution of a pre recovery script, should return 0
+        test the environment for the HookScriptRunner obj.
+        test the name of the fake script, should be the same as the one in the
+        mocked configuration
+        """
+        # BackupManager mock
+        backup_manager = build_backup_manager(name='test_server')
+        backup_manager.config.pre_recovery_script = 'test_recovery_pre_script'
+        backup_manager.get_previous_backup = MagicMock()
+        backup_manager.get_previous_backup.side_effect = \
+            UnknownBackupIdException()
+        backup_manager.get_next_backup = MagicMock()
+        backup_manager.get_next_backup.side_effect = \
+            UnknownBackupIdException()
+
+        # BackupInfo mock
+        backup_info = MagicMock(name='backup_info')
+        backup_info.get_basebackup_directory.return_value = 'backup_directory'
+        backup_info.backup_id = '123456789XYZ'
+        backup_info.error = None
+        backup_info.status = 'OK'
+
+        # Command mock executed by HookScriptRunner
+        command_mock.return_value.return_value = 0
+
+        # the actual test
+        script = HookScriptRunner(backup_manager, 'recovery_script', 'pre')
+        script.env_from_recover(
+            backup_info,
+            dest='fake_dest',
+            tablespaces={
+                'first': '/first/relocated',
+                'second': '/another/location',
+            },
+            remote_command='ssh user@host',
+            target_name='name',
+            exclusive=True,
+        )
+        expected_env = {
+            'BARMAN_PHASE': 'pre',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
+            'BARMAN_HOOK': 'recovery_script',
+            'BARMAN_BACKUP_DIR': 'backup_directory',
+            'BARMAN_BACKUP_ID': '123456789XYZ',
+            'BARMAN_ERROR': '',
+            'BARMAN_STATUS': 'OK',
+            'BARMAN_PREVIOUS_ID': '',
+            'BARMAN_NEXT_ID': '',
+            'BARMAN_RETRY': '0',
+            'BARMAN_DESTINATION_DIRECTORY': 'fake_dest',
+            'BARMAN_TABLESPACES': '{"first": "/first/relocated", '
+                                  '"second": "/another/location"}',
+            'BARMAN_REMOTE_COMMAND': 'ssh user@host',
+            'BARMAN_RECOVER_OPTIONS': '{"exclusive": true, '
+                                      '"target_name": "name"}'
+        }
+        assert script.run() == 0
+        assert command_mock.call_count == 1
+        assert command_mock.call_args[1]['env_append'] == expected_env
+        assert script.script == backup_manager.config.pre_recovery_script
+
+    @patch('barman.hooks.Command')
+    def test_recovery_post_script(self, command_mock):
+        """
+        Unit test specific for the execution of a post recovery script.
+
+        test case:
+        simulate the execution of a post recovery script, should return 0
+        test the environment for the HookScriptRunner obj.
+        test the name of the fake script, should be the same as the one in the
+        mocked configuration
+        """
+        # BackupManager mock
+        backup_manager = build_backup_manager(name='test_server')
+        backup_manager.config.post_recovery_script = \
+            'test_recovery_post_script'
+        backup_manager.get_previous_backup = MagicMock()
+        backup_manager.get_previous_backup.side_effect = \
+            UnknownBackupIdException()
+        backup_manager.get_next_backup = MagicMock()
+        backup_manager.get_next_backup.side_effect = \
+            UnknownBackupIdException()
+
+        # BackupInfo mock
+        backup_info = MagicMock(name='backup_info')
+        backup_info.get_basebackup_directory.return_value = 'backup_directory'
+        backup_info.backup_id = '123456789XYZ'
+        backup_info.error = None
+        backup_info.status = 'OK'
+
+        # Command mock executed by HookScriptRunner
+        command_mock.return_value.return_value = 0
+
+        # the actual test
+        script = HookScriptRunner(backup_manager, 'recovery_script', 'post')
+        script.env_from_recover(
+            backup_info,
+            dest='local_dest',
+            tablespaces=None,
+            remote_command=None
+        )
+        expected_env = {
+            'BARMAN_PHASE': 'post',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
+            'BARMAN_HOOK': 'recovery_script',
+            'BARMAN_BACKUP_DIR': 'backup_directory',
+            'BARMAN_BACKUP_ID': '123456789XYZ',
+            'BARMAN_ERROR': '',
+            'BARMAN_STATUS': 'OK',
+            'BARMAN_PREVIOUS_ID': '',
+            'BARMAN_NEXT_ID': '',
+            'BARMAN_RETRY': '0',
+            'BARMAN_DESTINATION_DIRECTORY': 'local_dest',
+            'BARMAN_TABLESPACES': '',
+            'BARMAN_REMOTE_COMMAND': '',
+            'BARMAN_RECOVER_OPTIONS': ''
+        }
+        assert script.run() == 0
+        assert command_mock.call_count == 1
+        assert command_mock.call_args[1]['env_append'] == expected_env
+        assert script.script == backup_manager.config.post_recovery_script

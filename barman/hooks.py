@@ -21,6 +21,7 @@ This module contains the logic to run hook scripts
 
 import logging
 import time
+import json
 
 from barman import version
 from barman.command_wrappers import Command
@@ -122,6 +123,41 @@ class HookScriptRunner(object):
             'BARMAN_SIZE': str(wal_info.size),
             'BARMAN_TIMESTAMP': str(wal_info.time),
             'BARMAN_COMPRESSION': wal_info.compression or '',
+            'BARMAN_ERROR': str(error or '')
+        })
+
+    def env_from_recover(self, backup_info, dest, tablespaces, remote_command,
+                         error=None, **kwargs):
+        """
+        Prepare the environment for executing a script
+
+        :param BackupInfo backup_info: the backup metadata
+        :param str dest: the destination directory
+        :param dict[str,str]|None tablespaces: a tablespace name -> location
+            map (for relocation)
+        :param str|None remote_command: default None. The remote command
+            to recover the base backup, in case of remote backup.
+        :param str|Exception error: An error message in case of failure
+        """
+        self.env_from_backup_info(backup_info)
+
+        # Prepare a JSON representation of tablespace map
+        tablespaces_map = ''
+        if tablespaces:
+            tablespaces_map = json.dumps(tablespaces, sort_keys=True)
+
+        # Prepare a JSON representation of additional recovery options
+        # Skip any empty argument
+        kwargs_filtered = dict([(k, v) for k, v in kwargs.items() if v])
+        recover_options = ''
+        if kwargs_filtered:
+            recover_options = json.dumps(kwargs_filtered, sort_keys=True)
+
+        self.environment.update({
+            'BARMAN_DESTINATION_DIRECTORY': str(dest),
+            'BARMAN_TABLESPACES': tablespaces_map,
+            'BARMAN_REMOTE_COMMAND': str(remote_command or ''),
+            'BARMAN_RECOVER_OPTIONS': recover_options,
             'BARMAN_ERROR': str(error or '')
         })
 

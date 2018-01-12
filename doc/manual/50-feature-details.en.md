@@ -584,6 +584,40 @@ the upper section).
 WAL delete scripts use the same environmental variables as WAL archive
 scripts.
 
+### Recovery scripts
+
+Version **2.4** introduces pre and post recovery scripts.
+
+As previous scripts, recovery scripts can be configured within global
+configuration options, and is possible to override them on a per server
+basis:
+
+- `pre_recovery_script`: _hook script_ launched _before_ the recovery
+  of a backup, only once, with no check on the exit code
+- `pre_recovery_retry_script`: _retry hook script_ executed _before_
+  the recovery of a backup, repeatedly until success or abort
+- `post_recovery_retry_script`: _retry hook script_ executed _after_
+  the recovery of a backup, repeatedly until success or abort
+- `post_recovery_script`: _hook script_ launched _after_ the recovery
+  of a backup, only once, with no check on the exit code
+
+The script is executed through a shell and can return any exit code.
+Only in case of a _retry_ script, Barman checks the return code (see
+the upper section).
+
+Recovery scripts uses the same environmental variables of a backup
+script, plus:
+
+- `BARMAN_DESTINATION_DIRECTORY`: the directory where the new instance
+  is recovered
+
+- `BARMAN_TABLESPACES`: tablespace relocation map (JSON, if present)
+
+- `BARMAN_REMOTE_COMMAND`: secure shell command used
+  by the recovery (if present)
+
+- `BARMAN_RECOVER_OPTIONS`: recovery additional options (JSON, if present)
+
 ## Customization
 
 ### Lock file directory

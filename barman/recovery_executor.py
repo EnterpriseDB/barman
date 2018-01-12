@@ -86,9 +86,10 @@ class RecoveryExecutor(object):
         self.server = backup_manager.server
         self.config = backup_manager.config
 
-    def recover(self, backup_info, dest, tablespaces, target_tli,
-                target_time, target_xid, target_name,
-                target_immediate, exclusive, remote_command, target_action):
+    def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
+                target_tli=None, target_time=None, target_xid=None,
+                target_name=None, target_immediate=False, exclusive=False,
+                target_action=None):
         """
         Performs a recovery of a backup
 
@@ -96,6 +97,8 @@ class RecoveryExecutor(object):
         :param str dest: the destination directory
         :param dict[str,str]|None tablespaces: a tablespace
             name -> location map (for relocation)
+        :param str|None remote_command: The remote command to recover
+                               the base backup, in case of remote backup.
         :param str|None target_tli: the target timeline
         :param str|None target_time: the target time
         :param str|None target_xid: the target xid
@@ -104,8 +107,6 @@ class RecoveryExecutor(object):
         :param str|None target_immediate: end recovery as soon as consistency
             is reached
         :param bool exclusive: whether the recovery is exclusive or not
-        :param str|None remote_command: The remote command to recover
-                               the base backup, in case of remote backup.
         :param str|None target_action: The recovery target action
         """
 

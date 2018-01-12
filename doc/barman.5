@@ -380,6 +380,24 @@ Global/Server.
 .RS
 .RE
 .TP
+.B post_recovery_retry_script
+Hook script launched after a recovery.
+Being this a \f[I]retry\f[] hook script, Barman will retry the execution
+of the script until this either returns a SUCCESS (0), an ABORT_CONTINUE
+(62) or an ABORT_STOP (63) code.
+In a post recovery scenario, ABORT_STOP has currently the same effects
+as ABORT_CONTINUE.
+Global/Server.
+.RS
+.RE
+.TP
+.B post_recovery_script
+Hook script launched after a recovery, after
+\[aq]post_recovery_retry_script\[aq].
+Global/Server.
+.RS
+.RE
+.TP
 .B post_wal_delete_retry_script
 Hook script launched after the deletion of a WAL file.
 Being this a \f[I]retry\f[] hook script, Barman will retry the execution
@@ -448,6 +466,24 @@ Global/Server.
 .TP
 .B pre_delete_script
 Hook script launched before the deletion of a backup.
+Global/Server.
+.RS
+.RE
+.TP
+.B pre_recovery_retry_script
+Hook script launched before a recovery, after
+\[aq]pre_recovery_script\[aq].
+Being this a \f[I]retry\f[] hook script, Barman will retry the execution
+of the script until this either returns a SUCCESS (0), an ABORT_CONTINUE
+(62) or an ABORT_STOP (63) code.
+Returning ABORT_STOP will propagate the failure at a higher level and
+interrupt the recover operation.
+Global/Server.
+.RS
+.RE
+.TP
+.B pre_recovery_script
+Hook script launched before a recovery.
 Global/Server.
 .RS
 .RE
@@ -707,6 +743,28 @@ WAL file timestamp
 .TP
 .B \f[C]BARMAN_COMPRESSION\f[]
 type of compression used for the WAL file
+.RS
+.RE
+.PP
+Recovery scripts specific variables:
+.TP
+.B \f[C]BARMAN_DESTINATION_DIRECTORY\f[]
+the directory where the new instance is recovered
+.RS
+.RE
+.TP
+.B \f[C]BARMAN_TABLESPACES\f[]
+tablespace relocation map (JSON, if present)
+.RS
+.RE
+.TP
+.B \f[C]BARMAN_REMOTE_COMMAND\f[]
+secure shell command used by the recovery (if present)
+.RS
+.RE
+.TP
+.B \f[C]BARMAN_RECOVER_OPTIONS\f[]
+recovery additional options (JSON, if present)
 .RS
 .RE
 .PP

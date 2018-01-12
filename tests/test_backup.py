@@ -153,7 +153,8 @@ class TestBackup(object):
         with pytest.raises(SystemExit):
             backup_manager.recover(backup_info,
                                    test_dir.strpath, None, None,
-                                   'foo bar', None, "name", True, None)
+                                   target_time='foo bar', target_name="name",
+                                   target_immediate=True)
         # checked that the raised error is the correct error
         (out, err) = capsys.readouterr()
         assert "unable to parse the target time parameter " in err

@@ -1246,10 +1246,8 @@ class Server(RemoteStatusMixin):
 
         return wal_info
 
-    def recover(self, backup_info, dest, tablespaces=None, target_tli=None,
-                target_time=None, target_xid=None, target_name=None,
-                target_immediate=False, exclusive=False, remote_command=None,
-                target_action=None):
+    def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
+                **kwargs):
         """
         Performs a recovery of a backup
 
@@ -1257,22 +1255,20 @@ class Server(RemoteStatusMixin):
         :param str dest: the destination directory
         :param dict[str,str]|None tablespaces: a tablespace
             name -> location map (for relocation)
-        :param str|None target_tli: the target timeline
-        :param str|None target_time: the target time
-        :param str|None target_xid: the target xid
-        :param str|None target_name: the target name created previously with
-                            pg_create_restore_point() function call
-        :param bool|None target_immediate: end recovery as soon as consistency
-            is reached
-        :param bool exclusive: whether the recovery is exclusive or not
         :param str|None remote_command: default None. The remote command to
             recover the base backup, in case of remote backup.
-        :param str|None target_action: the recovery target action
+        :kwparam str|None target_tli: the target timeline
+        :kwparam str|None target_time: the target time
+        :kwparam str|None target_xid: the target xid
+        :kwparam str|None target_name: the target name created previously with
+                            pg_create_restore_point() function call
+        :kwparam bool|None target_immediate: end recovery as soon as
+            consistency is reached
+        :kwparam bool exclusive: whether the recovery is exclusive or not
+        :kwparam str|None target_action: the recovery target action
         """
         return self.backup_manager.recover(
-            backup_info, dest, tablespaces, target_tli, target_time,
-            target_xid, target_name, target_immediate, exclusive,
-            remote_command, target_action)
+            backup_info, dest, tablespaces, remote_command, **kwargs)
 
     def get_wal(self, wal_name, compression=None, output_directory=None,
                 peek=None):

@@ -458,10 +458,8 @@ class BackupManager(RemoteStatusMixin):
 
         output.result('backup', backup_info)
 
-    def recover(self, backup_info, dest, tablespaces=None, target_tli=None,
-                target_time=None, target_xid=None, target_name=None,
-                target_immediate=False, exclusive=False, remote_command=None,
-                target_action=None):
+    def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
+                **kwargs):
         """
         Performs a recovery of a backup
 
@@ -469,17 +467,17 @@ class BackupManager(RemoteStatusMixin):
         :param str dest: the destination directory
         :param dict[str,str]|None tablespaces: a tablespace name -> location
             map (for relocation)
-        :param str|None target_tli: the target timeline
-        :param str|None target_time: the target time
-        :param str|None target_xid: the target xid
-        :param str|None target_name: the target name created previously with
-            pg_create_restore_point() function call
-        :param bool|None target_immediate: end recovery as soon as consistency
-            is reached
-        :param bool exclusive: whether the recovery is exclusive or not
         :param str|None remote_command: default None. The remote command
             to recover the base backup, in case of remote backup.
-        :param str|None target_action: default None. The recovery target
+        :kwparam str|None target_tli: the target timeline
+        :kwparam str|None target_time: the target time
+        :kwparam str|None target_xid: the target xid
+        :kwparam str|None target_name: the target name created previously with
+            pg_create_restore_point() function call
+        :kwparam bool|None target_immediate: end recovery as soon as
+            consistency is reached
+        :kwparam bool exclusive: whether the recovery is exclusive or not
+        :kwparam str|None target_action: default None. The recovery target
             action
         """
 
@@ -487,12 +485,44 @@ class BackupManager(RemoteStatusMixin):
         self.server.archive_wal(verbose=False)
         # Delegate the recovery operation to a RecoveryExecutor object
         executor = RecoveryExecutor(self)
-        recovery_info = executor.recover(backup_info,
-                                         dest, tablespaces,
-                                         target_tli, target_time,
-                                         target_xid, target_name,
-                                         target_immediate, exclusive,
-                                         remote_command, target_action)
+
+        # Run the pre_recovery_script if present.
+        script = HookScriptRunner(self, 'recovery_script', 'pre')
+        script.env_from_recover(backup_info, dest, tablespaces, remote_command,
+                                **kwargs)
+        script.run()
+
+        # Run the pre_recovery_retry_script if present.
+        retry_script = RetryHookScriptRunner(
+            self, 'recovery_retry_script', 'pre')
+        script.env_from_recover(backup_info, dest, tablespaces, remote_command,
+                                **kwargs)
+        retry_script.run()
+
+        # Execute the recovery.
+        recovery_info = executor.recover(
+            backup_info, dest,
+            tablespaces=tablespaces, remote_command=remote_command, **kwargs)
+
+        # Run the post_recovery_retry_script if present.
+        try:
+            retry_script = RetryHookScriptRunner(
+                self, 'recovery_retry_script', 'post')
+            script.env_from_recover(
+                backup_info, dest, tablespaces, remote_command, **kwargs)
+            retry_script.run()
+        except AbortedRetryHookScript as e:
+            # Ignore the ABORT_STOP as it is a post-hook operation
+            _logger.warning("Ignoring stop request after receiving "
+                            "abort (exit code %d) from post-recovery "
+                            "retry hook script: %s",
+                            e.hook.exit_status, e.hook.script)
+
+        # Run the post-recovery-script if present.
+        script = HookScriptRunner(self, 'recovery_script', 'post')
+        script.env_from_recover(backup_info, dest, tablespaces, remote_command,
+                                **kwargs)
+        script.run()
 
         # Output recovery results
         output.result('recovery', recovery_info['results'])
