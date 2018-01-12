@@ -1029,7 +1029,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
             label='pgdata',
             src=':%s/' % backup_info.pgdata,
             dst=backup_dest,
-            exclude=self.PGDATA_EXCLUDE_LIST + 
+            exclude=self.PGDATA_EXCLUDE_LIST +
                 self.EXCLUDE_LIST +
                 self.config.rsync_exclude,
             exclude_and_protect=exclude_and_protect,

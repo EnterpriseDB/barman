@@ -249,7 +249,7 @@ def parse_backup_method(value):
 
 def parse_rsync_exclude(value):
     """
-    Parse a list of filesystem objects (which are free-form, 
+    Parse a list of filesystem objects (which are free-form,
       and may or may not exist) which will be excluded from rsync backup
 
     :param str value: comma-separated fs objects to exclude
