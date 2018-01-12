@@ -247,6 +247,21 @@ def parse_backup_method(value):
             "', '".join(BACKUP_METHOD_VALUES)))
 
 
+def parse_rsync_exclude(value):
+    """
+    Parse a list of filesystem objects (which are free-form, 
+      and may or may not exist) which will be excluded from rsync backup
+
+    :param str value: comma-separated fs objects to exclude
+    :raises AttributeError: if value is not a string
+    """
+    if value:
+        values_list = value.split(',')
+    else:
+        values_list = ['']
+    return values_list
+
+
 class ServerConfig(object):
     """
     This class represents the configuration for a specific Server instance.
@@ -295,6 +310,7 @@ class ServerConfig(object):
         'retention_policy',
         'retention_policy_mode',
         'reuse_backup',
+        'rsync_exclude',
         'slot_name',
         'ssh_command',
         'streaming_archiver',
@@ -344,6 +360,7 @@ class ServerConfig(object):
         'retention_policy',
         'retention_policy_mode',
         'reuse_backup',
+        'rsync_exclude',
         'slot_name',
         'streaming_archiver',
         'streaming_archiver_batch_size',
@@ -373,6 +390,7 @@ class ServerConfig(object):
         'parallel_jobs': '1',
         'recovery_options': '',
         'retention_policy_mode': 'auto',
+        'rsync_exclude': '',
         'streaming_archiver': 'off',
         'streaming_archiver_batch_size': '0',
         'streaming_archiver_name': 'barman_receive_wal',
@@ -404,6 +422,7 @@ class ServerConfig(object):
         'parallel_jobs': int,
         'recovery_options': RecoveryOptions,
         'reuse_backup': parse_reuse_backup,
+        'rsync_exclude': parse_rsync_exclude,
         'streaming_archiver': parse_boolean,
         'streaming_archiver_batch_size': int,
     }

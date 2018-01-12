@@ -296,7 +296,8 @@ class TestRsyncBackupExecutor(object):
                 bwlimit=None,
                 item_class=rsync_mock.return_value.PGDATA_CLASS,
                 exclude=RsyncBackupExecutor.PGDATA_EXCLUDE_LIST +
-                    RsyncBackupExecutor.EXCLUDE_LIST,
+                    RsyncBackupExecutor.EXCLUDE_LIST +
+                    backup_manager.config.rsync_exclude,
                 exclude_and_protect=['pg_tblspc/16387', 'pg_tblspc/16405']),
             mock.call().add_file(
                 label='pg_control',
