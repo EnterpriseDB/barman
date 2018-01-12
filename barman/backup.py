@@ -451,13 +451,38 @@ class BackupManager(RemoteStatusMixin):
         self.server.archive_wal(verbose=False)
         # Delegate the recovery operation to a RecoveryExecutor object
         executor = RecoveryExecutor(self)
+        # Run the pre-recovery script if present.
+        script = HookScriptRunner(self, 'recovery_script', 'pre')
+        script.env_from_backup_info(backup_info)
+        script.run()
+        # Run the pre-recovery-retry-script if present.
+        retry_script = RetryHookScriptRunner(
+            self, 'recovery_retry_script', 'pre')
+        retry_script.env_from_backup_info(backup_info)
+        retry_script.run()
+        # Do the recovery.
         recovery_info = executor.recover(backup_info,
                                          dest, tablespaces,
                                          target_tli, target_time,
                                          target_xid, target_name,
                                          target_immediate, exclusive,
                                          remote_command)
-
+        # Run the post-recovery-retry-script if present.
+        try:
+            retry_script = RetryHookScriptRunner(
+                self, 'recovery_retry_script', 'post')
+            retry_script.env_from_backup_info(backup_info)
+            retry_script.run()
+        except AbortedRetryHookScript as e:
+            # Ignore the ABORT_STOP as it is a post-hook operation
+            _logger.warning("Ignoring stop request after receiving "
+                            "abort (exit code %d) from post-recovery "
+                            "retry hook script: %s",
+                            e.hook.exit_status, e.hook.script)
+        # Run the post-recovery-script if present.
+        script = HookScriptRunner(self, 'recovery_script', 'post')
+        script.env_from_backup_info(backup_info)
+        script.run()
         # Output recovery results
         output.result('recovery', recovery_info['results'])
 
