@@ -807,6 +807,10 @@ class StreamingWalArchiver(WalArchiver):
             # Ignore temporary files
             if file_name.endswith('.tmp'):
                 continue
+            # If the file doesn't exist, it has been renamed/removed while
+            # we were reading the directory. Ignore it.
+            if not os.path.exists(file_name):
+                continue
             if not os.path.isfile(file_name):
                 errors.append(file_name)
             elif xlog.is_partial_file(file_name):

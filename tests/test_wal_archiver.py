@@ -949,10 +949,11 @@ class TestStreamingWalArchiver(object):
 
 
     @patch('barman.wal_archiver.glob')
+    @patch('os.path.exists')
     @patch('os.path.isfile')
     @patch('barman.wal_archiver.WalFileInfo.from_file')
-    def test_get_next_batch(self, from_file_mock, isfile_mock, glob_mock,
-                            caplog):
+    def test_get_next_batch(self, from_file_mock, isfile_mock, exists_mock,
+                            glob_mock, caplog):
         """
         Test the FileWalArchiver.get_next_batch method
         """
@@ -973,11 +974,14 @@ class TestStreamingWalArchiver(object):
         archiver = StreamingWalArchiver(backup_manager)
         backup_manager.server.archivers = [archiver]
 
+        caplog_reset(caplog)
         batch = archiver.get_next_batch()
         assert ['000000010000000000000001'] == batch.skip
+        assert '' == caplog.text
 
         # WAL batch, with 000000010000000000000002 that is currently being
         # written and 000000010000000000000001 can be archived
+        caplog_reset(caplog)
         glob_mock.return_value = [
             '000000010000000000000001',
             '000000010000000000000002',
@@ -985,8 +989,10 @@ class TestStreamingWalArchiver(object):
         batch = archiver.get_next_batch()
         assert [':000000010000000000000001:'] == batch
         assert ['000000010000000000000002'] == batch.skip
+        assert '' == caplog.text
 
         # WAL batch, with two partial files.
+        caplog_reset(caplog)
         glob_mock.return_value = [
             '000000010000000000000001.partial',
             '000000010000000000000002.partial',
@@ -999,6 +1005,7 @@ class TestStreamingWalArchiver(object):
                 % archiver.config.name) in caplog.text
 
         # WAL batch, with history files.
+        caplog_reset(caplog)
         glob_mock.return_value = [
             '00000001.history',
             '000000010000000000000002.partial',
@@ -1006,9 +1013,22 @@ class TestStreamingWalArchiver(object):
         batch = archiver.get_next_batch()
         assert [':00000001.history:'] == batch
         assert ['000000010000000000000002.partial'] == batch.skip
+        assert '' == caplog.text
 
         # WAL batch with errors
         wrong_file_name = 'test_wrong_wal_file.2'
         glob_mock.return_value = ['test_wrong_wal_file.2']
         batch = archiver.get_next_batch()
         assert [wrong_file_name] == batch.errors
+
+        # WAL batch, with two partial files, but one has been just renamed.
+        caplog_reset(caplog)
+        exists_mock.side_effect = [False, True]
+        glob_mock.return_value = [
+            '000000010000000000000001.partial',
+            '000000010000000000000002.partial',
+        ]
+        batch = archiver.get_next_batch()
+        assert len(batch) == 0
+        assert ['000000010000000000000002.partial'] == batch.skip
+        assert '' in caplog.text
