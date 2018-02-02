@@ -1,0 +1,3 @@
+# SYNOPSIS
+
+barman [*OPTIONS*] *COMMAND*
