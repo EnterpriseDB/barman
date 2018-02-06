@@ -54,6 +54,8 @@ install_requires = [
 if sys.version_info < (2, 7):
     install_requires += [
         'argparse',
+        'wheel<0.30.0',  # wheel has dropped 2.6 support in 0.30.0
+
     ]
 
 barman = {}
@@ -99,6 +101,6 @@ setup(
         'mock',
         'pytest-catchlog>=1.2.1',
         'pytest-timeout',
-        'pytest<3.3.0',
+        'pytest<3.3.0',  # pytest has dropped 2.6 support in 3.3.0
     ],
 )
