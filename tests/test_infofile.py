@@ -27,7 +27,6 @@ from barman.infofile import (BackupInfo, Field, FieldListFile, WalFileInfo,
                              load_datetime_tz)
 from testing_helpers import build_backup_manager, build_mocked_server
 
-
 BASE_BACKUP_INFO = """backup_label=None
 begin_offset=40
 begin_time=2014-12-22 09:25:22.561207+01:00
