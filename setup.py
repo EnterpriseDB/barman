@@ -54,9 +54,13 @@ install_requires = [
 if sys.version_info < (2, 7):
     install_requires += [
         'argparse',
-        'wheel<0.30.0',  # wheel has dropped 2.6 support in 0.30.0
-
     ]
+    # If we are going to execute tests, we need to enforce wheel
+    # version before installing mock, or it will fail
+    if needs_pytest:
+        setup_requires += [
+            'wheel<0.30.0',  # wheel has dropped 2.6 support in 0.30.0
+        ]
 
 barman = {}
 with open('barman/version.py', 'r') as fversion:
