@@ -255,8 +255,8 @@ class BackupManager(RemoteStatusMixin):
                            "current redundancy = %s)",
                            backup.backup_id,
                            self.config.name,
-                           len(available_backups),
-                           minimum_redundancy)
+                           minimum_redundancy,
+                           len(available_backups))
             return
         # Keep track of when the delete operation started.
         delete_start_time = datetime.datetime.now()
