@@ -257,6 +257,10 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         for bid in sorted(backups.keys(), reverse=True):
             # We are interested in DONE backups only
             if backups[bid].status == BackupInfo.DONE:
+                # TODO: Currently we use the backup local end time
+                # We need to make this more accurate
+                if backups[bid].end_time < self._point_of_recoverability():
+                    found = True
                 if found:
                     # Check minimum redundancy requirements
                     if valid < self.server.config.minimum_redundancy:
@@ -291,10 +295,6 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
                     report[bid] = BackupInfo.VALID
                     self._first_backup = bid
                     valid = valid + 1
-                    # TODO: Currently we use the backup local end time
-                    # We need to make this more accurate
-                    if backups[bid].end_time < self._point_of_recoverability():
-                        found = True
             else:
                 report[bid] = BackupInfo.NONE
         return report
