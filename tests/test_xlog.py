@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2017 2ndQuadrant Limited
+# Copyright (C) 2011-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -121,31 +121,38 @@ class Test(object):
 
         # Test the behaviour of generate_segment_names at log boundaries
         # for recent versions
-        assert tuple(itertools.islice(
-            xlog.generate_segment_names(
-                '0000000300000004000000FD',
-                xlog_segment_size=xlog.DEFAULT_XLOG_SEG_SIZE), 6
-            )) == (
-                '0000000300000004000000FD',
-                '0000000300000004000000FE',
-                '0000000300000004000000FF',
-                '000000030000000500000000',
-                '000000030000000500000001',
-                '000000030000000500000002')
+        assert tuple(
+            itertools.islice(
+                xlog.generate_segment_names(
+                    '0000000300000004000000FD',
+                    xlog_segment_size=xlog.DEFAULT_XLOG_SEG_SIZE),
+                6)
+        ) == (
+            '0000000300000004000000FD',
+            '0000000300000004000000FE',
+            '0000000300000004000000FF',
+            '000000030000000500000000',
+            '000000030000000500000001',
+            '000000030000000500000002',
+        )
+
         # Test the behaviour of generate_segment_names at log boundaries
         # for versions < 9.3
-        assert tuple(itertools.islice(
-            xlog.generate_segment_names(
-                '0000000300000004000000FD',
-                version=90201,
-                xlog_segment_size=xlog.DEFAULT_XLOG_SEG_SIZE), 6
-            )) == (
-                '0000000300000004000000FD',
-                '0000000300000004000000FE',
-                '000000030000000500000000',
-                '000000030000000500000001',
-                '000000030000000500000002',
-                '000000030000000500000003')
+        assert tuple(
+            itertools.islice(
+                xlog.generate_segment_names(
+                    '0000000300000004000000FD',
+                    version=90201,
+                    xlog_segment_size=xlog.DEFAULT_XLOG_SEG_SIZE),
+                6)
+        ) == (
+            '0000000300000004000000FD',
+            '0000000300000004000000FE',
+            '000000030000000500000000',
+            '000000030000000500000001',
+            '000000030000000500000002',
+            '000000030000000500000003',
+        )
 
         # Test the number of items produced between two segments
         assert sum(

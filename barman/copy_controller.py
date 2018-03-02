@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2017 2ndQuadrant Limited
+# Copyright (C) 2011-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -730,7 +730,7 @@ class RsyncCopyController(object):
         """
         self.current_step += 1
         return "Copy step %s of %s: %s" % (
-                     self.current_step, self.total_steps, msg)
+            self.current_step, self.total_steps, msg)
 
     def _reuse_args(self, reuse_directory):
         """

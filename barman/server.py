@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2017 2ndQuadrant Limited
+# Copyright (C) 2011-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -665,7 +665,7 @@ class Server(RemoteStatusMixin):
                             True,
                             hint="WARNING: slot '%s' is %s but not required "
                                  "by the current config" % (
-                                  self.config.slot_name, slot_status))
+                                     self.config.slot_name, slot_status))
 
     def _make_directories(self):
         """

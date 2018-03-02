@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2017 2ndQuadrant Limited
+# Copyright (C) 2013-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #

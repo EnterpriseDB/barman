@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2017 2ndQuadrant Limited
+# Copyright (C) 2011-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -559,7 +559,7 @@ class RecoveryExecutor(object):
                     dst=dest_prefix + location,
                     bwlimit=self.config.get_bwlimit(tablespace),
                     item_class=controller.TABLESPACE_CLASS
-                    )
+                )
 
         # Add the PGDATA directory to the list of objects to be copied
         # by the controller

@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2017 2ndQuadrant Limited
+# Copyright (C) 2011-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -385,4 +385,4 @@ def is_power_of_two(number):
     # This is the bitwise and:            000000
     #
     # This is true only for every power of two
-    return number != 0 and (number & (number-1)) == 0
+    return number != 0 and (number & (number - 1)) == 0

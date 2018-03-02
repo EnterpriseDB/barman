@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2017 2ndQuadrant Limited
+# Copyright (C) 2013-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -626,7 +626,7 @@ class ConsoleOutputWriter(object):
                             datetime.timedelta(seconds=analysis_time)))
                     self.info("    Copy time            : %s", value)
                     size = data['deduplicated_size'] or data['size']
-                    value = "%s/s" % pretty_size(size/copy_time)
+                    value = "%s/s" % pretty_size(size / copy_time)
                     number_of_workers = copy_stats.get('number_of_workers', 1)
                     if number_of_workers > 1:
                         value += " (%s jobs)" % number_of_workers

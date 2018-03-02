@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2017 2ndQuadrant Limited
+# Copyright (C) 2011-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -408,9 +408,9 @@ def decode_history_file(wal_info, comp_manager):
     if wal_info.compression:
         # Use a NamedTemporaryFile to avoid explicit cleanup
         uncompressed_file = NamedTemporaryFile(
-                    dir=os.path.dirname(path),
-                    prefix='.%s.' % wal_info.name,
-                    suffix='.uncompressed')
+            dir=os.path.dirname(path),
+            prefix='.%s.' % wal_info.name,
+            suffix='.uncompressed')
         path = uncompressed_file.name
         comp_manager.get_compressor(wal_info.compression).decompress(
             wal_info.orig_filename, path)

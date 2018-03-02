@@ -2,7 +2,7 @@
 #
 # barman - Backup and Recovery Manager for PostgreSQL
 #
-# Copyright (C) 2011-2017 2ndQuadrant Limited <info@2ndquadrant.com>
+# Copyright (C) 2011-2018 2ndQuadrant Limited <info@2ndquadrant.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

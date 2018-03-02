@@ -1,5 +1,5 @@
 Barman TODO - Backlog of features for Barman
-Copyright (C) 2011-2017 2ndQuadrant Limited
+Copyright (C) 2011-2018 2ndQuadrant Limited
 
 * Cluster-awareness
 * Barman passive nodes (for asynchronous geographical redundancy)

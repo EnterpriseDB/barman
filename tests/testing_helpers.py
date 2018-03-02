@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2017 2ndQuadrant Limited
+# Copyright (C) 2014-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -232,7 +232,7 @@ def build_config_dictionary(config_keys=None):
         'archiver_batch_size': 0,
         'config': None,
         'backup_directory': '/some/barman/home/main',
-        'backup_options': BackupOptions("",  "", ""),
+        'backup_options': BackupOptions("", "", ""),
         'bandwidth_limit': None,
         'barman_home': '/some/barman/home',
         'basebackups_directory': '/some/barman/home/main/base',

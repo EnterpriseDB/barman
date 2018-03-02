@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2017 2ndQuadrant Limited
+# Copyright (C) 2013-2018 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -532,12 +532,12 @@ class TestRsyncCopyController(object):
 
         # Create an item to inspect
         item = _RsyncCopyItem(
-                label='pgdata',
-                src=':/pg/data/',
-                dst=backup_info.get_data_directory(),
-                is_directory=True,
-                item_class=rcc.PGDATA_CLASS,
-                optional=False)
+            label='pgdata',
+            src=':/pg/data/',
+            dst=backup_info.get_data_directory(),
+            is_directory=True,
+            item_class=rcc.PGDATA_CLASS,
+            optional=False)
 
         # Then run the _analyze_directory method
         rcc._analyze_directory(item)
@@ -631,12 +631,12 @@ class TestRsyncCopyController(object):
 
         # Create an item to inspect
         item = _RsyncCopyItem(
-                label='pgdata',
-                src=':/pg/data/',
-                dst=backup_info.get_data_directory(),
-                is_directory=True,
-                item_class=rcc.PGDATA_CLASS,
-                optional=False)
+            label='pgdata',
+            src=':/pg/data/',
+            dst=backup_info.get_data_directory(),
+            is_directory=True,
+            item_class=rcc.PGDATA_CLASS,
+            optional=False)
 
         # Then run the _create_dir_and_purge method
         rcc._create_dir_and_purge(item)
