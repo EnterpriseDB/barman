@@ -366,7 +366,10 @@ class BackupManager(RemoteStatusMixin):
         # Use BaseException instead of Exception to catch events like
         # KeyboardInterrupt (e.g.: CRTL-C)
         except BaseException as e:
-            msg_lines = str(e).strip().splitlines()
+            try:
+                msg_lines = str(e).strip().splitlines()
+            except:
+                msg_lines = unicode(e).strip().splitlines()
             if backup_info:
                 # Use only the first line of exception message
                 # in backup_info error field
