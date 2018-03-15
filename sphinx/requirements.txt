@@ -3,7 +3,7 @@ argcomplete==1.9.4
 argh==0.26.2
 argparse==1.4.0
 Babel==2.5.3
-docutils==0.12
+docutils==0.14
 Jinja2==2.7.3
 MarkupSafe==0.23
 psycopg2==2.6.1
