@@ -6,7 +6,7 @@ Babel==2.5.3
 docutils==0.14
 Jinja2==2.10
 MarkupSafe==1.0
-psycopg2==2.6.1
+psycopg2==2.7.4
 Pygments==2.0.2
 python-dateutil==2.4.0
 pytz==2015.4
