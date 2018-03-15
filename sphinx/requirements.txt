@@ -15,4 +15,4 @@ snowballstemmer==1.2.1
 Sphinx==1.7.1
 sphinx-bootstrap-theme==0.6.4
 sphinx-rtd-theme==0.2.4
-wheel==0.24.0
+wheel==0.30.0
