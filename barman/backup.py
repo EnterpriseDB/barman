@@ -368,7 +368,7 @@ class BackupManager(RemoteStatusMixin):
         except BaseException as e:
             try:
                 msg_lines = str(e).strip().splitlines()
-            except:
+            except UnicodeEncodeError:
                 msg_lines = unicode(e).strip().splitlines()
             if backup_info:
                 # Use only the first line of exception message
