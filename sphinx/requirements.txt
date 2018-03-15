@@ -14,5 +14,5 @@ six==1.11.0
 snowballstemmer==1.2.1
 Sphinx==1.7.1
 sphinx-bootstrap-theme==0.6.4
-sphinx-rtd-theme==0.1.8
+sphinx-rtd-theme==0.2.4
 wheel==0.24.0
