@@ -110,7 +110,9 @@ barman@backup$ psql -U streaming_barman -h pg \
 > before going any further.
 
 You also need to configure the `max_wal_senders` parameter in the
-PostgreSQL configuration file:
+PostgreSQL configuration file. The number of WAL senders depends
+on the PostgreSQL architecture you have implemented.
+In this example, we are setting it to `2`:
 
 ``` ini
 max_wal_senders = 2
