@@ -1081,6 +1081,11 @@ def main():
     """
     The main method of Barman
     """
+    try:
+        reload(sys)
+        sys.setdefaultencoding('utf8')
+    except:
+        pass
     p = ArghParser(epilog='Barman by 2ndQuadrant (www.2ndQuadrant.com)')
     p.add_argument('-v', '--version', action='version',
                    version='%s\n\nBarman by 2ndQuadrant (www.2ndQuadrant.com)'
