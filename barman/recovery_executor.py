@@ -199,8 +199,8 @@ class RecoveryExecutor(object):
                                               remote_command,
                                               required_xlog_files)
 
-        # Generate recovery.conf file (only if needed by PITR)
-        if recovery_info['is_pitr']:
+        # Generate recovery.conf file (only if needed by PITR or get_wal)
+        if recovery_info['is_pitr'] or recovery_info['get_wal']:
             output.info("Generating recovery.conf")
             self._generate_recovery_conf(recovery_info, backup_info, dest,
                                          target_immediate, exclusive,
@@ -339,7 +339,6 @@ class RecoveryExecutor(object):
                 target_xid or
                 (target_tli and target_tli != backup_info.timeline) or
                 target_name or
-                recovery_info['get_wal'] or
                 (backup_info.version >= 90400 and target_immediate)):
             recovery_info['is_pitr'] = True
             targets = {}
