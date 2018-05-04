@@ -684,7 +684,9 @@ def delete(args):
     # Retrieves the backup
     backup_id = parse_backup_id(server, args)
     with closing(server):
-        server.delete_backup(backup_id)
+        if not server.delete_backup(backup_id):
+            output.error("Cannot delete backup (%s %s)"
+                         % (server.config.name, backup_id))
     output.close_and_exit()
 
 

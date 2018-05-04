@@ -243,6 +243,7 @@ class BackupManager(RemoteStatusMixin):
         Delete a backup
 
         :param backup: the backup to delete
+        :return bool: True if deleted, False if could not delete the backup
         """
         available_backups = self.get_available_backups()
         minimum_redundancy = self.server.config.minimum_redundancy
@@ -257,7 +258,7 @@ class BackupManager(RemoteStatusMixin):
                            self.config.name,
                            len(available_backups),
                            minimum_redundancy)
-            return
+            return False
         # Keep track of when the delete operation started.
         delete_start_time = datetime.datetime.now()
         output.info("Deleting backup %s for server %s",
@@ -270,7 +271,7 @@ class BackupManager(RemoteStatusMixin):
         except OSError as e:
             output.error("Failure deleting backup %s for server %s.\n%s",
                          backup.backup_id, self.config.name, e)
-            return
+            return False
         # Check if we are deleting the first available backup
         if not previous_backup:
             # In the case of exclusive backup (default), removes any WAL
@@ -314,7 +315,7 @@ class BackupManager(RemoteStatusMixin):
                          "Please manually remove the '%s' directory",
                          backup.backup_id, self.config.name, e,
                          backup.get_basebackup_directory())
-            return
+            return False
         self.backup_cache_remove(backup)
         # Save the time of the complete removal of the backup
         delete_end_time = datetime.datetime.now()
@@ -323,6 +324,7 @@ class BackupManager(RemoteStatusMixin):
                     delete_start_time.ctime(),
                     human_readable_timedelta(
                         delete_end_time - delete_start_time))
+        return True
 
     def backup(self):
         """
