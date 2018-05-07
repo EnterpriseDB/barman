@@ -75,6 +75,11 @@ This is achieved issuing a command like the following:
 barman@backup$ barman recover <server_name> <backup_id> /path/to/recover/dir
 ```
 
+> **IMPORTANT:**
+> Do not issue a `recover` command using a target data directory where
+> a PostgreSQL instance is running. In that case, remember to stop it
+> before issuing the recovery. This applies also to tablespace directories.
+
 At the end of the execution of the recovery, the selected backup is recovered
 locally and the destination path contains a data directory ready to be used
 to start a PostgreSQL instance.
@@ -104,6 +109,11 @@ to the remote host.
 > **NOTE:**
 > It is advisable to use the `postgres` user to perform
 > the recovery on the remote host.
+
+> **IMPORTANT:**
+> Do not issue a `recover` command using a target data directory where
+> a PostgreSQL instance is running. In that case, remember to stop it
+> before issuing the recovery. This applies also to tablespace directories.
 
 Known limitations of the remote recovery are:
 
