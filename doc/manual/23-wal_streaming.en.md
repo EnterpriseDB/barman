@@ -103,3 +103,27 @@ Creating physical replication slot 'barman' on server 'pg'
 Replication slot 'barman' created
 ```
 
+### Limitations of partial WAL files with recovery
+
+The standard behaviour of `pg_receivewal` is to write transactional
+information in a file with `.partial` suffix after the WAL segment name.
+
+Barman expects a partial file to be in the `streaming_wals_directory` of
+a server. When completed, `pg_receivewal` removes the `.partial` suffix
+and opens the following one, delivering the file to the `archive-wal` command
+of Barman for permanent storage and compression.
+
+In case of a sudden and unrecoverable failure of the master PostgreSQL server,
+the `.partial` file that has been streamed to Barman contains very important
+information that the standard archiver (through PostgreSQL's `archive_command`)
+has not been able to deliver to Barman.
+
+> **IMPORTANT:**
+> A current limitation of Barman is that the `recover` command is not yet able
+> to transparently manage `.partial` files. In such situations, users will need
+> to manually copy the latest partial file from the server's
+> `streaming_wals_directory` of their Barman installation to the destination
+> for recovery, making sure that the `.partial` suffix is removed.
+> Restoring a server using the last partial file, reduces data loss, by bringing
+> down _recovery point objective_ to values around 0, or exactly 0 in case of
+> synchronous replication.
