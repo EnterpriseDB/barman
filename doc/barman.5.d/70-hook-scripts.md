@@ -30,6 +30,9 @@ Backup scripts specific variables:
 `BARMAN_PREVIOUS_ID`
 :   ID of the previous backup (if present)
 
+`BARMAN_NEXT_ID`
+:   ID of the next backup (if present)
+
 `BARMAN_STATUS`
 :   status of the backup
 

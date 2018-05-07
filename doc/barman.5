@@ -362,6 +362,24 @@ Global/Server.
 .RS
 .RE
 .TP
+.B post_delete_retry_script
+Hook script launched after the deletion of a backup.
+Being this a \f[I]retry\f[] hook script, Barman will retry the execution
+of the script until this either returns a SUCCESS (0), an ABORT_CONTINUE
+(62) or an ABORT_STOP (63) code.
+In a post delete scenario, ABORT_STOP has currently the same effects as
+ABORT_CONTINUE.
+Global/Server.
+.RS
+.RE
+.TP
+.B post_delete_script
+Hook script launched after the deletion of a backup, after
+\[aq]post_delete_retry_script\[aq].
+Global/Server.
+.RS
+.RE
+.TP
 .B pre_archive_retry_script
 Hook script launched before a WAL file is archived by maintenance, after
 \[aq]pre_archive_script\[aq].
@@ -394,6 +412,24 @@ Global/Server.
 .TP
 .B pre_backup_script
 Hook script launched before a base backup.
+Global/Server.
+.RS
+.RE
+.TP
+.B pre_delete_retry_script
+Hook script launched before the deletion of a backup, after
+\[aq]pre_delete_script\[aq].
+Being this a \f[I]retry\f[] hook script, Barman will retry the execution
+of the script until this either returns a SUCCESS (0), an ABORT_CONTINUE
+(62) or an ABORT_STOP (63) code.
+Returning ABORT_STOP will propagate the failure at a higher level and
+interrupt the backup deletion.
+Global/Server.
+.RS
+.RE
+.TP
+.B pre_delete_script
+Hook script launched before the deletion of a backup.
 Global/Server.
 .RS
 .RE
@@ -593,6 +629,11 @@ ID of the backup
 .TP
 .B \f[C]BARMAN_PREVIOUS_ID\f[]
 ID of the previous backup (if present)
+.RS
+.RE
+.TP
+.B \f[C]BARMAN_NEXT_ID\f[]
+ID of the next backup (if present)
 .RS
 .RE
 .TP

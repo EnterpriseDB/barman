@@ -142,6 +142,8 @@ class TestHooks(object):
         backup_manager.config.pre_test_hook = 'not_existent_script'
         backup_manager.get_previous_backup = MagicMock()
         backup_manager.get_previous_backup.return_value.backup_id = '987654321'
+        backup_manager.get_next_backup = MagicMock()
+        backup_manager.get_next_backup.return_value.backup_id = '123456789'
 
         # BackupInfo mock
         backup_info = MagicMock(name='backup_info')
@@ -164,6 +166,7 @@ class TestHooks(object):
             'BARMAN_ERROR': '',
             'BARMAN_STATUS': 'OK',
             'BARMAN_PREVIOUS_ID': '987654321',
+            'BARMAN_NEXT_ID': '123456789',
             'BARMAN_RETRY': '0',
         }
         script.run()
@@ -177,6 +180,8 @@ class TestHooks(object):
         backup_manager.config.post_test_hook = 'not_existent_script'
         backup_manager.get_previous_backup = MagicMock()
         backup_manager.get_previous_backup.return_value = None
+        backup_manager.get_next_backup = MagicMock()
+        backup_manager.get_next_backup.return_value = None
 
         # BackupInfo mock
         backup_info = MagicMock(name='backup_info')
@@ -200,6 +205,7 @@ class TestHooks(object):
             'BARMAN_STATUS': 'FAILED',
             'BARMAN_PREVIOUS_ID': '',
             'BARMAN_RETRY': '0',
+            'BARMAN_NEXT_ID': '',
         }
         script.run()
         assert command_mock.call_count == 1
@@ -212,6 +218,9 @@ class TestHooks(object):
         backup_manager.config.pre_test_hook = 'not_existent_script'
         backup_manager.get_previous_backup = MagicMock()
         backup_manager.get_previous_backup.side_effect = \
+            UnknownBackupIdException()
+        backup_manager.get_next_backup = MagicMock()
+        backup_manager.get_next_backup.side_effect = \
             UnknownBackupIdException()
 
         # BackupInfo mock
@@ -235,6 +244,7 @@ class TestHooks(object):
             'BARMAN_ERROR': '',
             'BARMAN_STATUS': 'OK',
             'BARMAN_PREVIOUS_ID': '',
+            'BARMAN_NEXT_ID': '',
             'BARMAN_RETRY': '0',
         }
         script.run()
@@ -409,3 +419,126 @@ class TestHooks(object):
         assert str(excinfo.value) == \
             "Abort 'pre_test_retry_hook' retry hook script " \
             "(not_existent_script, exit code: 63)"
+
+    @patch('barman.hooks.Command')
+    def test_delete_pre_script(self, command_mock):
+        """
+        Unit test specific for the execution of a pre delete script.
+
+        test case:
+        simulate the execution of a pre delete script, should return 0
+        test the environment for the HookScriptRunner obj.
+        test the name of the fake script, should be the same as the one in the
+        mocked configuration
+        """
+        # BackupManager mock
+        backup_manager = build_backup_manager(name='test_server')
+        backup_manager.config.pre_delete_script = 'test_delete_pre_script'
+        backup_manager.get_previous_backup = MagicMock()
+        backup_manager.get_previous_backup.side_effect = \
+            UnknownBackupIdException()
+        backup_manager.get_next_backup = MagicMock()
+        backup_manager.get_next_backup.side_effect = \
+            UnknownBackupIdException()
+
+        # BackupInfo mock
+        backup_info = MagicMock(name='backup_info')
+        backup_info.get_basebackup_directory.return_value = 'backup_directory'
+        backup_info.backup_id = '123456789XYZ'
+        backup_info.error = None
+        backup_info.status = 'OK'
+
+        # Command mock executed by HookScriptRunner
+        command_mock.return_value.return_value = 0
+
+        # the actual test
+        script = HookScriptRunner(backup_manager, 'delete_script', 'pre')
+        script.env_from_backup_info(backup_info)
+        expected_env = {
+            'BARMAN_PHASE': 'pre',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
+            'BARMAN_HOOK': 'delete_script',
+            'BARMAN_BACKUP_DIR': 'backup_directory',
+            'BARMAN_BACKUP_ID': '123456789XYZ',
+            'BARMAN_ERROR': '',
+            'BARMAN_STATUS': 'OK',
+            'BARMAN_PREVIOUS_ID': '',
+            'BARMAN_NEXT_ID': '',
+            'BARMAN_RETRY': '0',
+        }
+        assert script.run() == 0
+        assert command_mock.call_count == 1
+        assert command_mock.call_args[1]['env_append'] == expected_env
+        assert script.script == backup_manager.config.pre_delete_script
+
+    @patch('barman.hooks.Command')
+    def test_delete_post_script(self, command_mock, caplog):
+        """
+        Unit test specific for the execution of a post delete script.
+
+        test case:
+        simulate the execution of a post delete script, should return 1
+        simulating the failed execution of the script.
+        test the log of the execution, should contain a warning message, the
+        warning message should be the concatenation of the out and err
+        properties of the Command object.
+        test the environment for the HookScriptRunner obj.
+        test the name of the fake script
+        """
+        # BackupManager mock
+        backup_manager = build_backup_manager(name='test_server')
+        backup_manager.config.post_delete_script = 'test_delete_post_script'
+        backup_manager.get_previous_backup = MagicMock()
+        backup_manager.get_previous_backup.side_effect = \
+            UnknownBackupIdException()
+        backup_manager.get_next_backup = MagicMock()
+        backup_manager.get_next_backup.side_effect = \
+            UnknownBackupIdException()
+
+        # BackupInfo mock
+        backup_info = MagicMock(name='backup_info')
+        backup_info.get_basebackup_directory.return_value = 'backup_directory'
+        backup_info.backup_id = '123456789XYZ'
+        backup_info.error = None
+        backup_info.status = 'OK'
+
+        # Command mock executed by HookScriptRunner
+        instance = command_mock.return_value
+        # force the Cmd object to fail
+        instance.return_value = 1
+        # create a standard out entry for the obj
+        instance.out = "std_out_line\n"
+        # create a standard err entry for the obj
+        instance.err = "std_err_line\n"
+
+        # the actual test
+        script = HookScriptRunner(backup_manager, 'delete_script', 'post')
+        script.env_from_backup_info(backup_info)
+        expected_env = {
+            'BARMAN_PHASE': 'post',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
+            'BARMAN_HOOK': 'delete_script',
+            'BARMAN_BACKUP_DIR': 'backup_directory',
+            'BARMAN_BACKUP_ID': '123456789XYZ',
+            'BARMAN_ERROR': '',
+            'BARMAN_STATUS': 'OK',
+            'BARMAN_PREVIOUS_ID': '',
+            'BARMAN_NEXT_ID': '',
+            'BARMAN_RETRY': '0',
+        }
+        # ensure that the script failed
+        assert script.run() == 1
+        # check the logs for a warning message. skip debug messages.
+        for record in caplog.records:
+            if record.levelname == 'DEBUG':
+                continue
+
+        assert command_mock.call_count == 1
+        # check the env
+        assert command_mock.call_args[1]['env_append'] == expected_env
+        # check the script name
+        assert script.script == backup_manager.config.post_delete_script

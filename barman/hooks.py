@@ -89,10 +89,20 @@ class HookScriptRunner(object):
                 previous_backup_id = ''
         except UnknownBackupIdException:
             previous_backup_id = ''
+        try:
+            next_backup = self.backup_manager.get_next_backup(
+                backup_info.backup_id)
+            if next_backup:
+                next_backup_id = next_backup.backup_id
+            else:
+                next_backup_id = ''
+        except UnknownBackupIdException:
+            next_backup_id = ''
         self.environment.update({
             'BARMAN_BACKUP_DIR': backup_info.get_basebackup_directory(),
             'BARMAN_BACKUP_ID': backup_info.backup_id,
             'BARMAN_PREVIOUS_ID': previous_backup_id,
+            'BARMAN_NEXT_ID': next_backup_id,
             'BARMAN_STATUS': backup_info.status,
             'BARMAN_ERROR': backup_info.error or '',
         })

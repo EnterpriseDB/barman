@@ -261,6 +261,18 @@ class BackupManager(RemoteStatusMixin):
             return False
         # Keep track of when the delete operation started.
         delete_start_time = datetime.datetime.now()
+
+        # Run the pre_delete_script if present.
+        script = HookScriptRunner(self, 'delete_script', 'pre')
+        script.env_from_backup_info(backup)
+        script.run()
+
+        # Run the pre_delete_retry_script if present.
+        retry_script = RetryHookScriptRunner(
+            self, 'delete_retry_script', 'pre')
+        retry_script.env_from_backup_info(backup)
+        retry_script.run()
+
         output.info("Deleting backup %s for server %s",
                     backup.backup_id, self.config.name)
         previous_backup = self.get_previous_backup(backup.backup_id)
@@ -324,6 +336,25 @@ class BackupManager(RemoteStatusMixin):
                     delete_start_time.ctime(),
                     human_readable_timedelta(
                         delete_end_time - delete_start_time))
+
+        # Run the post_delete_retry_script if present.
+        try:
+            retry_script = RetryHookScriptRunner(
+                self, 'delete_retry_script', 'post')
+            retry_script.env_from_backup_info(backup)
+            retry_script.run()
+        except AbortedRetryHookScript as e:
+            # Ignore the ABORT_STOP as it is a post-hook operation
+            _logger.warning("Ignoring stop request after receiving "
+                            "abort (exit code %d) from post-delete "
+                            "retry hook script: %s",
+                            e.hook.exit_status, e.hook.script)
+
+        # Run the post_delete_script if present.
+        script = HookScriptRunner(self, 'delete_script', 'post')
+        script.env_from_backup_info(backup)
+        script.run()
+
         return True
 
     def backup(self):

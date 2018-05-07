@@ -422,6 +422,7 @@ Barman allows a database administrator to run hook scripts on these
 two events:
 
 - before and after a backup
+- before and after the deletion of a backup
 - before and after a WAL file is archived
 
 There are two types of hook scripts that Barman can manage:
@@ -492,6 +493,32 @@ The shell environment will contain the following variables:
 - `BARMAN_STATUS`: status of the backup
 - `BARMAN_VERSION`: version of Barman
 
+### Backup delete scripts
+
+Version **2.4** introduces pre and post backup delete scripts.
+
+As previous scripts, bakup delete scripts can be configured within global
+configuration options, and it is possible to override them on a per server
+basis:
+
+- `pre_delete_script`: _hook script_ launched _before_ the deletion
+  of a backup, only once, with no check on the exit code
+- `pre_delete_retry_script`: _retry hook script_ executed _before_
+  the deletion of a backup, repeatedly until success or abort
+- `post_delete_retry_script`: _retry hook script_ executed _after_
+  the deletion of a backup, repeatedly until success or abort
+- `post_delete_script`: _hook script_ launched _after_ the deletion
+  of a backup, only once, with no check on the exit code
+
+The script is executed through a shell and can return any exit code.
+Only in case of a _retry_ script, Barman checks the return code (see
+the upper section).
+
+Delete scripts uses the same environmental variables of a backup script,
+plus:
+
+- `BARMAN_NEXT_ID`: ID of the next backup (if present)
+ 
 ### WAL archive scripts
 
 Similar to backup scripts, archive scripts can be configured with
