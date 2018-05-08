@@ -479,6 +479,7 @@ class BackupManager(RemoteStatusMixin):
         :kwparam bool exclusive: whether the recovery is exclusive or not
         :kwparam str|None target_action: default None. The recovery target
             action
+        :kwparam bool|None standby_mode: the standby mode if needed
         """
 
         # Archive every WAL files in the incoming directory of the server

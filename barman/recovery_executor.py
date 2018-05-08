@@ -41,7 +41,8 @@ from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
                                DataTransferFailure, FsOperationFailed,
-                               RecoveryTargetActionException)
+                               RecoveryTargetActionException,
+                               RecoveryStandbyModeException)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.utils import mkpath
@@ -89,7 +90,7 @@ class RecoveryExecutor(object):
     def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
                 target_tli=None, target_time=None, target_xid=None,
                 target_name=None, target_immediate=False, exclusive=False,
-                target_action=None):
+                target_action=None, standby_mode=None):
         """
         Performs a recovery of a backup
 
@@ -108,6 +109,7 @@ class RecoveryExecutor(object):
             is reached
         :param bool exclusive: whether the recovery is exclusive or not
         :param str|None target_action: The recovery target action
+        :param bool|None standby_mode: standby mode
         """
 
         # Run the cron to be sure the wal catalog is up to date
@@ -169,6 +171,11 @@ class RecoveryExecutor(object):
         else:
             backup_info.save(os.path.join(dest, '.barman-recover.info'))
 
+        # Standby mode is not available for PostgreSQL older than 9.0
+        if backup_info.version < 90000 and standby_mode:
+            raise RecoveryStandbyModeException(
+                'standby_mode is available only from PostgreSQL 9.0')
+
         # Restore the WAL segments. If GET_WAL option is set, skip this phase
         # as they will be retrieved using the wal-get command.
         if not recovery_info['get_wal']:
@@ -205,12 +212,15 @@ class RecoveryExecutor(object):
                                               required_xlog_files)
 
         # Generate recovery.conf file (only if needed by PITR or get_wal)
-        if recovery_info['is_pitr'] or recovery_info['get_wal']:
+        is_pitr = recovery_info['is_pitr']
+        get_wal = recovery_info['get_wal']
+        if is_pitr or get_wal or standby_mode:
             output.info("Generating recovery.conf")
             self._generate_recovery_conf(recovery_info, backup_info, dest,
                                          target_immediate, exclusive,
                                          remote_command, target_name,
-                                         target_time, target_tli, target_xid)
+                                         target_time, target_tli, target_xid,
+                                         standby_mode)
 
         # Create archive_status directory if necessary
         archive_status_dir = os.path.join(recovery_info['wal_dest'],
@@ -786,7 +796,7 @@ class RecoveryExecutor(object):
     def _generate_recovery_conf(self, recovery_info, backup_info, dest,
                                 immediate, exclusive, remote_command,
                                 target_name, target_time, target_tli,
-                                target_xid):
+                                target_xid, standby_mode):
         """
         Generate a recovery.conf file for PITR containing
         all the required configurations
@@ -804,7 +814,7 @@ class RecoveryExecutor(object):
         :param str target_time: recovery target time for PITR
         :param str target_tli: recovery target timeline for PITR
         :param str target_xid: recovery target transaction id for PITR
-        :param str|None target_action: recovery target action
+        :param bool|None standby_mode: standby mode
         """
         if remote_command:
             recovery = open(os.path.join(recovery_info['tempdir'],
@@ -877,6 +887,10 @@ class RecoveryExecutor(object):
             print("recovery_target_action = '%s'" %
                   recovery_info['recovery_target_action'],
                   file=recovery)
+
+        # Writes the standby mode
+        if standby_mode:
+            print("standby_mode = 'on'", file=recovery)
 
         recovery.close()
         if remote_command:

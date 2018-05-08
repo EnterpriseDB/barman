@@ -311,3 +311,9 @@ class RecoveryTargetActionException(RecoveryException):
     """
     Exception for a wrong recovery target action
     """
+
+
+class RecoveryStandbyModeException(RecoveryException):
+    """
+    Exception for a wrong recovery standby mode
+    """

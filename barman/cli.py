@@ -404,6 +404,11 @@ def rebuild_xlogdb(args):
      dest='target_action',
      type=check_target_action,
      default=SUPPRESS)
+@arg('--standby-mode',
+     dest="standby_mode",
+     action='store_true',
+     default=SUPPRESS,
+     help='Enable standby mode when starting the recovered PostgreSQL instance')
 @expects_obj
 def recover(args):
     """
@@ -507,7 +512,8 @@ def recover(args):
                            target_immediate=args.target_immediate,
                            exclusive=args.exclusive,
                            remote_command=args.remote_ssh_command,
-                           target_action=getattr(args, 'target_action', None))
+                           target_action=getattr(args, 'target_action', None),
+                           standby_mode=getattr(args, 'standby_mode', None))
         except RecoveryException as exc:
             output.error(str(exc))
 

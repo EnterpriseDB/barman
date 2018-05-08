@@ -1266,6 +1266,7 @@ class Server(RemoteStatusMixin):
             consistency is reached
         :kwparam bool exclusive: whether the recovery is exclusive or not
         :kwparam str|None target_action: the recovery target action
+        :kwparam bool|None standby_mode: the standby mode
         """
         return self.backup_manager.recover(
             backup_info, dest, tablespaces, remote_command, **kwargs)

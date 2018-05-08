@@ -26,8 +26,7 @@
   [replication-slots]: https://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION-SLOTS
   [synch]: http://www.postgresql.org/docs/current/static/warm-standby.html#SYNCHRONOUS-REPLICATION
   [target]: https://www.postgresql.org/docs/current/static/recovery-target-settings.html
-
-
+  [standby]: https://www.postgresql.org/docs/current/static/standby-settings.html
 
 
   [3]: https://sourceforge.net/projects/pgbarman/files/
