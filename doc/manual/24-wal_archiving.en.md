@@ -38,6 +38,18 @@ you need to check both the PostgreSQL server and the backup server. In
 particular, you need to check that WAL files are correctly collected
 in the destination directory.
 
+In some cases, you might want to add stricter checks to the `archive_command`
+process. For example, some users have suggested the following one:
+
+``` ini
+archive_command = 'test $(/bin/hostname --fqdn) = HOSTNAME \
+  && rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
+```
+
+Where the `HOSTNAME` placeholder should be replaced with the value
+returned by `hostname --fqdn`. This _trick_ is a safeguard in case
+the server is cloned and avoids receiving WAL files from recovered
+PostgreSQL instances.
 
 ## Verification of WAL archiving configuration
 
