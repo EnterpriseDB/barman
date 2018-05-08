@@ -566,6 +566,18 @@ class BackupManager(RemoteStatusMixin):
         :param barman.infofile.WalFileInfo wal_info: the WAL to delete
         """
 
+        # Run the pre_wal_delete_script if present.
+        script = HookScriptRunner(self, 'wal_delete', 'pre')
+        script.env_from_wal_info(wal_info)
+        script.run()
+
+        # Run the pre_wal_delete_retry_script if present.
+        retry_script = RetryHookScriptRunner(
+            self, 'wal_delete_retry_script', 'pre')
+        script.env_from_wal_info(wal_info)
+        retry_script.run()
+
+        error = None
         try:
             os.unlink(wal_info.fullpath(self.server))
             try:
@@ -576,9 +588,27 @@ class BackupManager(RemoteStatusMixin):
                 # this means that hashdir is not empty.
                 pass
         except OSError as e:
-            output.warning('Ignoring deletion of WAL file %s '
-                           'for server %s: %s',
-                           wal_info.name, self.config.name, e)
+            error = ('Ignoring deletion of WAL file %s for server %s: %s' %
+                     (wal_info.name, self.config.name, e))
+            output.warning(error)
+
+        # Run the post_wal_delete_retry_script if present.
+        try:
+            retry_script = RetryHookScriptRunner(
+                self, 'wal_delete_retry_script', 'post')
+            script.env_from_wal_info(wal_info, None, error)
+            retry_script.run()
+        except AbortedRetryHookScript as e:
+            # Ignore the ABORT_STOP as it is a post-hook operation
+            _logger.warning("Ignoring stop request after receiving "
+                            "abort (exit code %d) from post-wal-delete "
+                            "retry hook script: %s",
+                            e.hook.exit_status, e.hook.script)
+
+        # Run the post_wal_delete_script if present.
+        script = HookScriptRunner(self, 'wal_delete', 'post')
+        script.env_from_wal_info(wal_info, None, error)
+        script.run()
 
     def check(self, check_strategy):
         """

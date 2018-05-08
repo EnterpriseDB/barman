@@ -424,6 +424,7 @@ two events:
 - before and after a backup
 - before and after the deletion of a backup
 - before and after a WAL file is archived
+- before and after a WAL file is deleted
 
 There are two types of hook scripts that Barman can manage:
 
@@ -557,6 +558,31 @@ Following variables are specific to archive scripts:
 - `BARMAN_TIMESTAMP`: WAL file timestamp
 - `BARMAN_COMPRESSION`: type of compression used for the WAL file
 
+### WAL delete scripts
+
+Version **2.4** introduces pre and post WAL delete scripts.
+
+Similarly to the other hook scripts, wal delete scripts can be
+configured with global configuration options, and is possible to
+override them on a per server basis:
+
+- `pre_wal_delete_script`: _hook script_ executed _before_
+  the deletion of a WAL file
+- `pre_wal_delete_retry_script`: _retry hook script_ executed _before_
+  the deletion of a WAL file, repeatedly until it is successful
+  or aborted
+- `post_wal_delete_retry_script`: _retry hook script_ executed _after_
+  the deletion of a WAL file, repeatedly until it is successful
+  or aborted
+- `post_wal_delete_script`: _hook script_ executed _after_
+  the deletion of a WAL file
+
+The script is executed through a shell and can return any exit code.
+Only in case of a _retry_ script, Barman checks the return code (see
+the upper section).
+
+WAL delete scripts use the same environmental variables as WAL archive
+scripts.
 
 ## Customization
 

@@ -542,3 +542,95 @@ class TestHooks(object):
         assert command_mock.call_args[1]['env_append'] == expected_env
         # check the script name
         assert script.script == backup_manager.config.post_delete_script
+
+    @patch('barman.hooks.Command')
+    def test_pre_wal_delete(self, command_mock):
+        """
+        Unit test specific for the execution of a pre wal_delete script.
+
+        test case:
+        simulate the execution of a pre wal_delete script, should return 0
+        test the environment for the HookScriptRunner obj.
+        test the name of the fake script, should be the same as the one in the
+        mocked configuration
+        """
+        # BackupManager mock
+        backup_manager = build_backup_manager(name='test_server')
+        backup_manager.config.pre_wal_delete_script = (
+            'test_pre_wal_delete_script')
+
+        # WalFileInfo mock
+        wal_info = MagicMock(name='wal_info')
+        wal_info.name = 'XXYYZZAABBCC'
+        wal_info.fullpath.return_value = '/incoming/directory'
+        wal_info.size = 1234567
+        wal_info.time = 1337133713
+        wal_info.compression = 'gzip'
+
+        # the actual test
+        script = HookScriptRunner(backup_manager, 'wal_delete_script', 'pre')
+        script.env_from_wal_info(wal_info)
+        expected_env = {
+            'BARMAN_PHASE': 'pre',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
+            'BARMAN_HOOK': 'wal_delete_script',
+            'BARMAN_SEGMENT': 'XXYYZZAABBCC',
+            'BARMAN_FILE': '/incoming/directory',
+            'BARMAN_SIZE': '1234567',
+            'BARMAN_TIMESTAMP': '1337133713',
+            'BARMAN_COMPRESSION': 'gzip',
+            'BARMAN_RETRY': '0',
+            'BARMAN_ERROR': '',
+        }
+        script.run()
+        assert command_mock.call_count == 1
+        assert command_mock.call_args[1]['env_append'] == expected_env
+        assert script.script == backup_manager.config.pre_wal_delete_script
+
+    @patch('barman.hooks.Command')
+    def test_post_wal_delete(self, command_mock):
+        """
+        Unit test specific for the execution of a post wal_delete script.
+
+        test case:
+        simulate the execution of a post wal_delete script, should return 0
+        test the environment for the HookScriptRunner obj.
+        test the name of the fake script, should be the same as the one in the
+        mocked configuration
+        """
+        # BackupManager mock
+        backup_manager = build_backup_manager(name='test_server')
+        backup_manager.config.post_wal_delete_script = \
+            'test_post_wal_delete_script'
+
+        # WalFileInfo mock
+        wal_info = MagicMock(name='wal_info')
+        wal_info.name = 'XXYYZZAABBCC'
+        wal_info.fullpath.return_value = '/incoming/directory'
+        wal_info.size = 1234567
+        wal_info.time = 1337133713
+        wal_info.compression = 'gzip'
+
+        # the actual test
+        script = HookScriptRunner(backup_manager, 'wal_delete_script', 'post')
+        script.env_from_wal_info(wal_info)
+        expected_env = {
+            'BARMAN_PHASE': 'post',
+            'BARMAN_VERSION': version,
+            'BARMAN_SERVER': 'test_server',
+            'BARMAN_CONFIGURATION': 'build_config_from_dicts',
+            'BARMAN_HOOK': 'wal_delete_script',
+            'BARMAN_SEGMENT': 'XXYYZZAABBCC',
+            'BARMAN_FILE': '/incoming/directory',
+            'BARMAN_SIZE': '1234567',
+            'BARMAN_TIMESTAMP': '1337133713',
+            'BARMAN_COMPRESSION': 'gzip',
+            'BARMAN_RETRY': '0',
+            'BARMAN_ERROR': '',
+        }
+        script.run()
+        assert command_mock.call_count == 1
+        assert command_mock.call_args[1]['env_append'] == expected_env
+        assert script.script == backup_manager.config.post_wal_delete_script
