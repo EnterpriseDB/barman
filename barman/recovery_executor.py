@@ -40,7 +40,8 @@ from barman.command_wrappers import RsyncPgData
 from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
-                               DataTransferFailure, FsOperationFailed)
+                               DataTransferFailure, FsOperationFailed,
+                               RecoveryTargetActionException)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.utils import mkpath
@@ -87,7 +88,7 @@ class RecoveryExecutor(object):
 
     def recover(self, backup_info, dest, tablespaces, target_tli,
                 target_time, target_xid, target_name,
-                target_immediate, exclusive, remote_command):
+                target_immediate, exclusive, remote_command, target_action):
         """
         Performs a recovery of a backup
 
@@ -105,6 +106,7 @@ class RecoveryExecutor(object):
         :param bool exclusive: whether the recovery is exclusive or not
         :param str|None remote_command: The remote command to recover
                                the base backup, in case of remote backup.
+        :param str|None target_action: The recovery target action
         """
 
         # Run the cron to be sure the wal catalog is up to date
@@ -122,7 +124,8 @@ class RecoveryExecutor(object):
                                target_time,
                                target_tli,
                                target_xid,
-                               target_immediate)
+                               target_immediate,
+                               target_action)
 
         # Retrieve the safe_horizon for smart copy
         self._retrieve_safe_horizon(recovery_info, backup_info, dest)
@@ -318,7 +321,7 @@ class RecoveryExecutor(object):
 
     def _set_pitr_targets(self, recovery_info, backup_info, dest, target_name,
                           target_time, target_tli, target_xid,
-                          target_immediate):
+                          target_immediate, target_action):
         """
         Set PITR targets - as specified by the user
 
@@ -333,6 +336,7 @@ class RecoveryExecutor(object):
         :param str|None target_xid: recovery target transaction id for PITR
         :param bool|None target_immediate: end recovery as soon as consistency
             is reached
+        :param str|None target_action: recovery target action for PITR
         """
         target_epoch = None
         target_datetime = None
@@ -375,6 +379,31 @@ class RecoveryExecutor(object):
                 targets['name'] = str(target_name)
             if target_immediate:
                 targets['immediate'] = target_immediate
+
+            # Manage the target_action option
+            if backup_info.version < 90100:
+                if target_action:
+                    raise RecoveryTargetActionException(
+                        "Illegal target action '%s' "
+                        "for this version of PostgreSQL" %
+                        target_action)
+            elif 90100 <= backup_info.version < 90500:
+                if target_action == 'pause':
+                    recovery_info['pause_at_recovery_target'] = "on"
+                elif target_action:
+                    raise RecoveryTargetActionException(
+                        "Illegal target action '%s' "
+                        "for this version of PostgreSQL" %
+                        target_action)
+            else:
+                if target_action in ('pause', 'shutdown', 'promote'):
+                    recovery_info['recovery_target_action'] = target_action
+                else:
+                    raise RecoveryTargetActionException(
+                        "Illegal target action '%s' "
+                        "for this version of PostgreSQL" %
+                        target_action)
+
             output.info(
                 "Doing PITR. Recovery target %s",
                 (", ".join(["%s: %r" % (k, v) for k, v in targets.items()])))
@@ -386,6 +415,12 @@ class RecoveryExecutor(object):
             if backup_info.version < 80400 and \
                     not recovery_info['get_wal']:
                 recovery_info['results']['delete_barman_xlog'] = True
+        else:
+            if target_action:
+                raise RecoveryTargetActionException(
+                    "Can't enable recovery target action when PITR "
+                    "is not required")
+
         recovery_info['target_epoch'] = target_epoch
         recovery_info['target_datetime'] = target_datetime
 
@@ -768,6 +803,7 @@ class RecoveryExecutor(object):
         :param str target_time: recovery target time for PITR
         :param str target_tli: recovery target timeline for PITR
         :param str target_xid: recovery target transaction id for PITR
+        :param str|None target_action: recovery target action
         """
         if remote_command:
             recovery = open(os.path.join(recovery_info['tempdir'],
@@ -830,6 +866,16 @@ class RecoveryExecutor(object):
                 not exclusive), file=recovery)
         if target_tli:
             print("recovery_target_timeline = %s" % target_tli, file=recovery)
+
+        # Write recovery target action
+        if 'pause_at_recovery_target' in recovery_info:
+            print("pause_at_recovery_target = '%s'" %
+                  recovery_info['pause_at_recovery_target'],
+                  file=recovery)
+        if 'recovery_target_action' in recovery_info:
+            print("recovery_target_action = '%s'" %
+                  recovery_info['recovery_target_action'],
+                  file=recovery)
 
         recovery.close()
         if remote_command:

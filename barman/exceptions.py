@@ -299,3 +299,15 @@ class AbortedRetryHookScript(HookScriptException):
         return ("Abort '%s_%s' retry hook script (%s, exit code: %d)" % (
                 self.hook.phase, self.hook.name,
                 self.hook.script, self.hook.exit_status))
+
+
+class RecoveryException(BarmanException):
+    """
+    Exception for a recovery error
+    """
+
+
+class RecoveryTargetActionException(RecoveryException):
+    """
+    Exception for a wrong recovery target action
+    """

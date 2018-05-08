@@ -25,7 +25,8 @@ import pytest
 
 import testing_helpers
 from barman import xlog
-from barman.exceptions import CommandFailedException
+from barman.exceptions import (CommandFailedException,
+                               RecoveryTargetActionException)
 from barman.infofile import WalFileInfo
 from barman.recovery_executor import Assertion, RecoveryExecutor
 
@@ -186,7 +187,7 @@ class TestRecoveryExecutor(object):
         executor = RecoveryExecutor(backup_manager)
         executor._set_pitr_targets(recovery_info, backup_info,
                                    dest.strpath,
-                                   '', '', '', '', False)
+                                   '', '', '', '', False, None)
         # Test with empty values (no PITR)
         assert recovery_info['target_epoch'] is None
         assert recovery_info['target_datetime'] is None
@@ -197,7 +198,7 @@ class TestRecoveryExecutor(object):
                                    'target_name',
                                    '2015-06-03 16:11:03.71038+02',
                                    '2',
-                                   None, False)
+                                   None, False, None)
         target_datetime = dateutil.parser.parse(
             '2015-06-03 16:11:03.710380+02:00')
         target_epoch = (time.mktime(target_datetime.timetuple()) +
@@ -206,6 +207,88 @@ class TestRecoveryExecutor(object):
         assert recovery_info['target_datetime'] == target_datetime
         assert recovery_info['target_epoch'] == target_epoch
         assert recovery_info['wal_dest'] == dest.join('barman_xlog').strpath
+
+        # Tests for PostgreSQL < 9.1
+        backup_info.version = 90000
+        with pytest.raises(RecoveryTargetActionException) as exc_info:
+            executor._set_pitr_targets(recovery_info, backup_info,
+                                       dest.strpath,
+                                       'target_name',
+                                       '2015-06-03 16:11:03.71038+02',
+                                       '2',
+                                       None, False, 'pause')
+        assert str(exc_info.value) == "Illegal target action 'pause' " \
+                                      "for this version of PostgreSQL"
+
+        # Tests for PostgreSQL between 9.1 and 9.4 included
+        backup_info.version = 90100
+        executor._set_pitr_targets(recovery_info, backup_info,
+                                   dest.strpath,
+                                   'target_name',
+                                   '2015-06-03 16:11:03.71038+02',
+                                   '2',
+                                   None, False, None)
+        assert 'pause_at_recovery_target' not in recovery_info
+
+        executor._set_pitr_targets(recovery_info, backup_info,
+                                   dest.strpath,
+                                   'target_name',
+                                   '2015-06-03 16:11:03.71038+02',
+                                   '2',
+                                   None, False, 'pause')
+        assert recovery_info['pause_at_recovery_target'] == "on"
+        del recovery_info['pause_at_recovery_target']
+
+        with pytest.raises(RecoveryTargetActionException) as exc_info:
+            executor._set_pitr_targets(recovery_info, backup_info,
+                                       dest.strpath,
+                                       'target_name',
+                                       '2015-06-03 16:11:03.71038+02',
+                                       '2',
+                                       None, False, 'promote')
+        assert str(exc_info.value) == "Illegal target action 'promote' " \
+                                      "for this version of PostgreSQL"
+
+        # Tests for PostgreSQL >= 9.5
+        backup_info.version = 90500
+        executor._set_pitr_targets(recovery_info, backup_info,
+                                   dest.strpath,
+                                   'target_name',
+                                   '2015-06-03 16:11:03.71038+02',
+                                   '2',
+                                   None, False, 'pause')
+        assert recovery_info['recovery_target_action'] == "pause"
+
+        executor._set_pitr_targets(recovery_info, backup_info,
+                                   dest.strpath,
+                                   'target_name',
+                                   '2015-06-03 16:11:03.71038+02',
+                                   '2',
+                                   None, False, 'promote')
+        assert recovery_info['recovery_target_action'] == "promote"
+
+        with pytest.raises(RecoveryTargetActionException) as exc_info:
+            executor._set_pitr_targets(recovery_info, backup_info,
+                                       dest.strpath,
+                                       'target_name',
+                                       '2015-06-03 16:11:03.71038+02',
+                                       '2',
+                                       None, False, 'unavailable')
+        assert str(exc_info.value) == "Illegal target action 'unavailable' " \
+                                      "for this version of PostgreSQL"
+
+        # Recovery target action should not be available is PITR is not
+        # enabled
+        backup_info.version = 90500
+        with pytest.raises(RecoveryTargetActionException) as exc_info:
+            executor._set_pitr_targets(recovery_info, backup_info,
+                                       dest.strpath,
+                                       None,
+                                       None,
+                                       None,
+                                       None, False, 'pause')
+        assert str(exc_info.value) == "Can't enable recovery target action " \
+                                      "when PITR is not required"
 
     @mock.patch('barman.recovery_executor.RsyncPgData')
     def test_generate_recovery_conf(self, rsync_pg_mock, tmpdir):
@@ -221,6 +304,7 @@ class TestRecoveryExecutor(object):
         }
         backup_info = testing_helpers.build_test_backup_info()
         dest = tmpdir.mkdir('destination')
+
         # Build a recovery executor using a real server
         server = testing_helpers.build_real_server()
         executor = RecoveryExecutor(server.backup_manager)
@@ -230,14 +314,12 @@ class TestRecoveryExecutor(object):
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
                                          '')
+
         # Check that the recovery.conf file exists
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert recovery_conf_file.check()
         # Parse the generated recovery.conf
-        recovery_conf = {}
-        for line in recovery_conf_file.readlines():
-            key, value = (s.strip() for s in line.strip().split('=', 1))
-            recovery_conf[key] = value
+        recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
         # check for contents
         assert 'recovery_end_command' in recovery_conf
         assert 'recovery_target_time' in recovery_conf
@@ -250,6 +332,33 @@ class TestRecoveryExecutor(object):
             "'2015-06-03 16:11:03.71038+02'"
         assert recovery_conf['recovery_target_timeline'] == '2'
         assert recovery_conf['recovery_target_name'] == "'target_name'"
+
+        # Test 'pause_at_recovery_target' recovery_info entry
+        recovery_info['pause_at_recovery_target'] = 'on'
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '')
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert recovery_conf_file.check()
+        recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
+        assert recovery_conf['pause_at_recovery_target'] == "'on'"
+
+        # Test 'recovery_target_action'
+        del recovery_info['pause_at_recovery_target']
+        recovery_info['recovery_target_action'] = 'pause'
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '')
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert recovery_conf_file.check()
+        recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
+        assert recovery_conf['recovery_target_action'] == "'pause'"
 
     @mock.patch('barman.recovery_executor.RsyncCopyController')
     def test_recover_backup_copy(self, copy_controller_mock, tmpdir):
@@ -446,7 +555,7 @@ class TestRecoveryExecutor(object):
         executor = RecoveryExecutor(server.backup_manager)
         # test local recovery
         rec_info = executor.recover(backup_info, dest.strpath, None, None,
-                                    None, None, None, None, True, None)
+                                    None, None, None, None, True, None, None)
         # remove not useful keys from the result
         del rec_info['cmd']
         sys_tempdir = rec_info['tempdir']
@@ -499,7 +608,8 @@ class TestRecoveryExecutor(object):
         }
         # test remote recovery
         rec_info = executor.recover(backup_info, dest.strpath, {}, None, None,
-                                    None, None, None, True, "remote@command")
+                                    None, None, None, True, "remote@command",
+                                    None)
         # remove not useful keys from the result
         del rec_info['cmd']
         del rec_info['rsync']
@@ -554,4 +664,4 @@ class TestRecoveryExecutor(object):
         rsync_pg_mock.side_effect = CommandFailedException()
         with pytest.raises(CommandFailedException):
             executor.recover(backup_info, dest.strpath, {}, None, None, None,
-                             None, None, True, "remote@command")
+                             None, None, True, "remote@command", None)

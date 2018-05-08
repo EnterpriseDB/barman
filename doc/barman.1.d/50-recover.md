@@ -26,6 +26,13 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
     --exclusive
     :   Set target xid to be non inclusive.
 
+    --target-action *ACTION*
+    :   Trigger the specified action once the recovery target is reached.
+        Possible actions are: `pause` (PostgreSQL 9.1 and above),
+        `shutdown` (PostgreSQL 9.5 and above) and `promote` (ditto).
+        This option requires a target to be defined, with one of the
+        above options.
+
     --tablespace *NAME:LOCATION*
     :   Specify tablespace relocation rule.
 

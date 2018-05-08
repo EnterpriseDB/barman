@@ -32,7 +32,7 @@ import barman.config
 import barman.diagnose
 from barman import output
 from barman.config import RecoveryOptions
-from barman.exceptions import BadXlogSegmentName
+from barman.exceptions import BadXlogSegmentName, RecoveryException
 from barman.infofile import BackupInfo
 from barman.server import Server
 from barman.utils import configure_logging, drop_privileges, parse_log_level
@@ -76,6 +76,22 @@ def check_positive(value):
         raise ArgumentTypeError("'%s' is not a valid positive integer" %
                                 value)
     return int_value
+
+
+def check_target_action(value):
+    """
+    Check the target action option
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+
+    if value in ('pause', 'shutdown', 'promote'):
+        return value
+
+    raise ArgumentTypeError("'%s' is not a valid recovery target action" %
+                            value)
 
 
 @named('list-server')
@@ -379,6 +395,15 @@ def rebuild_xlogdb(args):
      dest='network_compression',
      action='store_false',
      default=SUPPRESS)
+@arg('--target-action',
+     help='Specifies what action the server should take once the '
+          'recovery target is reached. This option is not allowed for '
+          'PostgreSQL < 9.1. If PostgreSQL is between 9.1 and 9.4 included '
+          'the only allowed value is "pause". If PostgreSQL is 9.5 or newer '
+          'the possible values are "shutdown", "pause", "promote".',
+     dest='target_action',
+     type=check_target_action,
+     default=SUPPRESS)
 @expects_obj
 def recover(args):
     """
@@ -469,17 +494,22 @@ def recover(args):
                 "you have to use the --remote-ssh-command option")
             output.close_and_exit()
         server.config.network_compression = args.network_compression
+
     with closing(server):
-        server.recover(backup_id,
-                       args.destination_directory,
-                       tablespaces=tablespaces,
-                       target_tli=args.target_tli,
-                       target_time=args.target_time,
-                       target_xid=args.target_xid,
-                       target_name=args.target_name,
-                       target_immediate=args.target_immediate,
-                       exclusive=args.exclusive,
-                       remote_command=args.remote_ssh_command)
+        try:
+            server.recover(backup_id,
+                           args.destination_directory,
+                           tablespaces=tablespaces,
+                           target_tli=args.target_tli,
+                           target_time=args.target_time,
+                           target_xid=args.target_xid,
+                           target_name=args.target_name,
+                           target_immediate=args.target_immediate,
+                           exclusive=args.exclusive,
+                           remote_command=args.remote_ssh_command,
+                           target_action=getattr(args, 'target_action', None))
+        except RecoveryException as exc:
+            output.error(str(exc))
 
     output.close_and_exit()
 

@@ -1248,7 +1248,8 @@ class Server(RemoteStatusMixin):
 
     def recover(self, backup_info, dest, tablespaces=None, target_tli=None,
                 target_time=None, target_xid=None, target_name=None,
-                target_immediate=False, exclusive=False, remote_command=None):
+                target_immediate=False, exclusive=False, remote_command=None,
+                target_action=None):
         """
         Performs a recovery of a backup
 
@@ -1266,11 +1267,12 @@ class Server(RemoteStatusMixin):
         :param bool exclusive: whether the recovery is exclusive or not
         :param str|None remote_command: default None. The remote command to
             recover the base backup, in case of remote backup.
+        :param str|None target_action: the recovery target action
         """
         return self.backup_manager.recover(
             backup_info, dest, tablespaces, target_tli, target_time,
             target_xid, target_name, target_immediate, exclusive,
-            remote_command)
+            remote_command, target_action)
 
     def get_wal(self, wal_name, compression=None, output_directory=None,
                 peek=None):

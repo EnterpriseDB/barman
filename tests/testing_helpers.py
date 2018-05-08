@@ -369,3 +369,18 @@ def build_backup_directories(backup_info):
     mkpath(backup_info.get_data_directory())
     for tbs in backup_info.tablespaces:
         mkpath(backup_info.get_data_directory(tbs.oid))
+
+
+def parse_recovery_conf(recovery_conf_file):
+    """
+    Parse a recovery conf file
+    :param file recovery_conf_file: stream reading the recovery conf file
+    :return Dict[str,str]: parsed configuration file
+    """
+    recovery_conf = {}
+
+    for line in recovery_conf_file.readlines():
+        key, value = (s.strip() for s in line.strip().split('=', 1))
+        recovery_conf[key] = value
+
+    return recovery_conf

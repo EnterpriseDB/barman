@@ -429,7 +429,8 @@ class BackupManager(RemoteStatusMixin):
 
     def recover(self, backup_info, dest, tablespaces=None, target_tli=None,
                 target_time=None, target_xid=None, target_name=None,
-                target_immediate=False, exclusive=False, remote_command=None):
+                target_immediate=False, exclusive=False, remote_command=None,
+                target_action=None):
         """
         Performs a recovery of a backup
 
@@ -447,6 +448,8 @@ class BackupManager(RemoteStatusMixin):
         :param bool exclusive: whether the recovery is exclusive or not
         :param str|None remote_command: default None. The remote command
             to recover the base backup, in case of remote backup.
+        :param str|None target_action: default None. The recovery target
+            action
         """
 
         # Archive every WAL files in the incoming directory of the server
@@ -458,7 +461,7 @@ class BackupManager(RemoteStatusMixin):
                                          target_tli, target_time,
                                          target_xid, target_name,
                                          target_immediate, exclusive,
-                                         remote_command)
+                                         remote_command, target_action)
 
         # Output recovery results
         output.result('recovery', recovery_info['results'])

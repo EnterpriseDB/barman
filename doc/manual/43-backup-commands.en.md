@@ -186,6 +186,32 @@ using the `target-tli` option. The notion of timeline goes beyond the scope of
 this document; you can find more details in the PostgreSQL documentation,
 as mentioned in the _"Before you start"_ section.
 
+Barman 2.4 introduces support for `--target-action` option, accepting
+the following values:
+
+* `shutdown`: once recovery target is reached, PostgreSQL is shut down [^TARGET_SHUTDOWN]
+* `pause`: once recovery target is reached, PostgreSQL is started in pause
+   state, allowing users to inspect the instance [^TARGET_PAUSE]
+* `promote`: once recovery target is reached, PostgreSQL will exit recovery
+   and is promoted as a master [^TARGET_PROMOTE]
+
+> **IMPORTANT:**
+> By default, no target action is defined (for back compatibility).
+> The `--target-action` option requires a Point In Time Recovery target
+> to be specified.
+
+[^TARGET_SHUTDOWN]:
+  Only available on PostgreSQL 9.5 and above
+
+[^TARGET_PAUSE]:
+  Only available on PostgreSQL 9.1 and above
+
+[^TARGET_PROMOTE]:
+  Only available on PostgreSQL 9.5 and above
+
+For more detailed information on the above settings, please consult
+the [PostgreSQL documentation on recovery target settings] [target].
+
 ## `show-backup`
 
 You can retrieve all the available information for a particular backup of

@@ -25,6 +25,7 @@
   [roles]: http://www.postgresql.org/docs/current/static/role-attributes.html
   [replication-slots]: https://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION-SLOTS
   [synch]: http://www.postgresql.org/docs/current/static/warm-standby.html#SYNCHRONOUS-REPLICATION
+  [target]: https://www.postgresql.org/docs/current/static/recovery-target-settings.html
 
 
 

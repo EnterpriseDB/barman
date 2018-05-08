@@ -15,12 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+from argparse import ArgumentTypeError
+
 import pytest
 from mock import Mock, patch
 
 import barman.config
-from barman.cli import (get_server, get_server_list, manage_server_command,
-                        recover)
+from barman.cli import (check_target_action, get_server, get_server_list,
+                        manage_server_command, recover)
 from barman.infofile import BackupInfo
 from barman.server import Server
 from testing_helpers import build_config_dictionary, build_config_from_dicts
@@ -298,6 +300,7 @@ class TestCli(object):
         args.target_immediate = True
         args.target_time = None
         args.target_xid = None
+        args.target_action = None
 
         _, err = capsys.readouterr()
         with pytest.raises(SystemExit):
@@ -331,8 +334,20 @@ class TestCli(object):
         args.target_immediate = None
         args.target_time = None
         args.target_xid = None
+        args.target_action = None
 
         _, err = capsys.readouterr()
         with pytest.raises(SystemExit):
             recover(args)
         assert "" == err
+
+    def test_check_target_action(self):
+        # The following ones must work
+        assert None is check_target_action(None)
+        assert 'pause' is check_target_action('pause')
+        assert 'promote' is check_target_action('promote')
+        assert 'shutdown' is check_target_action('shutdown')
+
+        # Every other value is an error
+        with pytest.raises(ArgumentTypeError):
+            check_target_action('invalid_target_action')
