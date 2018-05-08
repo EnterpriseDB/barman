@@ -24,9 +24,11 @@ import mock
 import pytest
 
 import testing_helpers
+from mock import MagicMock
+
 from barman import xlog
-from barman.exceptions import (CommandFailedException,
-                               RecoveryTargetActionException)
+from barman.exceptions import CommandFailedException, \
+    RecoveryTargetActionException, RecoveryStandbyModeException
 from barman.infofile import WalFileInfo
 from barman.recovery_executor import Assertion, RecoveryExecutor
 
@@ -313,7 +315,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '')
+                                         '', None)
 
         # Check that the recovery.conf file exists
         recovery_conf_file = tmpdir.join("recovery.conf")
@@ -340,7 +342,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '')
+                                         '', None)
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert recovery_conf_file.check()
         recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
@@ -354,11 +356,45 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '')
+                                         '', None)
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert recovery_conf_file.check()
         recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
         assert recovery_conf['recovery_target_action'] == "'pause'"
+
+        # Test 'standby_mode'
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '', True)
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert recovery_conf_file.check()
+        recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
+        assert recovery_conf['standby_mode'] == "'on'"
+
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '', False)
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert recovery_conf_file.check()
+        recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
+        assert 'standby_mode' not in recovery_conf
+
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '', None)
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert recovery_conf_file.check()
+        recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
+        assert 'standby_mode' not in recovery_conf
 
     @mock.patch('barman.recovery_executor.RsyncCopyController')
     def test_recover_backup_copy(self, copy_controller_mock, tmpdir):
@@ -665,3 +701,32 @@ class TestRecoveryExecutor(object):
         with pytest.raises(CommandFailedException):
             executor.recover(backup_info, dest.strpath,
                              exclusive=True, remote_command="remote@command")
+
+    def test_recover_standby_mode(self, tmpdir):
+        backup_info = testing_helpers.build_test_backup_info()
+        backup_manager = testing_helpers.build_backup_manager()
+        executor = RecoveryExecutor(backup_manager)
+        backup_info.version = 90300
+        destination = tmpdir.mkdir('destination').strpath
+
+        # If standby mode is not enabled, recovery.conf is not generated
+        executor._prepare_tablespaces = MagicMock()
+        executor._backup_copy = MagicMock()
+        executor._xlog_copy = MagicMock()
+        executor._generate_recovery_conf = MagicMock()
+        executor.recover(backup_info, destination, standby_mode=None)
+        executor._generate_recovery_conf.assert_not_called()
+
+        # If standby mode is enabled, recovery.conf is generated
+        executor._prepare_tablespaces.reset_mock()
+        executor._backup_copy.reset_mock()
+        executor._xlog_copy.reset_mock()
+        executor._generate_recovery_conf.reset_mock()
+        executor.recover(backup_info, destination, standby_mode=True)
+        executor._generate_recovery_conf.assert_called()
+
+        # If standby mode is passed but PostgreSQL is older than 9.0,
+        # we must raise an exception
+        backup_info.version = 80000
+        with pytest.raises(RecoveryStandbyModeException):
+            executor.recover(backup_info, destination, standby_mode=True)

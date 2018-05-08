@@ -68,3 +68,8 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
     --network-compression, --no-network-compression
     :   Enable/Disable network compression during remote recovery.
         Default is based on `network_compression` configuration setting.
+
+    --standby-mode
+    :   Specifies whether to start the PostgreSQL server as a standby.
+        Default is undefined.
+
