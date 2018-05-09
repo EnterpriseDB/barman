@@ -22,7 +22,7 @@ import pytest
 from mock import patch
 
 from barman.config import (BackupOptions, Config, RecoveryOptions,
-                           parse_time_interval)
+                           parse_slot_name, parse_time_interval)
 from testing_helpers import build_config_dictionary, build_config_from_dicts
 
 try:
@@ -280,6 +280,33 @@ class TestConfig(object):
             if "(symlink to: " in msg:
                 symlink += 1
         assert symlink == 1
+
+    def test_parse_slot_name(self):
+        """
+        Test the parse_slot_name method
+        :return:
+        """
+
+        # If the slot name is None, is really None
+        assert parse_slot_name(None) is None
+
+        # If the slot name is valid then it will passed intact
+        assert parse_slot_name('barman_slot_name') == 'barman_slot_name'
+
+        # If the slot name is not valid but can be fixed by putting
+        # the name in lower case, then it will be fixed
+        assert parse_slot_name('Barman_slot_Name') == 'barman_slot_name'
+
+        # Even this slot name can be fixed
+        assert parse_slot_name('Barman_2_slot_name') == 'barman_2_slot_name'
+
+        # If the slot name is not valid and lowering its case don't fix it,
+        # we will raise a ValueError
+        with pytest.raises(ValueError):
+            parse_slot_name('Barman_(slot_name)')
+
+        with pytest.raises(ValueError):
+            parse_slot_name('barman slot name')
 
 
 # noinspection PyMethodMayBeStatic

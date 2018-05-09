@@ -56,6 +56,7 @@ _TIME_INTERVAL_RE = re.compile(r"""
       (\d+)\s+(day|month|week)s?  # N (day|month|week) with optional 's'
       \s*$
       """, re.IGNORECASE | re.VERBOSE)
+_SLOT_NAME_RE = re.compile("^[0-9a-z_]+$")
 
 REUSE_BACKUP_VALUES = ('copy', 'link', 'off')
 
@@ -247,6 +248,25 @@ def parse_backup_method(value):
             "', '".join(BACKUP_METHOD_VALUES)))
 
 
+def parse_slot_name(value):
+    """
+    Replication slot names may only contain lower case letters, numbers,
+    and the underscore character. This function parse a replication slot name
+
+    :param str value: slot_name value
+    :return:
+    """
+    if value is None:
+        return None
+
+    value = value.lower()
+    if not _SLOT_NAME_RE.match(value):
+        raise ValueError(
+            "Replication slot names may only contain lower case letters, "
+            "numbers, and the underscore character.")
+    return value
+
+
 class ServerConfig(object):
     """
     This class represents the configuration for a specific Server instance.
@@ -422,6 +442,7 @@ class ServerConfig(object):
         'reuse_backup': parse_reuse_backup,
         'streaming_archiver': parse_boolean,
         'streaming_archiver_batch_size': int,
+        'slot_name': parse_slot_name,
     }
 
     def invoke_parser(self, key, source, value, new_value):
