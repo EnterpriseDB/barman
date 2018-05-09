@@ -41,8 +41,9 @@ from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
                                DataTransferFailure, FsOperationFailed,
-                               RecoveryTargetActionException,
-                               RecoveryStandbyModeException)
+                               RecoveryInvalidTargetException,
+                               RecoveryStandbyModeException,
+                               RecoveryTargetActionException)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.utils import mkpath
@@ -86,6 +87,7 @@ class RecoveryExecutor(object):
         self.backup_manager = backup_manager
         self.server = backup_manager.server
         self.config = backup_manager.config
+        self.temp_dirs = []
 
     def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
                 target_tli=None, target_time=None, target_xid=None,
@@ -93,6 +95,8 @@ class RecoveryExecutor(object):
                 target_action=None, standby_mode=None):
         """
         Performs a recovery of a backup
+
+        This method should be called in a closing context
 
         :param barman.infofile.BackupInfo backup_info: the backup to recover
         :param str dest: the destination directory
@@ -250,9 +254,6 @@ class RecoveryExecutor(object):
                                           remote_command,
                                           recovery_info)
 
-        # Cleanup operations
-        self._teardown(recovery_info)
-
         return recovery_info
 
     def _setup(self, backup_info, remote_command, dest):
@@ -272,6 +273,9 @@ class RecoveryExecutor(object):
         else:
             wal_dest = os.path.join(dest, 'pg_wal')
 
+        tempdir = tempfile.mkdtemp(prefix='barman_recovery-')
+        self.temp_dirs.append(tempdir)
+
         recovery_info = {
             'cmd': None,
             'recovery_dest': 'local',
@@ -279,7 +283,7 @@ class RecoveryExecutor(object):
             'configuration_files': [],
             'destination_path': dest,
             'temporary_configuration_files': [],
-            'tempdir': tempfile.mkdtemp(prefix='barman_recovery-'),
+            'tempdir': tempdir,
             'is_pitr': False,
             'wal_dest': wal_dest,
             'get_wal': RecoveryOptions.GET_WAL in self.config.recovery_options,
@@ -304,22 +308,17 @@ class RecoveryExecutor(object):
         # Handle remote recovery options
         if remote_command:
             recovery_info['recovery_dest'] = 'remote'
-            try:
-                recovery_info['rsync'] = RsyncPgData(
-                    path=self.server.path,
-                    ssh=remote_command,
-                    bwlimit=self.config.bandwidth_limit,
-                    network_compression=self.config.network_compression)
-            except CommandFailedException:
-                self._teardown(recovery_info)
-                raise
+            recovery_info['rsync'] = RsyncPgData(
+                path=self.server.path,
+                ssh=remote_command,
+                bwlimit=self.config.bandwidth_limit,
+                network_compression=self.config.network_compression)
 
             try:
                 # create a UnixRemoteCommand obj if is a remote recovery
                 recovery_info['cmd'] = UnixRemoteCommand(remote_command,
                                                          path=self.server.path)
             except FsOperationFailed:
-                self._teardown(recovery_info)
                 output.error(
                     "Unable to connect to the target host using the command "
                     "'%s'", remote_command)
@@ -360,23 +359,32 @@ class RecoveryExecutor(object):
             recovery_info['is_pitr'] = True
             targets = {}
             if target_time:
-                # noinspection PyBroadException
                 try:
                     target_datetime = dateutil.parser.parse(target_time)
                 except ValueError as e:
-                    output.error(
-                        "unable to parse the target time parameter %r: %s",
-                        target_time, e)
-                    self._teardown(recovery_info)
-                    output.close_and_exit()
-                except Exception:
+                    raise RecoveryInvalidTargetException(
+                        "Unable to parse the target time parameter %r: %s" % (
+                            target_time, e))
+                except TypeError:
                     # this should not happen, but there is a known bug in
                     # dateutil.parser.parse() implementation
                     # ref: https://bugs.launchpad.net/dateutil/+bug/1247643
-                    output.error(
-                        "unable to parse the target time parameter %r",
+                    raise RecoveryInvalidTargetException(
+                        "Unable to parse the target time parameter %r" %
                         target_time)
-                    output.close_and_exit()
+
+                # If the parsed timestamp is naive, forces it to local timezone
+                if target_datetime.tzinfo is None:
+                    target_datetime = target_datetime.replace(
+                        tzinfo=dateutil.tz.tzlocal())
+
+                # Check if the target time is reachable from the
+                # selected backup
+                if backup_info.end_time > target_datetime:
+                    raise RecoveryInvalidTargetException(
+                        "The requested target time %s "
+                        "is before the backup end time %s" %
+                        (target_datetime, backup_info.end_time))
 
                 target_epoch = (
                     time.mktime(target_datetime.timetuple()) +
@@ -1007,15 +1015,14 @@ class RecoveryExecutor(object):
                              e)
                 output.close_and_exit()
 
-    def _teardown(self, recovery_info):
+    def close(self):
         """
         Cleanup operations for a recovery
-
-        :param dict recovery_info: dictionary holding the basic values
-            for a recovery
         """
-        # Remove the temporary directory (created in the setup method)
-        shutil.rmtree(recovery_info['tempdir'])
+        # Remove the temporary directories
+        for temp_dir in self.temp_dirs:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        self.temp_dirs = []
 
     def _pg_config_mangle(self, filename, settings, backup_filename=None):
         """

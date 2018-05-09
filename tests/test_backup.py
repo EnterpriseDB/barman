@@ -25,7 +25,8 @@ import pytest
 from mock import Mock, patch
 
 import barman.utils
-from barman.exceptions import CompressionIncompatibility
+from barman.exceptions import (CompressionIncompatibility,
+                               RecoveryInvalidTargetException)
 from barman.infofile import BackupInfo
 from testing_helpers import (build_backup_directories, build_backup_manager,
                              build_test_backup_info, caplog_reset)
@@ -115,7 +116,7 @@ class TestBackup(object):
         assert mock.call.set_attribute(
             'status', 'FAILED') in instance.mock_calls
 
-    def test_dateutil_parser(self, tmpdir, capsys):
+    def test_dateutil_parser(self, tmpdir):
         """
         Unit test for dateutil package during recovery.
         This test checks that a SystemExit error is raised when a wrong
@@ -150,14 +151,14 @@ class TestBackup(object):
 
         # test 4: check behaviour with a bad date
         # capture ValueError because target_time = 'foo bar'
-        with pytest.raises(SystemExit):
+        with pytest.raises(RecoveryInvalidTargetException) as exc:
             backup_manager.recover(backup_info,
                                    test_dir.strpath, None, None,
                                    target_time='foo bar', target_name="name",
                                    target_immediate=True)
         # checked that the raised error is the correct error
-        (out, err) = capsys.readouterr()
-        assert "unable to parse the target time parameter " in err
+        assert "Unable to parse the target time parameter " in \
+               str(exc.value)
 
     @patch('barman.backup.BackupManager.get_available_backups')
     def test_delete_backup(self, mock_available_backups, tmpdir, caplog):

@@ -22,13 +22,14 @@ import time
 import dateutil
 import mock
 import pytest
-
-import testing_helpers
 from mock import MagicMock
 
+import testing_helpers
 from barman import xlog
-from barman.exceptions import CommandFailedException, \
-    RecoveryTargetActionException, RecoveryStandbyModeException
+from barman.exceptions import (CommandFailedException,
+                               RecoveryInvalidTargetException,
+                               RecoveryStandbyModeException,
+                               RecoveryTargetActionException)
 from barman.infofile import WalFileInfo
 from barman.recovery_executor import Assertion, RecoveryExecutor
 
@@ -142,19 +143,19 @@ class TestRecoveryExecutor(object):
         # and teardown should delete it
         ret = executor._setup(backup_info, None, "/tmp")
         assert os.path.exists(ret['tempdir'])
-        executor._teardown(ret)
+        executor.close()
         assert not os.path.exists(ret['tempdir'])
         assert ret['wal_dest'].endswith('/pg_xlog')
 
         # no postgresql.auto.conf on version 9.3
         ret = executor._setup(backup_info, None, "/tmp")
-        executor._teardown(ret)
+        executor.close()
         assert "postgresql.auto.conf" not in ret['configuration_files']
 
         # Check the present for postgresql.auto.conf on version 9.4
         backup_info.version = 90400
         ret = executor._setup(backup_info, None, "/tmp")
-        executor._teardown(ret)
+        executor.close()
         assert "postgresql.auto.conf" in ret['configuration_files']
 
         # Receive a error if the remote command is invalid
@@ -165,6 +166,7 @@ class TestRecoveryExecutor(object):
         # Test for PostgreSQL 10
         backup_info.version = 100000
         ret = executor._setup(backup_info, None, "/tmp")
+        executor.close()
         assert ret['wal_dest'].endswith('/pg_wal')
 
     def test_set_pitr_targets(self, tmpdir):
@@ -183,7 +185,8 @@ class TestRecoveryExecutor(object):
             'wal_dest': wal_dest.strpath,
             'get_wal': False,
         }
-        backup_info = testing_helpers.build_test_backup_info()
+        backup_info = testing_helpers.build_test_backup_info(
+            end_time=dateutil.parser.parse('2015-06-03 16:11:01.71038+02'))
         backup_manager = testing_helpers.build_backup_manager()
         # Build a recovery executor
         executor = RecoveryExecutor(backup_manager)
@@ -194,6 +197,7 @@ class TestRecoveryExecutor(object):
         assert recovery_info['target_epoch'] is None
         assert recovery_info['target_datetime'] is None
         assert recovery_info['wal_dest'] == wal_dest.strpath
+
         # Test for PITR targets
         executor._set_pitr_targets(recovery_info, backup_info,
                                    dest.strpath,
@@ -209,6 +213,19 @@ class TestRecoveryExecutor(object):
         assert recovery_info['target_datetime'] == target_datetime
         assert recovery_info['target_epoch'] == target_epoch
         assert recovery_info['wal_dest'] == dest.join('barman_xlog').strpath
+
+        # Test for too early PITR target
+        with pytest.raises(RecoveryInvalidTargetException) as exc_info:
+            executor._set_pitr_targets(recovery_info, backup_info,
+                                       dest.strpath,
+                                       None,
+                                       '2015-06-03 16:11:00.71038+02',
+                                       None, None, False, None)
+        assert str(exc_info.value) == \
+            "The requested target time " \
+            "2015-06-03 16:11:00.710380+02:00 " \
+            "is before the backup end time " \
+            "2015-06-03 16:11:01.710380+02:00"
 
         # Tests for PostgreSQL < 9.1
         backup_info.version = 90000

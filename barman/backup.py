@@ -23,6 +23,7 @@ import datetime
 import logging
 import os
 import shutil
+from contextlib import closing
 from glob import glob
 
 import dateutil.parser
@@ -501,9 +502,13 @@ class BackupManager(RemoteStatusMixin):
         retry_script.run()
 
         # Execute the recovery.
-        recovery_info = executor.recover(
-            backup_info, dest,
-            tablespaces=tablespaces, remote_command=remote_command, **kwargs)
+        # We use a closing context to automatically remove
+        # any resource eventually allocated during recovery.
+        with closing(executor):
+            recovery_info = executor.recover(
+                backup_info, dest,
+                tablespaces=tablespaces, remote_command=remote_command,
+                **kwargs)
 
         # Run the post_recovery_retry_script if present.
         try:

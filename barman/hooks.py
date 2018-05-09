@@ -19,9 +19,9 @@
 This module contains the logic to run hook scripts
 """
 
+import json
 import logging
 import time
-import json
 
 from barman import version
 from barman.command_wrappers import Command
