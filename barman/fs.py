@@ -240,7 +240,7 @@ class UnixLocalCommand(object):
         if result != 0:
             raise FsOperationFailed('The %s file is not readable' % path)
 
-        result = self.cmd('cat', args=['%s', path])
+        result = self.cmd('cat', args=[path])
         if result != 0:
             raise FsOperationFailed('Failed to execute "cat \'%s\'"' % path)
 
