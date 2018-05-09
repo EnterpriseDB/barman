@@ -182,6 +182,10 @@ class _RsyncCopyItem(object):
         self.analysis_start_time = None
         self.analysis_end_time = None
 
+        # Ensure that the user specified the item class, since it is mandatory
+        # to correctly handle the item
+        assert self.item_class
+
     def __str__(self):
         # Prepare strings for messages
         formatted_class = self.item_class

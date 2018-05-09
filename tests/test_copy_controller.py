@@ -922,3 +922,8 @@ class TestRsyncCopyController(object):
 
         assert result.get('number_of_workers') == rcc.workers
         assert result.get('total_time') > 0
+
+    def test_rsync_copy_item_class(self):
+        # A value for the item_class attribute is mandatory for this resource
+        with pytest.raises(AssertionError):
+            _RsyncCopyItem('symbolic_name', 'source', 'destination')
