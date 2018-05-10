@@ -26,9 +26,10 @@ import mock
 import pytest
 
 from barman import command_wrappers
-from barman.command_wrappers import (PgReceiveXlog, StreamLineProcessor,
+from barman.command_wrappers import (PgReceiveXlog, StreamLineProcessor, _str,
                                      full_command_quote, shell_quote)
 from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
+from testing_helpers import b, u
 
 
 def _mock_pipe(popen, pipe_processor_loop, ret=0, out='', err=''):
@@ -1294,3 +1295,9 @@ def test_full_command_quote():
     assert "safe" == full_command_quote('safe', [])
     assert "a command 'with' 'unsafe '\\''argument'\\'''" == \
            full_command_quote("a command", ["with", "unsafe 'argument'"])
+
+
+def test_str():
+    assert _str(b('bytestring')) == u('bytestring')
+    assert _str(u('bytestring')) == u('bytestring')
+    assert _str('bytestring') == u('bytestring')

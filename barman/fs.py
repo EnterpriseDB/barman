@@ -23,20 +23,6 @@ from barman.exceptions import FsOperationFailed
 _logger = logging.getLogger(__name__)
 
 
-def _str(cmd_out):
-    """
-    Make a string from the output of a CommandWrapper execution.
-    If input is None returns a literal 'None' string
-
-    :param cmd_out: String or ByteString to convert
-    :return str: a string
-    """
-    if hasattr(cmd_out, 'decode') and callable(cmd_out.decode):
-        return cmd_out.decode('utf-8', 'replace')
-    else:
-        return str(cmd_out)
-
-
 class UnixLocalCommand(object):
     """
     This class is a wrapper for local calls for file system operations
@@ -58,7 +44,7 @@ class UnixLocalCommand(object):
 
         :rtype: tuple[str,str]
         """
-        return _str(self.internal_cmd.out), _str(self.internal_cmd.err)
+        return self.internal_cmd.out, self.internal_cmd.err
 
     def create_dir_if_not_exists(self, dir_path):
         """
@@ -194,33 +180,32 @@ class UnixLocalCommand(object):
         # will be translated to a literal 'None'
         release = ''
         if self.cmd("lsb_release", args=['-a']) == 0:
-            release = _str(self.internal_cmd.out).rstrip()
+            release = self.internal_cmd.out.rstrip()
         elif self.exists('/etc/lsb-release'):
             self.cmd('cat', args=['/etc/lsb-release'])
-            release = "Ubuntu Linux %s" % _str(self.internal_cmd.out).rstrip()
+            release = "Ubuntu Linux %s" % self.internal_cmd.out.rstrip()
         elif self.exists('/etc/debian_version'):
             self.cmd('cat', args=['/etc/debian_version'])
-            release = "Debian GNU/Linux %s" % _str(
-                self.internal_cmd.out).rstrip()
+            release = "Debian GNU/Linux %s" % self.internal_cmd.out.rstrip()
         elif self.exists('/etc/redhat-release'):
             self.cmd('cat', args=['/etc/redhat-release'])
-            release = "RedHat Linux %s" % _str(self.internal_cmd.out).rstrip()
+            release = "RedHat Linux %s" % self.internal_cmd.out.rstrip()
         elif self.cmd('sw_vers') == 0:
-            release = _str(self.internal_cmd.out).rstrip()
+            release = self.internal_cmd.out.rstrip()
         result['release'] = release
 
         self.cmd('uname', args=['-a'])
-        result['kernel_ver'] = _str(self.internal_cmd.out).rstrip()
+        result['kernel_ver'] = self.internal_cmd.out.rstrip()
         self.cmd('python', args=['--version', '2>&1'])
-        result['python_ver'] = _str(self.internal_cmd.out).rstrip()
+        result['python_ver'] = self.internal_cmd.out.rstrip()
         self.cmd('rsync', args=['--version', '2>&1'])
         try:
-            result['rsync_ver'] = _str(self.internal_cmd.out).splitlines(
+            result['rsync_ver'] = self.internal_cmd.out.splitlines(
                 True)[0].rstrip()
         except IndexError:
             result['rsync_ver'] = ''
         self.cmd('ssh', args=['-V', '2>&1'])
-        result['ssh_ver'] = _str(self.internal_cmd.out).rstrip()
+        result['ssh_ver'] = self.internal_cmd.out.rstrip()
         return result
 
     def get_file_content(self, path):

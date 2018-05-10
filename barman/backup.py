@@ -398,7 +398,7 @@ class BackupManager(RemoteStatusMixin):
             # Mark the backup as DONE
             backup_info.set_attribute("status", "DONE")
         # Use BaseException instead of Exception to catch events like
-        # KeyboardInterrupt (e.g.: CRTL-C)
+        # KeyboardInterrupt (e.g.: CTRL-C)
         except BaseException as e:
             msg_lines = str(e).strip().splitlines()
             if backup_info:

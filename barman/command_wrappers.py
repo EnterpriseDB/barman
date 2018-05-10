@@ -39,6 +39,20 @@ from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
 _logger = logging.getLogger(__name__)
 
 
+def _str(cmd_out):
+    """
+    Make a string from the output of a CommandWrapper execution.
+    If input is None returns a literal 'None' string
+
+    :param cmd_out: String or ByteString to convert
+    :return str: a string
+    """
+    if hasattr(cmd_out, 'decode') and callable(cmd_out.decode):
+        return cmd_out.decode('utf-8', 'replace')
+    else:
+        return str(cmd_out)
+
+
 class StreamLineProcessor(object):
     """
     Class deputed to reading lines from a file object, using a buffered read.
@@ -334,6 +348,12 @@ class Command(object):
                      check=False, *args, **kwargs)
         self.out = '\n'.join(out)
         self.err = '\n'.join(err)
+
+        # Ensure the output and the error or the command wrapper are
+        # really unicode strings
+        self.out = _str(self.out)
+        self.err = _str(self.err)
+
         _logger.debug("Command stdout: %s", self.out)
         _logger.debug("Command stderr: %s", self.err)
 

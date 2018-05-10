@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import sys
 from datetime import datetime, timedelta
 from shutil import rmtree
 
@@ -396,3 +397,35 @@ def parse_recovery_conf(recovery_conf_file):
         recovery_conf[key] = value
 
     return recovery_conf
+
+
+# The following two functions are useful to create bytes/unicode strings
+# in Python 2 and in Python 3 with the same syntax.
+if sys.version_info[0] >= 3:
+    def b(s):
+        """
+        Create a byte string
+        """
+        return s.encode("utf-8")
+
+    def u(s):
+        """
+        Create an unicode string
+        """
+        return s
+else:
+    def b(s):
+        """
+        Create a byte string
+        :param s:
+        :return:
+        """
+        return s
+
+    def u(s):
+        """
+        Create an unicode string
+        :param s:
+        :return:
+        """
+        return unicode(s.replace(r'\\', r'\\\\'), "unicode_escape")

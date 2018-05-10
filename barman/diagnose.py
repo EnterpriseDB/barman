@@ -21,7 +21,6 @@ This module represents the barman diagnostic tool.
 
 import json
 import logging
-import sys
 
 import barman
 from barman import fs, output
@@ -87,5 +86,5 @@ def exec_diagnose(servers, errors_list):
         }
         # Release any PostgreSQL resource
         server.close()
-    output.info(json.dumps(diagnosis, sys.stdout, cls=BarmanEncoder, indent=4,
+    output.info(json.dumps(diagnosis, cls=BarmanEncoder, indent=4,
                            sort_keys=True))
