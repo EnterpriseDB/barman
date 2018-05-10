@@ -409,7 +409,7 @@ class RecoveryExecutor(object):
             else:
                 if target_action in ('pause', 'shutdown', 'promote'):
                     recovery_info['recovery_target_action'] = target_action
-                else:
+                elif target_action:
                     raise RecoveryTargetActionException(
                         "Illegal target action '%s' "
                         "for this version of PostgreSQL" %
