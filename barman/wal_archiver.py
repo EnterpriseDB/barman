@@ -911,9 +911,9 @@ class StreamingWalArchiver(WalArchiver):
         # the value of `streaming_archiver_name`
         synchronous = (syncnames and
                        self.config.streaming_archiver_name in syncnames)
-        _logger.info('Synchronous WAL streaming for %s: %s',
-                     self.config.streaming_archiver_name,
-                     synchronous)
+        _logger.debug('Synchronous WAL streaming for %s: %s',
+                      self.config.streaming_archiver_name,
+                      synchronous)
         return synchronous
 
     def status(self):
