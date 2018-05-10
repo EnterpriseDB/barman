@@ -150,11 +150,15 @@ class DataTransferFailure(CommandException):
         :param str msg: a descriptive message on what we are trying to do
         :return DataTransferFailure: will contain the message provided in msg
         """
-        details = msg
-        details += "\n%s error:\n" % cmd
-        details += e.args[0]['out']
-        details += e.args[0]['err']
-        return cls(details)
+        try:
+            details = msg
+            details += "\n%s error:\n" % cmd
+            details += e.args[0]['out']
+            details += e.args[0]['err']
+            return cls(details)
+        except (TypeError, NameError):
+            # If it is not a dictionary just convert it to a string
+            return cls(str(e.args))
 
 
 class CompressionIncompatibility(CompressionException):
