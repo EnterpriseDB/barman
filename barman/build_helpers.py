@@ -1,20 +1,30 @@
-import sys
-import os
-import glob
-import shutil
-
-try:
-    from setuptools import setup
-    from setuptools import Command
-except ImportError:
-    from distutils.core import setup
-    from distutils.cmd import Command
+# Copyright (C) 2011-2018 2ndQuadrant Limited
+#
+# This file is part of Barman.
+#
+# Barman is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Barman is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import distutils.command.build as _build
 import distutils.command.clean as _clean
+import glob
+import os
+import shutil
+from distutils.cmd import Command
 
-PO_DIR="po"
-DOMAIN="barman"
+PO_DIR = "po"
+DOMAIN = "barman"
+
 
 class build_i18n(Command):
     description = "integrate the gettext framework"
@@ -38,11 +48,6 @@ class build_i18n(Command):
         """
         if not os.path.isdir(PO_DIR):
             return
-
-        data_files = self.distribution.data_files
-        if data_files is None:
-            # in case not data_files are defined in setup.py
-            self.distribution.data_files = data_files = []
 
         if self.bug_contact is not None:
             os.environ["XGETTEXT_ARGS"] = "--msgid-bugs-address=%s " % \
@@ -76,9 +81,9 @@ WARNING: Intltool will use the values specified from the
         max_po_mtime = 0
         for po_file in glob.glob("%s/*.po" % PO_DIR):
             lang = os.path.basename(po_file[:-3])
-            if selected_languages and not lang in selected_languages:
+            if selected_languages and lang not in selected_languages:
                 continue
-            mo_dir =  os.path.join("build", "mo", lang, "LC_MESSAGES")
+            mo_dir = os.path.join("build", "mo", lang, "LC_MESSAGES")
             mo_file = os.path.join(mo_dir, "%s.mo" % DOMAIN)
             if not os.path.exists(mo_dir):
                 os.makedirs(mo_dir)
@@ -95,20 +100,23 @@ def molist():
     po_files = []
     for po_file in glob.glob("%s/*.po" % PO_DIR):
         lang = os.path.basename(po_file[:-3])
-        mo_dir =  os.path.join("build", "mo", lang, "LC_MESSAGES")
+        mo_dir = os.path.join("build", "mo", lang, "LC_MESSAGES")
         mo_file = os.path.join(mo_dir, "%s.mo" % DOMAIN)
 
         targetpath = os.path.join("share/locale", lang, "LC_MESSAGES")
         po_files.append((targetpath, (mo_file,)))
     return po_files
 
+
 class build_extra(_build.build):
     """Adds the extra commands to the build target. This class should be used
        with the core distutils"""
+
     def __init__(self, dist):
         _build.build.__init__(self, dist)
 
         self.user_options.extend([("i18n", None, "use the localisation")])
+
     def initialize_options(self):
         _build.build.initialize_options(self)
         self.i18n = False
@@ -116,16 +124,17 @@ class build_extra(_build.build):
     def finalize_options(self):
         def has_i18n(command):
             return self.i18n == "True" or \
-                   ("build_i18n" in self.distribution.cmdclass and \
+                   ("build_i18n" in self.distribution.cmdclass and
                     self.i18n != "False")
 
         _build.build.finalize_options(self)
         self.sub_commands.append(("build_i18n", has_i18n))
 
+
 class clean(_clean.clean):
     def run(self):
         _clean.clean.run(self)
 
-        for dir in ['build', 'dist', 'barman.egg-info', '.eggs', '.cache']:
-            if os.path.exists(dir):
-                shutil.rmtree(dir)
+        for _dir in ['build', 'dist', 'barman.egg-info', '.eggs', '.cache']:
+            if os.path.exists(_dir):
+                shutil.rmtree(_dir)

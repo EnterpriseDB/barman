@@ -33,8 +33,8 @@ import barman.diagnose
 from barman import output
 from barman.config import RecoveryOptions
 from barman.exceptions import BadXlogSegmentName, RecoveryException
-from barman.infofile import BackupInfo
 from barman.i18n import ugettext as _
+from barman.infofile import BackupInfo
 from barman.server import Server
 from barman.utils import configure_logging, drop_privileges, parse_log_level
 
@@ -178,7 +178,7 @@ def backup_completer(prefix, parsed_args, **kwargs):
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help=_("specifies the server names for the backup command "
-          "('all' will show all available servers)"))
+            "('all' will show all available servers)"))
 @arg('--immediate-checkpoint',
      help=_('forces the initial checkpoint to be done as quickly as possible'),
      dest='immediate_checkpoint',
@@ -193,7 +193,7 @@ def backup_completer(prefix, parsed_args, **kwargs):
      choices=barman.config.REUSE_BACKUP_VALUES,
      default=None, const='link',
      help=_('use the previous backup to improve transfer-rate. '
-          'If no argument is given "link" is assumed'))
+            'If no argument is given "link" is assumed'))
 @arg('--retry-times',
      help=_('Number of retries after an error if base backup copy fails.'),
      type=check_non_negative)
@@ -237,7 +237,7 @@ def backup(args):
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help=_("specifies the server name for the command "
-          "('all' will show all available servers)"))
+            "('all' will show all available servers)"))
 @arg('--minimal', help=_('machine readable output'), action='store_true')
 @expects_obj
 def list_backup(args):
@@ -339,11 +339,11 @@ def rebuild_xlogdb(args):
 @arg('--target-tli', help='target timeline', type=check_positive)
 @arg('--target-time',
      help=_('target time. You can use any valid unambiguous representation. '
-          'e.g: "YYYY-MM-DD HH:MM:SS.mmm"'))
+            'e.g: "YYYY-MM-DD HH:MM:SS.mmm"'))
 @arg('--target-xid', help='target transaction ID')
 @arg('--target-name',
      help=_('target name created previously with '
-          'pg_create_restore_point() function call'))
+            'pg_create_restore_point() function call'))
 @arg('--target-immediate',
      help=_('end recovery as soon as a consistent state is reached'),
      action='store_true',
@@ -356,10 +356,10 @@ def rebuild_xlogdb(args):
 @arg('--remote-ssh-command',
      metavar='SSH_COMMAND',
      help=_('This options activates remote recovery, by specifying the secure '
-          'shell command to be launched on a remote host. It is '
-          'the equivalent of the "ssh_command" server option in '
-          'the configuration file for remote recovery. '
-          'Example: "ssh postgres@db2"'))
+            'shell command to be launched on a remote host. It is '
+            'the equivalent of the "ssh_command" server option in '
+            'the configuration file for remote recovery. '
+            'Example: "ssh postgres@db2"'))
 @arg('backup_id',
      completer=backup_completer,
      help=_('specifies the backup ID to recover'))
@@ -398,10 +398,10 @@ def rebuild_xlogdb(args):
      default=SUPPRESS)
 @arg('--target-action',
      help=_('Specifies what action the server should take once the '
-          'recovery target is reached. This option is not allowed for '
-          'PostgreSQL < 9.1. If PostgreSQL is between 9.1 and 9.4 included '
-          'the only allowed value is "pause". If PostgreSQL is 9.5 or newer '
-          'the possible values are "shutdown", "pause", "promote".'),
+            'recovery target is reached. This option is not allowed for '
+            'PostgreSQL < 9.1. If PostgreSQL is between 9.1 and 9.4 included '
+            'the only allowed value is "pause". If PostgreSQL is 9.5 or newer '
+            'the possible values are "shutdown", "pause", "promote".'),
      dest='target_action',
      type=check_target_action,
      default=SUPPRESS)
@@ -410,7 +410,7 @@ def rebuild_xlogdb(args):
      action='store_true',
      default=SUPPRESS,
      help=_('Enable standby mode when starting '
-          'the recovered PostgreSQL instance'))
+            'the recovered PostgreSQL instance'))
 @expects_obj
 def recover(args):
     """
@@ -423,7 +423,7 @@ def recover(args):
     if backup_id.status != BackupInfo.DONE:
         output.error(
             _("Cannot recover from backup '%s' of server '%s': "
-            "backup status is not DONE"),
+              "backup status is not DONE"),
             args.backup_id, server.config.name)
         output.close_and_exit()
 
@@ -436,8 +436,8 @@ def recover(args):
             except ValueError:
                 output.error(
                     _("Invalid tablespace relocation rule '%s'\n"
-                    "HINT: The valid syntax for a relocation rule is "
-                    "NAME:LOCATION"), rule)
+                      "HINT: The valid syntax for a relocation rule is "
+                      "NAME:LOCATION"), rule)
                 output.close_and_exit()
 
     # validate the rules against the tablespace list
@@ -448,8 +448,8 @@ def recover(args):
     for item in tablespaces:
         if item not in valid_tablespaces:
             output.error(_("Invalid tablespace name '%s'\n"
-                         "HINT: Please use any of the following "
-                         "tablespaces: %s"),
+                           "HINT: Please use any of the following "
+                           "tablespaces: %s"),
                          item, ', '.join(valid_tablespaces))
             output.close_and_exit()
 
@@ -457,9 +457,9 @@ def recover(args):
     if ':' in args.destination_directory:
         output.error(
             _("The destination directory parameter "
-            "cannot contain the ':' character\n"
-            "HINT: If you want to do a remote recovery you have to use "
-            "the --remote-ssh-command option"))
+              "cannot contain the ':' character\n"
+              "HINT: If you want to do a remote recovery you have to use "
+              "the --remote-ssh-command option"))
         output.close_and_exit()
     if args.retry_sleep is not None:
         server.config.basebackup_retry_sleep = args.retry_sleep
@@ -496,9 +496,9 @@ def recover(args):
         if args.network_compression and args.remote_ssh_command is None:
             output.error(
                 _("Network compression can only be used with "
-                "remote recovery.\n"
-                "HINT: If you want to do a remote recovery "
-                "you have to use the --remote-ssh-command option"))
+                  "remote recovery.\n"
+                  "HINT: If you want to do a remote recovery "
+                  "you have to use the --remote-ssh-command option"))
             output.close_and_exit()
         server.config.network_compression = args.network_compression
 
@@ -526,7 +526,7 @@ def recover(args):
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help=_("specifies the server names to show "
-          "('all' will show all available servers)"))
+            "('all' will show all available servers)"))
 @expects_obj
 def show_server(args):
     """
@@ -570,7 +570,7 @@ def show_server(args):
      default=False)
 @arg('--archive-timeout',
      help=_('the time, in seconds, the archiver will wait for a new WAL file '
-          'to be archived before timing out'),
+            'to be archived before timing out'),
      metavar='TIMEOUT',
      default='30',
      type=check_non_negative)
@@ -603,7 +603,7 @@ def switch_xlog(args):
 @arg('server_name', nargs='+',
      completer=server_completer_all,
      help=_("specifies the server names to check "
-          "('all' will check all available servers)"))
+            "('all' will check all available servers)"))
 @arg('--nagios', help=_('Nagios plugin compatible output'), action='store_true')
 @expects_obj
 def check(args):
@@ -700,8 +700,8 @@ def list_files(args):
     except BadXlogSegmentName as e:
         output.error(
             _("invalid xlog segment name %r\n"
-            "HINT: Please run \"barman rebuild-xlogdb %s\" "
-            "to solve this issue"),
+              "HINT: Please run \"barman rebuild-xlogdb %s\" "
+              "to solve this issue"),
             str(e), server.config.name)
         output.close_and_exit()
 
@@ -736,7 +736,7 @@ def delete(args):
      help='the WAL file to get')
 @arg('--output-directory', '-o',
      help=_('put the retrieved WAL file in this directory '
-          'with the original name'),
+            'with the original name'),
      default=SUPPRESS)
 @arg('--gzip', '-z', '-x',
      help=_('compress the output with gzip'),
@@ -746,9 +746,9 @@ def delete(args):
      action='store_const', const='bzip2', dest='compression', default=SUPPRESS)
 @arg('--peek', '-p',
      help=_("peek from the WAL archive up to 'SIZE' WAL files, starting "
-          "from the requested one. 'SIZE' must be an integer >= 1. "
-          "When invoked with this option, get-wal returns a list of "
-          "zero to 'SIZE' WAL segment names, one per row."),
+            "from the requested one. 'SIZE' must be an integer >= 1. "
+            "When invoked with this option, get-wal returns a list of "
+            "zero to 'SIZE' WAL segment names, one per row."),
      metavar='SIZE',
      type=check_positive,
      default=SUPPRESS)
@@ -798,7 +798,7 @@ def archive_wal(args):
 @arg('--stop', help=_('stop the receive-wal subprocess for the server'),
      action='store_true')
 @arg('--reset', help=_('reset the status of receive-wal removing '
-                     'any status files'),
+                       'any status files'),
      action='store_true')
 @arg('--create-slot', help=_('create the replication slot, if it does not exist'),
      action='store_true')
@@ -1127,7 +1127,7 @@ def main():
                            % barman.__version__)
     p.add_argument('-c', '--config',
                    help=_('uses a configuration file '
-                        '(defaults: %s)')
+                          '(defaults: %s)')
                         % ', '.join(barman.config.Config.CONFIG_FILES),
                    default=SUPPRESS)
     p.add_argument('-q', '--quiet', help='be quiet', action='store_true')
@@ -1179,6 +1179,7 @@ if __name__ == '__main__':
     try:
         # noinspection PyUnresolvedReferences
         import mock
+
         sys.stdout = mock.Mock(wraps=sys.stdout)
         sys.stdout.isatty.return_value = True
         os.dup2(2, 8)

@@ -20,7 +20,7 @@ import os
 
 localedir = os.path.join(os.path.realpath(__file__ + '/../../share'), 'locale')
 
-if os.path.exists(localedir) == False:
+if not os.path.exists(localedir):
     localedir = '/usr/share/locale'
 
 build_mo = os.path.realpath(__file__ + '/../../build/mo/')
@@ -32,6 +32,7 @@ LANGUAGES = [
     # Add languages here
     ('es', 'Spanish'),
 ]
+
 
 class Trans:
     """
@@ -59,20 +60,23 @@ class Trans:
                 if code and code == lang:
                     break
             else:
-                lang ='en'
+                lang = 'en'
 
-        translation = gettext_module.translation('barman', localedir=localedir, 
+        translation = gettext_module.translation('barman', localedir=localedir,
                                                  languages=[lang], codeset='utf-8', fallback=True)
         setattr(self, attr, getattr(translation, attr))
         return getattr(translation, attr)
+
 
 _trans = Trans()
 
 # The Trans class is no more needed, so remove it from the namespace.
 del Trans
 
+
 def gettext(message):
     return _trans.gettext(message)
+
 
 ugettext = gettext
 
