@@ -1,0 +1,384 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Barman\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-05-11 02:30-0500\n"
+"PO-Revision-Date: \n"
+"Last-Translator: Daymel Bonne <daymelbonne@gmail.com>\n"
+"Language-Team: \n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: ../barman/cli.py:99 ../barman/cli.py:241 ../barman/cli.py:287
+msgid "machine readable output"
+msgstr ""
+
+#: ../barman/cli.py:118 ../barman/cli.py:630
+msgid " (inactive)"
+msgstr " (inactivo)"
+
+#: ../barman/cli.py:121 ../barman/cli.py:633
+msgid " (WARNING: disabled)"
+msgstr " (ADVERTENCIA: deshabilitado)"
+
+#: ../barman/cli.py:180
+msgid ""
+"specifies the server names for the backup command ('all' will show all "
+"available servers)"
+msgstr ""
+"especifica los nombres de servidor para el comando de copia de seguridad ('all' se mostrarán todos"
+"servidores disponibles)"
+
+#: ../barman/cli.py:183
+msgid "forces the initial checkpoint to be done as quickly as possible"
+msgstr "obliga a que el check point inicial se realice lo más rápido posible"
+
+#: ../barman/cli.py:188
+msgid "forces the initial checkpoint to be spreaded"
+msgstr "fuerza el punto de control inicial para ser propagado"
+
+#: ../barman/cli.py:195
+msgid ""
+"use the previous backup to improve transfer-rate. If no argument is given "
+"\"link\" is assumed"
+msgstr ""
+"use la copia de seguridad anterior para mejorar la velocidad de transferencia. Si no se da ningún argumento "
+"se asume \"enlace\""
+
+#: ../barman/cli.py:198 ../barman/cli.py:369
+msgid "Number of retries after an error if base backup copy fails."
+msgstr "Número de reintentos después de un error si la copia de seguridad base falla."
+
+#: ../barman/cli.py:201 ../barman/cli.py:372
+msgid "Wait time after a failed base backup copy, before retrying."
+msgstr "Tiempo de espera después de una copia de seguridad base fallida, antes de volver a intentarlo."
+
+#: ../barman/cli.py:203 ../barman/cli.py:374
+msgid "Disable base backup copy retry logic."
+msgstr "Desactivar la lógica de reintento de la copia de respaldo de la base"
+
+#: ../barman/cli.py:206 ../barman/cli.py:377
+msgid "Run the copy in parallel using NJOBS processes."
+msgstr "Ejecuta la copia en paralelo usando procesos NJOBS"
+
+#: ../barman/cli.py:239
+msgid ""
+"specifies the server name for the command ('all' will show all available "
+"servers)"
+msgstr ""
+"especifica el nombre del servidor para el comando ('all' mostrará todos los "
+"servidores disponibles)"
+
+#: ../barman/cli.py:263 ../barman/cli.py:286 ../barman/cli.py:317
+#: ../barman/cli.py:338 ../barman/cli.py:655 ../barman/cli.py:676
+#: ../barman/cli.py:711 ../barman/cli.py:734 ../barman/cli.py:782
+#: ../barman/cli.py:809
+msgid "especifica el nombre del servidor para el comando"
+msgstr ""
+
+#: ../barman/cli.py:290
+#, python-format
+msgid ""
+"\n"
+"         Possible values are: 'hot-standby' (only hot standby servers),\n"
+"         'wal-streamer' (only WAL streaming clients, such as "
+"pg_receivexlog),\n"
+"         'all' (any of them). Defaults to %(default)s"
+msgstr ""
+
+#: ../barman/cli.py:341
+msgid ""
+"target time. You can use any valid unambiguous representation. e.g: \"YYYY-"
+"MM-DD HH:MM:SS.mmm\""
+msgstr ""
+"tiempo objetivo. Puede usar cualquier representación inequívoca válida. Por ejemplo: \"YYYY-"
+"MM-DD HH:MM:SS.mmm\""
+
+#: ../barman/cli.py:345
+msgid ""
+"target name created previously with pg_create_restore_point() function call"
+msgstr "nombre de destino creado previamente con la llamada de función pg_create_restore_point ()"
+
+#: ../barman/cli.py:348
+msgid "end recovery as soon as a consistent state is reached"
+msgstr "recuperación final tan pronto como se alcanza un estado consistente"
+
+#: ../barman/cli.py:352
+msgid "set target xid to be non inclusive"
+msgstr "establecer el objetivo xid para que no sea inclusivo"
+
+#: ../barman/cli.py:354
+msgid "tablespace relocation rule"
+msgstr "Regla de reubicación del tablespace"
+
+#: ../barman/cli.py:358
+msgid ""
+"This options activates remote recovery, by specifying the secure shell "
+"command to be launched on a remote host. It is the equivalent of the "
+"\"ssh_command\" server option in the configuration file for remote recovery. "
+"Example: \"ssh postgres@db2\""
+msgstr ""
+
+#: ../barman/cli.py:365
+msgid "specifies the backup ID to recover"
+msgstr "especifica la ID de la copia de seguridad para recuperar"
+
+#: ../barman/cli.py:367
+msgid "the directory where the new server is created"
+msgstr "el directorio donde se crea el nuevo servidor"
+
+#: ../barman/cli.py:380
+msgid "Enable the get-wal option during the recovery."
+msgstr "Habilita la opción get-wal durante la recuperación."
+
+#: ../barman/cli.py:385
+msgid "Disable the get-wal option during recovery."
+msgstr "Desactiva la opción get-wal durante la recuperación."
+
+#: ../barman/cli.py:390
+msgid "Enable network compression during remote recovery."
+msgstr "Habilitar la compresión de red durante la recuperación remota."
+
+#: ../barman/cli.py:395
+msgid "Disable network compression during remote recovery."
+msgstr "Desactiva la compresión de red durante la recuperación remota."
+
+#: ../barman/cli.py:400
+msgid ""
+"Specifies what action the server should take once the recovery target is "
+"reached. This option is not allowed for PostgreSQL < 9.1. If PostgreSQL is "
+"between 9.1 and 9.4 included the only allowed value is \"pause\". If "
+"PostgreSQL is 9.5 or newer the possible values are \"shutdown\", \"pause\", "
+"\"promote\"."
+msgstr ""
+
+#: ../barman/cli.py:412
+msgid "Enable standby mode when starting the recovered PostgreSQL instance"
+msgstr "Habilitar el modo standby al iniciar la instancia de PostgreSQL recuperada"
+
+#: ../barman/cli.py:425
+#, python-format
+msgid ""
+"Cannot recover from backup '%s' of server '%s': backup status is not DONE"
+msgstr ""
+"No se puede recuperar de la copia de seguridad '%s' del servidor '%s': el estado "
+"de la copia de seguridad no es COMPLETADO"
+
+#: ../barman/cli.py:438
+#, python-format
+msgid ""
+"Invalid tablespace relocation rule '%s'\n"
+"HINT: The valid syntax for a relocation rule is NAME:LOCATION"
+msgstr ""
+"Sintaxis de reubicación del tablespace no válida '%s' \n"
+"SUGERENCIA: la sintaxis válida para una regla de reubicación es NAME: LOCATION"
+
+#: ../barman/cli.py:450
+#, python-format
+msgid ""
+"Invalid tablespace name '%s'\n"
+"HINT: Please use any of the following tablespaces: %s"
+msgstr ""
+"Nombre de espacio de tabla no válido '%s' \n"
+"SUGERENCIA: Por favor use alguno de los siguientes tablespaces: %s"
+
+#: ../barman/cli.py:459
+msgid ""
+"The destination directory parameter cannot contain the ':' character\n"
+"HINT: If you want to do a remote recovery you have to use the --remote-ssh-"
+"command option"
+msgstr ""
+"El parámetro del directorio de destino no puede contener el carácter ':' \n"
+"CONSEJO: Si quieres hacer una recuperación remota, tienes que usar la opción "
+"--remote-ssh-command"
+
+#: ../barman/cli.py:492
+msgid "You cannot specify multiple targets for the recovery operation"
+msgstr "No se pueden especificar objetivos múltiples para la operación de recuperación"
+
+#: ../barman/cli.py:498
+msgid ""
+"Network compression can only be used with remote recovery.\n"
+"HINT: If you want to do a remote recovery you have to use the --remote-ssh-"
+"command option"
+msgstr ""
+"La compresión de red solo se puede usar con recuperación remota. \n"
+"CONSEJO: Si quieres hacer una recuperación remota, tienes que usar la opción --remote-ssh-command"
+
+#: ../barman/cli.py:528
+msgid ""
+"specifies the server names to show ('all' will show all available servers)"
+msgstr "especifica los nombres de servidor para mostrar ('all' mostrará todos los servidores disponibles)"
+
+#: ../barman/cli.py:560
+msgid "specifies the server name target of the switch-wal command"
+msgstr "especifica el destino del nombre del servidor del comando switch-wal"
+
+#: ../barman/cli.py:562
+msgid "forces the switch of a WAL by executing a checkpoint before"
+msgstr "fuerza el cambio de un WAL ejecutando antes un checkpoint"
+
+#: ../barman/cli.py:567
+msgid "wait for one WAL file to be archived"
+msgstr "espera que se archive un archivo WAL"
+
+#: ../barman/cli.py:572
+msgid ""
+"the time, in seconds, the archiver will wait for a new WAL file to be "
+"archived before timing out"
+msgstr ""
+"el tiempo, en segundos, el archivador esperará a que aparezca un nuevo archivo WAL"
+"antes de agotar el tiempo de archivado"
+
+#: ../barman/cli.py:605
+msgid ""
+"specifies the server names to check ('all' will check all available servers)"
+msgstr "specifica los nombres de los servidores a verificar ('all' verificará todos los servidores disponibles)"
+
+#: ../barman/cli.py:607
+msgid "Nagios plugin compatible output"
+msgstr "Salida compatible con el plugin Nagios"
+
+#: ../barman/cli.py:658 ../barman/cli.py:679 ../barman/cli.py:714
+msgid "especifica la ID de la copia de seguridad"
+msgstr ""
+
+#: ../barman/cli.py:682
+#, python-format
+msgid ""
+"\n"
+"         Possible values are: data (just the data files), standalone\n"
+"         (base backup files, including required WAL files),\n"
+"         wal (just WAL files between the beginning of base\n"
+"         backup and the following one (if any) or the end of the log) and\n"
+"         full (same as data + wal). Defaults to %(default)s"
+msgstr ""
+
+#: ../barman/cli.py:702
+#, python-format
+msgid ""
+"invalid xlog segment name %r\n"
+"HINT: Please run \"barman rebuild-xlogdb %s\" to solve this issue"
+msgstr ""
+"nombre de segmento xlog inválido"
+"Sugerencia: Ejecute \"barman rebuild-xlogdb %s\" para resolver este problema"
+
+#: ../barman/cli.py:726
+#, python-format
+msgid "Cannot delete backup (%s %s)"
+msgstr "No se puede borrar la copia de seguridad (%s %s)"
+
+#: ../barman/cli.py:738
+msgid "put the retrieved WAL file in this directory with the original name"
+msgstr "poner el archivo WAL recuperado en este directorio con el nombre original"
+
+#: ../barman/cli.py:742
+msgid "compress the output with gzip"
+msgstr "comprime la salida con gzip"
+
+#: ../barman/cli.py:745
+msgid "compress the output with bzip2"
+msgstr "comprime la salida con bzip2"
+
+#: ../barman/cli.py:748
+msgid ""
+"peek from the WAL archive up to 'SIZE' WAL files, starting from the "
+"requested one. 'SIZE' must be an integer >= 1. When invoked with this "
+"option, get-wal returns a list of zero to 'SIZE' WAL segment names, one per "
+"row."
+msgstr ""
+
+#: ../barman/cli.py:798
+msgid "stop the receive-wal subprocess for the server"
+msgstr "detener el subproceso de recepción-wal para el servidor"
+
+#: ../barman/cli.py:800
+msgid "reset the status of receive-wal removing any status files"
+msgstr "restablecer el estado de wal de recepción eliminando cualquier archivo de estado"
+
+#: ../barman/cli.py:803
+msgid "create the replication slot, if it does not exist"
+msgstr "crea el replication slot, si no existe"
+
+#: ../barman/cli.py:805
+msgid "drop the replication slot, if it exists"
+msgstr "elimina el replication slot, si existe"
+
+#: ../barman/cli.py:819
+msgid "--stop and --reset options are not compatible"
+msgstr "las opciones --top y --reset no son compatibles"
+
+#: ../barman/cli.py:873
+#, python-format
+msgid "ERROR: please run barman as %r user"
+msgstr "ERROR: ejecuta barman como usuario %r"
+
+#: ../barman/cli.py:876
+#, python-format
+msgid "ERROR: the configured user %r does not exists"
+msgstr "ERROR: el usuario configurado %r no existe"
+
+#: ../barman/cli.py:885
+#, python-format
+msgid "unknown log_level in config file: %s"
+msgstr ""
+
+#: ../barman/cli.py:899
+#, python-format
+msgid "Initialised Barman version %s (config: %s, args: %s)"
+msgstr ""
+
+#: ../barman/cli.py:930
+msgid "You cannot use 'all' in a single server context"
+msgstr ""
+
+#: ../barman/cli.py:1018
+msgid "You cannot use 'all' with other server names"
+msgstr "No se puede usar 'all' con otros nombres de servidor"
+
+#: ../barman/cli.py:1033
+#, python-format
+msgid "Skipping inactive server '%s'"
+msgstr "Omitiendo el servidor inactivo '%s"
+
+#: ../barman/cli.py:1038
+#, python-format
+msgid "Skipping temporarily disabled server '%s'"
+msgstr "Omitiendo el servidor temporalmente desactivado '%s'"
+
+#: ../barman/cli.py:1072
+#, python-format
+msgid "Unknown server '%s'"
+msgstr "Servidor desconocido '%s'"
+
+#: ../barman/cli.py:1078
+#, python-format
+msgid "Inactive server: %s"
+msgstr "Servidor inactivo: %s"
+
+#: ../barman/cli.py:1129
+#, python-format
+msgid "uses a configuration file (defaults: %s)"
+msgstr "usa un archivo de configuración (por defecto: %s)"
+
+#: ../barman/cli.py:1165
+msgid "Process interrupted by user (KeyboardInterrupt)"
+msgstr "Proceso interrumpido por el usuario (KeyboardInterrupt)"
+
+#: ../barman/cli.py:1168
+#, python-format
+msgid ""
+"%s\n"
+"See log file for more details."
+msgstr ""
+"%s\n"
+"Ver el archivo de logs para más detalles"
