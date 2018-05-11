@@ -35,6 +35,9 @@ try:
 except ImportError:
     from distutils.core import setup
 
+import build_i18n
+import build_extra
+
 if sys.version_info < (2, 6):
     raise SystemExit('ERROR: Barman needs at least python 2.6 to work')
 
@@ -74,10 +77,15 @@ setup(
     url='http://www.pgbarman.org/',
     packages=['barman', ],
     scripts=['bin/barman', ],
+    cmdclass={
+        'build': build_extra.build_extra,
+        'build_i18n': build_i18n.build_i18n, 
+        'clean': build_extra.clean,
+    },
     data_files=[
         ('share/man/man1', ['doc/barman.1']),
         ('share/man/man5', ['doc/barman.5']),
-    ],
+    ] + build_i18n.polist(),
     license='GPL-3.0',
     description=__doc__.split("\n")[0],
     long_description="\n".join(__doc__.split("\n")[2:]),
