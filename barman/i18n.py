@@ -63,7 +63,9 @@ class Trans:
                 lang = 'en'
 
         translation = gettext_module.translation('barman', localedir=localedir,
-                                                 languages=[lang], codeset='utf-8', fallback=True)
+                                                 languages=[lang],
+                                                 codeset='utf-8',
+                                                 fallback=True)
         setattr(self, attr, getattr(translation, attr))
         return getattr(translation, attr)
 
