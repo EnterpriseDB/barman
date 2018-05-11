@@ -24,6 +24,7 @@ import barman.config
 from barman.cli import (check_target_action, get_server, get_server_list,
                         manage_server_command, recover)
 from barman.infofile import BackupInfo
+from barman.i18n import ugettext as _
 from barman.server import Server
 from testing_helpers import build_config_dictionary, build_config_from_dicts
 

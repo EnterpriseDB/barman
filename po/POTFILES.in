@@ -1,0 +1,26 @@
+[encoding: UTF-8]
+barman/hooks.py
+barman/wal_archiver.py
+barman/cli.py
+barman/server.py
+barman/infofile.py
+barman/lockfile.py
+barman/fs.py
+barman/compression.py
+barman/postgres.py
+barman/copy_controller.py
+barman/backup.py
+barman/diagnose.py
+barman/utils.py
+barman/backup_executor.py
+barman/__init__.py
+barman/xlog.py
+barman/config.py
+barman/retention_policies.py
+barman/remote_status.py
+barman/process.py
+barman/exceptions.py
+barman/output.py
+barman/recovery_executor.py
+barman/command_wrappers.py
+barman/version.py
