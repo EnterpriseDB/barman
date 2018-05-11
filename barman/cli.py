@@ -604,7 +604,8 @@ def switch_xlog(args):
      completer=server_completer_all,
      help=_("specifies the server names to check "
             "('all' will check all available servers)"))
-@arg('--nagios', help=_('Nagios plugin compatible output'), action='store_true')
+@arg('--nagios', help=_('Nagios plugin compatible output'),
+     action='store_true')
 @expects_obj
 def check(args):
     """
@@ -800,7 +801,8 @@ def archive_wal(args):
 @arg('--reset', help=_('reset the status of receive-wal removing '
                        'any status files'),
      action='store_true')
-@arg('--create-slot', help=_('create the replication slot, if it does not exist'),
+@arg('--create-slot',
+     help=_('create the replication slot, if it does not exist'),
      action='store_true')
 @arg('--drop-slot', help=_('drop the replication slot, if it exists'),
      action='store_true')
@@ -882,7 +884,8 @@ def global_config(args):
                       log_level or barman.config.DEFAULT_LOG_LEVEL,
                       config.log_format)
     if log_level is None:
-        _logger.warn(_('unknown log_level in config file: %s'), config.log_level)
+        _logger.warn(_('unknown log_level in config file: %s'),
+                     config.log_level)
 
     # configure output
     if args.format != output.DEFAULT_WRITER or args.quiet or args.debug:
@@ -1126,9 +1129,9 @@ def main():
                    version='%s\n\nBarman by 2ndQuadrant (www.2ndQuadrant.com)'
                            % barman.__version__)
     p.add_argument('-c', '--config',
-                   help=_('uses a configuration file '
-                          '(defaults: %s)')
-                        % ', '.join(barman.config.Config.CONFIG_FILES),
+                   help=_(
+                       'uses a configuration file (defaults: %s)'
+                   ) % ', '.join(barman.config.Config.CONFIG_FILES),
                    default=SUPPRESS)
     p.add_argument('-q', '--quiet', help='be quiet', action='store_true')
     p.add_argument('-d', '--debug', help='debug output', action='store_true')

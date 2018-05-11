@@ -66,7 +66,7 @@ if sys.version_info < (2, 7):
 
 barman = {}
 with open('barman/version.py', 'r') as fversion:
-    exec(fversion.read(), barman)
+    exec (fversion.read(), barman)
 
 setup(
     name='barman',
@@ -78,7 +78,7 @@ setup(
     scripts=['bin/barman', ],
     cmdclass={
         'build': build_extra,
-        'build_i18n': build_i18n, 
+        'build_i18n': build_i18n,
         'clean': clean,
     },
     data_files=[

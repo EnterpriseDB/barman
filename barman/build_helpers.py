@@ -73,7 +73,8 @@ WARNING: Intltool will use the values specified from the
 
         # Update po(t) files and print a report
         # We have to change the working dir to the po dir for intltool
-        cmd = ["intltool-update", (self.merge_po and "-r" or "-p"), "-g", DOMAIN]
+        cmd = ["intltool-update", (self.merge_po and "-r" or "-p"), "-g",
+               DOMAIN]
         wd = os.getcwd()
         os.chdir(PO_DIR)
         self.spawn(cmd)
@@ -89,7 +90,8 @@ WARNING: Intltool will use the values specified from the
                 os.makedirs(mo_dir)
             cmd = ["msgfmt", po_file, "-o", mo_file]
             po_mtime = os.path.getmtime(po_file)
-            mo_mtime = os.path.exists(mo_file) and os.path.getmtime(mo_file) or 0
+            mo_mtime = os.path.exists(mo_file) and os.path.getmtime(
+                mo_file) or 0
             if po_mtime > max_po_mtime:
                 max_po_mtime = po_mtime
             if po_mtime > mo_mtime:
