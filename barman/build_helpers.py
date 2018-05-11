@@ -125,8 +125,9 @@ class build_extra(_build.build):
 
     def finalize_options(self):
         def has_i18n(command):
-            return self.i18n == "True" or \
-                   ("build_i18n" in self.distribution.cmdclass and
+            return \
+                self.i18n == "True" or \
+                ("build_i18n" in self.distribution.cmdclass and
                     self.i18n != "False")
 
         _build.build.finalize_options(self)
