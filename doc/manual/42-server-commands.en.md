@@ -60,7 +60,7 @@ Barman allows users to request any _xlog_ file from its WAL archive
 through the `get-wal` command:
 
 ``` bash
-barman get-wal [-o OUTPUT_DIRECTORY] [-j|-x] <server_name> <wal_id>
+barman get-wal [-o OUTPUT_DIRECTORY][-j|-x] <server_name> <wal_id>
 ```
 
 If the requested WAL file is found in the server archive, the

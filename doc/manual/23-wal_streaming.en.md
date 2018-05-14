@@ -4,7 +4,7 @@ Barman can reduce the Recovery Point Objective (RPO) by allowing users
 to add continuous WAL streaming from a PostgreSQL server, on top of
 the standard `archive_command` strategy
 
-Barman relies on [`pg_receivewal`] [25], a utility that has been
+Barman relies on [`pg_receivewal`][25], a utility that has been
 available from PostgreSQL 9.2 which exploits the native streaming
 replication protocol and continuously receives transaction logs from a
 PostgreSQL server (master or standby).

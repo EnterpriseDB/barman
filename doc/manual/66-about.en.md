@@ -12,11 +12,11 @@ available as open source.
 
 For further information, please visit:
 
-- [Barman website] [11]
-- [Support section] [12]
-- [2ndQuadrant website] [13]
-- [Barman FAQs] [14]
-- [2ndQuadrant blog: Barman] [15]
+- [Barman website][11]
+- [Support section][12]
+- [2ndQuadrant website][13]
+- [Barman FAQs][14]
+- [2ndQuadrant blog: Barman][15]
 
 ## Contributing to Barman
 
@@ -69,20 +69,20 @@ Past contributors:
 
 ## Links
 
-- [check-barman] [16]: a Nagios plugin for Barman, written by Holger
+- [check-barman][16]: a Nagios plugin for Barman, written by Holger
   Hamann (MIT license)
-- [puppet-barman] [17]: Barman module for Puppet (GPL)
-- [Tutorial on "How To Back Up, Restore, and Migrate PostgreSQL Databases with Barman on CentOS 7"] [26], by Sadequl Hussain (available on DigitalOcean Community)
-- [BarmanAPI] [27]: RESTFul API for Barman, written by Mehmet Emin Karakaş (GPL)
+- [puppet-barman][17]: Barman module for Puppet (GPL)
+- [Tutorial on "How To Back Up, Restore, and Migrate PostgreSQL Databases with Barman on CentOS 7"][26], by Sadequl Hussain (available on DigitalOcean Community)
+- [BarmanAPI][27]: RESTFul API for Barman, written by Mehmet Emin Karakaş (GPL)
 
 ## License and Contributions
 
 Barman is the property of 2ndQuadrant Limited and its code is
 distributed under GNU General Public License 3.
 
-Copyright (C) 2011-2017 [2ndQuadrant Limited] [13].
+Copyright (C) 2011-2017 [2ndQuadrant Limited][13].
 
-Barman has been partially funded through [4CaaSt] [18], a research
+Barman has been partially funded through [4CaaSt][18], a research
 project funded by the European Commission's Seventh Framework
 programme.
 

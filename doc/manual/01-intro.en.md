@@ -19,8 +19,8 @@ broadly *business continuity*.
 
 Within business continuity, it is important to familiarise with two fundamental metrics, as defined by Wikipedia:
 
-- [**Recovery Point Objective (RPO)**] [rpo]: _"maximum targeted period in which data might be lost from an IT service due to a major incident"_
-- [**Recovery Time Objective (RTO)**] [rto]: _"the targeted duration of time and a service level within which a business process must be restored after a disaster (or disruption) in order to avoid unacceptable consequences associated with a break in business continuity"_
+- [**Recovery Point Objective (RPO)**][rpo]: _"maximum targeted period in which data might be lost from an IT service due to a major incident"_
+- [**Recovery Time Objective (RTO)**][rto]: _"the targeted duration of time and a service level within which a business process must be restored after a disaster (or disruption) in order to avoid unacceptable consequences associated with a break in business continuity"_
 
 
 In a few words, RPO represents the maximum amount of data you can afford to lose, while RTO represents the maximum down-time you can afford for your service.
@@ -28,7 +28,7 @@ In a few words, RPO represents the maximum amount of data you can afford to lose
 Understandably, we all want **RPO=0** (*"zero data loss"*) and **RTO=0** (*zero down-time*, utopia) - even if it is our grandmothers's recipe website.
 In reality, a careful cost analysis phase allows you to determine your business continuity requirements.
 
-Fortunately, with an open source stack composed of **Barman** and **PostgreSQL**, you can achieve RPO=0 thanks to synchronous streaming replication. RTO is more the focus of a *High Availability* solution, like [**repmgr**] [repmgr]. Therefore, by integrating Barman and repmgr, you can dramatically reduce RTO to nearly zero.
+Fortunately, with an open source stack composed of **Barman** and **PostgreSQL**, you can achieve RPO=0 thanks to synchronous streaming replication. RTO is more the focus of a *High Availability* solution, like [**repmgr**][repmgr]. Therefore, by integrating Barman and repmgr, you can dramatically reduce RTO to nearly zero.
 
 Based on our experience at 2ndQuadrant, we can confirm that PostgreSQL open source clusters with Barman and repmgr can easily achieve more than 99.99% uptime over a year, if properly configured and monitored.
 

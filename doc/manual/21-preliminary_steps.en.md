@@ -25,14 +25,14 @@ postgres@pg$ createuser -s -P barman
 > **IMPORTANT:** The above command will prompt for a password,
 > which you are then advised to add to the `~barman/.pgpass` file
 > on the `backup` server. For further information, please refer to
-> ["The Password File" section in the PostgreSQL Documentation] [pgpass].
+> ["The Password File" section in the PostgreSQL Documentation][pgpass].
 
 This connection is required by Barman in order to coordinate its
 activities with the server, as well as for monitoring purposes.
 
 You can choose your favourite client authentication method among those
 offered by PostgreSQL. More information can be found in the
-["Client Authentication" section of the PostgreSQL Documentation] [pghba].
+["Client Authentication" section of the PostgreSQL Documentation][pghba].
 
 Make sure you test the following command before proceeding:
 
@@ -61,9 +61,9 @@ to accept streaming replication connections from the Barman
 server. Please read the following sections in the PostgreSQL
 documentation:
 
-- [Role attributes] [roles]
-- [The pg_hba.conf file] [authpghba]
-- [Setting up standby servers using streaming replication] [streamprot]
+- [Role attributes][roles]
+- [The pg_hba.conf file][authpghba]
+- [Setting up standby servers using streaming replication][streamprot]
 
 
 One configuration parameter that is crucially important is the
@@ -94,7 +94,7 @@ postgres@pg$ createuser -P --replication streaming_barman
 > **IMPORTANT:** The above command will prompt for a password,
 > which you are then advised to add to the `~barman/.pgpass` file
 > on the `backup` server. For further information, please refer to
-> ["The Password File" section in the PostgreSQL Documentation] [pgpass].
+> ["The Password File" section in the PostgreSQL Documentation][pgpass].
 
 You can manually verify that the streaming connection works through
 the following command:

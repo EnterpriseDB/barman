@@ -17,7 +17,7 @@
 > **IMPORTANT:**
 > Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
 > required to install the
-> [Extra Packages Enterprise Linux (EPEL) repository] [epel].
+> [Extra Packages Enterprise Linux (EPEL) repository][epel].
 
 > **NOTE:**
 > Python 3 support is experimental. Report any bug through
@@ -38,7 +38,7 @@ locally (where Barman resides) or remotely (on a separate server).
 Remote recovery is definitely the most common way to restore a PostgreSQL
 server with Barman.
 
-Either way, the same [requirements for PostgreSQL's Log shipping and Point-In-Time-Recovery apply] [requirements_recovery]:
+Either way, the same [requirements for PostgreSQL's Log shipping and Point-In-Time-Recovery apply][requirements_recovery]:
 
 - identical hardware architecture
 - identical major version of PostgreSQL

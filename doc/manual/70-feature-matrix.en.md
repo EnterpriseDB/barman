@@ -27,7 +27,7 @@ b) WAL streaming-only not supported (standard archiving required)
 c) Backup of tablespaces not supported
 d) When using `pg_receivexlog` 9.5, minor version 9.5.5 or higher required [^commitsync]
 
-  [^commitsync]: The commit ["Fix pg_receivexlog --synchronous"] [49340627f9821e447f135455d942f7d5e96cae6d] is required (included in version 9.5.5)
+  [^commitsync]: The commit ["Fix pg_receivexlog --synchronous"][49340627f9821e447f135455d942f7d5e96cae6d] is required (included in version 9.5.5)
 
 It is required by Barman that `pg_basebackup` and `pg_receivewal`/`pg_receivexlog` of the same version of the PostgreSQL server (or higher) are installed on the same server where Barman resides. The only exception is that PostgreSQL 9.2 users are required to install version 9.2 of `pg_basebackup` and `pg_receivexlog` alongside with Barman.
 

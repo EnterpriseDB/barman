@@ -13,13 +13,13 @@ RPM packages. It is required to install the Extra Packages Enterprise
 Linux (EPEL) repository beforehand.
 
 Official RPM packages for Barman are distributed by 2ndQuadrant
-via Yum through [2ndQuadrant Public RPM repository] [2ndqrpmrepo].
+via Yum through [2ndQuadrant Public RPM repository][2ndqrpmrepo].
 
 Alternatively, RPM packages for Barman are also available via Yum through the
-[PostgreSQL Global Development Group RPM repository] [yumpgdg].
+[PostgreSQL Global Development Group RPM repository][yumpgdg].
 You need to follow the instructions for your distribution (for example RedHat,
 CentOS, or Fedora) and architecture as detailed at
-[yum.postgresql.org] [yumpgdg].
+[yum.postgresql.org][yumpgdg].
 
 Then, as `root` simply type:
 
@@ -28,7 +28,7 @@ yum install barman
 ```
 
 2ndQuadrant also maintains RPM packages for Barman and distributes
-them through [Sourceforge.net] [3].
+them through [Sourceforge.net][3].
 
 ## Installation on Debian/Ubuntu using packages
 
@@ -38,9 +38,9 @@ packages.
 It is directly available in the official repository for Debian and Ubuntu, however, these repositories might not contain the latest available version.
 If you want to have the latest version of Barman, the recommended method is to install it through either:
 
-* [2ndQuadrant Public APT repository] [2ndqdebrepo], directly maintained by
+* [2ndQuadrant Public APT repository][2ndqdebrepo], directly maintained by
   Barman developers
-* the [PostgreSQL Community APT repository] [aptpgdg], by following instructions in the [APT section of the PostgreSQL Wiki] [aptpgdgwiki]
+* the [PostgreSQL Community APT repository][aptpgdg], by following instructions in the [APT section of the PostgreSQL Wiki][aptpgdgwiki]
 
 > **NOTE:**
 > Thanks to the direct involvement of Barman developers in the
@@ -79,9 +79,9 @@ For a local installation, type:
 barman@backup$ ./setup.py install --user
 ```
 
-The `barman` application will be installed in your user directory ([make sure that your `PATH` environment variable is set properly] [setup_user]).
+The `barman` application will be installed in your user directory ([make sure that your `PATH` environment variable is set properly][setup_user]).
 
-[Barman is also available on the Python Package Index (PyPI)] [pypi] and can be installed through `pip`.
+[Barman is also available on the Python Package Index (PyPI)][pypi] and can be installed through `pip`.
 
 ## Upgrading from Barman 1.X
 

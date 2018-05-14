@@ -8,12 +8,12 @@ with PostgreSQL and the concepts around physical backups, Point-In-Time-Recovery
 Below you can find a non exhaustive list of resources that we recommend for you to read:
 
 - _PostgreSQL documentation_:
-    - [SQL Dump] [sqldump] [^pgdump]
-    - [File System Level Backup] [physicalbackup]
-    - [Continuous Archiving and Point-in-Time Recovery (PITR)] [pitr]
-    - [Recovery Configuration] [recoveryconfig]
-    - [Reliability and the Write-Ahead Log] [wal]
-- _Book_: [PostgreSQL 9 Administration Cookbook - 2nd edition] [adminbook]
+    - [SQL Dump][sqldump][^pgdump]
+    - [File System Level Backup][physicalbackup]
+    - [Continuous Archiving and Point-in-Time Recovery (PITR)][pitr]
+    - [Recovery Configuration][recoveryconfig]
+    - [Reliability and the Write-Ahead Log][wal]
+- _Book_: [PostgreSQL 9 Administration Cookbook - 2nd edition][adminbook]
 
   [^pgdump]: It is important that you know the difference between logical and physical backup, therefore between `pg_dump` and a tool like Barman.
 

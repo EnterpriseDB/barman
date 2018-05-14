@@ -30,7 +30,7 @@ The main goals of incremental backups in Barman are:
 - Reduce the disk space occupied by several periodic backups (**data
   deduplication**)
 
-This feature heavily relies on `rsync` and [hard links] [8], which
+This feature heavily relies on `rsync` and [hard links][8], which
 must therefore be supported by both the underlying operating system
 and the file system where the backup data resides.
 
@@ -142,7 +142,7 @@ a standby server**, using `rsync`.
 > 9.2, 9.3, 9.4, and 9.5 to install the `pgespresso` open source
 > extension on every PostgreSQL server of the cluster. For more
 > detailed information and the source code, please visit the
-> [pgespresso extension website] [9].  Barman supports the new API
+> [pgespresso extension website][9].  Barman supports the new API
 > introduced in PostgreSQL 9.6. This removes the requirement of the
 > `pgespresso` extension to perform concurrent backups from this
 > version of PostgreSQL.
@@ -653,7 +653,7 @@ By default the `path_prefix` option is empty.
 
 Barman has been designed for integration with standby servers (with
 streaming replication or traditional file based log shipping) and high
-availability tools like [repmgr] [repmgr].
+availability tools like [repmgr][repmgr].
 
 From an architectural point of view, PostgreSQL must be configured to
 archive WAL files directly to the Barman server.
