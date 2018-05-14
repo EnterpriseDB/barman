@@ -1,6 +1,63 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2018 2ndQuadrant Limited
 
+Version 2.4 - 25 May 2018
+
+-   Add standard and retry hook scripts for backup deletion (pre/post)
+
+-   Add standard and retry hook scripts for recovery (pre/post)
+
+-   Add standard and retry hook scripts for WAL deletion (pre/post)
+
+-   Add --standby-mode option to barman recover to add standby_mode = on
+    in pre-generated recovery.conf
+
+-   Add --target-action option to barman recover, allowing users to add
+    shutdown, pause or promote to the pre-generated recovery.conf file
+
+-   Improve usability of point-in-time recovery with consistency checks
+    (e.g. recovery time is after end time of backup)
+
+-   Minor documentation improvements
+
+-   Drop support for Python 3.3
+
+Relevant bug fixes:
+
+-   Fix remote get_file_content method (Github #151), preventing
+    incremental recovery from happening
+
+-   Unicode issues with command (Github #143 and #150)
+
+-   Add --wal-method=none when pg_basebackup >= 10 (Github #133)
+
+Minor bug fixes:
+
+-   Stop process manager module from ovewriting lock files content
+
+-   Relax the rules for rsync output parsing
+
+-   Ignore vanished files in streaming directory
+
+-   Case insensitive slot names (Github #170)
+
+-   Make DataTransferFailure.from_command_error() more resilient
+    (Github #86)
+
+-   Rename command() to barman_command() (Github #118)
+
+-   Initialise synchronous standby names list if not set (Github #111)
+
+-   Correct placeholders ordering (GitHub #138)
+
+-   Force datestyle to iso for replication connections
+
+-   Returns error if delete command does not remove the backup
+
+-   Fix exception when calling is_power_of_two(None)
+
+-   Downgraded sync standby names messages to debug (Github #89)
+
 Version 2.3 - 5 Sep 2017
 
 -   Add support to PostgreSQL 10
