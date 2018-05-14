@@ -12,7 +12,10 @@ Barman can be installed on RHEL7, RHEL6 and RHEL5 Linux systems using
 RPM packages. It is required to install the Extra Packages Enterprise
 Linux (EPEL) repository beforehand.
 
-RPM packages for Barman are available via Yum through the
+Official RPM packages for Barman are distributed by 2ndQuadrant
+via Yum through [2ndQuadrant Public RPM repository] [2ndqrpmrepo].
+
+Alternatively, RPM packages for Barman are also available via Yum through the
 [PostgreSQL Global Development Group RPM repository] [yumpgdg].
 You need to follow the instructions for your distribution (for example RedHat,
 CentOS, or Fedora) and architecture as detailed at
@@ -33,8 +36,11 @@ Barman can be installed on Debian and Ubuntu Linux systems using
 packages.
 
 It is directly available in the official repository for Debian and Ubuntu, however, these repositories might not contain the latest available version.
-If you want to have the latest version of Barman, the recommended method is to install it through the [PostgreSQL Community APT repository] [aptpgdg].
-Instructions can be found in the [APT section of the PostgreSQL Wiki] [aptpgdgwiki].
+If you want to have the latest version of Barman, the recommended method is to install it through either:
+
+* [2ndQuadrant Public APT repository] [2ndqdebrepo], directly maintained by
+  Barman developers
+* the [PostgreSQL Community APT repository] [aptpgdg], by following instructions in the [APT section of the PostgreSQL Wiki] [aptpgdgwiki]
 
 > **NOTE:**
 > Thanks to the direct involvement of Barman developers in the
