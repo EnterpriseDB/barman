@@ -550,7 +550,8 @@ class FileWalArchiver(WalArchiver):
         """
         Set additional status info - invoked by Server.status()
         """
-        remote_status = self.get_remote_status()
+        # We need to get full info here from the server
+        remote_status = self.server.get_remote_status()
 
         # If archive_mode is None, there are issues connecting to PostgreSQL
         if remote_status['archive_mode'] is None:
