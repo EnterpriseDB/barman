@@ -1,3 +1,306 @@
+2018-05-18  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2018-05-15  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix invalid "Last Archived WAL" for Postgres < 9.4
+	Closes #110 #113
+
+2018-05-14  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fix links syntax for Markdown in documentation
+
+	Add 2ndQuadrant public repositories info
+
+	Prepared release notes for 2.4 with tentative release date
+
+2018-05-11  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Downgraded sync standby names messages to debug
+	Fixes #89
+
+2018-05-10  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Ensure CommandWrapper has an unicode output
+	Depending on the version of Python and on the usage, the CommandWrapper
+	was collecting the output of the wrapper command as a byte string or as
+	an unicode string.
+
+	This patch makes the `out` and the `err` properties of the
+	CommandWrapper be always an unicode string.
+
+	Closes #150
+	Closes #143
+
+2018-05-09  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Treat slot names as lowercase
+	PostgreSQL replication slot names can contain only lowercase letters,
+	numbers and the underscore character.
+
+	This patch makes Barman treating the slot names as lowercase and
+	reporting configuration errors when invalid characters (beside uppercase
+	letters) are used.
+
+	Closes: #170
+
+2018-05-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improve usability of point-in-time recovery
+	Add a check to stop the recovery immediately if the recovery time is
+	before the backup end time.
+
+	If the timezone is not specified, the target recovery time is
+	interpreted according to the Barman server timezone. This is a
+	behavior change, because previously the specified time was simply
+	passed to PostgreSQL and thus interpreted according the PostgreSQL
+	settings.
+
+2018-05-10  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Fix target_action handling when not specified
+
+2018-05-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make DataTransferFailure.from_command_error() more resilient
+	Closes: #86
+
+2018-05-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Remove workaround for gforcada/flake8-isort#9
+
+	Fix remote get_file_content method
+	Recover was always failing to pull .barman-recover.info because of a
+	typo in remote get_file_content method.
+
+	Closes: #151
+
+2018-05-09  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Ensure item_class is specified for resources to copy
+	Add an assertion to the RsyncCopyController item preventing the code to
+	create items without item_class set.
+
+2018-05-08  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Suggest stricter `archive_command` in documentation
+	Add an example of stricter `archive_command` that checks that
+	it is executed only on a specific server. Suggested by
+	Florent Xicluna (https://github.com/florentx)
+
+	Closes #11
+
+2018-05-08  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Add '--standby-mode' option to barman recover
+	This option is only available for PostgreSQL older than 9.0 and will
+	make 'barman recover' generate the recovery.conf file even if the
+	get-wal and PITR are not active.
+
+2018-01-12  Todd Seidelmann  <seidelma@wharton.upenn.edu>
+
+	Add hook script for recovery
+	The list of new hook scripts is:
+
+	* pre_recovery_script
+	* pre_recovery_retry_script
+	* post_recovery_retry_script
+	* post_recovery_script
+
+	Closes GitHub #137
+
+2018-05-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add hook script for wal deletion
+	The list of new hook scripts is:
+
+	* pre_wal_delete_script
+	* pre_wal_delete_retry_script
+	* post_wal_delete_retry_script
+	* post_wal_delete_script
+
+2018-05-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add hook script for delete command
+	The list of new hook scripts is:
+
+	* pre_delete_script
+	* pre_delete_retry_script
+	* post_delete_retry_script
+	* post_delete_script
+
+2018-05-08  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Add '--target-action' option to barman recover
+	The option is only active when Barman creates a recovery.conf suitable
+	for PITR. Possible values are:
+
+	- None (default, for back portability)
+	- shutdown (for PostgreSQL 9.5+)
+	- pause (for PostgreSQL 9.1+)
+	- promote (for PostgreSQL 9.5+)
+
+2017-08-06  Reto Zingg  <g.d0b3rm4n@gmail.com>
+
+	rename command() to barman_command()
+	Fixes #118
+
+2017-07-22  Matthew Hawn  <steamraven@yahoo.com>
+
+	Initialise synchronous standby names list if not set
+	Fixes #111
+
+2018-05-07  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Documentation: add limitations about .partial files and recovery
+	Closes Github #79
+
+	Documentation: remind that recovery requires a shutdown Postgres
+	Closes GitHub #96
+
+2018-01-15  Feike Steenbergen  <feike.steenbergen@adyen.com>
+
+	Correct placeholders ordering
+	The number of backups on disk and the configured redundancy
+	were reported in the wrong order, causing some confusion.
+
+	Closes GitHub #138
+
+2017-06-28  Ian Barwick  <ian@2ndquadrant.com>
+
+	Add recovery completed message
+
+2016-10-21  Christoph Moench-Tegeder  <christoph@2ndquadrant.de>
+
+	force the datestyle to iso for replication connections
+	this works around a bug in some psycopg2 versions
+
+2018-05-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Drop support for Python 3.3
+	Python 3.3 is EOL since 2017-09-29.
+
+2018-05-04  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix 2.6 compatibility
+	Fix version of pyton-dateutils to version < 2.7.0, as more recent
+	versions dropped support for py 2.6
+
+2018-05-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fix misleading message about PITR when having just `get-wal`
+
+	Returns error if `delete` command does not remove the backup
+
+2018-03-18  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improve max_wal_senders documentation
+
+2018-03-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Enable more flake8 tests and update the copyright year
+
+2018-02-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Better way to pin wheel package to support testing on python 2.6
+	Using setup_requires instead of install_requires we avoid depending
+	on wheel at runtime
+
+2018-02-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix missing documentation in MANIFEST.in
+
+2017-12-19  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improve documentation for pg_receivewal/pg_receivexlog
+
+2018-02-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Pin wheel package on python 2.6 to avoid build failures
+
+	Fix error reported by latest version of flake8-isort
+
+2018-02-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Split manpages generation code to ease the management.
+	With this patch we also support using pandoc 2.x to generate the
+	documentation.
+
+2018-01-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Ignore vanished files in streaming directory
+	A file could get renamed by pg_receivewal while Barman
+	reads the content of the streaming directory, resulting in an error
+	message in the logs. With this patch, Barman stops treating it as an
+	error, and ignores it instead.
+
+2018-01-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Disable minimal tox env in travis-ci
+	The minimal tox env requires psycopg2==2.4.2, but that version does
+	not compile anymore in the travis-ci environment because it does not
+	understand the libpq version returned by PostgreSQL 10.
+
+2017-12-12  Jonathan Battiato  <jonathan.battiato@2ndquadrant.it>
+
+	Fix exception when calling is_power_of_two(None)
+	The function `is_power_of_two(number)` must return None
+	if the `number` argument is None, instead of
+	printing a Traceback.
+
+2017-12-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Safer handling of types in FieldListFile class
+
+2017-11-29  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Require pytest < 3.3.0 as we are still support Python 2.6
+
+2017-11-29  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add '--wal-method=none' when pg_basebackup >= 10
+	Fixes #133
+
+2017-10-03  Flavio Curella  <flavio.curella@gmail.com>
+
+	fix typo in hooks docs
+
+2017-11-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Stop process manager module from ovewriting lock files content
+	Previously a bug in the process manager code was writing its own PID
+	in all the existing lock files which didn't have an owner.
+
+	Due to a bug, the content of all the lock files without owner
+	was overwritten with the PID of every barman command interacting with
+	a server object.
+
+	Because of this barman cron was wrongly identifying other commands
+	as a running `receive-wal` process and then terminating them.
+
+	The code has now changed to avoid modifying the content of the lock
+	file when accessed by the process manager.
+
+2017-10-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix some stylistic issues raised by flake8
+
+2017-10-18  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add Postgres 10 to feature matrix (docs)
+
+2017-09-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Relax the rules for rsync output parsing
+	In rare cases the rsync error message about vanished files is emitted
+	from the receiver process instead of from the generator.
+	Furthermore recent versions of rsync have changed the capitalization
+	of error messages, so the regular expression Barman uses to parse the
+	output has been generalized and made case insensitive.
+
+	Set version to 2.4a1
+
 2017-09-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
