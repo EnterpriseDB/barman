@@ -103,7 +103,7 @@ setup(
     tests_require=[
         'mock',
         'pytest-catchlog>=1.2.1',
-        'pytest-timeout',
+        'pytest-timeout<1.2.1',  # pytest-timeout removed 2.6 support in 1.2.1
         'pytest<3.3.0',  # pytest has dropped 2.6 support in 3.3.0
     ],
 )
