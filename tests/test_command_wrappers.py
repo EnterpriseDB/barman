@@ -26,10 +26,10 @@ import mock
 import pytest
 
 from barman import command_wrappers
-from barman.command_wrappers import (PgReceiveXlog, StreamLineProcessor, _str,
+from barman.command_wrappers import (PgReceiveXlog, StreamLineProcessor,
                                      full_command_quote, shell_quote)
 from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
-from testing_helpers import b, u
+from testing_helpers import u
 
 
 def _mock_pipe(popen, pipe_processor_loop, ret=0, out='', err=''):
@@ -67,6 +67,29 @@ class TestCommand(object):
         ret = 0
         out = 'out'
         err = 'err'
+
+        pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
+
+        cmd = command_wrappers.Command(command)
+        result = cmd()
+
+        popen.assert_called_with(
+            [command], shell=False, env=None,
+            stdout=PIPE, stderr=PIPE, stdin=PIPE,
+            preexec_fn=mock.ANY, close_fds=True
+        )
+        assert not pipe.stdin.write.called
+        pipe.stdin.close.assert_called_once_with()
+        assert result == ret
+        assert cmd.ret == ret
+        assert cmd.out == out
+        assert cmd.err == err
+
+    def test_simple_encoding(self, popen, pipe_processor_loop):
+        command = 'command'
+        ret = 0
+        out = u('\xe2\x98\xae\xe2\x82\xac\xc3\xa8\xc3\xa9')
+        err = u('\xc2\xaf\\_(\xe3\x83\x84)_/\xc2\xaf')
 
         pipe = _mock_pipe(popen, pipe_processor_loop, ret, out, err)
 
@@ -1295,9 +1318,3 @@ def test_full_command_quote():
     assert "safe" == full_command_quote('safe', [])
     assert "a command 'with' 'unsafe '\\''argument'\\'''" == \
            full_command_quote("a command", ["with", "unsafe 'argument'"])
-
-
-def test_str():
-    assert _str(b('bytestring')) == u('bytestring')
-    assert _str(u('bytestring')) == u('bytestring')
-    assert _str('bytestring') == u('bytestring')
