@@ -172,14 +172,38 @@ streaming replicated standby server.
 > above)[^CONCURRENT_ARCHIVING].
 
 [^CONCURRENT_ARCHIVING]:
-  In case of a concurrent backup, currently Barman has no way
-  to determine that the closing WAL file of a full backup has
-  actually been shipped - opposite of an exclusive backup
+  In case of a concurrent backup, Barman is currently unable
+  to force the shipping of the closing WAL file of a full backup
+  - opposite of an exclusive backup
   where PostgreSQL itself makes sure that the WAL file is correctly
-  archived. Be aware that the full backup cannot be considered
+  archived before considering the backup complete.
+  Be aware that the full backup cannot be considered
   consistent until that WAL file has been received and archived by
   Barman.
 
+> **NOTE:**
+> When backups are taken from a standby server, PostgreSQL does not
+> switch to a new WAL file at the end of the backup.
+> If, in addition, there is very little write activity on the primary
+> server, and retention policies are defined, then the last archived
+> WAL file could be deleted while the next one is still being written.
+> At this point `barman check` will note that there are no archived
+> WAL files, and will start failing, preventing further backups until
+> a new WAL file is archived.
+> This scenario is quite unlikely, as it requires no WAL file switches
+> since the start of the oldest backup preserved by the retention
+> policy.
+> Nevertheless, it can be prevented using the `archive_timeout`
+> parameter to force a WAL file switch[^CHECKPOINT_TIMEOUT], for
+> instance by setting it to a value that ensures at least one switch
+> after the start of the oldest valid backup.
+
+[^CHECKPOINT_TIMEOUT]:
+  `archive_timeout` will only switch to the next WAL file if there has
+  been some write activity since the previous WAL file switch. This is
+  not a problem: even on an entirely idle system, a checkpoint record
+  will be written according to `checkpoint_timeout`, whose default
+  value is 24 hours on recent PostgreSQL versions.
 
 ## Archiving features
 ### WAL compression
