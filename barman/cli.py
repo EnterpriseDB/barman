@@ -419,7 +419,7 @@ def recover(args):
 
     # Retrieves the backup
     backup_id = parse_backup_id(server, args)
-    if backup_id.status != BackupInfo.DONE:
+    if backup_id.status not in BackupInfo.STATUS_COPY_DONE:
         output.error(
             "Cannot recover from backup '%s' of server '%s': "
             "backup status is not DONE",
@@ -832,6 +832,32 @@ def receive_wal(args):
     output.close_and_exit()
 
 
+@named('check-backup')
+@arg('server_name',
+     completer=server_completer,
+     help='specifies the server name for the command')
+@arg('backup_id',
+     completer=backup_completer,
+     help='specifies the backup ID')
+@expects_obj
+def check_backup(args):
+    """
+    Make sure that all the required WAL files to check
+    the consistency of a physical backup (that is, from the
+    beginning to the end of the full backup) are correctly
+    archived. This command is automatically invoked by the
+    cron command and at the end of every backup operation.
+    """
+    server = get_server(args)
+
+    # Retrieves the backup
+    backup_info = parse_backup_id(server, args)
+
+    with closing(server):
+        server.check_backup(backup_info)
+    output.close_and_exit()
+
+
 def pretty_args(args):
     """
     Prettify the given argh namespace to be human readable
@@ -1139,6 +1165,7 @@ def main():
             archive_wal,
             backup,
             check,
+            check_backup,
             cron,
             delete,
             diagnose,

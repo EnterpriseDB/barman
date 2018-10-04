@@ -287,3 +287,18 @@ class ServerWalReceiveLock(LockFile):
         super(ServerWalReceiveLock, self).__init__(
             os.path.join(lock_directory, '.%s-receive-wal.lock' % server_name),
             raise_if_fail=True, wait=False)
+
+
+class ServerBackupIdLock(LockFile):
+    """
+    This lock protects from changing a backup that is in use.
+
+    Creates a '.<SERVER>-<BACKUP_ID>.lock' lock file under the given
+    lock_directory for a BACKUP of a SERVER.
+    """
+
+    def __init__(self, lock_directory, server_name, backup_id):
+        super(ServerBackupIdLock, self).__init__(
+            os.path.join(lock_directory, '.%s-%s.lock' % (
+                server_name, backup_id)),
+            raise_if_fail=True, wait=False)

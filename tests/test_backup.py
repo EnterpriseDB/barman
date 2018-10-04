@@ -103,15 +103,19 @@ class TestBackup(object):
         backup_manager.executor.start_backup = Mock(
             side_effect=Exception('abc'))
         # invoke backup method
-        backup_manager.backup()
+        result = backup_manager.backup()
         # verify that mock status is FAILED
         assert mock.call.set_attribute(
             'status', 'FAILED') in instance.mock_calls
+        # verify that a backup info has been returned
+        assert result is not None
         # Instruct the patched method to raise a KeyboardInterrupt
         backup_manager.executor.start_backup = Mock(
             side_effect=KeyboardInterrupt())
         # invoke backup method
-        backup_manager.backup()
+        result = backup_manager.backup()
+        # verify that a backup info has been returned
+        assert result is not None
         # verify that mock status is FAILED
         assert mock.call.set_attribute(
             'status', 'FAILED') in instance.mock_calls

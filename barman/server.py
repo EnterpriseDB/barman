@@ -48,9 +48,9 @@ from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
                                PostgresUnsupportedFeature, TimeoutError,
                                UnknownBackupIdException)
 from barman.infofile import BackupInfo, WalFileInfo
-from barman.lockfile import (ServerBackupLock, ServerCronLock,
-                             ServerWalArchiveLock, ServerWalReceiveLock,
-                             ServerXLOGDBLock)
+from barman.lockfile import (ServerBackupIdLock, ServerBackupLock,
+                             ServerCronLock, ServerWalArchiveLock,
+                             ServerWalReceiveLock, ServerXLOGDBLock)
 from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
@@ -932,7 +932,6 @@ class Server(RemoteStatusMixin):
             server_backup_lock.acquire(server_backup_lock.raise_if_fail,
                                        server_backup_lock.wait)
             server_backup_lock.release()
-            return self.backup_manager.delete_backup(backup)
 
         except LockFileBusy:
             # Otherwise if the lockfile is busy, a backup process is actually
@@ -948,13 +947,46 @@ class Server(RemoteStatusMixin):
                                           BackupInfo.EMPTY):
                 output.error("Cannot delete a running backup (%s %s)"
                              % (self.config.name, backup.backup_id))
-            else:
-                return self.backup_manager.delete_backup(backup)
+                return
 
         except LockFilePermissionDenied as e:
             # We cannot access the lockfile.
             # Exit without removing the backup.
             output.error("Permission denied, unable to access '%s'" % e)
+            return
+
+        try:
+            # Take care of the backup lock.
+            # Only one process can modify a backup at a time
+            lock = ServerBackupIdLock(self.config.barman_lock_directory,
+                                      self.config.name,
+                                      backup.backup_id)
+            with lock:
+                deleted = self.backup_manager.delete_backup(backup)
+
+            # At this point no-one should try locking a backup that
+            # doesn't exists, so we can remove the lock
+            # WARNING: the previous statement is true only as long as
+            # no-one wait on this lock
+            if deleted:
+                os.remove(lock.filename)
+
+            return deleted
+
+        except LockFileBusy:
+            # If another process is holding the backup lock,
+            # warn the user and terminate
+            output.error(
+                "Another process is holding the lock for "
+                "backup %s of server %s." % (
+                    backup.backup_id, self.config.name))
+            return
+
+        except LockFilePermissionDenied as e:
+            # We cannot access the lockfile.
+            # warn the user and terminate
+            output.error("Permission denied, unable to access '%s'" % e)
+            return
 
     def backup(self):
         """
@@ -986,10 +1018,14 @@ class Server(RemoteStatusMixin):
             # lock acquisition and backup execution
             with ServerBackupLock(self.config.barman_lock_directory,
                                   self.config.name):
-                self.backup_manager.backup()
+                backup_info = self.backup_manager.backup()
+
             # Archive incoming WALs and update WAL catalogue
             self.archive_wal(verbose=False)
 
+            # Invoke sanity check of the backup
+            if backup_info.status == BackupInfo.WAITING_FOR_WALS:
+                self.check_backup(backup_info)
         except LockFileBusy:
             output.error("Another backup process is running")
 
@@ -1040,7 +1076,7 @@ class Server(RemoteStatusMixin):
             backup_size = backup.size or 0
             wal_size = 0
             rstatus = None
-            if backup.status == BackupInfo.DONE:
+            if backup.status in BackupInfo.STATUS_COPY_DONE:
                 try:
                     wal_info = self.get_wal_info(backup)
                     backup_size += wal_info['wal_size']
@@ -1460,6 +1496,10 @@ class Server(RemoteStatusMixin):
                     else:
                         # Terminate the receive-wal sub-process if present
                         self.kill('receive-wal', fail_if_not_present=False)
+
+                # Verify backup
+                self.cron_check_backup()
+
                 # Retention policies execution
                 if retention_policies:
                     self.backup_manager.cron_retention_policy()
@@ -1546,6 +1586,45 @@ class Server(RemoteStatusMixin):
             # exit without message
             _logger.debug("Another STREAMING ARCHIVER process is running for "
                           "server %s" % self.config.name)
+
+    def cron_check_backup(self):
+        """
+        Method that handles the start of a 'check-backup' sub process
+        """
+
+        backup_id = self.get_first_backup_id([BackupInfo.WAITING_FOR_WALS])
+        if not backup_id:
+            # Nothing to be done for this server
+            return
+
+        try:
+            # Try to acquire ServerBackupIdLock, if the lock is available,
+            # no other 'check-backup' processes are running on this backup.
+            #
+            # There is a very little race condition window here because
+            # even if we are protected by ServerCronLock, the user could run
+            # another command that takes the lock. However, it would result
+            # in one of the two commands failing on lock acquisition,
+            # with no other consequence.
+            with ServerBackupIdLock(
+                    self.config.barman_lock_directory,
+                    self.config.name,
+                    backup_id):
+                # Output and release the lock immediately
+                output.info("Starting check-backup for backup %s of server %s",
+                            backup_id, self.config.name, log=False)
+
+            # Start a check-backup process
+            check_process = BarmanSubProcess(
+                subcommand='check-backup',
+                config=barman.__config__.config_file,
+                args=[self.config.name, backup_id])
+            check_process.execute()
+
+        except LockFileBusy:
+            # Another process is holding the backup lock
+            _logger.debug("Another process is holding the backup lock for %s "
+                          "of server %s" % (backup_id, self.config.name))
 
     def archive_wal(self, verbose=True):
         """
@@ -1799,7 +1878,7 @@ class Server(RemoteStatusMixin):
         :rtype dict: all information about a backup
         """
         backup_ext_info = backup_info.to_dict()
-        if backup_info.status == BackupInfo.DONE:
+        if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             try:
                 previous_backup = self.backup_manager.get_previous_backup(
                     backup_ext_info['backup_id'])
@@ -2025,3 +2104,51 @@ class Server(RemoteStatusMixin):
                 children.append(tinfo)
 
         return children
+
+    def check_backup(self, backup_info):
+        """
+        Make sure that we have all the WAL files required
+        by a physical backup for consistencty (from the
+        first to the last WAL file)
+
+        :param backup_info: the target backup
+        """
+        output.debug("Checking backup %s of server %s",
+                     backup_info.backup_id, self.config.name)
+        try:
+            # Take care of the backup lock.
+            # Only one process can modify a backup a a time
+            with ServerBackupIdLock(self.config.barman_lock_directory,
+                                    self.config.name,
+                                    backup_info.backup_id):
+                orig_status = backup_info.status
+                self.backup_manager.check_backup(backup_info)
+                if orig_status == backup_info.status:
+                    output.debug(
+                        "Check finished: the status of backup %s of server %s "
+                        "remains %s",
+                        backup_info.backup_id,
+                        self.config.name,
+                        backup_info.status)
+                else:
+                    output.debug(
+                        "Check finished: the status of backup %s of server %s "
+                        "changed from %s to %s",
+                        backup_info.backup_id,
+                        self.config.name,
+                        orig_status,
+                        backup_info.status)
+        except LockFileBusy:
+            # If another process is holding the backup lock,
+            # warn the user and terminate
+            output.error(
+                "Another process is holding the lock for "
+                "backup %s of server %s." % (
+                    backup_info.backup_id, self.config.name))
+            return
+
+        except LockFilePermissionDenied as e:
+            # We cannot access the lockfile.
+            # warn the user and terminate
+            output.error("Permission denied, unable to access '%s'" % e)
+            return

@@ -482,6 +482,9 @@ class FileWalArchiver(WalArchiver):
         # Get the batch size from configuration (0 = unlimited)
         batch_size = self.config.archiver_batch_size
         # List and sort all files in the incoming directory
+        # IMPORTANT: the list is sorted, and this allows us to know that the
+        # WAL stream we have is monotonically increasing. That allows us to
+        # verify that a backup has all the WALs required for the restore.
         file_names = glob(os.path.join(
             self.config.incoming_wals_directory, '*'))
         file_names.sort()
@@ -793,7 +796,10 @@ class StreamingWalArchiver(WalArchiver):
         """
         # Get the batch size from configuration (0 = unlimited)
         batch_size = self.config.streaming_archiver_batch_size
-        # List and sort all files in the incoming directory
+        # List and sort all files in the incoming directory.
+        # IMPORTANT: the list is sorted, and this allows us to know that the
+        # WAL stream we have is monotonically increasing. That allows us to
+        # verify that a backup has all the WALs required for the restore.
         file_names = glob(os.path.join(
             self.config.streaming_wals_directory, '*'))
         file_names.sort()

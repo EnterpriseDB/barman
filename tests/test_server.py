@@ -1202,6 +1202,120 @@ class TestServer(object):
         out, err = capsys.readouterr()
         assert "Replication slot 'test_repslot' does not exist" in err
 
+    @patch('os.path.exists')
+    @patch('barman.server.ServerBackupIdLock')
+    def test_check_backup(self, backup_lock_mock, mock_exists):
+        """
+        Test the check_backup method
+        """
+
+        # Prepare a mock implementation of os.path.exists
+        available_wals = []
+
+        def mock_os_path_exist(file_name):
+            return file_name in available_wals
+        mock_exists.side_effect = mock_os_path_exist
+
+        timeline_info = {}
+        server = build_real_server()
+        server.backup_manager.get_latest_archived_wals_info = MagicMock()
+        server.backup_manager.get_latest_archived_wals_info.return_value = \
+            timeline_info
+
+        # Case 1: timeline not present in the archived WALs
+        # Nothing should happen
+        backup_info = MagicMock()
+        backup_info.begin_wal = '000000010000000000000002'
+        backup_info.end_wal = '000000010000000000000008'
+        backup_info.status = BackupInfo.WAITING_FOR_WALS
+        server.check_backup(backup_info)
+        assert not backup_info.save.called
+        assert backup_info.status == BackupInfo.WAITING_FOR_WALS
+
+        # Case 2: the most recent WAL archived is older than the start of
+        # the backup. Nothing should happen
+        timeline_info['00000001'] = MagicMock()
+        timeline_info['00000001'].name = '000000010000000000000001'
+        server.check_backup(backup_info)
+        assert not backup_info.save.called
+        assert backup_info.status == BackupInfo.WAITING_FOR_WALS
+
+        # Case 3: the more recent WAL archived is more recent than the
+        # start of the backup, but we still have not archived the
+        # backup end.
+        timeline_info['00000001'].name = '000000010000000000000004'
+
+        # Case 3.1: we have all the files until this moment, nothing should
+        # happen
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000002'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000003'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000004'))
+        server.check_backup(backup_info)
+        assert not backup_info.save.called
+        assert backup_info.status == BackupInfo.WAITING_FOR_WALS
+
+        # Case 3.2: we miss two WAL files
+        del available_wals[:]
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000002'))
+        server.check_backup(backup_info)
+        assert backup_info.save.called
+        assert backup_info.status == BackupInfo.FAILED
+        assert (backup_info.error ==
+                'The WAL file(s) 000000010000000000000003, '
+                '000000010000000000000004 are missing')
+        backup_info.reset_mock()
+
+        # Case 4: the more recent WAL archived is more recent than the end
+        # of the backup, so we can be sure if the backup is failed or not
+        timeline_info['00000001'].name = '000000010000000000000009'
+
+        # Case 4.1: we have all the files, so the backup should be marked as
+        # done
+        del available_wals[:]
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000002'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000003'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000004'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000005'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000006'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000007'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000008'))
+        server.check_backup(backup_info)
+        assert backup_info.save.called
+        assert backup_info.status == BackupInfo.DONE
+        backup_info.reset_mock()
+
+        # Case 4.2: a WAL file is missing
+        del available_wals[:]
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000002'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000003'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000005'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000006'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000007'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000008'))
+        server.check_backup(backup_info)
+        assert backup_info.save.called
+        assert backup_info.status == BackupInfo.FAILED
+        assert (backup_info.error ==
+                'The WAL file(s) 000000010000000000000004 are missing')
+        backup_info.reset_mock()
+
 
 class TestCheckStrategy(object):
     """

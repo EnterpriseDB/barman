@@ -48,7 +48,7 @@ _logger = logging.getLogger(__name__)
 class BackupManager(RemoteStatusMixin):
     """Manager of the backup archive for a server"""
 
-    DEFAULT_STATUS_FILTER = (BackupInfo.DONE,)
+    DEFAULT_STATUS_FILTER = BackupInfo.STATUS_COPY_DONE
 
     def __init__(self, server):
         """
@@ -246,7 +246,8 @@ class BackupManager(RemoteStatusMixin):
         :param backup: the backup to delete
         :return bool: True if deleted, False if could not delete the backup
         """
-        available_backups = self.get_available_backups()
+        available_backups = self.get_available_backups(
+            status_filter=(BackupInfo.DONE,))
         minimum_redundancy = self.server.config.minimum_redundancy
         # Honour minimum required redundancy
         if backup.status == BackupInfo.DONE and \
@@ -361,6 +362,8 @@ class BackupManager(RemoteStatusMixin):
     def backup(self):
         """
         Performs a backup for the server
+
+        :return BackupInfo: the generated BackupInfo
         """
         _logger.debug("initialising backup information")
         self.executor.init()
@@ -395,8 +398,8 @@ class BackupManager(RemoteStatusMixin):
             # Compute backup size and fsync it on disk
             self.backup_fsync_and_set_sizes(backup_info)
 
-            # Mark the backup as DONE
-            backup_info.set_attribute("status", "DONE")
+            # Mark the backup as WAITING_FOR_WALS
+            backup_info.set_attribute("status", BackupInfo.WAITING_FOR_WALS)
         # Use BaseException instead of Exception to catch events like
         # KeyboardInterrupt (e.g.: CTRL-C)
         except BaseException as e:
@@ -458,6 +461,7 @@ class BackupManager(RemoteStatusMixin):
                 script.run()
 
         output.result('backup', backup_info)
+        return backup_info
 
     def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
                 **kwargs):
@@ -678,7 +682,8 @@ class BackupManager(RemoteStatusMixin):
         )
         check_strategy.init_check('minimum redundancy requirements')
         # Minimum redundancy checks
-        no_backups = len(self.get_available_backups())
+        no_backups = len(self.get_available_backups(
+            status_filter=(BackupInfo.DONE,)))
         # Check minimum_redundancy_requirements parameter
         if no_backups < int(self.config.minimum_redundancy):
             status = False
@@ -700,7 +705,8 @@ class BackupManager(RemoteStatusMixin):
         This function show the server status
         """
         # get number of backups
-        no_backups = len(self.get_available_backups())
+        no_backups = len(self.get_available_backups(
+            status_filter=(BackupInfo.DONE,)))
         output.result('status', self.config.name,
                       "backups_number",
                       "No. of available backups", no_backups)
@@ -1003,3 +1009,71 @@ class BackupManager(RemoteStatusMixin):
         else:
             output.info("Backup size: %s" %
                         pretty_size(backup_info.size))
+
+    def check_backup(self, backup_info):
+        """
+        Make sure that all the required WAL files to check
+        the consistency of a physical backup (that is, from the
+        beginning to the end of the full backup) are correctly
+        archived. This command is automatically invoked by the
+        cron command and at the end of every backup operation.
+
+        :param backup_info: the target backup
+        """
+
+        # Gather the list of the latest archived wals
+        timelines = self.get_latest_archived_wals_info()
+
+        # Get the basic info for the backup
+        begin_wal = backup_info.begin_wal
+        end_wal = backup_info.end_wal
+        timeline = begin_wal[:8]
+
+        # Case 1: Barman still doesn't know about the timeline the backup
+        # started with. We still haven't archived any WAL corresponding
+        # to the backup, so we can't proceed with checking the existence
+        # of the required WAL files
+        if not timelines or timeline not in timelines:
+            return
+
+        # Find the most recent archived WAL for this server in the timeline
+        # where the backup was taken
+        last_archived_wal = timelines[timeline].name
+
+        # Case 2: the most recent WAL file archived is older than the
+        # start of the backup. We must wait for the archiver to receive
+        # and/or process the WAL files.
+        if last_archived_wal < begin_wal:
+            return
+
+        # Check the intersection between the required WALs and the archived
+        # ones. They should all exist
+        bound_end = min(last_archived_wal, end_wal)
+        segments = xlog.generate_segment_names(begin_wal, bound_end)
+        missing_wals = []
+        for wal in segments:
+            wal_full_path = self.server.get_wal_full_path(wal)
+            if not os.path.exists(wal_full_path):
+                missing_wals.append(wal)
+
+        # IMPORTANT: we are using a ServerBackupLock here to protect this
+        # function against the backup being deleted while it's being checked.
+        # Even if it is not the right type of lock, it's taken only for a bit.
+        if missing_wals:
+            # Case 3: the most recent WAL file archived is more recent than
+            # the one corresponding to the start of a backup. If WAL
+            # file is missing, then we can't recover from the backup so we
+            # must mark the backup as FAILED.
+            # TODO: Verify if the error field is the right place
+            # to store the error message
+            msg = ', '.join(missing_wals)
+            backup_info.error = 'The WAL file(s) %s are missing' % msg
+            backup_info.status = BackupInfo.FAILED
+            backup_info.save()
+        elif end_wal <= last_archived_wal:
+            # Case 4: if the most recent WAL file archived is more recent or
+            # equal than the one corresponding to the end of a backup and
+            # every WAL that will be required by the recovery is available,
+            # we can mark the backup as DONE
+            backup_info.status = BackupInfo.DONE
+            backup_info.save()

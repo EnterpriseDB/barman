@@ -26,6 +26,32 @@ barman delete <server_name> oldest
 
 to remove the oldest backup available in the catalog and reclaim disk space.
 
+## `check-backup`
+
+Starting with version 2.5, you can check that all required WAL files
+for the consistency of a full backup have been correctly archived by
+`barman` with the `check-backup` command:
+
+``` bash
+barman check-backup <server_name> <backup_id>
+```
+
+> **IMPORTANT:**
+> This command is automatically invoked by `cron` and at the end of a
+> `backup` operation. This means that, under normal circumstances,
+> you should never need to execute it.
+
+In case one or more WAL files from the start to the end of the backup
+have not been archived yet, `barman` will label the backup as
+`WAITING_FOR_WALS`. The `cron` command will continue to check that
+missing WAL files are archived, then label the backup as `DONE`.
+
+In case the first required WAL file is missing at the end of the
+backup, such backup will be marked as `FAILED`. It is therefore
+important that you verify that WAL archiving (whether via streaming
+or `archive_command`) is properly working before executing a backup
+operation - especially when backing up from a standby server.
+
 ## `delete`
 
 You can delete a given backup with:

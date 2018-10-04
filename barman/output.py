@@ -552,7 +552,7 @@ class ConsoleOutputWriter(object):
 
         out_list = [
             "%s %s - " % (backup_info.server_name, backup_info.backup_id)]
-        if backup_info.status == BackupInfo.DONE:
+        if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             end_time = backup_info.end_time.ctime()
             out_list.append('%s - Size: %s - WAL Size: %s' %
                             (end_time,
@@ -584,7 +584,7 @@ class ConsoleOutputWriter(object):
         self.info("Backup %s:", data['backup_id'])
         self.info("  Server Name            : %s", data['server_name'])
         self.info("  Status                 : %s", data['status'])
-        if data['status'] == BackupInfo.DONE:
+        if data['status'] in BackupInfo.STATUS_COPY_DONE:
             self.info("  PostgreSQL Version     : %s", data['version'])
             self.info("  PGDATA directory       : %s", data['pgdata'])
             if data['tablespaces']:
