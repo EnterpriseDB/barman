@@ -1387,24 +1387,48 @@ class TestPostgres(object):
         """
 
         default_wal_file_size = 16777216
-        default_wal_block_size = 8192
-        default_wal_segments_number = 2048
 
         # Build a server
         server = build_real_server()
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 110000
         cursor_mock = conn_mock.return_value.cursor.return_value
-        cursor_mock.fetchone.side_effect = \
-            [[str(default_wal_block_size)], [str(default_wal_segments_number)]]
+        cursor_mock.fetchone.side_effect = [[str(default_wal_file_size)]]
 
         result = server.postgres.xlog_segment_size
         assert result == default_wal_file_size
 
         execute_calls = [
             call("SELECT setting FROM pg_settings "
-                 "WHERE name='wal_block_size'"),
+                 "WHERE name='wal_segment_size'"),
+        ]
+        cursor_mock.execute.assert_has_calls(execute_calls)
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_xlog_segment_size_10(self, conn_mock):
+        """
+        Test the xlog_segment_size method
+        """
+
+        default_wal_file_size = 16777216
+        default_wal_block_size = 8192
+        default_wal_segments_number = 2048
+
+        # Build a server
+        server = build_real_server()
+        conn_mock.return_value.server_version = 100000
+        cursor_mock = conn_mock.return_value.cursor.return_value
+        cursor_mock.fetchone.side_effect = \
+            [[str(default_wal_segments_number)], [str(default_wal_block_size)]]
+
+        result = server.postgres.xlog_segment_size
+        assert result == default_wal_file_size
+
+        execute_calls = [
             call("SELECT setting FROM pg_settings "
-                 "WHERE name='wal_segment_size'")]
+                 "WHERE name='wal_segment_size'"),
+            call("SELECT setting FROM pg_settings "
+                 "WHERE name='wal_block_size'"),
+        ]
         cursor_mock.execute.assert_has_calls(execute_calls)
 
     @patch('barman.postgres.PostgreSQLConnection.connect')

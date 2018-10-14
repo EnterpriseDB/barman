@@ -576,22 +576,27 @@ class PostgreSQLConnection(PostgreSQL):
 
         try:
             cur = self._cursor(cursor_factory=DictCursor)
-
             # We can't use the `get_setting` method here, because it
             # use `SHOW`, returning an human readable value such as "16MB",
             # while we prefer a raw value such as 16777216.
             cur.execute("SELECT setting "
                         "FROM pg_settings "
-                        "WHERE name='wal_block_size'")
-            result = cur.fetchone()
-            wal_block_size = int(result[0])
-
-            cur.execute("SELECT setting "
-                        "FROM pg_settings "
                         "WHERE name='wal_segment_size'")
             result = cur.fetchone()
             wal_segment_size = int(result[0])
-            return wal_block_size * wal_segment_size
+
+            # Prior to PostgreSQL 11, the wal segment size is returned in
+            # blocks
+            if self.server_version < 110000:
+                cur.execute("SELECT setting "
+                            "FROM pg_settings "
+                            "WHERE name='wal_block_size'")
+                result = cur.fetchone()
+                wal_block_size = int(result[0])
+
+                wal_segment_size *= wal_block_size
+
+            return wal_segment_size
         except ValueError as e:
             _logger.error("Error retrieving current xlog "
                           "segment size: %s",
