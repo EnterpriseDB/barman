@@ -1976,8 +1976,8 @@ class Server(RemoteStatusMixin):
         """
         Execute the switch-wal command on the target server
         """
+        closed_wal = None
         try:
-
             if force:
                 # If called with force, execute a checkpoint before the
                 # switch_wal command
@@ -1993,35 +1993,12 @@ class Server(RemoteStatusMixin):
                 output.error("Unable to perform pg_switch_wal "
                              "for server '%s'." % self.config.name)
                 return
+
             if closed_wal:
                 # The switch_wal command have been executed successfully
                 output.info(
                     "The WAL file %s has been closed on server '%s'" %
                     (closed_wal, self.config.name))
-                # If the user has asked to wait for a WAL file to be archived,
-                # wait until a new WAL file has been found
-                # or the timeout has expired
-                if archive:
-                    output.info(
-                        "Waiting for the WAL file %s from server '%s' "
-                        "(max: %s seconds)",
-                        closed_wal, self.config.name, archive_timeout)
-                    # Wait for a new file until end_time
-                    end_time = time.time() + archive_timeout
-                    while time.time() < end_time:
-                        self.backup_manager.archive_wal(verbose=False)
-
-                        # Finish if the closed wal file is in the archive.
-                        if os.path.exists(self.get_wal_full_path(closed_wal)):
-                                break
-
-                        # sleep a bit before retrying
-                        time.sleep(.1)
-                    else:
-                        output.error("The WAL file %s has not been received "
-                                     "in %s seconds",
-                                     closed_wal, archive_timeout)
-
             else:
                 # Is not necessary to perform a switch_wal
                 output.info("No switch required for server '%s'" %
@@ -2032,6 +2009,65 @@ class Server(RemoteStatusMixin):
         except PostgresSuperuserRequired:
             # Superuser rights are required to perform the switch_wal
             output.error("Barman switch-wal requires superuser rights")
+            return
+
+        # If the user has asked to wait for a WAL file to be archived,
+        # wait until a new WAL file has been found
+        # or the timeout has expired
+        if archive:
+            self.wait_for_wal(closed_wal, archive_timeout)
+
+    def wait_for_wal(self, wal_file=None, archive_timeout=None):
+        """
+        Wait for a WAL file to be archived on the server
+
+        :param str wal_file: Name of the WAL file, or None if we should just
+          wait for a new WAL file to be archived
+        :param int archive_timeout: Timeout in seconds
+        """
+
+        if not wal_file:
+            wals = self.backup_manager.get_latest_archived_wals_info()
+            initial_wals = dict([(tli, wals[tli].name) for tli in wals])
+
+        if wal_file:
+            output.info(
+                "Waiting for the WAL file %s from server '%s' "
+                "(max: %s seconds)",
+                wal_file, self.config.name, archive_timeout)
+        else:
+            output.info(
+                "Waiting for a WAL file from server '%s' to be archived "
+                "(max: %s seconds)",
+                self.config.name, archive_timeout)
+
+        # Wait for a new file until end_time
+        end_time = time.time() + archive_timeout
+        while time.time() < end_time:
+            self.backup_manager.archive_wal(verbose=False)
+
+            # Finish if the closed wal file is in the archive.
+            if wal_file:
+                if os.path.exists(self.get_wal_full_path(wal_file)):
+                    break
+            else:
+                # Check if any new file has been archived, on any timeline
+                wals = self.backup_manager.get_latest_archived_wals_info()
+                current_wals = dict([(tli, wals[tli].name) for tli in wals])
+                if current_wals != initial_wals:
+                    break
+
+            # sleep a bit before retrying
+            time.sleep(.1)
+        else:
+            if wal_file:
+                output.error("The WAL file %s has not been received "
+                             "in %s seconds",
+                             wal_file, archive_timeout)
+            else:
+                output.info(
+                    "A WAL file has not been received in %s seconds",
+                    archive_timeout)
 
     def replication_status(self, target='all'):
         """
