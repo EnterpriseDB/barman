@@ -1034,6 +1034,8 @@ class BackupManager(RemoteStatusMixin):
         # to the backup, so we can't proceed with checking the existence
         # of the required WAL files
         if not timelines or timeline not in timelines:
+            backup_info.status = BackupInfo.WAITING_FOR_WALS
+            backup_info.save()
             return
 
         # Find the most recent archived WAL for this server in the timeline
@@ -1044,6 +1046,8 @@ class BackupManager(RemoteStatusMixin):
         # start of the backup. We must wait for the archiver to receive
         # and/or process the WAL files.
         if last_archived_wal < begin_wal:
+            backup_info.status = BackupInfo.WAITING_FOR_WALS
+            backup_info.save()
             return
 
         # Check the intersection between the required WALs and the archived
@@ -1070,10 +1074,17 @@ class BackupManager(RemoteStatusMixin):
             backup_info.error = 'The WAL file(s) %s are missing' % msg
             backup_info.status = BackupInfo.FAILED
             backup_info.save()
-        elif end_wal <= last_archived_wal:
+            return
+
+        if end_wal <= last_archived_wal:
             # Case 4: if the most recent WAL file archived is more recent or
-            # equal than the one corresponding to the end of a backup and
+            # equal than the one corresponding to the end of the backup and
             # every WAL that will be required by the recovery is available,
-            # we can mark the backup as DONE
+            # we can mark the backup as DONE.
             backup_info.status = BackupInfo.DONE
-            backup_info.save()
+        else:
+            # Case 5: if the most recent WAL file archived is older than
+            # the one corresponding to the end of the backup but
+            # all the WAL files until that point are present.
+            backup_info.status = BackupInfo.WAITING_FOR_WALS
+        backup_info.save()

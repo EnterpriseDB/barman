@@ -1229,7 +1229,7 @@ class TestServer(object):
         backup_info.end_wal = '000000010000000000000008'
         backup_info.status = BackupInfo.WAITING_FOR_WALS
         server.check_backup(backup_info)
-        assert not backup_info.save.called
+        assert backup_info.save.called
         assert backup_info.status == BackupInfo.WAITING_FOR_WALS
 
         # Case 2: the most recent WAL archived is older than the start of
@@ -1237,7 +1237,7 @@ class TestServer(object):
         timeline_info['00000001'] = MagicMock()
         timeline_info['00000001'].name = '000000010000000000000001'
         server.check_backup(backup_info)
-        assert not backup_info.save.called
+        assert backup_info.save.called
         assert backup_info.status == BackupInfo.WAITING_FOR_WALS
 
         # Case 3: the more recent WAL archived is more recent than the
@@ -1254,7 +1254,7 @@ class TestServer(object):
         available_wals.append(
             server.get_wal_full_path('000000010000000000000004'))
         server.check_backup(backup_info)
-        assert not backup_info.save.called
+        assert backup_info.save.called
         assert backup_info.status == BackupInfo.WAITING_FOR_WALS
 
         # Case 3.2: we miss two WAL files
