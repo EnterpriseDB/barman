@@ -23,6 +23,7 @@ import pytest
 from mock import MagicMock, mock, patch
 from psycopg2.tz import FixedOffsetTimezone
 
+from barman import xlog
 from barman.exceptions import (LockFileBusy, LockFilePermissionDenied,
                                PostgresDuplicateReplicationSlot,
                                PostgresInvalidReplicationSlot,
@@ -1225,6 +1226,7 @@ class TestServer(object):
         # Case 1: timeline not present in the archived WALs
         # Nothing should happen
         backup_info = MagicMock()
+        backup_info.xlog_segment_size = xlog.DEFAULT_XLOG_SEG_SIZE
         backup_info.begin_wal = '000000010000000000000002'
         backup_info.end_wal = '000000010000000000000008'
         backup_info.status = BackupInfo.WAITING_FOR_WALS
