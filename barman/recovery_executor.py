@@ -124,6 +124,15 @@ class RecoveryExecutor(object):
                     backup_info.backup_id)
         output.info("Destination directory: %s", dest)
 
+        # If the backup we are recovering is still not validated and we
+        # haven't requested the get-wal feature, display a warning message
+        if not recovery_info['get_wal']:
+            if backup_info.status == BackupInfo.WAITING_FOR_WALS:
+                output.warning(
+                    "IMPORTANT: You have requested a recovery operation for "
+                    "a backup that does not have yet all the WAL files that "
+                    "are required for consistency.")
+
         # Set targets for PITR
         self._set_pitr_targets(recovery_info,
                                backup_info, dest,
@@ -183,6 +192,19 @@ class RecoveryExecutor(object):
         # Restore the WAL segments. If GET_WAL option is set, skip this phase
         # as they will be retrieved using the wal-get command.
         if not recovery_info['get_wal']:
+            # If the backup we restored is still waiting for WALS, read the
+            # backup info again and check whether it has been validated.
+            # Notify the user if it is still not DONE.
+            if backup_info.status == BackupInfo.WAITING_FOR_WALS:
+                data = BackupInfo(self.server, backup_info.filename)
+                if data.status == BackupInfo.WAITING_FOR_WALS:
+                    output.warning(
+                        "IMPORTANT: The backup we have recovered IS NOT "
+                        "VALID. Required WAL files for consistency are "
+                        "missing. Please verify that WAL archiving is "
+                        "working correctly or evaluate using the 'get-wal' "
+                        "option for recovery")
+
             output.info("Copying required WAL segments.")
 
             try:

@@ -30,7 +30,7 @@ from barman.exceptions import (CommandFailedException,
                                RecoveryInvalidTargetException,
                                RecoveryStandbyModeException,
                                RecoveryTargetActionException)
-from barman.infofile import WalFileInfo
+from barman.infofile import BackupInfo, WalFileInfo
 from barman.recovery_executor import Assertion, RecoveryExecutor
 
 
@@ -747,3 +747,58 @@ class TestRecoveryExecutor(object):
         backup_info.version = 80000
         with pytest.raises(RecoveryStandbyModeException):
             executor.recover(backup_info, destination, standby_mode=True)
+
+    @mock.patch('barman.recovery_executor.UnixRemoteCommand')
+    @mock.patch('barman.recovery_executor.RsyncPgData')
+    @mock.patch('barman.recovery_executor.output')
+    @mock.patch('barman.recovery_executor.RsyncCopyController')
+    @mock.patch('barman.recovery_executor.BackupInfo')
+    def test_recover_waiting_for_wals(self, backup_info_mock,
+                                      rsync_copy_controller_mock,
+                                      output_mock,
+                                      rsync_pgdata_mock,
+                                      unix_remote_command_mock, tmpdir):
+
+        # This backup is waiting for WALs and it remains in that status
+        # even after having copied the data files
+        backup_info_mock.WAITING_FOR_WALS = "WAITING_FOR_WALS"
+        backup_info_mock.return_value.status = BackupInfo.WAITING_FOR_WALS
+        backup_info = testing_helpers.build_test_backup_info()
+        backup_manager = testing_helpers.build_backup_manager()
+        executor = RecoveryExecutor(backup_manager)
+        backup_info.status = BackupInfo.WAITING_FOR_WALS
+        destination = tmpdir.mkdir('destination').strpath
+        executor.recover(backup_info, destination, standby_mode=None)
+
+        # The backup info has been read again
+        backup_info_mock.assert_called()
+
+        # The following two warning messages have been emitted
+        output_mock.warning.assert_has_calls([
+            mock.call(
+                "IMPORTANT: You have requested a recovery operation for "
+                "a backup that does not have yet all the WAL files that "
+                "are required for consistency."),
+            mock.call(
+                "IMPORTANT: The backup we have recovered IS NOT "
+                "VALID. Required WAL files for consistency are "
+                "missing. Please verify that WAL archiving is "
+                "working correctly or evaluate using the 'get-wal' "
+                "option for recovery")])
+
+        # In the following test case, the backup will be validated during
+        # the copy of the data files, so there is no need for the warning
+        # message at the end of the recovery process to be emitted again
+        output_mock.warning.reset_mock()
+        backup_info_mock.return_value.status = BackupInfo.DONE
+        executor.recover(backup_info, destination, standby_mode=None)
+
+        # The backup info has been read again
+        backup_info_mock.assert_called()
+
+        # The following two warning messages have been emitted
+        output_mock.warning.assert_has_calls([
+            mock.call(
+                "IMPORTANT: You have requested a recovery operation for "
+                "a backup that does not have yet all the WAL files that "
+                "are required for consistency.")])
