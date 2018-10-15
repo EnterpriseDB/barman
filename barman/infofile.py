@@ -27,6 +27,7 @@ import dateutil.tz
 from barman import xlog
 from barman.compression import identify_compression
 from barman.exceptions import BackupInfoBadInitialisation
+from barman.utils import fsync_dir
 
 # Named tuple representing a Tablespace with 'name' 'oid' and 'location'
 # as property.
@@ -210,7 +211,7 @@ class FieldListFile(object):
         else:
             filename = filename or self.filename
             if filename:
-                info = open(filename, 'w')
+                info = open(filename + '.tmp', 'w')
             else:
                 info = None
 
@@ -225,6 +226,10 @@ class FieldListFile(object):
                     if callable(field.to_str):
                         value = field.to_str(value)
                     info.write("%s=%s\n" % (name, value))
+
+        if not file_object:
+            os.rename(filename + '.tmp', filename)
+            fsync_dir(os.path.normpath(os.path.dirname(filename)))
 
     def load(self, filename=None, file_object=None):
         """
