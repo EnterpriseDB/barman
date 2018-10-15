@@ -162,14 +162,15 @@ rules:
   greater, concurrent backups are executed through the Postgres native
   API.
 
-The destination Postgres server can be either the master or a
+The destination Postgres server can be either the master (preferred) or a
 streaming replicated standby server.
 
-> **NOTE:**
-> When backing up from a standby server, continuous archiving of WAL
-> files must be configured on the master to ship files to the Barman
-> server (as outlined in the _"WAL archiving via archive_command"_ section
-> above)[^CONCURRENT_ARCHIVING].
+> **IMPORTANT:**
+> When backing up from a standby server, the **only way to ship WAL files to
+> Barman** that is currently supported is from the master server.
+> This can happen either via traditional WAL archiving with `archive_command`
+> (as outlined in the _"WAL archiving via archive_command"_ section
+> above)[^CONCURRENT_ARCHIVING], or via WAL streaming (with replication slots).
 
 [^CONCURRENT_ARCHIVING]:
   In case of a concurrent backup, currently Barman has no way
@@ -178,7 +179,9 @@ streaming replicated standby server.
   where PostgreSQL itself makes sure that the WAL file is correctly
   archived. Be aware that the full backup cannot be considered
   consistent until that WAL file has been received and archived by
-  Barman.
+  Barman. Barman 2.5 introduces a new state, called `WAITING_FOR_WALS`,
+  which is managed by the `check-backup` command (part of the
+  ordinary maintenance job performed by the `cron` command).
 
 
 ## Archiving features
