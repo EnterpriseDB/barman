@@ -1057,24 +1057,23 @@ class BackupManager(RemoteStatusMixin):
             begin_wal,
             bound_end,
             xlog_segment_size=backup_info.xlog_segment_size)
-        missing_wals = []
+        missing_wal = None
         for wal in segments:
             wal_full_path = self.server.get_wal_full_path(wal)
             if not os.path.exists(wal_full_path):
-                missing_wals.append(wal)
+                missing_wal = wal
+                break
 
-        # IMPORTANT: we are using a ServerBackupLock here to protect this
-        # function against the backup being deleted while it's being checked.
-        # Even if it is not the right type of lock, it's taken only for a bit.
-        if missing_wals:
+        if missing_wal:
             # Case 3: the most recent WAL file archived is more recent than
             # the one corresponding to the start of a backup. If WAL
             # file is missing, then we can't recover from the backup so we
             # must mark the backup as FAILED.
             # TODO: Verify if the error field is the right place
             # to store the error message
-            msg = ', '.join(missing_wals)
-            backup_info.error = 'The WAL file(s) %s are missing' % msg
+            backup_info.error = (
+                "At least one WAL file is missing. "
+                "The first missing WAL file is %s" % missing_wal)
             backup_info.status = BackupInfo.FAILED
             backup_info.save()
             return
