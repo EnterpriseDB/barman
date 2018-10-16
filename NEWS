@@ -1,6 +1,29 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2018 2ndQuadrant Limited
 
+Version 2.5 - 23 Oct 2018
+
+-   Add support for PostgreSQL 11
+
+-   Add check-backup command to verify that WAL files required for
+    consistency of a base backup are present in the archive. Barman now
+    adds a new state (WAITING_FOR_WALS) after completing a base backup,
+    and sets it to DONE once it has verified that all WAL files from
+    start to the end of the backup exist. This command is included in
+    the regular cron maintenance job. Barman now notifies users
+    attempting to recover a backup that is in WAITING_FOR_WALS state.
+
+-   Bug fixes:
+
+    -   Fix decoding errors reading external commands output (issue
+        #174)
+
+    -   Fix documentation regarding WAL streaming and backup from
+        standby
+
+    -   Allow switch-xlog --archive to work on a standby (just for the
+        archive part)
+
 Version 2.4 - 25 May 2018
 
 -   Add standard and retry hook scripts for backup deletion (pre/post)
