@@ -2152,6 +2152,14 @@ class Server(RemoteStatusMixin):
         output.debug("Checking backup %s of server %s",
                      backup_info.backup_id, self.config.name)
         try:
+            # No need to check a backup which is not waiting for WALs.
+            # Doing that we could also mark as DONE backups which
+            # were previously FAILED due to copy errors
+            if backup_info.status == BackupInfo.FAILED:
+                output.error(
+                    "The validity of a failed backup cannot be checked")
+                return
+
             # Take care of the backup lock.
             # Only one process can modify a backup a a time
             with ServerBackupIdLock(self.config.barman_lock_directory,

@@ -1292,6 +1292,7 @@ class TestServer(object):
             server.get_wal_full_path('000000010000000000000007'))
         available_wals.append(
             server.get_wal_full_path('000000010000000000000008'))
+        backup_info.status = BackupInfo.WAITING_FOR_WALS
         server.check_backup(backup_info)
         assert backup_info.save.called
         assert backup_info.status == BackupInfo.DONE
@@ -1311,12 +1312,37 @@ class TestServer(object):
             server.get_wal_full_path('000000010000000000000007'))
         available_wals.append(
             server.get_wal_full_path('000000010000000000000008'))
+        backup_info.status = BackupInfo.WAITING_FOR_WALS
         server.check_backup(backup_info)
         assert backup_info.save.called
         assert backup_info.status == BackupInfo.FAILED
         assert (backup_info.error ==
                 "At least one WAL file is missing. "
                 "The first missing WAL file is 000000010000000000000004")
+        backup_info.reset_mock()
+
+        # Case 4.3: we have all the files, but the backup is marked as
+        # FAILED (i.e. the rsync copy failed). The backup should still be
+        # kept as failed
+        del available_wals[:]
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000002'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000003'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000004'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000005'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000006'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000007'))
+        available_wals.append(
+            server.get_wal_full_path('000000010000000000000008'))
+        backup_info.status = BackupInfo.FAILED
+        server.check_backup(backup_info)
+        assert not backup_info.save.called
+        assert backup_info.status == BackupInfo.FAILED
         backup_info.reset_mock()
 
 
