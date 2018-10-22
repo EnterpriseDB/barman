@@ -1,3 +1,94 @@
+2018-10-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Set version to 2.5
+
+2018-10-17  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Avoid checking failed backups
+	If a backup is in a different state than WAITING_FOR_WALS, we don't need
+	to check it for consistency.
+
+2018-10-17  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Prepared release notes for 2.5 with tentative release date
+
+2018-10-16  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid being verbose about missing WAL files in `check-backup`
+	The number of missing WAL files can be huge, and storing such list or
+	displaying it in the error message is consuming and not useful.
+	The check now stops as soon as it finds a missing file, and the message
+	has changed to display only that file.
+
+2018-10-15  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Support switch-wal on standby server
+	The switch-wal command can also be used on standby servers, but only for
+	the `--archive` option.
+
+	Use XLOG segment size in check_backup
+	The `check_backup` command wasn't using the current XLOG segment size to
+	generate the WAL file names.
+
+2018-10-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Implement atomic BackupInfo writes
+
+2018-10-15  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Notify users when attempting to recover a WAITING_FOR_WALS backup
+	When a backup which is still in WAITING_FOR_WALS state will be
+	recovered, a warning message will be raised if the get-wal feature
+	is not in use.
+
+	Another warning message will be raised if the backup is still in the
+	same state after having copied the data files.
+
+2018-10-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Always update the backup status during `check-backup` execution
+	This change aims to detect cases where the content of the WAL archive
+	has been modified outside Barman.
+
+2018-10-15  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Cover WAL streaming in documentation for backup from a standby
+
+2018-10-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	In PostgreSQL 11 `wal_segment_size` is returned in bytes
+
+2018-10-04  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Add `check-backup` command
+	Make sure that all the required WAL files to check the consistency
+	of a physical backup (that is, from the beginning to the end of
+	the full backup, as outlined in the backup label) are correctly archived.
+	This command is automatically invoked by the `cron` command,
+	and at the end of every backup operation.
+
+2018-10-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Set version to 2.5a1
+
+2018-09-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Pin py<1.6.0 to keep 2.6 support
+
+2018-08-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix decoding errors reading external commands output
+	Completed the fix started in commit f14e405e9b36de912899d0735563eed76f479164
+
+	The StreamLineProcessor implementation is enough to ensure that
+	the Command out and err property are proper unicode strings or None
+
+	Closes: #174
+
+	Pin pytest-timeout<1.2.1 to continue supporting Python 2.6
+
 2018-05-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
