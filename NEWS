@@ -13,6 +13,9 @@ Version 2.5 - 23 Oct 2018
     the regular cron maintenance job. Barman now notifies users
     attempting to recover a backup that is in WAITING_FOR_WALS state.
 
+-   Allow switch-xlog --archive to work on a standby (just for the
+    archive part)
+
 -   Bug fixes:
 
     -   Fix decoding errors reading external commands output (issue
@@ -20,9 +23,6 @@ Version 2.5 - 23 Oct 2018
 
     -   Fix documentation regarding WAL streaming and backup from
         standby
-
-    -   Allow switch-xlog --archive to work on a standby (just for the
-        archive part)
 
 Version 2.4 - 25 May 2018
 
@@ -601,7 +601,7 @@ Version 1.2.0 - 31 Jan 2013
 * Added retention policy support to the logging infrastructure, the
   "check" and the "status" commands
 
-* The "check" command now integrates minimum redundancy control 
+* The "check" command now integrates minimum redundancy control
 
 * Added retention policy states (valid, obsolete and potentially obsolete)
   to "show-backup" and "list-backup" commands

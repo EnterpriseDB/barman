@@ -22,7 +22,7 @@
 
 %global main_version 2.5
 # comment out the next line if not a pre-release (use '#%%global ...')
-%global extra_version a1
+#%%global extra_version a1
 # Usually 1 - unique sequence for all pre-release version
 %global package_release 1
 
@@ -114,6 +114,9 @@ useradd -M -n -g barman -r -d /var/lib/barman -s /bin/bash \
 	-c "Backup and Recovery Manager for PostgreSQL" barman >/dev/null 2>&1 || :
 
 %changelog
+* Tue Oct 23 2018 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 2.5-1
+- New release 2.5-1
+
 * Fri May 25 2018 - Marco Nenciarini <marco.nenciarini@2ndquadrant.it> 2.4-1
 - New release 2.4-1
 
