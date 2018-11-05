@@ -837,7 +837,7 @@ class BackupManager(RemoteStatusMixin):
 
         # If the WAL archive directory doesn't exists the archive is empty
         if not isdir(root):
-            return None
+            return dict()
 
         # Traverse all the directory in the archive in reverse order,
         # returning the first WAL file found
@@ -867,8 +867,8 @@ class BackupManager(RemoteStatusMixin):
                         timelines[timeline] = WalFileInfo.from_file(fullname)
                         break
 
-        # Return the timeline map or None if it is empty
-        return timelines or None
+        # Return the timeline map
+        return timelines
 
     def remove_wal_before_backup(self, backup_info, timelines_to_protect=None):
         """

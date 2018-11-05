@@ -2042,7 +2042,9 @@ class Server(RemoteStatusMixin):
                 self.config.name, archive_timeout)
 
         # Wait for a new file until end_time
-        end_time = time.time() + archive_timeout
+        end_time = time.time()
+        if archive_timeout:
+            end_time += archive_timeout
         while time.time() < end_time:
             self.backup_manager.archive_wal(verbose=False)
 
@@ -2054,6 +2056,7 @@ class Server(RemoteStatusMixin):
                 # Check if any new file has been archived, on any timeline
                 wals = self.backup_manager.get_latest_archived_wals_info()
                 current_wals = dict([(tli, wals[tli].name) for tli in wals])
+
                 if current_wals != initial_wals:
                     break
 

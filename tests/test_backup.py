@@ -602,15 +602,15 @@ class TestBackup(object):
             })
 
         # Test: insistent wals directory
-        assert backup_manager.get_latest_archived_wals_info() is None
+        assert backup_manager.get_latest_archived_wals_info() == dict()
 
         # Test: empty wals directory
         wals = tmpdir.join('wals').ensure(dir=True)
-        assert backup_manager.get_latest_archived_wals_info() is None
+        assert backup_manager.get_latest_archived_wals_info() == dict()
 
         # Test: ignore WAL-like files in the root
         wals.join('000000010000000000000003').ensure()
-        assert backup_manager.get_latest_archived_wals_info() is None
+        assert backup_manager.get_latest_archived_wals_info() == dict()
 
         # Test: find the fist WAL
         wals.join('0000000100000000').join(

@@ -1345,6 +1345,16 @@ class TestServer(object):
         assert backup_info.status == BackupInfo.FAILED
         backup_info.reset_mock()
 
+    def test_wait_for_wal(self):
+        # Waiting for a new WAL without archive_timeout without any WAL
+        # file archived and no timeout should not raise an error.
+        server = build_real_server()
+        server.wait_for_wal()
+
+        # Doing the same thing with a timeout should also not raise an
+        # error
+        server.wait_for_wal(1)
+
 
 class TestCheckStrategy(object):
     """
