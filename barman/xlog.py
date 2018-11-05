@@ -132,12 +132,24 @@ def is_wal_file(path):
     :rtype: bool
     """
     match = _xlog_re.search(os.path.basename(path))
-    if (match and
-            not match.group(0).endswith('.backup') and
-            not match.group(0).endswith('.history') and
-            not match.group(0).endswith('.partial')):
-        return True
-    return False
+
+    if not match:
+        return False
+
+    ends_with_backup = match.group(0).endswith('.backup')
+    ends_with_history = match.group(0).endswith('.history')
+    ends_with_partial = match.group(0).endswith('.partial')
+
+    if ends_with_backup:
+        return False
+
+    if ends_with_history:
+        return False
+
+    if ends_with_partial:
+        return False
+
+    return True
 
 
 def decode_segment_name(path):
@@ -375,9 +387,8 @@ def location_from_xlogfile_name_offset(file_name, file_offset):
     :rtype: str
     """
     decoded_segment = decode_segment_name(file_name)
-    location = ((decoded_segment[1] << 32) +
-                (decoded_segment[2] << 24) +
-                file_offset)
+    location = (
+        (decoded_segment[1] << 32) + (decoded_segment[2] << 24) + file_offset)
     return format_lsn(location)
 
 

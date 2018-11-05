@@ -207,8 +207,9 @@ class TestRecoveryExecutor(object):
                                    None, False, None)
         target_datetime = dateutil.parser.parse(
             '2015-06-03 16:11:03.710380+02:00')
-        target_epoch = (time.mktime(target_datetime.timetuple()) +
-                        (target_datetime.microsecond / 1000000.))
+        target_epoch = (
+            time.mktime(target_datetime.timetuple()) + (
+                target_datetime.microsecond / 1000000.))
 
         assert recovery_info['target_datetime'] == target_datetime
         assert recovery_info['target_epoch'] == target_epoch

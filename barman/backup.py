@@ -169,8 +169,8 @@ class BackupManager(RemoteStatusMixin):
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
         backup = BackupInfo(self.server, backup_id=backup_id)
-        available_backups = self.get_available_backups(status_filter +
-                                                       (backup.status,))
+        available_backups = self.get_available_backups(
+            status_filter + (backup.status,))
         ids = sorted(available_backups.keys())
         try:
             current = ids.index(backup_id)
@@ -194,8 +194,8 @@ class BackupManager(RemoteStatusMixin):
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
         backup = BackupInfo(self.server, backup_id=backup_id)
-        available_backups = self.get_available_backups(status_filter +
-                                                       (backup.status,))
+        available_backups = self.get_available_backups(
+            status_filter + (backup.status,))
         ids = sorted(available_backups.keys())
         try:
             current = ids.index(backup_id)
@@ -426,11 +426,13 @@ class BackupManager(RemoteStatusMixin):
                         backup_info.end_xlog,
                         backup_info.end_wal,
                         backup_info.end_offset)
-            output.info("Backup completed (start time: %s, elapsed time: %s)",
-                        self.executor.copy_start_time,
-                        human_readable_timedelta(
-                            self.executor.copy_end_time -
-                            self.executor.copy_start_time))
+
+            executor = self.executor
+            output.info(
+                "Backup completed (start time: %s, elapsed time: %s)",
+                self.executor.copy_start_time,
+                human_readable_timedelta(
+                    executor.copy_end_time - executor.copy_start_time))
             # Create a restore point after a backup
             target_name = 'barman_%s' % backup_info.backup_id
             self.server.postgres.create_restore_point(target_name)
@@ -553,8 +555,9 @@ class BackupManager(RemoteStatusMixin):
         """
         Retention policy management
         """
-        if (self.server.enforce_retention_policies and
-                self.config.retention_policy_mode == 'auto'):
+        enforce_retention_policies = self.server.enforce_retention_policies
+        retention_policy_mode = self.config.retention_policy_mode
+        if (enforce_retention_policies and retention_policy_mode == 'auto'):
             available_backups = self.get_available_backups(
                 BackupInfo.STATUS_ALL)
             retention_status = self.config.retention_policy.report()

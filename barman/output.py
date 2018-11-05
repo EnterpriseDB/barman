@@ -469,11 +469,11 @@ class ConsoleOutputWriter(object):
                       "'restore_command' can be executed by "
                       "the PostgreSQL user.")
         self.info("")
-        self.info("Recovery completed (start time: %s, elapsed time: %s)",
-                  results['recovery_start_time'],
-                  human_readable_timedelta(
-                      datetime.datetime.now() -
-                      results['recovery_start_time']))
+        self.info(
+            "Recovery completed (start time: %s, elapsed time: %s)",
+            results['recovery_start_time'],
+            human_readable_timedelta(
+                datetime.datetime.now() - results['recovery_start_time']))
         self.info("")
         self.info("Your PostgreSQL server has been successfully "
                   "prepared for recovery!")
@@ -599,8 +599,8 @@ class ConsoleOutputWriter(object):
                       pretty_size(data['size'] + data[
                           'wal_size']))
             if data['deduplicated_size'] is not None and data['size'] > 0:
-                deduplication_ratio = 1 - (float(data['deduplicated_size']) /
-                                           data['size'])
+                deduplication_ratio = (
+                    1 - (float(data['deduplicated_size']) / data['size']))
                 self.info("    Incremental size     : %s (-%s)",
                           pretty_size(data['deduplicated_size']),
                           '{percent:.2%}'.format(percent=deduplication_ratio)
@@ -668,15 +668,19 @@ class ConsoleOutputWriter(object):
                     ", ".join([str(history.tli) for history in timelines]))
             self.info("")
             self.info("  Catalog information:")
-            self.info("    Retention Policy     : %s",
-                      data['retention_policy_status'] or
-                      'not enforced')
-            self.info("    Previous Backup      : %s",
-                      data.setdefault('previous_backup_id', 'not available') or
-                      '- (this is the oldest base backup)')
-            self.info("    Next Backup          : %s",
-                      data.setdefault('next_backup_id', 'not available') or
-                      '- (this is the latest base backup)')
+            self.info(
+                "    Retention Policy     : %s",
+                data['retention_policy_status'] or 'not enforced')
+            previous_backup_id = data.setdefault(
+                'previous_backup_id', 'not available')
+            self.info(
+                "    Previous Backup      : %s",
+                previous_backup_id or '- (this is the oldest base backup)')
+            next_backup_id = data.setdefault(
+                'next_backup_id', 'not available')
+            self.info(
+                "    Next Backup          : %s",
+                next_backup_id or '- (this is the latest base backup)')
             if data['children_timelines']:
                 self.info("")
                 self.info(

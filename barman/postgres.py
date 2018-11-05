@@ -426,8 +426,9 @@ class PostgreSQLConnection(PostgreSQL):
             return self._conn
 
         self._conn = super(PostgreSQLConnection, self).connect()
-        if (self._conn.server_version >= 90000 and
-                'application_name' not in self.conn_parameters):
+        server_version = self._conn.server_version
+        use_app_name = 'application_name' in self.conn_parameters
+        if server_version >= 90000 and not use_app_name:
             try:
                 cur = self._conn.cursor()
                 cur.execute('SET application_name TO barman')
@@ -700,10 +701,9 @@ class PostgreSQLConnection(PostgreSQL):
             'synchronous_standby_names',
         ]
         # Initialise the result dictionary setting all the values to None
-        result = dict.fromkeys(pg_superuser_settings +
-                               pg_settings +
-                               pg_query_keys,
-                               None)
+        result = dict.fromkeys(
+            pg_superuser_settings + pg_settings + pg_query_keys,
+            None)
         try:
             # check for wal_level only if the version is >= 9.0
             if self.server_version >= 90000:

@@ -214,9 +214,8 @@ def total_seconds(timedelta):
     if hasattr(timedelta, 'total_seconds'):
         return timedelta.total_seconds()
     else:
-        return (timedelta.microseconds +
-                (timedelta.seconds + timedelta.days * 24 * 3600) * 10**6
-                ) / 10.0**6
+        secs = (timedelta.seconds + timedelta.days * 24 * 3600) * 10**6
+        return (timedelta.microseconds + secs) / 10.0**6
 
 
 def which(executable, path=None):

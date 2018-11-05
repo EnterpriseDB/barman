@@ -1266,9 +1266,10 @@ class TestServer(object):
         server.check_backup(backup_info)
         assert backup_info.save.called
         assert backup_info.status == BackupInfo.FAILED
-        assert (backup_info.error ==
-                "At least one WAL file is missing. "
-                "The first missing WAL file is 000000010000000000000003")
+        assert (
+            backup_info.error == "At least one WAL file is missing. "
+                                 "The first missing WAL file is "
+                                 "000000010000000000000003")
         backup_info.reset_mock()
 
         # Case 4: the more recent WAL archived is more recent than the end
@@ -1316,9 +1317,9 @@ class TestServer(object):
         server.check_backup(backup_info)
         assert backup_info.save.called
         assert backup_info.status == BackupInfo.FAILED
-        assert (backup_info.error ==
-                "At least one WAL file is missing. "
-                "The first missing WAL file is 000000010000000000000004")
+        assert (backup_info.error == "At least one WAL file is missing. "
+                                     "The first missing WAL file is "
+                                     "000000010000000000000004")
         backup_info.reset_mock()
 
         # Case 4.3: we have all the files, but the backup is marked as

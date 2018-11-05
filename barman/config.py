@@ -548,10 +548,9 @@ class ServerConfig(object):
 
         if tablespace:
             # A tablespace can be copied using a per-tablespace bwlimit
-            tablespaces_bw_limit = self.tablespace_bandwidth_limit
-            if (tablespaces_bw_limit and
-                    tablespace.name in tablespaces_bw_limit):
-                bwlimit = tablespaces_bw_limit[tablespace.name]
+            tbl_bw_limit = self.tablespace_bandwidth_limit
+            if (tbl_bw_limit and tablespace.name in tbl_bw_limit):
+                bwlimit = tbl_bw_limit[tablespace.name]
 
         return bwlimit
 

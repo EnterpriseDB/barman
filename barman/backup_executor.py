@@ -661,10 +661,12 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                 'for server %s' % backup_manager.config.name)
 
         # Apply the default backup strategy
-        if (BackupOptions.CONCURRENT_BACKUP not in
-                self.config.backup_options and
-                BackupOptions.EXCLUSIVE_BACKUP not in
-                self.config.backup_options):
+        backup_options = self.config.backup_options
+        concurrent_backup = (
+            BackupOptions.CONCURRENT_BACKUP in backup_options)
+        exclusive_backup = (
+            BackupOptions.EXCLUSIVE_BACKUP in backup_options)
+        if not concurrent_backup and not exclusive_backup:
             self.config.backup_options.add(BackupOptions.EXCLUSIVE_BACKUP)
             output.debug("The default backup strategy for "
                          "any ssh based backup_method is: "
@@ -793,9 +795,9 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                      "the remote command output")
 
         # If SSH works but PostgreSQL is not responding
-        if (cmd is not None and
-                self.server.get_remote_status().get('server_txt_version')
-                is None):
+        server_txt_version = self.server.get_remote_status().get(
+            'server_txt_version')
+        if cmd is not None and server_txt_version is None:
             # Check for 'backup_label' presence
             last_backup = self.server.get_backup(
                 self.server.get_last_backup_id(BackupInfo.STATUS_NOT_EMPTY)
@@ -1135,10 +1137,10 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
     """
 
     #: Regex for START WAL LOCATION info
-    START_TIME_RE = re.compile('^START TIME: (.*)', re.MULTILINE)
+    START_TIME_RE = re.compile(r'^START TIME: (.*)', re.MULTILINE)
 
     #: Regex for START TIME info
-    WAL_RE = re.compile('^START WAL LOCATION: (.*) \(file (.*)\)',
+    WAL_RE = re.compile(r'^START WAL LOCATION: (.*) \(file (.*)\)',
                         re.MULTILINE)
 
     def __init__(self, executor, mode=None):
@@ -1251,8 +1253,9 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
                 backup_info.xlog_segment_size))
 
         # If file_name and file_offset are available, use them
-        if (start_info.get('file_name') is not None and
-                start_info.get('file_offset') is not None):
+        file_name = start_info.get('file_name')
+        file_offset = start_info.get('file_offset')
+        if (file_name is not None and file_offset is not None):
             backup_info.set_attribute('begin_wal',
                                       start_info['file_name'])
             backup_info.set_attribute('begin_offset',
@@ -1276,8 +1279,9 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
 
         # If file_name or file_offset are missing build them using the stop
         # location and the timeline.
-        if (stop_info.get('file_name') is None or
-                stop_info.get('file_offset') is None):
+        file_name = stop_info.get('file_name')
+        file_offset = stop_info.get('file_offset')
+        if file_name is None or file_offset is None:
             # Take a copy of stop_info because we are going to update it
             stop_info = stop_info.copy()
             # Get the timeline from the stop_info if available, otherwise

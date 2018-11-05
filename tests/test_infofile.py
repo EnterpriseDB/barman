@@ -493,8 +493,8 @@ class TestBackupInfo(object):
         # Check that the paths are built according with version
         assert b_info.backup_version == 2
         assert b_info.get_data_directory() == data_dir.strpath
-        assert b_info.get_data_directory(16384) == (backup_dir.strpath +
-                                                    '/16384')
+        assert b_info.get_data_directory(16384) == (
+            backup_dir.strpath + '/16384')
 
         # Build a fake v1 backup
         backup_dir = tmpdir.mkdir('another_fake_backup_id')

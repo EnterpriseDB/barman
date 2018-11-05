@@ -372,12 +372,10 @@ class RecoveryExecutor(object):
         """
         target_epoch = None
         target_datetime = None
+        d_immediate = backup_info.version >= 90400 and target_immediate
+        d_tli = target_tli and target_tli != backup_info.timeline
         # Detect PITR
-        if (target_time or
-                target_xid or
-                (target_tli and target_tli != backup_info.timeline) or
-                target_name or
-                (backup_info.version >= 90400 and target_immediate)):
+        if target_time or target_xid or d_tli or target_name or d_immediate:
             recovery_info['is_pitr'] = True
             targets = {}
             if target_time:
@@ -408,9 +406,8 @@ class RecoveryExecutor(object):
                         "is before the backup end time %s" %
                         (target_datetime, backup_info.end_time))
 
-                target_epoch = (
-                    time.mktime(target_datetime.timetuple()) +
-                    (target_datetime.microsecond / 1000000.))
+                ms = target_datetime.microsecond / 1000000.
+                target_epoch = time.mktime(target_datetime.timetuple()) + ms
                 targets['time'] = str(target_datetime)
             if target_xid:
                 targets['xid'] = str(target_xid)
@@ -957,8 +954,9 @@ class RecoveryExecutor(object):
         # a configuration file is located outside the data dir.
         # This is not an error condition, so we check also for
         # `pg_ident.conf` which is an optional file.
-        for conf_file in (recovery_info['configuration_files'] +
-                          ['pg_hba.conf', 'pg_ident.conf']):
+        hardcoded_files = ['pg_hba.conf', 'pg_ident.conf']
+        conf_files = recovery_info['configuration_files'] + hardcoded_files
+        for conf_file in conf_files:
             source_path = os.path.join(
                 backup_info.get_data_directory(), conf_file)
             if not os.path.exists(source_path):

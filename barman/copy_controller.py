@@ -219,7 +219,7 @@ class RsyncCopyController(object):
     # This regular expression is used to parse each line of the output
     # of a "rsync --list-only" call. This regexp has been tested with any known
     # version of upstream rsync that is supported (>= 3.0.4)
-    LIST_ONLY_RE = re.compile("""
+    LIST_ONLY_RE = re.compile(r"""
         (?x) # Enable verbose mode
 
         ^ # start of the line
@@ -253,7 +253,7 @@ class RsyncCopyController(object):
     # vanished files that are not really an error. It is used because
     # in some cases rsync reports it with exit code 23 which could also mean
     # a fatal error
-    VANISHED_RE = re.compile("""
+    VANISHED_RE = re.compile(r"""
         (?x) # Enable verbose mode
         (?i) # Case insensitive
 
@@ -871,8 +871,13 @@ class RsyncCopyController(object):
             # destination, rsync will discover the difference in any case.
             # It is then safe to skip checksum check here.
             dst_item = ref_hash.get(entry.path, None)
-            if (dst_item is None or dst_item.size != entry.size or
-                    dst_item.date != entry.date):
+            if dst_item is None:
+                item.safe_list.append(entry)
+                continue
+
+            different_size = dst_item.size != entry.size
+            different_date = dst_item.date != entry.date
+            if different_size or different_date:
                 item.safe_list.append(entry)
                 continue
 
@@ -1021,15 +1026,18 @@ class RsyncCopyController(object):
                 continue
             # Build a human readable name to refer to an item in the output
             ident = item.label
-            if (analysis_start is None or
-                    analysis_start > item.analysis_start_time):
+            if not analysis_start:
                 analysis_start = item.analysis_start_time
-            if (analysis_end is None or
-                    analysis_end < item.analysis_end_time):
+            elif analysis_start > item.analysis_start_time:
+                analysis_start = item.analysis_start_time
+
+            if not analysis_end:
                 analysis_end = item.analysis_end_time
+            elif analysis_end < item.analysis_end_time:
+                analysis_end = item.analysis_end_time
+
             stat['analysis_time_per_item'][ident] = total_seconds(
-                item.analysis_end_time -
-                item.analysis_start_time)
+                item.analysis_end_time - item.analysis_start_time)
         stat['analysis_time'] = total_seconds(analysis_end - analysis_start)
 
         # Calculate the time spent per job

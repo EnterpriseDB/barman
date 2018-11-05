@@ -563,11 +563,16 @@ class BackupInfo(FieldListFile):
         :param int tablespace_oid: the oid of a valid tablespace
         """
         # Check if a tablespace oid is passed and if is a valid oid
-        if tablespace_oid is not None and (
-                self.tablespaces is None or
-                all(str(tablespace_oid) != str(tablespace.oid)
-                    for tablespace in self.tablespaces)):
-            raise ValueError("Invalid tablespace OID %s" % tablespace_oid)
+        if tablespace_oid is not None:
+            if self.tablespaces is None:
+                raise ValueError("Invalid tablespace OID %s" % tablespace_oid)
+
+            invalid_oid = all(
+                str(tablespace_oid) != str(tablespace.oid)
+                for tablespace in self.tablespaces)
+            if invalid_oid:
+                raise ValueError("Invalid tablespace OID %s" % tablespace_oid)
+
         # Build the requested path according to backup_version value
         path = [self.get_basebackup_directory()]
         # Check te version of the backup

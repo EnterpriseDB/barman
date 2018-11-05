@@ -560,11 +560,12 @@ class FileWalArchiver(WalArchiver):
         if remote_status['archive_mode'] is None:
             return
 
-        output.result('status', self.config.name,
-                      "archive_command",
-                      "PostgreSQL 'archive_command' setting",
-                      remote_status['archive_command'] or
-                      "FAILED (please set it accordingly to documentation)")
+        output.result(
+            'status', self.config.name,
+            "archive_command",
+            "PostgreSQL 'archive_command' setting",
+            remote_status['archive_command'] or "FAILED "
+            "(please set it accordingly to documentation)")
         last_wal = remote_status.get('last_archived_wal')
         # If PostgreSQL is >= 9.4 we have the last_archived_time
         if last_wal and remote_status.get('last_archived_time'):
@@ -916,10 +917,10 @@ class StreamingWalArchiver(WalArchiver):
         # The receive-wal process is eligible for synchronous replication
         # if `synchronous_standby_names` is configured and contains
         # the value of `streaming_archiver_name`
-        synchronous = (syncnames and
-                       self.config.streaming_archiver_name in syncnames)
+        streaming_archiver_name = self.config.streaming_archiver_name
+        synchronous = (syncnames and streaming_archiver_name in syncnames)
         _logger.debug('Synchronous WAL streaming for %s: %s',
-                      self.config.streaming_archiver_name,
+                      streaming_archiver_name,
                       synchronous)
         return synchronous
 

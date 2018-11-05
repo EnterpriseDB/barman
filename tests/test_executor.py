@@ -261,6 +261,8 @@ class TestRsyncBackupExecutor(object):
 
         backup_manager.executor.backup_copy(backup_info)
 
+        rbe = RsyncBackupExecutor
+
         assert rsync_mock.mock_calls == [
             mock.call(reuse_backup=None, safe_horizon=None,
                       network_compression=False,
@@ -277,7 +279,7 @@ class TestRsyncBackupExecutor(object):
                 reuse=None,
                 bwlimit=None,
                 item_class=rsync_mock.return_value.TABLESPACE_CLASS,
-                exclude=["/*"] + RsyncBackupExecutor.EXCLUDE_LIST,
+                exclude=["/*"] + rbe.EXCLUDE_LIST,
                 include=["/PG_9.6_*"]),
             mock.call().add_directory(
                 label='tbs2',
@@ -286,7 +288,7 @@ class TestRsyncBackupExecutor(object):
                 reuse=None,
                 bwlimit=None,
                 item_class=rsync_mock.return_value.TABLESPACE_CLASS,
-                exclude=["/*"] + RsyncBackupExecutor.EXCLUDE_LIST,
+                exclude=["/*"] + rbe.EXCLUDE_LIST,
                 include=["/PG_9.6_*"]),
             mock.call().add_directory(
                 label='pgdata',
@@ -295,8 +297,7 @@ class TestRsyncBackupExecutor(object):
                 reuse=None,
                 bwlimit=None,
                 item_class=rsync_mock.return_value.PGDATA_CLASS,
-                exclude=RsyncBackupExecutor.PGDATA_EXCLUDE_LIST +
-                    RsyncBackupExecutor.EXCLUDE_LIST,
+                exclude=(rbe.PGDATA_EXCLUDE_LIST + rbe.EXCLUDE_LIST),
                 exclude_and_protect=['pg_tblspc/16387', 'pg_tblspc/16405']),
             mock.call().add_file(
                 label='pg_control',

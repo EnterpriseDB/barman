@@ -215,8 +215,8 @@ class Server(RemoteStatusMixin):
         # If the PostgreSQLConnection creation fails, disable the Server
         except ConninfoException as e:
             self.config.disabled = True
-            self.config.msg_list.append("PostgreSQL connection: " +
-                                        str(e).strip())
+            self.config.msg_list.append(
+                "PostgreSQL connection: " + str(e).strip())
 
         # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
         # IMPORTANT: This is a back-compatibility feature that has
@@ -253,15 +253,15 @@ class Server(RemoteStatusMixin):
 
         # Initialize the streaming PostgreSQL connection only when
         # backup_method is postgres or the streaming_archiver is in use
-        if (self.config.backup_method == 'postgres' or
-                self.config.streaming_archiver):
+        config = self.config
+        if (config.backup_method == 'postgres' or config.streaming_archiver):
             try:
                 self.streaming = StreamingConnection(config)
             # If the StreamingConnection creation fails, disable the server
             except ConninfoException as e:
                 self.config.disabled = True
-                self.config.msg_list.append("Streaming connection: " +
-                                            str(e).strip())
+                self.config.msg_list.append(
+                    "Streaming connection: " + str(e).strip())
 
         # Initialize the StreamingWalArchiver
         # WARNING: Order of items in self.archivers list is important!
@@ -717,8 +717,8 @@ class Server(RemoteStatusMixin):
              of the results of the various checks
         """
         check_strategy.init_check("retention policy settings")
-        if (self.config.retention_policy and
-                not self.enforce_retention_policies):
+        config = self.config
+        if (config.retention_policy and not self.enforce_retention_policies):
             check_strategy.result(self.config.name, False, hint='see log')
         else:
             check_strategy.result(self.config.name, True)
@@ -1250,33 +1250,37 @@ class Server(RemoteStatusMixin):
             # Calculate the difference between the timestamps of
             # the first WAL (begin of backup) and the last WAL
             # associated to the current backup
+            wal_last_timestamp = wal_info['wal_last_timestamp']
+            wal_first_timestamp = wal_info['wal_first_timestamp']
             wal_info['wal_total_seconds'] = (
-                wal_info['wal_last_timestamp'] -
-                wal_info['wal_first_timestamp'])
+                wal_last_timestamp - wal_first_timestamp)
             if wal_info['wal_total_seconds'] > 0:
+                wal_num = wal_info['wal_num']
+                wal_until_next_num = wal_info['wal_until_next_num']
+                wal_total_seconds = wal_info['wal_total_seconds']
                 wal_info['wals_per_second'] = (
-                    float(wal_info['wal_num'] +
-                          wal_info['wal_until_next_num']) /
-                    wal_info['wal_total_seconds'])
+                    float(wal_num + wal_until_next_num) / wal_total_seconds)
 
             # evaluation of compression ratio for basebackup WAL files
             wal_info['wal_theoretical_size'] = \
                 wal_info['wal_num'] * float(backup_info.xlog_segment_size)
             try:
-                wal_info['wal_compression_ratio'] = 1 - (
-                    wal_info['wal_size'] /
-                    wal_info['wal_theoretical_size'])
+                wal_size = wal_info['wal_size']
+                wal_info['wal_compression_ratio'] = (
+                    1 - (wal_size / wal_info['wal_theoretical_size']))
             except ZeroDivisionError:
                 wal_info['wal_compression_ratio'] = 0.0
 
             # evaluation of compression ratio of WAL files
-            wal_info['wal_until_next_theoretical_size'] = \
-                wal_info['wal_until_next_num'] * \
-                float(backup_info.xlog_segment_size)
+            wal_until_next_num = wal_info['wal_until_next_num']
+            wal_info['wal_until_next_theoretical_size'] = (
+                wal_until_next_num * float(backup_info.xlog_segment_size))
             try:
-                wal_info['wal_until_next_compression_ratio'] = 1 - (
-                    wal_info['wal_until_next_size'] /
+                wal_until_next_size = wal_info['wal_until_next_size']
+                until_next_theoretical_size = (
                     wal_info['wal_until_next_theoretical_size'])
+                wal_info['wal_until_next_compression_ratio'] = (
+                    1 - (wal_until_next_size / until_next_theoretical_size))
             except ZeroDivisionError:
                 wal_info['wal_until_next_compression_ratio'] = 0.0
 

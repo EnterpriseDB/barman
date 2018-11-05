@@ -52,7 +52,7 @@ class LockFile(object):
     """
 
     LOCK_PATTERN = None
-    """
+    r"""
     If defined in a subclass, it must be a compiled regular expression
     which matches the lock filename.
 
