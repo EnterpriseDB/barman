@@ -2030,6 +2030,7 @@ class Server(RemoteStatusMixin):
         :param int archive_timeout: Timeout in seconds
         """
 
+        initial_wals = dict()
         if not wal_file:
             wals = self.backup_manager.get_latest_archived_wals_info()
             initial_wals = dict([(tli, wals[tli].name) for tli in wals])
@@ -2050,7 +2051,7 @@ class Server(RemoteStatusMixin):
         if archive_timeout:
             end_time += archive_timeout
         while time.time() < end_time:
-            self.backup_manager.archive_wal(verbose=False)
+            self.archive_wal(verbose=False)
 
             # Finish if the closed wal file is in the archive.
             if wal_file:
