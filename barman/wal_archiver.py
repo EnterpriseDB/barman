@@ -132,7 +132,8 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
         :param boolean verbose: Flag for verbose output
         """
-        compressor = self.backup_manager.compression_manager.get_compressor()
+        compressor = self.backup_manager.compression_manager \
+            .get_default_compressor()
         stamp = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
         processed = 0
         header = "Processing xlog segments from %s for %s" % (
@@ -265,6 +266,8 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         tmp_file = dst_file + '.tmp'
         dst_dir = os.path.dirname(dst_file)
 
+        comp_manager = self.backup_manager.compression_manager
+
         error = None
         try:
             # Run the pre_archive_script if present.
@@ -284,19 +287,18 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
             if os.path.exists(dst_file):
                 src_uncompressed = src_file
                 dst_uncompressed = dst_file
-                dst_info = WalFileInfo.from_file(dst_file)
+                dst_info = comp_manager.get_wal_file_info(dst_file)
                 try:
-                    comp_manager = self.backup_manager.compression_manager
                     if dst_info.compression is not None:
                         dst_uncompressed = dst_file + '.uncompressed'
-                        comp_manager.get_compressor(
-                            compression=dst_info.compression).decompress(
-                                dst_file, dst_uncompressed)
+                        comp_manager \
+                            .get_compressor(dst_info.compression) \
+                            .decompress(dst_file, dst_uncompressed)
                     if wal_info.compression:
                         src_uncompressed = src_file + '.uncompressed'
-                        comp_manager.get_compressor(
-                            compression=wal_info.compression).decompress(
-                                src_file, src_uncompressed)
+                        comp_manager \
+                            .get_compressor(wal_info.compression) \
+                            .decompress(src_file, src_uncompressed)
                     # Directly compare files.
                     # When the files are identical
                     # raise a MatchingDuplicateWalFile exception,

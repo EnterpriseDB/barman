@@ -201,7 +201,7 @@ class TestWalFileInfo(object):
             '0000000000000000/000000000000000000000001')
 
     @mock.patch('barman.infofile.identify_compression')
-    def test_from_file_default_compression(self, id_compression, tmpdir):
+    def test_from_file_unidentified_compression(self, id_compression, tmpdir):
         # prepare
         id_compression.return_value = None
 
@@ -209,12 +209,12 @@ class TestWalFileInfo(object):
         tmp_file.write('dummy_content\n')
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
-            default_compression='test_default_compression')
+            unidentified_compression='test_unidentified_compression')
         assert wfile_info.name == tmp_file.basename
         assert wfile_info.size == tmp_file.size()
         assert wfile_info.time == tmp_file.mtime()
         assert wfile_info.filename == '%s.meta' % tmp_file.strpath
-        assert wfile_info.compression == 'test_default_compression'
+        assert wfile_info.compression == 'test_unidentified_compression'
         assert wfile_info.relpath() == (
             '00000001000000E5/00000001000000E500000064')
 
@@ -227,7 +227,7 @@ class TestWalFileInfo(object):
         tmp_file.write('dummy_content\n')
         wfile_info = WalFileInfo.from_file(
             tmp_file.strpath,
-            default_compression='test_default_compression',
+            unidentified_compression='test_unidentified_compression',
             compression='test_override_compression')
         assert wfile_info.name == tmp_file.basename
         assert wfile_info.size == tmp_file.size()

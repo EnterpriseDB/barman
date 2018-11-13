@@ -667,7 +667,7 @@ class BackupManager(RemoteStatusMixin):
         else:
             status = True
             try:
-                self.compression_manager.get_compressor()
+                self.compression_manager.get_default_compressor()
             except CompressionIncompatibility as field:
                 check_strategy.result(self.config.name,
                                       '%s setting' % field, False)
@@ -764,7 +764,7 @@ class BackupManager(RemoteStatusMixin):
 
         output.info("Rebuilding xlogdb for server %s", self.config.name)
         root = self.config.wals_directory
-        default_compression = self.config.compression
+        comp_manager = self.compression_manager
         wal_count = label_count = history_count = 0
         # lock the xlogdb as we are about replacing it completely
         with self.server.xlogdb('w') as fxlogdb:
@@ -802,17 +802,15 @@ class BackupManager(RemoteStatusMixin):
                                         'rebuilding the wal database: %s',
                                         fullname)
                                     continue
-                                wal_info = WalFileInfo.from_file(
-                                    fullname,
-                                    default_compression=default_compression)
+                                wal_info = comp_manager.get_wal_file_info(
+                                    fullname)
                                 fxlogdb_new.write(wal_info.to_xlogdb_line())
                     else:
                         # only history files are here
                         if xlog.is_history_file(fullname):
                             history_count += 1
-                            wal_info = WalFileInfo.from_file(
-                                fullname,
-                                default_compression=default_compression)
+                            wal_info = comp_manager.get_wal_file_info(
+                                fullname)
                             fxlogdb_new.write(wal_info.to_xlogdb_line())
                         else:
                             _logger.warning(
@@ -837,6 +835,7 @@ class BackupManager(RemoteStatusMixin):
         from os.path import isdir, join
 
         root = self.config.wals_directory
+        comp_manager = self.compression_manager
 
         # If the WAL archive directory doesn't exists the archive is empty
         if not isdir(root):
@@ -867,7 +866,8 @@ class BackupManager(RemoteStatusMixin):
                     fullname = join(hash_dir, wal_name)
                     # Return the first file that has the correct name
                     if not isdir(fullname) and xlog.is_wal_file(fullname):
-                        timelines[timeline] = WalFileInfo.from_file(fullname)
+                        timelines[timeline] = comp_manager.get_wal_file_info(
+                            fullname)
                         break
 
         # Return the timeline map

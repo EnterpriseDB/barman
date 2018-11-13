@@ -24,7 +24,7 @@ from dateutil import tz
 
 from barman.backup import BackupManager
 from barman.config import BackupOptions, Config
-from barman.infofile import BackupInfo, Tablespace
+from barman.infofile import BackupInfo, Tablespace, WalFileInfo
 from barman.server import Server
 from barman.utils import mkpath
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
@@ -360,6 +360,8 @@ def build_backup_manager(server=None, name=None, config=None,
     with mock.patch("barman.backup.CompressionManager"):
         manager = BackupManager(server=server)
     server.backup_manager = manager
+    manager.compression_manager.get_wal_file_info.side_effect = \
+        WalFileInfo.from_file
     return manager
 
 

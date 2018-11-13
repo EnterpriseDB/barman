@@ -34,7 +34,6 @@ import barman
 from barman import output, xlog
 from barman.backup import BackupManager
 from barman.command_wrappers import BarmanSubProcess
-from barman.compression import identify_compression
 from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
                                ConninfoException, LockFileBusy,
                                LockFilePermissionDenied,
@@ -1424,18 +1423,17 @@ class Server(RemoteStatusMixin):
                 "Writing WAL '%s' for server '%s' to standard output%s",
                 wal_name, self.config.name, source_suffix)
 
+        # Identify the wal file
+        wal_info = self.backup_manager.compression_manager \
+            .get_wal_file_info(wal_file)
+
         # Get a decompressor for the file (None if not compressed)
         wal_compressor = self.backup_manager.compression_manager \
-            .get_compressor(compression=identify_compression(wal_file))
+            .get_compressor(wal_info.compression)
 
         # Get a compressor for the output (None if not compressed)
-        # Here we need to handle explicitly the None value because we don't
-        # want it ot fallback to the configured compression
-        if compression is not None:
-            out_compressor = self.backup_manager.compression_manager \
-                .get_compressor(compression=compression)
-        else:
-            out_compressor = None
+        out_compressor = self.backup_manager.compression_manager \
+            .get_compressor(compression)
 
         # Initially our source is the stored WAL file and we do not have
         # any temporary file
@@ -2111,6 +2109,8 @@ class Server(RemoteStatusMixin):
         :return List[xlog.HistoryFileData]: the list of timelines that
           have the timeline with id 'tli' as parent
         """
+        comp_manager = self.backup_manager.compression_manager
+
         if forked_after:
             forked_after = xlog.parse_lsn(forked_after)
 
@@ -2126,7 +2126,7 @@ class Server(RemoteStatusMixin):
                 break
 
             # Create the WalFileInfo object using the file
-            wal_info = WalFileInfo.from_file(history_path)
+            wal_info = comp_manager.get_wal_file_info(history_path)
             # Get content of the file. We need to pass a compressor manager
             # here to handle an eventual compression of the history file
             history_info = xlog.decode_history_file(

@@ -491,7 +491,7 @@ class TestRecoveryExecutor(object):
             'bzip2': mock.Mock(name='bzip2'),
         }
         cm_mock.return_value.get_compressor = \
-            lambda compression=None, path=None: c[compression]
+            lambda compression=None: c[compression]
         # touch destination files to avoid errors on cleanup
         c['gzip'].decompress.side_effect = lambda src, dst: open(dst, 'w')
         c['bzip2'].decompress.side_effect = lambda src, dst: open(dst, 'w')

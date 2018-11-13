@@ -26,6 +26,7 @@ import shutil
 from abc import ABCMeta, abstractmethod
 from contextlib import closing
 
+import barman.infofile
 from barman.command_wrappers import Command
 from barman.exceptions import (CommandFailedException,
                                CompressionIncompatibility)
@@ -41,6 +42,12 @@ class CompressionManager(object):
         """
         self.config = config
         self.path = path
+        self.unidentified_compression = None
+
+        # If Barman is set to use the custom compression, it assumes that
+        # every unidentified file is custom compressed
+        if self.config.compression == 'custom':
+            self.unidentified_compression = self.config.compression
 
     def check(self, compression=None):
         """
@@ -53,27 +60,45 @@ class CompressionManager(object):
             return False
         return True
 
-    def get_compressor(self, compression=None):
+    def get_default_compressor(self):
+        """
+        Returns a new default compressor instance
+        """
+        return self.get_compressor(self.config.compression)
+
+    def get_compressor(self, compression):
         """
         Returns a new compressor instance
 
-        :param str compression: Compression name
+        :param str compression: Compression name or none
         """
-        if not compression:
-            compression = self.config.compression
-            # Check if the requested compression mechanism is allowed
-        if self.check(compression):
+        # Check if the requested compression mechanism is allowed
+        if compression and self.check(compression):
             return compression_registry[compression](
                 config=self.config, compression=compression, path=self.path)
-        else:
-            return None
+        return None
+
+    def get_wal_file_info(self, filename):
+        """
+        Populate a WalFileInfo object taking into account the server
+        configuration.
+
+        Set compression to 'custom' if no compression is identified
+        and Barman is configured to use custom compression.
+
+        :param str filename: the path of the file to identify
+        :rtype: barman.infofile.WalFileInfo
+        """
+        return barman.infofile.WalFileInfo.from_file(
+            filename,
+            self.unidentified_compression)
 
 
 def identify_compression(filename):
     """
     Try to guess the compression algorithm of a file
 
-    :param filename: the pat of the file to identify
+    :param str filename: the path of the file to identify
     :rtype: str
     """
     # TODO: manage multiple decompression methods for the same
@@ -136,7 +161,6 @@ class CommandCompressor(Compressor):
     """
 
     def __init__(self, config, compression, path=None):
-
         super(CommandCompressor, self).__init__(
             config, compression, path)
 

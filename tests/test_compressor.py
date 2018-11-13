@@ -58,7 +58,7 @@ class TestCompressionManager(object):
 
         # check custom compression method creation
         comp_manager = CompressionManager(config_mock, None)
-        assert comp_manager.get_compressor() is not None
+        assert comp_manager.get_default_compressor() is not None
 
     def test_get_compressor_gzip(self):
         # prepare mock obj
@@ -67,7 +67,7 @@ class TestCompressionManager(object):
 
         # check custom compression method creation
         comp_manager = CompressionManager(config_mock, None)
-        assert comp_manager.get_compressor() is not None
+        assert comp_manager.get_default_compressor() is not None
 
     def test_get_compressor_bzip2(self):
         # prepare mock obj
@@ -76,7 +76,7 @@ class TestCompressionManager(object):
 
         # check custom compression method creation
         comp_manager = CompressionManager(config_mock, None)
-        assert comp_manager.get_compressor() is not None
+        assert comp_manager.get_default_compressor() is not None
 
     def test_get_compressor_invalid(self):
         # prepare mock obj

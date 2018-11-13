@@ -287,7 +287,10 @@ class TestFileWalArchiver(object):
         )
         b_info.save()
         backup_manager.server.get_backup.return_value = b_info
-        backup_manager.compression_manager.get_compressor.return_value = None
+        backup_manager.compression_manager.get_default_compressor \
+            .return_value = None
+        backup_manager.compression_manager.get_compressor \
+            .return_value = None
         # Build the basic folder structure and files
         basedir = tmpdir.join('main')
         incoming_dir = basedir.join('incoming')
@@ -375,8 +378,8 @@ class TestFileWalArchiver(object):
         compressor.compress(wal_file.strpath, wal_file.strpath)
         wal_info = WalFileInfo.from_file(wal_file.strpath)
         assert os.path.exists(wal_file.strpath)
-        backup_manager.compression_manager.get_compressor.return_value = (
-            compressor)
+        backup_manager.compression_manager.get_compressor \
+            .return_value = compressor
 
         with pytest.raises(MatchingDuplicateWalFile):
             archiver.archive_wal(None, wal_info)
@@ -419,7 +422,10 @@ class TestFileWalArchiver(object):
             global_conf={
                 'barman_home': tmpdir.strpath
             })
-        backup_manager.compression_manager.get_compressor.return_value = None
+        backup_manager.compression_manager.get_default_compressor \
+            .return_value = None
+        backup_manager.compression_manager.get_compressor \
+            .return_value = None
         backup_manager.server.get_backup.return_value = None
         # Build the basic folder structure and files
         basedir = tmpdir.join('main')
@@ -472,7 +478,10 @@ class TestFileWalArchiver(object):
         )
         b_info.save()
         # Build the basic folder structure and files
-        backup_manager.compression_manager.get_compressor.return_value = None
+        backup_manager.compression_manager.get_default_compressor \
+            .return_value = None
+        backup_manager.compression_manager.get_compressor \
+            .return_value = None
         backup_manager.server.get_backup.return_value = b_info
         basedir = tmpdir.join('main')
         incoming_dir = basedir.join('incoming')
@@ -526,7 +535,10 @@ class TestFileWalArchiver(object):
         )
         b_info.save()
         # Build the basic folder structure and files
-        backup_manager.compression_manager.get_compressor.return_value = None
+        backup_manager.compression_manager.get_default_compressor \
+            .return_value = None
+        backup_manager.compression_manager.get_compressor \
+            .return_value = None
         backup_manager.server.get_backup.return_value = b_info
         basedir = tmpdir.join('main')
         incoming_dir = basedir.join('incoming')

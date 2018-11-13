@@ -321,7 +321,7 @@ class WalFileInfo(FieldListFile):
     compression = Field('compression', doc='compression type')
 
     @classmethod
-    def from_file(cls, filename, default_compression=None, **kwargs):
+    def from_file(cls, filename, unidentified_compression=None, **kwargs):
         """
         Factory method to generate a WalFileInfo from a WAL file.
 
@@ -330,7 +330,7 @@ class WalFileInfo(FieldListFile):
         an AttributeError exception is raised.
 
         :param str filename: the file to inspect
-        :param str default_compression: the compression to set if
+        :param str unidentified_compression: the compression to set if
             the current schema is not identifiable.
         """
         stat = os.stat(filename)
@@ -339,7 +339,7 @@ class WalFileInfo(FieldListFile):
         kwargs.setdefault('time', stat.st_mtime)
         if 'compression' not in kwargs:
             kwargs['compression'] = identify_compression(filename) \
-                or default_compression
+                or unidentified_compression
         obj = cls(**kwargs)
         obj.filename = "%s.meta" % filename
         obj.orig_filename = filename

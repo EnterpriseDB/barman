@@ -581,8 +581,8 @@ class TestBackup(object):
         # Test failure retrieving a compressor
         backup_manager.config.compression = 'test_compression'
         backup_manager.compression_manager.check.return_value = True
-        backup_manager.compression_manager.get_compressor.side_effect = \
-            CompressionIncompatibility()
+        backup_manager.compression_manager.get_default_compressor \
+            .side_effect = CompressionIncompatibility()
         strategy_mock.reset_mock()
         backup_manager.check(strategy_mock)
         # Expect a failure from the method
