@@ -78,6 +78,12 @@ class LockFileException(BarmanException):
     """
 
 
+class SyncException(BarmanException):
+    """
+    Base Exception for synchronisation functions
+    """
+
+
 class DuplicateWalFile(WALFileException):
     """
     A duplicate WAL file has been found
@@ -106,6 +112,24 @@ class UnknownBackupIdException(BackupException):
 class BackupInfoBadInitialisation(BackupException):
     """
     Exception for a bad initialization error
+    """
+
+
+class SyncError(SyncException):
+    """
+    Synchronisation error
+    """
+
+
+class SyncNothingToDo(SyncException):
+    """
+    Nothing to do during sync operations
+    """
+
+
+class SyncToBeDeleted(SyncException):
+    """
+    An incomplete backup is to be deleted
     """
 
 

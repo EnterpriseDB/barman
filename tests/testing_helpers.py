@@ -111,6 +111,7 @@ def build_test_backup_info(
     if server is None:
         server = mock.Mock(name=server_name)
         server.config = build_config_from_dicts().get_server('main')
+        server.passive_node = False
         server.backup_manager.name = 'default'
 
     backup_info = BackupInfo(**locals())
@@ -268,6 +269,7 @@ def build_config_dictionary(config_keys=None):
         'retention_policy_mode': 'auto',
         'reuse_backup': None,
         'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere',
+        'primary_ssh_command': None,
         'tablespace_bandwidth_limit': None,
         'wal_retention_policy': 'main',
         'wals_directory': '/some/barman/home/main/wals',
@@ -339,6 +341,7 @@ def build_mocked_server(name=None, config=None,
         server.config = config
     server.backup_manager.server = server
     server.backup_manager.config = server.config
+    server.passive_node = False
     server.config.name = name or 'main'
     server.postgres.xlog_segment_size = DEFAULT_XLOG_SEG_SIZE
     server.path = '/test/bin'

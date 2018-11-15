@@ -24,7 +24,8 @@ from mock import ANY, patch
 
 from barman.exceptions import LockFileBusy, LockFilePermissionDenied
 from barman.lockfile import (GlobalCronLock, LockFile, ServerBackupLock,
-                             ServerCronLock, ServerWalReceiveLock,
+                             ServerBackupSyncLock, ServerCronLock,
+                             ServerWalReceiveLock, ServerWalSyncLock,
                              ServerXLOGDBLock)
 
 
@@ -370,3 +371,22 @@ class TestLockFileSubclasses(object):
         assert lock.filename == tmpdir.join('.server_name-receive-wal.lock')
         assert lock.raise_if_fail
         assert not lock.wait
+
+    def test_server_backup_sync_lock(self, tmpdir):
+        """
+        Tests for ServerBackupSyncLock class
+        """
+        lock = ServerBackupSyncLock(tmpdir.strpath, 'server_name', 'backup_id')
+        assert lock.filename == \
+            tmpdir.join('.server_name-backup_id-sync-backup.lock')
+        assert lock.raise_if_fail
+        assert not lock.wait
+
+    def test_server_wal_sync_lock(self, tmpdir):
+        """
+        Tests for ServerBackupSyncLock class
+        """
+        lock = ServerWalSyncLock(tmpdir.strpath, 'server_name')
+        assert lock.filename == tmpdir.join('.server_name-sync-wal.lock')
+        assert lock.raise_if_fail
+        assert lock.wait

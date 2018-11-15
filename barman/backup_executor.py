@@ -885,6 +885,95 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         output.info(message)
 
 
+class PassiveBackupExecutor(BackupExecutor):
+    """
+    Dummy backup executors for Passive servers.
+
+    Raises a SshCommandException if 'primary_ssh_command' is not set.
+    """
+
+    def __init__(self, backup_manager):
+        """
+        Constructor of Dummy backup executors for Passive servers.
+
+        :param barman.backup.BackupManager backup_manager: the BackupManager
+            assigned to the executor
+        """
+        super(PassiveBackupExecutor, self).__init__(backup_manager)
+
+        # Retrieve the ssh command and the options necessary for the
+        # remote ssh access.
+        self.ssh_command, self.ssh_options = _parse_ssh_command(
+            backup_manager.config.primary_ssh_command)
+
+        # Requires ssh_command to be set
+        if not self.ssh_command:
+            raise SshCommandException(
+                'Invalid primary_ssh_command in barman configuration '
+                'for server %s' % backup_manager.config.name)
+
+    def backup(self, backup_info):
+        """
+        This method should never be called, because this is a passive server
+
+        :param barman.infofile.BackupInfo backup_info: backup information
+        """
+        # The 'backup' command is not available on a passive node.
+        # If we get here, there is a programming error
+        assert False
+
+    def check(self, check_strategy):
+        """
+        Perform additional checks for PassiveBackupExecutor, including
+        Ssh connection to the primary (executing a 'true' command on the
+        remote server).
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        check_strategy.init_check('ssh')
+        hint = 'Barman primary node'
+        cmd = None
+        minimal_ssh_output = None
+        try:
+            cmd = UnixRemoteCommand(self.ssh_command,
+                                    self.ssh_options,
+                                    path=self.server.path)
+            minimal_ssh_output = ''.join(cmd.get_last_output())
+        except FsOperationFailed as e:
+            hint = str(e).strip()
+
+        # Output the result
+        check_strategy.result(self.config.name, cmd is not None, hint=hint)
+
+        # Check if the communication channel is "clean"
+        if minimal_ssh_output:
+            check_strategy.init_check('ssh output clean')
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint="the configured ssh_command must not add anything to "
+                     "the remote command output")
+
+    def status(self):
+        """
+        Set additional status info for PassiveBackupExecutor.
+        """
+        # On passive nodes show the primary_ssh_command
+        output.result('status', self.config.name,
+                      "primary_ssh_command",
+                      "SSH command to primary server",
+                      self.config.primary_ssh_command)
+
+    @property
+    def mode(self):
+        """
+        Property that defines the mode used for the backup.
+        :return str: a string describing the mode used for the backup
+        """
+        return 'passive'
+
+
 class RsyncBackupExecutor(SshBackupExecutor):
     """
     Concrete class for backup via Rsync+Ssh.

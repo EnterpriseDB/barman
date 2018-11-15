@@ -20,6 +20,7 @@ This module represents a Server.
 Barman is able to manage multiple servers.
 """
 
+import json
 import logging
 import os
 import re
@@ -35,9 +36,11 @@ from tempfile import NamedTemporaryFile
 import barman
 from barman import output, xlog
 from barman.backup import BackupManager
-from barman.command_wrappers import BarmanSubProcess
+from barman.command_wrappers import BarmanSubProcess, Command, Rsync
+from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
-                               ConninfoException, LockFileBusy,
+                               CommandFailedException, ConninfoException,
+                               LockFileBusy, LockFileException,
                                LockFilePermissionDenied,
                                PostgresDuplicateReplicationSlot,
                                PostgresException,
@@ -46,23 +49,31 @@ from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
                                PostgresReplicationSlotInUse,
                                PostgresReplicationSlotsFull,
                                PostgresSuperuserRequired,
-                               PostgresUnsupportedFeature, TimeoutError,
+                               PostgresUnsupportedFeature, SyncError,
+                               SyncNothingToDo, SyncToBeDeleted, TimeoutError,
                                UnknownBackupIdException)
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.lockfile import (ServerBackupIdLock, ServerBackupLock,
-                             ServerCronLock, ServerWalArchiveLock,
-                             ServerWalReceiveLock, ServerXLOGDBLock)
+                             ServerBackupSyncLock, ServerCronLock,
+                             ServerWalArchiveLock, ServerWalReceiveLock,
+                             ServerWalSyncLock, ServerXLOGDBLock)
 from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
-from barman.utils import (file_md5, fsync_dir, fsync_file,
+from barman.utils import (BarmanEncoder, file_md5, fsync_dir, fsync_file,
                           human_readable_timedelta, is_power_of_two, mkpath,
                           pretty_size, timeout)
 from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
                                  WalArchiver)
 
+PRIMARY_INFO_FILE = 'primary.info'
+SYNC_WALS_INFO_FILE = 'sync-wals.info'
+
 _logger = logging.getLogger(__name__)
+
+# NamedTuple for a better readability of SyncWalInfo
+SyncWalInfo = namedtuple('SyncWalInfo', 'last_wal last_position')
 
 
 class CheckStrategy(object):
@@ -203,6 +214,10 @@ class Server(RemoteStatusMixin):
         self.path = self._build_path(self.config.path_prefix)
         self.process_manager = ProcessManager(self.config)
 
+        # If 'primary_ssh_command' is specified, the source of the backup
+        # for this server is a Barman installation (not a Postgres server)
+        self.passive_node = config.primary_ssh_command is not None
+
         self.enforce_retention_policies = False
         self.postgres = None
         self.streaming = None
@@ -211,99 +226,105 @@ class Server(RemoteStatusMixin):
         # Initialize the backup manager
         self.backup_manager = BackupManager(self)
 
-        # Initialize the main PostgreSQL connection
-        try:
-            self.postgres = PostgreSQLConnection(config)
-        # If the PostgreSQLConnection creation fails, disable the Server
-        except ConninfoException as e:
-            self.config.disabled = True
-            self.config.msg_list.append(
-                "PostgreSQL connection: " + str(e).strip())
-
-        # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
-        # IMPORTANT: This is a back-compatibility feature that has
-        # been added in Barman 2.0. It highlights a deprecated
-        # behaviour, and helps users during this transition phase.
-        # It forces 'archiver=on' when both archiver and streaming_archiver
-        # are set to 'off' (default values) and displays a warning,
-        # requesting users to explicitly set the value in the configuration.
-        # When this back-compatibility feature will be removed from Barman
-        # (in a couple of major releases), developers will need to remove
-        # this block completely and reinstate the block of code you find
-        # a few lines below (search for ARCHIVER_OFF_BACKCOMPATIBILITY
-        # throughout the code).
-        if self.config.archiver is False and \
-                self.config.streaming_archiver is False:
-            output.warning("No archiver enabled for server '%s'. "
-                           "Please turn on 'archiver', 'streaming_archiver' "
-                           "or both", self.config.name)
-            output.warning("Forcing 'archiver = on'")
-            self.config.archiver = True
-        # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
-
-        # Initialize the FileWalArchiver
-        # WARNING: Order of items in self.archivers list is important!
-        # The files will be archived in that order.
-        if self.config.archiver:
+        # Postgres configuration is available only if node is not passive
+        if not self.passive_node:
+            # Initialize the main PostgreSQL connection
             try:
-                self.archivers.append(FileWalArchiver(self.backup_manager))
-            except AttributeError as e:
-                _logger.debug(e)
-                self.config.disabled = True
-                self.config.msg_list.append('Unable to initialise the '
-                                            'file based archiver')
-
-        # Initialize the streaming PostgreSQL connection only when
-        # backup_method is postgres or the streaming_archiver is in use
-        config = self.config
-        if (config.backup_method == 'postgres' or config.streaming_archiver):
-            try:
-                self.streaming = StreamingConnection(config)
-            # If the StreamingConnection creation fails, disable the server
+                self.postgres = PostgreSQLConnection(config)
+            # If the PostgreSQLConnection creation fails, disable the Server
             except ConninfoException as e:
                 self.config.disabled = True
                 self.config.msg_list.append(
-                    "Streaming connection: " + str(e).strip())
+                    "PostgreSQL connection: " + str(e).strip())
 
-        # Initialize the StreamingWalArchiver
-        # WARNING: Order of items in self.archivers list is important!
-        # The files will be archived in that order.
-        if self.config.streaming_archiver:
-            try:
-                self.archivers.append(StreamingWalArchiver(
-                    self.backup_manager))
-            # If the StreamingWalArchiver creation fails,
-            # disable the server
-            except AttributeError as e:
-                _logger.debug(e)
+            # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
+            # IMPORTANT: This is a back-compatibility feature that has
+            # been added in Barman 2.0. It highlights a deprecated
+            # behaviour, and helps users during this transition phase.
+            # It forces 'archiver=on' when both archiver and streaming_archiver
+            # are set to 'off' (default values) and displays a warning,
+            # requesting users to explicitly set the value in the
+            # configuration.
+            # When this back-compatibility feature will be removed from Barman
+            # (in a couple of major releases), developers will need to remove
+            # this block completely and reinstate the block of code you find
+            # a few lines below (search for ARCHIVER_OFF_BACKCOMPATIBILITY
+            # throughout the code).
+            if self.config.archiver is False and \
+                    self.config.streaming_archiver is False:
+                output.warning("No archiver enabled for server '%s'. "
+                               "Please turn on 'archiver', "
+                               "'streaming_archiver' or both",
+                               self.config.name)
+                output.warning("Forcing 'archiver = on'")
+                self.config.archiver = True
+            # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
+
+            # Initialize the FileWalArchiver
+            # WARNING: Order of items in self.archivers list is important!
+            # The files will be archived in that order.
+            if self.config.archiver:
+                try:
+                    self.archivers.append(FileWalArchiver(self.backup_manager))
+                except AttributeError as e:
+                    _logger.debug(e)
+                    self.config.disabled = True
+                    self.config.msg_list.append('Unable to initialise the '
+                                                'file based archiver')
+
+            # Initialize the streaming PostgreSQL connection only when
+            # backup_method is postgres or the streaming_archiver is in use
+            config = self.config
+            if config.backup_method == 'postgres' or config.streaming_archiver:
+                try:
+                    self.streaming = StreamingConnection(config)
+                # If the StreamingConnection creation fails, disable the server
+                except ConninfoException as e:
+                    self.config.disabled = True
+                    self.config.msg_list.append(
+                        "Streaming connection: " + str(e).strip())
+
+            # Initialize the StreamingWalArchiver
+            # WARNING: Order of items in self.archivers list is important!
+            # The files will be archived in that order.
+            if self.config.streaming_archiver:
+                try:
+                    self.archivers.append(StreamingWalArchiver(
+                        self.backup_manager))
+                # If the StreamingWalArchiver creation fails,
+                # disable the server
+                except AttributeError as e:
+                    _logger.debug(e)
+                    self.config.disabled = True
+                    self.config.msg_list.append('Unable to initialise the '
+                                                'streaming archiver')
+
+            # IMPORTANT: The following lines of code have been
+            # temporarily commented in order to make the code
+            # back-compatible after the introduction of 'archiver=off'
+            # as default value in Barman 2.0.
+            # When the back compatibility feature for archiver will be
+            # removed, the following lines need to be decommented.
+            # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
+            # # At least one of the available archive modes should be enabled
+            # if len(self.archivers) < 1:
+            #     self.config.disabled = True
+            #     self.config.msg_list.append(
+            #         "No archiver enabled for server '%s'. "
+            #         "Please turn on 'archiver', 'streaming_archiver' or both"
+            #         % config.name)
+            # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
+
+            # Sanity check: if file based archiver is disabled, and only
+            # WAL streaming is enabled, a replication slot name must be
+            # configured.
+            if not self.config.archiver and \
+                    self.config.streaming_archiver and \
+                    self.config.slot_name is None:
                 self.config.disabled = True
-                self.config.msg_list.append('Unable to initialise the '
-                                            'streaming archiver')
-
-        # IMPORTANT: The following lines of code have been
-        # temporarily commented in order to make the code
-        # back-compatible after the introduction of 'archiver=off'
-        # as default value in Barman 2.0.
-        # When the back compatibility feature for archiver will be
-        # removed, the following lines need to be decommented.
-        # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
-        # # At least one of the available archive modes should be enabled
-        # if len(self.archivers) < 1:
-        #     self.config.disabled = True
-        #     self.config.msg_list.append(
-        #         "No archiver enabled for server '%s'. "
-        #         "Please turn on 'archiver', 'streaming_archiver' or both"
-        #         % config.name)
-        # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
-
-        # Sanity check: if file based archiver is disabled, and only
-        # WAL streaming is enabled, a replication slot name must be configured.
-        if not self.config.archiver and self.config.streaming_archiver and \
-                self.config.slot_name is None:
-            self.config.disabled = True
-            self.config.msg_list.append(
-                "Streaming-only archiver requires 'streaming_conninfo' and "
-                "'slot_name' options to be properly configured")
+                self.config.msg_list.append(
+                    "Streaming-only archiver requires 'streaming_conninfo' "
+                    "and 'slot_name' options to be properly configured")
 
         # Set bandwidth_limit
         if self.config.bandwidth_limit:
@@ -433,8 +454,9 @@ class Server(RemoteStatusMixin):
             with timeout(self.config.check_timeout):
                 # Check WAL archive
                 self.check_archive(check_strategy)
-                # Check postgres configuration
-                self.check_postgres(check_strategy)
+                # Postgres configuration is not available on passive nodes
+                if not self.passive_node:
+                    self.check_postgres(check_strategy)
                 # Check barman directories from barman configuration
                 self.check_directories(check_strategy)
                 # Check retention policies
@@ -720,7 +742,7 @@ class Server(RemoteStatusMixin):
         """
         check_strategy.init_check("retention policy settings")
         config = self.config
-        if (config.retention_policy and not self.enforce_retention_policies):
+        if config.retention_policy and not self.enforce_retention_policies:
             check_strategy.result(self.config.name, False, hint='see log')
         else:
             check_strategy.result(self.config.name, True)
@@ -856,8 +878,17 @@ class Server(RemoteStatusMixin):
         output.result('status', self.config.name,
                       "disabled",
                       "Disabled", self.config.disabled)
-        self.status_postgres()
-        self.status_wal_archiver()
+
+        # Postgres status is available only if node is not passive
+        if not self.passive_node:
+            self.status_postgres()
+            self.status_wal_archiver()
+
+        output.result('status', self.config.name,
+                      "passive_node",
+                      "Passive node",
+                      self.passive_node)
+
         self.status_retention_policies()
         # Executes the backup manager status info method
         self.backup_manager.status()
@@ -891,8 +922,12 @@ class Server(RemoteStatusMixin):
         """
         # Populate result map with all the required keys
         result = self.config.to_json()
-        remote_status = self.get_remote_status()
-        result.update(remote_status)
+        # Is the server a passive node?
+        result['passive_node'] = self.passive_node
+        # Skip remote status if the server is passive
+        if not self.passive_node:
+            remote_status = self.get_remote_status()
+            result.update(remote_status)
         # Backup maximum age section
         if self.config.last_backup_maximum_age is not None:
             age = self.backup_manager.validate_last_backup_maximum_age(
@@ -994,6 +1029,10 @@ class Server(RemoteStatusMixin):
         """
         Performs a backup for the server
         """
+        # The 'backup' command is not available on a passive node.
+        # We assume that if we get here the node is not passive
+        assert not self.passive_node
+
         try:
             # Default strategy for check in backup is CheckStrategy
             # This strategy does not print any output - it only logs checks
@@ -1632,8 +1671,12 @@ class Server(RemoteStatusMixin):
             # this stops the execution of multiple cron on the same server
             with ServerCronLock(self.config.barman_lock_directory,
                                 self.config.name):
+                # When passive call sync.cron() and never run
+                # local WAL archival
+                if self.passive_node:
+                    self.sync_cron()
                 # WAL management and maintenance
-                if wals:
+                elif wals:
                     # Execute the archive-wal sub-process
                     self.cron_archive_wal()
                     if self.config.streaming_archiver:
@@ -2350,3 +2393,736 @@ class Server(RemoteStatusMixin):
             # warn the user and terminate
             output.error("Permission denied, unable to access '%s'" % e)
             return
+
+    def sync_status(self, last_wal=None, last_position=None):
+        """
+        Return server status for sync purposes.
+
+        The method outputs JSON, containing:
+         * list of backups (with DONE status)
+         * server configuration
+         * last read position (in xlog.db)
+         * last read wal
+         * list of archived wal files
+
+        If last_wal is provided, the method will discard all the wall files
+        older than last_wal.
+        If last_position is provided the method will try to read
+        the xlog.db file using last_position as starting point.
+        If the wal file at last_position does not match last_wal, read from the
+        start and use last_wal as limit
+
+        :param str|None last_wal: last read wal
+        :param int|None last_position: last read position (in xlog.db)
+        """
+        sync_status = {}
+        wals = []
+        # Get all the backups using default filter for
+        # get_available_backups method
+        # (BackupInfo.DONE)
+        backups = self.get_available_backups()
+        # Read xlogdb file.
+        with self.xlogdb() as fxlogdb:
+            starting_point = self.set_sync_starting_point(fxlogdb,
+                                                          last_wal,
+                                                          last_position)
+            check_first_wal = starting_point == 0 and last_wal is not None
+            # The wal_info and line variables are used after the loop.
+            # We initialize them here to avoid errors with an empty xlogdb.
+            line = None
+            wal_info = None
+            for line in fxlogdb:
+                # Parse the line
+                wal_info = WalFileInfo.from_xlogdb_line(line)
+                # Check if user is requesting data that is not available.
+                # TODO: probably the check should be something like
+                # TODO: last_wal + 1 < wal_info.name
+                if check_first_wal:
+                    if last_wal < wal_info.name:
+                        raise SyncError(
+                            "last_wal '%s' is older than the first"
+                            " available wal '%s'" % (last_wal, wal_info.name))
+                    else:
+                        check_first_wal = False
+                # If last_wal is provided, discard any line older than last_wal
+                if last_wal is not None and wal_info.name <= last_wal:
+                    continue
+                wals.append(wal_info)
+            if wal_info is not None:
+                # Check if user is requesting data that is not available.
+                if last_wal is not None and last_wal > wal_info.name:
+                    raise SyncError(
+                        "last_wal '%s' is newer than the last available wal "
+                        " '%s'" % (last_wal, wal_info.name))
+                # Set last_position with the current position - len(last_line)
+                # (returning the beginning of the last line)
+                sync_status['last_position'] = fxlogdb.tell() - len(line)
+                # Set the name of the last wal of the file
+                sync_status['last_name'] = wal_info.name
+            else:
+                # we started over
+                sync_status['last_position'] = 0
+                sync_status['last_name'] = ''
+            sync_status['backups'] = backups
+            sync_status['wals'] = wals
+            sync_status['version'] = barman.__version__
+            sync_status['config'] = self.config
+        output.info(json.dumps(sync_status, cls=BarmanEncoder, indent=4),
+                    log=False)
+
+    def sync_cron(self):
+        """
+        Manage synchronisation operations between passive node and
+        master node.
+        The method recover information from the remote master
+        server, evaluate if synchronisation with the master is required
+        and spawn barman sub processes, syncing backups and WAL files
+
+        """
+        # Recover information from primary node
+        sync_wal_info = self.load_sync_wals_info()
+        # Use last_wal and last_position for the remote call to the
+        # master server
+        remote_info = self.primary_node_info(sync_wal_info.last_wal,
+                                             sync_wal_info.last_position)
+
+        # Perform backup synchronisation
+        if remote_info['backups']:
+            # Get the list of backups that need to be synced
+            # with the local server
+            local_backup_list = self.get_available_backups()
+            # Subtract the list of the already
+            # synchronised backups from the remote backup lists,
+            # obtaining the list of backups still requiring synchronisation
+            sync_backup_list = set(remote_info['backups']) - set(
+                local_backup_list)
+        else:
+            # No backup to synchronisation required
+            output.info("No backup synchronisation required for server %s",
+                        self.config.name, log=False)
+            sync_backup_list = []
+        for backup_id in sorted(sync_backup_list):
+            # Check if this backup_id needs to be synchronized by spawning a
+            # sync-backup process.
+            # The same set of checks will be executed by the spawned process.
+            # This "double check" is necessary because we don't want the cron
+            # to spawn unnecessary processes.
+            try:
+                local_backup_info = self.get_backup(backup_id)
+                self.check_sync_required(backup_id,
+                                         remote_info,
+                                         local_backup_info)
+            except SyncError as e:
+                # It means that neither the local backup
+                # nor the remote one exist.
+                # This should not happen here.
+                output.exception("Unexpected state: %s", e)
+                break
+            except SyncToBeDeleted:
+                # The backup does not exist on primary server
+                # and is FAILED here.
+                # It must be removed by the sync-backup process.
+                pass
+            except SyncNothingToDo:
+                # It could mean that the local backup is in DONE state or
+                # that it is obsolete according to
+                # the local retention policies.
+                # In both cases, continue with the next backup.
+                continue
+            # Now that we are sure that a backup-sync subprocess is necessary,
+            # we need to acquire the backup lock, to be sure that
+            # there aren't other processes synchronising the backup.
+            # If cannot acquire the lock, another synchronisation process
+            # is running, so we give up.
+            try:
+                with ServerBackupSyncLock(self.config.barman_lock_directory,
+                                          self.config.name, backup_id):
+                    output.info("Starting copy of backup %s for server %s",
+                                backup_id, self.config.name)
+            except LockFileBusy:
+                output.info("A synchronisation process for backup %s"
+                            " on server %s is already in progress",
+                            backup_id, self.config.name, log=False)
+                # Stop processing this server
+                break
+
+            # Init a Barman sub-process object
+            sub_process = BarmanSubProcess(
+                subcommand='sync-backup',
+                config=barman.__config__.config_file,
+                args=[self.config.name, backup_id])
+            # Launch the sub-process
+            sub_process.execute()
+
+            # Stop processing this server
+            break
+
+        # Perform WAL synchronisation
+        if remote_info['wals']:
+            # We need to acquire a sync-wal lock, to be sure that
+            # there aren't other processes synchronising the WAL files.
+            # If cannot acquire the lock, another synchronisation process
+            # is running, so we give up.
+            try:
+                with ServerWalSyncLock(self.config.barman_lock_directory,
+                                       self.config.name,):
+                    output.info("Started copy of WAL files for server %s",
+                                self.config.name)
+            except LockFileBusy:
+                output.info("WAL synchronisation already running"
+                            " for server %s", self.config.name, log=False)
+                return
+
+            # Init a Barman sub-process object
+            sub_process = BarmanSubProcess(
+                subcommand='sync-wals',
+                config=barman.__config__.config_file,
+                args=[self.config.name])
+            # Launch the sub-process
+            sub_process.execute()
+        else:
+            # no WAL synchronisation is required
+            output.info("No WAL synchronisation required for server %s",
+                        self.config.name, log=False)
+
+    def check_sync_required(self,
+                            backup_name,
+                            primary_info,
+                            local_backup_info):
+        """
+        Check if it is necessary to sync a backup.
+
+        If the backup is present on the Primary node:
+        * if it does not exist locally: continue (synchronise it)
+        * if it exists and is DONE locally: raise SyncNothingToDo
+          (nothing to do)
+        * if it exists and is FAILED locally: continue (try to recover it)
+
+        If the backup is not present on the Primary node:
+        * if it does not exist locally: raise SyncError (wrong call)
+        * if it exists and is DONE locally: raise SyncNothingToDo
+          (nothing to do)
+        * if it exists and is FAILED locally: raise SyncToBeDeleted (remove it)
+
+        If a backup needs to be synchronised but it is obsolete according
+        to local retention policies, raise SyncNothingToDo,
+        else return to the caller.
+
+        :param str backup_name: str name of the backup to sync
+        :param dict primary_info: dict containing the Primary node status
+        :param barman.infofile.BackupInfo local_backup_info: BackupInfo object
+                representing the current backup state
+
+        :raise SyncError: There is an error in the user request
+        :raise SyncNothingToDo: Nothing to do for this request
+        :raise SyncToBeDeleted: Backup is not recoverable and must be deleted
+        """
+        backups = primary_info['backups']
+        # Backup not present on Primary node, and not present
+        # locally. Raise exception.
+        if backup_name not in backups \
+                and local_backup_info is None:
+            raise SyncError("Backup %s is absent on %s server" %
+                            (backup_name, self.config.name))
+        # Backup not present on Primary node, but is
+        # present locally with status FAILED: backup incomplete.
+        # Remove the backup and warn the user
+        if backup_name not in backups \
+                and local_backup_info is not None \
+                and local_backup_info.status == BackupInfo.FAILED:
+            raise SyncToBeDeleted(
+                "Backup %s is absent on %s server and is incomplete locally" %
+                (backup_name, self.config.name))
+
+        # Backup not present on Primary node, but is
+        # present locally with status DONE. Sync complete, local only.
+        if backup_name not in backups \
+                and local_backup_info is not None \
+                and local_backup_info.status == BackupInfo.DONE:
+            raise SyncNothingToDo(
+                "Backup %s is absent on %s server, but present locally "
+                "(local copy only)" % (backup_name, self.config.name))
+
+        # Backup present on Primary node, and present locally
+        # with status DONE. Sync complete.
+        if backup_name in backups \
+                and local_backup_info is not None \
+                and local_backup_info.status == BackupInfo.DONE:
+            raise SyncNothingToDo("Backup %s is already synced with"
+                                  " %s server" % (backup_name,
+                                                  self.config.name))
+
+        # Retention Policy: if the local server has a Retention policy,
+        # check that the remote backup is not obsolete.
+        enforce_retention_policies = self.enforce_retention_policies
+        retention_policy_mode = self.config.retention_policy_mode
+        if enforce_retention_policies and retention_policy_mode == 'auto':
+            # All the checks regarding retention policies are in
+            # this boolean method.
+            if self.is_backup_locally_obsolete(backup_name, backups):
+                # The remote backup is obsolete according to
+                # local retention policies.
+                # Nothing to do.
+                raise SyncNothingToDo("Remote backup %s/%s is obsolete for "
+                                      "local retention policies." %
+                                      (primary_info['config']['name'],
+                                       backup_name))
+
+    def load_sync_wals_info(self):
+        """
+        Load the content of SYNC_WALS_INFO_FILE for the given server
+
+        :return collections.namedtuple: last read wal and position information
+        """
+        sync_wals_info_file = os.path.join(self.config.wals_directory,
+                                           SYNC_WALS_INFO_FILE)
+        if not os.path.exists(sync_wals_info_file):
+            return SyncWalInfo(None, None)
+        try:
+            with open(sync_wals_info_file) as f:
+                return SyncWalInfo._make(f.readline().split('\t'))
+        except (OSError, IOError) as e:
+            raise SyncError("Cannot open %s file for server %s: %s" % (
+                SYNC_WALS_INFO_FILE, self.config.name, e))
+
+    def primary_node_info(self, last_wal=None, last_position=None):
+        """
+        Invoke sync-info directly on the specified primary node
+
+        The method issues a call to the sync-info method on the primary
+        node through an SSH connection
+
+        :param barman.server.Server self: the Server object
+        :param str|None last_wal: last read wal
+        :param int|None last_position: last read position (in xlog.db)
+        :raise SyncError: if the ssh command fails
+        """
+        # First we need to check if the server is in passive mode
+        _logger.debug("primary sync-info(%s, %s, %s)",
+                      self.config.name,
+                      last_wal,
+                      last_position)
+        if not self.passive_node:
+            raise SyncError("server %s is not passive" % self.config.name)
+        # Issue a call to 'barman sync-info' to the primary node,
+        # using primary_ssh_command option to establish an
+        # SSH connection.
+        remote_command = Command(cmd=self.config.primary_ssh_command,
+                                 shell=True, check=True, path=self.path)
+        # We run it in a loop to retry when the master issues error.
+        while True:
+            try:
+                # Build the command string
+                cmd_str = "barman sync-info %s " % self.config.name
+                # If necessary we add last_wal and last_position
+                # to the command string
+                if last_wal is not None:
+                    cmd_str += "%s " % last_wal
+                    if last_position is not None:
+                        cmd_str += "%s " % last_position
+                # Then issue the command
+                remote_command(cmd_str)
+                # All good, exit the retry loop with 'break'
+                break
+            except CommandFailedException as e:
+                # In case we requested synchronisation with a last WAL info,
+                # we try again requesting the full current status
+                if last_wal is not None:
+                    last_wal = None
+                    last_position = None
+                    output.warning(
+                        "sync-info is out of sync. "
+                        "Self-recovery procedure started: "
+                        "requesting full synchronisation from "
+                        "primary server %s" % self.config.name)
+                    continue
+                # Wrap the CommandFailed exception with a SyncError
+                # for custom message and logging.
+                raise SyncError("sync-info execution on remote "
+                                "primary server %s failed: %s" %
+                                (self.config.name, e.args[0]['err']))
+
+        # Save the result on disk
+        primary_info_file = os.path.join(self.config.backup_directory,
+                                         PRIMARY_INFO_FILE)
+
+        # parse the json output
+        remote_info = json.loads(remote_command.out)
+
+        try:
+            # TODO: rename the method to make it public
+            # noinspection PyProtectedMember
+            self._make_directories()
+            # Save remote info to disk
+            # We do not use a LockFile here. Instead we write all data
+            # in a new file (adding '.tmp' extension) then we rename it
+            # replacing the old one.
+            # It works while the renaming is an atomic operation
+            # (this is a POSIX requirement)
+            primary_info_file_tmp = primary_info_file + '.tmp'
+            with open(primary_info_file_tmp, 'w') as info_file:
+                info_file.write(remote_command.out)
+            os.rename(primary_info_file_tmp, primary_info_file)
+        except (OSError, IOError) as e:
+            # Wrap file access exceptions using SyncError
+            raise SyncError("Cannot open %s file for server %s: %s" % (
+                PRIMARY_INFO_FILE,
+                self.config.name, e))
+
+        return remote_info
+
+    def is_backup_locally_obsolete(self, backup_name, remote_backups):
+        """
+        Check if a remote backup is obsolete according with the local
+        retention policies.
+
+        :param barman.server.Server self: Server object
+        :param str backup_name: str name of the backup to sync
+        :param dict remote_backups: dict containing the Primary node status
+
+        :return bool: returns if the backup is obsolete or not
+        """
+        # Get the local backups and add the remote backup info. This will
+        # simulate the situation after the copy of the remote backup.
+        local_backups = self.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
+        backup = remote_backups[backup_name]
+        local_backups[backup_name] = BackupInfo.from_json(self, backup)
+        # Execute the local retention policy on the modified list of backups
+        report = self.config.retention_policy.report(source=local_backups)
+        # If the added backup is obsolete return true.
+        return report[backup_name] == BackupInfo.OBSOLETE
+
+    def sync_backup(self, backup_name):
+        """
+        Method for the synchronisation of a backup from a primary server.
+
+        The Method checks that the server is passive, then if it is possible to
+        sync with the Primary. Acquires a lock at backup level
+        and copy the backup from the Primary node using rsync.
+
+        During the sync process the backup on the Passive node
+        is marked as SYNCING and if the sync fails
+        (due to network failure, user interruption...) it is marked as FAILED.
+
+        :param barman.server.Server self: the passive Server object to sync
+        :param str backup_name: the name of the backup to sync.
+        """
+
+        _logger.debug("sync_backup(%s, %s)", self.config.name, backup_name)
+        if not self.passive_node:
+            raise SyncError("server %s is not passive" % self.config.name)
+
+        local_backup_info = self.get_backup(backup_name)
+        # Step 1. Parse data from Primary server.
+        _logger.info(
+            "Synchronising with server %s backup %s: step 1/3: "
+            "parse server information", self.config.name, backup_name)
+        try:
+            primary_info = self.load_primary_info()
+            self.check_sync_required(backup_name,
+                                     primary_info, local_backup_info)
+        except SyncError as e:
+            # Invocation error: exit with return code 1
+            output.error("%s", e)
+            return
+        except SyncToBeDeleted as e:
+            # The required backup does not exist on primary,
+            # therefore it should be deleted also on passive node,
+            # as it's not in DONE status.
+            output.warning("%s, purging local backup", e)
+            self.delete_backup(local_backup_info)
+            return
+        except SyncNothingToDo as e:
+            # Nothing to do. Log as info level and exit
+            output.info("%s", e)
+            return
+        # If the backup is present on Primary node, and is not present at all
+        # locally or is present with FAILED status, execute sync.
+        # Retrieve info about the backup from PRIMARY_INFO_FILE
+        remote_backup_info = primary_info['backups'][backup_name]
+        remote_backup_dir = primary_info['config']['basebackups_directory']
+
+        # Try to acquire the backup lock, if the lock is not available abort
+        # the copy.
+        try:
+            with ServerBackupSyncLock(self.config.barman_lock_directory,
+                                      self.config.name, backup_name):
+                try:
+                    # Build a BackupInfo object
+                    local_backup_info = BackupInfo.from_json(
+                        self,
+                        remote_backup_info)
+                    local_backup_info.set_attribute('status',
+                                                    BackupInfo.SYNCING)
+                    local_backup_info.save()
+                    self.backup_manager.backup_cache_add(local_backup_info)
+
+                    # Try to copy from the Primary node the backup using
+                    # the copy controller.
+                    copy_controller = RsyncCopyController(
+                        ssh_command=self.config.primary_ssh_command,
+                        network_compression=self.config.network_compression,
+                        path=self.path,
+                        retry_times=self.config.basebackup_retry_times,
+                        retry_sleep=self.config.basebackup_retry_sleep,
+                        workers=self.config.parallel_jobs)
+                    copy_controller.add_directory(
+                        'basebackup',
+                        ":%s/%s/" % (remote_backup_dir, backup_name),
+                        local_backup_info.get_basebackup_directory(),
+                        exclude_and_protect=['/backup.info', '/.backup.lock'],
+                        bwlimit=self.config.bandwidth_limit,
+                        item_class=RsyncCopyController.PGDATA_CLASS)
+                    _logger.info(
+                        "Synchronising with server %s backup %s: step 2/3: "
+                        "file copy", self.config.name, backup_name)
+                    copy_controller.copy()
+
+                    # Save the backup state and exit
+                    _logger.info("Synchronising with server %s backup %s: "
+                                 "step 3/3: finalise sync",
+                                 self.config.name, backup_name)
+                    local_backup_info.set_attribute('status', BackupInfo.DONE)
+                    local_backup_info.save()
+                except CommandFailedException as e:
+                    # Report rsync errors
+                    msg = 'failure syncing server %s backup %s: %s' % (
+                        self.config.name, backup_name, e)
+                    output.error(msg)
+                    # Set the BackupInfo status to FAILED
+                    local_backup_info.set_attribute('status',
+                                                    BackupInfo.FAILED)
+                    local_backup_info.set_attribute('error', msg)
+                    local_backup_info.save()
+                    return
+                # Catch KeyboardInterrupt (Ctrl+c) and all the exceptions
+                except BaseException as e:
+                    msg_lines = str(e).strip().splitlines()
+                    if local_backup_info:
+                        # Use only the first line of exception message
+                        # in local_backup_info error field
+                        local_backup_info.set_attribute("status",
+                                                        BackupInfo.FAILED)
+                        # If the exception has no attached message
+                        # use the raw type name
+                        if not msg_lines:
+                            msg_lines = [type(e).__name__]
+                        local_backup_info.set_attribute(
+                            "error",
+                            "failure syncing server %s backup %s: %s" % (
+                                self.config.name, backup_name, msg_lines[0]))
+                        local_backup_info.save()
+                    output.error("Backup failed syncing with %s: %s\n%s",
+                                 self.config.name, msg_lines[0],
+                                 '\n'.join(msg_lines[1:]))
+        except LockFileException:
+            output.error("Another synchronisation process for backup %s "
+                         "of server %s is already running.",
+                         backup_name, self.config.name)
+
+    def sync_wals(self):
+        """
+        Method for the synchronisation of WAL files on the passive node,
+        by copying them from the primary server.
+
+        The method checks if the server is passive, then tries to acquire
+        a sync-wal lock.
+
+        Recovers the id of the last locally archived WAL file from the
+        status file ($wals_directory/sync-wals.info).
+
+        Reads the primary.info file and parses it, then obtains the list of
+        WAL files that have not yet been synchronised with the master.
+        Rsync is used for file synchronisation with the primary server.
+
+        Once the copy is finished, acquires a lock on xlog.db, updates it
+        then releases the lock.
+
+        Before exiting, the method updates the last_wal
+        and last_position fields in the sync-wals.info file.
+
+        :param barman.server.Server self: the Server object to synchronise
+        """
+        _logger.debug("sync_wals(%s)", self.config.name)
+        if not self.passive_node:
+            raise SyncError("server %s is not passive" % self.config.name)
+
+        # Try to acquire the sync-wal lock if the lock is not available,
+        # abort the sync-wal operation
+        try:
+            with ServerWalSyncLock(self.config.barman_lock_directory,
+                                   self.config.name, ):
+                try:
+                    # Need to load data from status files: primary.info
+                    # and sync-wals.info
+                    sync_wals_info = self.load_sync_wals_info()
+                    primary_info = self.load_primary_info()
+                    # We want to exit if the compression on master is different
+                    # from the one on the local server
+                    if primary_info['config']['compression'] \
+                            != self.config.compression:
+                        raise SyncError("Compression method on server %s "
+                                        "(%s) does not match local "
+                                        "compression method (%s) " %
+                                        (self.config.name,
+                                         primary_info['config']['compression'],
+                                         self.config.compression))
+                    # If the first WAL that needs to be copied is older
+                    # than the begin WAL of the first locally available backup,
+                    # synchronisation is skipped. This means that we need
+                    # to copy a WAL file which won't be associated to any local
+                    # backup. Consider the following scenarios:
+                    #
+                    # bw: indicates the begin WAL of the first backup
+                    # sw: the first WAL to be sync-ed
+                    #
+                    # The following examples use truncated names for WAL files
+                    # (e.g. 1 instead of 000000010000000000000001)
+                    #
+                    # Case 1: bw = 10, sw = 9 - SKIP and wait for backup
+                    # Case 2: bw = 10, sw = 10 - SYNC
+                    # Case 3: bw = 10, sw = 15 - SYNC
+                    #
+                    first_remote_wal = primary_info['wals'][0]['name']
+                    first_backup_id = self.get_first_backup_id()
+                    first_backup = self.get_backup(first_backup_id) \
+                        if first_backup_id else None
+                    # Also if there are not any backups on the local server
+                    # no wal synchronisation is required
+                    if not first_backup:
+                        output.warning("No base backup for server %s"
+                                       % self.config.name)
+                        return
+
+                    if first_backup.begin_wal > first_remote_wal:
+                        output.warning("Skipping WAL synchronisation for "
+                                       "server %s: no available local backup "
+                                       "for %s" % (self.config.name,
+                                                   first_remote_wal))
+                        return
+
+                    local_wals = []
+                    wal_file_paths = []
+                    for wal in primary_info['wals']:
+                        # filter all the WALs that are smaller
+                        # or equal to the name of the latest synchronised WAL
+                        if sync_wals_info.last_wal and \
+                                wal['name'] <= sync_wals_info.last_wal:
+                            continue
+                        # Generate WalFileInfo Objects using remote WAL metas.
+                        # This list will be used for the update of the xlog.db
+                        wal_info_file = WalFileInfo(**wal)
+                        local_wals.append(wal_info_file)
+                        wal_file_paths.append(wal_info_file.relpath())
+
+                    # Rsync Options:
+                    # recursive: recursive copy of subdirectories
+                    # perms: preserve permissions on synced files
+                    # times: preserve modification timestamps during
+                    #   synchronisation
+                    # protect-args: force rsync to preserve the integrity of
+                    #   rsync command arguments and filename.
+                    # inplace: for inplace file substitution
+                    #   and update of files
+                    rsync = Rsync(
+                        args=['--recursive', '--perms', '--times',
+                              '--protect-args', '--inplace'],
+                        ssh=self.config.primary_ssh_command,
+                        bwlimit=self.config.bandwidth_limit,
+                        allowed_retval=(0,),
+                        network_compression=self.config.network_compression,
+                        path=self.path)
+                    # Source and destination of the rsync operations
+                    src = ':%s/' % primary_info['config']['wals_directory']
+                    dest = '%s/' % self.config.wals_directory
+
+                    # Perform the rsync copy using the list of relative paths
+                    # obtained from the primary.info file
+                    rsync.from_file_list(wal_file_paths, src, dest)
+
+                    # If everything is synced without errors,
+                    # update xlog.db using the list of WalFileInfo object
+                    with self.xlogdb('a') as fxlogdb:
+                        for wal_info in local_wals:
+                            fxlogdb.write(wal_info.to_xlogdb_line())
+                    # We need to update the sync-wals.info file with the latest
+                    # synchronised WAL and the latest read position.
+                    self.write_sync_wals_info_file(primary_info)
+
+                except CommandFailedException as e:
+                    msg = "WAL synchronisation for server %s " \
+                          "failed: %s" % (self.config.name, e)
+                    output.error(msg)
+                    return
+                except BaseException as e:
+                    msg_lines = str(e).strip().splitlines()
+                    # Use only the first line of exception message
+                    # If the exception has no attached message
+                    # use the raw type name
+                    if not msg_lines:
+                        msg_lines = [type(e).__name__]
+                    output.error("WAL synchronisation for server %s "
+                                 "failed with: %s\n%s",
+                                 self.config.name, msg_lines[0],
+                                 '\n'.join(msg_lines[1:]))
+        except LockFileException:
+            output.error("Another sync-wal operation is running "
+                         "for server %s ", self.config.name)
+
+    @staticmethod
+    def set_sync_starting_point(xlogdb_file, last_wal, last_position):
+        """
+        Check if the xlog.db file has changed between two requests
+        from the client and set the start point for reading the file
+
+        :param file xlogdb_file: an open and readable xlog.db file object
+        :param str|None last_wal: last read name
+        :param int|None last_position: last read position
+        :return int: the position has been set
+        """
+        # If last_position is None start reading from the beginning of the file
+        position = int(last_position) if last_position is not None else 0
+        # Seek to required position
+        xlogdb_file.seek(position)
+        # Read 24 char (the size of a wal name)
+        wal_name = xlogdb_file.read(24)
+        # If the WAL name is the requested one start from last_position
+        if wal_name == last_wal:
+            # Return to the line start
+            xlogdb_file.seek(position)
+            return position
+        # If the file has been truncated, start over
+        xlogdb_file.seek(0)
+        return 0
+
+    def write_sync_wals_info_file(self, primary_info):
+        """
+        Write the content of SYNC_WALS_INFO_FILE on disk
+
+        :param dict primary_info:
+        """
+        try:
+            with open(os.path.join(self.config.wals_directory,
+                                   SYNC_WALS_INFO_FILE), 'w') as syncfile:
+                syncfile.write("%s\t%s" % (primary_info['last_name'],
+                                           primary_info['last_position']))
+        except (OSError, IOError):
+            # Wrap file access exceptions using SyncError
+            raise SyncError("Unable to write %s file for server %s" %
+                            (SYNC_WALS_INFO_FILE, self.config.name))
+
+    def load_primary_info(self):
+        """
+        Load the content of PRIMARY_INFO_FILE for the given server
+
+        :return dict: primary server information
+        """
+        primary_info_file = os.path.join(self.config.backup_directory,
+                                         PRIMARY_INFO_FILE)
+        try:
+            with open(primary_info_file) as f:
+                return json.load(f)
+        except (OSError, IOError) as e:
+            # Wrap file access exceptions using SyncError
+            raise SyncError("Cannot open %s file for server %s: %s" % (
+                PRIMARY_INFO_FILE, self.config.name, e))

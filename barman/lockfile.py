@@ -302,3 +302,33 @@ class ServerBackupIdLock(LockFile):
             os.path.join(lock_directory, '.%s-%s.lock' % (
                 server_name, backup_id)),
             raise_if_fail=True, wait=False)
+
+
+class ServerBackupSyncLock(LockFile):
+    """
+    This lock protects from multiple executions of the sync command on the same
+    backup.
+
+    Creates a '.<SERVER>-<BACKUP>-sync-backup.lock' lock file under the given
+    lock_directory for a BACKUP of a SERVER.
+    """
+
+    def __init__(self, lock_directory, server_name, backup_id):
+        super(ServerBackupSyncLock, self).__init__(
+            os.path.join(lock_directory, '.%s-%s-sync-backup.lock' % (
+                server_name, backup_id)),
+            raise_if_fail=True, wait=False)
+
+
+class ServerWalSyncLock(LockFile):
+    """
+    This lock protects from multiple executions of the sync-wal command
+
+    Creates a '.<SERVER>-sync-wal.lock' lock file under the given
+    lock_directory for the named SERVER.
+    """
+
+    def __init__(self, lock_directory, server_name):
+        super(ServerWalSyncLock, self).__init__(
+            os.path.join(lock_directory, '.%s-sync-wal.lock' % server_name),
+            raise_if_fail=True, wait=True)

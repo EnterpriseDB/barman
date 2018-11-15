@@ -19,6 +19,7 @@
 This module implements the interface with the command line and the logger.
 """
 
+import json
 import logging
 import os
 import sys
@@ -32,10 +33,11 @@ import barman.config
 import barman.diagnose
 from barman import output
 from barman.config import RecoveryOptions
-from barman.exceptions import BadXlogSegmentName, RecoveryException
+from barman.exceptions import BadXlogSegmentName, RecoveryException, SyncError
 from barman.infofile import BackupInfo
 from barman.server import Server
-from barman.utils import configure_logging, drop_privileges, parse_log_level
+from barman.utils import (BarmanEncoder, configure_logging, drop_privileges,
+                          parse_log_level)
 
 _logger = logging.getLogger(__name__)
 
@@ -118,6 +120,9 @@ def list_server(minimal=False):
         # If server has configuration errors
         elif server.config.disabled:
             description += " (WARNING: disabled)"
+        # If server is a passive node
+        if server.passive_node:
+            description += ' (Passive)'
         output.result('list_server', name, description)
     output.close_and_exit()
 
@@ -209,7 +214,7 @@ def backup(args):
     """
     Perform a full backup for the given server (supports 'all')
     """
-    servers = get_server_list(args, skip_inactive=True)
+    servers = get_server_list(args, skip_inactive=True, skip_passive=True)
     for name in sorted(servers):
         server = servers[name]
 
@@ -648,6 +653,84 @@ def diagnose():
     output.close_and_exit()
 
 
+@named('sync-info')
+@arg('--primary', help='execute the sync-info on the primary node (if set)',
+     action='store_true', default=SUPPRESS)
+@arg("server_name",
+     completer=server_completer,
+     help='specifies the server name for the command')
+@arg("last_wal",
+     help='specifies the name of the latest WAL read',
+     nargs='?')
+@arg("last_position",
+     nargs='?',
+     type=check_positive,
+     help='the last position read from xlog database (in bytes)')
+@expects_obj
+def sync_info(args):
+    """
+    Output the internal synchronisation status.
+    Used to sync_backup with a passive node
+    """
+    server = get_server(args)
+    try:
+        # if called with --primary option
+        if getattr(args, 'primary', False):
+            primary_info = server.primary_node_info(args.last_wal,
+                                                    args.last_position)
+            output.info(json.dumps(primary_info, sys.stdout,
+                                   cls=BarmanEncoder, indent=4),
+                        log=False)
+        else:
+            server.sync_status(args.last_wal, args.last_position)
+    except SyncError as e:
+        # Catch SyncError exceptions and output only the error message,
+        # preventing from logging the stack trace
+        output.error(e)
+
+    output.close_and_exit()
+
+
+@named('sync-backup')
+@arg("server_name",
+     completer=server_completer,
+     help='specifies the server name for the command')
+@arg("backup_id",
+     help='specifies the backup ID to be copied on the passive node')
+@expects_obj
+def sync_backup(args):
+    """
+    Command that synchronises a backup from a master to a passive node
+    """
+    server = get_server(args)
+    try:
+        server.sync_backup(args.backup_id)
+    except SyncError as e:
+        # Catch SyncError exceptions and output only the error message,
+        # preventing from logging the stack trace
+        output.error(e)
+    output.close_and_exit()
+
+
+@named('sync-wals')
+@arg("server_name",
+     completer=server_completer,
+     help='specifies the server name for the command')
+@expects_obj
+def sync_wals(args):
+    """
+    Command that synchronises WAL files from a master to a passive node
+    """
+    server = get_server(args)
+    try:
+        server.sync_wals()
+    except SyncError as e:
+        # Catch SyncError exceptions and output only the error message,
+        # preventing from logging the stack trace
+        output.error(e)
+    output.close_and_exit()
+
+
 @named('show-backup')
 @arg('server_name',
      completer=server_completer,
@@ -948,6 +1031,7 @@ def global_config(args):
 
 
 def get_server(args, skip_inactive=True, skip_disabled=False,
+               skip_passive=False,
                inactive_is_error=False,
                on_error_stop=True, suppress_error=False):
     """
@@ -963,6 +1047,7 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
         WARNING: the function modifies the content of this parameter
     :param bool skip_inactive: do nothing if the server is inactive
     :param bool skip_disabled: do nothing if the server is disabled
+    :param bool skip_passive: do nothing if the server is passive
     :param bool inactive_is_error: treat inactive server as error
     :param bool on_error_stop: stop if an error is found
     :param bool suppress_error: suppress display of errors (e.g. diagnose)
@@ -989,6 +1074,7 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
 
     # Retrieve the requested server
     servers = get_server_list(args, skip_inactive, skip_disabled,
+                              skip_passive,
                               on_error_stop, suppress_error)
 
     # The requested server has been excluded from get_server_list result
@@ -1017,6 +1103,7 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
 
 
 def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
+                    skip_passive=False,
                     on_error_stop=True, suppress_error=False):
     """
     Get the server list from the configuration
@@ -1027,6 +1114,7 @@ def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
     :param args: an argparse namespace containing a list server_name parameter
     :param bool skip_inactive: skip inactive servers when 'all' is required
     :param bool skip_disabled: skip disabled servers when 'all' is required
+    :param bool skip_passive: skip passive servers when 'all' is required
     :param bool on_error_stop: stop if an error is found
     :param bool suppress_error: suppress display of errors (e.g. diagnose)
     :rtype: dict(str,barman.server.Server|None)
@@ -1084,6 +1172,11 @@ def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
             if skip_disabled and server_object.config.disabled:
                 output.info("Skipping temporarily disabled server '%s'"
                             % conf.name)
+                continue
+            # Skip passive nodes, if requested
+            if skip_passive and server_object.passive_node:
+                output.info("Skipping passive server '%s'",
+                            conf.name)
                 continue
             server_dict[server] = server_object
 
@@ -1205,6 +1298,9 @@ def main():
             status,
             switch_wal,
             switch_xlog,
+            sync_info,
+            sync_backup,
+            sync_wals,
         ]
     )
     # noinspection PyBroadException

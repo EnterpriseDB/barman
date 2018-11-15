@@ -200,6 +200,70 @@ class TestConfig(object):
         with pytest.raises(ValueError):
             parse_time_interval('test_string')
 
+    def test_primary_ssh_command(self):
+        """
+        test command at server and global level
+
+        test case 1:
+        global: Nothing
+        server: "barman@backup1.nowhere"
+        expected: "barman@backup1.nowhere"
+
+        test case 2:
+        global: "barman@backup2.nowhere"
+        server: Nothing
+        expected: "barman@backup2.nowhere"
+
+        test case 3:
+        global: "barman@backup3.nowhere"
+        server: "barman@backup4.nowhere"
+        expected: "barman@backup4.nowhere"
+        """
+
+        # test case 1
+        # primary_ssh_command set only for server main
+        c = build_config_from_dicts(
+            global_conf=None,
+            main_conf={
+                'primary_ssh_command': 'barman@backup1.nowhere',
+            })
+        main = c.get_server('main')
+        expected = build_config_dictionary({
+            'config': c,
+            'primary_ssh_command': 'barman@backup1.nowhere',
+        })
+        assert main.__dict__ == expected
+
+        # test case 2
+        # primary_ssh_command set only globally
+        c = build_config_from_dicts(
+            global_conf={
+                'primary_ssh_command': 'barman@backup2.nowhere',
+            },
+            main_conf=None)
+        main = c.get_server('main')
+        expected = build_config_dictionary({
+            'config': c,
+            'primary_ssh_command': 'barman@backup2.nowhere',
+        })
+        assert main.__dict__ == expected
+
+        # test case 3
+        # primary_ssh_command set both globally and on server main
+        c = build_config_from_dicts(
+            global_conf={
+                'primary_ssh_command': 'barman@backup3.nowhere',
+            },
+            main_conf={
+                'primary_ssh_command': 'barman@backup4.nowhere',
+            })
+        main = c.get_server('main')
+        expected = build_config_dictionary({
+            'config': c,
+            'primary_ssh_command': 'barman@backup4.nowhere',
+        })
+        assert main.__dict__ == expected
+
     def test_server_conflict_paths(self):
         """
         Test for the presence of conflicting paths for a server

@@ -255,6 +255,19 @@ the content of files.
 .RS
 .RE
 .TP
+.B put\-wal \f[I]SERVER_NAME\f[]
+Receive a WAL file from a remote server and securely store it into the
+\f[C]SERVER_NAME\f[] incoming directory.
+The WAL file is retrieved from the \f[C]STDIN\f[], and must be
+encapsulated in a tar stream together with a \f[C]MD5SUMS\f[] file to
+validate it.
+This command is meant to be invoked through SSH from a remote
+\f[C]barman\-wal\-archive\f[] utility (part of barman\-cli).
+Do not use this command directly unless you take full responsibility of
+the content of files.
+.RS
+.RE
+.TP
 .B rebuild\-xlogdb \f[I]SERVER_NAME\f[]
 Perform a rebuild of the WAL file metadata for \f[C]SERVER_NAME\f[] (or
 every server, using the \f[C]all\f[] shortcut) guessing it from the disk
@@ -543,6 +556,48 @@ Available also on standby servers.
 .TP
 .B switch\-xlog \f[I]SERVER_NAME\f[]
 Alias for switch\-wal (kept for back\-compatibility)
+.RS
+.RE
+.TP
+.B sync\-backup \f[I]SERVER_NAME\f[] \f[I]BACKUP_ID\f[]
+Command used for the synchronisation of a passive node with its primary.
+Executes a copy of all the files of a \f[C]BACKUP_ID\f[] that is present
+on \f[C]SERVER_NAME\f[] node.
+This command is available only for passive nodes, and uses the
+\f[C]primary_ssh_command\f[] option to enstablish a secure connection
+with the primary node.
+.RS
+.RE
+.TP
+.B sync\-info \f[I]SERVER_NAME\f[] [\f[I]LAST_WAL\f[] [\f[I]LAST_POSITION\f[]]]
+Collect information regarding the current status of a Barman server, to
+be used for synchronisation purposes.
+Returns a JSON output representing \f[C]SERVER_NAME\f[], that contains:
+all the successfully finished backup, all the archived WAL files, the
+configuration, last WAL file been read from the \f[C]xlog.db\f[] and the
+position in the file.
+.RS
+.TP
+.B LAST_WAL
+tells sync\-info to skip any WAL file previous to that (incremental
+synchronisation)
+.RS
+.RE
+.TP
+.B LAST_POSITION
+hint for quickly positioning in the \f[C]xlog.db\f[] file (incremental
+synchronisation)
+.RS
+.RE
+.RE
+.TP
+.B sync\-wals \f[I]SERVER_NAME\f[]
+Command used for the synchronisation of a passive node with its primary.
+Executes a copy of all the archived WAL files that are present on
+\f[C]SERVER_NAME\f[] node.
+This command is available only for passive nodes, and uses the
+\f[C]primary_ssh_command\f[] option to enstablish a secure connection
+with the primary node.
 .RS
 .RE
 .SH BACKUP ID SHORTCUTS

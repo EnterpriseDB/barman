@@ -522,7 +522,7 @@ Delete scripts uses the same environmental variables of a backup script,
 plus:
 
 - `BARMAN_NEXT_ID`: ID of the next backup (if present)
- 
+
 ### WAL archive scripts
 
 Similar to backup scripts, archive scripts can be configured with
@@ -690,13 +690,13 @@ In any case, users can override this value at run-time when executing
 as follows:
 
 ``` bash
-barman backup --jobs 4 server1 
+barman backup --jobs 4 server1
 ```
 
 Or, alternatively:
 
 ``` bash
-barman backup --j 4 server1 
+barman backup --j 4 server1
 ```
 
 Please note that this parallel jobs feature is only available for servers
@@ -704,3 +704,87 @@ configured through `rsync`/SSH. For servers configured through streaming
 protocol, Barman will rely on `pg_basebackup` which is currently limited
 to only one worker.
 
+## Geographical redundancy
+
+It is possible to set up **cascading backup architectures** with Barman,
+where the source of a backup server
+is a Barman installation rather than a PostgreSQL server.
+
+This feature allows users to transparently keep _geographically distributed_
+copies of PostgreSQL backups.
+
+In Barman jargon, a backup server that is connected to a Barman installation
+rather than a PostgreSQL server is defined **passive node**.
+A passive node is configured through the `primary_ssh_command` option, available
+both at global (for a full replica of a primary Barman installation) and server
+level (for mixed scenarios, having both _direct_ and _passive_ servers).
+
+### Sync information
+
+The `barman sync-info` command is used to collect information regarding the
+current status of a Barman server that is useful for synchronisation purposes.
+The available syntax is the following:
+
+``` bash
+barman sync-info [--primary] <server_name> [<last_wal> [<last_position>]]
+```
+
+The command returns a JSON object containing:
+
+- A map with all the backups having status `DONE` for that server
+- A list with all the archived WAL files
+- The configuration for the server
+- The last read position (in the _xlog database file_)
+- the name of the last read WAL file
+
+The JSON response contains all the required information for the synchronisation
+between the `master` and a `passive` node.
+
+If `--primary` is specified, the command is executed on the defined
+primary node, rather than locally.
+
+### Configuration
+
+Configuring a server as `passive node` is a quick operation.
+Simply add to the server configuration the following option:
+
+``` ini
+primary_ssh_command = ssh barman@primary_barman
+```
+
+This option specifies the SSH connection parameters to the primary server,
+identifying the source of the backup data for the passive server.
+
+### Node synchronisation
+
+When a node is marked as `passive` it is treated in a special way by Barman:
+
+- it is excluded from standard maintenance operations
+- direct operations to PostgreSQL are forbidden, including `barman backup`
+
+Synchronisation between a passive server and its primary is automatically
+managed by `barman cron` which will transparently invoke:
+
+1. `barman sync-info --primary`, in order to collect synchronisation information
+2. `barman sync-backup`, in order to create a local copy of every backup that is available on the primary node
+3. `barman sync-wals`, in order to copy locally all the WAL files available on the primary node
+
+### Manual synchronisation
+
+Although `barman cron` automatically manages passive/primary node
+synchronisation, it is possible to manually trigger synchronisation
+of a backup through:
+
+``` bash
+barman sync-backup <server_name> <backup_id>
+```
+
+Launching `sync-backup` barman will use the primary_ssh_command to connect to the master server, then
+if the backup is present on the remote machine, will begin to copy all the files using rsync.
+Only one single synchronisation process per backup is allowed.
+
+WAL files also can be synchronised, through:
+
+``` bash
+barman sync-wals <server_name>
+```

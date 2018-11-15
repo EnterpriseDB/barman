@@ -506,6 +506,16 @@ Global/Server.
 .RS
 .RE
 .TP
+.B primary_ssh_command
+Parameter that identifies a Barman server as \f[C]passive\f[].
+In a passive node, the source of a backup server is a Barman
+installation rather than a PostgreSQL server.
+If \f[C]primary_ssh_command\f[] is specified, Barman uses it to
+enstabilsh a connection with the primary server.
+Empty by default, it can also be set globally.
+.RS
+.RE
+.TP
 .B recovery_options
 Options for recovery operations.
 Currently only supports \f[C]get\-wal\f[].

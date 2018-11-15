@@ -30,7 +30,9 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.backup_executor import PostgresBackupExecutor, RsyncBackupExecutor
+from barman.backup_executor import (PassiveBackupExecutor,
+                                    PostgresBackupExecutor,
+                                    RsyncBackupExecutor)
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
 from barman.exceptions import (AbortedRetryHookScript,
@@ -38,6 +40,7 @@ from barman.exceptions import (AbortedRetryHookScript,
                                UnknownBackupIdException)
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, WalFileInfo
+from barman.lockfile import ServerBackupSyncLock
 from barman.recovery_executor import RecoveryExecutor
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (fsync_dir, fsync_file, human_readable_timedelta,
@@ -62,7 +65,9 @@ class BackupManager(RemoteStatusMixin):
         self.compression_manager = CompressionManager(self.config, server.path)
         self.executor = None
         try:
-            if self.config.backup_method == "postgres":
+            if server.passive_node:
+                self.executor = PassiveBackupExecutor(self)
+            elif self.config.backup_method == "postgres":
                 self.executor = PostgresBackupExecutor(self)
             else:
                 self.executor = RsyncBackupExecutor(self)
@@ -339,6 +344,15 @@ class BackupManager(RemoteStatusMixin):
                     delete_start_time.ctime(),
                     human_readable_timedelta(
                         delete_end_time - delete_start_time))
+
+        # Remove the sync lockfile if exists
+        sync_lock = ServerBackupSyncLock(self.config.barman_lock_directory,
+                                         self.config.name, backup.backup_id)
+        if os.path.exists(sync_lock.filename):
+            _logger.debug("Deleting backup sync lockfile: %s" %
+                          sync_lock.filename)
+
+            os.unlink(sync_lock.filename)
 
         # Run the post_delete_retry_script if present.
         try:
