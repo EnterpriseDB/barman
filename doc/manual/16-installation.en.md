@@ -23,8 +23,19 @@ Then, as `root` simply type:
 yum install barman
 ```
 
-2ndQuadrant also maintains RPM packages for Barman and distributes
-them through [Sourceforge.net][3].
+> **NOTE: **
+> We suggest that you exclude any Barman related packages from getting updated
+> via the PGDG repository. This can be done by adding the following line
+> to any PGDG repository definition that is included in the Barman server inside
+> any `/etc/yum.repos.d/pgdg-*.repo` file:
+   ```ini
+   exclude=barman*
+   ```
+> By doing this, you solely rely on
+> 2ndQuadrant repositories for package management of Barman software.
+
+For historical reasons, 2ndQuadrant keeps maintaining package distribution of
+Barman through [Sourceforge.net][3].
 
 ## Installation on Debian/Ubuntu using packages
 
