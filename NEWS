@@ -419,7 +419,7 @@ Version 1.4.1 - 05 May 2015
   command (Closes: #63)
 * Fix computation of WAL production ratio as reported in the
   show-backup command
-* Improved management of xlogb file, which is now correctly fsynced
+* Improved management of xlogdb file, which is now correctly fsynced
   when updated. Also, the rebuild-xlogdb command now operates on a
   temporary new file, which overwrites the main one when finished.
 * Add unit tests for dateutil module compatibility
