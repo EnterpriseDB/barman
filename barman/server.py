@@ -2152,7 +2152,7 @@ class Server(RemoteStatusMixin):
     def check_backup(self, backup_info):
         """
         Make sure that we have all the WAL files required
-        by a physical backup for consistencty (from the
+        by a physical backup for consistency (from the
         first to the last WAL file)
 
         :param backup_info: the target backup
