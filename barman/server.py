@@ -2192,8 +2192,10 @@ class Server(RemoteStatusMixin):
                         backup_info.status)
         except LockFileBusy:
             # If another process is holding the backup lock,
-            # warn the user and terminate
-            output.error(
+            # notify the user and terminate.
+            # This is not an error condition because it happens when
+            # another process is validating the backup.
+            output.info(
                 "Another process is holding the lock for "
                 "backup %s of server %s." % (
                     backup_info.backup_id, self.config.name))
