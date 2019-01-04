@@ -22,11 +22,13 @@ Barman is able to manage multiple servers.
 
 import logging
 import os
+import re
 import shutil
 import sys
+import tarfile
 import time
 from collections import namedtuple
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from glob import glob
 from tempfile import NamedTemporaryFile
 
@@ -54,7 +56,8 @@ from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
-from barman.utils import (human_readable_timedelta, is_power_of_two,
+from barman.utils import (file_md5, fsync_dir, fsync_file,
+                          human_readable_timedelta, is_power_of_two, mkpath,
                           pretty_size, timeout)
 from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
                                  WalArchiver)
@@ -1475,6 +1478,147 @@ class Server(RemoteStatusMixin):
             uncompressed_file.close()
         if compressed_file is not None:
             compressed_file.close()
+
+    def put_wal(self, fileobj):
+        """
+        Receive a WAL file from SERVER_NAME and securely store it in the
+        incoming directory.
+
+        The file will be read from the fileobj passed as parameter.
+        """
+
+        # If used through SSH identify the client to add it to logs
+        source_suffix = ''
+        ssh_connection = os.environ.get('SSH_CONNECTION')
+        if ssh_connection:
+            # The client IP is the first value contained in `SSH_CONNECTION`
+            # which contains four space-separated values: client IP address,
+            # client port number, server IP address, and server port number.
+            source_suffix = ' (SSH host: %s)' % (ssh_connection.split()[0],)
+
+        # Incoming directory is where the files will be extracted
+        dest_dir = self.config.incoming_wals_directory
+
+        # Ensure the presence of the destination directory
+        mkpath(dest_dir)
+
+        incoming_file = namedtuple('incoming_file', [
+            'name',
+            'tmp_path',
+            'path',
+            'checksum',
+        ])
+
+        # Stream read tar from stdin, store content in incoming directory
+        # The closing wrapper is needed only for Python 2.6
+        extracted_files = {}
+        validated_files = {}
+        md5sums = {}
+        try:
+            with closing(tarfile.open(mode='r|', fileobj=fileobj)) as tar:
+                for item in tar:
+                    name = item.name
+                    # Strip leading './' - tar has been manually created
+                    if name.startswith('./'):
+                        name = name[2:]
+                    # Requires a regular file as tar item
+                    if not item.isreg():
+                        output.error(
+                            "Unsupported file type '%s' for file '%s' "
+                            "in put-wal for server '%s'%s",
+                            item.type, name, self.config.name, source_suffix)
+                        return
+                    # Subdirectories are not supported
+                    if '/' in name:
+                        output.error(
+                            "Unsupported filename '%s' "
+                            "in put-wal for server '%s'%s",
+                            name, self.config.name, source_suffix)
+                        return
+                    # Checksum file
+                    if name == 'MD5SUMS':
+                        # Parse content and store it in md5sums dictionary
+                        for line in tar.extractfile(item).readlines():
+                            line = line.decode().rstrip()
+                            try:
+                                # Split checksums and path info
+                                checksum, path = re.split(
+                                    r' [* ]', line, 1)
+                            except ValueError:
+                                output.warning(
+                                    "Bad checksum line '%s' found "
+                                    "in put-wal for server '%s'%s",
+                                    line, self.config.name, source_suffix)
+                                continue
+                            # Strip leading './' from path in the checksum file
+                            if path.startswith('./'):
+                                path = path[2:]
+                            md5sums[path] = checksum
+                    else:
+                        # Extract using a temp name (with PID)
+                        tmp_path = os.path.join(dest_dir, '.%s-%s' % (
+                            os.getpid(), name))
+                        path = os.path.join(dest_dir, name)
+                        tar.makefile(item, tmp_path)
+                        # Set the original timestamp
+                        tar.utime(item, tmp_path)
+                        # Add the tuple to the dictionary of extracted files
+                        extracted_files[name] = incoming_file(
+                            name, tmp_path, path, file_md5(tmp_path))
+                        validated_files[name] = False
+
+            # For each received checksum verify the corresponding file
+            for name in md5sums:
+                # Check that file is present in the tar archive
+                if name not in extracted_files:
+                    output.error(
+                        "Checksum without corresponding file '%s' "
+                        "in put-wal for server '%s'%s",
+                        name, self.config.name, source_suffix)
+                    return
+                # Verify the checksum of the file
+                if extracted_files[name].checksum != md5sums[name]:
+                    output.error(
+                        "Bad file checksum '%s' (should be %s) "
+                        "for file '%s' "
+                        "in put-wal for server '%s'%s",
+                        extracted_files[name].checksum, md5sums[name],
+                        name, self.config.name, source_suffix)
+                    return
+                _logger.info(
+                    "Received file '%s' with checksum '%s' "
+                    "by put-wal for server '%s'%s",
+                    name, md5sums[name], self.config.name,
+                    source_suffix)
+                validated_files[name] = True
+
+            # Put the files in the final place, atomically and fsync all
+            for item in extracted_files.values():
+                # Final verification of checksum presence for each file
+                if not validated_files[item.name]:
+                    output.error(
+                        "Missing checksum for file '%s' "
+                        "in put-wal for server '%s'%s",
+                        item.name, self.config.name, source_suffix)
+                    return
+                # If a file with the same name exists, returns an error.
+                # PostgreSQL archive command will retry again later and,
+                # at that time, Barman's WAL archiver should have already
+                # managed this file.
+                if os.path.exists(item.path):
+                    output.error(
+                        "Impossible to write already existing file '%s' "
+                        "in put-wal for server '%s'%s",
+                        item.name, self.config.name, source_suffix)
+                    return
+                os.rename(item.tmp_path, item.path)
+                fsync_file(item.path)
+            fsync_dir(dest_dir)
+        finally:
+            # Cleanup of any remaining temp files (where applicable)
+            for item in extracted_files.values():
+                if os.path.exists(item.tmp_path):
+                    os.unlink(item.tmp_path)
 
     def cron(self, wals=True, retention_policies=True):
         """

@@ -775,6 +775,28 @@ def get_wal(args):
     output.close_and_exit()
 
 
+@named('put-wal')
+@arg('server_name',
+     completer=server_completer,
+     help='specifies the server name for the command')
+@expects_obj
+def put_wal(args):
+    """
+    Receive a WAL file from SERVER_NAME and securely store it in the incoming
+    directory. The file will be read from standard input in tar format.
+    """
+    server = get_server(args, inactive_is_error=True)
+    try:
+        # Python 3.x
+        stream = sys.stdin.buffer
+    except AttributeError:
+        # Python 2.x
+        stream = sys.stdin
+    with closing(server):
+        server.put_wal(stream)
+    output.close_and_exit()
+
+
 @named('archive-wal')
 @arg('server_name',
      completer=server_completer,
@@ -1173,6 +1195,7 @@ def main():
             list_backup,
             list_files,
             list_server,
+            put_wal,
             rebuild_xlogdb,
             receive_wal,
             recover,

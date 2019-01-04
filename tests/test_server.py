@@ -16,14 +16,17 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+import hashlib
 import os
+import tarfile
 from collections import namedtuple
+from io import BytesIO
 
 import pytest
-from mock import MagicMock, mock, patch
+from mock import MagicMock, patch
 from psycopg2.tz import FixedOffsetTimezone
 
-from barman import xlog
+from barman import output, xlog
 from barman.exceptions import (LockFileBusy, LockFilePermissionDenied,
                                PostgresDuplicateReplicationSlot,
                                PostgresInvalidReplicationSlot,
@@ -441,7 +444,7 @@ class TestServer(object):
 
         # Case: correct configuration
         # use a mock as a quick disposable obj
-        rep_slot = mock.Mock()
+        rep_slot = MagicMock()
         rep_slot.slot_name = 'test'
         rep_slot.active = True
         rep_slot.restart_lsn = 'aaaBB'
@@ -1355,6 +1358,179 @@ class TestServer(object):
         # Doing the same thing with a timeout should also not raise an
         # error
         server.wait_for_wal(1)
+
+    @pytest.mark.parametrize('mode, success, error_msg', [
+        ['plain', True, None],
+        ['relative', True, None],
+        ['bad_sum_line', True, 'Bad checksum line'],
+        ['bad_file_type', False, "Unsupported file type"],
+        ['subdir', False, 'Unsupported filename'],
+
+    ])
+    def test_put_wal(self, mode, success, error_msg,
+                     tmpdir, capsys, caplog, monkeypatch):
+        lab = tmpdir.mkdir('lab')
+        incoming = tmpdir.mkdir('incoming')
+        server = build_real_server(
+            main_conf={
+                "incoming_wals_directory": incoming.strpath,
+            })
+        output.error_occurred = False
+
+        # Simulate a connection from a remote host
+        monkeypatch.setenv('SSH_CONNECTION', '192.168.66.99')
+
+        file_name = '00000001000000EF000000AB'
+        if mode == 'relative':
+            file_name = './' + file_name
+        elif mode == 'subdir':
+            file_name = 'test/' + file_name
+
+        # Generate some test data in an in_memory tar
+        tar_file = BytesIO()
+        tar = tarfile.open(mode='w|', fileobj=tar_file, dereference=False)
+        wal = lab.join(file_name)
+        if mode == 'bad_file_type':
+            # Create a file with wrong file type
+            wal.mksymlinkto('/nowhere')
+            file_hash = hashlib.md5().hexdigest()
+        else:
+            wal.write('some random content', ensure=True)
+            file_hash = wal.computehash('md5')
+        tar.add(wal.strpath, file_name)
+        md5 = lab.join('MD5SUMS')
+        if mode == 'bad_sum_line':
+            md5.write('bad_line\n')
+        md5.write('%s *%s\n' % (file_hash, file_name), mode='a')
+        tar.add(md5.strpath, md5.basename)
+        tar.close()
+
+        # Feed the data to put-wal
+        tar_file.seek(0)
+        server.put_wal(tar_file)
+        out, err = capsys.readouterr()
+
+        # Output is always empty
+        assert not out
+
+        # Test error conditions
+        if error_msg:
+            assert error_msg in err
+        else:
+            assert not err
+        assert success == (not output.error_occurred)
+
+        # Verify the result if success
+        if success:
+            dest_file = incoming.join(wal.basename)
+            assert dest_file.computehash() == wal.computehash()
+            assert "Received file '00000001000000EF000000AB' " \
+                   "with checksum '34743e1e454e967eb76a16c66372b0ef' " \
+                   "by put-wal for server 'main' " \
+                   "(SSH host: 192.168.66.99)\n" in caplog.text
+
+    @pytest.mark.parametrize(
+        'mode, error_msg', [
+            ['file_absent', 'Checksum without corresponding file'],
+            ['sum_absent', 'Missing checksum for file'],
+            ['sum_mismatch', 'Bad file checksum'],
+            ['dest_exists', 'Impossible to write already existing'],
+        ])
+    def test_put_wal_fail(self, mode, error_msg, tmpdir, capsys, monkeypatch):
+        lab = tmpdir.mkdir('lab')
+        incoming = tmpdir.mkdir('incoming')
+        server = build_real_server(
+            main_conf={
+                "incoming_wals_directory": incoming.strpath,
+            })
+        output.error_occurred = False
+
+        # Simulate a connection from a remote host
+        monkeypatch.setenv('SSH_CONNECTION', '192.168.66.99')
+
+        # Generate some test data in an in_memory tar
+        tar_file = BytesIO()
+        tar = tarfile.open(mode='w|', fileobj=tar_file)
+        wal = lab.join('00000001000000EF000000AB')
+        wal.write('some random content', ensure=True)
+        if mode != 'file_absent':
+            tar.add(wal.strpath, wal.basename)
+        md5 = lab.join('MD5SUMS')
+        if mode != 'sum_mismatch':
+            md5.write('%s *%s\n' % (wal.computehash('md5'), wal.basename))
+        else:
+            # put an incorrect checksum in hte file
+            md5.write('%s *%s\n' % (hashlib.md5().hexdigest(), wal.basename))
+        if mode != 'sum_absent':
+            tar.add(md5.strpath, md5.basename)
+        tar.close()
+
+        # If requested create a colliding file in the incoming directory
+        if mode == 'dest_exists':
+            dest_file = incoming.join(wal.basename)
+            dest_file.write('some random content', ensure=True)
+
+        # Feed the data to put-wal
+        tar_file.seek(0)
+        server.put_wal(tar_file)
+        out, err = capsys.readouterr()
+
+        # Output is always empty
+        assert not out
+
+        assert error_msg in err
+        assert "file '00000001000000EF000000AB' in put-wal " \
+               "for server 'main' (SSH host: 192.168.66.99)\n" in err
+        assert output.error_occurred
+
+    @patch('barman.server.fsync_file')
+    @patch('barman.server.fsync_dir')
+    def test_put_wal_fsync(self, fd_mock, ff_mock, tmpdir, capsys, caplog):
+        lab = tmpdir.mkdir('lab')
+        incoming = tmpdir.mkdir('incoming')
+        server = build_real_server(
+            main_conf={
+                "incoming_wals_directory": incoming.strpath,
+            })
+        output.error_occurred = False
+
+        # Generate some test data in an in_memory tar
+        tar_file = BytesIO()
+        tar = tarfile.open(mode='w|', fileobj=tar_file,
+                           format=tarfile.PAX_FORMAT)
+        wal = lab.join('00000001000000EF000000AB')
+        wal.write('some random content', ensure=True)
+        wal.setmtime(wal.mtime() - 100)  # Set mtime to 100 seconds ago
+        tar.add(wal.strpath, wal.basename)
+        md5 = lab.join('MD5SUMS')
+        md5.write('%s *%s\n' % (wal.computehash('md5'), wal.basename))
+        tar.add(md5.strpath, md5.basename)
+        tar.close()
+
+        # Feed the data to put-wal
+        tar_file.seek(0)
+        server.put_wal(tar_file)
+        out, err = capsys.readouterr()
+
+        # Output is always empty
+        assert not out
+
+        # Verify the result (this time without SSH_CONNECTION)
+        assert not err
+        assert not output.error_occurred
+        dest_file = incoming.join(wal.basename)
+        assert dest_file.computehash() == wal.computehash()
+        assert "Received file '00000001000000EF000000AB' " \
+               "with checksum '34743e1e454e967eb76a16c66372b0ef' " \
+               "by put-wal for server 'main'\n" in caplog.text
+
+        # Verify fsync calls
+        ff_mock.assert_called_once_with(dest_file.strpath)
+        fd_mock.assert_called_once_with(incoming.strpath)
+
+        # Verify file mtime
+        # Use a round(2) comparison because float is not precise in Python 2.x
+        assert round(wal.mtime(), 2) == round(dest_file.mtime(), 2)
 
 
 class TestCheckStrategy(object):

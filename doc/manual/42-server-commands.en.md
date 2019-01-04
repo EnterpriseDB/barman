@@ -7,15 +7,15 @@ a PostgreSQL server or on its area in Barman, and are useful to check
 its status, perform maintainance operations, take backups, and
 manage the WAL archive.
 
-## `archive_wal`
+## `archive-wal`
 
-The `archive_wal` command execute maintainance operations on WAL files
+The `archive-wal` command execute maintainance operations on WAL files
 for a given server. This operations include processing of the WAL
 files received from the streaming connection or from the
 `archive_command` or both.
 
 > **IMPORTANT:**
-> The `archive_wal` command, even if it can be directly invoked, is
+> The `archive-wal` command, even if it can be directly invoked, is
 > designed to be started from the `cron` general command.
 
 ## `backup`

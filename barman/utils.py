@@ -23,6 +23,7 @@ import datetime
 import decimal
 import errno
 import grp
+import hashlib
 import json
 import logging
 import logging.handlers
@@ -402,3 +403,21 @@ def is_power_of_two(number):
     #
     # This is true only for every power of two
     return number != 0 and (number & (number - 1)) == 0
+
+
+def file_md5(file_path, buffer_size=1024 * 16):
+    """
+    Calculate the md5 checksum for the provided file path
+
+    :param str file_path: path of the file to read
+    :param int buffer_size: read buffer size, default 16k
+    :return str: Hexadecimal md5 string
+    """
+    md5 = hashlib.md5()
+    with open(file_path, 'rb') as file_object:
+        while 1:
+            buf = file_object.read(buffer_size)
+            if not buf:
+                break
+            md5.update(buf)
+    return md5.hexdigest()

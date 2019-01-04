@@ -242,6 +242,19 @@ Show all the configured servers, and their descriptions.
 .RS
 .RE
 .TP
+.B put\-wal \f[I]SERVER_NAME\f[]
+Receive a WAL file from a remote server and securely store it into the
+\f[C]SERVER_NAME\f[] incoming directory.
+The WAL file is retrieved from the \f[C]STDIN\f[], and must be
+encapsulated in a tar stream together with a \f[C]MD5SUMS\f[] file to
+validate it.
+This command is meant to be invoked through SSH from a remote
+\f[C]barman\-wal\-archive\f[] utility (part of barman\-cli).
+Do not use this command directly unless you take full responsibility of
+the content of files.
+.RS
+.RE
+.TP
 .B rebuild\-xlogdb \f[I]SERVER_NAME\f[]
 Perform a rebuild of the WAL file metadata for \f[C]SERVER_NAME\f[] (or
 every server, using the \f[C]all\f[] shortcut) guessing it from the disk
