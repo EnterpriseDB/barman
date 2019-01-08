@@ -305,6 +305,23 @@ def fsync_dir(dir_path):
     os.close(dir_fd)
 
 
+def fsync_file(file_path):
+    """
+    Execute fsync on a file ensuring it is synced to disk
+
+    Returns the file stats
+
+    :param str file_path: The file to sync
+    :return: file stat
+    :raise OSError: If something fails
+    """
+    file_fd = os.open(file_path, os.O_RDONLY)
+    file_stat = os.fstat(file_fd)
+    os.fsync(file_fd)
+    os.close(file_fd)
+    return file_stat
+
+
 def simplify_version(version_string):
     """
     Simplify a version number by removing the patch level

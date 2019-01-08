@@ -34,7 +34,7 @@ from barman.exceptions import (AbortedRetryHookScript, ArchiverFailure,
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import WalFileInfo
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import fsync_dir, mkpath, with_metaclass
+from barman.utils import fsync_dir, fsync_file, mkpath, with_metaclass
 
 _logger = logging.getLogger(__name__)
 
@@ -345,9 +345,7 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                 wal_info.orig_filename = None
 
                 # Execute fsync() on the archived WAL file
-                file_fd = os.open(dst_file, os.O_RDONLY)
-                os.fsync(file_fd)
-                os.close(file_fd)
+                fsync_file(dst_file)
                 # Execute fsync() on the archived WAL containing directory
                 fsync_dir(dst_dir)
                 # Execute fsync() also on the incoming directory

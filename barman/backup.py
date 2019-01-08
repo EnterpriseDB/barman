@@ -40,7 +40,8 @@ from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.recovery_executor import RecoveryExecutor
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import fsync_dir, human_readable_timedelta, pretty_size
+from barman.utils import (fsync_dir, fsync_file, human_readable_timedelta,
+                          pretty_size)
 
 _logger = logging.getLogger(__name__)
 
@@ -984,14 +985,11 @@ class BackupManager(RemoteStatusMixin):
             # execute fsync() on all the contained files
             for filename in file_names:
                 file_path = os.path.join(dir_path, filename)
-                file_fd = os.open(file_path, os.O_RDONLY)
-                file_stat = os.fstat(file_fd)
+                file_stat = fsync_file(file_path)
                 backup_size += file_stat.st_size
                 # Excludes hard links from real backup size
                 if file_stat.st_nlink == 1:
                     deduplicated_size += file_stat.st_size
-                os.fsync(file_fd)
-                os.close(file_fd)
         # Save size into BackupInfo object
         backup_info.set_attribute('size', backup_size)
         backup_info.set_attribute('deduplicated_size', deduplicated_size)
