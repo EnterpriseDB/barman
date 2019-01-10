@@ -1014,11 +1014,19 @@ def global_config(args):
     if log_level is None:
         _logger.warn('unknown log_level in config file: %s', config.log_level)
 
-    # configure output
+    # Configure output
     if args.format != output.DEFAULT_WRITER or args.quiet or args.debug:
         output.set_output_writer(args.format,
                                  quiet=args.quiet,
                                  debug=args.debug)
+
+    # Configure color output
+    if args.color == 'auto':
+        # Enable colored output if both stdout and stderr are TTYs
+        output.ansi_colors_enabled = (
+            sys.stdout.isatty() and sys.stderr.isatty())
+    else:
+        output.ansi_colors_enabled = args.color == 'always'
 
     # Load additional configuration files
     config.load_configuration_files_directory()
@@ -1270,6 +1278,10 @@ def main():
                         '(defaults: %s)'
                         % ', '.join(barman.config.Config.CONFIG_FILES),
                    default=SUPPRESS)
+    p.add_argument('--color', '--colour',
+                   help='Whether to use colors in the output',
+                   choices=['never', 'always', 'auto'],
+                   default='auto')
     p.add_argument('-q', '--quiet', help='be quiet', action='store_true')
     p.add_argument('-d', '--debug', help='debug output', action='store_true')
     p.add_argument('-f', '--format', help='output format',

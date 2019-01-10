@@ -43,6 +43,47 @@ error_occurred = False
 #: Exit code if error occurred
 error_exit_code = 1
 
+#: Enable colors in the output
+ansi_colors_enabled = False
+
+
+def _ansi_color(command):
+    """
+    Return the ansi sequence for the provided color
+    """
+    return '\033[%sm' % command
+
+
+def _colored(message, color):
+    """
+    Return a string formatted with the provided color.
+    """
+    if ansi_colors_enabled:
+        return _ansi_color(color) + message + _ansi_color('0')
+    else:
+        return message
+
+
+def _red(message):
+    """
+    Format a red string
+    """
+    return _colored(message, '31')
+
+
+def _green(message):
+    """
+    Format a green string
+    """
+    return _colored(message, '32')
+
+
+def _yellow(message):
+    """
+    Format a yellow string
+    """
+    return _colored(message, '33')
+
 
 def _format_message(message, args):
     """
@@ -372,19 +413,19 @@ class ConsoleOutputWriter(object):
         """
         Warning messages are sent to standard error
         """
-        self._err('WARNING: %s' % message, args)
+        self._err(_yellow('WARNING: %s' % message), args)
 
     def error(self, message, *args):
         """
         Error messages are sent to standard error
         """
-        self._err('ERROR: %s' % message, args)
+        self._err(_red('ERROR: %s' % message), args)
 
     def exception(self, message, *args):
         """
         Warning messages are sent to standard error
         """
-        self._err('EXCEPTION: %s' % message, args)
+        self._err(_red('EXCEPTION: %s' % message), args)
 
     def error_occurred(self):
         """
@@ -518,11 +559,13 @@ class ConsoleOutputWriter(object):
         """
         self._record_check(server_name, check, status, hint)
         if hint:
-            self.info("\t%s: %s (%s)" %
-                      (check, 'OK' if status else 'FAILED', hint))
+            self.info(
+                "\t%s: %s (%s)" %
+                (check, _green('OK') if status else _red('FAILED'), hint))
         else:
-            self.info("\t%s: %s" %
-                      (check, 'OK' if status else 'FAILED'))
+            self.info(
+                "\t%s: %s" %
+                (check, _green('OK') if status else _red('FAILED')))
 
     def init_list_backup(self, server_name, minimal=False):
         """

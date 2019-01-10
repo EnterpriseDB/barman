@@ -23,6 +23,12 @@ from barman.infofile import BackupInfo
 from barman.utils import pretty_size
 from testing_helpers import build_test_backup_info, mock_backup_ext_info
 
+# Color output constants
+RED = '\033[31m'
+GREEN = '\033[32m'
+YELLOW = '\033[33m'
+RESET = '\033[0m'
+
 
 def teardown_module(module):
     """
@@ -783,6 +789,99 @@ class TestConsoleWriter(object):
         assert out == ''
         assert err == 'EXCEPTION: ' + msg % kwargs + '\n'
 
+    def test_colored_warning(self, capsys, monkeypatch):
+        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        writer = output.ConsoleOutputWriter()
+
+        msg = 'test message'
+        writer.warning(msg)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == YELLOW + 'WARNING: ' + msg + RESET + '\n'
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.warning(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == YELLOW + 'WARNING: ' + msg % args + RESET + '\n'
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.warning(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == YELLOW + 'WARNING: ' + msg % args + RESET + '\n'
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.warning(msg, kwargs)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == YELLOW + 'WARNING: ' + msg % kwargs + RESET + '\n'
+
+    def test_colored_error(self, capsys, monkeypatch):
+        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        writer = output.ConsoleOutputWriter()
+
+        msg = 'test message'
+        writer.error(msg)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == RED + 'ERROR: ' + msg + RESET + '\n'
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.error(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == RED + 'ERROR: ' + msg % args + RESET + '\n'
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.error(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == RED + 'ERROR: ' + msg % args + RESET + '\n'
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.error(msg, kwargs)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == RED + 'ERROR: ' + msg % kwargs + RESET + '\n'
+
+    def test_colored_exception(self, capsys, monkeypatch):
+        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        writer = output.ConsoleOutputWriter()
+
+        msg = 'test message'
+        writer.exception(msg)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == RED + 'EXCEPTION: ' + msg + RESET + '\n'
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.exception(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == RED + 'EXCEPTION: ' + msg % args + RESET + '\n'
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.exception(msg, *args)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == RED + 'EXCEPTION: ' + msg % args + RESET + '\n'
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.exception(msg, kwargs)
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == RED + 'EXCEPTION: ' + msg % kwargs + RESET + '\n'
+
     def test_init_check(self, capsys):
         writer = output.ConsoleOutputWriter()
 
@@ -859,6 +958,79 @@ class TestConsoleWriter(object):
         writer.result_check(server, check, False, hint)
         (out, err) = capsys.readouterr()
         assert out == '\t%s: FAILED (%s)\n' % (check, hint)
+        assert err == ''
+        assert output.error_occurred
+
+    def test_result_check_ok_color(self, capsys, monkeypatch):
+        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        writer = output.ConsoleOutputWriter()
+        output.error_occurred = False
+
+        server = 'test'
+        check = 'test check'
+
+        writer.result_check(server, check, True)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: %sOK%s\n' % (check, GREEN, RESET)
+        assert err == ''
+        assert not output.error_occurred
+
+    def test_result_check_ok_hint_color(self, capsys, monkeypatch):
+        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        writer = output.ConsoleOutputWriter()
+        output.error_occurred = False
+
+        server = 'test'
+        check = 'test check'
+        hint = 'do something'
+
+        writer.result_check(server, check, True, hint)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: %sOK%s (%s)\n' % (check, GREEN, RESET, hint)
+        assert err == ''
+        assert not output.error_occurred
+
+    def test_result_check_failed_color(self, capsys, monkeypatch):
+        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        writer = output.ConsoleOutputWriter()
+        output.error_occurred = False
+
+        server = 'test'
+        check = 'test check'
+
+        writer.result_check(server, check, False)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: %sFAILED%s\n' % (check, RED, RESET)
+        assert err == ''
+        assert output.error_occurred
+
+        # Test an inactive server
+        # Shows error, but does not change error_occurred
+        output.error_occurred = False
+        writer.init_check(server, False)
+        (out, err) = capsys.readouterr()
+        assert out == 'Server %s:\n' % server
+        assert err == ''
+        assert not output.error_occurred
+
+        writer.result_check(server, check, False)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: %sFAILED%s\n' % (check, RED, RESET)
+        assert err == ''
+        assert not output.error_occurred
+
+    def test_result_check_failed_hint_color(self, capsys, monkeypatch):
+        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        writer = output.ConsoleOutputWriter()
+        output.error_occurred = False
+
+        server = 'test'
+        check = 'test check'
+        hint = 'do something'
+
+        writer.result_check(server, check, False, hint)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: %sFAILED%s (%s)\n' % (check, RED, RESET, hint)
         assert err == ''
         assert output.error_occurred
 
