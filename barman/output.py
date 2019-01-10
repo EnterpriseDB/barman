@@ -564,7 +564,9 @@ class ConsoleOutputWriter(object):
                                for tablespace in backup_info.tablespaces]
                 out_list.append(' (tablespaces: %s)' %
                                 ', '.join(tablespaces))
-            if retention_status:
+            if backup_info.status == BackupInfo.WAITING_FOR_WALS:
+                out_list.append(' - %s' % BackupInfo.WAITING_FOR_WALS)
+            if retention_status and retention_status != BackupInfo.NONE:
                 out_list.append(' - %s' % retention_status)
         else:
             out_list.append(backup_info.status)
