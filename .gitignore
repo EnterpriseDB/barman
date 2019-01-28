@@ -2,6 +2,10 @@
 *.pyc
 *.pyo
 
+# Translations
+*.mo
+*.pot
+
 # python modules
 *.egg
 .eggs
@@ -18,6 +22,11 @@
 
 # PyCharm
 /.idea
+# vscode
+/.vscode
+
+# pyenv file
+.python-version
 
 # tox testing
 .tox/
