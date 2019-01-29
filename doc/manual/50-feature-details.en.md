@@ -160,10 +160,11 @@ rules:
   database.  Using PostgreSQL 9.2, 9.3, 9.4, and 9.5, `pgespresso`
   must be correctly installed through `CREATE EXTENSION`. Using 9.6 or
   greater, concurrent backups are executed through the Postgres native
-  API.
+  API (which requires an active connection from the start to the stop
+  of the backup).
 
-The destination Postgres server can be either the master (preferred) or a
-streaming replicated standby server.
+The destination Postgres server must be the selected streaming replicated
+standby server.
 
 > **IMPORTANT:**
 > When backing up from a standby server, the **only way to ship WAL files to

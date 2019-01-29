@@ -7,7 +7,7 @@
   [recoveryconfig]: https://www.postgresql.org/docs/current/static/recovery-config.html
   [physicalbackup]: https://www.postgresql.org/docs/current/static/backup-file.html
   [pitr]: https://www.postgresql.org/docs/current/static/continuous-archiving.html
-  [adminbook]: https://www.2ndquadrant.com/en/books/postgresql-9-administration-cookbook/
+  [adminbook]: https://www.2ndquadrant.com/en/books/postgresql-10-administration-cookbook/
   [wal]: https://www.postgresql.org/docs/current/static/wal.html
   [49340627f9821e447f135455d942f7d5e96cae6d]: https://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=49340627f9821e447f135455d942f7d5e96cae6d
   [requirements_recovery]: https://www.postgresql.org/docs/current/static/warm-standby.html#STANDBY-PLANNING
@@ -29,6 +29,7 @@
   [standby]: https://www.postgresql.org/docs/current/static/standby-settings.html
   [2ndqrpmrepo]: https://rpm.2ndquadrant.com/
   [2ndqdebrepo]: https://apt.2ndquadrant.com/
+  [barman-cli]: https://github.com/2ndquadrant-it/barman-cli
 
 
   [3]: https://sourceforge.net/projects/pgbarman/files/

@@ -28,7 +28,17 @@ A reasonable way to start modelling your disaster recovery architecture is to:
 - evaluate the single points of failure (SPOF) of your system, with cost-benefit analysis
 - make your decision and implement the initial solution
 
-Having said this, a very common setup for Barman is to be installed in the same data centre where your PostgreSQL servers are. In this case, the single point of failure is the data centre. Fortunately, the impact of such a SPOF can be alleviated thanks to a feature called _hook scripts_. Indeed, backups of Barman can be exported on different media, such as _tape_ via `tar`, or locations, like an _S3 bucket_ in the Amazon cloud.
+Having said this, a very common setup for Barman is to be installed in the same data centre where your PostgreSQL servers are. In this case, the single point of failure is the data centre. Fortunately, the impact of such a SPOF can be alleviated thanks to two features that Barman provides to increase the number of backup tiers:
+
+1. **geographical redundancy** (introduced in Barman 2.6)
+2. **hook scripts**
+
+With _geographical redundancy_, you can rely on a Barman instance that is located in a different data centre/availability zone to synchronise the entire content of the source Barman server. There's more: given that geo-redundancy can be configured in Barman not only at global level, but also at server level, you can create _hybrid installations_ of Barman where some servers are directly connected to the local PostgreSQL servers, and others are backing up subsets of different Barman installations (_cross-site backup_).
+Figure \ref{georedundancy-design} below shows two availability zones (one in Europe and one in the US), each with a primary PostgreSQL server that is backed up in a local Barman installation, and relayed on the other Barman server (defined as _passive_) for multi-tier backup via rsync/SSH. Further information on geo-redundancy is available in the specific section.
+
+![An example of architecture with geo-redundancy\label{georedundancy-design}](../images/barman-architecture-georedundancy.png){ width=80% }
+
+Thanks to _hook scripts_ instead, backups of Barman can be exported on different media, such as _tape_ via `tar`, or locations, like an _S3 bucket_ in the Amazon cloud.
 
 Remember that no decision is forever. You can start this way and adapt over time to the solution that suits you best. However, try and keep it simple to start with.
 
@@ -70,7 +80,7 @@ The reason why we recommend streaming backup is that, based on our experience, i
 
 PostgreSQL's Point-In-Time-Recovery requires that transactional logs, also known as _xlog_ or WAL files, are stored alongside of base backups.
 
-Traditionally, Barman has supported standard WAL file shipping through PostgreSQL's `archive_command` (usually via `rsync`/SSH). With this method, WAL files are archived only when PostgreSQL _switches_ to a new WAL file. To keep it simple, this normally happens every 16MB worth of data changes.
+Traditionally, Barman has supported standard WAL file shipping through PostgreSQL's `archive_command` (usually via `rsync`/SSH, now via `barman-wal-archive` from the [`barman-cli` package][barman-cli]). With this method, WAL files are archived only when PostgreSQL _switches_ to a new WAL file. To keep it simple, this normally happens every 16MB worth of data changes.
 
 Barman 1.6.0 introduces streaming of WAL files for PostgreSQL servers 9.2 or higher, as an additional method for transactional log archiving, through `pg_receivewal` (also known as `pg_receivexlog` before PostgreSQL 10). WAL streaming is able to reduce the risk of data loss, bringing RPO down to _near zero_ values.
 

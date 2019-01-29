@@ -13,7 +13,7 @@ Below you can find a non exhaustive list of resources that we recommend for you 
     - [Continuous Archiving and Point-in-Time Recovery (PITR)][pitr]
     - [Recovery Configuration][recoveryconfig]
     - [Reliability and the Write-Ahead Log][wal]
-- _Book_: [PostgreSQL 9 Administration Cookbook - 2nd edition][adminbook]
+- _Book_: [PostgreSQL 10 Administration Cookbook][adminbook]
 
   [^pgdump]: It is important that you know the difference between logical and physical backup, therefore between `pg_dump` and a tool like Barman.
 
