@@ -344,9 +344,9 @@ class TestCli(object):
     def test_check_target_action(self):
         # The following ones must work
         assert None is check_target_action(None)
-        assert 'pause' is check_target_action('pause')
-        assert 'promote' is check_target_action('promote')
-        assert 'shutdown' is check_target_action('shutdown')
+        assert 'pause' == check_target_action('pause')
+        assert 'promote' == check_target_action('promote')
+        assert 'shutdown' == check_target_action('shutdown')
 
         # Every other value is an error
         with pytest.raises(ArgumentTypeError):

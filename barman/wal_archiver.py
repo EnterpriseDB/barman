@@ -569,8 +569,8 @@ class FileWalArchiver(WalArchiver):
         last_wal = remote_status.get('last_archived_wal')
         # If PostgreSQL is >= 9.4 we have the last_archived_time
         if last_wal and remote_status.get('last_archived_time'):
-                last_wal += ", at %s" % (
-                    remote_status['last_archived_time'].ctime())
+            last_wal += ", at %s" % (
+                remote_status['last_archived_time'].ctime())
         output.result('status', self.config.name,
                       "last_archived_wal",
                       "Last archived WAL",

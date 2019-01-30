@@ -780,7 +780,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                                     path=self.server.path)
             minimal_ssh_output = ''.join(cmd.get_last_output())
         except FsOperationFailed as e:
-                hint = str(e).strip()
+            hint = str(e).strip()
 
         # Output the result
         check_strategy.result(self.config.name, cmd is not None, hint=hint)

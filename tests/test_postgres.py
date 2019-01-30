@@ -958,7 +958,7 @@ class TestPostgres(object):
         ]
         xlog = server.postgres.switch_wal()
         # Check for the right invocation
-        assert xlog is ''
+        assert xlog == ''
 
         cursor_mock.reset_mock()
         # Missing required permissions

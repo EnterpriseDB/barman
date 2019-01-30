@@ -285,7 +285,7 @@ class FieldListFile(object):
                 if value == 'None':
                     value = None
                 elif isinstance(field, Field) and callable(field.from_str):
-                        value = field.from_str(value)
+                    value = field.from_str(value)
                 setattr(self, name, value)
 
     def items(self):
