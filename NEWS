@@ -1,6 +1,27 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2018 2ndQuadrant Limited
 
+Version 2.6 - 4 Feb 2019
+
+-   Add support for Geographical redundancy, introducing 3 new commands:
+    sync-info, sync-backup and sync-wals. Geo-redundancy allows a Barman
+    server to use another Barman server as data source instead of a
+    PostgreSQL server.
+
+-   Add put-wal command that allows Barman to safely receive WAL files
+    via PostgreSQL's archive_command using the barman-wal-archive script
+    included in barman-cli
+
+-   Add ANSI colour support to check command
+
+-   Minor fixes:
+
+    -   Fix switch-wal on standby with an empty WAL directory
+    -   Honour archiver locking in wait_for_wal method
+    -   Fix WAL compression detection algorithm
+    -   Fix current_action in concurrent stop backup errors
+    -   Do not treat lock file busy as an error when validating a backup
+
 Version 2.5 - 23 Oct 2018
 
 -   Add support for PostgreSQL 11
