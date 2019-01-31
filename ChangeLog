@@ -1,3 +1,102 @@
+2019-01-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Prepare release 2.6
+
+2019-01-30  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Fix flake8 errors
+
+2019-01-29  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improved documentation on geo-redundancy
+	Contains also minor fixes and typos fixes
+
+2019-01-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add colored output for check and error/warning messages
+	Use ANSI escape codes for color selection
+
+2018-11-15  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Geographic redundancy implementation
+	Introduce three new commands (`sync-info`, `sync-backup` and `sync-wals`)
+	and one global/server configuration option called `primary_ssh_command`.
+
+	When the latter is specified globally, the whole instance of Barman is
+	an async copy of the server reached via SSH by `primary_ssh_command`.
+	If specified on a single server definition, that server in Barman is
+	an async copy of the same server that is defined on another Barman
+	installation.
+
+	Geo-redundancy is asynchronous and based on SSH connections between
+	Barman servers. Cascading backup is supported.
+
+2019-01-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Implement put-wal command
+
+2019-01-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add utils.fsync_file() method
+
+2019-01-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Clarify output of list-backup on 'WAITING_FOR_WALS' backups
+
+2018-12-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Do not treat lock file busy as an error when validating a backup
+	This patch prevents the `barman backup` command to terminate with a
+	failure because of a race condition with the cron starting a
+	backup validation.
+
+2018-12-06  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Fix typo: consistencty → consistency
+
+2018-11-23  Martín Marqués  <martin.marques@2ndquadrant.com>
+
+	Typo in NEWS file refering to xlogdb
+
+2018-11-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix current_action in concurrent stop backup errors
+
+2018-11-21  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Documentation: exclude PGDG repository from Barman RPM management
+	Document how to exclude any Barman related software from getting
+	updated via PGDG RPM repositories.
+
+2018-11-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix WAL compression detection algorithm
+	This patch fixes a misdetection of the compression status of WAL files
+	into the archive when compression method changes.
+
+2018-11-09  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Set version to 2.6a1
+
+2018-11-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Honour archiver locking in `wait_for_wal` method
+	Fixes a race between the archiver run by the `cron` and
+	the archiver run by `wait_for_wal` method.
+	Now only one archiver can run at the same time.
+
+2018-11-05  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.com>
+
+	Make code compliant with the newer Flake8
+
+	Fix switch-wal on standby with WAL dir empty
+	This patch fixes an error happening using the `switch-wal` command on a
+	standby server when the WAL directory is empty.
+
+	Closes: #5993
+
 2018-10-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
