@@ -52,7 +52,7 @@ database, activate the archive mode and set `archive_command` to use
 ``` ini
 archive_mode = on
 wal_level = 'replica'
-archive_command = 'barman-wal-archive -h backup pg %p'
+archive_command = 'barman-wal-archive backup pg %p'
 ```
 
 Then restart the PostgreSQL server.
