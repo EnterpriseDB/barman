@@ -367,17 +367,36 @@ class ConsoleOutputWriter(object):
         #: The server is active
         self.active = True
 
+    def _print(self, message, args, stream):
+        """
+        Print an encoded message on the given output stream
+        """
+        # Make sure to add a newline at the end of the message
+        if message is None:
+            message = '\n'
+        else:
+            message += '\n'
+        # Format and encode the message
+        encoded_msg = _format_message(message, args).encode('utf-8')
+        try:
+            # Python 3.x
+            stream.buffer.write(encoded_msg)
+        except AttributeError:
+            # Python 2.x
+            stream.write(encoded_msg)
+        stream.flush()
+
     def _out(self, message, args):
         """
         Print a message on standard output
         """
-        print(_format_message(message, args), file=sys.stdout)
+        self._print(message, args, sys.stdout)
 
     def _err(self, message, args):
         """
         Print a message on standard error
         """
-        print(_format_message(message, args), file=sys.stderr)
+        self._print(message, args, sys.stderr)
 
     def is_quiet(self):
         """
