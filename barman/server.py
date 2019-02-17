@@ -2983,7 +2983,14 @@ class Server(RemoteStatusMixin):
                     # Case 2: bw = 10, sw = 10 - SYNC
                     # Case 3: bw = 10, sw = 15 - SYNC
                     #
-                    first_remote_wal = primary_info['wals'][0]['name']
+                    # Search for the first WAL file (skip history,
+                    # backup and partial files)
+                    first_remote_wal = None
+                    for wal in primary_info['wals']:
+                        if xlog.is_wal_file(wal['name']):
+                            first_remote_wal = wal['name']
+                            break
+
                     first_backup_id = self.get_first_backup_id()
                     first_backup = self.get_backup(first_backup_id) \
                         if first_backup_id else None
