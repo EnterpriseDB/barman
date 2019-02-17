@@ -592,7 +592,7 @@ class TestCommand(object):
         get_output_no_retry_mock.side_effect = [e, e, e, e, e, e]
         with pytest.raises(CommandMaxRetryExceeded) as exc_info:
             cmd.get_output('test string')
-        assert exc_info.value.exc == e
+        assert exc_info.value.args == e.args
         assert sleep_mock.call_count == 5
         assert get_output_no_retry_mock.call_count == 6
 

@@ -143,12 +143,6 @@ class CommandMaxRetryExceeded(CommandFailedException):
     """
     A command with retry_times > 0 has exceeded the number of available retry
     """
-    def __init__(self, exc):
-        """
-        :param Exception exc: the last exception raised by the command
-        """
-        self.exc = exc
-        super(CommandMaxRetryExceeded, self).__init__(*exc.args)
 
 
 class RsyncListFilesFailure(CommandException):

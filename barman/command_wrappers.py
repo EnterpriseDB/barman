@@ -298,7 +298,7 @@ class Command(object):
                         # there is still an error, exit raising
                         # a CommandMaxRetryExceeded exception and wrap the
                         # original one
-                        raise CommandMaxRetryExceeded(exc)
+                        raise CommandMaxRetryExceeded(*exc.args)
 
     def _get_output_once(self, *args, **kwargs):
         """
