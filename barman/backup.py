@@ -1067,13 +1067,12 @@ class BackupManager(RemoteStatusMixin):
 
         # Check the intersection between the required WALs and the archived
         # ones. They should all exist
-        bound_end = min(last_archived_wal, end_wal)
-        segments = xlog.generate_segment_names(
-            begin_wal,
-            bound_end,
-            xlog_segment_size=backup_info.xlog_segment_size)
+        segments = backup_info.get_required_wal_segments()
         missing_wal = None
         for wal in segments:
+            # Stop checking if we reach the last archived wal
+            if wal > last_archived_wal:
+                break
             wal_full_path = self.server.get_wal_full_path(wal)
             if not os.path.exists(wal_full_path):
                 missing_wal = wal

@@ -26,7 +26,7 @@ import pytest
 from mock import MagicMock, patch
 from psycopg2.tz import FixedOffsetTimezone
 
-from barman import output, xlog
+from barman import output
 from barman.exceptions import (LockFileBusy, LockFilePermissionDenied,
                                PostgresDuplicateReplicationSlot,
                                PostgresInvalidReplicationSlot,
@@ -1206,9 +1206,10 @@ class TestServer(object):
         out, err = capsys.readouterr()
         assert "Replication slot 'test_repslot' does not exist" in err
 
+    @patch('barman.infofile.BackupInfo.save')
     @patch('os.path.exists')
-    @patch('barman.server.ServerBackupIdLock')
-    def test_check_backup(self, backup_lock_mock, mock_exists):
+    def test_check_backup(self, mock_exists, backup_info_save,
+                          tmpdir, orig_exists=os.path.exists):
         """
         Test the check_backup method
         """
@@ -1217,24 +1218,28 @@ class TestServer(object):
         available_wals = []
 
         def mock_os_path_exist(file_name):
-            return file_name in available_wals
+            return orig_exists(file_name) or file_name in available_wals
         mock_exists.side_effect = mock_os_path_exist
 
         timeline_info = {}
-        server = build_real_server()
+        server = build_real_server(
+            global_conf={
+                "barman_home": tmpdir.mkdir('home').strpath,
+            },
+        )
         server.backup_manager.get_latest_archived_wals_info = MagicMock()
         server.backup_manager.get_latest_archived_wals_info.return_value = \
             timeline_info
 
         # Case 1: timeline not present in the archived WALs
         # Nothing should happen
-        backup_info = MagicMock()
-        backup_info.xlog_segment_size = xlog.DEFAULT_XLOG_SEG_SIZE
-        backup_info.begin_wal = '000000010000000000000002'
-        backup_info.end_wal = '000000010000000000000008'
-        backup_info.status = BackupInfo.WAITING_FOR_WALS
+        backup_info = build_test_backup_info(
+            server=server,
+            begin_wal='000000010000000000000002',
+            end_wal='000000010000000000000008',
+        )
         server.check_backup(backup_info)
-        assert backup_info.save.called
+        assert backup_info_save.called
         assert backup_info.status == BackupInfo.WAITING_FOR_WALS
 
         # Case 2: the most recent WAL archived is older than the start of
@@ -1242,7 +1247,7 @@ class TestServer(object):
         timeline_info['00000001'] = MagicMock()
         timeline_info['00000001'].name = '000000010000000000000001'
         server.check_backup(backup_info)
-        assert backup_info.save.called
+        assert backup_info_save.called
         assert backup_info.status == BackupInfo.WAITING_FOR_WALS
 
         # Case 3: the more recent WAL archived is more recent than the
@@ -1259,7 +1264,7 @@ class TestServer(object):
         available_wals.append(
             server.get_wal_full_path('000000010000000000000004'))
         server.check_backup(backup_info)
-        assert backup_info.save.called
+        assert backup_info_save.called
         assert backup_info.status == BackupInfo.WAITING_FOR_WALS
 
         # Case 3.2: we miss two WAL files
@@ -1267,13 +1272,13 @@ class TestServer(object):
         available_wals.append(
             server.get_wal_full_path('000000010000000000000002'))
         server.check_backup(backup_info)
-        assert backup_info.save.called
+        assert backup_info_save.called
         assert backup_info.status == BackupInfo.FAILED
         assert (
             backup_info.error == "At least one WAL file is missing. "
                                  "The first missing WAL file is "
                                  "000000010000000000000003")
-        backup_info.reset_mock()
+        backup_info_save.reset_mock()
 
         # Case 4: the more recent WAL archived is more recent than the end
         # of the backup, so we can be sure if the backup is failed or not
@@ -1298,9 +1303,9 @@ class TestServer(object):
             server.get_wal_full_path('000000010000000000000008'))
         backup_info.status = BackupInfo.WAITING_FOR_WALS
         server.check_backup(backup_info)
-        assert backup_info.save.called
+        assert backup_info_save.called
         assert backup_info.status == BackupInfo.DONE
-        backup_info.reset_mock()
+        backup_info_save.reset_mock()
 
         # Case 4.2: a WAL file is missing
         del available_wals[:]
@@ -1318,12 +1323,12 @@ class TestServer(object):
             server.get_wal_full_path('000000010000000000000008'))
         backup_info.status = BackupInfo.WAITING_FOR_WALS
         server.check_backup(backup_info)
-        assert backup_info.save.called
+        assert backup_info_save.called
         assert backup_info.status == BackupInfo.FAILED
         assert (backup_info.error == "At least one WAL file is missing. "
                                      "The first missing WAL file is "
                                      "000000010000000000000004")
-        backup_info.reset_mock()
+        backup_info_save.reset_mock()
 
         # Case 4.3: we have all the files, but the backup is marked as
         # FAILED (i.e. the rsync copy failed). The backup should still be
@@ -1345,9 +1350,9 @@ class TestServer(object):
             server.get_wal_full_path('000000010000000000000008'))
         backup_info.status = BackupInfo.FAILED
         server.check_backup(backup_info)
-        assert not backup_info.save.called
+        assert not backup_info_save.called
         assert backup_info.status == BackupInfo.FAILED
-        backup_info.reset_mock()
+        backup_info_save.reset_mock()
 
     def test_wait_for_wal(self):
         # Waiting for a new WAL without archive_timeout without any WAL
