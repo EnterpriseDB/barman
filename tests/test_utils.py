@@ -223,13 +223,13 @@ class TestConfigureLogging(object):
         logging_mock.root.setLevel.assert_called_with(logging.INFO)
         logging_mock.root.addHandler.assert_called_with(mock.ANY)
 
-        # check if the handler has a formatter
-        handler_mock = logging_mock.root.addHandler.call_args[0][0]
-        handler_mock.setFormatter.assert_called_with(mock.ANY)
-
         # check if the formatter has the given format
-        formatter_mock = handler_mock.setFormatter.return_value
-        formatter_mock.asset_called_with(test_format)
+        logging_mock.Formatter.assert_called_once_with(test_format)
+        formatter_mock = logging_mock.Formatter.return_value
+
+        # check if the handler has the right formatter
+        handler_mock = logging_mock.root.addHandler.call_args[0][0]
+        handler_mock.setFormatter.assert_called_with(formatter_mock)
 
     def test_file_error_mkdir(self, **mocks):
         test_file = '/test/log/file.log'
