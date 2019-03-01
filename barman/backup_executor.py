@@ -48,7 +48,7 @@ from barman.fs import UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (human_readable_timedelta, mkpath, total_seconds,
-                          with_metaclass)
+                          with_metaclass, force_str)
 
 _logger = logging.getLogger(__name__)
 
@@ -780,7 +780,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                                     path=self.server.path)
             minimal_ssh_output = ''.join(cmd.get_last_output())
         except FsOperationFailed as e:
-            hint = str(e).strip()
+            hint = force_str(e).strip()
 
         # Output the result
         check_strategy.result(self.config.name, cmd is not None, hint=hint)
@@ -941,7 +941,7 @@ class PassiveBackupExecutor(BackupExecutor):
                                     path=self.server.path)
             minimal_ssh_output = ''.join(cmd.get_last_output())
         except FsOperationFailed as e:
-            hint = str(e).strip()
+            hint = force_str(e).strip()
 
         # Output the result
         check_strategy.result(self.config.name, cmd is not None, hint=hint)

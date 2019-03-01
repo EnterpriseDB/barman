@@ -19,6 +19,7 @@ import decimal
 import json
 import logging
 import signal
+import sys
 from datetime import datetime, timedelta
 
 import mock
@@ -607,3 +608,63 @@ class TestPowerOfTwo(object):
 
     def test_none(self):
         assert not barman.utils.is_power_of_two(None)
+
+
+class TestForceText(object):
+    """
+    Test for the force_text function
+    """
+
+    def test_force_text(self):
+        """
+        Force text normal usage
+        """
+        accented = u'\u0227\u0188\u0188\u1e17\u019e\u0167\u1e17\u1e13'
+
+        class Test:
+            if sys.version_info[0] >= 3:
+                def __str__(self):
+                    return accented
+            else:
+                def __str__(self):
+                    return accented.encode('utf-8')
+
+        class TestU:
+            if sys.version_info[0] >= 3:
+                def __str__(self):
+                    return accented
+
+                def __bytes__(self):
+                    return b'Wrong'
+            else:
+                def __str__(self):
+                    return b'Wrong'
+
+                def __unicode__(self):
+                    return accented
+
+        assert (barman.utils.force_str(Test()) == accented)
+        assert (barman.utils.force_str(TestU()) == accented)
+        assert (barman.utils.force_str(Exception(Test())) == accented)
+        assert (barman.utils.force_str(Exception(TestU())) == accented)
+        assert (barman.utils.force_str(1) == '1')
+        assert (barman.utils.force_str('foo') == 'foo')
+        assert (barman.utils.force_str(('foo', 'bar')) == "('foo', 'bar')")
+
+    def test_force_text_exception(self):
+        """
+        Broken __unicode__/__str__ actually raises an error.
+        """
+
+        class MyString(object):
+            def __str__(self):
+                return b'\xc3\xa0\xc3\xa8\xc3\xac\xc3\xb2\xc3\xb9'
+
+            __unicode__ = __str__
+
+        # str(s) raises a TypeError on python 3 if the result is not a text
+        # type.
+        # python 2 fails when it tries converting from str to unicode (via
+        # ASCII).
+        obj = MyString()
+        assert barman.utils.force_str(obj) == repr(obj)

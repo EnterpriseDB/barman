@@ -31,6 +31,7 @@ import os
 import pwd
 import re
 import signal
+import sys
 from contextlib import contextmanager
 
 from distutils.version import Version
@@ -38,6 +39,14 @@ from distutils.version import Version
 from barman.exceptions import TimeoutError
 
 _logger = logging.getLogger(__name__)
+
+
+if sys.version_info[0] >= 3:
+    _text_type = str
+    _string_types = str
+else:
+    _text_type = unicode
+    _string_types = basestring
 
 
 def drop_privileges(user):
@@ -421,3 +430,40 @@ def file_md5(file_path, buffer_size=1024 * 16):
                 break
             md5.update(buf)
     return md5.hexdigest()
+
+
+def force_str(obj, encoding='utf-8', errors='replace'):
+    """
+    Force any object to an unicode string.
+
+    Code inspired by Django's force_text function
+    """
+    # Handle the common case first for performance reasons.
+    if issubclass(type(obj), _text_type):
+        return obj
+    try:
+        if issubclass(type(obj), _string_types):
+            obj = obj.decode(encoding, errors)
+        else:
+            if sys.version_info[0] >= 3:
+                if isinstance(obj, bytes):
+                    obj = _text_type(obj, encoding, errors)
+                else:
+                    obj = _text_type(obj)
+            elif hasattr(obj, '__unicode__'):
+                obj = _text_type(obj)
+            else:
+                obj = _text_type(bytes(obj), encoding, errors)
+    except (UnicodeDecodeError, TypeError):
+        if isinstance(obj, Exception):
+            # If we get to here, the caller has passed in an Exception
+            # subclass populated with non-ASCII bytestring data without a
+            # working unicode method. Try to handle this without raising a
+            # further exception by individually forcing the exception args
+            # to unicode.
+            obj = ' '.join(force_str(arg, encoding, errors)
+                           for arg in obj.args)
+        else:
+            # As last resort, use a repr call to avoid any exception
+            obj = repr(obj)
+    return obj

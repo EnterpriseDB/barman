@@ -176,7 +176,8 @@ class DataTransferFailure(CommandException):
             return cls(details)
         except (TypeError, NameError):
             # If it is not a dictionary just convert it to a string
-            return cls(str(e.args))
+            from barman.utils import force_str
+            return cls(force_str(e.args))
 
 
 class CompressionIncompatibility(CompressionException):

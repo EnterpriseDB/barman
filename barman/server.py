@@ -63,7 +63,7 @@ from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import (BarmanEncoder, file_md5, fsync_dir, fsync_file,
                           human_readable_timedelta, is_power_of_two, mkpath,
-                          pretty_size, timeout)
+                          pretty_size, timeout, force_str)
 from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
                                  WalArchiver)
 
@@ -235,7 +235,7 @@ class Server(RemoteStatusMixin):
             except ConninfoException as e:
                 self.config.disabled = True
                 self.config.msg_list.append(
-                    "PostgreSQL connection: " + str(e).strip())
+                    "PostgreSQL connection: " + force_str(e).strip())
 
             # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
             # IMPORTANT: This is a back-compatibility feature that has
@@ -282,7 +282,7 @@ class Server(RemoteStatusMixin):
                 except ConninfoException as e:
                     self.config.disabled = True
                     self.config.msg_list.append(
-                        "Streaming connection: " + str(e).strip())
+                        "Streaming connection: " + force_str(e).strip())
 
             # Initialize the StreamingWalArchiver
             # WARNING: Order of items in self.archivers list is important!
@@ -1127,7 +1127,7 @@ class Server(RemoteStatusMixin):
                         "invalid WAL segment name %r\n"
                         "HINT: Please run \"barman rebuild-xlogdb %s\" "
                         "to solve this issue",
-                        str(e), self.config.name)
+                        force_str(e), self.config.name)
                 if self.enforce_retention_policies and \
                         retention_status[backup.backup_id] != BackupInfo.VALID:
                     rstatus = retention_status[backup.backup_id]
@@ -1859,7 +1859,7 @@ class Server(RemoteStatusMixin):
         except PostgresException as exc:
             msg = "Cannot connect to server '%s'" % self.config.name
             output.error(msg, log=False)
-            _logger.error("%s: %s", msg, str(exc).strip())
+            _logger.error("%s: %s", msg, force_str(exc).strip())
             return
 
         if not self.config.slot_name:
@@ -1888,7 +1888,7 @@ class Server(RemoteStatusMixin):
                 "Cannot create replication slot '%s' on server '%s': %s",
                 self.config.slot_name,
                 self.config.name,
-                str(exc).strip())
+                force_str(exc).strip())
 
     def drop_repslot(self):
         """
@@ -1910,7 +1910,7 @@ class Server(RemoteStatusMixin):
         except PostgresException as exc:
             msg = "Cannot connect to server '%s'" % self.config.name
             output.error(msg, log=False)
-            _logger.error("%s: %s", msg, str(exc).strip())
+            _logger.error("%s: %s", msg, force_str(exc).strip())
             return
 
         if not self.config.slot_name:
@@ -1940,7 +1940,7 @@ class Server(RemoteStatusMixin):
                 "Cannot drop replication slot '%s' on server '%s': %s",
                 self.config.slot_name,
                 self.config.name,
-                str(exc).strip())
+                force_str(exc).strip())
 
     def receive_wal(self, reset=False):
         """
@@ -2118,7 +2118,7 @@ class Server(RemoteStatusMixin):
                 "invalid xlog segment name %r\n"
                 "HINT: Please run \"barman rebuild-xlogdb %s\" "
                 "to solve this issue",
-                str(e), self.config.name)
+                force_str(e), self.config.name)
             output.close_and_exit()
 
     @staticmethod
@@ -2897,7 +2897,7 @@ class Server(RemoteStatusMixin):
                     return
                 # Catch KeyboardInterrupt (Ctrl+c) and all the exceptions
                 except BaseException as e:
-                    msg_lines = str(e).strip().splitlines()
+                    msg_lines = force_str(e).strip().splitlines()
                     if local_backup_info:
                         # Use only the first line of exception message
                         # in local_backup_info error field
@@ -3062,7 +3062,7 @@ class Server(RemoteStatusMixin):
                     output.error(msg)
                     return
                 except BaseException as e:
-                    msg_lines = str(e).strip().splitlines()
+                    msg_lines = force_str(e).strip().splitlines()
                     # Use only the first line of exception message
                     # If the exception has no attached message
                     # use the raw type name

@@ -26,6 +26,7 @@ import time
 from barman import version
 from barman.command_wrappers import Command
 from barman.exceptions import AbortedRetryHookScript, UnknownBackupIdException
+from barman.utils import force_str
 
 _logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ class HookScriptRunner(object):
             'BARMAN_RETRY': str(1 if self.retry else 0),
         })
         if self.error:
-            self.environment['BARMAN_ERROR'] = str(self.error)
+            self.environment['BARMAN_ERROR'] = force_str(self.error)
         if self.phase:
             self.environment['BARMAN_PHASE'] = self.phase
             script_config_name = "%s_%s" % (self.phase, self.name)
@@ -123,7 +124,7 @@ class HookScriptRunner(object):
             'BARMAN_SIZE': str(wal_info.size),
             'BARMAN_TIMESTAMP': str(wal_info.time),
             'BARMAN_COMPRESSION': wal_info.compression or '',
-            'BARMAN_ERROR': str(error or '')
+            'BARMAN_ERROR': force_str(error or '')
         })
 
     def env_from_recover(self, backup_info, dest, tablespaces, remote_command,
@@ -158,7 +159,7 @@ class HookScriptRunner(object):
             'BARMAN_TABLESPACES': tablespaces_map,
             'BARMAN_REMOTE_COMMAND': str(remote_command or ''),
             'BARMAN_RECOVER_OPTIONS': recover_options,
-            'BARMAN_ERROR': str(error or '')
+            'BARMAN_ERROR': force_str(error or '')
         })
 
     def run(self):

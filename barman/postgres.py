@@ -41,7 +41,7 @@ from barman.exceptions import (ConninfoException, PostgresAppNameError,
                                PostgresUnsupportedFeature)
 from barman.infofile import Tablespace
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import simplify_version, with_metaclass
+from barman.utils import simplify_version, with_metaclass, force_str
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 
 # This is necessary because the CONFIGURATION_LIMIT_EXCEEDED constant
@@ -155,7 +155,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             # If psycopg2 fails to connect to the host,
             # raise the appropriate exception
             except psycopg2.DatabaseError as e:
-                raise PostgresConnectionError(str(e).strip())
+                raise PostgresConnectionError(force_str(e).strip())
             # Register the connection to the list of live connections
             _live_connections.append(self)
         return self._conn
@@ -239,7 +239,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             return "%d.%d" % (major, patch)
         except PostgresConnectionError as e:
             _logger.debug("Error retrieving PostgreSQL version: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     @property
@@ -342,9 +342,9 @@ class StreamingConnection(PostgreSQL):
             # This is not a streaming connection
             result['streaming'] = False
         except PostgresConnectionError as e:
-            result['connection_error'] = str(e).strip()
+            result['connection_error'] = force_str(e).strip()
             _logger.warn("Error retrieving PostgreSQL status: %s",
-                         str(e).strip())
+                         force_str(e).strip())
         return result
 
     def create_physical_repslot(self, slot_name):
@@ -369,7 +369,7 @@ class StreamingConnection(PostgreSQL):
                 # All slots are full.
                 raise PostgresReplicationSlotsFull()
             else:
-                raise PostgresException(str(exc).strip())
+                raise PostgresException(force_str(exc).strip())
 
     def drop_repslot(self, slot_name):
         """
@@ -392,7 +392,7 @@ class StreamingConnection(PostgreSQL):
                 # The replication slot is still in use
                 raise PostgresReplicationSlotInUse()
             else:
-                raise PostgresException(str(exc).strip())
+                raise PostgresException(force_str(exc).strip())
 
 
 class PostgreSQLConnection(PostgreSQL):
@@ -436,7 +436,7 @@ class PostgreSQLConnection(PostgreSQL):
             # If psycopg2 fails to set the application name,
             # raise the appropriate exception
             except psycopg2.ProgrammingError as e:
-                raise PostgresAppNameError(str(e).strip())
+                raise PostgresAppNameError(force_str(e).strip())
         return self._conn
 
     @property
@@ -450,7 +450,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()[0].split()[1]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving PostgreSQL version: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     @property
@@ -469,7 +469,7 @@ class PostgreSQLConnection(PostgreSQL):
             return q_result > 0
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving pgespresso information: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     @property
@@ -486,7 +486,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error calling pg_is_in_recovery() function: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     @property
@@ -501,7 +501,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error calling is_superuser() function: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     @property
@@ -543,7 +543,7 @@ class PostgreSQLConnection(PostgreSQL):
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving current xlog "
                           "detailed information: %s",
-                          str(e).strip())
+                          force_str(e).strip())
         return None
 
     @property
@@ -601,7 +601,7 @@ class PostgreSQLConnection(PostgreSQL):
         except ValueError as e:
             _logger.error("Error retrieving current xlog "
                           "segment size: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     @property
@@ -632,7 +632,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving PostgreSQL total size: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     def get_archiver_stats(self):
@@ -673,7 +673,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving pg_stat_archive data: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     def fetch_remote_status(self):
@@ -743,7 +743,7 @@ class PostgreSQLConnection(PostgreSQL):
 
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.warn("Error retrieving PostgreSQL status: %s",
-                         str(e).strip())
+                         force_str(e).strip())
         return result
 
     def get_setting(self, name):
@@ -758,7 +758,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving PostgreSQL setting '%s': %s",
-                          name.replace('"', '""'), str(e).strip())
+                          name.replace('"', '""'), force_str(e).strip())
             return None
 
     def get_tablespaces(self):
@@ -781,7 +781,7 @@ class PostgreSQLConnection(PostgreSQL):
             return [Tablespace._make(item) for item in cur.fetchall()]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving PostgreSQL tablespaces: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     def get_configuration_files(self):
@@ -821,7 +821,7 @@ class PostgreSQLConnection(PostgreSQL):
 
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving PostgreSQL configuration files "
-                          "location: %s", str(e).strip())
+                          "location: %s", force_str(e).strip())
             self.configuration_files = {}
 
         return self.configuration_files
@@ -856,7 +856,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug('Error issuing pg_create_restore_point()'
-                          'command: %s', str(e).strip())
+                          'command: %s', force_str(e).strip())
             return None
 
     def start_exclusive_backup(self, label):
@@ -907,7 +907,7 @@ class PostgreSQLConnection(PostgreSQL):
 
             return start_row
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "pg_start_backup(): %s" % str(e).strip()
+            msg = "pg_start_backup(): %s" % force_str(e).strip()
             _logger.debug(msg)
             raise PostgresException(msg)
 
@@ -949,7 +949,7 @@ class PostgreSQLConnection(PostgreSQL):
 
             return start_row
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "pg_start_backup command: %s" % (str(e).strip(),)
+            msg = "pg_start_backup command: %s" % (force_str(e).strip(),)
             _logger.debug(msg)
             raise PostgresException(msg)
 
@@ -985,7 +985,8 @@ class PostgreSQLConnection(PostgreSQL):
 
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "Error issuing pg_stop_backup command: %s" % str(e).strip()
+            msg = ("Error issuing pg_stop_backup command: %s" %
+                   force_str(e).strip())
             _logger.debug(msg)
             raise PostgresException(
                 'Cannot terminate exclusive backup. '
@@ -1026,7 +1027,8 @@ class PostgreSQLConnection(PostgreSQL):
 
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "Error issuing pg_stop_backup command: %s" % str(e).strip()
+            msg = ("Error issuing pg_stop_backup command: %s" %
+                   force_str(e).strip())
             _logger.debug(msg)
             raise PostgresException(msg)
 
@@ -1065,7 +1067,7 @@ class PostgreSQLConnection(PostgreSQL):
 
             return start_row
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "pgespresso_start_backup(): %s" % str(e).strip()
+            msg = "pgespresso_start_backup(): %s" % force_str(e).strip()
             _logger.debug(msg)
             raise PostgresException(msg)
 
@@ -1093,7 +1095,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
             msg = "Error issuing pgespresso_stop_backup() command: %s" % (
-                str(e).strip())
+                force_str(e).strip())
             _logger.debug(msg)
             raise PostgresException(
                 '%s\n'
@@ -1147,7 +1149,7 @@ class PostgreSQLConnection(PostgreSQL):
             _logger.debug(
                 "Error issuing {pg_switch_wal}() command: %s"
                 .format(**self.name_map),
-                str(e).strip())
+                force_str(e).strip())
             return None
 
     def checkpoint(self):
@@ -1166,7 +1168,7 @@ class PostgreSQLConnection(PostgreSQL):
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
                 "Error issuing CHECKPOINT: %s",
-                str(e).strip())
+                force_str(e).strip())
 
     def get_replication_stats(self, client_type=STANDBY):
         """
@@ -1321,7 +1323,7 @@ class PostgreSQLConnection(PostgreSQL):
             return cur.fetchall()
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug("Error retrieving status of standby servers: %s",
-                          str(e).strip())
+                          force_str(e).strip())
             return None
 
     def get_replication_slot(self, slot_name):
@@ -1355,7 +1357,7 @@ class PostgreSQLConnection(PostgreSQL):
                 return cur.fetchone()
             except (PostgresConnectionError, psycopg2.Error) as e:
                 _logger.debug("Error retrieving replication_slots: %s",
-                              str(e).strip())
+                              force_str(e).strip())
                 raise
 
     def get_synchronous_standby_names(self):

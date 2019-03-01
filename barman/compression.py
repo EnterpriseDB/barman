@@ -30,7 +30,7 @@ import barman.infofile
 from barman.command_wrappers import Command
 from barman.exceptions import (CommandFailedException,
                                CompressionIncompatibility)
-from barman.utils import with_metaclass
+from barman.utils import with_metaclass, force_str
 
 _logger = logging.getLogger(__name__)
 
@@ -217,7 +217,8 @@ class InternalCompressor(Compressor):
                     shutil.copyfileobj(istream, ostream)
         except Exception as e:
             # you won't get more information from the compressors anyway
-            raise CommandFailedException(dict(ret=None, err=str(e), out=None))
+            raise CommandFailedException(dict(
+                ret=None, err=force_str(e), out=None))
         return 0
 
     def decompress(self, src, dst):
@@ -233,7 +234,8 @@ class InternalCompressor(Compressor):
                     shutil.copyfileobj(istream, ostream)
         except Exception as e:
             # you won't get more information from the compressors anyway
-            raise CommandFailedException(dict(ret=None, err=str(e), out=None))
+            raise CommandFailedException(dict(
+                ret=None, err=force_str(e), out=None))
         return 0
 
     @abstractmethod

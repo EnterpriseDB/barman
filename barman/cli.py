@@ -37,7 +37,7 @@ from barman.exceptions import BadXlogSegmentName, RecoveryException, SyncError
 from barman.infofile import BackupInfo
 from barman.server import Server
 from barman.utils import (BarmanEncoder, configure_logging, drop_privileges,
-                          parse_log_level)
+                          parse_log_level, force_str)
 
 _logger = logging.getLogger(__name__)
 
@@ -521,7 +521,7 @@ def recover(args):
                            target_action=getattr(args, 'target_action', None),
                            standby_mode=getattr(args, 'standby_mode', None))
         except RecoveryException as exc:
-            output.error(str(exc))
+            output.error(force_str(exc))
 
     output.close_and_exit()
 
@@ -784,7 +784,7 @@ def list_files(args):
             "invalid xlog segment name %r\n"
             "HINT: Please run \"barman rebuild-xlogdb %s\" "
             "to solve this issue",
-            str(e), server.config.name)
+            force_str(e), server.config.name)
         output.close_and_exit()
 
 

@@ -44,7 +44,7 @@ from barman.lockfile import ServerBackupSyncLock
 from barman.recovery_executor import RecoveryExecutor
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (fsync_dir, fsync_file, human_readable_timedelta,
-                          pretty_size)
+                          pretty_size, force_str)
 
 _logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class BackupManager(RemoteStatusMixin):
                 self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:
             self.config.disabled = True
-            self.config.msg_list.append(str(e).strip())
+            self.config.msg_list.append(force_str(e).strip())
 
     @property
     def mode(self):
@@ -418,7 +418,7 @@ class BackupManager(RemoteStatusMixin):
         # Use BaseException instead of Exception to catch events like
         # KeyboardInterrupt (e.g.: CTRL-C)
         except BaseException as e:
-            msg_lines = str(e).strip().splitlines()
+            msg_lines = force_str(e).strip().splitlines()
             if backup_info:
                 # Use only the first line of exception message
                 # in backup_info error field

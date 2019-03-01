@@ -46,7 +46,7 @@ from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
                                RecoveryTargetActionException)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
-from barman.utils import mkpath
+from barman.utils import mkpath, force_str
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ class RecoveryExecutor(object):
                     "invalid xlog segment name %r\n"
                     "HINT: Please run \"barman rebuild-xlogdb %s\" "
                     "to solve this issue",
-                    str(e), self.config.name)
+                    force_str(e), self.config.name)
                 output.close_and_exit()
             # If WAL files are put directly in the pg_xlog directory,
             # avoid shipping of just recovered files
