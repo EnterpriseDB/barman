@@ -2483,8 +2483,13 @@ class Server(RemoteStatusMixin):
         sync_wal_info = self.load_sync_wals_info()
         # Use last_wal and last_position for the remote call to the
         # master server
-        remote_info = self.primary_node_info(sync_wal_info.last_wal,
-                                             sync_wal_info.last_position)
+        try:
+            remote_info = self.primary_node_info(sync_wal_info.last_wal,
+                                                 sync_wal_info.last_position)
+        except SyncError as exc:
+            output.error("Failed to retrieve the primary node status: %s"
+                         % force_str(exc))
+            return
 
         # Perform backup synchronisation
         if remote_info['backups']:
@@ -2724,10 +2729,12 @@ class Server(RemoteStatusMixin):
                 remote_command(cmd_str)
                 # All good, exit the retry loop with 'break'
                 break
-            except CommandFailedException as e:
+            except CommandFailedException as exc:
                 # In case we requested synchronisation with a last WAL info,
-                # we try again requesting the full current status
-                if last_wal is not None:
+                # we try again requesting the full current status, but only if
+                # exit code is 1. A different exit code means that
+                # the error is not from Barman (i.e. ssh failure)
+                if exc.args[0]['ret'] == 1 and last_wal is not None:
                     last_wal = None
                     last_position = None
                     output.warning(
@@ -2740,7 +2747,7 @@ class Server(RemoteStatusMixin):
                 # for custom message and logging.
                 raise SyncError("sync-info execution on remote "
                                 "primary server %s failed: %s" %
-                                (self.config.name, e.args[0]['err']))
+                                (self.config.name, exc.args[0]['err']))
 
         # Save the result on disk
         primary_info_file = os.path.join(self.config.backup_directory,
