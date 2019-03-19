@@ -141,7 +141,16 @@ def cron():
         # server is None and to report inactive and disabled servers,
         # but here we have only active and well configured servers.
 
-        server.cron()
+        try:
+            server.cron()
+        except Exception:
+            # A cron should never raise an exception, so this code
+            # should never be executed. However, it is here to protect
+            # unrelated servers in case of unexpected failures.
+            output.exception(
+                "Unable to run cron on server '%s', "
+                "please look in the barman log file for more details.",
+                name)
 
     output.close_and_exit()
 
