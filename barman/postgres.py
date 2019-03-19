@@ -41,7 +41,7 @@ from barman.exceptions import (ConninfoException, PostgresAppNameError,
                                PostgresUnsupportedFeature)
 from barman.infofile import Tablespace
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import simplify_version, with_metaclass, force_str
+from barman.utils import force_str, simplify_version, with_metaclass
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 
 # This is necessary because the CONFIGURATION_LIMIT_EXCEEDED constant

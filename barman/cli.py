@@ -37,7 +37,7 @@ from barman.exceptions import BadXlogSegmentName, RecoveryException, SyncError
 from barman.infofile import BackupInfo
 from barman.server import Server
 from barman.utils import (BarmanEncoder, configure_logging, drop_privileges,
-                          parse_log_level, force_str)
+                          force_str, parse_log_level)
 
 _logger = logging.getLogger(__name__)
 

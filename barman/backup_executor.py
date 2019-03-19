@@ -47,8 +47,8 @@ from barman.exceptions import (CommandFailedException, DataTransferFailure,
 from barman.fs import UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import (human_readable_timedelta, mkpath, total_seconds,
-                          with_metaclass, force_str)
+from barman.utils import (force_str, human_readable_timedelta, mkpath,
+                          total_seconds, with_metaclass)
 
 _logger = logging.getLogger(__name__)
 

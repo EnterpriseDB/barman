@@ -30,7 +30,7 @@ import barman.infofile
 from barman.command_wrappers import Command
 from barman.exceptions import (CommandFailedException,
                                CompressionIncompatibility)
-from barman.utils import with_metaclass, force_str
+from barman.utils import force_str, with_metaclass
 
 _logger = logging.getLogger(__name__)
 

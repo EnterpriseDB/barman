@@ -61,9 +61,9 @@ from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
-from barman.utils import (BarmanEncoder, file_md5, fsync_dir, fsync_file,
-                          human_readable_timedelta, is_power_of_two, mkpath,
-                          pretty_size, timeout, force_str)
+from barman.utils import (BarmanEncoder, file_md5, force_str, fsync_dir,
+                          fsync_file, human_readable_timedelta,
+                          is_power_of_two, mkpath, pretty_size, timeout)
 from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
                                  WalArchiver)
 

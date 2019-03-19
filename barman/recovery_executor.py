@@ -46,7 +46,7 @@ from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
                                RecoveryTargetActionException)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
-from barman.utils import mkpath, force_str
+from barman.utils import force_str, mkpath
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)

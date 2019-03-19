@@ -43,8 +43,8 @@ from barman.infofile import BackupInfo, WalFileInfo
 from barman.lockfile import ServerBackupSyncLock
 from barman.recovery_executor import RecoveryExecutor
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import (fsync_dir, fsync_file, human_readable_timedelta,
-                          pretty_size, force_str)
+from barman.utils import (force_str, fsync_dir, fsync_file,
+                          human_readable_timedelta, pretty_size)
 
 _logger = logging.getLogger(__name__)
 
