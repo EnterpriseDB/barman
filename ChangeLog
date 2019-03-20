@@ -1,3 +1,82 @@
+2019-03-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Update NEWS file for release 2.7
+
+	Version set to 2.7
+
+	Add utility script to set a new barman version
+
+	Remove obsolete rpp packagin files
+
+2019-03-19  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make `barman cron` resilient to unhandled exceptions
+	Before this patch, any unhandled exceptions raised during the handling
+	of a server, would have terminated the cron, preventing any other
+	maintenance operation required by subsequent servers.
+
+	Now the exception is logged and the cron continues with eventual other
+	servers.
+
+	Thanks to Martín Marqués for the analysis.
+
+	Closes: #202
+
+	Clarify cron error message on primary server connection failures
+	This patch also avoids to propagate and log the SyncError exception.
+
+	Fixes: #202
+
+	Update import sorting using latest isort
+
+2019-03-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix error handling exceptions containing non-ascii error messages
+	Fixes #194
+
+	Fix broken unit test (s/asset_called/assert_called/)
+
+2019-02-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid failing if the output contains non ascii characters
+	Fixes #196
+
+2019-02-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix backup validation in PostgreSQL older than 9.2
+
+2019-02-05  tomascassidy  <tomascassidy@users.noreply.github.com>
+
+	Fix typo in passive-server.conf-template
+
+2019-02-14  Luc Didry  <luc@didry.org>
+
+	Fix doc typo
+
+2019-02-21  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Set version to 2.7a1
+
+2019-02-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make CommandMaxRetryExceeded exception serializable
+	The CommandMaxRetryExceeded could be raised by one of the parallel
+	worker subprocesses, and if not serializable it causes a failure
+	reporting the error.
+
+	Fixes: #199
+
+2019-02-17  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Ignore history/backup/partial files for first sync of geo-redundancy
+	Fixes #198
+
+2019-02-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Manual: fix example of archiving with barman-wal-archive
+
 2019-01-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
