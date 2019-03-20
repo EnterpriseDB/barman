@@ -1,3 +1,3 @@
-% BARMAN(1) Barman User manuals | Version 2.7
+% BARMAN(1) Barman User manuals | Version 2.8a1
 % 2ndQuadrant Limited <https://www.2ndQuadrant.com>
-% March 21, 2019
+% Month DD, YYYY
