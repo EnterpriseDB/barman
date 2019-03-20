@@ -1,5 +1,26 @@
 Barman News - History of user-visible changes
-Copyright (C) 2011-2018 2ndQuadrant Limited
+Copyright (C) 2011-2019 2ndQuadrant Limited
+
+Version 2.7 - 21 Mar 2019
+
+-   Fix error handling during the parallel backup. Previously an
+    unrecoverable error during the copy could have corrupted the barman
+    internal state, requiring a manual kill of barman process with
+    SIGTERM and a manual cleanup of the running backup in PostgreSQL.
+    (GH#199)
+
+-   Fix support of UTF-8 characters in input and output (GH#194 and
+    GH#196)
+
+-   Ignore history/backup/partial files for first sync of geo-redundancy
+    (GH#198)
+
+-   Fix network failure with geo-redundancy causing cron to break
+    (GH#202)
+
+-   Fix backup validation in PostgreSQL older than 9.2
+
+-   Various documentation fixes
 
 Version 2.6 - 4 Feb 2019
 
