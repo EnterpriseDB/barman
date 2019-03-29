@@ -511,15 +511,15 @@ class BackupManager(RemoteStatusMixin):
 
         # Run the pre_recovery_script if present.
         script = HookScriptRunner(self, 'recovery_script', 'pre')
-        script.env_from_recover(backup_info, dest, tablespaces, remote_command,
-                                **kwargs)
+        script.env_from_recover(backup_info, dest, tablespaces,
+                                remote_command, **kwargs)
         script.run()
 
         # Run the pre_recovery_retry_script if present.
         retry_script = RetryHookScriptRunner(
             self, 'recovery_retry_script', 'pre')
-        retry_script.env_from_recover(backup_info, dest, tablespaces, remote_command,
-                                **kwargs)
+        retry_script.env_from_recover(backup_info, dest, tablespaces,
+                                remote_command, **kwargs)
         retry_script.run()
 
         # Execute the recovery.
