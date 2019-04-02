@@ -785,6 +785,8 @@ class TestPostgres(object):
         assert server.postgres.current_xlog_file_name is None
 
     @patch('barman.postgres.psycopg2.connect')
+    @patch('barman.postgres.PostgreSQLConnection.archive_timeout',
+           new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.is_superuser',
@@ -811,6 +813,7 @@ class TestPostgres(object):
                                server_txt_version_mock,
                                is_superuser_mock,
                                is_in_recovery_mock,
+                               archive_timeout_mock,
                                conn_mock):
         """
         simple test for the fetch_remote_status method
@@ -820,13 +823,25 @@ class TestPostgres(object):
         current_xlog_file_mock.return_value = 'DE/ADBEEF'
         current_size_mock.return_value = 497354072
         has_pgespresso_mock.return_value = True
-        server_txt_version_mock.return_value = '9.1.0'
+        server_txt_version_mock.return_value = '9.5.0'
         is_in_recovery_mock.return_value = False
         is_superuser_mock.return_value = True
         get_configuration_files_mock.return_value = {'a': 'b'}
-        get_setting_mock.return_value = 'dummy_setting'
         get_synchronous_standby_names.return_value = []
-        conn_mock.return_value.server_version = 90100
+        conn_mock.return_value.server_version = 90500
+        archive_timeout_mock.return_value = 300
+
+        settings = {
+            'data_directory': 'a directory',
+            'wal_level': 'a wal_level value',
+            'hot_standby': 'a hot_standby value',
+            'max_wal_senders': 'a max_wal_senderse value',
+            'data_checksums': 'a data_checksums',
+            'max_replication_slots': 'a max_replication_slots value',
+            'wal_compression': 'a wal_compression value',
+        }
+
+        get_setting_mock.side_effect = lambda x: settings.get(x, 'unknown')
 
         result = server.postgres.fetch_remote_status()
 
@@ -835,14 +850,20 @@ class TestPostgres(object):
             'is_superuser': True,
             'is_in_recovery': False,
             'current_xlog': 'DE/ADBEEF',
-            'data_directory': 'dummy_setting',
+            'data_directory': 'a directory',
             'pgespresso_installed': True,
-            'server_txt_version': '9.1.0',
-            'wal_level': 'dummy_setting',
+            'server_txt_version': '9.5.0',
+            'wal_level': 'a wal_level value',
             'current_size': 497354072,
-            'replication_slot_support': False,
+            'replication_slot_support': True,
             'replication_slot': None,
             'synchronous_standby_names': [],
+            'archive_timeout': 300,
+            'hot_standby': 'a hot_standby value',
+            'max_wal_senders': 'a max_wal_senderse value',
+            'data_checksums': 'a data_checksums',
+            'max_replication_slots': 'a max_replication_slots value',
+            'wal_compression': 'a wal_compression value',
         }
 
         # Test error management

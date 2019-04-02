@@ -635,6 +635,30 @@ class PostgreSQLConnection(PostgreSQL):
                           force_str(e).strip())
             return None
 
+    @property
+    def archive_timeout(self):
+        """
+        Retrieve the archive_timeout setting in PostgreSQL
+
+        :return: The archive timeout (in seconds)
+        """
+        try:
+            cur = self._cursor(cursor_factory=DictCursor)
+            # We can't use the `get_setting` method here, because it
+            # uses `SHOW`, returning an human readable value such as "5min",
+            # while we prefer a raw value such as 300.
+            cur.execute("SELECT setting "
+                        "FROM pg_settings "
+                        "WHERE name='archive_timeout'")
+            result = cur.fetchone()
+            archive_timeout = int(result[0])
+
+            return archive_timeout
+        except ValueError as e:
+            _logger.error("Error retrieving archive_timeout: %s",
+                          force_str(e).strip())
+            return None
+
     def get_archiver_stats(self):
         """
         This method gathers statistics from pg_stat_archiver.
@@ -705,9 +729,21 @@ class PostgreSQLConnection(PostgreSQL):
             pg_superuser_settings + pg_settings + pg_query_keys,
             None)
         try:
-            # check for wal_level only if the version is >= 9.0
+            # Retrieve wal_level, hot_standby and max_wal_senders
+            # only if version is >= 9.0
             if self.server_version >= 90000:
                 pg_settings.append('wal_level')
+                pg_settings.append('hot_standby')
+                pg_settings.append('max_wal_senders')
+
+            if self.server_version >= 90300:
+                pg_settings.append('data_checksums')
+
+            if self.server_version >= 90400:
+                pg_settings.append('max_replication_slots')
+
+            if self.server_version >= 90500:
+                pg_settings.append('wal_compression')
 
             # retrieves superuser settings
             if self.is_superuser:
@@ -724,6 +760,7 @@ class PostgreSQLConnection(PostgreSQL):
             result['pgespresso_installed'] = self.has_pgespresso
             result['current_xlog'] = self.current_xlog_file_name
             result['current_size'] = self.current_size
+            result['archive_timeout'] = self.archive_timeout
 
             result.update(self.get_configuration_files())
 
