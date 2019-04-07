@@ -945,6 +945,9 @@ class RsyncCopyController(object):
         # Ref: http://ftp.samba.org/pub/rsync/src/rsync-3.1.0-NEWS
         rsync.get_output('--no-human-readable', '--list-only', '-r', path,
                          check=True)
+        # Cache and reuse datetime parsing objects for speed
+        tzlocal=dateutil.tz.tzlocal()
+        default = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0,tzinfo=tzlocal)
         for line in rsync.out.splitlines():
             line = line.rstrip()
             match = self.LIST_ONLY_RE.match(line)
@@ -953,8 +956,8 @@ class RsyncCopyController(object):
                 # no exceptions here: the regexp forces 'size' to be an integer
                 size = int(match.group('size'))
                 try:
-                    date = dateutil.parser.parse(match.group('date'))
-                    date = date.replace(tzinfo=dateutil.tz.tzlocal())
+                    date = dateutil.parser.parse(match.group('date'),default=default)
+                    date = date.replace(tzinfo=tzlocal)
                 except (TypeError, ValueError):
                     # This should not happen, due to the regexp
                     msg = ("Unable to parse rsync --list-only output line "
