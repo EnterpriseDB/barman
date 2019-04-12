@@ -948,7 +948,7 @@ class RsyncCopyController(object):
         # Cache and reuse datetime parsing objects for speed
         tzlocal = dateutil.tz.tzlocal()
         default = datetime.datetime.now().replace(hour=0, minute=0, second=0,
-                                                  microsecond=0, 
+                                                  microsecond=0,
                                                   tzinfo=tzlocal)
         for line in rsync.out.splitlines():
             line = line.rstrip()
