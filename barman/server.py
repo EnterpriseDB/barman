@@ -1965,7 +1965,9 @@ class Server(RemoteStatusMixin):
                          "barman configuration file")
             return
 
-        output.info("Starting receive-wal for server %s", self.config.name)
+        if not reset:
+            output.info("Starting receive-wal for server %s", self.config.name)
+
         try:
             # Take care of the receive-wal lock.
             # Only one receiving process per server is permitted
