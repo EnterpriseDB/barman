@@ -566,16 +566,16 @@ class TestRsyncCopyController(object):
         # the files in the source
         assert item.exclude_and_protect_file
         assert open(item.exclude_and_protect_file).read() == (
-            'P tmp/safe\n'
-            '- tmp/safe\n'
-            'P tmp/check\n'
-            '- tmp/check\n'
-            'P tmp/diff_time\n'
-            '- tmp/diff_time\n'
-            'P tmp/diff_size\n'
-            '- tmp/diff_size\n'
-            'P tmp/new\n'
-            '- tmp/new\n'
+            'P /tmp/safe\n'
+            '- /tmp/safe\n'
+            'P /tmp/check\n'
+            '- /tmp/check\n'
+            'P /tmp/diff_time\n'
+            '- /tmp/diff_time\n'
+            'P /tmp/diff_size\n'
+            '- /tmp/diff_size\n'
+            'P /tmp/new\n'
+            '- /tmp/new\n'
         )
         # The check list must contain identical files after the safe_horizon
         assert len(item.check_list) == 1
