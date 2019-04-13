@@ -851,8 +851,8 @@ class RsyncCopyController(object):
 
             # Add every file in the source path to the list of files
             # to be protected from deletion ('exclude_and_protect.filter')
-            exclude_and_protect_filter.write('P ' + entry.path + '\n')
-            exclude_and_protect_filter.write('- ' + entry.path + '\n')
+            exclude_and_protect_filter.write('P /' + entry.path + '\n')
+            exclude_and_protect_filter.write('- /' + entry.path + '\n')
 
             # If source item is older than safe_horizon,
             # add it to 'safe.list'
