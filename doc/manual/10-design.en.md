@@ -80,7 +80,7 @@ The reason why we recommend streaming backup is that, based on our experience, i
 
 PostgreSQL's Point-In-Time-Recovery requires that transactional logs, also known as _xlog_ or WAL files, are stored alongside of base backups.
 
-Traditionally, Barman has supported standard WAL file shipping through PostgreSQL's `archive_command` (usually via `rsync`/SSH, now via `barman-wal-archive` from the [`barman-cli` package][barman-cli]). With this method, WAL files are archived only when PostgreSQL _switches_ to a new WAL file. To keep it simple, this normally happens every 16MB worth of data changes.
+Traditionally, Barman has supported standard WAL file shipping through PostgreSQL's `archive_command` (usually via `rsync`/SSH, now via `barman-wal-archive` from the `barman-cli` package). With this method, WAL files are archived only when PostgreSQL _switches_ to a new WAL file. To keep it simple, this normally happens every 16MB worth of data changes.
 
 Barman 1.6.0 introduces streaming of WAL files for PostgreSQL servers 9.2 or higher, as an additional method for transactional log archiving, through `pg_receivewal` (also known as `pg_receivexlog` before PostgreSQL 10). WAL streaming is able to reduce the risk of data loss, bringing RPO down to _near zero_ values.
 

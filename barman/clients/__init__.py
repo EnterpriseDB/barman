@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-#
-# Copyright (C) 2011-2018 2ndQuadrant Limited
+# Copyright (C) 2019 2ndQuadrant Limited
 #
 # This file is part of Barman.
 #
@@ -16,12 +14,3 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
-#
-# PYTHON_ARGCOMPLETE_OK
-
-from barman.cli import main
-
-if __name__ == '__main__':
-    main()
-else:
-    raise NotImplementedError

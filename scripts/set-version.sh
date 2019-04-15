@@ -70,13 +70,13 @@ else
     exit 1
 fi
 
-sed -i -e "3s/^%.*/% ${release_date}/; 1s/| Version .*/| Version ${release_version}/" doc/barman.1.d/00-header.md doc/barman.5.d/00-header.md
+sed -i -e "3s/^%.*/% ${release_date}/; 1s/| Version .*/| Version ${release_version}/" doc/barman.1.d/00-header.md doc/barman.5.d/00-header.md doc/barman-wal-archive.1.md doc/barman-wal-restore.1.md
 sed -i -e "3s/^%.*/% ${release_date} (${release_version})/" doc/manual/00-head.en.md
 sed -i -e "s/__version__ = .*/__version__ = '${release_version}'/" barman/version.py
 
 make -C doc
 
-git add doc/barman.1.d/00-header.md doc/barman.5.d/00-header.md doc/manual/00-head.en.md barman/version.py doc/barman.1 doc/barman.5
+git add doc/barman.1.d/00-header.md doc/barman.5.d/00-header.md doc/barman-wal-archive.1.md doc/barman-wal-restore.1.md doc/manual/00-head.en.md barman/version.py doc/barman.1 doc/barman.5 doc/barman-wal-archive.1 doc/barman-wal-restore.1
 git commit -sm "Version set to ${release_version}"
 
 echo "Version set to ${release_version}"

@@ -115,7 +115,7 @@ to retrieve the next WAL files while PostgreSQL is applying one of them. It is
 an excellent way to optimise the bandwidth usage between PostgreSQL and
 Barman.
 
-`barman-wal-restore` is available in the `barman-cli` project or package.
+`barman-wal-restore` is available in the `barman-cli` package.
 
 This is an example of a `restore_command` for a remote recovery:
 

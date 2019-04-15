@@ -29,7 +29,6 @@
   [standby]: https://www.postgresql.org/docs/current/static/standby-settings.html
   [2ndqrpmrepo]: https://rpm.2ndquadrant.com/
   [2ndqdebrepo]: https://apt.2ndquadrant.com/
-  [barman-cli]: https://github.com/2ndquadrant-it/barman-cli
 
 
   [3]: https://sourceforge.net/projects/pgbarman/files/

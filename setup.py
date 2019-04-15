@@ -30,10 +30,7 @@ Barman is distributed under GNU GPL 3 and maintained by 2ndQuadrant.
 
 import sys
 
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import find_packages, setup
 
 if sys.version_info < (2, 6):
     raise SystemExit('ERROR: Barman needs at least python 2.6 to work')
@@ -46,8 +43,8 @@ setup_requires = pytest_runner
 
 install_requires = [
     'psycopg2 >= 2.4.2',
-    'argh >= 0.21.2, <= 0.26.2',
-    'python-dateutil < 2.7.0',
+    'argh >= 0.21.2',
+    'python-dateutil',
     'argcomplete',
 ]
 
@@ -72,12 +69,20 @@ setup(
     author='2ndQuadrant Limited',
     author_email='info@2ndquadrant.com',
     url='http://www.pgbarman.org/',
-    packages=['barman', ],
-    scripts=['bin/barman', ],
+    packages=find_packages(exclude=["tests"]),
     data_files=[
-        ('share/man/man1', ['doc/barman.1']),
+        ('share/man/man1', ['doc/barman.1',
+                            'doc/barman-wal-archive.1',
+                            'doc/barman-wal-restore.1']),
         ('share/man/man5', ['doc/barman.5']),
     ],
+    entry_points={
+        'console_scripts': [
+            'barman=barman.cli:main',
+            'barman-wal-archive=barman.clients.walarchive:main',
+            'barman-wal-restore=barman.clients.walrestore:main',
+        ],
+    },
     license='GPL-3.0',
     description=__doc__.split("\n")[0],
     long_description="\n".join(__doc__.split("\n")[2:]),

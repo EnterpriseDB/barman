@@ -38,7 +38,6 @@ Web resources
 -  Man page, section 5 : http://docs.pgbarman.org/barman.5.html
 -  Community support : http://www.pgbarman.org/support/
 -  Professional support : https://www.2ndquadrant.com/
--  Client utilities : https://github.com/2ndquadrant-it/barman-cli
 -  pgespresso extension : https://github.com/2ndquadrant-it/pgespresso
 
 Licence
