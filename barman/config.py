@@ -573,7 +573,15 @@ class Config(object):
     _QUOTE_RE = re.compile(r"""^(["'])(.*)\1$""")
 
     def __init__(self, filename=None):
-        self._config = ConfigParser()
+        #  In Python 3 ConfigParser has changed to be strict by default.
+        #  Barman wants to preserve the Python 2 behavior, so we are
+        #  explicitly building it passing strict=False.
+        try:
+            # Python 3.x
+            self._config = ConfigParser(strict=False)
+        except TypeError:
+            # Python 2.x
+            self._config = ConfigParser()
         if filename:
             if hasattr(filename, 'read'):
                 self._config.readfp(filename)
