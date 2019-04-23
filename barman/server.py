@@ -1509,8 +1509,12 @@ class Server(RemoteStatusMixin):
                 source_file = compressed_file.name
 
         # Copy the prepared source file to destination
-        with open(source_file) as input_file:
-            shutil.copyfileobj(input_file, destination)
+        if hasattr(destination, 'buffer'):
+            with open(source_file, 'rb') as input_file:
+                shutil.copyfileobj(input_file, destination.buffer)
+        else:
+            with open(source_file) as input_file:
+                shutil.copyfileobj(input_file, destination)
 
         # Remove temp files
         if uncompressed_file is not None:
