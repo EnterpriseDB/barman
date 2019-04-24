@@ -1450,7 +1450,7 @@ class Server(RemoteStatusMixin):
         if output_directory is not None:
             destination_path = os.path.join(output_directory, wal_name)
             try:
-                destination = open(destination_path, 'w')
+                destination = open(destination_path, 'wb')
                 output.info(
                     "Writing WAL '%s' for server '%s' into '%s' file%s",
                     wal_name, self.config.name, destination_path,
@@ -1460,7 +1460,12 @@ class Server(RemoteStatusMixin):
                              destination_path, source_suffix, e)
                 return
         else:
-            destination = sys.stdout
+            try:
+                # Python 3.x
+                destination = sys.stdout.buffer
+            except AttributeError:
+                # Python 2.x
+                destination = sys.stdout
             _logger.info(
                 "Writing WAL '%s' for server '%s' to standard output%s",
                 wal_name, self.config.name, source_suffix)
@@ -1509,7 +1514,7 @@ class Server(RemoteStatusMixin):
                 source_file = compressed_file.name
 
         # Copy the prepared source file to destination
-        with open(source_file) as input_file:
+        with open(source_file, 'rb') as input_file:
             shutil.copyfileobj(input_file, destination)
 
         # Remove temp files
