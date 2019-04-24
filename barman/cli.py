@@ -687,8 +687,7 @@ def sync_info(args):
         if getattr(args, 'primary', False):
             primary_info = server.primary_node_info(args.last_wal,
                                                     args.last_position)
-            output.info(json.dumps(primary_info, sys.stdout,
-                                   cls=BarmanEncoder, indent=4),
+            output.info(json.dumps(primary_info, cls=BarmanEncoder, indent=4),
                         log=False)
         else:
             server.sync_status(args.last_wal, args.last_position)
