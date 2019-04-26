@@ -33,7 +33,6 @@ import tempfile
 from functools import partial
 from multiprocessing import Lock, Pool
 
-import dateutil.parser
 import dateutil.tz
 
 from barman.command_wrappers import RsyncPgData
@@ -945,6 +944,8 @@ class RsyncCopyController(object):
         # Ref: http://ftp.samba.org/pub/rsync/src/rsync-3.1.0-NEWS
         rsync.get_output('--no-human-readable', '--list-only', '-r', path,
                          check=True)
+        # Cache tzlocal object we need to build dates
+        tzinfo = dateutil.tz.tzlocal()
         for line in rsync.out.splitlines():
             line = line.rstrip()
             match = self.LIST_ONLY_RE.match(line)
@@ -953,8 +954,18 @@ class RsyncCopyController(object):
                 # no exceptions here: the regexp forces 'size' to be an integer
                 size = int(match.group('size'))
                 try:
-                    date = dateutil.parser.parse(match.group('date'))
-                    date = date.replace(tzinfo=dateutil.tz.tzlocal())
+                    date_str = match.group('date')
+                    # The date format has been validated by LIST_ONLY_RE.
+                    # Use "2014/06/05 18:00:00" format if the sending rsync
+                    # is compiled with HAVE_STRFTIME, otherwise use
+                    # "Thu Jun  5 18:00:00 2014" format
+                    if date_str[0].isdigit():
+                        date = datetime.datetime.strptime(
+                            date_str, "%Y/%m/%d %H:%M:%S")
+                    else:
+                        date = datetime.datetime.strptime(
+                            date_str, "%a %b %d %H:%M:%S %Y")
+                    date = date.replace(tzinfo=tzinfo)
                 except (TypeError, ValueError):
                     # This should not happen, due to the regexp
                     msg = ("Unable to parse rsync --list-only output line "
