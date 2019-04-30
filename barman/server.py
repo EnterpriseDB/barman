@@ -2605,12 +2605,14 @@ class Server(RemoteStatusMixin):
         Check if it is necessary to sync a backup.
 
         If the backup is present on the Primary node:
+
         * if it does not exist locally: continue (synchronise it)
         * if it exists and is DONE locally: raise SyncNothingToDo
           (nothing to do)
         * if it exists and is FAILED locally: continue (try to recover it)
 
         If the backup is not present on the Primary node:
+
         * if it does not exist locally: raise SyncError (wrong call)
         * if it exists and is DONE locally: raise SyncNothingToDo
           (nothing to do)

@@ -21,7 +21,10 @@ import os
 import re
 import sys
 
+from distutils.version import LooseVersion
+
 import sphinx_bootstrap_theme
+from sphinx import __version__ as sphinx_version
 
 # read barman_dir from the environment
 barman_dir = os.environ.get('BARMAN_DIR')
@@ -46,8 +49,12 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.intersphinx',
               'sphinx.ext.todo',
               'sphinx.ext.coverage',
-              'sphinx.ext.pngmath',
               'sphinx.ext.mathjax']
+
+if LooseVersion(sphinx_version) > LooseVersion("1.8"):
+    extensions.append('sphinx.ext.imgmath')
+else:
+    extensions.append('sphinx.ext.pngmath')
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -63,7 +70,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Barman'
-copyright = u'2011-2018 2ndQuadrant Limited]'
+copyright = u'2011-2019 2ndQuadrant Limited]'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
