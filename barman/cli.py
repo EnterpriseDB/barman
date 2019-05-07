@@ -1067,7 +1067,7 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
     :param bool inactive_is_error: treat inactive server as error
     :param bool on_error_stop: stop if an error is found
     :param bool suppress_error: suppress display of errors (e.g. diagnose)
-    :rtype: barman.server.Server|None
+    :rtype: Server|None
     """
     # This function must to be called with in a single-server context
     name = args.server_name

@@ -67,7 +67,7 @@ EXPECTED_MINIMAL = {
     },
     'config': {},
     'last_name': '000000010000000000000005',
-    'last_position': 157,
+    'last_position': 209,
     'wals': [
         {'time': 1406019026.0,
          'size': 16777216,
@@ -158,6 +158,7 @@ class TestSync(object):
         # Create a test xlog.db
         tmp_path = tmpdir.join("xlog.db")
         tmp_path.write(
+            '000000010000000000000001\t16777216\t1406019022.4\tNone\n'
             '000000010000000000000002\t16777216\t1406019026.0\tNone\n'
             '000000010000000000000003\t16777216\t1406019026.0\tNone\n'
             '000000010000000000000004\t16777216\t1406019329.93\tNone\n'

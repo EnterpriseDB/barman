@@ -577,21 +577,26 @@ class TestServer(object):
         assert wal_info['wal_total_seconds'] == wal_total_seconds
         assert wal_info['wals_per_second'] == wals_per_second
 
+    @patch('barman.server.BackupManager.get_previous_backup')
     @patch('barman.server.Server.check')
     @patch('barman.server.Server._make_directories')
     @patch('barman.backup.BackupManager.backup')
     @patch('barman.server.Server.archive_wal')
     @patch('barman.server.ServerBackupLock')
     def test_backup(self, backup_lock_mock, archive_wal_mock,
-                    backup_manager_mock, dir_mock, check_mock, capsys):
+                    backup_mock, dir_mock, check_mock,
+                    gpm_mock, capsys):
         """
 
         :param backup_lock_mock: mock ServerBackupLock
         :param archive_wal_mock: mock archive_wal server method
-        :param backup_manager_mock: mock BackupManager.backup
+        :param backup_mock: mock BackupManager.backup
         :param dir_mock: mock _make_directories
         :param check_mock: mock check
         """
+
+        # This is not the first backup
+        gpm_mock.return_value = build_test_backup_info()
 
         # Create server
         server = build_real_server()
@@ -602,15 +607,15 @@ class TestServer(object):
 
         dir_mock.side_effect = None
         server.backup()
-        backup_manager_mock.assert_called_once_with()
+        backup_mock.assert_called_once_with()
         archive_wal_mock.assert_called_once_with(verbose=False)
 
-        backup_manager_mock.side_effect = LockFileBusy()
+        backup_mock.side_effect = LockFileBusy()
         server.backup()
         out, err = capsys.readouterr()
         assert 'Another backup process is running' in err
 
-        backup_manager_mock.side_effect = LockFilePermissionDenied()
+        backup_mock.side_effect = LockFilePermissionDenied()
         server.backup()
         out, err = capsys.readouterr()
         assert 'Permission denied, unable to access' in err

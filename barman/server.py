@@ -1067,6 +1067,13 @@ class Server(RemoteStatusMixin):
             # Invoke sanity check of the backup
             if backup_info.status == BackupInfo.WAITING_FOR_WALS:
                 self.check_backup(backup_info)
+
+            # At this point is safe to remove any remaining WAL file before the
+            # first backup
+            previous_backup = self.get_previous_backup(backup_info.backup_id)
+            if not previous_backup:
+                self.backup_manager.remove_wal_before_backup(backup_info)
+
         except LockFileBusy:
             output.error("Another backup process is running")
 
@@ -2428,6 +2435,11 @@ class Server(RemoteStatusMixin):
         # get_available_backups method
         # (BackupInfo.DONE)
         backups = self.get_available_backups()
+        # Retrieve the first wal associated to a backup, it will be useful
+        # to filter our eventual WAL too old to be useful
+        first_useful_wal = None
+        if backups:
+            first_useful_wal = backups[sorted(backups.keys())[0]].begin_wal
         # Read xlogdb file.
         with self.xlogdb() as fxlogdb:
             starting_point = self.set_sync_starting_point(fxlogdb,
@@ -2452,7 +2464,11 @@ class Server(RemoteStatusMixin):
                     else:
                         check_first_wal = False
                 # If last_wal is provided, discard any line older than last_wal
-                if last_wal is not None and wal_info.name <= last_wal:
+                if last_wal:
+                    if wal_info.name <= last_wal:
+                        continue
+                # Else don't return any WAL older than first available backup
+                elif first_useful_wal and wal_info.name < first_useful_wal:
                     continue
                 wals.append(wal_info)
             if wal_info is not None:
