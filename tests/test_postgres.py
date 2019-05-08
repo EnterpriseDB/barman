@@ -1395,11 +1395,11 @@ class TestPostgres(object):
         assert names == ['a']
 
         setting_mock.reset_mock()
-        setting_mock.return_value = "1(a)"
+        setting_mock.return_value = '1(a, "b-c")'
         names = server.postgres.get_synchronous_standby_names()
         setting_mock.assert_called_once_with(
             'synchronous_standby_names')
-        assert names == ['a']
+        assert names == ['a', 'b-c']
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
     def test_xlog_segment_size(self, conn_mock):

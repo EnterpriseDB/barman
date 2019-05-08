@@ -1426,7 +1426,9 @@ class PostgreSQLConnection(PostgreSQL):
             if names_end < 0:
                 names_end = len(synchronous_standby_names)
             names_list = synchronous_standby_names[names_start:names_end]
-            return [x.strip() for x in names_list.split(',')]
+            # We can blindly strip double quotes because PostgreSQL enforces
+            # the format of the synchronous_standby_names content
+            return [x.strip().strip('"') for x in names_list.split(',')]
 
     @property
     def name_map(self):
