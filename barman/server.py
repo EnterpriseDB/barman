@@ -2880,6 +2880,8 @@ class Server(RemoteStatusMixin):
             with ServerBackupSyncLock(self.config.barman_lock_directory,
                                       self.config.name, backup_name):
                 try:
+                    backup_manager = self.backup_manager
+
                     # Build a BackupInfo object
                     local_backup_info = BackupInfo.from_json(
                         self,
@@ -2887,7 +2889,31 @@ class Server(RemoteStatusMixin):
                     local_backup_info.set_attribute('status',
                                                     BackupInfo.SYNCING)
                     local_backup_info.save()
-                    self.backup_manager.backup_cache_add(local_backup_info)
+                    backup_manager.backup_cache_add(local_backup_info)
+
+                    # Activate incremental copy if requested
+                    # Calculate the safe_horizon as the start time of the older
+                    # backup involved in the copy
+                    # NOTE: safe_horizon is a tz-aware timestamp because
+                    # BackupInfo class ensures that property
+                    reuse_mode = self.config.reuse_backup
+                    safe_horizon = None
+                    reuse_dir = None
+                    if reuse_mode:
+                        prev_backup = backup_manager.get_previous_backup(
+                            backup_name)
+                        next_backup = backup_manager.get_next_backup(
+                            backup_name)
+                        # If a newer backup is present, using it is preferable
+                        # because that backup will remain valid longer
+                        if next_backup:
+                            safe_horizon = local_backup_info.begin_time
+                            reuse_dir = next_backup.get_basebackup_directory()
+                        elif prev_backup:
+                            safe_horizon = prev_backup.begin_time
+                            reuse_dir = prev_backup.get_basebackup_directory()
+                        else:
+                            reuse_mode = None
 
                     # Try to copy from the Primary node the backup using
                     # the copy controller.
@@ -2895,6 +2921,8 @@ class Server(RemoteStatusMixin):
                         ssh_command=self.config.primary_ssh_command,
                         network_compression=self.config.network_compression,
                         path=self.path,
+                        reuse_backup=reuse_mode,
+                        safe_horizon=safe_horizon,
                         retry_times=self.config.basebackup_retry_times,
                         retry_sleep=self.config.basebackup_retry_sleep,
                         workers=self.config.parallel_jobs)
@@ -2904,6 +2932,7 @@ class Server(RemoteStatusMixin):
                         local_backup_info.get_basebackup_directory(),
                         exclude_and_protect=['/backup.info', '/.backup.lock'],
                         bwlimit=self.config.bandwidth_limit,
+                        reuse=reuse_dir,
                         item_class=RsyncCopyController.PGDATA_CLASS)
                     _logger.info(
                         "Synchronising with server %s backup %s: step 2/3: "
