@@ -123,6 +123,8 @@ class RecoveryExecutor(object):
                     recovery_info['recovery_dest'], self.server.config.name,
                     backup_info.backup_id)
         output.info("Destination directory: %s", dest)
+        if remote_command:
+            output.info("Remote command: %s", remote_command)
 
         # If the backup we are recovering is still not validated and we
         # haven't requested the get-wal feature, display a warning message
