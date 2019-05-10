@@ -45,8 +45,8 @@ if sys.version_info[0] >= 3:
     _text_type = str
     _string_types = str
 else:
-    _text_type = unicode
-    _string_types = basestring
+    _text_type = unicode  # noqa
+    _string_types = basestring  # noqa
 
 
 def drop_privileges(user):

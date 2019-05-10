@@ -1941,7 +1941,7 @@ class Server(RemoteStatusMixin):
         except PostgresInvalidReplicationSlot:
             output.error("Replication slot '%s' does not exist",
                          self.config.slot_name)
-        except PostgresReplicationSlotInUse as exc:
+        except PostgresReplicationSlotInUse:
             output.error(
                 "Cannot drop replication slot '%s' on server '%s' "
                 "because it is in use.",

@@ -433,4 +433,4 @@ else:
         :param s:
         :return:
         """
-        return unicode(s.replace(r'\\', r'\\\\'), "unicode_escape")
+        return unicode(s.replace(r'\\', r'\\\\'), "unicode_escape")  # noqa
