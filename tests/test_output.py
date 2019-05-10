@@ -1350,6 +1350,16 @@ class TestNagiosWriter(object):
         assert out == ''
         assert err == ''
 
+    def test_no_server_result_check(self, capsys):
+        writer = output.NagiosOutputWriter()
+        output.error_occurred = False
+
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == 'BARMAN OK - No server configured\n'
+        assert err == ''
+        assert not output.error_occurred
+
     def test_single_result_check(self, capsys):
         writer = output.NagiosOutputWriter()
         output.error_occurred = False
@@ -1376,7 +1386,58 @@ class TestNagiosWriter(object):
         writer.close()
         (out, err) = capsys.readouterr()
         assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
-                      'for 3 server(s) * a * b * c\n'
+                      'for 3 servers * a * b * c\n'
+        assert err == ''
+        assert not output.error_occurred
+
+    def test_result_check_single_ignore(self, capsys):
+        writer = output.NagiosOutputWriter()
+        output.error_occurred = False
+
+        # three server with no error
+        writer.result_check('a', 'test', True, None)
+        writer.active = False
+        writer.result_check('b', 'test', False, None)
+        writer.result_check('c', 'test', False, None)
+
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
+                      'for a * IGNORING: b * IGNORING: c\n'
+        assert err == ''
+        assert not output.error_occurred
+
+    def test_result_check_multiple_ignore(self, capsys):
+        writer = output.NagiosOutputWriter()
+        output.error_occurred = False
+
+        # three server with no error
+        writer.result_check('a', 'test', True, None)
+        writer.result_check('b', 'test', True, None)
+        writer.active = False
+        writer.result_check('c', 'test', False, None)
+
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
+                      'for 2 servers * a * b * IGNORING: c\n'
+        assert err == ''
+        assert not output.error_occurred
+
+    def test_result_check_all_ignore(self, capsys):
+        writer = output.NagiosOutputWriter()
+        output.error_occurred = False
+
+        # three server with no error
+        writer.active = False
+        writer.result_check('a', 'test', False, None)
+        writer.result_check('b', 'test', False, None)
+        writer.result_check('c', 'test', False, None)
+
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == 'BARMAN OK - No server configured ' \
+                      '* IGNORING: a * IGNORING: b * IGNORING: c\n'
         assert err == ''
         assert not output.error_occurred
 
@@ -1401,13 +1462,13 @@ class TestNagiosWriter(object):
 
         # three server with one error
         writer.result_check('a', 'test', True, None)
-        writer.result_check('b', 'test', False, None)
+        writer.result_check('b', 'test', False, "hint")
         writer.result_check('c', 'test', True, None)
 
         writer.close()
         (out, err) = capsys.readouterr()
         assert out == 'BARMAN CRITICAL - 1 server out of 3 have issues * ' \
-                      'b FAILED: test\nb.test: FAILED\n'
+                      'b FAILED: test\nb.test: FAILED (hint)\n'
         assert err == ''
         assert output.error_occurred
         assert output.error_exit_code == 2

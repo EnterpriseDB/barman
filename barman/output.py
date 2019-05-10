@@ -1038,7 +1038,7 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             error_exit_code = 2
             return
 
-        if len(issues) > 0:
+        if len(issues) > 0 and error_occurred:
             fail_summary = []
             details = []
             for server in issues:
@@ -1083,10 +1083,31 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             for issue in details:
                 print(issue)
             error_exit_code = 2
+        elif len(issues) > 0 and not error_occurred:
+            # Some issues, but only in skipped server
+            good = [item for item in servers if item not in issues]
+            # Display the output message for a single server check
+            if len(good) == 0:
+                print("BARMAN OK - No server configured * IGNORING: %s" %
+                      (" * IGNORING: ".join(issues)))
+            elif len(good) == 1:
+                print("BARMAN OK - Ready to serve the Espresso backup "
+                      "for %s * IGNORING: %s" %
+                      (good[0], " * IGNORING: ".join(issues)))
+            else:
+                # Display the output message for several servers, using
+                # '*' as delimiter
+                print("BARMAN OK - Ready to serve the Espresso backup "
+                      "for %d servers * %s * IGNORING: %s" % (
+                          len(good),
+                          " * ".join(good),
+                          " * IGNORING: ".join(issues)))
         else:
             # No issues, all good!
             # Display the output message for a single server check
-            if len(servers) == 1:
+            if not len(servers):
+                print("BARMAN OK - No server configured")
+            elif len(servers) == 1:
                 print("BARMAN OK - Ready to serve the Espresso backup "
                       "for %s" %
                       (servers[0]))
@@ -1094,9 +1115,8 @@ class NagiosOutputWriter(ConsoleOutputWriter):
                 # Display the output message for several servers, using
                 # '*' as delimiter
                 print("BARMAN OK - Ready to serve the Espresso backup "
-                      "for %d server(s) * %s" % (
-                          len(servers),
-                          " * ".join([server for server in servers])))
+                      "for %d servers * %s" % (
+                          len(servers), " * ".join(servers)))
 
 
 #: This dictionary acts as a registry of available OutputWriters
