@@ -1029,6 +1029,43 @@ class TestPostgres(object):
             "END AS current_lsn "
             "FROM pg_stat_replication r "
             "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
+            "WHERE rs.slot_type = 'physical' "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 10 ALL WALSTREAMER
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 100000
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.WALSTREAMER)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT r.*, rs.slot_name, "
+            "pg_is_in_recovery() AS is_in_recovery, "
+            "CASE WHEN pg_is_in_recovery() "
+            "  THEN pg_last_wal_receive_lsn() "
+            "  ELSE pg_current_wal_lsn() "
+            "END AS current_lsn "
+            "FROM pg_stat_replication r "
+            "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
+            "WHERE rs.slot_type = 'physical' AND replay_lsn IS NULL "
+            "ORDER BY sync_state DESC, sync_priority")
+
+        # 10 ALL STANDBY
+        cursor_mock.reset_mock()
+        server_version_mock.return_value = 100000
+        standby_info = server.postgres.get_replication_stats(
+            PostgreSQLConnection.STANDBY)
+        assert standby_info is cursor_mock.fetchall.return_value
+        cursor_mock.execute.assert_called_once_with(
+            "SELECT r.*, rs.slot_name, "
+            "pg_is_in_recovery() AS is_in_recovery, "
+            "CASE WHEN pg_is_in_recovery() "
+            "  THEN pg_last_wal_receive_lsn() "
+            "  ELSE pg_current_wal_lsn() "
+            "END AS current_lsn "
+            "FROM pg_stat_replication r "
+            "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
+            "WHERE rs.slot_type = 'physical' AND replay_lsn IS NOT NULL "
             "ORDER BY sync_state DESC, sync_priority")
 
         # 9.5 ALL
@@ -1053,6 +1090,7 @@ class TestPostgres(object):
             "END AS current_lsn "
             "FROM pg_stat_replication r "
             "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
+            "WHERE rs.slot_type = 'physical' "
             "ORDER BY sync_state DESC, sync_priority")
 
         # 9.4 ALL

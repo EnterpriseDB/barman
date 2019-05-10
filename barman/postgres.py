@@ -1246,12 +1246,14 @@ class PostgreSQLConnection(PostgreSQL):
                 raise PostgresUnsupportedFeature('9.1')
 
             from_repslot = ""
+            where_clauses = []
             if self.server_version >= 100000:
                 # Current implementation (10+)
                 what = "r.*, rs.slot_name"
                 # Look for replication slot name
                 from_repslot = "LEFT JOIN pg_replication_slots rs " \
                                "ON (r.pid = rs.active_pid) "
+                where_clauses += ["rs.slot_type = 'physical'"]
             elif self.server_version >= 90500:
                 # PostgreSQL 9.5/9.6
                 what = "pid, " \
@@ -1274,6 +1276,7 @@ class PostgreSQLConnection(PostgreSQL):
                 # Look for replication slot name
                 from_repslot = "LEFT JOIN pg_replication_slots rs " \
                                "ON (r.pid = rs.active_pid) "
+                where_clauses += ["rs.slot_type = 'physical'"]
             elif self.server_version >= 90400:
                 # PostgreSQL 9.4
                 what = "pid, " \
@@ -1332,12 +1335,15 @@ class PostgreSQLConnection(PostgreSQL):
             # Streaming client
             if client_type == self.STANDBY:
                 # Standby server
-                where = 'WHERE {replay_lsn} IS NOT NULL '.format(
-                    **self.name_map)
+                where_clauses += ['{replay_lsn} IS NOT NULL'.format(
+                    **self.name_map)]
             elif client_type == self.WALSTREAMER:
                 # WAL streamer
-                where = 'WHERE {replay_lsn} IS NULL '.format(
-                    **self.name_map)
+                where_clauses += ['{replay_lsn} IS NULL'.format(
+                    **self.name_map)]
+
+            if where_clauses:
+                where = 'WHERE %s ' % ' AND '.join(where_clauses)
             else:
                 where = ''
 
