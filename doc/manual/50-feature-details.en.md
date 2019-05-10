@@ -127,8 +127,7 @@ server.
 
 Barman is also capable of performing backups of PostgreSQL from 9.2 or
 greater database servers in a **concurrent way**, primarily through
-the `backup_options` configuration
-parameter.[^ABOUT_CONCURRENT_BACKUP]
+the `backup_options` configuration parameter.[^ABOUT_CONCURRENT_BACKUP]
 
 [^ABOUT_CONCURRENT_BACKUP]:
   Concurrent backup is a technology that has been available in
@@ -151,6 +150,10 @@ By default, `backup_options` is transparently set to
 `exclusive_backup` for back compatibility reasons.
 Users of PostgreSQL 9.6 should set `backup_options` to `concurrent_backup`.
 
+> **IMPORTANT:** When PostgreSQL 9.5 is declared EOL by the Community,
+> Barman will by default set `backup_options` to `concurrent_backup`.
+> Support for `pgespresso` will be ceased then.
+
 When `backup_options` is set to `concurrent_backup`, Barman activates
 the _concurrent backup mode_ for a server and follows these two simple
 rules:
@@ -163,26 +166,45 @@ rules:
   API (which requires an active connection from the start to the stop
   of the backup).
 
-The destination Postgres server must be the selected streaming replicated
-standby server.
+> **IMPORTANT:** In case of a concurrent backup, currently Barman
+> cannot determine whether the closing WAL file of a full backup has
+> actually been shipped - opposite of an exclusive backup
+> where PostgreSQL itself makes sure that the WAL file is correctly
+> archived. Be aware that the full backup cannot be considered
+> consistent until that WAL file has been received and archived by
+> Barman. Barman 2.5 introduces a new state, called `WAITING_FOR_WALS`,
+> which is managed by the `check-backup` command (part of the
+> ordinary maintenance job performed by the `cron` command).
 
-> **IMPORTANT:**
-> When backing up from a standby server, the **only way to ship WAL files to
-> Barman** that is currently supported is from the master server.
-> This can happen either via traditional WAL archiving with `archive_command`
-> (as outlined in the _"WAL archiving via archive_command"_ section
-> above)[^CONCURRENT_ARCHIVING], or via WAL streaming (with replication slots).
+#### Current limitations on backup from standby
 
-[^CONCURRENT_ARCHIVING]:
-  In case of a concurrent backup, currently Barman has no way
-  to determine that the closing WAL file of a full backup has
-  actually been shipped - opposite of an exclusive backup
-  where PostgreSQL itself makes sure that the WAL file is correctly
-  archived. Be aware that the full backup cannot be considered
-  consistent until that WAL file has been received and archived by
-  Barman. Barman 2.5 introduces a new state, called `WAITING_FOR_WALS`,
-  which is managed by the `check-backup` command (part of the
-  ordinary maintenance job performed by the `cron` command).
+Barman currently requires that backup data (base backups and WAL files)
+come from one server only. Therefore, in case of backup from a
+standby, you should point to the standby server:
+
+- `conninfo`
+- `streaming_conninfo`, if you use `postgres` as `backup_method` and/or rely on WAL streaming
+- `ssh_command`, if you use `rsync` as `backup_method`
+
+> **IMPORTANT:** From Barman 2.8, backup from a standby is supported
+> only for PostgreSQL 9.4 or higher (versions 9.4 and 9.5 require
+> `pgespresso`). Support for 9.2 and 9.3 is deprecated.
+
+The recommended and simplest way is to setup WAL streaming
+with replication slots directly from the standby, which requires
+PostgreSQL 9.4. This means:
+
+* configure `streaming_archiver = on`, as described in the "WAL streaming"
+  section, including "Replication slots"
+* disable `archiver = on`
+
+Alternatively, from PostgreSQL 9.5 you can decide to archive from the
+standby only using `archive_command` with `archive_mode = always` and
+by disabling WAL streaming.
+
+> **NOTE:** Unfortunately, it is not currently possible to enable both WAL archiving
+> and streaming from the standby due to the way Barman performs WAL duplication
+> checks and [an undocumented behaviours in all versions of PostgreSQL](https://www.postgresql.org/message-id/20170316170513.1429.77904@wrigleys.postgresql.org).
 
 
 ## Archiving features
