@@ -3,13 +3,12 @@
 # System requirements
 
 - Linux/Unix
-- Python 2.6 or 2.7
+- Python >= 3.4
 - Python modules:
     - argcomplete
-    - argh >= 0.21.2 <= 0.26.2
-    - argparse (Python 2.6 only)
+    - argh >= 0.21.2
     - psycopg2 >= 2.4.2
-    - python-dateutil <> 2.0
+    - python-dateutil
     - setuptools
 - PostgreSQL >= 8.3
 - rsync >= 3.0.4 (optional for PostgreSQL >= 9.2)
@@ -20,8 +19,8 @@
 > [Extra Packages Enterprise Linux (EPEL) repository][epel].
 
 > **NOTE:**
-> Python 3 support is experimental. Report any bug through
-> the ticketing system on Github or the mailing list.
+> Support for Python 2.6 and 2.7 is deprecated and will be discontinued in future releases.
+> Support for PostgreSQL < 9.4 is deprecated and will be discontinued in future releases.
 
 ## Requirements for backup
 
