@@ -668,9 +668,14 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             BackupOptions.EXCLUSIVE_BACKUP in backup_options)
         if not concurrent_backup and not exclusive_backup:
             self.config.backup_options.add(BackupOptions.EXCLUSIVE_BACKUP)
-            output.debug("The default backup strategy for "
-                         "any ssh based backup_method is: "
-                         "exclusive_backup")
+            output.warning(
+                "No backup strategy set for server '%s' "
+                "(using default 'exclusive_backup').",
+                self.config.name)
+            output.warning(
+                "The default backup strategy will change "
+                "to 'concurrent_backup' in the future. "
+                "Explicitly set 'backup_options' to silence this warning.")
 
         # Depending on the backup options value, create the proper strategy
         if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:

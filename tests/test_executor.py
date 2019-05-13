@@ -84,7 +84,10 @@ class TestRsyncBackupExecutor(object):
         """
         Check the ssh connection to a remote server
         """
-        backup_manager = build_backup_manager()
+        backup_manager = build_backup_manager(global_conf={
+            # Silence the warning for default backup strategy
+            'backup_options': 'exclusive_backup',
+        })
 
         # Test 1: ssh ok
         check_strategy = CheckOutputStrategy()
@@ -163,7 +166,9 @@ class TestRsyncBackupExecutor(object):
         :param tmpdir: pytest temp directory
         """
         backup_manager = build_backup_manager(global_conf={
-            'barman_home': tmpdir.mkdir('home').strpath
+            'barman_home': tmpdir.mkdir('home').strpath,
+            # Silence the warning for default backup strategy
+            'backup_options': 'exclusive_backup',
         })
         backup_info = BackupInfo(backup_manager.server,
                                  backup_id='fake_backup_id')

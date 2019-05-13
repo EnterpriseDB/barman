@@ -275,6 +275,8 @@ class TestServer(object):
             global_conf={
                 'archiver': 'on',
                 'last_backup_maximum_age': '1 day',
+                # Silence the warning for default backup strategy
+                'backup_options': 'exclusive_backup',
             }
         )
 
@@ -325,6 +327,8 @@ class TestServer(object):
         server = build_real_server(
             global_conf={
                 'archiver': 'on',
+                # Silence the warning for default backup strategy
+                'backup_options': 'exclusive_backup',
             }
         )
 
@@ -1042,7 +1046,11 @@ class TestServer(object):
             **replication_stats_data)
 
         # Prepare the server
-        server = build_real_server(main_conf={'archiver': 'on'})
+        server = build_real_server(main_conf={
+            'archiver': 'on',
+            # Silence the warning for default backup strategy
+            'backup_options': 'exclusive_backup',
+        })
         server.postgres = MagicMock()
         server.postgres.get_replication_stats.return_value = [
             replication_stats_record]
@@ -1384,6 +1392,8 @@ class TestServer(object):
         server = build_real_server(
             main_conf={
                 "incoming_wals_directory": incoming.strpath,
+                # Silence the warning for default backup strategy
+                'backup_options': 'exclusive_backup',
             })
         output.error_occurred = False
 
@@ -1501,6 +1511,8 @@ class TestServer(object):
         server = build_real_server(
             main_conf={
                 "incoming_wals_directory": incoming.strpath,
+                # Silence the warning for default backup strategy
+                'backup_options': 'exclusive_backup',
             })
         output.error_occurred = False
 
