@@ -24,7 +24,6 @@ Barman:
 -  TODO : our wishlist for Barman
 -  barman : sources in Python
 -  doc : tutorial and man pages
--  rpm : SPEC files for RHEL distributions
 -  scripts : auxiliary scripts
 -  tests : unit tests
 

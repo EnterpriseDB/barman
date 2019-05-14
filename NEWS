@@ -1,6 +1,50 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2019 2ndQuadrant Limited
 
+Version 2.8 - 17 May 2019
+
+-   Add support for reuse_backup in geo-redundancy for incremental
+    backup copy in passive nodes
+
+-   Improve performance of rsync based copy by using strptime instead of
+    the more generic dateutil.parser (#210)
+
+-   Add ‘–test’ option to barman-wal-archive and barman-wal-restore to
+    verify the connection with the Barman server
+
+-   Complain if backup_options is not explicitly set, as the future
+    default value will change from exclusive_backup to concurrent_backup
+    when PostgreSQL 9.5 will be declared EOL by the PGDG
+
+-   Display additional settings in the show-server and diagnose
+    commands: archive_timeout, data_checksums, hot_standby,
+    max_wal_senders, max_replication_slots and wal_compression.
+
+-   Merge the barman-cli project in Barman
+
+-   Bug fixes:
+
+    -   Fix encoding error in get-wal on Python 3 (Jeff Janes, #221)
+    -   Fix exclude_and_protect_filter (Jeff Janes, #217)
+    -   Remove spurious message when resetting WAL (Jeff Janes, #215)
+    -   Fix sync-wals error if primary has WALs older than the first
+        backup
+    -   Support for double quotes in synchronous_standby_names setting
+
+-   Minor changes:
+
+    -   Improve messaging of check --nagios for inactive servers
+    -   Log remote SSH command with recover command
+    -   Hide logical decoding connections in replication-status command
+
+This release officially supports Python 3 and deprecates Python 2 (which
+might be discontinued in future releases).
+
+PostgreSQL 9.3 and older is deprecated from this release of Barman.
+Support for backup from standby is now limited to PostgreSQL 9.4 or
+higher and to WAL shipping from the standby (please refer to the
+documentation for details).
+
 Version 2.7 - 21 Mar 2019
 
 -   Fix error handling during the parallel backup. Previously an

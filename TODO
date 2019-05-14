@@ -1,12 +1,10 @@
 Barman TODO - Backlog of features for Barman
-Copyright (C) 2011-2018 2ndQuadrant Limited
+Copyright (C) 2011-2019 2ndQuadrant Limited
 
 * Cluster-awareness
-* Barman passive nodes (for asynchronous geographical redundancy)
 * TAR copy method
 * TAR storage strategy for backups
 * Centralised WAL hub capability (streaming server)
-* Hook scripts for backup delete, WAL archiving, etc.
 * Export/Import of backups
 * External backup sources (e.g. S3)
 * Improve recovery support
@@ -15,7 +13,6 @@ Copyright (C) 2011-2018 2ndQuadrant Limited
 * WAL retention policies
 * Grandfather-Father-Son backup
 * JSON output for full automation
-* Backup validation
+* Deep Backup validation
 * SSH only connections
-* Windows support
 * ...
