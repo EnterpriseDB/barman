@@ -1,4 +1,158 @@
+2019-05-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Update NEWS file for release 2.8
+
+	Version set to 2.8
+
+2019-05-10  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improve documentation on backup from standby
+	From now on support only PostgreSQL 9.4+ and recommend
+	just WAL streaming (with replication slots) from the standby
+	as WAL shipping method.
+
+2019-05-13  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated requirements section in the documentation
+	Python 3 becomes officially supported. 2.6 and 2.7 are deprecated.
+
+	Marked pre-9.4 versions of PostgreSQL deprecated.
+
+2019-05-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add '--test' option to barman-wal-archive and barman-wal-restore
+
+2019-05-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add a warning on empty backup_option with rsync_backup method
+
+2019-05-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Cosmetic changes in default barman.conf
+
+2019-05-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Do not report logical decoding connection is replication-status
+
+	Report remote command in logs during recovery
+
+	Clarify check --nagios output about inactive servers
+
+	Fix issues found by flake8 running on Python 3.x
+
+2019-05-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Incremental backup copy in passive nodes
+	Add support for `reuse_backup` in geo-redundancy
+
+2019-05-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support for double quotes in 'synchronous_standby_names' setting
+
+2019-05-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix sync-wals error if primary has WALs older than the first backup
+
+2019-04-30  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update Sphinx docuemntation build environment
+
+2019-04-15  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Merge barman-cli code with barman
+	We are in the process or reorganising the barman codebase.
+	During this stage the code from barman-cli is going to be included in
+	the barman codebase and distributed with the barman package.
+
+2019-04-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid using dateutil.parser in copy_controller
+	Parsing the date with dateutil.parser is too slow to be used with
+	millions of files. We know the format of the date we are going to
+	parse so we can replace it with a couple of strptime calls.
+
+	Closes: GH-210
+
+2019-04-12  Jeff Janes  <jeff.janes@gmail.com>
+
+	Remove spurious message when resetting WAL
+	When calling "barman receive-wal --reset foo", it gives
+	a message:
+
+	Starting receive-wal for server foo
+
+	However, it does not actually attempt to start the receive-wal
+	process when called with --reset.
+
+	Closes: GH-215
+
+2019-04-13  Jeff Janes  <jeff.janes@gmail.com>
+
+	Fix exclude_and_protect_filter
+	Filters which do not start with '/' are treated as wildcards.
+	For the exclude_and_protect_filter, this is both slow and
+	incorrect. For example, if there were a spurious file named
+	"pg_xact/0000" somewhere other than the top-level dest data
+	directory, the unachored protect filter means it would not
+	get deleted.  With an anchored protect filter, it will get
+	deleted, as it should.
+
+	So fix this by prefixing the filter paths with a '/'.
+
+	The bug fix is minor (it is not clear why such spurious files
+	would exist in the first place) but the speed-up should be
+	appreciated by anyone with a large number of files in their
+	database.
+
+	Closes: GH-217
+
+2019-04-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix encoding error in get-wal on Python 3
+	Make sure that WAL files are read and written as bytes.
+
+	Closes: GH-221
+
+	Fix TypeError exception running sync-info --primary with Python 3
+	In Python 2, additional positional arguments passed to json.dumps
+	are silently discarded. Python 3 is stricter and highlighted an
+	unused positional argument in a json.dumps call. The argument has
+	been removed.
+
+2019-04-17  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make sure barman configuration does not use a strict ConfigParser
+	In Python 3 ConfigParser has changed to be strict by default.
+	Barman wants to preserve the Python 2 behavior, so we are explicitly
+	building it passing strict=False.
+
+2019-04-16  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add Python 3.7 to unit tests
+
+2019-04-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support psycopg2 2.8 in unit tests
+
+2019-04-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Collect more PostgreSQL settings during get_remote_status()
+	Added settings are:
+
+	 * archive_timeout
+	 * data_checksums
+	 * hot_standby
+	 * max_wal_senders
+	 * max_replication_slots
+	 * wal_compression
+
+	Display the above settings in the `show-server` and `diagnose` commands
+
 2019-03-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Version set to 2.8a1
 
 	Update the ChangeLog file
 
