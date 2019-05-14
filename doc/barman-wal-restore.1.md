@@ -67,6 +67,11 @@ WAL\_DEST
 -c *CONFIG*, --config *CONFIG*
 :    configuration file on the Barman server
 
+ -t, --test
+:    test both the connection and the configuration of the
+     requested PostgreSQL server in Barman to make sure it
+     is ready to receive WAL files. With this option, the
+     'WAL\_NAME' and 'WAL\_DEST' mandatory arguments are ignored.
 
 # EXIT STATUS
 

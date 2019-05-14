@@ -126,10 +126,20 @@ restore_command = 'barman-wal-restore -U barman backup SERVER %f %p'
 Since it uses SSH to communicate with the Barman server, SSH key authentication
 is required for the `postgres` user to login as `barman` on the backup server.
 
-> **IMPORTANT:**
-> Even though `recovery_options` aims to automate the process, using
-> the `get-wal` facility requires manual intervention and proper
-> testing.
+You can check that `barman-wal-restore` can connect to the Barman server,
+and that the required PostgreSQL server is configured in Barman to send
+WAL files with the following command:
+
+``` bash
+barman-wal-restore --test backup pg DUMMY DUMMY
+```
+
+Where `backup` is the host where Barman is installed, `pg` is the name
+of the PostgreSQL server as configured in Barman and DUMMY is a placeholder
+(`barman-wal-restore` requires two argument for the WAL file name
+and destination directory, which are ignored).
+For more information on the `barman-wal-restore` command,
+type `man barman-wal-restore` on the PostgreSQL server.
 
 ## `list-backup`
 

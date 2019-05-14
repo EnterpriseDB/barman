@@ -14,8 +14,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+import subprocess
 
 import mock
+import pytest
 
 from barman.clients import walrestore
 
@@ -41,3 +43,34 @@ class TestRemoteGetWal(object):
         if hasattr(dest_file, 'decode'):
             walrestore.RemoteGetWal(
                 config, '000000010000000000000001', dest_file.decode())
+
+    @mock.patch('barman.clients.walrestore.subprocess.Popen')
+    def test_connectivity_test_ok(self, popen_mock, capsys):
+
+        popen_mock.return_value.communicate.return_value = ('Good test!', '')
+
+        with pytest.raises(SystemExit) as exc:
+            walrestore.main(['a.host', 'a-server', '--test',
+                             'dummy_wal', 'dummy_dest'])
+
+        assert exc.value.code == 0
+        out, err = capsys.readouterr()
+        assert "Good test!" in out
+        assert not err
+
+    @mock.patch('barman.clients.walrestore.subprocess.Popen')
+    def test_connectivity_test_error(self, popen_mock, capsys):
+
+        popen_mock.return_value.communicate.side_effect = subprocess.\
+            CalledProcessError(255, "remote barman")
+
+        with pytest.raises(SystemExit) as exc:
+            walrestore.main(['a.host', 'a-server', '--test',
+                             'dummy_wal', 'dummy_dest'])
+
+        assert exc.value.code == 2
+        out, err = capsys.readouterr()
+        assert not out
+        assert ("ERROR: Impossible to invoke remote get-wal: "
+                "Command 'remote barman' returned non-zero "
+                "exit status 255") in err

@@ -51,6 +51,10 @@ WAL\_PATH
 -c *CONFIG*, --config *CONFIG*
 :    configuration file on the Barman server
 
+-t, --test
+:    test both the connection and the configuration of the
+     requested PostgreSQL server in Barman for WAL retrieval.
+     With this option, the 'WAL\_PATH' mandatory argument is ignored.
 
 # EXIT STATUS
 

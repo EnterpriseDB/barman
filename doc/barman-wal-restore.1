@@ -60,6 +60,13 @@ transfer the WAL files compressed with bzip2
 .TP
 .B -c \f[I]CONFIG\f[R], \[en]config \f[I]CONFIG\f[R]
 configuration file on the Barman server
+.TP
+.B -t, \[en]test
+test both the connection and the configuration of the requested
+PostgreSQL server in Barman to make sure it is ready to receive WAL
+files.
+With this option, the `WAL_NAME' and `WAL_DEST' mandatory arguments are
+ignored.
 .SH EXIT STATUS
 .TP
 .B 0

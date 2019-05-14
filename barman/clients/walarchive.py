@@ -52,6 +52,11 @@ def main(args=None):
     """
     config = parse_arguments(args)
 
+    # Do connectivity test if requested
+    if config.test:
+        connectivity_test(config)
+        return  # never reached
+
     # Check WAL destination is not a directory
     if os.path.isdir(config.wal_path):
         exit_with_error("WAL_PATH cannot be a directory: %s" %
@@ -98,6 +103,9 @@ def build_ssh_command(config):
 
     ssh_command.extend(['put-wal', config.server_name])
 
+    if config.test:
+        ssh_command.append("--test")
+
     return ssh_command
 
 
@@ -110,6 +118,22 @@ def exit_with_error(message, status=2):
     """
     print("ERROR: %s" % message, file=sys.stderr)
     sys.exit(status)
+
+
+def connectivity_test(config):
+    """
+    Invoke remote put-wal --test to test the connection with Barman server
+
+    :param argparse.Namespace config: the configuration from command line
+    """
+    ssh_command = build_ssh_command(config)
+    try:
+        output = subprocess.Popen(ssh_command,
+                                  stdout=subprocess.PIPE).communicate()
+        print(output[0])
+        sys.exit(0)
+    except subprocess.CalledProcessError as e:
+        exit_with_error("Impossible to invoke remote put-wal: %s" % e)
 
 
 def parse_arguments(args=None):
@@ -137,6 +161,14 @@ def parse_arguments(args=None):
         '-c', '--config',
         metavar="CONFIG",
         help='configuration file on the Barman server',
+    )
+    parser.add_argument(
+        '-t', '--test',
+        action='store_true',
+        help="test both the connection and the configuration of the "
+             "requested PostgreSQL server in Barman for WAL retrieval. "
+             "With this option, the 'wal_name' mandatory argument is "
+             "ignored.",
     )
     parser.add_argument(
         "barman_host",

@@ -45,6 +45,19 @@ in the `archive_command` is the server's ID.
 For more information on the `barman-wal-archive` command, type `man barman-wal-archive`
 on the PostgreSQL server.
 
+You can check that `barman-wal-archive` can connect to the Barman server,
+and that the required PostgreSQL server is configured in Barman to accept
+incoming WAL files with the following command:
+
+``` bash
+barman-wal-archive --test backup pg DUMMY
+```
+
+Where `backup` is the host where Barman is installed, `pg` is the name
+of the PostgreSQL server as configured in Barman and DUMMY is a placeholder
+(`barman-wal-archive` requires an argument for the WAL file name,
+which is ignored).
+
 Edit the `postgresql.conf` file of the PostgreSQL instance on the `pg`
 database, activate the archive mode and set `archive_command` to use
 `barman-wal-archive`:

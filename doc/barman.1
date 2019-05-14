@@ -130,7 +130,7 @@ installed and all the configured servers, including: global
 configuration, SSH version, Python version, \f[C]rsync\f[R] version, as
 well as current configuration and status of all servers.
 .TP
-.B get-wal \f[I][OPTIONS]\f[R] \f[I]SERVER_NAME\f[R] \f[I]WAL_ID\f[R]
+.B get-wal \f[I][OPTIONS]\f[R] \f[I]SERVER_NAME\f[R] \f[I]WAL_NAME\f[R]
 Retrieve a WAL file from the \f[C]xlog\f[R] archive of a given server.
 By default, the requested WAL file, if found, is returned as
 uncompressed content to \f[C]STDOUT\f[R].
@@ -153,6 +153,11 @@ the requested one.
 \[aq]SIZE\[aq] must be an integer >= 1.
 When invoked with this option, get-wal returns a list of zero to
 \[aq]SIZE\[aq] WAL segment names, one per row.
+.TP
+.B -t, --test
+test both the connection and the configuration of the requested
+PostgreSQL server in Barman for WAL retrieval.
+With this option, the \[aq]WAL_NAME\[aq] mandatory argument is ignored.
 .RE
 .TP
 .B list-backup \f[I]SERVER_NAME\f[R]
@@ -201,7 +206,7 @@ The default value is \f[C]standalone\f[R].
 .B list-server
 Show all the configured servers, and their descriptions.
 .TP
-.B put-wal \f[I]SERVER_NAME\f[R]
+.B put-wal \f[I][OPTIONS]\f[R] \f[I]SERVER_NAME\f[R]
 Receive a WAL file from a remote server and securely store it into the
 \f[C]SERVER_NAME\f[R] incoming directory.
 The WAL file is retrieved from the \f[C]STDIN\f[R], and must be
@@ -212,6 +217,13 @@ This command is meant to be invoked through SSH from a remote
 package).
 Do not use this command directly unless you take full responsibility of
 the content of files.
+.RS
+.TP
+.B -t, --test
+test both the connection and the configuration of the requested
+PostgreSQL server in Barman to make sure it is ready to receive WAL
+files.
+.RE
 .TP
 .B rebuild-xlogdb \f[I]SERVER_NAME\f[R]
 Perform a rebuild of the WAL file metadata for \f[C]SERVER_NAME\f[R] (or

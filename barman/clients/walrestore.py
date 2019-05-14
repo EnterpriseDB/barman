@@ -49,11 +49,16 @@ else:
     string_types = basestring,  # noqa
 
 
-def main():
+def main(args=None):
     """
     The main script entry point
     """
-    config = parse_arguments()
+    config = parse_arguments(args)
+
+    # Do connectivity test if requested
+    if config.test:
+        connectivity_test(config)
+        return  # never reached
 
     # Check WAL destination is not a directory
     if os.path.isdir(config.wal_dest):
@@ -181,7 +186,10 @@ def build_ssh_command(config, wal_name, peek=0):
     if config.config:
         ssh_command.append("--config %s" % config.config)
 
-    if peek:
+    if config.test:
+        get_wal_command = "get-wal --test '%s' '%s'" % (
+            config.server_name, wal_name)
+    elif peek:
         get_wal_command = "get-wal --peek '%s' '%s' '%s'" % (
             peek, config.server_name, wal_name)
 
@@ -199,7 +207,7 @@ def build_ssh_command(config, wal_name, peek=0):
 
 def execute_peek(config):
     """
-    Invoke remote get-wall --peek to receive a list of wal file to copy
+    Invoke remote get-wal --peek to receive a list of wal file to copy
 
     :param argparse.Namespace config: the configuration from command line
     :returns set: a set of WAL file names from the peek command
@@ -212,7 +220,7 @@ def execute_peek(config):
                                   stdout=subprocess.PIPE).communicate()
         return list(output[0].decode().splitlines())
     except subprocess.CalledProcessError as e:
-        exit_with_error("Impossible to invoke remote get-wall --peek: %s" % e)
+        exit_with_error("Impossible to invoke remote get-wal --peek: %s" % e)
 
 
 def try_deliver_from_spool(config, dest_file):
@@ -253,6 +261,24 @@ def exit_with_error(message, status=2, sleep=0):
         print("Sleeping for %d seconds." % sleep, file=sys.stderr)
         time.sleep(sleep)
     sys.exit(status)
+
+
+def connectivity_test(config):
+    """
+    Invoke remote get-wal --test to test the connection with Barman server
+
+    :param argparse.Namespace config: the configuration from command line
+    """
+    # Build the peek command
+    ssh_command = build_ssh_command(config, 'dummy_wal_name')
+    # Issue the command
+    try:
+        output = subprocess.Popen(ssh_command,
+                                  stdout=subprocess.PIPE).communicate()
+        print(output[0])
+        sys.exit(0)
+    except subprocess.CalledProcessError as e:
+        exit_with_error("Impossible to invoke remote get-wal: %s" % e)
 
 
 def parse_arguments(args=None):
@@ -305,6 +331,14 @@ def parse_arguments(args=None):
         '-c', '--config',
         metavar="CONFIG",
         help='configuration file on the Barman server',
+    )
+    parser.add_argument(
+        '-t', '--test',
+        action='store_true',
+        help="test both the connection and the configuration of the "
+             "requested PostgreSQL server in Barman to make sure it is "
+             "ready to receive WAL files. With this option, "
+             "the 'wal_name' and 'wal_dest' mandatory arguments are ignored.",
     )
     parser.add_argument(
         "barman_host",

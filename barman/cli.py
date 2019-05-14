@@ -842,6 +842,12 @@ def delete(args):
      metavar='SIZE',
      type=check_positive,
      default=SUPPRESS)
+@arg('--test', '-t',
+     help="test both the connection and the configuration of the requested "
+          "PostgreSQL server in Barman for WAL retrieval. With this option, "
+          "the 'wal_name' mandatory argument is ignored.",
+     action='store_true',
+     default=SUPPRESS)
 @expects_obj
 def get_wal(args):
     """
@@ -850,6 +856,11 @@ def get_wal(args):
     the --output-directory option is specified.
     """
     server = get_server(args, inactive_is_error=True)
+
+    if getattr(args, 'test', None):
+        output.info("Ready to retrieve WAL files from the server %s",
+                    server.config.name)
+        return
 
     # Retrieve optional arguments. If an argument is not specified,
     # the namespace doesn't contain it due to SUPPRESS default.
@@ -870,6 +881,12 @@ def get_wal(args):
 @arg('server_name',
      completer=server_completer,
      help='specifies the server name for the command')
+@arg('--test', '-t',
+     help='test both the connection and the configuration of the requested '
+          'PostgreSQL server in Barman to make sure it is ready to receive '
+          'WAL files.',
+     action='store_true',
+     default=SUPPRESS)
 @expects_obj
 def put_wal(args):
     """
@@ -877,6 +894,12 @@ def put_wal(args):
     directory. The file will be read from standard input in tar format.
     """
     server = get_server(args, inactive_is_error=True)
+
+    if getattr(args, 'test', None):
+        output.info("Ready to accept WAL files for the server %s",
+                    server.config.name)
+        return
+
     try:
         # Python 3.x
         stream = sys.stdin.buffer

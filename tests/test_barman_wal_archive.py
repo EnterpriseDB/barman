@@ -149,6 +149,35 @@ class TestMain(object):
         assert not out
         assert "Remote 'barman put-wal' command has failed" in err
 
+    @mock.patch('barman.clients.walarchive.subprocess.Popen')
+    def test_connectivity_test_ok(self, popen_mock, capsys):
+
+        popen_mock.return_value.communicate.return_value = ('Good test!', '')
+
+        with pytest.raises(SystemExit) as exc:
+            walarchive.main(['a.host', 'a-server', '--test', 'dummy_wal'])
+
+        assert exc.value.code == 0
+        out, err = capsys.readouterr()
+        assert "Good test!" in out
+        assert not err
+
+    @mock.patch('barman.clients.walarchive.subprocess.Popen')
+    def test_connectivity_test_error(self, popen_mock, capsys):
+
+        popen_mock.return_value.communicate.side_effect = subprocess.\
+            CalledProcessError(255, "remote barman")
+
+        with pytest.raises(SystemExit) as exc:
+            walarchive.main(['a.host', 'a-server', '--test', 'dummy_wal'])
+
+        assert exc.value.code == 2
+        out, err = capsys.readouterr()
+        assert not out
+        assert ("ERROR: Impossible to invoke remote put-wal: "
+                "Command 'remote barman' returned non-zero "
+                "exit status 255") in err
+
 
 # noinspection PyMethodMayBeStatic
 class TestRemotePutWal(object):
@@ -163,7 +192,8 @@ class TestRemotePutWal(object):
             user='barman',
             barman_host='remote.barman.host',
             config=None,
-            server_name='this-server')
+            server_name='this-server',
+            test=False)
         source_file = tmpdir.join('test-source/000000010000000000000001')
         source_file.write("test-content", ensure=True)
         source_path = source_file.strpath
@@ -203,7 +233,8 @@ class TestRemotePutWal(object):
             user='barman',
             barman_host='remote.barman.host',
             config=None,
-            server_name='this-server')
+            server_name='this-server',
+            test=False)
         source_file = tmpdir.join('test-source/000000010000000000000001')
         source_file.write("test-content", ensure=True)
         source_path = source_file.strpath
