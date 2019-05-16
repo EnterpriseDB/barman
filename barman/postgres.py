@@ -1253,7 +1253,8 @@ class PostgreSQLConnection(PostgreSQL):
                 # Look for replication slot name
                 from_repslot = "LEFT JOIN pg_replication_slots rs " \
                                "ON (r.pid = rs.active_pid) "
-                where_clauses += ["rs.slot_type = 'physical'"]
+                where_clauses += ["(rs.slot_type IS NULL OR "
+                                  "rs.slot_type = 'physical')"]
             elif self.server_version >= 90500:
                 # PostgreSQL 9.5/9.6
                 what = "pid, " \
@@ -1276,7 +1277,8 @@ class PostgreSQLConnection(PostgreSQL):
                 # Look for replication slot name
                 from_repslot = "LEFT JOIN pg_replication_slots rs " \
                                "ON (r.pid = rs.active_pid) "
-                where_clauses += ["rs.slot_type = 'physical'"]
+                where_clauses += ["(rs.slot_type IS NULL OR "
+                                  "rs.slot_type = 'physical')"]
             elif self.server_version >= 90400:
                 # PostgreSQL 9.4
                 what = "pid, " \

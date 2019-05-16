@@ -1029,7 +1029,7 @@ class TestPostgres(object):
             "END AS current_lsn "
             "FROM pg_stat_replication r "
             "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
-            "WHERE rs.slot_type = 'physical' "
+            "WHERE (rs.slot_type IS NULL OR rs.slot_type = 'physical') "
             "ORDER BY sync_state DESC, sync_priority")
 
         # 10 ALL WALSTREAMER
@@ -1047,7 +1047,8 @@ class TestPostgres(object):
             "END AS current_lsn "
             "FROM pg_stat_replication r "
             "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
-            "WHERE rs.slot_type = 'physical' AND replay_lsn IS NULL "
+            "WHERE (rs.slot_type IS NULL OR rs.slot_type = 'physical') "
+            "AND replay_lsn IS NULL "
             "ORDER BY sync_state DESC, sync_priority")
 
         # 10 ALL STANDBY
@@ -1065,7 +1066,8 @@ class TestPostgres(object):
             "END AS current_lsn "
             "FROM pg_stat_replication r "
             "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
-            "WHERE rs.slot_type = 'physical' AND replay_lsn IS NOT NULL "
+            "WHERE (rs.slot_type IS NULL OR rs.slot_type = 'physical') "
+            "AND replay_lsn IS NOT NULL "
             "ORDER BY sync_state DESC, sync_priority")
 
         # 9.5 ALL
@@ -1090,7 +1092,7 @@ class TestPostgres(object):
             "END AS current_lsn "
             "FROM pg_stat_replication r "
             "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
-            "WHERE rs.slot_type = 'physical' "
+            "WHERE (rs.slot_type IS NULL OR rs.slot_type = 'physical') "
             "ORDER BY sync_state DESC, sync_priority")
 
         # 9.4 ALL
