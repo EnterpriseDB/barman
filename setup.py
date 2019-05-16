@@ -78,6 +78,7 @@ setup(
     entry_points={
         'console_scripts': [
             'barman=barman.cli:main',
+            'barman-cloud-wal-archive=barman.clients.cloud_walarchive:main',
             'barman-wal-archive=barman.clients.walarchive:main',
             'barman-wal-restore=barman.clients.walrestore:main',
         ],
@@ -87,6 +88,7 @@ setup(
     long_description="\n".join(__doc__.split("\n")[2:]),
     install_requires=install_requires,
     extras_require={
+        'cloud': ['boto3'],
         'completion': ['argcomplete'],
     },
     platforms=['Linux', 'Mac OS X'],
