@@ -1,6 +1,6 @@
-% BARMAN-WAL-RESTORE(1) Barman User manuals | Version 2.8
+% BARMAN-WAL-RESTORE(1) Barman User manuals | Version 2.9a1
 % 2ndQuadrant <http://www.2ndQuadrant.com>
-% May 17, 2019
+% Month DD, YYYY
 
 # NAME
 
