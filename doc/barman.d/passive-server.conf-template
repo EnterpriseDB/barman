@@ -20,3 +20,9 @@ description =  "Example of a Barman passive server"
 ; connection with the barman "master" server.
 ; Empty by default it can be also set as global value.
 primary_ssh_command = ssh barman@backup
+
+; Incremental backup settings
+;reuse_backup = link
+
+; Compression: must be identical to the source
+;compression = gzip
