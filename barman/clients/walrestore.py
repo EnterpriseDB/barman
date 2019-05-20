@@ -38,8 +38,7 @@ except ImportError:
     raise SystemExit("Missing required python module: argparse")
 
 DEFAULT_USER = 'barman'
-# TODO: make this generic
-SPOOL_DIR = '/var/tmp/walrestore'
+DEFAULT_SPOOL_DIR = '/var/tmp/walrestore'
 
 # The string_types list is used to identify strings
 # in a consistent way between python 2 and 3
@@ -120,7 +119,7 @@ def spawn_additional_process(config, additional_files):
     """
     processes = []
     for wal_name in additional_files:
-        spool_file_name = os.path.join(SPOOL_DIR, wal_name)
+        spool_file_name = os.path.join(config.spool_dir, wal_name)
         try:
             # Spawn a process and write the output in the spool dir
             process = RemoteGetWal(config, wal_name, spool_file_name)
@@ -149,10 +148,11 @@ def peek_additional_files(config):
 
     # Make sure the SPOOL_DIR exists
     try:
-        if not os.path.exists(SPOOL_DIR):
-            os.mkdir(SPOOL_DIR)
+        if not os.path.exists(config.spool_dir):
+            os.mkdir(config.spool_dir)
     except EnvironmentError as e:
-        exit_with_error("Cannot create '%s' directory: %s" % (SPOOL_DIR, e))
+        exit_with_error("Cannot create '%s' directory: %s" %
+                        (config.spool_dir, e))
 
     # Retrieve the list of files from remote
     additional_files = execute_peek(config)
@@ -232,7 +232,7 @@ def try_deliver_from_spool(config, dest_file):
     :param argparse.Namespace config: the configuration from command line
     :param dest_file: The destination file object
     """
-    spool_file = os.path.join(SPOOL_DIR, config.wal_name)
+    spool_file = os.path.join(config.spool_dir, config.wal_name)
 
     # id the file is not present, give up
     if not os.path.exists(spool_file):
@@ -316,6 +316,12 @@ def parse_arguments(args=None):
         help="Specifies the number of files to peek and transfer "
              "in parallel. "
              "Defaults to 0 (disabled).",
+    )
+    parser.add_argument(
+        "--spool-dir", default=DEFAULT_SPOOL_DIR,
+        metavar="SPOOL_DIR",
+        help="Specifies spool directory for WAL files. Defaults to "
+             "'{0}'.".format(DEFAULT_SPOOL_DIR)
     )
     parser.add_argument(
         '-z', '--gzip',
