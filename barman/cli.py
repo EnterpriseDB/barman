@@ -218,6 +218,13 @@ def backup_completer(prefix, parsed_args, **kwargs):
 @arg('--jobs', '-j',
      help='Run the copy in parallel using NJOBS processes.',
      type=check_positive, metavar='NJOBS')
+@arg('--bwlimit',
+     help="maximum transfer rate in kilobytes per second. "
+          "A value of 0 means no limit. Overrides 'bandwidth_limit' "
+          "configuration option.",
+     metavar='KBPS',
+     type=check_non_negative,
+     default=SUPPRESS)
 @expects_obj
 def backup(args):
     """
@@ -241,6 +248,8 @@ def backup(args):
             server.config.immediate_checkpoint = args.immediate_checkpoint
         if args.jobs is not None:
             server.config.parallel_jobs = args.jobs
+        if hasattr(args, 'bwlimit'):
+            server.config.bandwidth_limit = args.bwlimit
         with closing(server):
             server.backup()
     output.close_and_exit()
@@ -378,6 +387,13 @@ def rebuild_xlogdb(args):
      help='specifies the backup ID to recover')
 @arg('destination_directory',
      help='the directory where the new server is created')
+@arg('--bwlimit',
+     help="maximum transfer rate in kilobytes per second. "
+          "A value of 0 means no limit. Overrides 'bandwidth_limit' "
+          "configuration option.",
+     metavar='KBPS',
+     type=check_non_negative,
+     default=SUPPRESS)
 @arg('--retry-times',
      help='Number of retries after an error if base backup copy fails.',
      type=check_non_negative)
@@ -485,6 +501,8 @@ def recover(args):
             server.config.recovery_options.remove(RecoveryOptions.GET_WAL)
     if args.jobs is not None:
         server.config.parallel_jobs = args.jobs
+    if hasattr(args, 'bwlimit'):
+        server.config.bandwidth_limit = args.bwlimit
 
     # PostgreSQL supports multiple parameters to specify when the recovery
     # process will end, and in that case the last entry in recovery.conf

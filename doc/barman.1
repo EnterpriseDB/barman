@@ -94,6 +94,12 @@ present in the configuration file.
 Number of parallel workers to copy files during backup.
 Overrides value of the parameter \f[C]parallel_jobs\f[R], if present in
 the configuration file.
+.TP
+.B --bwlimit KBPS
+maximum transfer rate in kilobytes per second.
+A value of 0 means no limit.
+Overrides \[aq]bandwidth_limit\[aq] configuration option.
+Default is undefined.
 .RE
 .TP
 .B check-backup \f[I]SERVER_NAME\f[R] \f[I]BACKUP_ID\f[R]
@@ -316,6 +322,12 @@ Same as \f[C]--retry-times 0\f[R]
 Number of seconds of wait after a failed copy, before retrying.
 Overrides value of the parameter \f[C]basebackup_retry_sleep\f[R], if
 present in the configuration file.
+.TP
+.B --bwlimit KBPS
+maximum transfer rate in kilobytes per second.
+A value of 0 means no limit.
+Overrides \[aq]bandwidth_limit\[aq] configuration option.
+Default is undefined.
 .TP
 .B -j , --jobs
 Number of parallel workers to copy files during recovery.

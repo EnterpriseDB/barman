@@ -56,6 +56,11 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         Overrides value of the parameter `basebackup_retry_sleep`,
         if present in the configuration file.
 
+    --bwlimit KBPS
+    :   maximum transfer rate in kilobytes per second.
+        A value of 0 means no limit.
+        Overrides 'bandwidth_limit' configuration option. Default is undefined.
+
     -j , --jobs
     :   Number of parallel workers to copy files during recovery. Overrides
         value of the parameter `parallel_jobs`, if present in the
