@@ -504,9 +504,14 @@ class Server(RemoteStatusMixin):
 
         # NOTE: This check needs to be only visible if it fails
         if xlogdb_empty:
-            check_strategy.result(
-                self.config.name, False,
-                hint='please make sure WAL shipping is setup')
+            # Skip the error if we have a terminated backup
+            # with status WAITING_FOR_WALS.
+            # TODO: Improve this check
+            backup_id = self.get_last_backup_id([BackupInfo.WAITING_FOR_WALS])
+            if not backup_id:
+                check_strategy.result(
+                    self.config.name, False,
+                    hint='please make sure WAL shipping is setup')
 
         # Check the number of wals in the incoming directory
         self._check_wal_queue(check_strategy,
