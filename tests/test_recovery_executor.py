@@ -954,7 +954,7 @@ class TestRecoveryExecutor(object):
     @mock.patch('barman.recovery_executor.RsyncPgData')
     @mock.patch('barman.recovery_executor.output')
     @mock.patch('barman.recovery_executor.RsyncCopyController')
-    @mock.patch('barman.recovery_executor.BackupInfo')
+    @mock.patch('barman.recovery_executor.LocalBackupInfo')
     def test_recover_waiting_for_wals(self, backup_info_mock,
                                       rsync_copy_controller_mock,
                                       output_mock,

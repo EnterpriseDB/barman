@@ -24,8 +24,8 @@ import mock
 import pytest
 from dateutil.tz import tzlocal, tzoffset
 
-from barman.infofile import (BackupInfo, Field, FieldListFile, WalFileInfo,
-                             load_datetime_tz)
+from barman.infofile import (BackupInfo, Field, FieldListFile, LocalBackupInfo,
+                             WalFileInfo, load_datetime_tz)
 from testing_helpers import build_backup_manager, build_mocked_server
 
 BASE_BACKUP_INFO = """backup_label=None
@@ -361,7 +361,7 @@ class TestBackupInfo(object):
         # Mock the server, we don't need it at the moment
         server = build_mocked_server()
         # load the data from the backup.info file
-        b_info = BackupInfo(server, info_file=infofile.strpath)
+        b_info = LocalBackupInfo(server, info_file=infofile.strpath)
         assert b_info
         assert b_info.begin_offset == 40
         assert b_info.begin_wal == '000000010000000000000004'
@@ -385,7 +385,7 @@ class TestBackupInfo(object):
         server = build_mocked_server(name='test_server')
         server.backup_manager.mode = 'test-mode'
         # load the data from the backup.info file
-        b_info = BackupInfo(server, info_file=infofile.strpath)
+        b_info = LocalBackupInfo(server, info_file=infofile.strpath)
         assert b_info
         assert b_info.server_name == 'test_server'
         assert b_info.mode == 'test-mode'
@@ -419,7 +419,7 @@ class TestBackupInfo(object):
         infofile = tmpdir.mkdir('fake_name').join('backup.info')
         infofile.write(BASE_BACKUP_INFO)
         # Load the backup.info file using the backup_id
-        b_info = BackupInfo(server, backup_id="fake_name")
+        b_info = LocalBackupInfo(server, backup_id="fake_name")
         assert b_info
         assert b_info.begin_offset == 40
         assert b_info.begin_wal == '000000010000000000000004'
@@ -443,7 +443,7 @@ class TestBackupInfo(object):
         )
         backup_dir = tmpdir.mkdir('fake_name')
         infofile = backup_dir.join('backup.info')
-        b_info = BackupInfo(server, backup_id="fake_name")
+        b_info = LocalBackupInfo(server, backup_id="fake_name")
         b_info.status = BackupInfo.FAILED
         b_info.save()
         # read the file looking for the modified line
@@ -465,14 +465,14 @@ class TestBackupInfo(object):
         backup_dir = tmpdir.mkdir('fake_backup_id')
         backup_dir.mkdir('data')
         backup_dir.join('backup.info')
-        b_info = BackupInfo(server, backup_id="fake_backup_id")
+        b_info = LocalBackupInfo(server, backup_id="fake_backup_id")
         assert b_info.backup_version == 2
 
         # old version
         backup_dir = tmpdir.mkdir('another_fake_backup_id')
         backup_dir.mkdir('pgdata')
         backup_dir.join('backup.info')
-        b_info = BackupInfo(server, backup_id="another_fake_backup_id")
+        b_info = LocalBackupInfo(server, backup_id="another_fake_backup_id")
         assert b_info.backup_version == 1
 
     def test_data_dir(self, tmpdir):
@@ -492,7 +492,7 @@ class TestBackupInfo(object):
         data_dir = backup_dir.mkdir('data')
         info_file = backup_dir.join('backup.info')
         info_file.write(BASE_BACKUP_INFO)
-        b_info = BackupInfo(server, backup_id="fake_backup_id")
+        b_info = LocalBackupInfo(server, backup_id="fake_backup_id")
 
         # Check that the paths are built according with version
         assert b_info.backup_version == 2
@@ -505,7 +505,7 @@ class TestBackupInfo(object):
         pgdata_dir = backup_dir.mkdir('pgdata')
         info_file = backup_dir.join('backup.info')
         info_file.write(BASE_BACKUP_INFO)
-        b_info = BackupInfo(server, backup_id="another_fake_backup_id")
+        b_info = LocalBackupInfo(server, backup_id="another_fake_backup_id")
 
         # Check that the paths are built according with version
         assert b_info.backup_version == 1
@@ -536,7 +536,7 @@ class TestBackupInfo(object):
         backup_dir = tmpdir.mkdir('fake_backup_id')
         info_file = backup_dir.join('backup.info')
         info_file.write(BASE_BACKUP_INFO)
-        b_info = BackupInfo(server, backup_id="fake_backup_id")
+        b_info = LocalBackupInfo(server, backup_id="fake_backup_id")
 
         # This call should not raise
         assert json.dumps(b_info.to_json())
@@ -552,10 +552,10 @@ class TestBackupInfo(object):
         backup_dir = tmpdir.mkdir('fake_backup_id')
         info_file = backup_dir.join('backup.info')
         info_file.write(BASE_BACKUP_INFO)
-        b_info = BackupInfo(server, backup_id="fake_backup_id")
+        b_info = LocalBackupInfo(server, backup_id="fake_backup_id")
 
         # Build another BackupInfo from the json dump
-        new_binfo = BackupInfo.from_json(server, b_info.to_json())
+        new_binfo = LocalBackupInfo.from_json(server, b_info.to_json())
 
         assert b_info.to_dict() == new_binfo.to_dict()
 
@@ -577,5 +577,5 @@ class TestBackupInfo(object):
         server.backup_manager.mode = 'test-mode'
 
         # load the data from the backup.info file
-        b_info = BackupInfo(server, info_file=infofile.strpath)
+        b_info = LocalBackupInfo(server, info_file=infofile.strpath)
         assert b_info.xlog_segment_size == 1 << 24

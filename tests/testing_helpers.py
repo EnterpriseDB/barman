@@ -24,7 +24,8 @@ from dateutil import tz
 
 from barman.backup import BackupManager
 from barman.config import BackupOptions, Config
-from barman.infofile import BackupInfo, Tablespace, WalFileInfo
+from barman.infofile import (BackupInfo, LocalBackupInfo, Tablespace,
+                             WalFileInfo)
 from barman.server import Server
 from barman.utils import mkpath
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
@@ -94,7 +95,7 @@ def build_test_backup_info(
     :param int version: postgres version of the backup
     :param barman.server.Server|None server: Server object for the backup
     :param dict|None: Copy stats dictionary
-    :rtype: barman.infofile.BackupInfo
+    :rtype: barman.infofile.LocalBackupInfo
     """
     if begin_time is None:
         begin_time = datetime.now(tz.tzlocal()) - timedelta(minutes=10)
@@ -114,7 +115,7 @@ def build_test_backup_info(
         server.passive_node = False
         server.backup_manager.name = 'default'
 
-    backup_info = BackupInfo(**locals())
+    backup_info = LocalBackupInfo(**locals())
     return backup_info
 
 
@@ -381,7 +382,7 @@ def build_backup_directories(backup_info):
     """
     Create on disk directory structure for a given BackupInfo
 
-    :param BackupInfo backup_info:
+    :param LocalBackupInfo backup_info:
     """
     rmtree(backup_info.get_basebackup_directory(), ignore_errors=True)
     mkpath(backup_info.get_data_directory())

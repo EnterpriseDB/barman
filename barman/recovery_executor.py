@@ -30,7 +30,7 @@ import shutil
 import socket
 import tempfile
 import time
-from io import StringIO
+from io import BytesIO
 
 import dateutil.parser
 import dateutil.tz
@@ -45,7 +45,7 @@ from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
                                RecoveryStandbyModeException,
                                RecoveryTargetActionException)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
-from barman.infofile import BackupInfo
+from barman.infofile import BackupInfo, LocalBackupInfo
 from barman.utils import force_str, mkpath
 
 # generic logger for this module
@@ -212,7 +212,7 @@ class RecoveryExecutor(object):
             # backup info again and check whether it has been validated.
             # Notify the user if it is still not DONE.
             if backup_info.status == BackupInfo.WAITING_FOR_WALS:
-                data = BackupInfo(self.server, backup_info.filename)
+                data = LocalBackupInfo(self.server, backup_info.filename)
                 if data.status == BackupInfo.WAITING_FOR_WALS:
                     output.warning(
                         "IMPORTANT: The backup we have recovered IS NOT "
@@ -301,7 +301,7 @@ class RecoveryExecutor(object):
         Prepare the recovery_info dictionary for the recovery, as well
         as temporary working directory
 
-        :param barman.infofile.BackupInfo backup_info: representation of a
+        :param barman.infofile.LocalBackupInfo backup_info: representation of a
             backup
         :param str remote_command: ssh command for remote connection
         :return dict: recovery_info dictionary, holding the basic values for a
@@ -382,7 +382,7 @@ class RecoveryExecutor(object):
 
         :param dict recovery_info: Dictionary containing all the recovery
             parameters
-        :param barman.infofile.BackupInfo backup_info: representation of a
+        :param barman.infofile.LocalBackupInfo backup_info: representation of a
             backup
         :param str dest: destination directory of the recovery
         :param str|None target_name: recovery target name for PITR
@@ -516,7 +516,8 @@ class RecoveryExecutor(object):
 
         :param dict recovery_info: Dictionary containing all the recovery
             parameters
-        :param barman.infofile.BackupInfo backup_info: a backup representation
+        :param barman.infofile.LocalBackupInfo backup_info: a backup
+            representation
         :param str dest: recovery destination directory
         """
         # noinspection PyBroadException
@@ -525,9 +526,9 @@ class RecoveryExecutor(object):
             # Retrieve previously recovered backup metadata (if available)
             dest_info_txt = recovery_info['cmd'].get_file_content(
                 os.path.join(dest, '.barman-recover.info'))
-            dest_info = BackupInfo(
+            dest_info = LocalBackupInfo(
                 self.server,
-                info_file=StringIO(dest_info_txt))
+                info_file=BytesIO(dest_info_txt.encode('utf-8')))
             dest_begin_time = dest_info.begin_time
             # Pick the earlier begin time. Both are tz-aware timestamps because
             # BackupInfo class ensure it
@@ -558,7 +559,8 @@ class RecoveryExecutor(object):
         Prepare the directory structure for required tablespaces,
         taking care of tablespaces relocation, if requested.
 
-        :param barman.infofile.BackupInfo backup_info: backup representation
+        :param barman.infofile.LocalBackupInfo backup_info: backup
+            representation
         :param barman.fs.UnixLocalCommand cmd: Object for
             filesystem interaction
         :param str dest: destination dir for the recovery
@@ -616,7 +618,8 @@ class RecoveryExecutor(object):
 
         TODO: manage configuration files if outside PGDATA.
 
-        :param barman.infofile.BackupInfo backup_info: the backup to recover
+        :param barman.infofile.LocalBackupInfo backup_info: the backup
+            to recover
         :param str dest: the destination directory
         :param dict[str,str]|None tablespaces: a tablespace
             name -> location map (for relocation)
@@ -872,8 +875,8 @@ class RecoveryExecutor(object):
 
         :param dict recovery_info: Dictionary containing all the recovery
             parameters
-        :param barman.infofile.BackupInfo backup_info: representation of a
-            backup
+        :param barman.infofile.LocalBackupInfo backup_info: representation
+            of a backup
         :param str dest: destination directory of the recovery
         :param bool|None immediate: end recovery as soon as consistency
             is reached
@@ -1016,7 +1019,8 @@ class RecoveryExecutor(object):
 
         :param dict recovery_info: Dictionary containing all the recovery
             parameters
-        :param barman.infofile.BackupInfo backup_info: a backup representation
+        :param barman.infofile.LocalBackupInfo backup_info: a backup
+            representation
         :param str remote_command: ssh command for remote recovery
         """
 

@@ -39,7 +39,7 @@ from barman.exceptions import (AbortedRetryHookScript,
                                CompressionIncompatibility, SshCommandException,
                                UnknownBackupIdException)
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
-from barman.infofile import BackupInfo, WalFileInfo
+from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
 from barman.lockfile import ServerBackupSyncLock
 from barman.recovery_executor import RecoveryExecutor
 from barman.remote_status import RemoteStatusMixin
@@ -113,7 +113,7 @@ class BackupManager(RemoteStatusMixin):
         # Load all the backups from disk reading the backup.info files
         for filename in glob("%s/*/backup.info" %
                              self.config.basebackups_directory):
-            backup = BackupInfo(self.server, filename)
+            backup = LocalBackupInfo(self.server, filename)
             self._backup_cache[backup.backup_id] = backup
 
     def backup_cache_add(self, backup_info):
@@ -174,7 +174,7 @@ class BackupManager(RemoteStatusMixin):
         """
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
-        backup = BackupInfo(self.server, backup_id=backup_id)
+        backup = LocalBackupInfo(self.server, backup_id=backup_id)
         available_backups = self.get_available_backups(
             status_filter + (backup.status,))
         ids = sorted(available_backups.keys())
@@ -199,7 +199,7 @@ class BackupManager(RemoteStatusMixin):
         """
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
-        backup = BackupInfo(self.server, backup_id=backup_id)
+        backup = LocalBackupInfo(self.server, backup_id=backup_id)
         available_backups = self.get_available_backups(
             status_filter + (backup.status,))
         ids = sorted(available_backups.keys())
@@ -385,7 +385,7 @@ class BackupManager(RemoteStatusMixin):
         backup_info = None
         try:
             # Create the BackupInfo object representing the backup
-            backup_info = BackupInfo(
+            backup_info = LocalBackupInfo(
                 self.server,
                 backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'))
             backup_info.save()
@@ -485,7 +485,8 @@ class BackupManager(RemoteStatusMixin):
         """
         Performs a recovery of a backup
 
-        :param barman.infofile.BackupInfo backup_info: the backup to recover
+        :param barman.infofile.LocalBackupInfo backup_info: the backup
+            to recover
         :param str dest: the destination directory
         :param dict[str,str]|None tablespaces: a tablespace name -> location
             map (for relocation)
@@ -600,7 +601,7 @@ class BackupManager(RemoteStatusMixin):
         """
         Delete the basebackup dir of a given backup.
 
-        :param barman.infofile.BackupInfo backup: the backup to delete
+        :param barman.infofile.LocalBackupInfo backup: the backup to delete
         """
         backup_dir = backup.get_basebackup_directory()
         _logger.debug("Deleting base backup directory: %s" % backup_dir)
@@ -610,7 +611,7 @@ class BackupManager(RemoteStatusMixin):
         """
         Delete the data contained in a given backup.
 
-        :param barman.infofile.BackupInfo backup: the backup to delete
+        :param barman.infofile.LocalBackupInfo backup: the backup to delete
         """
         if backup.tablespaces:
             if backup.backup_version == 2:
@@ -974,7 +975,7 @@ class BackupManager(RemoteStatusMixin):
         backup_id = self.get_last_backup_id()
         if backup_id:
             # Get the backup object
-            backup = BackupInfo(self.server, backup_id=backup_id)
+            backup = LocalBackupInfo(self.server, backup_id=backup_id)
             now = datetime.datetime.now(dateutil.tz.tzlocal())
             # Evaluate the point of validity
             validity_time = now - last_backup_maximum_age
@@ -998,7 +999,7 @@ class BackupManager(RemoteStatusMixin):
         Also evaluate the deduplication ratio and the deduplicated size if
         applicable.
 
-        :param barman.infofile.BackupInfo backup_info: the backup to update
+        :param LocalBackupInfo backup_info: the backup to update
         """
         # Calculate the base backup size
         self.executor.current_action = "calculating backup size"

@@ -105,7 +105,7 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
         """
         Perform a backup for the server - invoked by BackupManager.backup()
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
 
     def check(self, check_strategy):
@@ -138,7 +138,7 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
         It the provided backup is the first, purge all WAL files before the
         backup start.
 
-        :param barman.infofile.BackupInfo backup_info: the backup to check
+        :param barman.infofile.LocalBackupInfo backup_info: the backup to check
         """
 
         # Do nothing if the begin_wal is not defined yet
@@ -166,7 +166,7 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
         """
         Output message for backup start
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
         output.info("Copying files for %s", backup_info.backup_id)
 
@@ -174,7 +174,7 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
         """
         Output message for backup end
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
         output.info("Copy done (time: %s)",
                     human_readable_timedelta(datetime.timedelta(
@@ -302,7 +302,7 @@ class PostgresBackupExecutor(BackupExecutor):
         The server must also be configured with enough max_wal_senders to leave
         at least one session available for the backup.
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
         try:
             # Set data directory and server version
@@ -498,7 +498,7 @@ class PostgresBackupExecutor(BackupExecutor):
         the method raises a DataTransferFailure, this trigger the retrying
         mechanism when necessary.
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
         # Make sure the destination directory exists, ensure the
         # right permissions to the destination dir
@@ -680,7 +680,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         # Depending on the backup options value, create the proper strategy
         if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
             # Concurrent backup strategy
-            self.strategy = ConcurrentBackupStrategy(self)
+            self.strategy = LocalConcurrentBackupStrategy(self)
         else:
             # Exclusive backup strategy
             self.strategy = ExclusiveBackupStrategy(self)
@@ -701,7 +701,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         """
         Performs the actual copy of a backup for the server
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
 
     def backup(self, backup_info):
@@ -713,7 +713,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         depends on both the specific class that derives from SshBackupExecutor
         and the selected strategy (e.g. exclusive backup through Rsync).
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
 
         # Start the backup, all the subsequent code must be wrapped in a
@@ -921,7 +921,7 @@ class PassiveBackupExecutor(BackupExecutor):
         """
         This method should never be called, because this is a passive server
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
         # The 'backup' command is not available on a passive node.
         # If we get here, there is a programming error
@@ -1040,7 +1040,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
         the process.
         This method is the core of base backup copy using Rsync+Ssh.
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
 
         # Retrieve the previous backup metadata, then calculate safe_horizon
@@ -1210,8 +1210,8 @@ class RsyncBackupExecutor(SshBackupExecutor):
         the previous_backup otherwise it returns the path to the specified
         tablespace using it's oid.
 
-        :param barman.infofile.BackupInfo previous_backup_info: backup to be
-            reused
+        :param barman.infofile.LocalBackupInfo previous_backup_info: backup
+            to be reused
         :param barman.infofile.Tablespace tablespace: the tablespace to copy
         :returns: a string containing the local path with data to be reused
             or None
@@ -1240,14 +1240,14 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
     WAL_RE = re.compile(r'^START WAL LOCATION: (.*) \(file (.*)\)',
                         re.MULTILINE)
 
-    def __init__(self, executor, mode=None):
+    def __init__(self, postgres, mode=None):
         """
         Constructor
 
-        :param BackupExecutor executor: the BackupExecutor assigned
-            to the strategy
+        :param barman.postgres.PostgreSQLConnection postgres: the PostgreSQL
+            connection
         """
-        self.executor = executor
+        self.postgres = postgres
 
         # Holds the action being executed. Used for error messages.
         self.current_action = None
@@ -1271,7 +1271,7 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         """
         Issue a stop of a backup - invoked by BackupExecutor.backup()
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
 
     @abstractmethod
@@ -1295,30 +1295,28 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        server = self.executor.server
-
         # Get the PostgreSQL data directory location
         self.current_action = 'detecting data directory'
         output.debug(self.current_action)
-        data_directory = server.postgres.get_setting('data_directory')
+        data_directory = self.postgres.get_setting('data_directory')
         backup_info.set_attribute('pgdata', data_directory)
 
         # Set server version
-        backup_info.set_attribute('version', server.postgres.server_version)
+        backup_info.set_attribute('version', self.postgres.server_version)
 
         # Set XLOG segment size
         backup_info.set_attribute('xlog_segment_size',
-                                  server.postgres.xlog_segment_size)
+                                  self.postgres.xlog_segment_size)
 
         # Set configuration files location
-        cf = server.postgres.get_configuration_files()
+        cf = self.postgres.get_configuration_files()
         for key in cf:
             backup_info.set_attribute(key, cf[key])
 
         # Get tablespaces information
         self.current_action = 'detecting tablespaces'
         output.debug(self.current_action)
-        tablespaces = server.postgres.get_tablespaces()
+        tablespaces = self.postgres.get_tablespaces()
         if tablespaces and len(tablespaces) > 0:
             backup_info.set_attribute('tablespaces', tablespaces)
             for item in tablespaces:
@@ -1330,7 +1328,8 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         """
         Fill a backup info with information from a start_backup
 
-        :param barman.infofile.BackupInfo backup_info: object representing a
+        :param barman.infofile.BackupInfo backup_info: object
+        representing a
             backup
         :param DictCursor start_info: the result of the pg_start_backup
         command
@@ -1352,7 +1351,7 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         # If file_name and file_offset are available, use them
         file_name = start_info.get('file_name')
         file_offset = start_info.get('file_offset')
-        if (file_name is not None and file_offset is not None):
+        if file_name is not None and file_offset is not None:
             backup_info.set_attribute('begin_wal',
                                       start_info['file_name'])
             backup_info.set_attribute('begin_offset',
@@ -1400,18 +1399,21 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         """
         Fill a backup info with information from the backup_label file
 
-        :param barman.infofile.BackupInfo backup_info: object representing a
-            backup
+        :param barman.infofile.BackupInfo backup_info: object
+            representing a backup
         """
         # If backup_label is present in backup_info use it...
         if backup_info.backup_label:
             backup_label_data = backup_info.backup_label
         # ... otherwise load backup info from backup_label file
-        else:
+        elif hasattr(backup_info, 'get_data_directory'):
             backup_label_path = os.path.join(backup_info.get_data_directory(),
                                              'backup_label')
             with open(backup_label_path) as backup_label_file:
                 backup_label_data = backup_label_file.read()
+        else:
+            raise ValueError("Failure accessing backup_label for backup %s" %
+                             backup_info.backup_id)
 
         # Parse backup label
         wal_info = self.WAL_RE.search(backup_label_data)
@@ -1439,6 +1441,17 @@ class PostgresBackupStrategy(BackupStrategy):
     using pg_basebackup.
     """
 
+    def __init__(self, executor, *args, **kwargs):
+        """
+        Constructor
+
+        :param BackupExecutor executor: the BackupExecutor assigned
+            to the strategy
+        """
+        super(PostgresBackupStrategy, self).__init__(
+            executor.server.postgres, *args, **kwargs)
+        self.executor = executor
+
     def check(self, check_strategy):
         """
         Perform additional checks for the Postgres backup strategy
@@ -1452,7 +1465,7 @@ class PostgresBackupStrategy(BackupStrategy):
         backup executed using pg_basebackup to start, gathering information
         from postgres and filling the backup_info.
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
         self.current_action = "initialising postgres backup_method"
         super(PostgresBackupStrategy, self).start_backup(backup_info)
@@ -1471,7 +1484,7 @@ class PostgresBackupStrategy(BackupStrategy):
         during the start of a backup performed using rsync, are retrieved
         here
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
         self._backup_info_from_backup_label(backup_info)
 
@@ -1513,7 +1526,9 @@ class ExclusiveBackupStrategy(BackupStrategy):
         :param BackupExecutor executor: the BackupExecutor assigned
             to the strategy
         """
-        super(ExclusiveBackupStrategy, self).__init__(executor, 'exclusive')
+        super(ExclusiveBackupStrategy, self).__init__(
+            executor.server.postgres, 'exclusive')
+        self.executor = executor
         # Make sure that executor is of type SshBackupExecutor
         assert isinstance(executor, SshBackupExecutor)
         # Make sure that backup_options does not contain 'concurrent'
@@ -1528,7 +1543,7 @@ class ExclusiveBackupStrategy(BackupStrategy):
         exclusive physical backup to start, as well as preparing the
         information on the backup for Barman.
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
         super(ExclusiveBackupStrategy, self).start_backup(backup_info)
         label = "Barman backup %s %s" % (
@@ -1548,7 +1563,7 @@ class ExclusiveBackupStrategy(BackupStrategy):
         exclusive backup is finished, as well as preparing the information
         returned by PostgreSQL for Barman.
 
-        :param barman.infofile.BackupInfo backup_info: backup information
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
 
         self.current_action = "issuing stop backup command"
@@ -1580,54 +1595,46 @@ class ConcurrentBackupStrategy(BackupStrategy):
     """
     Concrete class for concurrent backup strategy.
 
-    This strategy is for SshBackupExecutor only and is responsible for
-    coordinating Barman with PostgreSQL on concurrent physical backup
-    operations through the pgespresso extension.
+    This strategy is responsible for coordinating Barman with PostgreSQL on
+    concurrent physical backup operations through concurrent backup
+    PostgreSQL api or the pgespresso extension.
     """
 
-    def __init__(self, executor):
+    def __init__(self, postgres):
         """
         Constructor
 
-        :param BackupExecutor executor: the BackupExecutor assigned
-            to the strategy
+        :param barman.postgres.PostgreSQLConnection postgres: the PostgreSQL
+            connection
         """
-        super(ConcurrentBackupStrategy, self).__init__(executor, 'concurrent')
-        # Make sure that executor is of type SshBackupExecutor
-        assert isinstance(executor, SshBackupExecutor)
-        # Make sure that backup_options contains 'concurrent'
-        assert (BackupOptions.CONCURRENT_BACKUP in
-                self.executor.config.backup_options)
+        super(ConcurrentBackupStrategy, self).__init__(postgres, 'concurrent')
 
-    # noinspection PyMethodMayBeStatic
-    def _write_backup_label(self, backup_info):
+    def check(self, check_strategy):
         """
-        Write backup_label file inside PGDATA folder
+        Perform additional checks for ConcurrentBackupStrategy
 
-        :param barman.infofile.BackupInfo  backup_info: tbackup information
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
         """
-        label_file = os.path.join(backup_info.get_data_directory(),
-                                  'backup_label')
-        output.debug("Writing backup label: %s" % label_file)
-        with open(label_file, 'w') as f:
-            f.write(backup_info.backup_label)
-
-    def _write_tablespace_map(self, backup_info):
-        """
-        Write tablespace_map file inside PGDATA folder
-
-        :param barman.infofile.BackupInfo  backup_info: backup information
-        """
-        map_file = os.path.join(backup_info.get_data_directory(),
-                                'tablespace_map')
-        output.debug("Writing tablespace map")
-        with open(map_file, 'w') as f:
-            for tbs in backup_info.tablespaces:
-                # In some cases (i.e. PostgreSQL on windows) a tablespace
-                # can contain a newline or a line feed. PostgreSQL
-                # pg_basebackup code does the same.
-                quoted_location = re.sub(r'([\n\r])', r'\\\1', tbs.location)
-                f.write('%s %s\n' % (tbs.oid, quoted_location))
+        check_strategy.init_check('pgespresso extension')
+        try:
+            # We execute this check only if the postgres connection is non None
+            # and the server version is lower than 9.6. On latest PostgreSQL
+            # there is a native API for concurrent backups.
+            if self.postgres and self.postgres.server_version < 90600:
+                if self.postgres.has_pgespresso:
+                    check_strategy.result(self.executor.config.name, True)
+                else:
+                    check_strategy.result(
+                        self.executor.config.name, False,
+                        hint='required for concurrent '
+                             'backups on PostgreSQL %s' %
+                             self.postgres.server_major_version)
+        except PostgresConnectionError:
+            # Skip the check if the postgres connection doesn't work.
+            # We assume that this error condition will be reported by
+            # another check.
+            pass
 
     def start_backup(self, backup_info):
         """
@@ -1643,7 +1650,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         label = "Barman backup %s %s" % (
             backup_info.server_name, backup_info.backup_id)
 
-        pg_version = self.executor.server.postgres.server_version
+        pg_version = self.postgres.server_version
         if pg_version >= 90600:
             # On 9.6+ execute native concurrent start backup
             _logger.debug("Start of native concurrent backup")
@@ -1659,7 +1666,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        pg_version = self.executor.server.postgres.server_version
+        pg_version = self.postgres.server_version
         self.current_action = "issuing stop backup command"
         if pg_version >= 90600:
             # On 9.6+ execute native concurrent stop backup
@@ -1674,14 +1681,12 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         # Write backup_label retrieved from postgres connection
         self.current_action = "writing backup label"
-        self._write_backup_label(backup_info)
 
         # Ask PostgreSQL to switch to another WAL file. This is needed
         # to archive the transaction log file containing the backup
         # end position, which is required to recover from the backup.
-        postgres = self.executor.server.postgres
         try:
-            postgres.switch_wal()
+            self.postgres.switch_wal()
         except PostgresIsInRecovery:
             # Skip switching XLOG if a standby server
             pass
@@ -1692,9 +1697,8 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        postgres = self.executor.server.postgres
         backup_info.set_attribute('status', "STARTED")
-        start_info = postgres.pgespresso_start_backup(label)
+        start_info = self.postgres.pgespresso_start_backup(label)
         backup_info.set_attribute('backup_label', start_info['backup_label'])
         self._backup_info_from_backup_label(backup_info)
 
@@ -1704,8 +1708,8 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        postgres = self.executor.server.postgres
-        stop_info = postgres.pgespresso_stop_backup(backup_info.backup_label)
+        stop_info = self.postgres.pgespresso_stop_backup(
+            backup_info.backup_label)
         # Obtain a modifiable copy of stop_info object
         stop_info = stop_info.copy()
         # We don't know the exact backup stop location,
@@ -1713,33 +1717,6 @@ class ConcurrentBackupStrategy(BackupStrategy):
         stop_info['location'] = xlog.location_from_xlogfile_name_offset(
             stop_info['end_wal'], 0xFFFFFF)
         self._backup_info_from_stop_location(backup_info, stop_info)
-
-    def check(self, check_strategy):
-        """
-        Perform additional checks for ConcurrentBackupStrategy
-
-        :param CheckStrategy check_strategy: the strategy for the management
-             of the results of the various checks
-        """
-        check_strategy.init_check('pgespresso extension')
-        postgres = self.executor.server.postgres
-        try:
-            # We execute this check only if the postgres connection is non None
-            # and the server version is lower than 9.6. On latest PostgreSQL
-            # there is a native API for concurrent backups.
-            if postgres and postgres.server_version < 90600:
-                if postgres.has_pgespresso:
-                    check_strategy.result(self.executor.config.name, True)
-                else:
-                    check_strategy.result(self.executor.config.name, False,
-                                          hint='required for concurrent '
-                                               'backups on PostgreSQL %s' %
-                                               postgres.server_major_version)
-        except PostgresConnectionError:
-            # Skip the check if the postgres connection doesn't work.
-            # We assume that this error condition will be reported by
-            # another check.
-            pass
 
     def _concurrent_start_backup(self, backup_info, label):
         """
@@ -1749,9 +1726,8 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param barman.infofile.BackupInfo backup_info: backup information
         :param str label: the backup label
         """
-        postgres = self.executor.server.postgres
-        start_info = postgres.start_concurrent_backup(label)
-        postgres.allow_reconnect = False
+        start_info = self.postgres.start_concurrent_backup(label)
+        self.postgres.allow_reconnect = False
         self._backup_info_from_start_location(backup_info, start_info)
 
     def _concurrent_stop_backup(self, backup_info):
@@ -1761,8 +1737,55 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        postgres = self.executor.server.postgres
-        stop_info = postgres.stop_concurrent_backup()
-        postgres.allow_reconnect = True
+        stop_info = self.postgres.stop_concurrent_backup()
+        self.postgres.allow_reconnect = True
         backup_info.set_attribute('backup_label', stop_info['backup_label'])
         self._backup_info_from_stop_location(backup_info, stop_info)
+
+
+class LocalConcurrentBackupStrategy(ConcurrentBackupStrategy):
+    """
+    Concrete class for concurrent backup strategy writing data locally.
+
+    This strategy is for SshBackupExecutor only and is responsible for
+    coordinating Barman with PostgreSQL on concurrent physical backup
+    operations through the pgespresso extension.
+    """
+
+    def __init__(self, executor):
+        """
+        Constructor
+
+        :param BackupExecutor executor: the BackupExecutor assigned
+            to the strategy
+        """
+        super(LocalConcurrentBackupStrategy, self).__init__(
+            executor.server.postgres)
+        self.executor = executor
+        # Make sure that executor is of type SshBackupExecutor
+        assert isinstance(executor, SshBackupExecutor)
+        # Make sure that backup_options contains 'concurrent'
+        assert (BackupOptions.CONCURRENT_BACKUP in
+                self.executor.config.backup_options)
+
+    # noinspection PyMethodMayBeStatic
+    def _write_backup_label(self, backup_info):
+        """
+        Write backup_label file inside PGDATA folder
+
+        :param barman.infofile.LocalBackupInfo  backup_info: backup information
+        """
+        label_file = os.path.join(backup_info.get_data_directory(),
+                                  'backup_label')
+        output.debug("Writing backup label: %s" % label_file)
+        with open(label_file, 'w') as f:
+            f.write(backup_info.backup_label)
+
+    def stop_backup(self, backup_info):
+        """
+        Stop backup wrapper
+
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
+        """
+        super(LocalConcurrentBackupStrategy, self).stop_backup(backup_info)
+        self._write_backup_label(backup_info)

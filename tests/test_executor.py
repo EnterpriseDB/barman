@@ -27,7 +27,7 @@ from barman.backup_executor import PostgresBackupExecutor, RsyncBackupExecutor
 from barman.config import BackupOptions
 from barman.exceptions import (CommandFailedException, DataTransferFailure,
                                FsOperationFailed, SshCommandException)
-from barman.infofile import BackupInfo, Tablespace
+from barman.infofile import BackupInfo, LocalBackupInfo, Tablespace
 from barman.server import CheckOutputStrategy, CheckStrategy
 from testing_helpers import (build_backup_manager, build_mocked_server,
                              build_test_backup_info)
@@ -170,8 +170,8 @@ class TestRsyncBackupExecutor(object):
             # Silence the warning for default backup strategy
             'backup_options': 'exclusive_backup',
         })
-        backup_info = BackupInfo(backup_manager.server,
-                                 backup_id='fake_backup_id')
+        backup_info = LocalBackupInfo(backup_manager.server,
+                                      backup_id='fake_backup_id')
         backup_info.begin_xlog = "0/2000028"
         backup_info.begin_wal = "000000010000000000000002"
         backup_info.begin_offset = 40
@@ -419,8 +419,8 @@ class TestStrategy(object):
             'timestamp': start_time}
 
         # Build a test empty backup info
-        backup_info = BackupInfo(server=backup_manager.server,
-                                 backup_id='fake_id')
+        backup_info = LocalBackupInfo(server=backup_manager.server,
+                                      backup_id='fake_id')
 
         backup_manager.executor.strategy.start_backup(backup_info)
 
@@ -473,8 +473,8 @@ class TestStrategy(object):
                 "START TIME: %s" % start_time.strftime('%Y-%m-%d %H:%M:%S %Z'),
         }
         # Build a test empty backup info
-        backup_info = BackupInfo(server=backup_manager.server,
-                                 backup_id='fake_id2')
+        backup_info = LocalBackupInfo(server=backup_manager.server,
+                                      backup_id='fake_id2')
 
         backup_manager.executor.strategy.start_backup(backup_info)
 
@@ -527,8 +527,8 @@ class TestStrategy(object):
             'timestamp': start_time,
         }
         # Build a test empty backup info
-        backup_info = BackupInfo(server=backup_manager.server,
-                                 backup_id='fake_id2')
+        backup_info = LocalBackupInfo(server=backup_manager.server,
+                                      backup_id='fake_id2')
 
         backup_manager.executor.strategy.start_backup(backup_info)
 
@@ -575,11 +575,9 @@ class TestStrategy(object):
         assert backup_info.end_offset == 10231544
         assert backup_info.end_time == stop_time
 
-    @patch('barman.backup_executor.ConcurrentBackupStrategy.'
+    @patch('barman.backup_executor.LocalConcurrentBackupStrategy.'
            '_write_backup_label')
-    @patch('barman.backup_executor.ConcurrentBackupStrategy.'
-           '_write_tablespace_map')
-    def test_pgespresso_stop_backup(self, tbs_map_mock, label_mock):
+    def test_pgespresso_stop_backup(self, tbs_map_mock):
         """
         Basic test for the pgespresso_stop_backup method
         """
@@ -606,11 +604,9 @@ class TestStrategy(object):
         assert backup_info.end_offset == 0xFFFFFF
         assert backup_info.end_time == stop_time
 
-    @patch('barman.backup_executor.ConcurrentBackupStrategy.'
+    @patch('barman.backup_executor.LocalConcurrentBackupStrategy.'
            '_write_backup_label')
-    @patch('barman.backup_executor.ConcurrentBackupStrategy.'
-           '_write_tablespace_map')
-    def test_concurrent_stop_backup(self, tbs_map_mock, label_mock,):
+    def test_concurrent_stop_backup(self, tbs_map_mock):
         """
         Basic test for the stop_backup method for 9.6 concurrent api
 
@@ -1050,8 +1046,8 @@ class TestPostgresBackupExecutor(object):
             'timestamp': start_time,
         }
         # Build a test empty backup info
-        backup_info = BackupInfo(server=backup_manager.server,
-                                 backup_id='fake_id2')
+        backup_info = LocalBackupInfo(server=backup_manager.server,
+                                      backup_id='fake_id2')
 
         backup_manager.executor.strategy.start_backup(backup_info)
 

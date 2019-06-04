@@ -52,7 +52,7 @@ from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
                                PostgresUnsupportedFeature, SyncError,
                                SyncNothingToDo, SyncToBeDeleted, TimeoutError,
                                UnknownBackupIdException)
-from barman.infofile import BackupInfo, WalFileInfo
+from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
 from barman.lockfile import (ServerBackupIdLock, ServerBackupLock,
                              ServerBackupSyncLock, ServerCronLock,
                              ServerWalArchiveLock, ServerWalReceiveLock,
@@ -223,9 +223,6 @@ class Server(RemoteStatusMixin):
         self.streaming = None
         self.archivers = []
 
-        # Initialize the backup manager
-        self.backup_manager = BackupManager(self)
-
         # Postgres configuration is available only if node is not passive
         if not self.passive_node:
             # Initialize the main PostgreSQL connection
@@ -237,44 +234,8 @@ class Server(RemoteStatusMixin):
                 self.config.msg_list.append(
                     "PostgreSQL connection: " + force_str(e).strip())
 
-            # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
-            # IMPORTANT: This is a back-compatibility feature that has
-            # been added in Barman 2.0. It highlights a deprecated
-            # behaviour, and helps users during this transition phase.
-            # It forces 'archiver=on' when both archiver and streaming_archiver
-            # are set to 'off' (default values) and displays a warning,
-            # requesting users to explicitly set the value in the
-            # configuration.
-            # When this back-compatibility feature will be removed from Barman
-            # (in a couple of major releases), developers will need to remove
-            # this block completely and reinstate the block of code you find
-            # a few lines below (search for ARCHIVER_OFF_BACKCOMPATIBILITY
-            # throughout the code).
-            if self.config.archiver is False and \
-                    self.config.streaming_archiver is False:
-                output.warning("No archiver enabled for server '%s'. "
-                               "Please turn on 'archiver', "
-                               "'streaming_archiver' or both",
-                               self.config.name)
-                output.warning("Forcing 'archiver = on'")
-                self.config.archiver = True
-            # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
-
-            # Initialize the FileWalArchiver
-            # WARNING: Order of items in self.archivers list is important!
-            # The files will be archived in that order.
-            if self.config.archiver:
-                try:
-                    self.archivers.append(FileWalArchiver(self.backup_manager))
-                except AttributeError as e:
-                    _logger.debug(e)
-                    self.config.disabled = True
-                    self.config.msg_list.append('Unable to initialise the '
-                                                'file based archiver')
-
             # Initialize the streaming PostgreSQL connection only when
             # backup_method is postgres or the streaming_archiver is in use
-            config = self.config
             if config.backup_method == 'postgres' or config.streaming_archiver:
                 try:
                     self.streaming = StreamingConnection(config)
@@ -284,6 +245,10 @@ class Server(RemoteStatusMixin):
                     self.config.msg_list.append(
                         "Streaming connection: " + force_str(e).strip())
 
+        # Initialize the backup manager
+        self.backup_manager = BackupManager(self)
+
+        if not self.passive_node:
             # Initialize the StreamingWalArchiver
             # WARNING: Order of items in self.archivers list is important!
             # The files will be archived in that order.
@@ -325,6 +290,41 @@ class Server(RemoteStatusMixin):
                 self.config.msg_list.append(
                     "Streaming-only archiver requires 'streaming_conninfo' "
                     "and 'slot_name' options to be properly configured")
+
+            # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
+            # IMPORTANT: This is a back-compatibility feature that has
+            # been added in Barman 2.0. It highlights a deprecated
+            # behaviour, and helps users during this transition phase.
+            # It forces 'archiver=on' when both archiver and streaming_archiver
+            # are set to 'off' (default values) and displays a warning,
+            # requesting users to explicitly set the value in the
+            # configuration.
+            # When this back-compatibility feature will be removed from Barman
+            # (in a couple of major releases), developers will need to remove
+            # this block completely and reinstate the block of code you find
+            # a few lines below (search for ARCHIVER_OFF_BACKCOMPATIBILITY
+            # throughout the code).
+            if self.config.archiver is False and \
+                    self.config.streaming_archiver is False:
+                output.warning("No archiver enabled for server '%s'. "
+                               "Please turn on 'archiver', "
+                               "'streaming_archiver' or both",
+                               self.config.name)
+                output.warning("Forcing 'archiver = on'")
+                self.config.archiver = True
+            # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
+
+            # Initialize the FileWalArchiver
+            # WARNING: Order of items in self.archivers list is important!
+            # The files will be archived in that order.
+            if self.config.archiver:
+                try:
+                    self.archivers.append(FileWalArchiver(self.backup_manager))
+                except AttributeError as e:
+                    _logger.debug(e)
+                    self.config.disabled = True
+                    self.config.msg_list.append('Unable to initialise the '
+                                                'file based archiver')
 
         # Set bandwidth_limit
         if self.config.bandwidth_limit:
@@ -1154,7 +1154,7 @@ class Server(RemoteStatusMixin):
         it returns None.
 
         :param str|None backup_id: the ID of the backup to return
-        :rtype: BackupInfo|None
+        :rtype: barman.infofile.LocalBackupInfo|None
         """
         return self.backup_manager.get_backup(backup_id)
 
@@ -1263,7 +1263,7 @@ class Server(RemoteStatusMixin):
         """
         Returns information about WALs for the given backup
 
-        :param BackupInfo backup_info: the target backup
+        :param barman.infofile.LocalBackupInfo backup_info: the target backup
         """
         begin = backup_info.begin_wal
         end = backup_info.end_wal
@@ -1344,7 +1344,8 @@ class Server(RemoteStatusMixin):
         """
         Performs a recovery of a backup
 
-        :param barman.infofile.BackupInfo backup_info: the backup to recover
+        :param barman.infofile.LocalBackupInfo backup_info: the backup
+            to recover
         :param str dest: the destination directory
         :param dict[str,str]|None tablespaces: a tablespace
             name -> location map (for relocation)
@@ -2823,7 +2824,7 @@ class Server(RemoteStatusMixin):
         # simulate the situation after the copy of the remote backup.
         local_backups = self.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
         backup = remote_backups[backup_name]
-        local_backups[backup_name] = BackupInfo.from_json(self, backup)
+        local_backups[backup_name] = LocalBackupInfo.from_json(self, backup)
         # Execute the local retention policy on the modified list of backups
         report = self.config.retention_policy.report(source=local_backups)
         # If the added backup is obsolete return true.
@@ -2888,7 +2889,7 @@ class Server(RemoteStatusMixin):
                     backup_manager = self.backup_manager
 
                     # Build a BackupInfo object
-                    local_backup_info = BackupInfo.from_json(
+                    local_backup_info = LocalBackupInfo.from_json(
                         self,
                         remote_backup_info)
                     local_backup_info.set_attribute('status',

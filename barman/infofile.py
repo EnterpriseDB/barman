@@ -211,7 +211,7 @@ class FieldListFile(object):
         else:
             filename = filename or self.filename
             if filename:
-                info = open(filename + '.tmp', 'w')
+                info = open(filename + '.tmp', 'wb')
             else:
                 info = None
 
@@ -219,13 +219,16 @@ class FieldListFile(object):
             raise ValueError(
                 'either a valid filename or a file_object must be specified')
 
-        with info:
+        try:
             for name, field in sorted(inspect.getmembers(type(self))):
                 value = getattr(self, name, None)
                 if isinstance(field, Field):
                     if callable(field.to_str):
                         value = field.to_str(value)
-                    info.write("%s=%s\n" % (name, value))
+                    info.write(("%s=%s\n" % (name, value)).encode('UTF-8'))
+        finally:
+            if not file_object:
+                info.close()
 
         if not file_object:
             os.rename(filename + '.tmp', filename)
@@ -250,7 +253,7 @@ class FieldListFile(object):
         if file_object:
             info = file_object
         elif filename:
-            info = open(filename, 'r')
+            info = open(filename, 'rb')
         else:
             raise ValueError(
                 'either filename or file_object must be specified')
@@ -269,6 +272,7 @@ class FieldListFile(object):
 
         with info:
             for line in info:
+                line = line.decode('UTF-8')
                 # skip spaces and comments
                 if line.isspace() or line.rstrip().startswith('#'):
                     continue
@@ -454,8 +458,115 @@ class BackupInfo(FieldListFile):
     xlog_segment_size = Field('xlog_segment_size', load=int,
                               default=xlog.DEFAULT_XLOG_SEG_SIZE)
 
-    __slots__ = ('server', 'config', 'backup_manager',
-                 'backup_id', 'backup_version')
+    __slots__ = 'backup_id', 'backup_version'
+
+    def __init__(self, backup_id, **kwargs):
+        """
+        Stores meta information about a single backup
+
+        :param str,None backup_id:
+        """
+        self.backup_version = 2
+        self.backup_id = backup_id
+        super(BackupInfo, self).__init__(**kwargs)
+
+    def get_required_wal_segments(self):
+        """
+        Get the list of required WAL segments for the current backup
+        """
+        return xlog.generate_segment_names(
+            self.begin_wal, self.end_wal,
+            self.version,
+            self.xlog_segment_size)
+
+    def get_external_config_files(self):
+        """
+        Identify all the configuration files that reside outside the PGDATA.
+
+        Returns a list of TypedFile objects.
+
+        :rtype: list[TypedFile]
+        """
+
+        config_files = []
+        for file_type in ('config_file', 'hba_file', 'ident_file'):
+            config_file = getattr(self, file_type, None)
+            if config_file:
+                # Consider only those that reside outside of the original
+                # PGDATA directory
+                if config_file.startswith(self.pgdata):
+                    _logger.debug("Config file '%s' already in PGDATA",
+                                  config_file[len(self.pgdata) + 1:])
+                    continue
+                config_files.append(TypedFile(file_type, config_file))
+        # Check for any include directives in PostgreSQL configuration
+        # Currently, include directives are not supported for files that
+        # reside outside PGDATA. These files must be manually backed up.
+        # Barman will emit a warning and list those files
+        if self.included_files:
+            for included_file in self.included_files:
+                if not included_file.startswith(self.pgdata):
+                    config_files.append(TypedFile('include', included_file))
+        return config_files
+
+    def set_attribute(self, key, value):
+        """
+        Set a value for a given key
+        """
+        setattr(self, key, value)
+
+    def to_dict(self):
+        """
+        Return the backup_info content as a simple dictionary
+
+        :return dict:
+        """
+        result = dict(self.items())
+        result.update(backup_id=self.backup_id, server_name=self.server_name,
+                      mode=self.mode, tablespaces=self.tablespaces,
+                      included_files=self.included_files,
+                      copy_stats=self.copy_stats)
+        return result
+
+    def to_json(self):
+        """
+        Return an equivalent dictionary that uses only json-supported types
+        """
+        data = self.to_dict()
+        # Convert fields which need special types not supported by json
+        if data.get('tablespaces') is not None:
+            data['tablespaces'] = [list(item)
+                                   for item in data['tablespaces']]
+        if data.get('begin_time') is not None:
+            data['begin_time'] = data['begin_time'].ctime()
+        if data.get('end_time') is not None:
+            data['end_time'] = data['end_time'].ctime()
+        return data
+
+    @classmethod
+    def from_json(cls, server, json_backup_info):
+        """
+        Factory method that builds a BackupInfo object
+        from a json dictionary
+
+        :param barman.Server server: the server related to the Backup
+        :param dict json_backup_info: the data set containing values from json
+        """
+        data = dict(json_backup_info)
+        # Convert fields which need special types not supported by json
+        if data.get('tablespaces') is not None:
+            data['tablespaces'] = [Tablespace._make(item)
+                                   for item in data['tablespaces']]
+        if data.get('begin_time') is not None:
+            data['begin_time'] = load_datetime_tz(data['begin_time'])
+        if data.get('end_time') is not None:
+            data['end_time'] = load_datetime_tz(data['end_time'])
+        # Instantiate a BackupInfo object using the converted fields
+        return cls(server, **data)
+
+
+class LocalBackupInfo(BackupInfo):
+    __slots__ = 'server', 'config', 'backup_manager'
 
     def __init__(self, server, info_file=None, backup_id=None, **kwargs):
         """
@@ -469,7 +580,7 @@ class BackupInfo(FieldListFile):
         """
         # Initialises the attributes for the object
         # based on the predefined keys
-        super(BackupInfo, self).__init__(**kwargs)
+        super(LocalBackupInfo, self).__init__(backup_id=backup_id, **kwargs)
 
         self.server = server
         self.config = server.config
@@ -499,7 +610,6 @@ class BackupInfo(FieldListFile):
             raise BackupInfoBadInitialisation(
                 'backup_id and info_file parameters are both unset')
         # Manage backup version for new backup structure
-        self.backup_version = 2
         try:
             # the presence of pgdata directory is the marker of version 1
             if self.backup_id is not None and os.path.exists(
@@ -508,15 +618,6 @@ class BackupInfo(FieldListFile):
         except Exception as e:
             _logger.warning("Error detecting backup_version, "
                             "use default: 2. Failure reason: %s", e)
-
-    def get_required_wal_segments(self):
-        """
-        Get the list of required WAL segments for the current backup
-        """
-        return xlog.generate_segment_names(
-            self.begin_wal, self.end_wal,
-            self.version,
-            self.xlog_segment_size)
 
     def get_list_of_files(self, target):
         """
@@ -595,48 +696,12 @@ class BackupInfo(FieldListFile):
         # Return the built path
         return os.path.join(*path)
 
-    def get_external_config_files(self):
-        """
-        Identify all the configuration files that reside outside the PGDATA.
-
-        Returns a list of TypedFile objects.
-
-        :rtype: list[TypedFile]
-        """
-
-        config_files = []
-        for file_type in ('config_file', 'hba_file', 'ident_file'):
-            config_file = getattr(self, file_type, None)
-            if config_file:
-                # Consider only those that reside outside of the original
-                # PGDATA directory
-                if config_file.startswith(self.pgdata):
-                    _logger.debug("Config file '%s' already in PGDATA",
-                                  config_file[len(self.pgdata) + 1:])
-                    continue
-                config_files.append(TypedFile(file_type, config_file))
-        # Check for any include directives in PostgreSQL configuration
-        # Currently, include directives are not supported for files that
-        # reside outside PGDATA. These files must be manually backed up.
-        # Barman will emit a warning and list those files
-        if self.included_files:
-            for included_file in self.included_files:
-                if not included_file.startswith(self.pgdata):
-                    config_files.append(TypedFile('include', included_file))
-        return config_files
-
     def get_filename(self):
         """
         Get the default filename for the backup.info file based on
         backup ID and server directory for base backups
         """
         return os.path.join(self.get_basebackup_directory(), 'backup.info')
-
-    def set_attribute(self, key, value):
-        """
-        Set a value for a given key
-        """
-        setattr(self, key, value)
 
     def save(self, filename=None, file_object=None):
         if not file_object:
@@ -645,54 +710,5 @@ class BackupInfo(FieldListFile):
             dir_name = os.path.dirname(filename)
             if not os.path.exists(dir_name):
                 os.makedirs(dir_name)
-        super(BackupInfo, self).save(filename=filename,
-                                     file_object=file_object)
-
-    def to_dict(self):
-        """
-        Return the backup_info content as a simple dictionary
-
-        :return dict:
-        """
-        result = dict(self.items())
-        result.update(backup_id=self.backup_id, server_name=self.server_name,
-                      mode=self.mode, tablespaces=self.tablespaces,
-                      included_files=self.included_files,
-                      copy_stats=self.copy_stats)
-        return result
-
-    def to_json(self):
-        """
-        Return an equivalent dictionary that uses only json-supported types
-        """
-        data = self.to_dict()
-        # Convert fields which need special types not supported by json
-        if data.get('tablespaces') is not None:
-            data['tablespaces'] = [list(item)
-                                   for item in data['tablespaces']]
-        if data.get('begin_time') is not None:
-            data['begin_time'] = data['begin_time'].ctime()
-        if data.get('end_time') is not None:
-            data['end_time'] = data['end_time'].ctime()
-        return data
-
-    @classmethod
-    def from_json(cls, server, json_backup_info):
-        """
-        Factory method that builds a BackupInfo object
-        from a json dictionary
-
-        :param barman.Server server: the server related to the Backup
-        :param dict json_backup_info: the data set containing values from json
-        """
-        data = dict(json_backup_info)
-        # Convert fields which need special types not supported by json
-        if data.get('tablespaces') is not None:
-            data['tablespaces'] = [Tablespace._make(item)
-                                   for item in data['tablespaces']]
-        if data.get('begin_time') is not None:
-            data['begin_time'] = load_datetime_tz(data['begin_time'])
-        if data.get('end_time') is not None:
-            data['end_time'] = load_datetime_tz(data['end_time'])
-        # Instantiate a BackupInfo object using the converted fields
-        return cls(server, **data)
+        super(LocalBackupInfo, self).save(filename=filename,
+                                          file_object=file_object)

@@ -37,7 +37,7 @@ from testing_helpers import (build_backup_directories, build_backup_manager,
 class TestBackup(object):
 
     @patch('barman.backup.datetime')
-    @patch('barman.backup.BackupInfo')
+    @patch('barman.backup.LocalBackupInfo')
     @patch('barman.backup.BackupManager.get_last_backup_id')
     def test_backup_maximum_age(self, backup_id_mock, infofile_mock,
                                 datetime_mock):
@@ -84,7 +84,7 @@ class TestBackup(object):
             backup_manager.config.last_backup_maximum_age)
         assert (r[0], r[1]) == (True, msg)
 
-    @patch('barman.backup.BackupInfo')
+    @patch('barman.backup.LocalBackupInfo')
     def test_keyboard_interrupt(self, mock_infofile):
         """
         Unit test for a quick check on exception catching
