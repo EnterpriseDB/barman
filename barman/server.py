@@ -227,7 +227,15 @@ class Server(RemoteStatusMixin):
         if not self.passive_node:
             # Initialize the main PostgreSQL connection
             try:
-                self.postgres = PostgreSQLConnection(config)
+                # Check that 'conninfo' option is properly set
+                if config.conninfo is None:
+                    raise ConninfoException(
+                        "Missing 'conninfo' parameter for server '%s'" %
+                        config.name)
+                self.postgres = PostgreSQLConnection(
+                    config.conninfo,
+                    config.immediate_checkpoint,
+                    config.slot_name)
             # If the PostgreSQLConnection creation fails, disable the Server
             except ConninfoException as e:
                 self.config.disabled = True
@@ -238,7 +246,13 @@ class Server(RemoteStatusMixin):
             # backup_method is postgres or the streaming_archiver is in use
             if config.backup_method == 'postgres' or config.streaming_archiver:
                 try:
-                    self.streaming = StreamingConnection(config)
+                    if config.streaming_conninfo is None:
+                        raise ConninfoException(
+                            "Missing 'streaming_conninfo' parameter for "
+                            "server '%s'"
+                            % config.name)
+                    self.streaming = StreamingConnection(
+                        config.streaming_conninfo)
                 # If the StreamingConnection creation fails, disable the server
                 except ConninfoException as e:
                     self.config.disabled = True

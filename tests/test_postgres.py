@@ -438,7 +438,7 @@ class TestPostgres(object):
         cursor_mock.execute.assert_called_once_with(
             'SELECT pgespresso_start_backup(%s,%s) AS backup_label, '
             'now() AS timestamp',
-            (backup_label, server.postgres.config.immediate_checkpoint)
+            (backup_label, server.config.immediate_checkpoint)
         )
         conn.return_value.rollback.assert_has_calls([call(), call()])
         # reset the mock for the next test

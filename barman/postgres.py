@@ -82,16 +82,13 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
     CHECK_QUERY = 'SELECT 1'
 
-    def __init__(self, config, conninfo):
+    def __init__(self, conninfo):
         """
         Abstract base class constructor for PostgreSQL interface.
 
-        :param barman.config.ServerConfig config: the server configuration
         :param str conninfo: Connection information (aka DSN)
         """
         super(PostgreSQL, self).__init__()
-        assert conninfo
-        self.config = config
         self.conninfo = conninfo
         self._conn = None
         self.allow_reconnect = True
@@ -268,19 +265,14 @@ class StreamingConnection(PostgreSQL):
 
     CHECK_QUERY = 'IDENTIFY_SYSTEM'
 
-    def __init__(self, config):
+    def __init__(self, conninfo):
         """
         Streaming connection constructor
 
-        :param barman.config.ServerConfig config: the server configuration
+        :param str conninfo: Connection information (aka DSN)
         """
-        if config.streaming_conninfo is None:
-            raise ConninfoException(
-                "Missing 'streaming_conninfo' parameter for server '%s'"
-                % config.name)
+        super(StreamingConnection, self).__init__(conninfo)
 
-        super(StreamingConnection, self).__init__(config,
-                                                  config.streaming_conninfo)
         # Make sure we connect using the 'replication' option which
         # triggers streaming replication protocol communication
         self.conn_parameters['replication'] = 'true'
@@ -411,17 +403,18 @@ class PostgreSQLConnection(PostgreSQL):
     WALSTREAMER = 2
     ANY_STREAMING_CLIENT = (STANDBY, WALSTREAMER)
 
-    def __init__(self, config):
+    def __init__(self, conninfo, immediate_checkpoint=False, slot_name=None):
         """
         PostgreSQL connection constructor.
 
-        :param barman.config.ServerConfig config: the server configuration
+        :param str conninfo: Connection information (aka DSN)
+        :param bool immediate_checkpoint: Whether to do an immediate checkpoint
+           when start a backup
+        :param str|None slot_name: Replication slot name
         """
-        # Check that 'conninfo' option is properly set
-        if config.conninfo is None:
-            raise ConninfoException(
-                "Missing 'conninfo' parameter for server '%s'" % config.name)
-        super(PostgreSQLConnection, self).__init__(config, config.conninfo)
+        super(PostgreSQLConnection, self).__init__(conninfo)
+        self.immediate_checkpoint = immediate_checkpoint
+        self.slot_name = slot_name
         self.configuration_files = None
 
     def connect(self):
@@ -800,9 +793,9 @@ class PostgreSQLConnection(PostgreSQL):
             result["replication_slot_support"] = False
             if self.server_version >= 90400:
                 result["replication_slot_support"] = True
-                if self.config.slot_name is not None:
+                if self.slot_name is not None:
                     result["replication_slot"] = (
-                        self.get_replication_slot(self.config.slot_name))
+                        self.get_replication_slot(self.slot_name))
 
             # Retrieve the list of synchronous standby names
             result["synchronous_standby_names"] = []
@@ -966,7 +959,7 @@ class PostgreSQLConnection(PostgreSQL):
                     "now() AS timestamp "
                     "FROM pg_start_backup(%s,%s) AS location"
                     .format(**self.name_map),
-                    (label, self.config.immediate_checkpoint))
+                    (label, self.immediate_checkpoint))
 
             start_row = cur.fetchone()
 
@@ -1009,7 +1002,7 @@ class PostgreSQLConnection(PostgreSQL):
                 "FROM pg_control_checkpoint()) AS timeline, "
                 "now() AS timestamp "
                 "FROM pg_start_backup(%s, %s, FALSE) AS location",
-                (label, self.config.immediate_checkpoint))
+                (label, self.immediate_checkpoint))
             start_row = cur.fetchone()
 
             # Rollback to release the transaction, as the connection
@@ -1126,7 +1119,7 @@ class PostgreSQLConnection(PostgreSQL):
             cur.execute(
                 'SELECT pgespresso_start_backup(%s,%s) AS backup_label, '
                 'now() AS timestamp',
-                (label, self.config.immediate_checkpoint))
+                (label, self.immediate_checkpoint))
 
             start_row = cur.fetchone()
 

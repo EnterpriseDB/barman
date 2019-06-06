@@ -198,7 +198,7 @@ def backup_completer(prefix, parsed_args, **kwargs):
      action='store_true',
      default=SUPPRESS)
 @arg('--no-immediate-checkpoint',
-     help='forces the initial checkpoint to be spreaded',
+     help='forces the initial checkpoint to be spread',
      dest='immediate_checkpoint',
      action='store_false',
      default=SUPPRESS)
