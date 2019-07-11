@@ -17,11 +17,12 @@
 
 import mock
 import pytest
+import json
 
 from barman import output
 from barman.infofile import BackupInfo
 from barman.utils import pretty_size
-from testing_helpers import build_test_backup_info, mock_backup_ext_info
+from testing_helpers import build_test_backup_info, mock_backup_ext_info, find_by_attr
 
 # Color output constants
 RED = '\033[31m'
@@ -1164,6 +1165,570 @@ class TestConsoleWriter(object):
         writer.result_status(server, name, description, message)
         (out, err) = capsys.readouterr()
         assert out == '\t%s: %s\n' % (description, message)
+        assert err == ''
+
+
+# noinspection PyMethodMayBeStatic
+class TestJsonWriter(object):
+
+    def test_debug(self, capsys):
+        writer = output.JsonOutputWriter(debug=True)
+
+        msg = 'test message'
+        msg2 = 'second message'
+
+        writer.debug(msg)
+        writer.debug(msg2)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg in json_output['_DEBUG']
+        assert msg2 in json_output['_DEBUG']
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.debug(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_DEBUG']
+        assert err == ''
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.debug(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_DEBUG']
+        assert err == ''
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.debug(msg, kwargs)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % kwargs in json_output['_DEBUG']
+        assert err == ''
+
+    def test_debug_disabled(self, capsys):
+        writer = output.JsonOutputWriter(debug=False)
+
+        msg = 'test message'
+        writer.debug(msg)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert out == '{}\n'
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.debug(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == '{}\n'
+        assert err == ''
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.debug(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == '{}\n'
+        assert err == ''
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.debug(msg, kwargs)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == '{}\n'
+        assert err == ''
+
+    def test_info_verbose(self, capsys):
+        writer = output.JsonOutputWriter(quiet=False)
+
+        msg = 'test message'
+        msg2 = 'second message'
+        writer.info(msg)
+        writer.info(msg2)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg in json_output['_INFO']
+        assert msg2 in json_output['_INFO']
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.info(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_INFO']
+        assert err == ''
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.info(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_INFO']
+        assert err == ''
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.info(msg, kwargs)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % kwargs in json_output['_INFO']
+        assert err == ''
+
+    def test_info_quiet(self, capsys):
+        writer = output.JsonOutputWriter(quiet=True)
+
+        msg = 'test message'
+        writer.info(msg)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.info(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.info(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.info(msg, kwargs)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        assert out == ''
+        assert err == ''
+
+    def test_warning(self, capsys):
+        writer = output.JsonOutputWriter()
+
+        msg = 'test message'
+        msg2 = 'second message'
+
+        writer.warning(msg)
+        writer.warning(msg2)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg in json_output['_WARNING']
+        assert msg2 in json_output['_WARNING']
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.warning(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_WARNING']
+        assert err == ''
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.warning(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_WARNING']
+        assert err == ''
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.warning(msg, kwargs)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % kwargs in json_output['_WARNING']
+        assert err == ''
+
+    def test_error(self, capsys):
+        writer = output.JsonOutputWriter()
+
+        msg = 'test message'
+        msg2 = 'second message'
+        writer.error(msg)
+        writer.error(msg2)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg in json_output['_ERROR']
+        assert msg2 in json_output['_ERROR']
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.error(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_ERROR']
+        assert err == ''
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.error(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_ERROR']
+        assert err == ''
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.error(msg, kwargs)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % kwargs in json_output['_ERROR']
+        assert err == ''
+
+    def test_exception(self, capsys):
+        writer = output.JsonOutputWriter()
+
+        msg = 'test message'
+        msg2 = 'second message'
+        writer.exception(msg)
+        writer.exception(msg2)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg in json_output['_EXCEPTION']
+        assert msg2 in json_output['_EXCEPTION']
+        assert err == ''
+
+        msg = 'test arg %s'
+        args = ('1st',)
+        writer.exception(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_EXCEPTION']
+        assert err == ''
+
+        msg = 'test args %d %s'
+        args = (1, 'two')
+        writer.exception(msg, *args)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % args in json_output['_EXCEPTION']
+        assert err == ''
+
+        msg = 'test kwargs %(num)d %(string)s'
+        kwargs = dict(num=1, string='two')
+        writer.exception(msg, kwargs)
+        writer.close()
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert msg % kwargs in json_output['_EXCEPTION']
+        assert err == ''
+
+    def test_init_check(self, capsys):
+        writer = output.JsonOutputWriter()
+
+        server = 'test'
+
+        writer.init_check(server, True)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert server in json_output
+        assert err == ''
+
+    def test_result_check_ok(self, capsys):
+        writer = output.JsonOutputWriter()
+        output.error_occurred = False
+
+        server = 'test'
+        check = 'test check'
+
+        writer.init_check(server, active=True)
+        writer.result_check(server, check, True)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert 'OK' == json_output[server][check.replace(' ', '_')]['status']
+        assert err == ''
+        assert not output.error_occurred
+
+    def test_result_check_ok_hint(self, capsys):
+        writer = output.JsonOutputWriter()
+        output.error_occurred = False
+
+        server = 'test'
+        check = 'test check'
+        hint = 'do something'
+
+        writer.init_check(server, active=True)
+        writer.result_check(server, check, True, hint)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert 'OK' == json_output[server][check.replace(' ', '_')]['status']
+        assert hint == json_output[server][check.replace(' ', '_')]['hint']
+        assert err == ''
+        assert not output.error_occurred
+
+    def test_result_check_failed(self, capsys):
+        writer = output.JsonOutputWriter()
+        output.error_occurred = False
+
+        server = 'test'
+        check = 'test check'
+
+        writer.init_check(server, active=True)
+        writer.result_check(server, check, False)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert 'FAILED' == json_output[server][check.replace(' ', '_')]['status']
+        assert err == ''
+        assert output.error_occurred
+
+        # Test an inactive server
+        # Shows error, but does not change error_occurred
+        output.error_occurred = False
+        writer.init_check(server, active=False)
+        writer.result_check(server, check, False)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert 'FAILED' == json_output[server][check.replace(' ', '_')]['status']
+        assert err == ''
+        assert not output.error_occurred
+
+    def test_result_check_failed_hint(self, capsys):
+        writer = output.JsonOutputWriter()
+        output.error_occurred = False
+
+        server = 'test'
+        check = 'test check'
+        hint = 'do something'
+
+        writer.init_check(server, active=True)
+        writer.result_check(server, check, False, hint)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert 'FAILED' == json_output[server][check.replace(' ', '_')]['status']
+        assert hint == json_output[server][check.replace(' ', '_')]['hint']
+        assert err == ''
+        assert output.error_occurred
+
+    def test_init_list_backup(self, capsys):
+        writer = output.JsonOutputWriter()
+
+        server_name = 'test server'
+        writer.init_list_backup(server_name)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert not writer.minimal
+        assert server_name in json_output
+
+        writer.init_list_backup(server_name, True)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert writer.minimal
+        assert server_name in json_output
+
+    def test_result_list_backup(self, capsys):
+        # mock the backup info
+        bi = build_test_backup_info()
+        backup_size = 12345
+        wal_size = 54321
+        retention_status = 'test status'
+
+        writer = output.JsonOutputWriter()
+
+        # test minimal
+        writer.init_list_backup(bi.server_name, True)
+        writer.result_list_backup(bi, backup_size, wal_size, retention_status)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert writer.minimal
+        assert bi.backup_id in json_output[bi.server_name]
+        assert err == ''
+
+        # test status=DONE output
+        writer.init_list_backup(bi.server_name, False)
+        writer.result_list_backup(bi, backup_size, wal_size, retention_status)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert not writer.minimal
+        assert bi.server_name in json_output
+
+        backup = find_by_attr(json_output[bi.server_name], 'backup_id', bi.backup_id)
+        assert bi.backup_id == backup['backup_id']
+        assert str(bi.end_time.ctime()) == backup['end_time']
+        for name, _, location in bi.tablespaces:
+            tablespace = find_by_attr(backup['tablespaces'], 'name', name)
+            assert name == tablespace['name']
+            assert location == tablespace['location']
+        assert pretty_size(backup_size) == backup['size']
+        assert pretty_size(wal_size) == backup['wal_size']
+        assert err == ''
+
+        # test status = FAILED output
+        bi = build_test_backup_info(status=BackupInfo.FAILED)
+        writer.init_list_backup(bi.server_name, False)
+        writer.result_list_backup(bi, backup_size, wal_size, retention_status)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert not writer.minimal
+        assert bi.server_name in json_output
+        backup = find_by_attr(json_output[bi.server_name], 'backup_id', bi.backup_id)
+        assert bi.backup_id == backup['backup_id']
+        assert bi.status == backup['status']
+
+    def test_result_show_backup(self, capsys):
+        # mock the backup ext info
+        wal_per_second = 0.01
+        ext_info = mock_backup_ext_info(status=BackupInfo.DONE,
+                                        wals_per_second=wal_per_second)
+        server_name = ext_info['server_name']
+
+        writer = output.JsonOutputWriter()
+        writer.result_show_backup(ext_info)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert server_name in json_output
+        assert ext_info['backup_id'] == json_output[server_name]['backup_id']
+        assert ext_info['status'] == json_output[server_name]['status']
+        assert str(ext_info['end_time']) == json_output[server_name]['base_backup_information']['end_time']
+
+        for name, _, location in ext_info['tablespaces']:
+            tablespace = find_by_attr(json_output[server_name]['tablespaces'], 'name', name)
+            assert name == tablespace['name']
+            assert location == tablespace['location']
+
+        assert (pretty_size(ext_info['size'] + ext_info['wal_size'])) == json_output[server_name]['base_backup_information']['disk_usage_with_wals']
+        assert (pretty_size(ext_info['wal_until_next_size'])) == json_output[server_name]['wal_information']['disk_usage']
+        assert "%0.2f/hour" % (wal_per_second * 3600) == json_output[server_name]['wal_information']['wal_rate']
+
+        assert err == ''
+
+    def test_result_show_backup_error(self, capsys):
+        # mock the backup ext info
+        msg = 'test error message'
+        ext_info = mock_backup_ext_info(status=BackupInfo.FAILED, error=msg)
+        server_name = ext_info['server_name']
+
+        writer = output.JsonOutputWriter()
+        writer.result_show_backup(ext_info)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert server_name in json_output
+        assert ext_info['backup_id'] == json_output[server_name]['backup_id']
+        assert ext_info['status'] == json_output[server_name]['status']
+        assert 'base_backup_information' not in json_output[server_name]
+        assert msg == json_output[server_name]['error']
+        assert err == ''
+
+    def test_init_status(self, capsys):
+        writer = output.JsonOutputWriter()
+
+        server = 'test'
+
+        writer.init_status(server)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert server in json_output
+        assert err == ''
+
+
+    def test_result_status(self, capsys):
+        writer = output.JsonOutputWriter()
+
+        server = 'test'
+        name = 'test name'
+        description = 'test description'
+        message = 'test message'
+
+        writer.init_status(server)
+        writer.result_status(server, name, description, message)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+        assert message == json_output[server][description.replace(' ', '_')]
+        assert err == ''
+
+    def test_result_status_non_str(self, capsys):
+        writer = output.JsonOutputWriter()
+
+        server = 'test'
+        name = 'test name'
+        description = 'test description'
+        message = 1
+
+        writer.init_status(server)
+        writer.result_status(server, name, description, message)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert message == json_output[server][description.replace(' ', '_')]
         assert err == ''
 
 

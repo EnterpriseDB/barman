@@ -404,6 +404,12 @@ def parse_recovery_conf(recovery_conf_file):
     return recovery_conf
 
 
+def find_by_attr(list, attr, value):
+  for element in list:
+    if element[attr] == value:
+      return element
+
+
 # The following two functions are useful to create bytes/unicode strings
 # in Python 2 and in Python 3 with the same syntax.
 if sys.version_info[0] >= 3:

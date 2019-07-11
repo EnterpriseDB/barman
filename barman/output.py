@@ -25,6 +25,7 @@ import datetime
 import inspect
 import logging
 import sys
+import json
 
 from barman.infofile import BackupInfo
 from barman.utils import human_readable_timedelta, pretty_size
@@ -34,7 +35,7 @@ __all__ = [
     'error_occurred', 'debug', 'info', 'warning', 'error', 'exception',
     'result', 'close_and_exit', 'close', 'set_output_writer',
     'AVAILABLE_WRITERS', 'DEFAULT_WRITER', 'ConsoleOutputWriter',
-    'NagiosOutputWriter',
+    'NagiosOutputWriter', 'JsonOutputWriter'
 ]
 
 #: True if error or exception methods have been called
@@ -993,6 +994,684 @@ class ConsoleOutputWriter(object):
             self.info("\t%s: %s", status, message)
 
 
+class JsonOutputWriter(object):
+    def __init__(self, debug=False, quiet=False):
+        """
+        Default output writer that output everything on console.
+
+        :param bool debug: print debug messages on standard error
+        :param bool quiet: don't print info messages
+        """
+        self._debug = debug
+        self._quiet = quiet
+
+        #: Used in check command to hold the check results
+        self.result_check_list = []
+
+        #: Used in status command to hold the status results
+        self.result_status_list = []
+
+        #: The minimal flag. If set the command must output a single list of
+        #: values.
+        self.minimal = False
+
+        #: The server is active
+        self.active = True
+
+        #: Store JSON data
+        self.json_output = {}
+
+    def _print(self, message, args, stream):
+        """
+        Print an encoded message on the given output stream
+        """
+        # Make sure to add a newline at the end of the message
+        if message is None:
+            message = '\n'
+        else:
+            message += '\n'
+        # Format and encode the message
+        encoded_msg = _format_message(message, args).encode('utf-8')
+        try:
+            # Python 3.x
+            stream.buffer.write(encoded_msg)
+        except AttributeError:
+            # Python 2.x
+            stream.write(encoded_msg)
+        stream.flush()
+
+    def _out(self, message, args):
+        """
+        Print a message on standard output
+        """
+        self._print(message, args, sys.stdout)
+
+    def _err(self, message, args):
+        """
+        Print a message on standard output (not error!)
+        """
+        self._print(message, args, sys.stdout)
+
+    def is_quiet(self):
+        """
+        Access the quiet property of the OutputWriter instance
+
+        :return bool: if the writer is quiet or not
+        """
+        return self._quiet
+
+    def is_debug(self):
+        """
+        Access the debug property of the OutputWriter instance
+
+        :return bool: if the writer is in debug mode or not
+        """
+        return self._debug
+
+    def debug(self, message, *args):
+        """
+        Emit debug.
+        """
+        if self._debug:
+            if '_DEBUG' not in self.json_output:
+                self.json_output['_DEBUG'] = []
+
+            message = _format_message(message, args)
+            self.json_output['_DEBUG'].append(message)
+
+    def info(self, message, *args):
+        """
+        Normal messages are sent to standard output
+        """
+        # Support for sync-status command which is JSON already
+        try:
+            message = json.loads(message)
+            self.json_output = message
+            self.close()
+        except json.decoder.JSONDecodeError:
+            pass
+
+        if '_INFO' not in self.json_output:
+            self.json_output['_INFO'] = []
+        message = _format_message(message, args)
+        self.json_output['_INFO'].append(message)
+
+    def warning(self, message, *args):
+        """
+        Warning messages are sent to standard error
+        """
+        if '_WARNING' not in self.json_output:
+            self.json_output['_WARNING'] = []
+
+        message = _format_message(message, args)
+        self.json_output['_WARNING'].append(message)
+
+    def error(self, message, *args):
+        """
+        Error messages are sent to standard error
+        """
+        if '_ERROR' not in self.json_output:
+            self.json_output['_ERROR'] = []
+
+        message = _format_message(message, args)
+        self.json_output['_ERROR'].append(message)
+
+    def exception(self, message, *args):
+        """
+        Warning messages are sent to standard error
+        """
+        if '_EXCEPTION' not in self.json_output:
+            self.json_output['_EXCEPTION'] = []
+
+        message = _format_message(message, args)
+        self.json_output['_EXCEPTION'].append(message)
+
+    def error_occurred(self):
+        """
+        Called immediately before any message method when the originating
+        call has is_error=True
+        """
+
+    def close(self):
+        """
+        Close the output channel.
+        Print JSON output
+        """
+        if not self._quiet:
+            self._out(json.dumps(self.json_output), [])
+        self.json_output = {}
+
+    def result_backup(self, backup_info):
+        """
+        Render the result of a backup.
+
+        Nothing to do for console.
+        """
+        # TODO: evaluate to display something useful here
+
+    def result_recovery(self, results):
+        """
+        Render the result of a recovery.
+
+        """
+        changes_count = len(results['changes'])
+        self.json_output['changes_count'] = changes_count
+        self.json_output['changes'] = []
+
+        if changes_count > 0:
+            self.warning("IMPORTANT! Some settings have been modified to prevent "
+                      "data losses. See 'changes' key.")
+
+            for assertion in results['changes']:
+                self.json_output['changes'].append(dict(
+                    filename=assertion.filename,
+                    line=assertion.line,
+                    key=assertion.key,
+                    value=assertion.value
+                ))
+
+        warnings_count = len(results['warnings'])
+        self.json_output['warnings_count'] = warnings_count
+        self.json_output['warnings'] = []
+
+        if warnings_count > 0:
+            self.warning("WARNING! You are required to review the options"
+                      " as potentially dangerous. See 'warnings' key.")
+
+            for assertion in results['warnings']:
+                self.json_output['warnings'].append(dict(
+                    filename=assertion.filename,
+                    line=assertion.line,
+                    key=assertion.key,
+                    value=assertion.value
+                ))
+
+        missing_files_count = len(results['missing_files'])
+        self.json_output['missing_files'] = []
+
+        if missing_files_count > 0:
+            # At least one file is missing, warn the user
+            self.warning("WARNING! Some configuration files have not been "
+                    "saved during backup, hence they have not been "
+                    "restored. See 'missing_files' key.")
+
+            for file_name in results['missing_files']:
+                self.json_output['missing_files'].append(file_name)
+
+        if results['delete_barman_xlog']:
+            self.warning("After the recovery, please remember to remove the "
+                    "'barman_xlog' directory inside the PostgreSQL data directory.")
+
+        if results['get_wal']:
+            self.warning("WARNING: 'get-wal' is in the specified 'recovery_options'. "
+                    "Before you start up the PostgreSQL server, please "
+                    "review the recovery.conf file "
+                    "inside the target directory. Make sure that "
+                    "'restore_command' can be executed by "
+                    "the PostgreSQL user.")
+
+        self.json_output.update(dict(
+            recovery_start_time=results['recovery_start_time'].isoformat(sep=' '),
+            recovery_start_time_timestamp=results['recovery_start_time'].timestamp(),
+            recovery_elapsed_time=human_readable_timedelta(datetime.datetime.now() - results['recovery_start_time']),
+            recovery_elapsed_time_seconds=(datetime.datetime.now() - results['recovery_start_time']).total_seconds()
+        ))
+
+    def _record_check(self, server_name, check, status, hint):
+        """
+        Record the check line in result_check_map attribute
+
+        This method is for subclass use
+
+        :param str server_name: the server is being checked
+        :param str check: the check name
+        :param bool status: True if succeeded
+        :param str,None hint: hint to print if not None
+        """
+        self.result_check_list.append(dict(
+            server_name=server_name, check=check, status=status, hint=hint))
+        if not status and self.active:
+            global error_occurred
+            error_occurred = True
+
+    def init_check(self, server_name, active):
+        """
+        Init the check command
+
+        :param str server_name: the server we are start listing
+        :param boolean active: The server is active
+        """
+        self.json_output[server_name] = {}
+        self.active = active
+
+    def result_check(self, server_name, check, status, hint=None):
+        """
+        Record a server result of a server check
+
+        and output it as INFO
+
+        :param str server_name: the server is being checked
+        :param str check: the check name
+        :param bool status: True if succeeded
+        :param str,None hint: hint to print if not None
+        """
+        self._record_check(server_name, check, status, hint)
+        check = check.lower() \
+            .replace(' ', '_') \
+            .replace('-', '_') \
+            .replace('.', '')
+
+        self.json_output[server_name][check] = dict(
+            status="OK" if status else "FAILED",
+            hint=hint if hint else ""
+        )
+
+    def init_list_backup(self, server_name, minimal=False):
+        """
+        Init the list-backup command
+
+        :param str server_name: the server we are start listing
+        :param bool minimal: if true output only a list of backup id
+        """
+        self.minimal = minimal
+        self.json_output[server_name] = []
+
+    def result_list_backup(self, backup_info,
+                           backup_size, wal_size,
+                           retention_status):
+        """
+        Output a single backup in the list-backup command
+
+        :param BackupInfo backup_info: backup we are displaying
+        :param backup_size: size of base backup (with the required WAL files)
+        :param wal_size: size of WAL files belonging to this backup
+            (without the required WAL files)
+        :param retention_status: retention policy status
+        """
+        server_name = backup_info.server_name
+
+        # If minimal is set only output the backup id
+        if self.minimal:
+            self.json_output[server_name].append(backup_info.backup_id)
+            return
+
+        output = dict(
+            backup_id=backup_info.backup_id,
+        )
+
+        if backup_info.status in BackupInfo.STATUS_COPY_DONE:
+            output.update(dict(
+                end_time_timestamp=backup_info.end_time.timestamp(),
+                end_time=backup_info.end_time.ctime(),
+                size_bytes=backup_size,
+                wal_size_bytes=wal_size,
+                size=pretty_size(backup_size),
+                wal_size=pretty_size(wal_size),
+                status=backup_info.status,
+                retention_status=retention_status or BackupInfo.NONE
+            ))
+            output['tablespaces'] = []
+            if backup_info.tablespaces:
+                for tablespace in backup_info.tablespaces:
+                    output['tablespaces'].append(dict(
+                        name=tablespace.name,
+                        location=tablespace.location
+                    ))
+        else:
+            output.update(dict(
+                status=backup_info.status
+            ))
+
+        self.json_output[server_name].append(output)
+
+    def result_show_backup(self, backup_ext_info):
+        """
+        Output all available information about a backup in show-backup command
+
+        The argument has to be the result
+        of a Server.get_backup_ext_info() call
+
+        :param dict backup_ext_info: a dictionary containing
+            the info to display
+        """
+        data = dict(backup_ext_info)
+        server_name = data['server_name']
+
+        output = self.json_output[server_name] = dict(
+            backup_id=data['backup_id'],
+            status=data['status']
+        )
+
+        if data['status'] in BackupInfo.STATUS_COPY_DONE:
+            self.json_output[server_name].update(dict(
+                postgresql_version=data['version'],
+                pgdata_directory=data['pgdata'],
+                tablespaces=[]
+            ))
+            if data['tablespaces']:
+                for item in data['tablespaces']:
+                    self.json_output[server_name]['tablespaces'].append(dict(
+                        name=item.name,
+                        location=item.location,
+                        oid=item.oid
+                    ))
+            self.json_output[server_name]['base_backup_information'] = dict(
+                disk_usage=pretty_size(data['size']),
+                disk_usage_bytes=data['size'],
+                disk_usage_with_wals=pretty_size(data['size'] + data['wal_size']),
+                disk_usage_with_wals_bytes=data['size'] + data['wal_size']
+            )
+            if data['deduplicated_size'] is not None and data['size'] > 0:
+                deduplication_ratio = (1 - (float(data['deduplicated_size']) / data['size']))
+                self.json_output[server_name]['base_backup_information'].update(dict(
+                    incremental_size=pretty_size(data['deduplicated_size']),
+                    incremental_size_bytes=data['deduplicated_size'],
+                    incremental_size_ratio='-{percent:.2%}'.format(percent=deduplication_ratio)
+                ))
+            self.json_output[server_name]['base_backup_information'].update(dict(
+                timeline=data['timeline'],
+                begin_wal=data['begin_wal'],
+                end_wal=data['end_wal']
+            ))
+            if data['wal_compression_ratio'] > 0:
+                self.json_output[server_name]['base_backup_information'].update(dict(
+                    wal_compression_ratio='{percent:.2%}'.format(percent=data['wal_compression_ratio'])
+                ))
+            self.json_output[server_name]['base_backup_information'].update(dict(
+                begin_time_timestamp=data['begin_time'].timestamp(),
+                begin_time=data['begin_time'].isoformat(sep=' '),
+                end_time_timestamp=data['end_time'].timestamp(),
+                end_time=data['end_time'].isoformat(sep=' ')
+            ))
+            copy_stats = data.get('copy_stats')
+            if copy_stats:
+                copy_time = copy_stats.get('copy_time')
+                analysis_time = copy_stats.get('analysis_time', 0)
+                if copy_time:
+                    self.json_output[server_name]['base_backup_information'].update(dict(
+                        copy_time=human_readable_timedelta(datetime.timedelta(seconds=copy_time)),
+                        copy_time_seconds=copy_time,
+                        analysis_time=human_readable_timedelta(datetime.timedelta(seconds=analysis_time)),
+                        analysis_time_seconds=analysis_time
+                    ))
+                    size = data['deduplicated_size'] or data['size']
+                    self.json_output[server_name]['base_backup_information'].update(dict(
+                        throughput="%s/s" % pretty_size(size / copy_time),
+                        throughput_bytes=size / copy_time,
+                        number_of_workers=copy_stats.get('number_of_workers', 1)
+                    ))
+
+            self.json_output[server_name]['base_backup_information'].update(dict(
+                begin_offset=data['begin_offset'],
+                end_offset=data['end_offset'],
+                begin_lsn=data['begin_xlog'],
+                end_lsn=data['end_xlog']
+            ))
+
+            self.json_output[server_name]['wal_information'] = dict(
+                no_of_files=data['wal_until_next_num'],
+                disk_usage=pretty_size(data['wal_until_next_size']),
+                disk_usage_bytes=data['wal_until_next_size'],
+                wal_rate=0,
+                wal_rate_per_second=0,
+                compression_ratio=0,
+                last_available=data['wal_last'],
+                timelines=[]
+            )
+
+            if data['wals_per_second'] > 0:
+                self.json_output[server_name]['wal_information']['wal_rate']="%0.2f/hour" % (data['wals_per_second'] * 3600)
+                self.json_output[server_name]['wal_information']['wal_rate_per_second']=data['wals_per_second']
+            if data['wal_until_next_compression_ratio'] > 0:
+                self.json_output[server_name]['wal_information']['compression_ratio']='{percent:.2%}'.format(
+                    percent=data['wal_until_next_compression_ratio'])
+            if data['children_timelines']:
+                self.json_output[server_name]['wal_information']['_WARNING'] = "WAL information is inaccurate due to multiple timelines interacting with this backup"
+                for history in data['children_timelines']:
+                    self.json_output[server_name]['wal_information']['timelines'].append(str(history.tli))
+
+            previous_backup_id = data.setdefault('previous_backup_id', 'not available')
+            next_backup_id = data.setdefault('next_backup_id', 'not available')
+
+            self.json_output[server_name]['catalog_information'] = dict(
+                retention_policy=data['retention_policy_status'] or 'not enforced',
+                previous_backup=previous_backup_id or '- (this is the oldest base backup)',
+                next_backup=next_backup_id or '- (this is the latest base backup)'
+            )
+
+        else:
+            if data['error']:
+                self.json_output[server_name]['error'] = data['error']
+
+    def init_status(self, server_name):
+        """
+        Init the status command
+
+        :param str server_name: the server we are start listing
+        """
+        if not hasattr(self, 'json_output'):
+            self.json_output = {}
+
+        self.json_output[server_name] = {}
+
+    def result_status(self, server_name, status, description, message):
+        """
+        Record a result line of a server status command
+
+        and output it as INFO
+
+        :param str server_name: the server is being checked
+        :param str status: the returned status code
+        :param str description: the returned status description
+        :param str,object message: status message. It will be converted to str
+        """
+        self.result_status_list.append(dict(
+            server_name=server_name, status=status,
+            description=description, message=str(message)))
+
+        description = description.lower().replace(' ', '_').replace('-', '_').replace('.', '')
+        self.json_output[server_name][description] = message
+
+    def init_replication_status(self, server_name, minimal=False):
+        """
+        Init the 'standby-status' command
+
+        :param str server_name: the server we are start listing
+        :param str minimal: minimal output
+        """
+        if not hasattr(self, 'json_output'):
+            self.json_output = {}
+
+        self.json_output[server_name] = {}
+
+        self.minimal = minimal
+
+    def result_replication_status(self, server_name, target, server_lsn,
+                                  standby_info):
+        """
+        Record a result line of a server status command
+
+        and output it as INFO
+
+        :param str server_name: the replication server
+        :param str target: all|hot-standby|wal-streamer
+        :param str server_lsn: server's current lsn
+        :param StatReplication standby_info: status info of a standby
+        """
+
+        if target == 'hot-standby':
+            title = 'hot standby servers'
+        elif target == 'wal-streamer':
+            title = 'WAL streamers'
+        else:
+            title = 'streaming clients'
+
+        title_key = title.lower().replace(' ', '_')
+        if title_key not in self.json_output[server_name]:
+            self.json_output[server_name][title_key] = []
+
+        self.json_output[server_name]['server_lsn'] = server_lsn if server_lsn else None
+
+        if standby_info is not None and not len(standby_info):
+            self.json_output[server_name]['standby_info'] = "No %s attached" % title
+            return
+
+        self.json_output[server_name][title_key] = []
+
+        # Minimal output
+        if self.minimal:
+            for idx, standby in enumerate(standby_info):
+                if not standby.replay_lsn:
+                    # WAL streamer
+                    self.json_output[server_name][title_key].append(dict(
+                        user_name=standby.usename,
+                        client_addr=standby.client_addr or 'socket',
+                        sent_lsn=standby.sent_lsn,
+                        write_lsn=standby.write_lsn,
+                        sync_priority=standby.sync_priority,
+                        application_name=standby.application_name
+                    ))
+                else:
+                    # Standby
+                    self.json_output[server_name][title_key].append(dict(
+                        sync_state=standby.sync_state[0].upper(),
+                        user_name=standby.usename,
+                        client_addr=standby.client_addr or 'socket',
+                        sent_lsn=standby.sent_lsn,
+                        flush_lsn=standby.flush_lsn,
+                        replay_lsn=standby.replay_lsn,
+                        sync_priority=standby.sync_priority,
+                        application_name=standby.application_name
+                    ))
+        else:
+            for idx, standby in enumerate(standby_info):
+                self.json_output[server_name][title_key].append({})
+                json_output = self.json_output[server_name][title_key][idx]
+
+                # Calculate differences in bytes
+                lsn_diff = dict(
+                    sent=diff_lsn(standby.sent_lsn, standby.current_lsn),
+                    write=diff_lsn(standby.write_lsn, standby.current_lsn),
+                    flush=diff_lsn(standby.flush_lsn, standby.current_lsn),
+                    replay=diff_lsn(standby.replay_lsn, standby.current_lsn)
+                )
+
+                # Determine the sync stage of the client
+                sync_stage = None
+                if not standby.replay_lsn:
+                    client_type = 'WAL streamer'
+                    max_level = 3
+                else:
+                    client_type = 'standby'
+                    max_level = 5
+                    # Only standby can replay WAL info
+                    if lsn_diff['replay'] == 0:
+                        sync_stage = '5/5 Hot standby (max)'
+                    elif lsn_diff['flush'] == 0:
+                        sync_stage = '4/5 2-safe'  # remote flush
+
+                # If not yet done, set the sync stage
+                if not sync_stage:
+                    if lsn_diff['write'] == 0:
+                        sync_stage = '3/%s Remote write' % max_level
+                    elif lsn_diff['sent'] == 0:
+                        sync_stage = '2/%s WAL Sent (min)' % max_level
+                    else:
+                        sync_stage = '1/%s 1-safe' % max_level
+
+                # Synchronous standby
+                if getattr(standby, 'sync_priority', None) > 0:
+                    json_output['name'] = "#%s %s %s" % (
+                        standby.sync_priority,
+                        standby.sync_state.capitalize(),
+                        client_type)
+
+                # Asynchronous standby
+                else:
+                    json_output['name'] = "%s %s" % (
+                        standby.sync_state.capitalize(),
+                        client_type)
+
+                json_output['application_name'] = standby.application_name
+                json_output['sync_stage'] = sync_stage
+
+                if getattr(standby, 'client_addr', None):
+                    json_output.update(dict(
+                        communication="TCP/IP",
+                        ip_address=standby.client_addr,
+                        port=standby.client_port,
+                        host=standby.client_hostname or None
+                    ))
+                else:
+                    json_output['communication'] = "Unix domain socket"
+
+                json_output.update(dict(
+                    user_name=standby.usename,
+                    current_state=standby.state,
+                    current_sync_state=standby.sync_state
+                ))
+
+                if getattr(standby, 'slot_name', None):
+                    json_output['replication_slot'] = standby.slot_name
+
+                json_output.update(dict(
+                    wal_sender_pid=standby.pid,
+                    started_at=standby.backend_start.isoformat(sep=' '),
+                ))
+                if getattr(standby, 'backend_xmin', None):
+                    json_output['standbys_xmin'] = standby.backend_xmin or None
+
+                for lsn in lsn_diff.keys():
+                    standby_key = lsn + '_lsn'
+                    if getattr(standby, standby_key, None):
+                        json_output.update({
+                            lsn + '_lsn': getattr(standby, standby_key),
+                            lsn + '_lsn_diff': pretty_size(lsn_diff[lsn]),
+                            lsn + '_lsn_diff_bytes': lsn_diff[lsn]
+                        })
+
+    def init_list_server(self, server_name, minimal=False):
+        """
+        Init the list-server command
+
+        :param str server_name: the server we are start listing
+        """
+        self.json_output[server_name] = {}
+        self.minimal = minimal
+
+    def result_list_server(self, server_name, description=None):
+        """
+        Output a result line of a list-server command
+
+        :param str server_name: the server is being checked
+        :param str,None description: server description if applicable
+        """
+        self.json_output[server_name] = dict(
+            description=description
+        )
+
+    def init_show_server(self, server_name):
+        """
+        Init the show-server command output method
+
+        :param str server_name: the server we are displaying
+        """
+        self.json_output[server_name] = {}
+
+    def result_show_server(self, server_name, server_info):
+        """
+        Output the results of the show-server command
+
+        :param str server_name: the server we are displaying
+        :param dict server_info: a dictionary containing the info to display
+        """
+        for status, message in sorted(server_info.items()):
+            if not isinstance(message, (int, str, bool, list, dict, type(None))):
+                message = str(message)
+
+            self.json_output[server_name][status] = message
+
+
 class NagiosOutputWriter(ConsoleOutputWriter):
     """
     Nagios output writer.
@@ -1122,6 +1801,7 @@ class NagiosOutputWriter(ConsoleOutputWriter):
 #: This dictionary acts as a registry of available OutputWriters
 AVAILABLE_WRITERS = {
     'console': ConsoleOutputWriter,
+    'json': JsonOutputWriter,
     # nagios is not registered as it isn't a general purpose output writer
     # 'nagios': NagiosOutputWriter,
 }
