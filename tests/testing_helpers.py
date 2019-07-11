@@ -405,9 +405,9 @@ def parse_recovery_conf(recovery_conf_file):
 
 
 def find_by_attr(list, attr, value):
-  for element in list:
-    if element[attr] == value:
-      return element
+    for element in list:
+        if element[attr] == value:
+            return element
 
 
 # The following two functions are useful to create bytes/unicode strings

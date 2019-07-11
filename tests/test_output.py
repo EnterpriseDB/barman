@@ -22,7 +22,8 @@ import json
 from barman import output
 from barman.infofile import BackupInfo
 from barman.utils import pretty_size
-from testing_helpers import build_test_backup_info, mock_backup_ext_info, find_by_attr
+from testing_helpers import build_test_backup_info, mock_backup_ext_info
+from testing_helpers import find_by_attr
 
 # Color output constants
 RED = '\033[31m'
@@ -1220,7 +1221,6 @@ class TestJsonWriter(object):
         writer.debug(msg)
         writer.close()
         (out, err) = capsys.readouterr()
-        json_output = json.loads(out)
         assert out == '{}\n'
         assert err == ''
 
@@ -1513,7 +1513,8 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        assert 'FAILED' == json_output[server][check.replace(' ', '_')]['status']
+        check_key = check.replace(' ', '_')
+        assert 'FAILED' == json_output[server][check_key]['status']
         assert err == ''
         assert output.error_occurred
 
@@ -1527,7 +1528,8 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        assert 'FAILED' == json_output[server][check.replace(' ', '_')]['status']
+        check_key = check.replace(' ', '_')
+        assert 'FAILED' == json_output[server][check_key]['status']
         assert err == ''
         assert not output.error_occurred
 
@@ -1546,8 +1548,9 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        assert 'FAILED' == json_output[server][check.replace(' ', '_')]['status']
-        assert hint == json_output[server][check.replace(' ', '_')]['hint']
+        check_key = check.replace(' ', '_')
+        assert 'FAILED' == json_output[server][check_key]['status']
+        assert hint == json_output[server][check_key]['hint']
         assert err == ''
         assert output.error_occurred
 
@@ -1605,7 +1608,8 @@ class TestJsonWriter(object):
         assert not writer.minimal
         assert bi.server_name in json_output
 
-        backup = find_by_attr(json_output[bi.server_name], 'backup_id', bi.backup_id)
+        backup = find_by_attr(
+            json_output[bi.server_name], 'backup_id', bi.backup_id)
         assert bi.backup_id == backup['backup_id']
         assert str(bi.end_time.ctime()) == backup['end_time']
         for name, _, location in bi.tablespaces:
@@ -1627,7 +1631,8 @@ class TestJsonWriter(object):
 
         assert not writer.minimal
         assert bi.server_name in json_output
-        backup = find_by_attr(json_output[bi.server_name], 'backup_id', bi.backup_id)
+        backup = find_by_attr(
+            json_output[bi.server_name], 'backup_id', bi.backup_id)
         assert bi.backup_id == backup['backup_id']
         assert bi.status == backup['status']
 
@@ -1645,19 +1650,27 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
+        base_information = json_output[server_name]['base_backup_information']
+        wal_information = json_output[server_name]['wal_information']
+
         assert server_name in json_output
         assert ext_info['backup_id'] == json_output[server_name]['backup_id']
         assert ext_info['status'] == json_output[server_name]['status']
-        assert str(ext_info['end_time']) == json_output[server_name]['base_backup_information']['end_time']
+        assert str(ext_info['end_time']) == \
+            base_information['end_time']
 
         for name, _, location in ext_info['tablespaces']:
-            tablespace = find_by_attr(json_output[server_name]['tablespaces'], 'name', name)
+            tablespace = find_by_attr(
+                json_output[server_name]['tablespaces'], 'name', name)
             assert name == tablespace['name']
             assert location == tablespace['location']
 
-        assert (pretty_size(ext_info['size'] + ext_info['wal_size'])) == json_output[server_name]['base_backup_information']['disk_usage_with_wals']
-        assert (pretty_size(ext_info['wal_until_next_size'])) == json_output[server_name]['wal_information']['disk_usage']
-        assert "%0.2f/hour" % (wal_per_second * 3600) == json_output[server_name]['wal_information']['wal_rate']
+        assert (pretty_size(ext_info['size'] + ext_info['wal_size'])) == \
+            base_information['disk_usage_with_wals']
+        assert (pretty_size(ext_info['wal_until_next_size'])) == \
+            wal_information['disk_usage']
+        assert "%0.2f/hour" % (wal_per_second * 3600) == \
+            wal_information['wal_rate']
 
         assert err == ''
 
@@ -1694,7 +1707,6 @@ class TestJsonWriter(object):
 
         assert server in json_output
         assert err == ''
-
 
     def test_result_status(self, capsys):
         writer = output.JsonOutputWriter()

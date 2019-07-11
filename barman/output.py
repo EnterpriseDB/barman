@@ -1159,8 +1159,8 @@ class JsonOutputWriter(object):
         self.json_output['changes'] = []
 
         if changes_count > 0:
-            self.warning("IMPORTANT! Some settings have been modified to prevent "
-                      "data losses. See 'changes' key.")
+            self.warning("IMPORTANT! Some settings have been modified "
+                         "to prevent data losses. See 'changes' key.")
 
             for assertion in results['changes']:
                 self.json_output['changes'].append(dict(
@@ -1175,8 +1175,8 @@ class JsonOutputWriter(object):
         self.json_output['warnings'] = []
 
         if warnings_count > 0:
-            self.warning("WARNING! You are required to review the options"
-                      " as potentially dangerous. See 'warnings' key.")
+            self.warning("WARNING! You are required to review the options "
+                         "as potentially dangerous. See 'warnings' key.")
 
             for assertion in results['warnings']:
                 self.json_output['warnings'].append(dict(
@@ -1192,30 +1192,35 @@ class JsonOutputWriter(object):
         if missing_files_count > 0:
             # At least one file is missing, warn the user
             self.warning("WARNING! Some configuration files have not been "
-                    "saved during backup, hence they have not been "
-                    "restored. See 'missing_files' key.")
+                         "saved during backup, hence they have not been "
+                         "restored. See 'missing_files' key.")
 
             for file_name in results['missing_files']:
                 self.json_output['missing_files'].append(file_name)
 
         if results['delete_barman_xlog']:
             self.warning("After the recovery, please remember to remove the "
-                    "'barman_xlog' directory inside the PostgreSQL data directory.")
+                         "'barman_xlog' directory inside the PostgreSQL "
+                         "data directory.")
 
         if results['get_wal']:
-            self.warning("WARNING: 'get-wal' is in the specified 'recovery_options'. "
-                    "Before you start up the PostgreSQL server, please "
-                    "review the recovery.conf file "
-                    "inside the target directory. Make sure that "
-                    "'restore_command' can be executed by "
-                    "the PostgreSQL user.")
+            self.warning("WARNING: 'get-wal' is in the specified "
+                         "'recovery_options'. Before you start up the "
+                         "PostgreSQL server, please review the recovery.conf "
+                         "file inside the target directory. Make sure that "
+                         "'restore_command' can be executed by the PostgreSQL "
+                         "user.")
 
-        self.json_output.update(dict(
-            recovery_start_time=results['recovery_start_time'].isoformat(sep=' '),
-            recovery_start_time_timestamp=results['recovery_start_time'].strftime('%s'),
-            recovery_elapsed_time=human_readable_timedelta(datetime.datetime.now() - results['recovery_start_time']),
-            recovery_elapsed_time_seconds=(datetime.datetime.now() - results['recovery_start_time']).total_seconds()
-        ))
+        self.json_output.update({
+            'recovery_start_time':
+                results['recovery_start_time'].isoformat(' '),
+            'recovery_start_time_timestamp':
+                results['recovery_start_time'].strftime('%s'),
+            'recovery_elapsed_time': human_readable_timedelta(
+                    datetime.datetime.now() - results['recovery_start_time']),
+            'recovery_elapsed_time_seconds':
+                (datetime.datetime.now() - results['recovery_start_time'])
+                .total_seconds()})
 
     def _record_check(self, server_name, check, status, hint):
         """
@@ -1343,41 +1348,46 @@ class JsonOutputWriter(object):
         )
 
         if data['status'] in BackupInfo.STATUS_COPY_DONE:
-            self.json_output[server_name].update(dict(
+            output.update(dict(
                 postgresql_version=data['version'],
                 pgdata_directory=data['pgdata'],
                 tablespaces=[]
             ))
             if data['tablespaces']:
                 for item in data['tablespaces']:
-                    self.json_output[server_name]['tablespaces'].append(dict(
+                    output['tablespaces'].append(dict(
                         name=item.name,
                         location=item.location,
                         oid=item.oid
                     ))
-            self.json_output[server_name]['base_backup_information'] = dict(
+
+            output['base_backup_information'] = dict(
                 disk_usage=pretty_size(data['size']),
                 disk_usage_bytes=data['size'],
-                disk_usage_with_wals=pretty_size(data['size'] + data['wal_size']),
+                disk_usage_with_wals=pretty_size(
+                    data['size'] + data['wal_size']),
                 disk_usage_with_wals_bytes=data['size'] + data['wal_size']
             )
             if data['deduplicated_size'] is not None and data['size'] > 0:
-                deduplication_ratio = (1 - (float(data['deduplicated_size']) / data['size']))
-                self.json_output[server_name]['base_backup_information'].update(dict(
+                deduplication_ratio = (1 - (
+                    float(data['deduplicated_size']) / data['size']))
+                output['base_backup_information'].update(dict(
                     incremental_size=pretty_size(data['deduplicated_size']),
                     incremental_size_bytes=data['deduplicated_size'],
-                    incremental_size_ratio='-{percent:.2%}'.format(percent=deduplication_ratio)
+                    incremental_size_ratio='-{percent:.2%}'.format(
+                        percent=deduplication_ratio)
                 ))
-            self.json_output[server_name]['base_backup_information'].update(dict(
+            output['base_backup_information'].update(dict(
                 timeline=data['timeline'],
                 begin_wal=data['begin_wal'],
                 end_wal=data['end_wal']
             ))
             if data['wal_compression_ratio'] > 0:
-                self.json_output[server_name]['base_backup_information'].update(dict(
-                    wal_compression_ratio='{percent:.2%}'.format(percent=data['wal_compression_ratio'])
+                output['base_backup_information'].update(dict(
+                    wal_compression_ratio='{percent:.2%}'.format(
+                        percent=data['wal_compression_ratio'])
                 ))
-            self.json_output[server_name]['base_backup_information'].update(dict(
+            output['base_backup_information'].update(dict(
                 begin_time_timestamp=data['begin_time'].strftime('%s'),
                 begin_time=data['begin_time'].isoformat(sep=' '),
                 end_time_timestamp=data['end_time'].strftime('%s'),
@@ -1388,27 +1398,30 @@ class JsonOutputWriter(object):
                 copy_time = copy_stats.get('copy_time')
                 analysis_time = copy_stats.get('analysis_time', 0)
                 if copy_time:
-                    self.json_output[server_name]['base_backup_information'].update(dict(
-                        copy_time=human_readable_timedelta(datetime.timedelta(seconds=copy_time)),
+                    output['base_backup_information'].update(dict(
+                        copy_time=human_readable_timedelta(
+                            datetime.timedelta(seconds=copy_time)),
                         copy_time_seconds=copy_time,
-                        analysis_time=human_readable_timedelta(datetime.timedelta(seconds=analysis_time)),
+                        analysis_time=human_readable_timedelta(
+                            datetime.timedelta(seconds=analysis_time)),
                         analysis_time_seconds=analysis_time
                     ))
                     size = data['deduplicated_size'] or data['size']
-                    self.json_output[server_name]['base_backup_information'].update(dict(
+                    output['base_backup_information'].update(dict(
                         throughput="%s/s" % pretty_size(size / copy_time),
                         throughput_bytes=size / copy_time,
-                        number_of_workers=copy_stats.get('number_of_workers', 1)
+                        number_of_workers=copy_stats.get(
+                            'number_of_workers', 1)
                     ))
 
-            self.json_output[server_name]['base_backup_information'].update(dict(
+            output['base_backup_information'].update(dict(
                 begin_offset=data['begin_offset'],
                 end_offset=data['end_offset'],
                 begin_lsn=data['begin_xlog'],
                 end_lsn=data['end_xlog']
             ))
 
-            self.json_output[server_name]['wal_information'] = dict(
+            wal_output = output['wal_information'] = dict(
                 no_of_files=data['wal_until_next_num'],
                 disk_usage=pretty_size(data['wal_until_next_size']),
                 disk_usage_bytes=data['wal_until_next_size'],
@@ -1420,28 +1433,34 @@ class JsonOutputWriter(object):
             )
 
             if data['wals_per_second'] > 0:
-                self.json_output[server_name]['wal_information']['wal_rate']="%0.2f/hour" % (data['wals_per_second'] * 3600)
-                self.json_output[server_name]['wal_information']['wal_rate_per_second']=data['wals_per_second']
+                wal_output['wal_rate'] = \
+                    "%0.2f/hour" % (data['wals_per_second'] * 3600)
+                wal_output['wal_rate_per_second'] = data['wals_per_second']
             if data['wal_until_next_compression_ratio'] > 0:
-                self.json_output[server_name]['wal_information']['compression_ratio']='{percent:.2%}'.format(
+                wal_output['compression_ratio'] = '{percent:.2%}'.format(
                     percent=data['wal_until_next_compression_ratio'])
             if data['children_timelines']:
-                self.json_output[server_name]['wal_information']['_WARNING'] = "WAL information is inaccurate due to multiple timelines interacting with this backup"
+                wal_output['_WARNING'] = "WAL information is inaccurate \
+                    due to multiple timelines interacting with \
+                    this backup"
                 for history in data['children_timelines']:
-                    self.json_output[server_name]['wal_information']['timelines'].append(str(history.tli))
+                    wal_output['timelines'].append(str(history.tli))
 
-            previous_backup_id = data.setdefault('previous_backup_id', 'not available')
+            previous_backup_id = data.setdefault(
+                'previous_backup_id', 'not available')
             next_backup_id = data.setdefault('next_backup_id', 'not available')
 
-            self.json_output[server_name]['catalog_information'] = dict(
-                retention_policy=data['retention_policy_status'] or 'not enforced',
-                previous_backup=previous_backup_id or '- (this is the oldest base backup)',
-                next_backup=next_backup_id or '- (this is the latest base backup)'
-            )
+            output['catalog_information'] = {
+                'retention_policy':
+                    data['retention_policy_status'] or 'not enforced',
+                'previous_backup':
+                    previous_backup_id or '- (this is the oldest base backup)',
+                'next_backup':
+                    next_backup_id or '- (this is the latest base backup)'}
 
         else:
             if data['error']:
-                self.json_output[server_name]['error'] = data['error']
+                output['error'] = data['error']
 
     def init_status(self, server_name):
         """
@@ -1469,7 +1488,8 @@ class JsonOutputWriter(object):
             server_name=server_name, status=status,
             description=description, message=str(message)))
 
-        description = description.lower().replace(' ', '_').replace('-', '_').replace('.', '')
+        description = description.lower() \
+            .replace(' ', '_').replace('-', '_').replace('.', '')
         self.json_output[server_name][description] = message
 
     def init_replication_status(self, server_name, minimal=False):
@@ -1510,10 +1530,12 @@ class JsonOutputWriter(object):
         if title_key not in self.json_output[server_name]:
             self.json_output[server_name][title_key] = []
 
-        self.json_output[server_name]['server_lsn'] = server_lsn if server_lsn else None
+        self.json_output[server_name]['server_lsn'] = \
+            server_lsn if server_lsn else None
 
         if standby_info is not None and not len(standby_info):
-            self.json_output[server_name]['standby_info'] = "No %s attached" % title
+            self.json_output[server_name]['standby_info'] = \
+                "No %s attached" % title
             return
 
         self.json_output[server_name][title_key] = []
@@ -1666,7 +1688,8 @@ class JsonOutputWriter(object):
         :param dict server_info: a dictionary containing the info to display
         """
         for status, message in sorted(server_info.items()):
-            if not isinstance(message, (int, str, bool, list, dict, type(None))):
+            if not isinstance(message, (int, str, bool,
+                                        list, dict, type(None))):
                 message = str(message)
 
             self.json_output[server_name][status] = message
