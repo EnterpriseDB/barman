@@ -505,8 +505,8 @@ def recover(args):
         server.config.bandwidth_limit = args.bwlimit
 
     # PostgreSQL supports multiple parameters to specify when the recovery
-    # process will end, and in that case the last entry in recovery.conf
-    # will be used. See [1]
+    # process will end, and in that case the last entry in recovery
+    # configuration files will be used. See [1]
     #
     # Since the meaning of the target options is not dependent on the order
     # of parameters, we decided to make the target options mutually exclusive.
@@ -514,6 +514,7 @@ def recover(args):
     # [1]: https://www.postgresql.org/docs/current/static/
     #   recovery-target-settings.html
 
+    # TODO: support target_lsn
     target_options = ['target_tli', 'target_time', 'target_xid',
                       'target_name', 'target_immediate']
     specified_target_options = len(

@@ -240,7 +240,7 @@ the [PostgreSQL documentation on recovery target settings][target].
 
 Barman 2.4 also adds the `--standby-mode` option for the `recover`
 command which, if specified, adds `standby_mode = on` to the generated
-`recovery.conf` file, causing the recovered PostgreSQL instance to start
+recovery configuration, causing the recovered PostgreSQL instance to start
 as a standby. Further information on _standby mode_ is available in
 the [PostgreSQL documentation on standby server settings][standby].
 

@@ -8,6 +8,7 @@ Below you will find a matrix of PostgreSQL versions and Barman features for back
 
 | **Version** | **Backup with rsync/SSH** | **Backup with pg_basebackup** | **Standard WAL archiving** | **WAL Streaming** | **RPO=0** |
 |:---------:|:---------------------:|:-------------------------:|:----------------------:|:----------------------:|:-------:|
+| **12** | Yes | Yes | Yes | Yes | Yes |
 | **11** | Yes | Yes | Yes | Yes | Yes |
 | **10** | Yes | Yes | Yes | Yes | Yes |
 | **9.6** | Yes | Yes | Yes | Yes | Yes |

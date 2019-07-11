@@ -40,4 +40,4 @@ archiver = on
 ;archiver_batch_size = 50
 
 ; PATH setting for this server
-;path_prefix = "/usr/pgsql-11/bin"
+;path_prefix = "/usr/pgsql-12/bin"

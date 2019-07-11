@@ -311,7 +311,7 @@ class TestRecoveryExecutor(object):
                                       "when PITR is not required"
 
     @mock.patch('barman.recovery_executor.RsyncPgData')
-    def test_generate_recovery_conf(self, rsync_pg_mock, tmpdir):
+    def test_generate_recovery_conf_pre12(self, rsync_pg_mock, tmpdir):
         """
         Test the generation of recovery.conf file
         """
@@ -413,6 +413,171 @@ class TestRecoveryExecutor(object):
         assert recovery_conf_file.check()
         recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
         assert 'standby_mode' not in recovery_conf
+
+    @mock.patch('barman.recovery_executor.RsyncPgData')
+    def test_generate_recovery_conf(self, rsync_pg_mock, tmpdir):
+        """
+        Test the generation of recovery configuration
+        :type tmpdir: py.path.local
+        """
+        # Build basic folder/files structure
+        recovery_info = {
+            'configuration_files': ['postgresql.conf', 'postgresql.auto.conf'],
+            'tempdir': tmpdir.strpath,
+            'results': {'changes': [], 'warnings': []},
+            'get_wal': False,
+        }
+        backup_info = testing_helpers.build_test_backup_info(
+            version=120000,
+        )
+        dest = tmpdir.mkdir('destination')
+
+        # Build a recovery executor using a real server
+        server = testing_helpers.build_real_server()
+        executor = RecoveryExecutor(server.backup_manager)
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '', None)
+
+        # Check that the recovery.conf file doesn't exist
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert not recovery_conf_file.check()
+        # Check that the recovery.signal file exists
+        signal_file = tmpdir.join("recovery.signal")
+        assert signal_file.check()
+        # Parse the generated recovery configuration
+        pg_auto_conf = self.parse_auto_conf_lines(recovery_info)
+        # check for contents
+        assert 'recovery_end_command' in pg_auto_conf
+        assert 'recovery_target_time' in pg_auto_conf
+        assert 'recovery_target_timeline' in pg_auto_conf
+        assert 'recovery_target_xid' not in pg_auto_conf
+        assert 'recovery_target_name' in pg_auto_conf
+        assert 'recovery_target' in pg_auto_conf
+        assert pg_auto_conf['recovery_end_command'] == "'rm -fr barman_wal'"
+        assert pg_auto_conf['recovery_target_time'] == \
+            "'2015-06-03 16:11:03.71038+02'"
+        assert pg_auto_conf['recovery_target_timeline'] == '2'
+        assert pg_auto_conf['recovery_target_name'] == "'target_name'"
+
+        # Test 'pause_at_recovery_target' recovery_info entry
+        signal_file.remove()
+        recovery_info['pause_at_recovery_target'] = 'on'
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '', None)
+        # Check that the recovery.conf file doesn't exist
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert not recovery_conf_file.check()
+        # Check that the recovery.signal file exists
+        signal_file = tmpdir.join("recovery.signal")
+        assert signal_file.check()
+        # Parse the generated recovery configuration
+        pg_auto_conf = self.parse_auto_conf_lines(recovery_info)
+        # Finally check pause_at_recovery_target value
+        assert pg_auto_conf['pause_at_recovery_target'] == "'on'"
+
+        # Test 'recovery_target_action'
+        signal_file.remove()
+        del recovery_info['pause_at_recovery_target']
+        recovery_info['recovery_target_action'] = 'pause'
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '', None)
+        # Check that the recovery.conf file doesn't exist
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert not recovery_conf_file.check()
+        # Check that the recovery.signal file exists
+        signal_file = tmpdir.join("recovery.signal")
+        assert signal_file.check()
+        # Parse the generated recovery configuration
+        pg_auto_conf = self.parse_auto_conf_lines(recovery_info)
+        # Finally check recovery_target_action value
+        assert pg_auto_conf['recovery_target_action'] == "'pause'"
+
+        # Test 'standby_mode'
+        signal_file.remove()
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '', True)
+        # Check that the recovery.conf file doesn't exist
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert not recovery_conf_file.check()
+        # Check that the recovery.signal file doesn't exist
+        wrong_signal_file = tmpdir.join("recovery.signal")
+        assert not wrong_signal_file.check()
+        # Check that the standby.signal file exists
+        signal_file = tmpdir.join("standby.signal")
+        assert signal_file.check()
+        # Parse the generated recovery configuration
+        pg_auto_conf = self.parse_auto_conf_lines(recovery_info)
+        # standby_mode is not a valid configuration in PostgreSQL 12
+        assert 'standby_mode' not in pg_auto_conf
+
+        signal_file.remove()
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '', False)
+        # Check that the recovery.conf file doesn't exist
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert not recovery_conf_file.check()
+        # Check that the standby.signal file doesn't exist
+        wrong_signal_file = tmpdir.join("standby.signal")
+        assert not wrong_signal_file.check()
+        # Check that the recovery.signal file exists
+        signal_file = tmpdir.join("recovery.signal")
+        assert signal_file.check()
+        # Parse the generated recovery configuration
+        pg_auto_conf = self.parse_auto_conf_lines(recovery_info)
+        # standby_mode is not a valid configuration in PostgreSQL 12
+        assert 'standby_mode' not in pg_auto_conf
+
+        signal_file.remove()
+        executor._generate_recovery_conf(recovery_info, backup_info,
+                                         dest.strpath,
+                                         True, True, 'remote@command',
+                                         'target_name',
+                                         '2015-06-03 16:11:03.71038+02', '2',
+                                         '', None)
+        # Check that the recovery.conf file doesn't exist
+        recovery_conf_file = tmpdir.join("recovery.conf")
+        assert not recovery_conf_file.check()
+        # Check that the standby.signal file doesn't exist
+        wrong_signal_file = tmpdir.join("standby.signal")
+        assert not wrong_signal_file.check()
+        # Check that the recovery.signal file exists
+        signal_file = tmpdir.join("recovery.signal")
+        assert signal_file.check()
+        # Parse the generated recovery configuration
+        pg_auto_conf = self.parse_auto_conf_lines(recovery_info)
+        # standby_mode is not a valid configuration in PostgreSQL 12
+        assert 'standby_mode' not in pg_auto_conf
+
+    def parse_auto_conf_lines(self, recovery_info):
+        assert 'auto_conf_append_lines' in recovery_info
+        pg_auto_conf = {}
+        for line in recovery_info['auto_conf_append_lines']:
+            kv = line.split('=', 1)
+            try:
+                pg_auto_conf[kv[0].strip()] = kv[1].strip()
+            except IndexError:
+                pg_auto_conf[kv[0].strip()] = None
+        return pg_auto_conf
 
     @mock.patch('barman.recovery_executor.RsyncCopyController')
     def test_recover_backup_copy(self, copy_controller_mock, tmpdir):
@@ -640,6 +805,7 @@ class TestRecoveryExecutor(object):
                         'archive_command',
                         'false'])],
                 'missing_files': [],
+                'recovery_configuration_file': 'recovery.conf',
                 'warnings': [
                     Assertion._make([
                         'postgresql.conf',
@@ -694,6 +860,7 @@ class TestRecoveryExecutor(object):
                         'archive_command',
                         'false'])],
                 'missing_files': [],
+                'recovery_configuration_file': 'recovery.conf',
                 'warnings': [
                     Assertion._make([
                         'postgresql.conf',

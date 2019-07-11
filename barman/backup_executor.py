@@ -1004,9 +1004,12 @@ class RsyncBackupExecutor(SshBackupExecutor):
         # Files: see excludeFiles const in PostgreSQL source
         'pgsql_tmp*',
         'postgresql.auto.conf.tmp',
+        'current_logfiles.tmp',
+        'pg_internal.init',
         'postmaster.pid',
         'postmaster.opts',
         'recovery.conf',
+        'standby.signal',
 
         # Directories: see excludeDirContents const in PostgreSQL source
         'pg_dynshmem/*',

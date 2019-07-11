@@ -1,7 +1,7 @@
 # walrestore - Remote Barman WAL restore command for PostgreSQL
 #
 # This script remotely fetches WAL files from Barman via SSH, on demand.
-# It is intended to be used as restore_command in recovery.conf files
+# It is intended to be used in restore_command in recovery configuration files
 # of PostgreSQL standby servers. Supports parallel fetching and
 # protects against SSH failures.
 #

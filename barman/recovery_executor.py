@@ -70,12 +70,24 @@ class RecoveryExecutor(object):
     DANGEROUS_OPTIONS = ['data_directory', 'config_file', 'hba_file',
                          'ident_file', 'external_pid_file', 'ssl_cert_file',
                          'ssl_key_file', 'ssl_ca_file', 'ssl_crl_file',
-                         'unix_socket_directory', 'include', 'include_dir',
-                         'include_if_exists']
+                         'unix_socket_directory', 'unix_socket_directories',
+                         'include', 'include_dir', 'include_if_exists']
 
     # List of options that, if present, need to be forced to a specific value
     # during recovery, to avoid data losses
-    MANGLE_OPTIONS = {'archive_command': 'false'}
+    MANGLE_OPTIONS = {
+        # Dangerous options
+        'archive_command': 'false',
+        # Recovery options that may interfere with recovery targets
+        'recovery_target': None,
+        'recovery_target_name': None,
+        'recovery_target_time': None,
+        'recovery_target_xid': None,
+        'recovery_target_lsn': None,
+        'recovery_target_inclusive': None,
+        'recovery_target_timeline': None,
+        'recovery_target_action': None,
+    }
 
     def __init__(self, backup_manager):
         """
@@ -209,7 +221,9 @@ class RecoveryExecutor(object):
 
             output.info("Copying required WAL segments.")
 
+            required_xlog_files = ()  # Makes static analysers happy
             try:
+                # TODO: Stop early if taget-immediate
                 # Retrieve a list of required log files
                 required_xlog_files = tuple(
                     self.server.get_required_xlog_files(
@@ -243,7 +257,7 @@ class RecoveryExecutor(object):
         is_pitr = recovery_info['is_pitr']
         get_wal = recovery_info['get_wal']
         if is_pitr or get_wal or standby_mode:
-            output.info("Generating recovery.conf")
+            output.info("Generating recovery configuration")
             self._generate_recovery_conf(recovery_info, backup_info, dest,
                                          target_immediate, exclusive,
                                          remote_command, target_name,
@@ -328,6 +342,11 @@ class RecoveryExecutor(object):
         recovery_info['configuration_files'].append('postgresql.conf')
         if backup_info.version >= 90400:
             recovery_info['configuration_files'].append('postgresql.auto.conf')
+
+        # Identify the file holding the recovery configuration
+        results['recovery_configuration_file'] = 'postgresql.auto.conf'
+        if backup_info.version < 120000:
+            results['recovery_configuration_file'] = 'recovery.conf'
 
         # Handle remote recovery options
         if remote_command:
@@ -827,15 +846,14 @@ class RecoveryExecutor(object):
                                 target_name, target_time, target_tli,
                                 target_xid, standby_mode):
         """
-        Generate a recovery.conf file for PITR containing
-        all the required configurations
+        Generate recovery configuration for PITR
 
         :param dict recovery_info: Dictionary containing all the recovery
             parameters
         :param barman.infofile.BackupInfo backup_info: representation of a
             backup
         :param str dest: destination directory of the recovery
-        :param str|None immediate: end recovery as soon as consistency
+        :param bool|None immediate: end recovery as soon as consistency
             is reached
         :param boolean exclusive: exclusive backup or concurrent
         :param str remote_command: ssh command for remote connection
@@ -845,12 +863,8 @@ class RecoveryExecutor(object):
         :param str target_xid: recovery target transaction id for PITR
         :param bool|None standby_mode: standby mode
         """
-        if remote_command:
-            recovery = open(os.path.join(recovery_info['tempdir'],
-                                         'recovery.conf'), 'w')
-        else:
-            recovery = open(os.path.join(dest, 'recovery.conf'), 'w')
 
+        recovery_conf_lines = []
         # If GET_WAL has been set, use the get-wal command to retrieve the
         # required wal files. Otherwise use the unix command "cp" to copy
         # them from the barman_wal directory
@@ -866,62 +880,92 @@ class RecoveryExecutor(object):
             # It MUST to be reviewed by the user in any case.
             if remote_command:
                 fqdn = socket.getfqdn()
-                print("# The 'barman-wal-restore' command "
-                      "is provided in the 'barman-cli' package",
-                      file=recovery)
-                print("restore_command = 'barman-wal-restore -U %s "
-                      "%s %s %%f %%p'" % (self.config.config.user,
-                                          fqdn, self.config.name),
-                      file=recovery)
+                recovery_conf_lines.append(
+                    "# The 'barman-wal-restore' command "
+                    "is provided in the 'barman-cli' package")
+                recovery_conf_lines.append(
+                    "restore_command = 'barman-wal-restore -U %s "
+                    "%s %s %%f %%p'" % (self.config.config.user,
+                                        fqdn, self.config.name))
             else:
-                print("# The 'barman get-wal' command "
-                      "must run as '%s' user" % self.config.config.user,
-                      file=recovery)
-                print("restore_command = 'sudo -u %s "
-                      "barman get-wal %s %%f > %%p'" % (
-                          self.config.config.user,
-                          self.config.name),
-                      file=recovery)
+                recovery_conf_lines.append(
+                    "# The 'barman get-wal' command "
+                    "must run as '%s' user" % self.config.config.user)
+                recovery_conf_lines.append(
+                    "restore_command = 'sudo -u %s "
+                    "barman get-wal %s %%f > %%p'" % (
+                        self.config.config.user,
+                        self.config.name))
             recovery_info['results']['get_wal'] = True
         else:
-            print("restore_command = 'cp barman_wal/%f %p'", file=recovery)
-        if backup_info.version >= 80400 and \
-                not recovery_info['get_wal']:
-            print("recovery_end_command = 'rm -fr barman_wal'", file=recovery)
+            recovery_conf_lines.append(
+                "restore_command = 'cp barman_wal/%f %p'")
+        if backup_info.version >= 80400 and not recovery_info['get_wal']:
+            recovery_conf_lines.append(
+                "recovery_end_command = 'rm -fr barman_wal'")
 
         # Writes recovery target
         if target_time:
-            print("recovery_target_time = '%s'" % target_time, file=recovery)
+            recovery_conf_lines.append(
+                "recovery_target_time = '%s'" % target_time)
         if target_xid:
-            print("recovery_target_xid = '%s'" % target_xid, file=recovery)
+            recovery_conf_lines.append(
+                "recovery_target_xid = '%s'" % target_xid)
+        # TODO: support recovery_target_lsn
         if target_name:
-            print("recovery_target_name = '%s'" % target_name, file=recovery)
+            recovery_conf_lines.append(
+                "recovery_target_name = '%s'" % target_name)
         # TODO: log a warning if PostgreSQL < 9.4 and --immediate
-        if (backup_info.version >= 90400 and immediate):
-            print("recovery_target = 'immediate'", file=recovery)
+        if backup_info.version >= 90400 and immediate:
+            recovery_conf_lines.append(
+                "recovery_target = 'immediate'")
 
         # Manage what happens after recovery target is reached
         if (target_xid or target_time) and exclusive:
-            print("recovery_target_inclusive = '%s'" % (
-                not exclusive), file=recovery)
+            recovery_conf_lines.append(
+                "recovery_target_inclusive = '%s'" % (not exclusive))
         if target_tli:
-            print("recovery_target_timeline = %s" % target_tli, file=recovery)
+            recovery_conf_lines.append(
+                "recovery_target_timeline = %s" % target_tli)
 
         # Write recovery target action
         if 'pause_at_recovery_target' in recovery_info:
-            print("pause_at_recovery_target = '%s'" %
-                  recovery_info['pause_at_recovery_target'],
-                  file=recovery)
+            recovery_conf_lines.append(
+                "pause_at_recovery_target = '%s'" %
+                recovery_info['pause_at_recovery_target'])
         if 'recovery_target_action' in recovery_info:
-            print("recovery_target_action = '%s'" %
-                  recovery_info['recovery_target_action'],
-                  file=recovery)
+            recovery_conf_lines.append(
+                "recovery_target_action = '%s'" %
+                recovery_info['recovery_target_action'])
 
-        # Writes the standby mode
-        if standby_mode:
-            print("standby_mode = 'on'", file=recovery)
+        # Set the standby mode
+        if backup_info.version >= 120000:
+            signal_file = 'recovery.signal'
+            if standby_mode:
+                signal_file = 'standby.signal'
 
-        recovery.close()
+            if remote_command:
+                recovery_file = os.path.join(recovery_info['tempdir'],
+                                             signal_file)
+            else:
+                recovery_file = os.path.join(dest, signal_file)
+
+            open(recovery_file, 'ab').close()
+            recovery_info['auto_conf_append_lines'] = recovery_conf_lines
+        else:
+            if standby_mode:
+                recovery_conf_lines.append("standby_mode = 'on'")
+
+            if remote_command:
+                recovery_file = os.path.join(recovery_info['tempdir'],
+                                             'recovery.conf')
+            else:
+                recovery_file = os.path.join(dest, 'recovery.conf')
+
+            with open(recovery_file, 'wb') as recovery:
+                recovery.write(('\n'.join(recovery_conf_lines) + '\n')
+                               .encode('utf-8'))
+
         if remote_command:
             plain_rsync = RsyncPgData(
                 path=self.server.path,
@@ -929,11 +973,13 @@ class RecoveryExecutor(object):
                 bwlimit=self.config.bandwidth_limit,
                 network_compression=self.config.network_compression)
             try:
-                plain_rsync.from_file_list(['recovery.conf'],
-                                           recovery_info['tempdir'],
-                                           ':%s' % dest)
+                plain_rsync.from_file_list(
+                    [os.path.basename(recovery_file)],
+                    recovery_info['tempdir'],
+                    ':%s' % dest)
             except CommandFailedException as e:
-                output.error('remote copy of recovery.conf failed: %s', e)
+                output.error('remote copy of %s failed: %s',
+                             os.path.basename(recovery_file), e)
                 output.close_and_exit()
 
     def _map_temporary_config_files(self, recovery_info, backup_info,
@@ -986,6 +1032,23 @@ class RecoveryExecutor(object):
             recovery_info['temporary_configuration_files'].append(
                 conf_file_path)
 
+        if backup_info.version >= 120000:
+            # Make sure 'postgresql.auto.conf' file exists in
+            # recovery_info['temporary_configuration_files'] because
+            # the recovery settings will end up there
+            conf_file = 'postgresql.auto.conf'
+            if conf_file not in recovery_info['configuration_files']:
+                if remote_command:
+                    conf_file_path = os.path.join(recovery_info['tempdir'],
+                                                  conf_file)
+                else:
+                    conf_file_path = os.path.join(
+                        recovery_info['destination_path'], conf_file)
+                # Touch the file into existence
+                open(conf_file_path, 'ab').close()
+                recovery_info['temporary_configuration_files'].append(
+                    conf_file_path)
+
     def _analyse_temporary_config_files(self, recovery_info):
         """
         Analyse temporary configuration files and identify dangerous options
@@ -999,12 +1062,17 @@ class RecoveryExecutor(object):
         # Check for dangerous options inside every config file
         for conf_file in recovery_info['temporary_configuration_files']:
 
+            append_lines = None
+            if conf_file.endswith('postgresql.auto.conf'):
+                append_lines = recovery_info.get('auto_conf_append_lines')
+
             # Identify and comment out dangerous options, replacing them with
             # the appropriate values
             results['changes'] += self._pg_config_mangle(
                 conf_file,
                 self.MANGLE_OPTIONS,
-                "%s.origin" % conf_file)
+                "%s.origin" % conf_file,
+                append_lines)
             # Identify dangerous options and warn users about their presence
             results['warnings'] += self._pg_config_detect_possible_issues(
                 conf_file)
@@ -1046,7 +1114,8 @@ class RecoveryExecutor(object):
             shutil.rmtree(temp_dir, ignore_errors=True)
         self.temp_dirs = []
 
-    def _pg_config_mangle(self, filename, settings, backup_filename=None):
+    def _pg_config_mangle(self, filename, settings, backup_filename=None,
+                          append_lines=None):
         """
         This method modifies the given PostgreSQL configuration file,
         commenting out the given settings, and adding the ones generated by
@@ -1059,7 +1128,7 @@ class RecoveryExecutor(object):
         :param backup_filename: config file backup copy. Default is None.
         """
         # Read the full content of the file in memory
-        with open(filename) as f:
+        with open(filename, 'rb') as f:
             content = f.readlines()
 
         # Rename the original file to backup_filename or to a temporary name
@@ -1073,24 +1142,31 @@ class RecoveryExecutor(object):
 
         # Write the mangled content
         mangled = []
-        with open(filename, 'w') as f:
+        with open(filename, 'wb') as f:
             for l_number, line in enumerate(content):
-                rm = PG_CONF_SETTING_RE.match(line)
+                rm = PG_CONF_SETTING_RE.match(line.decode('utf-8'))
                 if rm:
                     key = rm.group(1)
                     if key in settings:
-                        f.write("#BARMAN# %s" % line)
-                        # TODO is it useful to handle none values?
-                        changes = "%s = %s\n" % (key, settings[key])
-                        f.write(changes)
+                        value = settings[key]
+                        f.write("#BARMAN#".encode('utf-8') + line)
+                        # If value is None, simply comment the old line
+                        if value is not None:
+                            changes = "%s = %s\n" % (key, value)
+                            f.write(changes.encode('utf-8'))
                         mangled.append(
                             Assertion._make([
                                 os.path.basename(f.name),
                                 l_number,
                                 key,
-                                settings[key]]))
+                                value]))
                         continue
                 f.write(line)
+            # Append content of append_lises array
+            if append_lines:
+                if line[-1] != '\n'.encode('utf-8'):
+                    f.write('\n'.encode('utf-8'))
+                f.write(('\n'.join(append_lines) + '\n').encode('utf-8'))
 
         # Restore original permissions
         shutil.copymode(orig_filename, filename)

@@ -87,7 +87,7 @@ recovery_options = 'get-wal'
 
 `recovery_options` is a global/server option that accepts a list of
 comma separated values. If the keyword `get-wal` is present during a
-recovery operation, Barman will prepare the `recovery.conf` file by
+recovery operation, Barman will prepare the recovery configuration by
 setting the `restore_command` so that `barman get-wal` is used to
 fetch the required WAL files.
 Similarly, one can use the `--get-wal` option for the `recover` command
