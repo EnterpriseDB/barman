@@ -2496,8 +2496,7 @@ class Server(RemoteStatusMixin):
             sync_status['wals'] = wals
             sync_status['version'] = barman.__version__
             sync_status['config'] = self.config
-        output.info(json.dumps(sync_status, cls=BarmanEncoder, indent=4),
-                    log=False)
+        json.dump(sync_status, sys.stdout, cls=BarmanEncoder, indent=4)
 
     def sync_cron(self):
         """

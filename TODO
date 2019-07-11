@@ -12,7 +12,6 @@ Copyright (C) 2011-2019 2ndQuadrant Limited
 * Logical backup integration (pg_dump on sandbox instances)
 * WAL retention policies
 * Grandfather-Father-Son backup
-* JSON output for full automation
 * Deep Backup validation
 * SSH only connections
 * ...

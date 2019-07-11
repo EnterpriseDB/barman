@@ -16,21 +16,27 @@ Barman can perform remote backups of multiple servers in business
 critical environments and helps DBAs during the recovery phase.
 .SH OPTIONS
 .TP
-.B -v, --version
-Show program version number and exit.
-.TP
-.B -q, --quiet
-Do not output anything.
-Useful for cron scripts.
-.TP
 .B -h, --help
 Show a help message and exit.
+.TP
+.B -v, --version
+Show program version number and exit.
 .TP
 .B -c \f[I]CONFIG\f[R], --config \f[I]CONFIG\f[R]
 Use the specified configuration file.
 .TP
 .B --color \f[I]{never,always,auto}\f[R], --colour \f[I]{never,always,auto}\f[R]
 Whether to use colors in the output (default: \f[I]auto\f[R])
+.TP
+.B -q, --quiet
+Do not output anything.
+Useful for cron scripts.
+.TP
+.B -d, --debug
+debug output (default: False)
+.TP
+.B -f {json,console}, --format {json,console}
+output format (default: \[aq]console\[aq])
 .SH COMMANDS
 .PP
 Important: every command has a help option

@@ -404,6 +404,20 @@ def parse_recovery_conf(recovery_conf_file):
     return recovery_conf
 
 
+def find_by_attr(iterable, attr, value):
+    """
+    Utility method to find a list member by filtering on attribute content
+
+    :param iterable iterable: An iterable to be inspected
+    :param str attr: The attribute name
+    :param value: The content to match
+    :return:
+    """
+    for element in iterable:
+        if element[attr] == value:
+            return element
+
+
 # The following two functions are useful to create bytes/unicode strings
 # in Python 2 and in Python 3 with the same syntax.
 if sys.version_info[0] >= 3:
