@@ -1088,7 +1088,7 @@ class JsonOutputWriter(object):
             message = json.loads(message)
             self.json_output = message
             self.close()
-        except json.decoder.JSONDecodeError:
+        except ValueError:
             pass
 
         if '_INFO' not in self.json_output:
@@ -1212,7 +1212,7 @@ class JsonOutputWriter(object):
 
         self.json_output.update(dict(
             recovery_start_time=results['recovery_start_time'].isoformat(sep=' '),
-            recovery_start_time_timestamp=results['recovery_start_time'].timestamp(),
+            recovery_start_time_timestamp=results['recovery_start_time'].strftime('%s'),
             recovery_elapsed_time=human_readable_timedelta(datetime.datetime.now() - results['recovery_start_time']),
             recovery_elapsed_time_seconds=(datetime.datetime.now() - results['recovery_start_time']).total_seconds()
         ))
@@ -1301,7 +1301,7 @@ class JsonOutputWriter(object):
 
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             output.update(dict(
-                end_time_timestamp=backup_info.end_time.timestamp(),
+                end_time_timestamp=backup_info.end_time.strftime('%s'),
                 end_time=backup_info.end_time.ctime(),
                 size_bytes=backup_size,
                 wal_size_bytes=wal_size,
@@ -1378,9 +1378,9 @@ class JsonOutputWriter(object):
                     wal_compression_ratio='{percent:.2%}'.format(percent=data['wal_compression_ratio'])
                 ))
             self.json_output[server_name]['base_backup_information'].update(dict(
-                begin_time_timestamp=data['begin_time'].timestamp(),
+                begin_time_timestamp=data['begin_time'].strftime('%s'),
                 begin_time=data['begin_time'].isoformat(sep=' '),
-                end_time_timestamp=data['end_time'].timestamp(),
+                end_time_timestamp=data['end_time'].strftime('%s'),
                 end_time=data['end_time'].isoformat(sep=' ')
             ))
             copy_stats = data.get('copy_stats')
