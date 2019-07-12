@@ -317,7 +317,7 @@ class RecoveryExecutor(object):
         results = {
             'changes': [],
             'warnings': [],
-            'delete_barman_xlog': False,
+            'delete_barman_wal': False,
             'missing_files': [],
             'get_wal': False,
             'recovery_start_time': datetime.datetime.now()
@@ -447,14 +447,14 @@ class RecoveryExecutor(object):
             output.info(
                 "Doing PITR. Recovery target %s",
                 (", ".join(["%s: %r" % (k, v) for k, v in targets.items()])))
-            recovery_info['wal_dest'] = os.path.join(dest, 'barman_xlog')
+            recovery_info['wal_dest'] = os.path.join(dest, 'barman_wal')
 
             # With a PostgreSQL version older than 8.4, it is the user's
-            # responsibility to delete the "barman_xlog" directory as the
+            # responsibility to delete the "barman_wal" directory as the
             # restore_command option in recovery.conf is not supported
             if backup_info.version < 80400 and \
                     not recovery_info['get_wal']:
-                recovery_info['results']['delete_barman_xlog'] = True
+                recovery_info['results']['delete_barman_wal'] = True
         else:
             if target_action:
                 raise RecoveryTargetActionException(
@@ -709,7 +709,7 @@ class RecoveryExecutor(object):
             if remote_command:
                 # Decompress to a temporary spool directory
                 wal_decompression_dest = tempfile.mkdtemp(
-                    prefix='barman_xlog-')
+                    prefix='barman_wal-')
             else:
                 # Decompress directly to the destination directory
                 wal_decompression_dest = wal_dest
@@ -853,7 +853,7 @@ class RecoveryExecutor(object):
 
         # If GET_WAL has been set, use the get-wal command to retrieve the
         # required wal files. Otherwise use the unix command "cp" to copy
-        # them from the barman_xlog directory
+        # them from the barman_wal directory
         if recovery_info['get_wal']:
             # We need to create the right restore command.
             # If we are doing a remote recovery,
@@ -884,10 +884,10 @@ class RecoveryExecutor(object):
                       file=recovery)
             recovery_info['results']['get_wal'] = True
         else:
-            print("restore_command = 'cp barman_xlog/%f %p'", file=recovery)
+            print("restore_command = 'cp barman_wal/%f %p'", file=recovery)
         if backup_info.version >= 80400 and \
                 not recovery_info['get_wal']:
-            print("recovery_end_command = 'rm -fr barman_xlog'", file=recovery)
+            print("recovery_end_command = 'rm -fr barman_wal'", file=recovery)
 
         # Writes recovery target
         if target_time:

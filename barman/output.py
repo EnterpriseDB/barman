@@ -513,10 +513,10 @@ class ConsoleOutputWriter(object):
             for file_name in results['missing_files']:
                 self.info("    %s" % file_name)
 
-        if results['delete_barman_xlog']:
+        if results['delete_barman_wal']:
             self.info("")
             self.info("After the recovery, please remember to remove the "
-                      "\"barman_xlog\" directory")
+                      "\"barman_wal\" directory")
             self.info("inside the PostgreSQL data directory.")
 
         if results['get_wal']:

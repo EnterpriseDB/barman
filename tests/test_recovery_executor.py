@@ -213,7 +213,7 @@ class TestRecoveryExecutor(object):
 
         assert recovery_info['target_datetime'] == target_datetime
         assert recovery_info['target_epoch'] == target_epoch
-        assert recovery_info['wal_dest'] == dest.join('barman_xlog').strpath
+        assert recovery_info['wal_dest'] == dest.join('barman_wal').strpath
 
         # Test for too early PITR target
         with pytest.raises(RecoveryInvalidTargetException) as exc_info:
@@ -347,7 +347,7 @@ class TestRecoveryExecutor(object):
         assert 'recovery_target_xid' not in recovery_conf
         assert 'recovery_target_name' in recovery_conf
         assert 'recovery_target' not in recovery_conf
-        assert recovery_conf['recovery_end_command'] == "'rm -fr barman_xlog'"
+        assert recovery_conf['recovery_end_command'] == "'rm -fr barman_wal'"
         assert recovery_conf['recovery_target_time'] == \
             "'2015-06-03 16:11:03.71038+02'"
         assert recovery_conf['recovery_target_timeline'] == '2'
@@ -623,7 +623,7 @@ class TestRecoveryExecutor(object):
                 dest.join('postgresql.conf').strpath,
                 dest.join('postgresql.auto.conf').strpath],
             'results': {
-                'delete_barman_xlog': False,
+                'delete_barman_wal': False,
                 'recovery_start_time': rec_info['results'][
                     'recovery_start_time'
                 ],
@@ -677,7 +677,7 @@ class TestRecoveryExecutor(object):
                 os.path.join(sys_tempdir, 'postgresql.conf'),
                 os.path.join(sys_tempdir, 'postgresql.auto.conf')],
             'results': {
-                'delete_barman_xlog': False,
+                'delete_barman_wal': False,
                 'get_wal': False,
                 'recovery_start_time': rec_info['results'][
                     'recovery_start_time'
