@@ -26,7 +26,7 @@ from abc import ABCMeta
 import psycopg2
 from psycopg2.errorcodes import (DUPLICATE_OBJECT, OBJECT_IN_USE,
                                  UNDEFINED_OBJECT)
-from psycopg2.extensions import STATUS_IN_TRANSACTION
+from psycopg2.extensions import STATUS_IN_TRANSACTION, STATUS_READY
 from psycopg2.extras import DictCursor, NamedTupleCursor
 
 from barman.exceptions import (ConninfoException, PostgresAppNameError,
@@ -172,7 +172,9 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
         # Check if the connection works by running 'SELECT 1'
         cursor = None
+        initial_status = None
         try:
+            initial_status = self._conn.status
             cursor = self._conn.cursor()
             cursor.execute(self.CHECK_QUERY)
         except psycopg2.DatabaseError:
@@ -185,6 +187,10 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             return False
         finally:
             if cursor:
+                # Rollback if initial status was IDLE because the CHECK QUERY
+                # has started a new transaction.
+                if initial_status == STATUS_READY:
+                    self._conn.rollback()
                 cursor.close()
 
         return True
