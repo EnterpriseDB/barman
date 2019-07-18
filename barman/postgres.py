@@ -665,6 +665,30 @@ class PostgreSQLConnection(PostgreSQL):
                           force_str(e).strip())
             return None
 
+    @property
+    def checkpoint_timeout(self):
+        """
+        Retrieve the checkpoint_timeout setting in PostgreSQL
+
+        :return: The checkpoint timeout (in seconds)
+        """
+        try:
+            cur = self._cursor(cursor_factory=DictCursor)
+            # We can't use the `get_setting` method here, because it
+            # uses `SHOW`, returning an human readable value such as "5min",
+            # while we prefer a raw value such as 300.
+            cur.execute("SELECT setting "
+                        "FROM pg_settings "
+                        "WHERE name='checkpoint_timeout'")
+            result = cur.fetchone()
+            checkpoint_timeout = int(result[0])
+
+            return checkpoint_timeout
+        except ValueError as e:
+            _logger.error("Error retrieving checkpoint_timeout: %s",
+                          force_str(e).strip())
+            return None
+
     def get_archiver_stats(self):
         """
         This method gathers statistics from pg_stat_archiver.
@@ -767,6 +791,7 @@ class PostgreSQLConnection(PostgreSQL):
             result['current_xlog'] = self.current_xlog_file_name
             result['current_size'] = self.current_size
             result['archive_timeout'] = self.archive_timeout
+            result['checkpoint_timeout'] = self.checkpoint_timeout
 
             result.update(self.get_configuration_files())
 

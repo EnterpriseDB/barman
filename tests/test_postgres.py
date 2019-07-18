@@ -785,6 +785,8 @@ class TestPostgres(object):
         assert server.postgres.current_xlog_file_name is None
 
     @patch('barman.postgres.psycopg2.connect')
+    @patch('barman.postgres.PostgreSQLConnection.checkpoint_timeout',
+           new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.archive_timeout',
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
@@ -814,6 +816,7 @@ class TestPostgres(object):
                                is_superuser_mock,
                                is_in_recovery_mock,
                                archive_timeout_mock,
+                               checkpoint_timeout_mock,
                                conn_mock):
         """
         simple test for the fetch_remote_status method
@@ -830,6 +833,7 @@ class TestPostgres(object):
         get_synchronous_standby_names.return_value = []
         conn_mock.return_value.server_version = 90500
         archive_timeout_mock.return_value = 300
+        checkpoint_timeout_mock.return_value = 600
 
         settings = {
             'data_directory': 'a directory',
@@ -859,6 +863,7 @@ class TestPostgres(object):
             'replication_slot': None,
             'synchronous_standby_names': [],
             'archive_timeout': 300,
+            'checkpoint_timeout': 600,
             'hot_standby': 'a hot_standby value',
             'max_wal_senders': 'a max_wal_senderse value',
             'data_checksums': 'a data_checksums',
