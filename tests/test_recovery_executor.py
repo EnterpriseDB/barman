@@ -192,7 +192,7 @@ class TestRecoveryExecutor(object):
         executor = RecoveryExecutor(backup_manager)
         executor._set_pitr_targets(recovery_info, backup_info,
                                    dest.strpath,
-                                   '', '', '', '', False, None)
+                                   '', '', '', '', '', False, None)
         # Test with empty values (no PITR)
         assert recovery_info['target_epoch'] is None
         assert recovery_info['target_datetime'] is None
@@ -204,7 +204,7 @@ class TestRecoveryExecutor(object):
                                    'target_name',
                                    '2015-06-03 16:11:03.71038+02',
                                    '2',
-                                   None, False, None)
+                                   None, '', False, None)
         target_datetime = dateutil.parser.parse(
             '2015-06-03 16:11:03.710380+02:00')
         target_epoch = (
@@ -221,7 +221,7 @@ class TestRecoveryExecutor(object):
                                        dest.strpath,
                                        None,
                                        '2015-06-03 16:11:00.71038+02',
-                                       None, None, False, None)
+                                       None, None, None, False, None)
         assert str(exc_info.value) == \
             "The requested target time " \
             "2015-06-03 16:11:00.710380+02:00 " \
@@ -236,7 +236,7 @@ class TestRecoveryExecutor(object):
                                        'target_name',
                                        '2015-06-03 16:11:03.71038+02',
                                        '2',
-                                       None, False, 'pause')
+                                       None, None, False, 'pause')
         assert str(exc_info.value) == "Illegal target action 'pause' " \
                                       "for this version of PostgreSQL"
 
@@ -247,7 +247,7 @@ class TestRecoveryExecutor(object):
                                    'target_name',
                                    '2015-06-03 16:11:03.71038+02',
                                    '2',
-                                   None, False, None)
+                                   None, None, False, None)
         assert 'pause_at_recovery_target' not in recovery_info
 
         executor._set_pitr_targets(recovery_info, backup_info,
@@ -255,7 +255,7 @@ class TestRecoveryExecutor(object):
                                    'target_name',
                                    '2015-06-03 16:11:03.71038+02',
                                    '2',
-                                   None, False, 'pause')
+                                   None, None, False, 'pause')
         assert recovery_info['pause_at_recovery_target'] == "on"
         del recovery_info['pause_at_recovery_target']
 
@@ -265,7 +265,7 @@ class TestRecoveryExecutor(object):
                                        'target_name',
                                        '2015-06-03 16:11:03.71038+02',
                                        '2',
-                                       None, False, 'promote')
+                                       None, None, False, 'promote')
         assert str(exc_info.value) == "Illegal target action 'promote' " \
                                       "for this version of PostgreSQL"
 
@@ -276,7 +276,7 @@ class TestRecoveryExecutor(object):
                                    'target_name',
                                    '2015-06-03 16:11:03.71038+02',
                                    '2',
-                                   None, False, 'pause')
+                                   None, None, False, 'pause')
         assert recovery_info['recovery_target_action'] == "pause"
 
         executor._set_pitr_targets(recovery_info, backup_info,
@@ -284,7 +284,7 @@ class TestRecoveryExecutor(object):
                                    'target_name',
                                    '2015-06-03 16:11:03.71038+02',
                                    '2',
-                                   None, False, 'promote')
+                                   None, None, False, 'promote')
         assert recovery_info['recovery_target_action'] == "promote"
 
         with pytest.raises(RecoveryTargetActionException) as exc_info:
@@ -293,7 +293,7 @@ class TestRecoveryExecutor(object):
                                        'target_name',
                                        '2015-06-03 16:11:03.71038+02',
                                        '2',
-                                       None, False, 'unavailable')
+                                       None, None, False, 'unavailable')
         assert str(exc_info.value) == "Illegal target action 'unavailable' " \
                                       "for this version of PostgreSQL"
 
@@ -306,9 +306,41 @@ class TestRecoveryExecutor(object):
                                        None,
                                        None,
                                        None,
+                                       None,
                                        None, False, 'pause')
         assert str(exc_info.value) == "Can't enable recovery target action " \
                                       "when PITR is not required"
+
+        # Test that we are not using target_lsn with a version < 10
+        backup_info.version = 90500
+        with pytest.raises(RecoveryInvalidTargetException) as exc_info:
+            executor._set_pitr_targets(recovery_info, backup_info,
+                                       dest.strpath,
+                                       None,
+                                       None,
+                                       None,
+                                       None,
+                                       10000, False, 'pause')
+        assert str(exc_info.value) == "Illegal use of recovery_target_lsn " \
+                                      "'10000' for this version " \
+                                      "of PostgreSQL " \
+                                      "(version 10 minimum required)"
+
+        # Test that we are not using target_immediate with a version < 9.4
+        backup_info.version = 90300
+        with pytest.raises(RecoveryInvalidTargetException) as exc_info:
+            executor._set_pitr_targets(recovery_info, backup_info,
+                                       dest.strpath,
+                                       None,
+                                       None,
+                                       None,
+                                       None,
+                                       None, True, 'pause')
+        assert str(exc_info.value) == "Illegal use of " \
+                                      "recovery_target_immediate " \
+                                      "for this version " \
+                                      "of PostgreSQL " \
+                                      "(version 9.4 minimum required)"
 
     @mock.patch('barman.recovery_executor.RsyncPgData')
     def test_generate_recovery_conf_pre12(self, rsync_pg_mock, tmpdir):
@@ -333,7 +365,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', None)
+                                         '', '', None)
 
         # Check that the recovery.conf file exists
         recovery_conf_file = tmpdir.join("recovery.conf")
@@ -345,6 +377,7 @@ class TestRecoveryExecutor(object):
         assert 'recovery_target_time' in recovery_conf
         assert 'recovery_target_timeline' in recovery_conf
         assert 'recovery_target_xid' not in recovery_conf
+        assert 'recovery_target_lsn' not in recovery_conf
         assert 'recovery_target_name' in recovery_conf
         assert 'recovery_target' not in recovery_conf
         assert recovery_conf['recovery_end_command'] == "'rm -fr barman_wal'"
@@ -360,7 +393,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', None)
+                                         '', '', None)
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert recovery_conf_file.check()
         recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
@@ -374,7 +407,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', None)
+                                         '', '', None)
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert recovery_conf_file.check()
         recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
@@ -386,7 +419,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', True)
+                                         '', '', True)
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert recovery_conf_file.check()
         recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
@@ -397,7 +430,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', False)
+                                         '', '', False)
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert recovery_conf_file.check()
         recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
@@ -408,7 +441,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', None)
+                                         '', '', None)
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert recovery_conf_file.check()
         recovery_conf = testing_helpers.parse_recovery_conf(recovery_conf_file)
@@ -440,7 +473,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', None)
+                                         '', '', None)
 
         # Check that the recovery.conf file doesn't exist
         recovery_conf_file = tmpdir.join("recovery.conf")
@@ -455,6 +488,7 @@ class TestRecoveryExecutor(object):
         assert 'recovery_target_time' in pg_auto_conf
         assert 'recovery_target_timeline' in pg_auto_conf
         assert 'recovery_target_xid' not in pg_auto_conf
+        assert 'recovery_target_lsn' not in pg_auto_conf
         assert 'recovery_target_name' in pg_auto_conf
         assert 'recovery_target' in pg_auto_conf
         assert pg_auto_conf['recovery_end_command'] == "'rm -fr barman_wal'"
@@ -471,7 +505,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', None)
+                                         '', '', None)
         # Check that the recovery.conf file doesn't exist
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert not recovery_conf_file.check()
@@ -492,7 +526,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', None)
+                                         '', '', None)
         # Check that the recovery.conf file doesn't exist
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert not recovery_conf_file.check()
@@ -511,7 +545,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', True)
+                                         '', '', True)
         # Check that the recovery.conf file doesn't exist
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert not recovery_conf_file.check()
@@ -532,7 +566,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', False)
+                                         '', '', False)
         # Check that the recovery.conf file doesn't exist
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert not recovery_conf_file.check()
@@ -553,7 +587,7 @@ class TestRecoveryExecutor(object):
                                          True, True, 'remote@command',
                                          'target_name',
                                          '2015-06-03 16:11:03.71038+02', '2',
-                                         '', None)
+                                         '', '', None)
         # Check that the recovery.conf file doesn't exist
         recovery_conf_file = tmpdir.join("recovery.conf")
         assert not recovery_conf_file.check()

@@ -185,6 +185,8 @@ four mutually exclusive options:
 
 * `--target-time TARGET_TIME`: to specify a timestamp
 * `--target-xid TARGET_XID`: to specify a transaction ID
+* `--target-lsn TARGET_LSN`: to specify a Log Sequence Number (LSN) -
+  requires PostgreSQL 10 or higher
 * `--target-name TARGET_NAME`: to specify a named restore point
   previously created with the pg_create_restore_point(name)
   function[^TARGET_NAME]
@@ -193,7 +195,7 @@ four mutually exclusive options:
                  [^RECOVERY_TARGET_IMMEDIATE]
 
 > **IMPORTANT:**
-> Recovery target via _time_ and _xid_  **must be** subsequent to the
+> Recovery target via _time_, _XID_ and LSN **must be** subsequent to the
 > end of the backup. If you want to recover to a point in time between
 > the start and the end of a backup, you must recover from the
 > previous backup in the catalogue.

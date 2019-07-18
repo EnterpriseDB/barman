@@ -363,6 +363,7 @@ def rebuild_xlogdb(args):
      help='target time. You can use any valid unambiguous representation. '
           'e.g: "YYYY-MM-DD HH:MM:SS.mmm"')
 @arg('--target-xid', help='target transaction ID')
+@arg('--target-lsn', help='target LSN (Log Sequence Number)')
 @arg('--target-name',
      help='target name created previously with '
           'pg_create_restore_point() function call')
@@ -371,7 +372,7 @@ def rebuild_xlogdb(args):
      action='store_true',
      default=False)
 @arg('--exclusive',
-     help='set target xid to be non inclusive', action="store_true")
+     help='set target to be non inclusive', action="store_true")
 @arg('--tablespace',
      help='tablespace relocation rule',
      metavar='NAME:LOCATION', action='append')
@@ -443,7 +444,7 @@ def rebuild_xlogdb(args):
 @expects_obj
 def recover(args):
     """
-    Recover a server at a given time or xid
+    Recover a server at a given time, name, LSN or xid
     """
     server = get_server(args)
 
@@ -514,9 +515,8 @@ def recover(args):
     # [1]: https://www.postgresql.org/docs/current/static/
     #   recovery-target-settings.html
 
-    # TODO: support target_lsn
     target_options = ['target_tli', 'target_time', 'target_xid',
-                      'target_name', 'target_immediate']
+                      'target_lsn', 'target_name', 'target_immediate']
     specified_target_options = len(
         [option for option in target_options if getattr(args, option)])
     if specified_target_options > 1:
@@ -542,6 +542,7 @@ def recover(args):
                            target_tli=args.target_tli,
                            target_time=args.target_time,
                            target_xid=args.target_xid,
+                           target_lsn=args.target_lsn,
                            target_name=args.target_name,
                            target_immediate=args.target_immediate,
                            exclusive=args.exclusive,

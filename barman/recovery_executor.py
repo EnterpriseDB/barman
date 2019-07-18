@@ -103,8 +103,8 @@ class RecoveryExecutor(object):
 
     def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
                 target_tli=None, target_time=None, target_xid=None,
-                target_name=None, target_immediate=False, exclusive=False,
-                target_action=None, standby_mode=None):
+                target_lsn=None, target_name=None, target_immediate=False,
+                exclusive=False, target_action=None, standby_mode=None):
         """
         Performs a recovery of a backup
 
@@ -119,6 +119,7 @@ class RecoveryExecutor(object):
         :param str|None target_tli: the target timeline
         :param str|None target_time: the target time
         :param str|None target_xid: the target xid
+        :param str|None target_lsn: the target LSN
         :param str|None target_name: the target name created previously with
                             pg_create_restore_point() function call
         :param str|None target_immediate: end recovery as soon as consistency
@@ -154,6 +155,7 @@ class RecoveryExecutor(object):
                                target_time,
                                target_tli,
                                target_xid,
+                               target_lsn,
                                target_immediate,
                                target_action)
 
@@ -262,7 +264,7 @@ class RecoveryExecutor(object):
                                          target_immediate, exclusive,
                                          remote_command, target_name,
                                          target_time, target_tli, target_xid,
-                                         standby_mode)
+                                         target_lsn, standby_mode)
 
         # Create archive_status directory if necessary
         archive_status_dir = os.path.join(recovery_info['wal_dest'],
@@ -373,7 +375,7 @@ class RecoveryExecutor(object):
         return recovery_info
 
     def _set_pitr_targets(self, recovery_info, backup_info, dest, target_name,
-                          target_time, target_tli, target_xid,
+                          target_time, target_tli, target_xid, target_lsn,
                           target_immediate, target_action):
         """
         Set PITR targets - as specified by the user
@@ -387,6 +389,7 @@ class RecoveryExecutor(object):
         :param str|None target_time: recovery target time for PITR
         :param str|None target_tli: recovery target timeline for PITR
         :param str|None target_xid: recovery target transaction id for PITR
+        :param str|None target_lsn: recovery target LSN for PITR
         :param bool|None target_immediate: end recovery as soon as consistency
             is reached
         :param str|None target_action: recovery target action for PITR
@@ -394,9 +397,11 @@ class RecoveryExecutor(object):
         target_epoch = None
         target_datetime = None
         d_immediate = backup_info.version >= 90400 and target_immediate
+        d_lsn = backup_info.version >= 100000 and target_lsn
         d_tli = target_tli and target_tli != backup_info.timeline
         # Detect PITR
-        if target_time or target_xid or d_tli or target_name or d_immediate:
+        if target_time or target_xid or d_tli or target_name or \
+                d_immediate or d_lsn:
             recovery_info['is_pitr'] = True
             targets = {}
             if target_time:
@@ -432,12 +437,14 @@ class RecoveryExecutor(object):
                 targets['time'] = str(target_datetime)
             if target_xid:
                 targets['xid'] = str(target_xid)
-            if target_tli and target_tli != backup_info.timeline:
-                targets['timeline'] = str(target_tli)
+            if d_lsn:
+                targets['lsn'] = str(d_lsn)
+            if d_tli and target_tli != backup_info.timeline:
+                targets['timeline'] = str(d_tli)
             if target_name:
                 targets['name'] = str(target_name)
-            if target_immediate:
-                targets['immediate'] = target_immediate
+            if d_immediate:
+                targets['immediate'] = d_immediate
 
             # Manage the target_action option
             if backup_info.version < 90100:
@@ -475,6 +482,21 @@ class RecoveryExecutor(object):
                     not recovery_info['get_wal']:
                 recovery_info['results']['delete_barman_wal'] = True
         else:
+            # Raise an error if target_lsn is used with a pgversion < 10
+            if backup_info.version < 100000:
+                if target_lsn:
+                    raise RecoveryInvalidTargetException(
+                        "Illegal use of recovery_target_lsn '%s' "
+                        "for this version of PostgreSQL "
+                        "(version 10 minimum required)" %
+                        target_lsn)
+
+                if target_immediate:
+                    raise RecoveryInvalidTargetException(
+                        "Illegal use of recovery_target_immediate "
+                        "for this version of PostgreSQL "
+                        "(version 9.4 minimum required)")
+
             if target_action:
                 raise RecoveryTargetActionException(
                     "Can't enable recovery target action when PITR "
@@ -844,7 +866,7 @@ class RecoveryExecutor(object):
     def _generate_recovery_conf(self, recovery_info, backup_info, dest,
                                 immediate, exclusive, remote_command,
                                 target_name, target_time, target_tli,
-                                target_xid, standby_mode):
+                                target_xid, target_lsn, standby_mode):
         """
         Generate recovery configuration for PITR
 
@@ -861,6 +883,7 @@ class RecoveryExecutor(object):
         :param str target_time: recovery target time for PITR
         :param str target_tli: recovery target timeline for PITR
         :param str target_xid: recovery target transaction id for PITR
+        :param str target_lsn: recovery target LSN for PITR
         :param bool|None standby_mode: standby mode
         """
 
@@ -911,7 +934,9 @@ class RecoveryExecutor(object):
         if target_xid:
             recovery_conf_lines.append(
                 "recovery_target_xid = '%s'" % target_xid)
-        # TODO: support recovery_target_lsn
+        if target_lsn:
+            recovery_conf_lines.append(
+                "recovery_target_lsn = '%s'" % target_lsn)
         if target_name:
             recovery_conf_lines.append(
                 "recovery_target_name = '%s'" % target_name)
@@ -921,7 +946,7 @@ class RecoveryExecutor(object):
                 "recovery_target = 'immediate'")
 
         # Manage what happens after recovery target is reached
-        if (target_xid or target_time) and exclusive:
+        if (target_xid or target_time or target_lsn) and exclusive:
             recovery_conf_lines.append(
                 "recovery_target_inclusive = '%s'" % (not exclusive))
         if target_tli:

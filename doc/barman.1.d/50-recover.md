@@ -15,6 +15,9 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
     --target-xid *TARGET_XID*
     :   Recover to the specified transaction ID.
 
+    --target-lsn *TARGET_LSN*
+    :   Recover to the specified LSN (Log Sequence Number). Requires PostgreSQL 10 or above.
+
     --target-name *TARGET_NAME*
     :   Recover to the named restore point previously created with
         the `pg_create_restore_point(name)` (for PostgreSQL 9.1 and above users).
@@ -24,7 +27,7 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         backup)
 
     --exclusive
-    :   Set target xid to be non inclusive.
+    :   Set target (time, XID or LSN) to be non inclusive.
 
     --target-action *ACTION*
     :   Trigger the specified action once the recovery target is reached.

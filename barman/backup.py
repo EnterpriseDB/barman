@@ -494,6 +494,7 @@ class BackupManager(RemoteStatusMixin):
         :kwparam str|None target_tli: the target timeline
         :kwparam str|None target_time: the target time
         :kwparam str|None target_xid: the target xid
+        :kwparam str|None target_lsn: the target LSN
         :kwparam str|None target_name: the target name created previously with
             pg_create_restore_point() function call
         :kwparam bool|None target_immediate: end recovery as soon as
