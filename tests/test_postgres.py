@@ -785,6 +785,8 @@ class TestPostgres(object):
         assert server.postgres.current_xlog_file_name is None
 
     @patch('barman.postgres.psycopg2.connect')
+    @patch('barman.postgres.PostgreSQLConnection.xlog_segment_size',
+           new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.checkpoint_timeout',
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.archive_timeout',
@@ -817,6 +819,7 @@ class TestPostgres(object):
                                is_in_recovery_mock,
                                archive_timeout_mock,
                                checkpoint_timeout_mock,
+                               xlog_segment_size,
                                conn_mock):
         """
         simple test for the fetch_remote_status method
@@ -834,6 +837,7 @@ class TestPostgres(object):
         conn_mock.return_value.server_version = 90500
         archive_timeout_mock.return_value = 300
         checkpoint_timeout_mock.return_value = 600
+        xlog_segment_size.return_value = 2 << 22
 
         settings = {
             'data_directory': 'a directory',
@@ -869,6 +873,7 @@ class TestPostgres(object):
             'data_checksums': 'a data_checksums',
             'max_replication_slots': 'a max_replication_slots value',
             'wal_compression': 'a wal_compression value',
+            'xlog_segment_size': 8388608,
         }
 
         # Test error management

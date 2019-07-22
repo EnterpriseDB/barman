@@ -792,6 +792,7 @@ class PostgreSQLConnection(PostgreSQL):
             result['current_size'] = self.current_size
             result['archive_timeout'] = self.archive_timeout
             result['checkpoint_timeout'] = self.checkpoint_timeout
+            result['xlog_segment_size'] = self.xlog_segment_size
 
             result.update(self.get_configuration_files())
 

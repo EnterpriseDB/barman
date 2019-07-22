@@ -35,6 +35,7 @@ from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import WalFileInfo
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import fsync_dir, fsync_file, mkpath, with_metaclass
+from barman.xlog import is_partial_file
 
 _logger = logging.getLogger(__name__)
 
@@ -712,6 +713,7 @@ class StreamingWalArchiver(WalArchiver):
                 'PostgreSQL server version')
 
         # Execute sanity check on replication slot usage
+        postgres_status = self.server.postgres.get_remote_status()
         if self.config.slot_name:
             # Check if slots are supported
             if not remote_status['pg_receivexlog_supports_slots']:
@@ -720,7 +722,6 @@ class StreamingWalArchiver(WalArchiver):
                     '(9.4 or higher is required)' %
                     self.server.streaming.server_txt_version)
             # Check if the required slot exists
-            postgres_status = self.server.postgres.get_remote_status()
             if postgres_status['replication_slot'] is None:
                 raise ArchiverFailure(
                     "replication slot '%s' doesn't exist. "
@@ -732,6 +733,10 @@ class StreamingWalArchiver(WalArchiver):
                 raise ArchiverFailure(
                     "replication slot '%s' is already in use" %
                     (self.config.slot_name,))
+
+        # Check the size of the .partial WAL file and truncate it if needed
+        self._truncate_partial_file_if_needed(
+            postgres_status['xlog_segment_size'])
 
         # Make sure we are not wasting precious PostgreSQL resources
         self.server.close()
@@ -783,6 +788,40 @@ class StreamingWalArchiver(WalArchiver):
         for partial in partial_files:
             output.info("Removing status file %s" % partial)
             os.unlink(partial)
+
+    def _truncate_partial_file_if_needed(self, xlog_segment_size):
+        """
+        Truncate .partial WAL file if size is not 0 or xlog_segment_size
+
+        :param int xlog_segment_size:
+        """
+        # Retrieve the partial list (only one is expected)
+        partial_files = glob(os.path.join(
+            self.config.streaming_wals_directory, '*.partial'))
+
+        # Take the last partial file, ignoring wrongly formatted file names
+        last_partial = None
+        for partial in partial_files:
+            if not is_partial_file(partial):
+                continue
+            if not last_partial or partial > last_partial:
+                last_partial = partial
+
+        # Skip further work if there is no good partial file
+        if not last_partial:
+            return
+
+        # If size is either 0 or wal_segment_size everything is fine...
+        partial_size = os.path.getsize(last_partial)
+        if partial_size == 0 or partial_size == xlog_segment_size:
+            return
+
+        # otherwise truncate the file to be empty. This is safe because
+        # pg_receivewal pads the file to the full size before start writing.
+        output.info("Truncating partial file %s that has wrong size %s "
+                    "while %s was expected." %
+                    (last_partial, partial_size, xlog_segment_size))
+        open(last_partial, 'wb').close()
 
     def get_next_batch(self):
         """
