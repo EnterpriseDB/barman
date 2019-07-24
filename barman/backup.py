@@ -1057,6 +1057,11 @@ class BackupManager(RemoteStatusMixin):
         end_wal = backup_info.end_wal
         timeline = begin_wal[:8]
 
+        # Case 0: there is nothing to check for this backup, as it is
+        # currently in progress
+        if not end_wal:
+            return
+
         # Case 1: Barman still doesn't know about the timeline the backup
         # started with. We still haven't archived any WAL corresponding
         # to the backup, so we can't proceed with checking the existence

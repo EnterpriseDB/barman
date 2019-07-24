@@ -1244,6 +1244,15 @@ class TestServer(object):
         server.backup_manager.get_latest_archived_wals_info.return_value = \
             timeline_info
 
+        # Case 0: backup in progress
+        backup_info = build_test_backup_info(
+            server=server,
+            begin_wal='000000010000000000000002',
+            end_wal=None,
+        )
+        server.check_backup(backup_info)
+        assert not backup_info_save.called
+
         # Case 1: timeline not present in the archived WALs
         # Nothing should happen
         backup_info = build_test_backup_info(
