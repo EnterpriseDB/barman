@@ -1044,3 +1044,38 @@ class TestStreamingWalArchiver(object):
         assert len(batch) == 0
         assert ['000000010000000000000002.partial'] == batch.skip
         assert '' in caplog.text
+
+    def test_is_synchronous(self):
+        backup_manager = build_backup_manager(
+            name='TestServer'
+        )
+        archiver = StreamingWalArchiver(backup_manager)
+
+        # 'barman_receive_wal' is not in the list of synchronous standby
+        # names, so we expect is_synchronous to be false
+        backup_manager.server.postgres.get_remote_status.return_value = {
+            'synchronous_standby_names': ['a', 'b', 'c']
+        }
+        assert not archiver._is_synchronous()
+
+        # 'barman_receive_wal' is in the list of synchronous standby
+        # names, so we expect is_synchronous to be true
+        backup_manager.server.postgres.get_remote_status.return_value = {
+            'synchronous_standby_names': ['a', 'barman_receive_wal']
+        }
+        assert archiver._is_synchronous()
+
+        # '*' is in the list of synchronous standby names, so we expect
+        # is_synchronous to be true even if 'barman_receive_wal' is not
+        # explicitly referenced
+        backup_manager.server.postgres.get_remote_status.return_value = {
+            'synchronous_standby_names': ['a', 'b', '*']
+        }
+        assert archiver._is_synchronous()
+
+        # There is only a '*' in the list of synchronous standby names,
+        # so we expect every name to match
+        backup_manager.server.postgres.get_remote_status.return_value = {
+            'synchronous_standby_names': ['*']
+        }
+        assert archiver._is_synchronous()

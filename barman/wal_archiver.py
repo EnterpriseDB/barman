@@ -957,7 +957,8 @@ class StreamingWalArchiver(WalArchiver):
         # if `synchronous_standby_names` is configured and contains
         # the value of `streaming_archiver_name`
         streaming_archiver_name = self.config.streaming_archiver_name
-        synchronous = (syncnames and streaming_archiver_name in syncnames)
+        synchronous = (syncnames and (
+            '*' in syncnames or streaming_archiver_name in syncnames))
         _logger.debug('Synchronous WAL streaming for %s: %s',
                       streaming_archiver_name,
                       synchronous)
