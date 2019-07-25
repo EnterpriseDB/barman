@@ -1,6 +1,41 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2019 2ndQuadrant Limited
 
+Version 2.9 - 1 Aug 2019
+
+-   Transparently support PostgreSQL 12, by supporting the new way of
+    managing recovery and standby settings through GUC options and
+    signal files (recovery.signal and standby.signal)
+
+-   Add --bwlimit command line option to set bandwidth limitation for
+    backup and recover commands
+
+-   Ignore WAL archive failure for check command in case the latest
+    backup is WAITING_FOR_WALS
+
+-   Add --target-lsn option to set recovery target Log Sequence Number
+    for recover command with PostgreSQL 10 or higher
+
+-   Add --spool-dir option to barman-wal-restore so that users can
+    change the spool directory location from the default, avoiding
+    conflicts in case of multiple PostgreSQL instances on the same
+    server (thanks to Drazen Kacar).
+
+-   Rename barman_xlog directory to barman_wal
+
+-   JSON output writer to export command output as JSON objects and
+    facilitate integration with external tools and systems (thanks to
+    Marcin Onufry Hlybin). Experimental in this release.
+
+Bug fixes:
+
+-   replication-status doesn’t show streamers with no slot (GH-222)
+
+-   When checking that a connection is alive (“SELECT 1” query),
+    preserve the status of the PostgreSQL connection (GH-149). This
+    fixes those cases of connections that were terminated due to
+    idle-in-transaction timeout, causing concurrent backups to fail.
+
 Version 2.8 - 17 May 2019
 
 -   Add support for reuse_backup in geo-redundancy for incremental
@@ -9,7 +44,7 @@ Version 2.8 - 17 May 2019
 -   Improve performance of rsync based copy by using strptime instead of
     the more generic dateutil.parser (#210)
 
--   Add ‘–test’ option to barman-wal-archive and barman-wal-restore to
+-   Add ‘--test’ option to barman-wal-archive and barman-wal-restore to
     verify the connection with the Barman server
 
 -   Complain if backup_options is not explicitly set, as the future
