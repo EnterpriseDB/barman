@@ -1,3 +1,148 @@
+2019-07-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Version set to 2.9
+
+2019-07-25  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add release notes for version 2.9
+
+	Manage `synchronous_standby_names = '*'` special entry
+	Fixes GH-231
+
+2019-07-23  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Clarify documentation about WAL archiving from standby
+	Fixes GH-232
+
+2019-07-24  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Fix exception in check-backup for in progress backups
+	Backups that are in progress have not `end_wal` and that was causing
+	check_backup to fail.
+
+	Fixes GH-224
+
+2019-07-11  Marcin Hlybin  <marcin.hlybin@gmail.com>
+
+	JSON Output Writer (experimental)
+	Add -f/--format option with 'json' value. Default is 'console'.
+	Currently declared experimental. Actual structure of the output
+	will be defined and documented in a future release based on
+	feedback and production experience.
+
+	Fixes GH-234
+
+2019-07-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Truncate the .partial WAL file when size is wrong
+	During the `receive-wal` startup, if we detect that the partial file size
+	is wrong, we truncate it and then start `pg_receivewal`, making Barman
+	more resilient.
+
+	This is coherent with the behaviour of `pg_receivewal`, that will allocate
+	the exact size needed for a WAL segment before starting to write it.
+	This also enables `receive-wal` to automatically resume after the backup
+	server ran out of disk space.
+
+2019-07-18  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add `--target-lsn` option to `recover` command
+	Support `recovery_target_lsn` option in recovery, allowing users
+	to specify a Log Sequence Number (LSN) as recovery target.
+
+	Extract 'checkpoint_timeout'
+
+2019-03-29  Timothy Alexander  <dragonfyre13@gmail.com>
+
+	Fix execution environment of recovery retry scripts
+	This patch fix the execution environment of the recovery retry
+	scripts: previously the environment applyied was the one for the
+	"recovery script" instead of the one for the "recovery retry script".
+
+	Pull request GH-203
+
+2019-04-13  Jeff Janes  <jeff.janes@gmail.com>
+
+	Fix "Backup completed" elapsed time
+	The message issued when a backup completes does not include all of the
+	elapsed time, but rather only a non-intuitive subset of it.
+
+	Notably it does not include the time taken to fsync all of the files,
+	which can be substantial. Make the message include all time up to when
+	the message is issued.
+
+	Pull request GH-216
+
+2019-07-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support for PostgreSQL 12
+	PostgreSQL 12 removes support for `recovery.conf`, in favour of
+	GUC options and introduces two signal files: `recovery.signal`
+	for recovery and `standby.signal` for standby mode.
+
+	Barman detects PostgreSQL 12 and transparently supports it both
+	during backup (by excluding some files) and, most importantly,
+	during recovery, by rewriting configuration options in the
+	`postgresql.auto.conf` file.
+
+	Support for versions prior to 12 has not been changed.
+
+2019-07-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Rename barman_xlog directory to barman_wal
+
+2019-07-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Preserve PostgreSQL connection status in aliveness check
+	In some cases, PostgreSQL was terminating the connection for the
+	start backup with the following error message:
+	"FATAL:  terminating connection due to idle-in-transaction timeout".
+	This was caused by the "SELECT 1" query that checks that a connection
+	is alive.
+
+	Fixes GH149
+
+2019-06-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Skip WAL archive failure if we have a terminated backup
+	In low workload situations with concurrent backup, at the end of the
+	backup the WAL archive might be temporarily empty and therefore throw
+	a failure with `check` or commands that rely on it such as `backup`.
+	Ignore the error if the last backup is `WAITING_FOR_WALS` as WAL
+	archiving must have been verified before running that backup.
+
+2019-05-20  Drazen Kacar  <drazen.kacar@oradian.com>
+
+	barman-wal-restore: Add --spool-dir option
+	Allow the user to change the spool directory location from the
+	default, avoiding conflicts in case of multiple PostgreSQL instances
+	on the same server.
+
+	Closes: GH-225, 2ndquadrant-it/barman-cli#2
+
+2019-05-23  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add '--bwlimit' option to backup and recover commands
+
+2019-05-16  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	replication-status doesn't show streamers without a slot
+	Fixes #GH222
+
+2019-05-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Use latest PostgreSQL release in sample configurations
+
+2019-05-17  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Clarify some options in passive node configuration example
+
+2019-05-16  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Version set to 2.9a1
+
 2019-05-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
