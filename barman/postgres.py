@@ -40,6 +40,7 @@ from barman.exceptions import (ConninfoException, PostgresAppNameError,
                                PostgresSuperuserRequired,
                                PostgresUnsupportedFeature)
 from barman.infofile import Tablespace
+from barman.postgres_plumbing import function_name_map
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import force_str, simplify_version, with_metaclass
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
@@ -1474,6 +1475,7 @@ class PostgreSQLConnection(PostgreSQL):
 
         :rtype: dict[str]
         """
+
         # Avoid raising an error if the connection is not available
         try:
             server_version = self.server_version
@@ -1482,33 +1484,4 @@ class PostgreSQLConnection(PostgreSQL):
                           'name_map will return names from latest version')
             server_version = None
 
-        if server_version and server_version < 100000:
-            return {
-                'pg_switch_wal': 'pg_switch_xlog',
-                'pg_walfile_name': 'pg_xlogfile_name',
-                'pg_wal': 'pg_xlog',
-                'pg_walfile_name_offset': 'pg_xlogfile_name_offset',
-                'pg_last_wal_replay_lsn': 'pg_last_xlog_replay_location',
-                'pg_current_wal_lsn': 'pg_current_xlog_location',
-                'pg_current_wal_insert_lsn': 'pg_current_xlog_insert_location',
-                'pg_last_wal_receive_lsn': 'pg_last_xlog_receive_location',
-                'sent_lsn': 'sent_location',
-                'write_lsn': 'write_location',
-                'flush_lsn': 'flush_location',
-                'replay_lsn': 'replay_location',
-            }
-
-        return {
-            'pg_switch_wal': 'pg_switch_wal',
-            'pg_walfile_name': 'pg_walfile_name',
-            'pg_wal': 'pg_wal',
-            'pg_walfile_name_offset': 'pg_walfile_name_offset',
-            'pg_last_wal_replay_lsn': 'pg_last_wal_replay_lsn',
-            'pg_current_wal_lsn': 'pg_current_wal_lsn',
-            'pg_current_wal_insert_lsn': 'pg_current_wal_insert_lsn',
-            'pg_last_wal_receive_lsn': 'pg_last_wal_receive_lsn',
-            'sent_lsn': 'sent_lsn',
-            'write_lsn': 'write_lsn',
-            'flush_lsn': 'flush_lsn',
-            'replay_lsn': 'replay_lsn',
-        }
+        return function_name_map(server_version)

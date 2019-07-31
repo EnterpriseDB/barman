@@ -27,8 +27,10 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 
 import barman
 from barman.backup_executor import ConcurrentBackupStrategy
+from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres import PostgreSQLConnection
+from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 
 try:
     import argparse
@@ -291,38 +293,6 @@ class S3BackupUploader(object):
             else:
                 raise
 
-    PGDATA_EXCLUDE_LIST = [
-        # Exclude this to avoid log files copy
-        '/pg_log/*',
-        # Exclude this for (PostgreSQL < 10) to avoid WAL files copy
-        '/pg_xlog/*',
-        # This have been renamed on PostgreSQL 10
-        '/pg_wal/*',
-        # We handle this on a different step of the copy
-        '/global/pg_control',
-    ]
-
-    EXCLUDE_LIST = [
-        # Files: see excludeFiles const in PostgreSQL source
-        'pgsql_tmp*',
-        'postgresql.auto.conf.tmp',
-        'current_logfiles.tmp',
-        'pg_internal.init',
-        'postmaster.pid',
-        'postmaster.opts',
-        'recovery.conf',
-        'standby.signal',
-
-        # Directories: see excludeDirContents const in PostgreSQL source
-        'pg_dynshmem/*',
-        'pg_notify/*',
-        'pg_replslot/*',
-        'pg_serial/*',
-        'pg_stat_tmp/*',
-        'pg_snapshots/*',
-        'pg_subtrans/*',
-    ]
-
     def backup_copy(self, controller, backup_info):
         """
         Perform the actual copy of the backup uploading it to S3.
@@ -369,7 +339,7 @@ class S3BackupUploader(object):
                     label=tablespace.name,
                     src=tablespace.location,
                     dst='%s' % tablespace.oid,
-                    exclude=['/*'] + self.EXCLUDE_LIST,
+                    exclude=['/*'] + EXCLUDE_LIST,
                     include=['/PG_%s_*' %
                              self.postgres.server_major_version],
                 )
@@ -379,7 +349,7 @@ class S3BackupUploader(object):
             label='pgdata',
             src=backup_info.pgdata,
             dst='data',
-            exclude=self.PGDATA_EXCLUDE_LIST + self.EXCLUDE_LIST + exclude
+            exclude=PGDATA_EXCLUDE_LIST + EXCLUDE_LIST + exclude
         )
 
         # At last copy pg_control
@@ -561,15 +531,19 @@ class S3UploadController(object):
         logging.info("S3UploadController.upload_directory(%r, %r, %r)",
                      label, src, dst)
         tar = self._get_tar(dst)
-        # TODO: handle exclude and include
         for root, dirs, files in os.walk(src):
             tar_root = os.path.relpath(root, src)
+            if not path_allowed(exclude, include,
+                                tar_root, True):
+                continue
             tar.add(root, arcname=tar_root, recursive=False)
             for item in files:
-                logging.debug("Uploading %s",
-                              os.path.join(tar_root, item))
-                tar.add(os.path.join(root, item),
-                        arcname=os.path.join(tar_root, item))
+                tar_item = os.path.join(tar_root, item)
+                if not path_allowed(exclude, include,
+                                    tar_item, False):
+                    continue
+                logging.debug("Uploading %s", tar_item)
+                tar.add(os.path.join(root, item), arcname=tar_item)
 
     def add_file(self, label, src, dst, path, optional=False):
         logging.info("S3UploadController.add_file(%r, %r, %r, %r, %r)",

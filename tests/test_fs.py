@@ -19,7 +19,8 @@ import pytest
 from mock import call, patch
 
 from barman.exceptions import FsOperationFailed
-from barman.fs import UnixLocalCommand
+from barman.fs import (UnixLocalCommand, _match_path, _translate_to_regexp,
+                       _wildcard_match_path, path_allowed)
 
 
 class TestUnixLocalCommand(object):
@@ -481,3 +482,213 @@ class TestUnixLocalCommand(object):
         assert command_instance.mock_calls == [
             call("ls '-la' 'test path'"),
         ]
+
+
+class TestFileMatchingRules(object):
+    def test_match_dirs_not_anchored(self):
+        match = _match_path
+        rules = ['one/two/']
+
+        # This match, because two is a directory
+        assert match(rules, 'one/two', True)
+
+        # This match, because the rule is not anchored
+        assert match(rules, 'zero/one/two', True)
+
+        # This don't match, because two is a file
+        assert not match(rules, 'one/two', False)
+
+        # This don't match, even if the rule is not anchored, because
+        # two is a file
+        assert not match(rules, 'zero/one/two', False)
+
+        # These obviously don't match
+        assert not match(rules, 'three/four', False)
+        assert not match(rules, 'three/four', True)
+
+    def test_match_dirs_anchored(self):
+        match = _match_path
+        rules = ['/one/two/']
+
+        # This match, because two is a directory
+        assert match(rules, 'one/two', True)
+
+        # This don't match, because the rule is not anchored
+        assert not match(rules, 'zero/one/two', True)
+
+        # This don't match, because two is a file
+        assert not match(rules, 'one/two', False)
+
+        # This don't match because two is a file
+        assert not match(rules, 'zero/one/two', False)
+
+        # These obviously don't match
+        assert not match(rules, 'three/four', False)
+        assert not match(rules, 'three/four', True)
+
+    def test_match_files_not_anchored(self):
+        match = _match_path
+        rules = ['one/two']
+
+        # This match, because two is a file
+        assert match(rules, 'one/two', False)
+
+        # This match, because the rule is not anchored
+        assert match(rules, 'zero/one/two', False)
+
+        # This match, because two is a directory and that is matched also by
+        # dirs
+        assert match(rules, 'one/two', True)
+
+        # This match, because the rule is not anchored, and
+        # two is a directory
+        assert match(rules, 'zero/one/two', True)
+
+        # These obviously don't match
+        assert not match(rules, 'three/four', False)
+        assert not match(rules, 'three/four', True)
+
+    def test_match_files_anchored(self):
+        match = _match_path
+        rules = ['/one/two']
+
+        # This match, because two is a file
+        assert match(rules, 'one/two', False)
+
+        # This don't match, because the rule is not anchored
+        assert not match(rules, 'zero/one/two', False)
+
+        # This match, because two is a directory and that is matched also by
+        # files
+        assert match(rules, 'one/two', True)
+
+        # This don't match because the rule is anchored
+        assert not match(rules, 'zero/one/two', True)
+
+        # These obviously don't match
+        assert not match(rules, 'three/four', False)
+        assert not match(rules, 'three/four', True)
+
+    def test_match_multiple_rules(self):
+        match = _match_path
+        rules = [
+            'one/two',
+            'three/four'
+        ]
+
+        assert match(rules, 'one/two', True)
+        assert match(rules, 'three/four', True)
+        assert match(rules, '/one/two', True)
+        assert match(rules, '/three/four', True)
+        assert not match(rules, 'five/six', True)
+        assert not match(rules, 'five/six', True)
+
+        # No rule explicitly match directories, so everything should work
+        # for directories too
+
+        assert match(rules, 'one/two', False)
+        assert match(rules, 'three/four', False)
+        assert match(rules, '/one/two', False)
+        assert match(rules, '/three/four', False)
+        assert not match(rules, 'five/six', False)
+        assert not match(rules, 'five/six', False)
+
+    def test_match_wildcards(self):
+        match = _match_path
+        rules = [
+            'one/two/*.txt',
+            'three/four/*.mid',
+        ]
+
+        assert match(rules, 'one/two/test.txt', False)
+        assert match(rules, 'prefix/one/two/test.txt', False)
+        assert not match(rules, 'one/two/test.foo', False)
+
+        assert match(rules, 'three/four/test.mid', False)
+        assert not match(rules, 'one/two/three/test.txt', False)
+
+
+class TestExcludeIncludeRules(object):
+    def test_include_rules(self):
+        match = path_allowed
+        include_rules = ['foo/bar']
+        exclude_rules = ['one/two']
+
+        assert match(exclude_rules, include_rules, 'foo/bar', False)
+
+    def test_exclude_rules(self):
+        match = path_allowed
+        include_rules = ['foo/bar']
+        exclude_rules = ['one/two']
+
+        assert not match(exclude_rules, include_rules, 'one/two', False)
+
+    def test_both_include_exclude_rules(self):
+        match = path_allowed
+        include_rules = ['foo/bar']
+        exclude_rules = ['foo/bar']
+
+        assert match(exclude_rules, include_rules, 'foo/bar', False)
+
+    def test_no_matching_rules(self):
+        match = path_allowed
+        include_rules = ['foo/bar']
+        exclude_rules = ['foo/bar']
+
+        assert match(exclude_rules, include_rules, 'one/two', False)
+
+    def test_only_exclude_rules(self):
+        match = path_allowed
+        include_rules = None
+        exclude_rules = ['one/two', 'pg_internal.init']
+
+        assert match(exclude_rules, include_rules, 'foo/bar', False)
+        assert not match(exclude_rules, include_rules, 'one/two', False)
+        assert not match(exclude_rules, include_rules,
+                         'pg_internal.init', False)
+        assert not match(exclude_rules, include_rules,
+                         'base/13382/pg_internal.init', False)
+
+    def test_only_include_rules(self):
+        match = path_allowed
+        include_rules = ['foo/bar']
+        exclude_rules = None
+
+        assert match(exclude_rules, include_rules, 'one/foo/bar', False)
+        assert match(exclude_rules, include_rules, 'bar/foo', False)
+
+
+class TestWildcardMatch(object):
+    def test_exact_match(self):
+        assert _wildcard_match_path('text.txt', 'text.txt')
+        assert not _wildcard_match_path('text.txt', 'toast.bmp')
+
+    def test_question_mark(self):
+        assert _wildcard_match_path('test.txt', 'test.tx?')
+        assert not _wildcard_match_path('test.bmp', 'test.tx?')
+
+    def test_asterisk(self):
+        assert _wildcard_match_path('test.txt', 'test*')
+        assert not _wildcard_match_path('toast.txt', 'test*')
+
+    def test_asterisk_without_slash(self):
+        assert _wildcard_match_path('directory/file.txt', 'directory/*.txt')
+        assert not _wildcard_match_path('directory/file.txt', '*.txt')
+
+    def test_two_asterisks(self):
+        assert _wildcard_match_path('directory/file.txt', '**.txt')
+        assert not _wildcard_match_path('directory/file.bmp', '**.txt')
+
+
+class TestTranslate(object):
+    def test_empty_pattern(self):
+        assert _translate_to_regexp('') == r'(?s)\Z'
+
+    def test_one_star_pattern(self):
+        assert _translate_to_regexp('test*me') == r'(?s)test[^/]*me\Z'
+
+    def test_two_stars_pattern(self):
+        assert _translate_to_regexp('test**me') == r'(?s)test.*me\Z'
+
+    def test_question_mark_pattern(self):
+        assert _translate_to_regexp('test?me') == r'(?s)test.me\Z'

@@ -16,6 +16,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import re
 
 from barman.command_wrappers import Command, full_command_quote
 from barman.exceptions import FsOperationFailed
@@ -313,3 +314,116 @@ class UnixRemoteCommand(UnixLocalCommand):
                     ssh_command,
                     ' '.join(ssh_options),
                     ret))
+
+
+def path_allowed(exclude, include, path, is_dir):
+    """
+    Filter files based on include/exclude lists.
+
+    The rules are evaluated in steps:
+
+    1. if there are include rules and the proposed path match them, it
+       is immediately accepted.
+
+    2. if there are exclude rules and the proposed path match them, it
+       is immediately rejected.
+
+    3. the path is accepted.
+
+    Look at the documentation for the "evaluate_path_matching_rules" function
+    for more information about the syntax of the rules.
+
+    :param list[str]|None exclude: The list of rules composing the exclude list
+    :param list[str]|None include: The list of rules composing the include list
+    :param str path: The patch to patch
+    :param bool is_dir: True is the passed path is a directory
+    :return bool: True is the patch is accepted, False otherwise
+    """
+    if include and _match_path(include, path, is_dir):
+        return True
+    if exclude and _match_path(exclude, path, is_dir):
+        return False
+    return True
+
+
+def _match_path(rules, path, is_dir):
+    """
+    Determine if a certain list of rules match a filesystem entry.
+
+    The rule-checking algorithm also handles rsync-like anchoring of rules
+    prefixed with '/'. If the rule is not anchored then it match every
+    file whose suffix matches the rule.
+
+    That means that a rule like 'a/b', will match 'a/b' and 'x/a/b' too.
+    A rule like '/a/b' will match 'a/b' but not 'x/a/b'.
+
+    If a rule ends with a slash (i.e. 'a/b/') if will be used only if the
+    passed path is a directory.
+
+    This function implements the basic wildcards. For more information about
+    that, consult the documentation of the "translate_to_regexp" function.
+
+    :param list[str] rules: match
+    :param path: the path of the entity to match
+    :param is_dir: True if the entity is a directory
+    :return bool:
+    """
+    for rule in rules:
+        if rule[-1] == '/':
+            if not is_dir:
+                continue
+            rule = rule[:-1]
+        anchored = False
+        if rule[0] == '/':
+            rule = rule[1:]
+            anchored = True
+        if _wildcard_match_path(path, rule):
+            return True
+        if not anchored and _wildcard_match_path(path, '**/' + rule):
+            return True
+    return False
+
+
+def _wildcard_match_path(path, pattern):
+    """
+    Check if the proposed shell pattern match the path passed.
+
+    :param str path:
+    :param str pattern:
+    :rtype bool: True if it match, False otherwise
+    """
+    regexp = re.compile(_translate_to_regexp(pattern))
+    return regexp.match(path) is not None
+
+
+def _translate_to_regexp(pattern):
+    """
+    Translate a shell PATTERN to a regular expression.
+
+    These wildcard characters you to use:
+
+    - "?" to match every character
+    - "*" to match zero or more characters, excluding "/"
+    - "**" to match zero or more characters, including "/"
+
+    There is no way to quote meta-characters.
+    This implementation is based on the one in the Python fnmatch module
+
+    :param str pattern: A string containing wildcards
+    """
+
+    i, n = 0, len(pattern)
+    res = ''
+    while i < n:
+        c = pattern[i]
+        i = i + 1
+        if pattern[i - 1:].startswith("**"):
+            res = res + '.*'
+            i = i + 1
+        elif c == '*':
+            res = res + '[^/]*'
+        elif c == '?':
+            res = res + '.'
+        else:
+            res = res + re.escape(c)
+    return r'(?s)%s\Z' % res
