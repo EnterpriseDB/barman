@@ -17,6 +17,7 @@
 
 import json
 import os
+import warnings
 from datetime import datetime
 
 import mock
@@ -337,7 +338,10 @@ class TestWalFileInfo(object):
         # test case 4 string with a wrong timezone format,
         # expecting tzlocal() as timezone
         tz_string = '16:08:12 05/08/03 AEST'
-        result = load_datetime_tz(tz_string)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="tzname AEST identified but not understood.")
+            result = load_datetime_tz(tz_string)
         assert result.tzinfo == tzlocal()
 
 

@@ -88,6 +88,9 @@ class TestOutputAPI(object):
                                                                  **kwargs)
 
     def test_debug(self, caplog):
+        # See all logs
+        caplog.set_level(0)
+
         # preparation
         writer = self._mock_writer()
 
@@ -108,6 +111,9 @@ class TestOutputAPI(object):
         assert not output.error_occurred
 
     def test_debug_with_args(self, caplog):
+        # See all logs
+        caplog.set_level(0)
+
         # preparation
         writer = self._mock_writer()
 
@@ -129,6 +135,9 @@ class TestOutputAPI(object):
         assert not output.error_occurred
 
     def test_debug_error(self, caplog):
+        # See all logs
+        caplog.set_level(0)
+
         # preparation
         writer = self._mock_writer()
 
@@ -156,6 +165,9 @@ class TestOutputAPI(object):
             output.debug('message', bad_arg=True)
 
     def test_info(self, caplog):
+        # See all logs
+        caplog.set_level(0)
+
         # preparation
         writer = self._mock_writer()
 
@@ -176,6 +188,9 @@ class TestOutputAPI(object):
         assert not output.error_occurred
 
     def test_info_with_args(self, caplog):
+        # See all logs
+        caplog.set_level(0)
+
         # preparation
         writer = self._mock_writer()
 
@@ -197,6 +212,9 @@ class TestOutputAPI(object):
         assert not output.error_occurred
 
     def test_info_error(self, caplog):
+        # See all logs
+        caplog.set_level(0)
+
         # preparation
         writer = self._mock_writer()
 

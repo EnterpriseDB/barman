@@ -219,8 +219,6 @@ class RsyncCopyController(object):
     # of a "rsync --list-only" call. This regexp has been tested with any known
     # version of upstream rsync that is supported (>= 3.0.4)
     LIST_ONLY_RE = re.compile(r"""
-        (?x) # Enable verbose mode
-
         ^ # start of the line
 
         # capture the mode (es. "-rw-------")
@@ -246,16 +244,13 @@ class RsyncCopyController(object):
         (?P<path>.+)
 
         $ # end of the line
-    """)
+    """, re.VERBOSE)
 
     # This regular expression is used to ignore error messages regarding
     # vanished files that are not really an error. It is used because
     # in some cases rsync reports it with exit code 23 which could also mean
     # a fatal error
     VANISHED_RE = re.compile(r"""
-        (?x) # Enable verbose mode
-        (?i) # Case insensitive
-
         ^ # start of the line
         (
         # files which vanished before rsync start
@@ -272,7 +267,7 @@ class RsyncCopyController(object):
             \ \[(generator|receiver)=[^\]]+\]
         )
         $ # end of the line
-    """)
+    """, re.VERBOSE + re.IGNORECASE)
 
     def __init__(self, path=None, ssh_command=None, ssh_options=None,
                  network_compression=False,

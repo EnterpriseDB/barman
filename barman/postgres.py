@@ -69,7 +69,7 @@ def _atexit():
     """
     # Take a copy of the list because the conn.close() method modify it
     for conn in list(_live_connections):
-        _logger.warn(
+        _logger.warning(
             "Forcing %s cleanup during process shut down.",
             conn.__class__.__name__)
         conn.close()
@@ -349,8 +349,8 @@ class StreamingConnection(PostgreSQL):
             result['streaming'] = False
         except PostgresConnectionError as e:
             result['connection_error'] = force_str(e).strip()
-            _logger.warn("Error retrieving PostgreSQL status: %s",
-                         force_str(e).strip())
+            _logger.warning("Error retrieving PostgreSQL status: %s",
+                            force_str(e).strip())
         return result
 
     def create_physical_repslot(self, slot_name):
@@ -811,8 +811,8 @@ class PostgreSQLConnection(PostgreSQL):
                     self.get_synchronous_standby_names())
 
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.warn("Error retrieving PostgreSQL status: %s",
-                         force_str(e).strip())
+            _logger.warning("Error retrieving PostgreSQL status: %s",
+                            force_str(e).strip())
         return result
 
     def get_setting(self, name):

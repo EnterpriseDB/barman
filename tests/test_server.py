@@ -691,6 +691,9 @@ class TestServer(object):
         """
         Basic test for cron process lock acquisition
         """
+        # See all logs
+        caplog.set_level(0)
+
         server = build_real_server({'barman_home': tmpdir.strpath})
 
         # Basic cron lock acquisition
@@ -1396,6 +1399,9 @@ class TestServer(object):
     ])
     def test_put_wal(self, mode, success, error_msg,
                      tmpdir, capsys, caplog, monkeypatch):
+        # See all logs
+        caplog.set_level(0)
+
         lab = tmpdir.mkdir('lab')
         incoming = tmpdir.mkdir('incoming')
         server = build_real_server(
@@ -1515,6 +1521,9 @@ class TestServer(object):
     @patch('barman.server.fsync_file')
     @patch('barman.server.fsync_dir')
     def test_put_wal_fsync(self, fd_mock, ff_mock, tmpdir, capsys, caplog):
+        # See all logs
+        caplog.set_level(0)
+
         lab = tmpdir.mkdir('lab')
         incoming = tmpdir.mkdir('incoming')
         server = build_real_server(
@@ -1589,6 +1598,9 @@ class TestCheckStrategy(object):
 
         :type caplog: pytest_capturelog.CaptureLogFuncArg
         """
+        # See all logs
+        caplog.set_level(0)
+
         strategy = CheckOutputStrategy()
         # Expected result OK
         strategy.result('test_server_one', True, check='wal_level')
@@ -1668,6 +1680,9 @@ class TestCheckStrategy(object):
 
         :type caplog: pytest_capturelog.CaptureLogFuncArg
         """
+        # See all logs
+        caplog.set_level(0)
+
         strategy = CheckStrategy()
         # Expected result OK
         strategy.result('test_server_one', True, check='wal_level')

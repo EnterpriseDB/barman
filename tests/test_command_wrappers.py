@@ -382,8 +382,9 @@ class TestCommand(object):
         assert cmd.out == out
         assert cmd.err == err
 
-    def test_execute_invocation(self, popen, pipe_processor_loop,
-                                caplog):
+    def test_execute_invocation(self, popen, pipe_processor_loop, caplog):
+        # See all logs
+        caplog.set_level(0)
         command = 'command'
         ret = 0
         out = 'out'
@@ -415,6 +416,9 @@ class TestCommand(object):
 
     def test_execute_invocation_multiline(self, popen, pipe_processor_loop,
                                           caplog):
+        # See all logs
+        caplog.set_level(0)
+
         command = 'command'
         ret = 0
         out = 'line1\nline2\n'
@@ -453,6 +457,9 @@ class TestCommand(object):
     def test_execute_check_failed_invocation(self, popen,
                                              pipe_processor_loop,
                                              caplog):
+        # See all logs
+        caplog.set_level(0)
+
         command = 'command'
         ret = 1
         out = 'out'
@@ -515,6 +522,9 @@ class TestCommand(object):
         assert '\n'.join(err_list) == err
 
     def test_execute_handlers(self, popen, pipe_processor_loop, caplog):
+        # See all logs
+        caplog.set_level(0)
+
         command = 'command'
         ret = 0
         out = 'out'
@@ -1000,6 +1010,9 @@ class TestPgBaseBackup(object):
                                popen,
                                pipe_processor_loop,
                                caplog):
+        # See all logs
+        caplog.set_level(0)
+
         ret = 0
         out = 'out'
         err = 'err'
@@ -1120,6 +1133,9 @@ class TestReceiveXlog(object):
                                popen,
                                pipe_processor_loop,
                                caplog):
+        # See all logs
+        caplog.set_level(0)
+
         ret = 0
         out = 'out'
         err = 'err'
@@ -1274,6 +1290,9 @@ class TestBarmanSubProcess(object):
 
     @mock.patch('barman.command_wrappers.subprocess.Popen')
     def test_simple_invocation(self, popen_mock, caplog):
+        # See all logs
+        caplog.set_level(0)
+
         popen_mock.return_value.pid = 12345
         subprocess = command_wrappers.BarmanSubProcess(
             command='path/to/barman',
