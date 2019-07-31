@@ -139,10 +139,7 @@ class TestWalUploader(object):
         )
         assert uploader.bucket_name == 'bucket'
         assert uploader.path == '/path/to/dir'
-        boto_mock.Session.assert_called_once_with(
-            profile_name=None,
-            region_name=None
-        )
+        boto_mock.Session.assert_called_once_with(profile_name=None)
         session_mock = boto_mock.Session.return_value
         session_mock.resource.assert_called_once_with('s3')
         assert uploader.s3 == session_mock.resource.return_value

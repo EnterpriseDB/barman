@@ -78,6 +78,7 @@ setup(
     entry_points={
         'console_scripts': [
             'barman=barman.cli:main',
+            'barman-cloud-backup=barman.clients.cloud_backup:main',
             'barman-cloud-wal-archive=barman.clients.cloud_walarchive:main',
             'barman-wal-archive=barman.clients.walarchive:main',
             'barman-wal-restore=barman.clients.walrestore:main',

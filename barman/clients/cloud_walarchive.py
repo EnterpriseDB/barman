@@ -19,6 +19,7 @@ import bz2
 import gzip
 import logging
 import os
+import os.path
 import shutil
 from contextlib import closing
 from io import BytesIO
@@ -296,8 +297,8 @@ class S3WalUploader(object):
         :param str wal_path: the WAL file complete path
         :return str: WAL file name
         """
-        # Extract he WAL name
-        wal_name = wal_path.split('/')[-1]
+        # Extract the WAL name
+        wal_name = os.path.basename(wal_path)
         # return the plain file name if no compression is specified
         if not self.compression:
             return wal_name
