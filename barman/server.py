@@ -117,7 +117,7 @@ class CheckStrategy(object):
         :param str check_name: the name of the check that is starting
         """
         self.running_check = check_name
-        _logger.debug("Starting check: %s" % check_name)
+        _logger.debug("Starting check: '%s'" % check_name)
 
     def _check_name(self, check):
         if not check:
