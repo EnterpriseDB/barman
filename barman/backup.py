@@ -645,7 +645,7 @@ class BackupManager(RemoteStatusMixin):
         # Run the pre_wal_delete_retry_script if present.
         retry_script = RetryHookScriptRunner(
             self, 'wal_delete_retry_script', 'pre')
-        script.env_from_wal_info(wal_info)
+        retry_script.env_from_wal_info(wal_info)
         retry_script.run()
 
         error = None
@@ -667,7 +667,7 @@ class BackupManager(RemoteStatusMixin):
         try:
             retry_script = RetryHookScriptRunner(
                 self, 'wal_delete_retry_script', 'post')
-            script.env_from_wal_info(wal_info, None, error)
+            retry_script.env_from_wal_info(wal_info, None, error)
             retry_script.run()
         except AbortedRetryHookScript as e:
             # Ignore the ABORT_STOP as it is a post-hook operation
