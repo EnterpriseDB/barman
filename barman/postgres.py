@@ -177,6 +177,10 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             initial_status = self._conn.status
             cursor = self._conn.cursor()
             cursor.execute(self.CHECK_QUERY)
+            # Rollback if initial status was IDLE because the CHECK QUERY
+            # has started a new transaction.
+            if initial_status == STATUS_READY:
+                self._conn.rollback()
         except psycopg2.DatabaseError:
             # Connection is broken, so we need to reconnect
             self.close()
@@ -187,10 +191,6 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             return False
         finally:
             if cursor:
-                # Rollback if initial status was IDLE because the CHECK QUERY
-                # has started a new transaction.
-                if initial_status == STATUS_READY:
-                    self._conn.rollback()
                 cursor.close()
 
         return True
