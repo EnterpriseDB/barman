@@ -90,14 +90,36 @@ The `barman` application will be installed in your user directory ([make sure th
 
 [Barman is also available on the Python Package Index (PyPI)][pypi] and can be installed through `pip`.
 
+# Upgrading Barman
+
+Barman follows the trunk-based development paradigm, and as such
+there is only one stable version, the latest. After every commit,
+Barman goes through thousands of automated tests for each
+supported PostgreSQL version and on each supported Linux distribution.
+
+Also, **every version is back compatible** with previous ones.
+Thefore, upgrading Barman normally requires a simple update of packages
+using `yum update` or `apt update`.
+
+There have been, however, the following exceptions in our development
+history, which required some small changes to the configuration.
+
+## Upgrading from Barman 2.X (prior to 2.8)
+
+Before upgrading from a version of Barman 2.7 or older
+users of `rsync` backup method on a primary server should explicitly
+set `backup_options` to either `concurrent_backup` (recommended for
+PostgreSQL 9.6 or higher) or `exclusive_backup` (current default),
+otherwise Barman emits a warning every time it runs.
+
 ## Upgrading from Barman 1.X
 
-Version 2.0 requires that users explicitly configure
-their archiving strategy. Before, the file based
-archiver, controlled by `archiver`, was enabled by default.
+If your Barman installation is 1.X, you need to explicitly configure
+the archiving strategy. Before, the file based archiver, controlled by
+`archiver`, was enabled by default.
 
-When you upgrade your Barman installation to 2.0, make sure
-you add the following line either globally or for any server
+Before you upgrade your Barman installation to the latest version,
+make sure you add the following line either globally or for any server
 that requires it:
 
 ``` ini
@@ -107,5 +129,3 @@ archiver = on
 Additionally, for a few releases, Barman will transparently set
 `archiver = on` with any server that has not explicitly set
 an archiving strategy and emit a warning.
-
-Besides that, version 2.0 is fully compatible with older ones.
