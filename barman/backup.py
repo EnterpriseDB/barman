@@ -638,7 +638,7 @@ class BackupManager(RemoteStatusMixin):
         """
 
         # Run the pre_wal_delete_script if present.
-        script = HookScriptRunner(self, 'wal_delete', 'pre')
+        script = HookScriptRunner(self, 'wal_delete_script', 'pre')
         script.env_from_wal_info(wal_info)
         script.run()
 
@@ -677,7 +677,7 @@ class BackupManager(RemoteStatusMixin):
                             e.hook.exit_status, e.hook.script)
 
         # Run the post_wal_delete_script if present.
-        script = HookScriptRunner(self, 'wal_delete', 'post')
+        script = HookScriptRunner(self, 'wal_delete_script', 'post')
         script.env_from_wal_info(wal_info, None, error)
         script.run()
 
