@@ -1063,7 +1063,8 @@ def global_config(args):
                       log_level or barman.config.DEFAULT_LOG_LEVEL,
                       config.log_format)
     if log_level is None:
-        _logger.warn('unknown log_level in config file: %s', config.log_level)
+        _logger.warning('unknown log_level in config file: %s',
+                        config.log_level)
 
     # Configure output
     if args.format != output.DEFAULT_WRITER or args.quiet or args.debug:

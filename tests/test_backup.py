@@ -16,6 +16,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import re
 from datetime import datetime, timedelta
 
 import dateutil.parser
@@ -226,7 +227,7 @@ class TestBackup(object):
         b_info.set_attribute('backup_version', 1)
         build_backup_directories(b_info)
         backup_manager.delete_backup(b_info)
-        assert 'WARNING  Skipping delete of backup ' in caplog.text
+        assert re.search('WARNING .* Skipping delete of backup ', caplog.text)
         assert 'ERROR' not in caplog.text
         assert os.path.exists(pg_data.strpath)
         assert not os.path.exists(pg_data_v2.strpath)
@@ -254,7 +255,8 @@ class TestBackup(object):
         # Test 3: delete the backup again, expect a failure in log
         caplog_reset(caplog)
         backup_manager.delete_backup(b_info)
-        assert 'ERROR    Failure deleting backup fake_backup_id' in caplog.text
+        assert re.search('ERROR .* Failure deleting backup fake_backup_id',
+                         caplog.text)
         assert not os.path.exists(pg_data.strpath)
         assert not os.path.exists(pg_data_v2.strpath)
         assert os.path.exists(wal_file.strpath)

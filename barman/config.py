@@ -584,7 +584,12 @@ class Config(object):
             self._config = ConfigParser()
         if filename:
             if hasattr(filename, 'read'):
-                self._config.readfp(filename)
+                try:
+                    # Python 3.x
+                    self._config.read_file(filename)
+                except AttributeError:
+                    # Python 2.x
+                    self._config.readfp(filename)
             else:
                 # check for the existence of the user defined file
                 if not os.path.exists(filename):

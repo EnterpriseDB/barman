@@ -45,7 +45,6 @@ install_requires = [
     'psycopg2 >= 2.4.2',
     'argh >= 0.21.2',
     'python-dateutil',
-    'argcomplete',
 ]
 
 if sys.version_info < (2, 7):
@@ -87,6 +86,9 @@ setup(
     description=__doc__.split("\n")[0],
     long_description="\n".join(__doc__.split("\n")[2:]),
     install_requires=install_requires,
+    extras_require={
+        'completion': ['argcomplete'],
+    },
     platforms=['Linux', 'Mac OS X'],
     classifiers=[
         'Environment :: Console',
@@ -108,9 +110,7 @@ setup(
     setup_requires=setup_requires,
     tests_require=[
         'mock',
-        'pytest-catchlog>=1.2.1',
-        'pytest-timeout<1.2.1',  # pytest-timeout removed 2.6 support in 1.2.1
-        'pytest<3.3.0',  # pytest has dropped 2.6 support in 3.3.0
-        'py<1.6.0',  # py broke 2.6 support in 1.6.0
+        'pytest-timeout',
+        'pytest',
     ],
 )

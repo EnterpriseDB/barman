@@ -188,6 +188,9 @@ command.
 barman receive-wal <server_name>
 ```
 
+> **NOTE:**
+> The `receive-wal` command is a foreground process.
+
 If the command is run with the `--stop` option, the currently running
 `receive-wal` process will be stopped.
 

@@ -159,6 +159,9 @@ class TestFileWalArchiver(object):
         """
         Test FileWalArchiver.archive method
         """
+        # See all logs
+        caplog.set_level(0)
+
         fxlogdb_mock = MagicMock()
         backup_manager = MagicMock()
         archiver = FileWalArchiver(backup_manager)
@@ -234,6 +237,9 @@ class TestFileWalArchiver(object):
         """
         Test archive using batch limit
         """
+        # See all logs
+        caplog.set_level(0)
+
         # Setup the test
         fxlogdb_mock = MagicMock()
         backup_manager = MagicMock()
@@ -969,6 +975,8 @@ class TestStreamingWalArchiver(object):
         """
         Test the FileWalArchiver.get_next_batch method
         """
+        # See all logs
+        caplog.set_level(0)
 
         # WAL batch, with 000000010000000000000001 that is currently being
         # written

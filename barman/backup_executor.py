@@ -878,7 +878,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                                 remote_status['last_archived_wal'] = name
                                 break
         except (PostgresConnectionError, FsOperationFailed) as e:
-            _logger.warn("Error retrieving PostgreSQL status: %s", e)
+            _logger.warning("Error retrieving PostgreSQL status: %s", e)
         return remote_status
 
     def _start_backup_copy_message(self, backup_info):
