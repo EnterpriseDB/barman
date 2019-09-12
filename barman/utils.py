@@ -102,7 +102,8 @@ def configure_logging(
         log_dir = os.path.dirname(log_file)
         try:
             mkpath(log_dir)
-            handler = logging.handlers.WatchedFileHandler(log_file)
+            handler = logging.handlers.WatchedFileHandler(
+                log_file, encoding='utf-8')
         except (OSError, IOError):
             # fallback to standard error
             warn = "Failed opening the requested log file. " \

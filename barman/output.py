@@ -28,7 +28,8 @@ import logging
 import sys
 
 from barman.infofile import BackupInfo
-from barman.utils import BarmanEncoder, human_readable_timedelta, pretty_size
+from barman.utils import (BarmanEncoder, force_str, human_readable_timedelta,
+                          pretty_size)
 from barman.xlog import diff_lsn
 
 __all__ = [
@@ -136,6 +137,9 @@ def _put(level, message, *args, **kwargs):
         global error_occurred
         error_occurred = True
         _writer.error_occurred()
+    # Make sure the message is an unicode string
+    if message:
+        message = force_str(message)
     # dispatch the call to the output handler
     getattr(_writer, level)(message, *args)
     # log the message as originating from caller's caller module
