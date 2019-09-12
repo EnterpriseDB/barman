@@ -17,13 +17,13 @@ barman.1: $(sort $(wildcard barman.1.d/??-*.md))
 	pandoc -s -f markdown$(NOSMART_SUFFIX) -t man -o $@ $^
 
 barman.5: $(sort $(wildcard barman.5.d/??-*.md))
-	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $^
+	pandoc -s -f markdown$(NOSMART_SUFFIX) -t man -o $@ $^
 
 barman-wal-archive.1: barman-wal-archive.1.md
-	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
+	pandoc -s -f markdown$(NOSMART_SUFFIX) -t man -o $@ $<
 
 barman-wal-restore.1: barman-wal-restore.1.md
-	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
+	pandoc -s -f markdown$(NOSMART_SUFFIX) -t man -o $@ $<
 
 clean:
 	rm -f $(MANPAGES)

@@ -4,15 +4,17 @@
 .hy
 .SH NAME
 .PP
-barman-wal-restore - `restore_command' based on Barman\[cq]s get-wal
+barman-wal-restore - \[aq]restore_command\[aq] based on Barman\[aq]s
+get-wal
 .SH SYNOPSIS
 .PP
 barman-wal-restore [\f[I]OPTIONS\f[R]] \f[I]BARMAN_HOST\f[R]
 \f[I]SERVER_NAME\f[R] \f[I]WAL_NAME\f[R] \f[I]WAL_DEST\f[R]
 .SH DESCRIPTION
 .PP
-This script can be used as a `restore_command' for PostgreSQL servers,
-retrieving WAL files using the `get-wal' feature of Barman.
+This script can be used as a \[aq]restore_command\[aq] for PostgreSQL
+servers, retrieving WAL files using the \[aq]get-wal\[aq] feature of
+Barman.
 An SSH connection will be opened to the Barman host.
 \f[C]barman-wal-restore\f[R] allows the integration of Barman in
 PostgreSQL clusters for better business continuity results.
@@ -28,45 +30,47 @@ the host of the Barman server.
 the server name configured in Barman from which WALs are taken.
 .TP
 .B WAL_NAME
-the value of the `%f' keyword (according to `restore_command').
+the value of the \[aq]%f\[aq] keyword (according to
+\[aq]restore_command\[aq]).
 .TP
 .B WAL_DEST
-the value of the `%p' keyword (according to `restore_command').
+the value of the \[aq]%p\[aq] keyword (according to
+\[aq]restore_command\[aq]).
 .SH OPTIONS
 .TP
-.B -h, \[en]help
+.B -h, --help
 show a help message and exit
 .TP
-.B -V, \[en]version
-show program\[cq]s version number and exit
+.B -V, --version
+show program\[aq]s version number and exit
 .TP
-.B -U \f[I]USER\f[R], \[en]user \f[I]USER\f[R]
+.B -U \f[I]USER\f[R], --user \f[I]USER\f[R]
 the user used for the ssh connection to the Barman server.
-Defaults to `barman'.
+Defaults to \[aq]barman\[aq].
 .TP
-.B -s \f[I]SECONDS\f[R], \[en]sleep \f[I]SECONDS\f[R]
+.B -s \f[I]SECONDS\f[R], --sleep \f[I]SECONDS\f[R]
 sleep for SECONDS after a failure of get-wal request.
 Defaults to 0 (nowait).
 .TP
-.B -p \f[I]JOBS\f[R], \[en]parallel \f[I]JOBS\f[R]
+.B -p \f[I]JOBS\f[R], --parallel \f[I]JOBS\f[R]
 specifies the number of files to peek and transfer in parallel, defaults
 to 0 (disabled).
 .TP
-.B -z, \[en]gzip
+.B -z, --gzip
 transfer the WAL files compressed with gzip
 .TP
-.B -j, \[en]bzip2
+.B -j, --bzip2
 transfer the WAL files compressed with bzip2
 .TP
-.B -c \f[I]CONFIG\f[R], \[en]config \f[I]CONFIG\f[R]
+.B -c \f[I]CONFIG\f[R], --config \f[I]CONFIG\f[R]
 configuration file on the Barman server
 .TP
-.B -t, \[en]test
+.B -t, --test
 test both the connection and the configuration of the requested
 PostgreSQL server in Barman to make sure it is ready to receive WAL
 files.
-With this option, the `WAL_NAME' and `WAL_DEST' mandatory arguments are
-ignored.
+With this option, the \[aq]WAL_NAME\[aq] and \[aq]WAL_DEST\[aq]
+mandatory arguments are ignored.
 .SH EXIT STATUS
 .TP
 .B 0

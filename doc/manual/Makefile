@@ -16,10 +16,10 @@ endif
 all: $(DOCS)
 
 barman-manual.en.pdf: $(MDS) ../images/*.png
-	pandoc -o $@ -s -f markdown --toc $(SMART) $(MDS)
+	pandoc -o $@ -s -f markdown$(NOSMART_SUFFIX) --toc $(MDS)
 
 barman-manual.en.html: $(MDS) ../images/*.png
-	pandoc -o $@ -s -f markdown --toc $(SMART) -t html5 $(MDS)
+	pandoc -o $@ -s -f markdown$(NOSMART_SUFFIX) --toc -t html5 $(MDS)
 
 clean:
 	    rm -f $(DOCS)
