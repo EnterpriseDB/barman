@@ -94,23 +94,26 @@ def main(args=None):
         conninfo = build_conninfo(config)
         postgres = PostgreSQLConnection(conninfo, config.immediate_checkpoint)
 
-        uploader = S3BackupUploader(
+        cloud_interface = CloudInterface(
             destination_url=config.destination_url,
+            encryption=config.encryption,
+            profile_name=config.profile)
+
+        uploader = S3BackupUploader(
             server_name=config.server_name,
             compression=config.compression,
-            encryption=config.encryption,
             postgres=postgres,
-        )
+            cloud_interface=cloud_interface)
 
         # If test is requested just test connectivity and exit
         # TODO: add postgresql connectivity test
         if config.test:
-            if uploader.test_connectivity():
+            if cloud_interface.test_connectivity():
                 raise SystemExit(0)
             raise SystemExit(1)
 
         # TODO: Should the setup be optional?
-        uploader.setup_bucket()
+        cloud_interface.setup_bucket()
 
         # Perform the backup
         uploader.backup()
@@ -230,68 +233,26 @@ class S3BackupUploader(object):
     S3 upload client
     """
 
-    def __init__(self, destination_url, server_name, postgres,
-                 compression=None, profile_name=None,
-                 encryption=None):
+    def __init__(self, server_name, postgres, cloud_interface,
+                 compression=None):
         """
         Object responsible for handling interactions with S3
 
-        :param str destination_url: Full URL of the cloud destination
         :param str server_name: The name of the server as configured in Barman
         :param PostgreSQLConnection postgres: The PostgreSQL connection info
+        :param CloudInterface cloud_interface: The interface to use to
+          upload the backup
         :param str compression: Compression algorithm to use
-        :param str profile_name: Amazon auth profile identifier
-        :param str encryption: Encryption type string
         """
 
-        parsed_url = urlparse(destination_url)
-        # If netloc is not present, the s3 url is badly formatted.
-        if parsed_url.netloc == '' or parsed_url.scheme != 's3':
-            raise ValueError('Invalid s3 URL address: %s' % destination_url)
-        self.bucket_name = parsed_url.netloc
-        self.path = parsed_url.path
-        self.encryption = encryption
         self.compression = compression
         self.server_name = server_name
         self.postgres = postgres
-        # Build a session, so we can extract the correct resource
-        session = boto3.Session(profile_name=profile_name)
-        self.s3 = session.resource('s3')
+        self.cloud_interface = cloud_interface
 
         # Stats
         self.copy_start_time = None
         self.copy_end_time = None
-
-    def test_connectivity(self):
-        """
-        Test the S3 connectivity trying to access a bucket
-        """
-        try:
-            self.s3.Bucket(self.bucket_name).load()
-            # We are not even interested in the existence of the bucket,
-            # we just want to try if aws is reachable
-            return True
-        except EndpointConnectionError as exc:
-            logging.error("Can't connect to Amazon AWS/S3: %s", exc)
-            return False
-
-    def setup_bucket(self):
-        """
-        Search for the target bucket. Create it if not exists
-        """
-        try:
-            # Search the bucket on s3
-            self.s3.meta.client.head_bucket(Bucket=self.bucket_name)
-        except ClientError as exc:
-            # If a client error is thrown, then check that it was a 405 error.
-            # If it was a 404 error, then the bucket does not exist.
-            error_code = exc.response['Error']['Code']
-            if error_code == '404':
-                logging.debug("Bucket %s does not exist, creating it",
-                              self.bucket_name)
-                self.s3.Bucket(self.bucket_name).create()
-            else:
-                raise
 
     def backup_copy(self, controller, backup_info):
         """
@@ -410,13 +371,13 @@ class S3BackupUploader(object):
         backup_info = BackupInfo(
             backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'))
         key_prefix = os.path.join(
-            self.path,
+            self.cloud_interface.path,
             self.server_name,
             'base',
             backup_info.backup_id
         )
-        controller = S3UploadController(self.s3.meta.client, self.bucket_name,
-                                        key_prefix, self.compression)
+        controller = S3UploadController(
+            self.cloud_interface, key_prefix, self.compression)
         strategy = ConcurrentBackupStrategy(self.postgres)
         logging.info("Starting backup %s", backup_info.backup_id)
         strategy.start_backup(backup_info)
@@ -446,11 +407,17 @@ class S3BackupUploader(object):
 
 
 class S3TarUploader(object):
+    def __init__(self, cloud_interface, key,
+                 compression=None, chunk_size=DEFAULT_CHUNK_SIZE):
+        """
+        A tar archive that resides on S3
 
-    def __init__(self, s3_client, bucket, key, compression=None,
-                 chunk_size=DEFAULT_CHUNK_SIZE):
-        self.s3_client = s3_client
-        self.bucket = bucket
+        :param CloudInterface cloud_interface: cloud interface instance
+        :param str key: path inside the bucket
+        :param str compression: required compression
+        :param int chunk_size: the upload chunk size
+        """
+        self.cloud_interface = cloud_interface
         self.key = key
         self.mpu = None
         self.chunk_size = chunk_size
@@ -469,17 +436,14 @@ class S3TarUploader(object):
 
     def flush(self):
         if not self.mpu:
-            self.mpu = self.s3_client.create_multipart_upload(
-                Bucket=self.bucket, Key=self.key)
+            self.mpu = self.cloud_interface.create_multipart_upload(self.key)
         self.buffer.seek(0, os.SEEK_SET)
-        part = self.s3_client.upload_part(
-            Body=self.buffer, Bucket=self.bucket, Key=self.key,
-            UploadId=self.mpu["UploadId"],
-            PartNumber=self.counter)
-        self.parts.append({
-            'PartNumber': self.counter,
-            'ETag': part['ETag'],
-        })
+        part = self.cloud_interface.upload_part(
+            mpu=self.mpu,
+            key=self.key,
+            body=self.buffer,
+            part_number=self.counter)
+        self.parts.append(part)
         self.counter += 1
         self.buffer.seek(0, os.SEEK_SET)
         self.buffer.truncate()
@@ -488,17 +452,23 @@ class S3TarUploader(object):
         if self.tar:
             self.tar.close()
         self.flush()
-        self.s3_client.complete_multipart_upload(
-            Bucket=self.bucket,
-            Key=self.key,
-            UploadId=self.mpu["UploadId"],
-            MultipartUpload={"Parts": self.parts})
+        self.cloud_interface.complete_multipart_upload(
+            mpu=self.mpu,
+            key=self.key,
+            parts=self.parts)
 
 
 class S3UploadController(object):
-    def __init__(self, s3, bucket, key_prefix, compression):
-        self.s3_client = s3
-        self.bucket = bucket
+    def __init__(self, cloud_interface, key_prefix, compression):
+        """
+        Create a new controller that upload the backup in S3
+
+        :param CloudInterface cloud_interface: cloud interface instance
+        :param str|None key_prefix: path inside the bucket
+        :param str|None compression: required compression
+        """
+
+        self.cloud_interface = cloud_interface
         if key_prefix and key_prefix[0] == '/':
             key_prefix = key_prefix[1:]
         self.key_prefix = key_prefix
@@ -520,8 +490,7 @@ class S3UploadController(object):
         if name not in self.s3_list or not self.s3_list[name]:
 
             self.s3_list[name] = S3TarUploader(
-                s3_client=self.s3_client,
-                bucket=self.bucket,
+                cloud_interface=self.cloud_interface,
                 key=os.path.join(self.key_prefix, self._build_dest_name(name)),
                 compression=self.compression
             )
@@ -574,8 +543,7 @@ class S3UploadController(object):
         logging.info("S3UploadController.upload_file(%r, %r)",
                      label, dst)
         key = os.path.join(self.key_prefix, dst)
-        self.s3_client.upload_fileobj(
-            Fileobj=fileobj, Bucket=self.bucket, Key=key)
+        self.cloud_interface.upload_fileobj(fileobj, key)
 
     def close(self):
         logging.info("S3UploadController.close()")
@@ -589,6 +557,121 @@ class S3UploadController(object):
         """TODO: Write statistic code"""
         logging.info("S3UploadController.statistics()")
         return dict()
+
+
+class CloudInterface:
+    def __init__(self, destination_url, encryption, profile_name=None):
+        """
+        Create a new S3 interface given the S3 destination url and the profile
+        name
+
+        :param str destination_url: Full URL of the cloud destination
+        :param str encryption: Encryption type string
+        :param str profile_name: Amazon auth profile identifier
+        """
+        self.destination_url = destination_url
+        self.profile_name = profile_name
+        self.encryption = encryption
+
+        # Extract information from the destination URL
+        parsed_url = urlparse(destination_url)
+        # If netloc is not present, the s3 url is badly formatted.
+        if parsed_url.netloc == '' or parsed_url.scheme != 's3':
+            raise ValueError('Invalid s3 URL address: %s' % destination_url)
+        self.bucket_name = parsed_url.netloc
+        self.path = parsed_url.path
+
+        # Build a session, so we can extract the correct resource
+        session = boto3.Session(profile_name=profile_name)
+        self.s3 = session.resource('s3')
+
+        # TODO: handle encryption
+
+    def test_connectivity(self):
+        """
+        Test the S3 connectivity trying to access a bucket
+        """
+        try:
+            self.s3.Bucket(self.bucket_name).load()
+            # We are not even interested in the existence of the bucket,
+            # we just want to try if aws is reachable
+            return True
+        except EndpointConnectionError as exc:
+            logging.error("Can't connect to Amazon AWS/S3: %s", exc)
+            return False
+
+    def setup_bucket(self):
+        """
+        Search for the target bucket. Create it if not exists
+        """
+        try:
+            # Search the bucket on s3
+            self.s3.meta.client.head_bucket(Bucket=self.bucket_name)
+        except ClientError as exc:
+            # If a client error is thrown, then check that it was a 405 error.
+            # If it was a 404 error, then the bucket does not exist.
+            error_code = exc.response['Error']['Code']
+            if error_code == '404':
+                logging.debug("Bucket %s does not exist, creating it",
+                              self.bucket_name)
+                self.s3.Bucket(self.bucket_name).create()
+            else:
+                raise
+
+    def upload_fileobj(self, fileobj, key):
+        """
+        Synchronously upload the content of a file-like object to a cloud key
+        :param fileobj:
+        :param str key:
+        :return:
+        """
+        self.s3.meta.client.upload_fileobj(
+            Fileobj=fileobj, Bucket=self.bucket_name, Key=key)
+
+    def create_multipart_upload(self, key):
+        """
+        Create a new multipart upload
+
+        :param key: The key to use in the cloud service
+        :return: The multipart upload handle
+        """
+        return self.s3.meta.client.create_multipart_upload(
+            Bucket=self.bucket_name, Key=key)
+
+    def upload_part(self, mpu, key, body, part_number):
+        """
+        Upload a part into this multipart upload
+
+        :param mpu: The multipart upload handle
+        :param str key: The key to use in the cloud service
+        :param object body: A stream-like object to upload
+        :param int part_number: Part number, starting from 1
+        :return: The part handle
+        """
+        part = self.s3.meta.client.upload_part(
+            Body=body,
+            Bucket=self.bucket_name,
+            Key=key,
+            UploadId=mpu["UploadId"],
+            PartNumber=part_number)
+        return {
+            'PartNumber': part_number,
+            'ETag': part['ETag'],
+        }
+
+    def complete_multipart_upload(self, mpu, key, parts):
+        """
+        Finish a certain multipart upload
+
+        :param mpu:  The multipart upload handle
+        :param str key: The key to use in the cloud service
+        :param parts: The list of parts composing the multipart upload
+        """
+        self.s3.meta.client.complete_multipart_upload(
+            Bucket=self.bucket_name,
+            Key=key,
+            UploadId=mpu["UploadId"],
+            MultipartUpload={"Parts": parts})
 
 
 if __name__ == '__main__':
