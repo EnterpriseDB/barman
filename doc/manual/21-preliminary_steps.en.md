@@ -75,6 +75,9 @@ are included in the transaction log file.
 wal_level = 'replica'
 ```
 
+For PostgreSQL 9.4 or higher, `wal_level` can also be set to `logical`,
+in case logical decoding is needed.
+
 For PostgreSQL versions older than 9.6, `wal_level` must be set to
 `hot_standby`.
 
