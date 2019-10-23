@@ -302,7 +302,107 @@ class TestRsyncBackupExecutor(object):
                 bwlimit=None,
                 item_class=rsync_mock.return_value.PGDATA_CLASS,
                 exclude=(PGDATA_EXCLUDE_LIST + EXCLUDE_LIST),
-                exclude_and_protect=['pg_tblspc/16387', 'pg_tblspc/16405']),
+                exclude_and_protect=['/pg_tblspc/16387', '/pg_tblspc/16405']),
+            mock.call().add_file(
+                label='pg_control',
+                src=':/pg/data/global/pg_control',
+                dst='%s/global/pg_control' % backup_info.get_data_directory(),
+                item_class=rsync_mock.return_value.PGCONTROL_CLASS),
+            mock.call().add_file(
+                label='config_file',
+                src=':/etc/postgresql.conf',
+                dst=backup_info.get_data_directory(),
+                item_class=rsync_mock.return_value.CONFIG_CLASS,
+                optional=False),
+            mock.call().copy(),
+            mock.call().statistics(),
+        ]
+
+    @patch('barman.backup_executor.RsyncCopyController')
+    def test_backup_copy_tablespaces_in_datadir(self, rsync_mock, tmpdir):
+        """
+        Test the execution of a rsync copy with tablespaces in data directory
+
+        :param rsync_mock: mock for the RsyncCopyController object
+        :param tmpdir: temporary dir
+        """
+        backup_manager = build_backup_manager(global_conf={
+            'barman_home': tmpdir.mkdir('home').strpath
+        })
+        backup_manager.server.path = None
+        backup_manager.server.postgres.server_major_version = '9.6'
+        backup_info = build_test_backup_info(
+            server=backup_manager.server,
+            pgdata="/pg/data",
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/data/pg_hba.conf",
+            ident_file="/pg/data/pg_ident.conf",
+            begin_xlog="0/2000028",
+            begin_wal="000000010000000000000002",
+            begin_offset=28,
+            tablespaces=(
+                ('tbs1', 16387, '/pg/data/tbs1'),
+                ('tbs2', 16405, '/pg/data/pg_tblspc/tbs2'),
+                ('tbs3', 123456, '/pg/data3'),
+            ),
+        )
+        backup_info.save()
+        # This is to check that all the preparation is done correctly
+        assert os.path.exists(backup_info.filename)
+
+        backup_manager.executor.backup_copy(backup_info)
+
+        assert rsync_mock.mock_calls == [
+            mock.call(reuse_backup=None, safe_horizon=None,
+                      network_compression=False,
+                      ssh_command='ssh', path=None,
+                      ssh_options=['-c', '"arcfour"', '-p', '22',
+                                   'postgres@pg01.nowhere', '-o',
+                                   'BatchMode=yes', '-o',
+                                   'StrictHostKeyChecking=no'],
+                      retry_sleep=30, retry_times=0, workers=1),
+            mock.call().add_directory(
+                label='tbs1',
+                src=':/pg/data/tbs1/',
+                dst=backup_info.get_data_directory(16387),
+                reuse=None,
+                bwlimit=None,
+                item_class=rsync_mock.return_value.TABLESPACE_CLASS,
+                exclude=["/*"] + EXCLUDE_LIST,
+                include=["/PG_9.6_*"]),
+            mock.call().add_directory(
+                label='tbs2',
+                src=':/pg/data/pg_tblspc/tbs2/',
+                dst=backup_info.get_data_directory(16405),
+                reuse=None,
+                bwlimit=None,
+                item_class=rsync_mock.return_value.TABLESPACE_CLASS,
+                exclude=["/*"] + EXCLUDE_LIST,
+                include=["/PG_9.6_*"]),
+            mock.call().add_directory(
+                label='tbs3',
+                src=':/pg/data3/',
+                dst=backup_info.get_data_directory(123456),
+                reuse=None,
+                bwlimit=None,
+                item_class=rsync_mock.return_value.TABLESPACE_CLASS,
+                exclude=["/*"] + EXCLUDE_LIST,
+                include=["/PG_9.6_*"]),
+            mock.call().add_directory(
+                label='pgdata',
+                src=':/pg/data/',
+                dst=backup_info.get_data_directory(),
+                reuse=None,
+                bwlimit=None,
+                item_class=rsync_mock.return_value.PGDATA_CLASS,
+                exclude=(PGDATA_EXCLUDE_LIST + EXCLUDE_LIST),
+                exclude_and_protect=[
+                    '/tbs1',
+                    '/pg_tblspc/16387',
+                    '/pg_tblspc/tbs2',
+                    '/pg_tblspc/16405',
+                    '/pg_tblspc/123456',
+                ]),
             mock.call().add_file(
                 label='pg_control',
                 src=':/pg/data/global/pg_control',

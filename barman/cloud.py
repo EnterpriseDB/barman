@@ -360,13 +360,13 @@ class S3BackupUploader(object):
                 # If the tablespace location is inside the data directory,
                 # exclude and protect it from being copied twice during
                 # the data directory copy
-                if tablespace.location.startswith(backup_info.pgdata):
+                if tablespace.location.startswith(backup_info.pgdata + '/'):
                     exclude += [
                         tablespace.location[len(backup_info.pgdata):]]
 
                 # Exclude and protect the tablespace from being copied again
                 # during the data directory copy
-                exclude += ["pg_tblspc/%s" % tablespace.oid]
+                exclude += ["/pg_tblspc/%s" % tablespace.oid]
 
                 # Copy the tablespace directory.
                 # NOTE: Barman should archive only the content of directory

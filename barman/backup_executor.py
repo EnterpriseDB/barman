@@ -1051,13 +1051,13 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 # If the tablespace location is inside the data directory,
                 # exclude and protect it from being copied twice during
                 # the data directory copy
-                if tablespace.location.startswith(backup_info.pgdata):
+                if tablespace.location.startswith(backup_info.pgdata + '/'):
                     exclude_and_protect += [
                         tablespace.location[len(backup_info.pgdata):]]
 
                 # Exclude and protect the tablespace from being copied again
                 # during the data directory copy
-                exclude_and_protect += ["pg_tblspc/%s" % tablespace.oid]
+                exclude_and_protect += ["/pg_tblspc/%s" % tablespace.oid]
 
                 # Make sure the destination directory exists in order for
                 # smart copy to detect that no file is present there
