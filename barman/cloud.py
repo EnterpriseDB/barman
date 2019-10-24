@@ -296,7 +296,7 @@ class CloudInterface:
         name
 
         :param str destination_url: Full URL of the cloud destination
-        :param str encryption: Encryption type string
+        :param str|None encryption: Encryption type string
         :param str profile_name: Amazon auth profile identifier
         """
         self.destination_url = destination_url
@@ -351,12 +351,16 @@ class CloudInterface:
     def upload_fileobj(self, fileobj, key):
         """
         Synchronously upload the content of a file-like object to a cloud key
-        :param fileobj:
-        :param str key:
-        :return:
         """
+        additional_args = {}
+        if self.encryption:
+            additional_args['ServerSideEncryption'] = self.encryption
+
         self.s3.meta.client.upload_fileobj(
-            Fileobj=fileobj, Bucket=self.bucket_name, Key=key)
+            Fileobj=fileobj,
+            Bucket=self.bucket_name,
+            Key=key,
+            **additional_args)
 
     def create_multipart_upload(self, key):
         """

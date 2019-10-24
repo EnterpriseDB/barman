@@ -24,23 +24,13 @@ import shutil
 from contextlib import closing
 from io import BytesIO
 
-import boto3
-from botocore.exceptions import ClientError, EndpointConnectionError
-
 import barman
+from barman.cloud import CloudInterface
 
 try:
     import argparse
 except ImportError:
     raise SystemExit("Missing required python module: argparse")
-
-try:
-    # Python 3.x
-    from urllib.parse import urlparse
-except ImportError:
-    # Python 2.x
-    from urlparse import urlparse
-
 
 LOGGING_FORMAT = "%(asctime)s %(levelname)s %(message)s"
 
@@ -55,23 +45,24 @@ def main(args=None):
     config = parse_arguments(args)
     configure_logging()
     try:
-        uploader = S3WalUploader(
+        cloud_interface = CloudInterface(
             destination_url=config.destination_url,
-            server_name=config.server_name,
-            compression=config.compression,
             encryption=config.encryption,
-            profile_name=config.profile
-        )
+            profile_name=config.profile)
+
+        uploader = S3WalUploader(
+            cloud_interface=cloud_interface,
+            server_name=config.server_name,
+            compression=config.compression)
 
         # If test is requested just test connectivity and exit
         if config.test:
-            if uploader.test_connectivity():
+            if cloud_interface.test_connectivity():
                 raise SystemExit(0)
             raise SystemExit(1)
 
-        wal_path = config.wal_path
-        uploader.setup_bucket()
-        uploader.upload_wal(wal_path)
+        cloud_interface.setup_bucket()
+        uploader.upload_wal(config.wal_path)
     except Exception as ex:
         logging.error("Barman cloud WAL archiver exception: %s", ex)
         raise SystemExit(1)
@@ -153,44 +144,21 @@ class S3WalUploader(object):
     """
     S3 upload client
     """
-    def __init__(self, destination_url, server_name,
-                 compression=None, profile_name=None,
-                 encryption=None):
+    def __init__(self, cloud_interface,
+                 server_name, compression=None):
         """
         Object responsible for handling interactions with S3
 
-        :param str destination_url: Full URL of the cloud destination
+        :param CloudInterface cloud_interface: The interface to use to
+          upload the backup
         :param str server_name: The name of the server as configured in Barman
         :param str compression: Compression algorithm to use
-        :param str profile_name: Amazon auth profile identifier
-        :param str encryption: Encryption type string
         """
 
-        parsed_url = urlparse(destination_url)
+        self.cloud_interface = cloud_interface
         # If netloc is not present, the s3 url is badly formatted.
-        if parsed_url.netloc == '' or parsed_url.scheme != 's3':
-            raise ValueError('Invalid s3 URL address: %s' % destination_url)
-        self.bucket_name = parsed_url.netloc
-        self.path = parsed_url.path
-        self.encryption = encryption
         self.compression = compression
         self.server_name = server_name
-        # Build a session, so we can extract the correct resource
-        session = boto3.Session(profile_name=profile_name)
-        self.s3 = session.resource('s3')
-
-    def test_connectivity(self):
-        """
-        Test the S3 connectivity trying to access a bucket
-        """
-        try:
-            self.s3.Bucket(self.bucket_name).load()
-            # We are not even interested in the existence of the bucket,
-            # we just want to try if aws is reachable
-            return True
-        except EndpointConnectionError as exc:
-            logging.error("Can't connect to Amazon AWS/S3: %s", exc)
-            return False
 
     def upload_wal(self, wal_path):
         """
@@ -204,43 +172,22 @@ class S3WalUploader(object):
         file_object = self.retrieve_file_obj(wal_path)
         # Correctly format the destination path on s3
         destination = os.path.join(
-            self.path,
+            self.cloud_interface.path,
             self.server_name,
             'wals',
             wal_name
         )
+
         # Remove initial "/", otherwise we will create a folder with an empty
         # name.
         if destination[0] == '/':
             destination = destination[1:]
-        # This is useful to add additional args, like 'ServerSideEncryption'
-        # that could be, or be not, necessary for the call
-        additional_args = {}
-        if self.encryption:
-            additional_args['ServerSideEncryption'] = self.encryption
 
         # Put the file in the correct bucket.
         # The put method will handle automatically multipart upload
-        s3_object = self.s3.Object(self.bucket_name, destination)
-        s3_object.put(Body=file_object, **additional_args)
-
-    def setup_bucket(self):
-        """
-        Search for the target bucket. Create it if not exists
-        """
-        try:
-            # Search the bucket on s3
-            self.s3.meta.client.head_bucket(Bucket=self.bucket_name)
-        except ClientError as exc:
-            # If a client error is thrown, then check that it was a 405 error.
-            # If it was a 404 error, then the bucket does not exist.
-            error_code = exc.response['Error']['Code']
-            if error_code == '404':
-                logging.debug("Bucket %s does not exist, creating it",
-                              self.bucket_name)
-                self.s3.Bucket(self.bucket_name).create()
-            else:
-                raise
+        self.cloud_interface.upload_fileobj(
+            fileobj=file_object,
+            key=destination)
 
     def retrieve_file_obj(self, wal_path):
         """
