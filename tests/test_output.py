@@ -1206,6 +1206,31 @@ class TestConsoleWriter(object):
         assert out == '\t%s: %s\n' % (description, message)
         assert err == ''
 
+    def test_redact_passwords(self, capsys):
+        writer = output.ConsoleOutputWriter()
+
+        msg = 'message with password=SHAME_ON_ME inside'
+        writer.info(msg)
+        (out, err) = capsys.readouterr()
+        assert out == 'message with password=*REDACTED* inside\n'
+        assert err == ''
+
+        msg = 'some postgresql://me:SECRET@host:5432/mydb conn'
+        writer.info(msg)
+        (out, err) = capsys.readouterr()
+        assert out == 'some postgresql://me:*REDACTED*@host:5432/mydb conn\n'
+        assert err == ''
+
+    def test_readact_passwords_in_json(self, capsys):
+        writer = output.ConsoleOutputWriter()
+
+        msg = '{"conninfo": "dbname=t password=SHAME_ON_ME", "a": "b"}'
+        writer.info(msg)
+        (out, err) = capsys.readouterr()
+        json_out = '{"conninfo": "dbname=t password=*REDACTED*", "a": "b"}\n'
+        assert out == json_out
+        assert err == ''
+
 
 # noinspection PyMethodMayBeStatic
 class TestJsonWriter(object):

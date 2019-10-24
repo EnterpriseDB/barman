@@ -468,3 +468,33 @@ def force_str(obj, encoding='utf-8', errors='replace'):
             # As last resort, use a repr call to avoid any exception
             obj = repr(obj)
     return obj
+
+
+def redact_passwords(text):
+    """
+    Redact passwords from the input text.
+
+    Password are found in these two forms:
+
+    Keyword/Value Connection Strings:
+    - host=localhost port=5432 dbname=mydb password=SHAME_ON_ME
+    Connection URIs:
+    - postgresql://[user[:password]][netloc][:port][/dbname]
+
+    :param str text: Input content
+    :return: String with passwords removed
+    """
+
+    # Remove passwords as found in key/value connection strings
+    text = re.sub(
+        "password=('(\\'|[^'])+'|[^ '\"]*)",
+        "password=*REDACTED*",
+        text)
+
+    # Remove passwords in connection URLs
+    text = re.sub(
+        r'(?<=postgresql:\/\/)([^ :@]+:)([^ :@]+)?@',
+        r'\1*REDACTED*@',
+        text)
+
+    return text

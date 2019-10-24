@@ -29,7 +29,7 @@ import sys
 
 from barman.infofile import BackupInfo
 from barman.utils import (BarmanEncoder, force_str, human_readable_timedelta,
-                          pretty_size)
+                          pretty_size, redact_passwords)
 from barman.xlog import diff_lsn
 
 __all__ = [
@@ -378,8 +378,9 @@ class ConsoleOutputWriter(object):
             message = '\n'
         else:
             message += '\n'
-        # Format and encode the message
-        encoded_msg = _format_message(message, args).encode('utf-8')
+        # Format and encode the message, redacting eventual passwords
+        encoded_msg = redact_passwords(
+            _format_message(message, args)).encode('utf-8')
         try:
             # Python 3.x
             stream.buffer.write(encoded_msg)
