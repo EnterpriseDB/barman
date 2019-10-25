@@ -15,7 +15,9 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import copy
 import datetime
+import errno
 import logging
 import os
 import tarfile
@@ -38,6 +40,77 @@ except ImportError:
 
 
 DEFAULT_CHUNK_SIZE = 10 << 21
+BUFSIZE = 16 * 1024
+
+
+def copyfileobj_pad_truncate(src, dst, length=None):
+    """
+    Copy length bytes from fileobj src to fileobj dst.
+    If length is None, copy the entire content.
+    This method is used by the TarFileIgnoringTruncate.addfile().
+    """
+    if length == 0:
+        return
+
+    if length is None:
+        while 1:
+            buf = src.read(BUFSIZE)
+            if not buf:
+                break
+            dst.write(buf)
+        return
+
+    blocks, remainder = divmod(length, BUFSIZE)
+    for _ in range(blocks):
+        buf = src.read(BUFSIZE)
+        dst.write(buf)
+        if len(buf) < BUFSIZE:
+            # End of file reached
+            # The file must have  been truncated, so pad with zeroes
+            dst.write(tarfile.NUL * (BUFSIZE - len(buf)))
+
+    if remainder != 0:
+        buf = src.read(remainder)
+        dst.write(buf)
+        if len(buf) < remainder:
+            # End of file reached
+            # The file must have  been truncated, so pad with zeroes
+            dst.write(tarfile.NUL * (remainder - len(buf)))
+
+
+class TarFileIgnoringTruncate(tarfile.TarFile):
+    """
+    Custom TarFile class that ignore truncated or vanished files.
+    """
+
+    format = tarfile.PAX_FORMAT  # Use PAX format to better preserve metadata
+
+    def addfile(self, tarinfo, fileobj=None):
+        """
+        Add the provided fileobj to the tar ignoring truncated or vanished
+        files.
+
+        This method completely replaces TarFile.addfile()
+        """
+        self._check("awx")
+
+        tarinfo = copy.copy(tarinfo)
+
+        buf = tarinfo.tobuf(self.format, self.encoding, self.errors)
+        self.fileobj.write(buf)
+        self.offset += len(buf)
+
+        # If there's data to follow, append it.
+        if fileobj is not None:
+            copyfileobj_pad_truncate(fileobj, self.fileobj, tarinfo.size)
+            blocks, remainder = divmod(tarinfo.size, tarfile.BLOCKSIZE)
+            if remainder > 0:
+                self.fileobj.write(
+                    tarfile.NUL * (tarfile.BLOCKSIZE - remainder))
+                blocks += 1
+            self.offset += blocks * tarfile.BLOCKSIZE
+
+        self.members.append(tarinfo)
 
 
 class S3TarUploader(object):
@@ -59,9 +132,8 @@ class S3TarUploader(object):
         self.counter = 1
         self.parts = []
         tar_mode = 'w|%s' % (compression or '')
-        self.tar = tarfile.open(fileobj=self,
-                                mode=tar_mode,
-                                format=tarfile.PAX_FORMAT)
+        self.tar = TarFileIgnoringTruncate.open(fileobj=self,
+                                                mode=tar_mode)
 
     def write(self, buf):
         if self.buffer.tell() > self.chunk_size:
@@ -112,6 +184,7 @@ class S3UploadController(object):
     def _build_dest_name(self, name):
         """
         Get the name suffix
+        :rtype: str
         """
         if self.compression == 'gz':
             return "%s.tar.gz" % name
@@ -121,6 +194,12 @@ class S3UploadController(object):
             return "%s.tar" % name
 
     def _get_tar(self, name):
+        """
+        Get a named S3 tar file.
+        Subsequent call with the same name return the same name
+        :param str name: tar name
+        :rtype: tarfile.TarFile
+        """
         if name not in self.s3_list or not self.s3_list[name]:
 
             self.s3_list[name] = S3TarUploader(
@@ -139,14 +218,31 @@ class S3UploadController(object):
             if not path_allowed(exclude, include,
                                 tar_root, True):
                 continue
-            tar.add(root, arcname=tar_root, recursive=False)
+            try:
+                tar.add(root, arcname=tar_root, recursive=False)
+            except EnvironmentError as e:
+                if e.errno == errno.ENOENT:
+                    # If a directory disappeared just skip it,
+                    # WAL reply will take care during recovery.
+                    continue
+                else:
+                    raise
+
             for item in files:
                 tar_item = os.path.join(tar_root, item)
                 if not path_allowed(exclude, include,
                                     tar_item, False):
                     continue
                 logging.debug("Uploading %s", tar_item)
-                tar.add(os.path.join(root, item), arcname=tar_item)
+                try:
+                    tar.add(os.path.join(root, item), arcname=tar_item)
+                except EnvironmentError as e:
+                    if e.errno == errno.ENOENT:
+                        # If a file disappeared just skip it,
+                        # WAL reply will take care during recovery.
+                        continue
+                    else:
+                        raise
 
     def add_file(self, label, src, dst, path, optional=False):
         logging.info("S3UploadController.add_file(%r, %r, %r, %r, %r)",
