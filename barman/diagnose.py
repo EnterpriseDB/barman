@@ -19,6 +19,7 @@
 This module represents the barman diagnostic tool.
 """
 
+import datetime
 import json
 import logging
 
@@ -53,6 +54,7 @@ def exec_diagnose(servers, errors_list):
     except CommandFailedException as e:
         diagnosis['global']['system_info'] = {'error': repr(e)}
     diagnosis['global']['system_info']['barman_ver'] = barman.__version__
+    diagnosis['global']['system_info']['timestamp'] = datetime.datetime.now()
     # per server section
     for name in sorted(servers):
         server = servers[name]
