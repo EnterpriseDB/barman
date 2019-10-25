@@ -131,6 +131,13 @@ Nagios plugin compatible output
 .B cron
 Perform maintenance tasks, such as enforcing retention policies or WAL
 files management.
+.RS
+.TP
+.B --keep-descriptors
+Keep the stdout and the stderr streams of the Barman subprocesses
+attached to this one.
+This is useful for Docker based installations.
+.RE
 .TP
 .B delete \f[I]SERVER_NAME\f[R] \f[I]BACKUP_ID\f[R]
 Delete the specified backup.

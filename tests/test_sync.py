@@ -632,7 +632,7 @@ class TestSync(object):
             primary_info = dict(EXPECTED_MINIMAL)
             primary_info['backups']['1234567891'] = backup_info_dict
             command_mock.return_value.out = json.dumps(primary_info)
-            server.sync_cron()
+            server.sync_cron(keep_descriptors=False)
             (out, err) = capsys.readouterr()
             assert "A synchronisation process for backup 1234567890" in out
             assert "WAL synchronisation already running" in out

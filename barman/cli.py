@@ -127,7 +127,10 @@ def list_server(minimal=False):
     output.close_and_exit()
 
 
-def cron():
+@arg('--keep-descriptors',
+     help='Keep the stdout and the stderr streams attached '
+          'to Barman subprocesses.')
+def cron(keep_descriptors=False):
     """
     Run maintenance tasks (global command)
     """
@@ -142,7 +145,7 @@ def cron():
         # but here we have only active and well configured servers.
 
         try:
-            server.cron()
+            server.cron(keep_descriptors=keep_descriptors)
         except Exception:
             # A cron should never raise an exception, so this code
             # should never be executed. However, it is here to protect

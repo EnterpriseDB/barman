@@ -1692,12 +1692,14 @@ class Server(RemoteStatusMixin):
                 if os.path.exists(item.tmp_path):
                     os.unlink(item.tmp_path)
 
-    def cron(self, wals=True, retention_policies=True):
+    def cron(self, wals=True, retention_policies=True, keep_descriptors=False):
         """
         Maintenance operations
 
         :param bool wals: WAL archive maintenance
         :param bool retention_policies: retention policy maintenance
+        :param bool keep_descriptors: whether to keep subprocess descriptors,
+            defaults to False
         """
         try:
             # Actually this is the highest level of locking in the cron,
@@ -1707,20 +1709,20 @@ class Server(RemoteStatusMixin):
                 # When passive call sync.cron() and never run
                 # local WAL archival
                 if self.passive_node:
-                    self.sync_cron()
+                    self.sync_cron(keep_descriptors)
                 # WAL management and maintenance
                 elif wals:
                     # Execute the archive-wal sub-process
-                    self.cron_archive_wal()
+                    self.cron_archive_wal(keep_descriptors)
                     if self.config.streaming_archiver:
                         # Spawn the receive-wal sub-process
-                        self.cron_receive_wal()
+                        self.cron_receive_wal(keep_descriptors)
                     else:
                         # Terminate the receive-wal sub-process if present
                         self.kill('receive-wal', fail_if_not_present=False)
 
                 # Verify backup
-                self.cron_check_backup()
+                self.cron_check_backup(keep_descriptors)
 
                 # Retention policies execution
                 if retention_policies:
@@ -1734,11 +1736,13 @@ class Server(RemoteStatusMixin):
         except (OSError, IOError) as e:
             output.error("%s", e)
 
-    def cron_archive_wal(self):
+    def cron_archive_wal(self, keep_descriptors):
         """
         Method that handles the start of an 'archive-wal' sub-process.
 
         This method must be run protected by ServerCronLock
+        :param bool keep_descriptors: whether to keep subprocess descriptors
+            attached to this process.
         """
         try:
             # Try to acquire ServerWalArchiveLock, if the lock is available,
@@ -1760,7 +1764,8 @@ class Server(RemoteStatusMixin):
             archive_process = BarmanSubProcess(
                 subcommand='archive-wal',
                 config=barman.__config__.config_file,
-                args=[self.config.name])
+                args=[self.config.name],
+                keep_descriptors=keep_descriptors)
             # Launch the sub-process
             archive_process.execute()
 
@@ -1772,11 +1777,13 @@ class Server(RemoteStatusMixin):
                 "on server %s. Skipping to the next server"
                 % self.config.name)
 
-    def cron_receive_wal(self):
+    def cron_receive_wal(self, keep_descriptors):
         """
         Method that handles the start of a 'receive-wal' sub process
 
         This method must be run protected by ServerCronLock
+        :param bool keep_descriptors: whether to keep subprocess
+           descriptors attached to this process.
         """
         try:
             # Try to acquire ServerWalReceiveLock, if the lock is available,
@@ -1799,7 +1806,8 @@ class Server(RemoteStatusMixin):
             receive_process = BarmanSubProcess(
                 subcommand='receive-wal',
                 config=barman.__config__.config_file,
-                args=[self.config.name])
+                args=[self.config.name],
+                keep_descriptors=keep_descriptors)
             # Launch the sub-process
             receive_process.execute()
 
@@ -1809,9 +1817,12 @@ class Server(RemoteStatusMixin):
             _logger.debug("Another STREAMING ARCHIVER process is running for "
                           "server %s" % self.config.name)
 
-    def cron_check_backup(self):
+    def cron_check_backup(self, keep_descriptors):
         """
         Method that handles the start of a 'check-backup' sub process
+
+        :param bool keep_descriptors: whether to keep subprocess
+           descriptors attached to this process.
         """
 
         backup_id = self.get_first_backup_id([BackupInfo.WAITING_FOR_WALS])
@@ -1840,7 +1851,8 @@ class Server(RemoteStatusMixin):
             check_process = BarmanSubProcess(
                 subcommand='check-backup',
                 config=barman.__config__.config_file,
-                args=[self.config.name, backup_id])
+                args=[self.config.name, backup_id],
+                keep_descriptors=keep_descriptors)
             check_process.execute()
 
         except LockFileBusy:
@@ -2513,14 +2525,15 @@ class Server(RemoteStatusMixin):
             sync_status['config'] = self.config
         json.dump(sync_status, sys.stdout, cls=BarmanEncoder, indent=4)
 
-    def sync_cron(self):
+    def sync_cron(self, keep_descriptors):
         """
         Manage synchronisation operations between passive node and
         master node.
         The method recover information from the remote master
         server, evaluate if synchronisation with the master is required
         and spawn barman sub processes, syncing backups and WAL files
-
+        :param bool keep_descriptors: whether to keep subprocess descriptors
+           attached to this process.
         """
         # Recover information from primary node
         sync_wal_info = self.load_sync_wals_info()
@@ -2598,7 +2611,8 @@ class Server(RemoteStatusMixin):
             sub_process = BarmanSubProcess(
                 subcommand='sync-backup',
                 config=barman.__config__.config_file,
-                args=[self.config.name, backup_id])
+                args=[self.config.name, backup_id],
+                keep_descriptors=keep_descriptors)
             # Launch the sub-process
             sub_process.execute()
 
@@ -2625,7 +2639,8 @@ class Server(RemoteStatusMixin):
             sub_process = BarmanSubProcess(
                 subcommand='sync-wals',
                 config=barman.__config__.config_file,
-                args=[self.config.name])
+                args=[self.config.name],
+                keep_descriptors=keep_descriptors)
             # Launch the sub-process
             sub_process.execute()
         else:

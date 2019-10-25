@@ -973,7 +973,7 @@ class BarmanSubProcess(object):
     """
 
     def __init__(self, command=sys.argv[0], subcommand=None,
-                 config=None, args=None):
+                 config=None, args=None, keep_descriptors=False):
         """
         Build a specific wrapper for all the barman sub-commands,
         providing an unified interface.
@@ -983,6 +983,8 @@ class BarmanSubProcess(object):
         :param str config: path to the barman configuration file.
         :param list[str] args: a list containing the sub-command args
             like the target server name
+        :param bool keep_descriptors: whether to keep the subprocess stdin,
+            stdout, stderr descriptors attached. Defaults to False
         """
         # The config argument is needed when the user explicitly
         # passes a configuration file, as the child process
@@ -999,6 +1001,7 @@ class BarmanSubProcess(object):
         # * set it quiet with -q
         self.command = [sys.executable, command,
                         '-c', config, '-q', subcommand]
+        self.keep_descriptors = keep_descriptors
         # Handle args for the sub-command (like the server name)
         if args:
             self.command += args
@@ -1010,10 +1013,18 @@ class BarmanSubProcess(object):
         _logger.debug("BarmanSubProcess: %r", self.command)
         # Redirect all descriptors to /dev/null
         devnull = open(os.devnull, 'a+')
+
+        additional_arguments = {}
+        if not self.keep_descriptors:
+            additional_arguments = {
+                'stdout': devnull,
+                'stderr': devnull
+            }
+
         proc = subprocess.Popen(
             self.command,
             preexec_fn=os.setsid, close_fds=True,
-            stdin=devnull, stdout=devnull, stderr=devnull)
+            stdin=devnull, **additional_arguments)
         _logger.debug("BarmanSubProcess: subprocess started. pid: %s",
                       proc.pid)
 
