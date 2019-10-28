@@ -360,7 +360,7 @@ class CloudInterface:
             Fileobj=fileobj,
             Bucket=self.bucket_name,
             Key=key,
-            **additional_args)
+            ExtraArgs=additional_args)
 
     def create_multipart_upload(self, key):
         """

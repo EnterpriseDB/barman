@@ -77,6 +77,16 @@ Not zero
 :   Failure
 
 
+# SEE ALSO
+
+This script can be used in conjunction with `pre_archive_retry_script` to relay WAL
+files to S3, as follows:
+
+```
+pre_archive_retry_script = 'barman-cloud-wal-archive [*OPTIONS*] *DESTINATION\_URL* ${BARMAN_SERVER} ${BARMAN_FILE}'
+```
+
+
 # BUGS
 
 Barman has been extensively tested, and is currently being used in several

@@ -157,6 +157,7 @@ class TestWalUploader(object):
                 uploader.server_name,
                 'wals',
                 os.path.basename(source))[1:],
+            ExtraArgs={}
         )
 
     @mock.patch('barman.cloud.boto3')
@@ -187,7 +188,7 @@ class TestWalUploader(object):
                 uploader.server_name,
                 'wals',
                 os.path.basename(source))[1:],
-            ServerSideEncryption='AES256'
+            ExtraArgs={'ServerSideEncryption': 'AES256'}
         )
 
     @mock.patch('barman.cloud.boto3')
