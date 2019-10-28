@@ -26,6 +26,7 @@ from io import BytesIO
 
 import barman
 from barman.cloud import CloudInterface
+from barman.xlog import hash_dir
 
 try:
     import argparse
@@ -175,6 +176,7 @@ class S3WalUploader(object):
             self.cloud_interface.path,
             self.server_name,
             'wals',
+            hash_dir(wal_path),
             wal_name
         )
 

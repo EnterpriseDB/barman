@@ -26,6 +26,7 @@ import pytest
 from barman.clients import cloud_walarchive
 from barman.clients.cloud_walarchive import S3WalUploader
 from barman.cloud import CloudInterface
+from barman.xlog import hash_dir
 
 
 class TestMain(object):
@@ -156,6 +157,7 @@ class TestWalUploader(object):
                 cloud_interface.path,
                 uploader.server_name,
                 'wals',
+                hash_dir(source),
                 os.path.basename(source))[1:],
             ExtraArgs={}
         )
@@ -187,6 +189,7 @@ class TestWalUploader(object):
                 cloud_interface.path,
                 uploader.server_name,
                 'wals',
+                hash_dir(source),
                 os.path.basename(source))[1:],
             ExtraArgs={'ServerSideEncryption': 'AES256'}
         )
