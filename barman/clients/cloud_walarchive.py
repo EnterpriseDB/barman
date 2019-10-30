@@ -26,7 +26,7 @@ from io import BytesIO
 
 import barman
 from barman.cloud import CloudInterface
-from barman.xlog import hash_dir
+from barman.xlog import hash_dir, is_any_xlog_file
 
 try:
     import argparse
@@ -45,6 +45,13 @@ def main(args=None):
     """
     config = parse_arguments(args)
     configure_logging()
+
+    # Validate the WAL file name before uploading it
+    file_name = os.path.basename(config.wal_path)
+    if not is_any_xlog_file(os.path.splitext(file_name)[0]):
+        logging.error('%s is an invalid name for a WAL file' % config.wal_path)
+        raise SystemExit(1)
+
     try:
         cloud_interface = CloudInterface(
             destination_url=config.destination_url,

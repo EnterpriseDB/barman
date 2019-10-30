@@ -70,6 +70,17 @@ class TestMain(object):
         uploader_object_mock.upload_wal.assert_called_once_with(
             '/tmp/000000080000ABFF000000C1')
 
+        # Invalid filename upload
+        uploader_mock.reset_mock()
+        cloud_interface_mock.reset_mock()
+        with pytest.raises(SystemExit) as excinfo:
+            cloud_walarchive.main(
+                ['--profile', 'test_profile',
+                 's3://test-bucket/testfolder',
+                 'test-server',
+                 '/tmp/000000080000ABFF000000C1-INVALID'])
+        assert excinfo.value.code == 1
+
         # Successful connectivity test
         uploader_mock.reset_mock()
         cloud_interface_mock.reset_mock()
