@@ -17,10 +17,12 @@
 
 import logging
 import re
+from contextlib import closing
 
 import barman
 from barman.cloud import CloudInterface, S3BackupUploader
 from barman.postgres import PostgreSQLConnection
+from barman.utils import check_positive
 
 try:
     import argparse
@@ -78,26 +80,27 @@ def main(args=None):
         cloud_interface = CloudInterface(
             destination_url=config.destination_url,
             encryption=config.encryption,
+            jobs=config.jobs,
             profile_name=config.profile)
+        with closing(cloud_interface):
+            uploader = S3BackupUploader(
+                server_name=config.server_name,
+                compression=config.compression,
+                postgres=postgres,
+                cloud_interface=cloud_interface)
 
-        uploader = S3BackupUploader(
-            server_name=config.server_name,
-            compression=config.compression,
-            postgres=postgres,
-            cloud_interface=cloud_interface)
+            # If test is requested, just test connectivity and exit
+            # TODO: add postgresql connectivity test
+            if config.test:
+                if cloud_interface.test_connectivity():
+                    raise SystemExit(0)
+                raise SystemExit(1)
 
-        # If test is requested just test connectivity and exit
-        # TODO: add postgresql connectivity test
-        if config.test:
-            if cloud_interface.test_connectivity():
-                raise SystemExit(0)
-            raise SystemExit(1)
+            # TODO: Should the setup be optional?
+            cloud_interface.setup_bucket()
 
-        # TODO: Should the setup be optional?
-        cloud_interface.setup_bucket()
-
-        # Perform the backup
-        uploader.backup()
+            # Perform the backup
+            uploader.backup()
     except Exception as exc:
         logging.exception("Barman cloud backup exception: %s", exc)
         raise SystemExit(1)
@@ -192,11 +195,16 @@ def parse_arguments(args=None):
         '-U', '--user',
         help='user name for PostgreSQL connection (default: libpq settings)',
     )
-
     parser.add_argument(
         '--immediate-checkpoint',
         help='forces the initial checkpoint to be done as quickly as possible',
         action='store_true')
+    parser.add_argument(
+        '-J', '--jobs',
+        type=check_positive,
+        help='number of subprocesses to upload data to S3, '
+             'defaults to 2',
+        default=2)
     return parser.parse_args(args=args)
 
 

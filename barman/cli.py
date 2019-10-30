@@ -36,48 +36,11 @@ from barman.config import RecoveryOptions
 from barman.exceptions import BadXlogSegmentName, RecoveryException, SyncError
 from barman.infofile import BackupInfo
 from barman.server import Server
-from barman.utils import (BarmanEncoder, configure_logging, drop_privileges,
-                          force_str, parse_log_level)
+from barman.utils import (BarmanEncoder, check_non_negative, check_positive,
+                          configure_logging, drop_privileges, force_str,
+                          parse_log_level)
 
 _logger = logging.getLogger(__name__)
-
-
-def check_non_negative(value):
-    """
-    Check for a positive integer option
-
-    :param value: str containing the value to check
-    """
-    if value is None:
-        return None
-    try:
-        int_value = int(value)
-    except Exception:
-        raise ArgumentTypeError("'%s' is not a valid non negative integer" %
-                                value)
-    if int_value < 0:
-        raise ArgumentTypeError("'%s' is not a valid non negative integer" %
-                                value)
-    return int_value
-
-
-def check_positive(value):
-    """
-    Check for a positive integer option
-
-    :param value: str containing the value to check
-    """
-    if value is None:
-        return None
-    try:
-        int_value = int(value)
-    except Exception:
-        raise ArgumentTypeError("'%s' is not a valid positive integer" %
-                                value)
-    if int_value < 1:
-        raise ArgumentTypeError("'%s' is not a valid positive integer" %
-                                value)
-    return int_value
 
 
 def check_target_action(value):

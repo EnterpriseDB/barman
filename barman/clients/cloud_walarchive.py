@@ -58,19 +58,20 @@ def main(args=None):
             encryption=config.encryption,
             profile_name=config.profile)
 
-        uploader = S3WalUploader(
-            cloud_interface=cloud_interface,
-            server_name=config.server_name,
-            compression=config.compression)
+        with closing(cloud_interface):
+            uploader = S3WalUploader(
+                cloud_interface=cloud_interface,
+                server_name=config.server_name,
+                compression=config.compression)
 
-        # If test is requested just test connectivity and exit
-        if config.test:
-            if cloud_interface.test_connectivity():
-                raise SystemExit(0)
-            raise SystemExit(1)
+            # If test is requested just test connectivity and exit
+            if config.test:
+                if cloud_interface.test_connectivity():
+                    raise SystemExit(0)
+                raise SystemExit(1)
 
-        cloud_interface.setup_bucket()
-        uploader.upload_wal(config.wal_path)
+            cloud_interface.setup_bucket()
+            uploader.upload_wal(config.wal_path)
     except Exception as ex:
         logging.error("Barman cloud WAL archiver exception: %s", ex)
         raise SystemExit(1)

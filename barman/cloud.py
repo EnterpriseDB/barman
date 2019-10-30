@@ -15,13 +15,19 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import collections
 import copy
 import datetime
 import errno
 import logging
+import multiprocessing
+import operator
 import os
+import shutil
 import tarfile
+from functools import partial
 from io import BytesIO
+from tempfile import NamedTemporaryFile
 
 import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError
@@ -30,6 +36,7 @@ from barman.backup_executor import ConcurrentBackupStrategy
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
+from barman.utils import force_str
 
 try:
     # Python 3.x
@@ -38,8 +45,15 @@ except ImportError:
     # Python 2.x
     from urlparse import urlparse
 
+try:
+    # Python 3.x
+    from queue import Empty as EmptyQueue
+except ImportError:
+    # Python 2.x
+    from Queue import Empty as EmptyQueue
 
-DEFAULT_CHUNK_SIZE = 10 << 21
+
+DEFAULT_CHUNK_SIZE = 20 << 20
 BUFSIZE = 16 * 1024
 
 
@@ -53,11 +67,7 @@ def copyfileobj_pad_truncate(src, dst, length=None):
         return
 
     if length is None:
-        while 1:
-            buf = src.read(BUFSIZE)
-            if not buf:
-                break
-            dst.write(buf)
+        shutil.copyfileobj(src, dst, BUFSIZE)
         return
 
     blocks, remainder = divmod(length, BUFSIZE)
@@ -76,6 +86,12 @@ def copyfileobj_pad_truncate(src, dst, length=None):
             # End of file reached
             # The file must have  been truncated, so pad with zeroes
             dst.write(tarfile.NUL * (remainder - len(buf)))
+
+
+class CloudUploadingError(Exception):
+    """
+    This exception is raised when there are upload errors
+    """
 
 
 class TarFileIgnoringTruncate(tarfile.TarFile):
@@ -114,6 +130,13 @@ class TarFileIgnoringTruncate(tarfile.TarFile):
 
 
 class S3TarUploader(object):
+
+    # This is the method we use to create new buffers
+    # We use named temporary files, so we can pass them by name to
+    # other processes
+    _buffer = partial(NamedTemporaryFile, delete=False,
+                      prefix='barman-cloud-', suffix='.part')
+
     def __init__(self, cloud_interface, key,
                  compression=None, chunk_size=DEFAULT_CHUNK_SIZE):
         """
@@ -128,40 +151,40 @@ class S3TarUploader(object):
         self.key = key
         self.mpu = None
         self.chunk_size = chunk_size
-        self.buffer = BytesIO()
+        self.buffer = None
         self.counter = 1
-        self.parts = []
         tar_mode = 'w|%s' % (compression or '')
         self.tar = TarFileIgnoringTruncate.open(fileobj=self,
                                                 mode=tar_mode)
 
     def write(self, buf):
-        if self.buffer.tell() > self.chunk_size:
+        if self.buffer and self.buffer.tell() > self.chunk_size:
             self.flush()
+        if not self.buffer:
+            self.buffer = self._buffer()
         self.buffer.write(buf)
 
     def flush(self):
         if not self.mpu:
             self.mpu = self.cloud_interface.create_multipart_upload(self.key)
+        self.buffer.flush()
         self.buffer.seek(0, os.SEEK_SET)
-        part = self.cloud_interface.upload_part(
+        self.cloud_interface.async_upload_part(
             mpu=self.mpu,
             key=self.key,
             body=self.buffer,
             part_number=self.counter)
-        self.parts.append(part)
         self.counter += 1
-        self.buffer.seek(0, os.SEEK_SET)
-        self.buffer.truncate()
+        self.buffer.close()
+        self.buffer = None
 
     def close(self):
         if self.tar:
             self.tar.close()
         self.flush()
-        self.cloud_interface.complete_multipart_upload(
+        self.cloud_interface.async_complete_multipart_upload(
             mpu=self.mpu,
-            key=self.key,
-            parts=self.parts)
+            key=self.key)
 
 
 class S3UploadController(object):
@@ -290,13 +313,15 @@ class S3UploadController(object):
 
 
 class CloudInterface:
-    def __init__(self, destination_url, encryption, profile_name=None):
+    def __init__(self, destination_url, encryption, jobs=2, profile_name=None):
         """
         Create a new S3 interface given the S3 destination url and the profile
         name
 
         :param str destination_url: Full URL of the cloud destination
         :param str|None encryption: Encryption type string
+        :param int jobs: How many sub-processes to use for asynchronous
+          uploading, defaults to 2.
         :param str profile_name: Amazon auth profile identifier
         """
         self.destination_url = destination_url
@@ -315,7 +340,150 @@ class CloudInterface:
         session = boto3.Session(profile_name=profile_name)
         self.s3 = session.resource('s3')
 
-        # TODO: handle encryption
+        # The worker process and the shared queue are created only when
+        # needed
+        self.queue = None
+        self.result_queue = None
+        self.errors_queue = None
+        self.error = None
+        self.worker_processes_count = jobs
+        self.worker_processes = []
+
+        # The parts DB is a dictionary mapping each bucket key name to a list
+        # of uploaded parts.
+        # This structure is updated by the _refresh_parts_db method call
+        self.parts_db = collections.defaultdict(lambda: list())
+
+    def close(self):
+        """
+        Wait for all the asynchronous operations to be done
+        :return:
+        """
+        if self.queue:
+            for _ in self.worker_processes:
+                self.queue.put(None)
+
+            for process in self.worker_processes:
+                process.join()
+
+    def _ensure_async(self):
+        """
+        Ensure that the asynchronous execution infrastructure is up
+        and the worker process is running
+        """
+        if self.queue:
+            return
+
+        self.queue = multiprocessing.JoinableQueue(
+            maxsize=self.worker_processes_count)
+        self.result_queue = multiprocessing.Queue()
+        self.errors_queue = multiprocessing.Queue()
+        for process_number in range(self.worker_processes_count):
+            process = multiprocessing.Process(
+                target=self.worker_process_main,
+                args=(process_number,))
+            process.start()
+            self.worker_processes.append(process)
+
+    def _retrieve_results(self):
+        """
+        Receive the results from workers and update the local parts DB,
+        making sure that each part list is sorted by part number
+        """
+
+        touched_keys = []
+        while not self.result_queue.empty():
+            result = self.result_queue.get()
+            touched_keys.append(result["key"])
+            self.parts_db[result["key"]].append(result["part"])
+
+        for key in touched_keys:
+            self.parts_db[key] = sorted(
+                self.parts_db[key],
+                key=operator.itemgetter("PartNumber"))
+
+    def _handle_async_errors(self):
+        """
+        If an upload error has been discovered, stop the upload
+        process, stop all the workers and raise an exception
+        :return:
+        """
+
+        # If an error has already been reported, do nothing
+        if self.error:
+            return
+
+        try:
+            self.error = self.errors_queue.get_nowait()
+        except EmptyQueue:
+            return
+
+        logging.error("Uploading error: %s", self.error)
+        self.close()
+        raise CloudUploadingError(self.error)
+
+    def worker_process_main(self, process_number):
+        """
+        Repeatedly grab a task from the queue and execute it, until a task
+        containing "None" is grabbed, indicating that the process must stop.
+
+        :param int process_number: the process number, used in the logging
+        output
+        """
+        logging.info("Upload worker process started")
+        while True:
+            task = self.queue.get()
+            if not task:
+                self.queue.task_done()
+                break
+
+            try:
+                self.worker_process_execute_job(task, process_number)
+            except Exception as exc:
+                logging.exception('Uploading error')
+                self.errors_queue.put(force_str(exc))
+            finally:
+                self.queue.task_done()
+
+        logging.info("Upload worker process stopped")
+
+    def worker_process_execute_job(self, task, process_number):
+        """
+        Exec a single task
+        :param Dict task: task to execute
+        :param int process_number: the process number, used in the logging
+        output
+        :return:
+        """
+        if task["job_type"] == "upload_part":
+            logging.info(
+                "Uploading %s, part %s (worker %s)" % (
+                    task["key"],
+                    task["part_number"],
+                    process_number))
+            with open(task["body"], "rb") as fp:
+                part = self.upload_part(
+                    task["mpu"],
+                    task["key"],
+                    fp,
+                    task["part_number"])
+            os.unlink(task["body"])
+            self.result_queue.put(
+                {
+                    "key": task["key"],
+                    "part": part,
+                })
+        elif task["job_type"] == "complete_multipart_upload":
+            logging.info(
+                "Completing %s (worker %s)" % (
+                    task["key"],
+                    process_number))
+            self.complete_multipart_upload(
+                task["mpu"],
+                task["key"],
+                task["parts"])
+        else:
+            raise ValueError("Unknown task: %s", repr(task))
 
     def test_connectivity(self):
         """
@@ -372,6 +540,43 @@ class CloudInterface:
         return self.s3.meta.client.create_multipart_upload(
             Bucket=self.bucket_name, Key=key)
 
+    def async_upload_part(self, mpu, key, body, part_number):
+        """
+        Asynchronously upload a part into a multipart upload
+
+        :param mpu: The multipart upload handle
+        :param str key: The key to use in the cloud service
+        :param any body: A stream-like object to upload
+        :param int part_number: Part number, starting from 1
+        :return: The part handle
+        """
+
+        # If an error has already been reported, do nothing
+        if self.error:
+            return
+
+        self._ensure_async()
+        self._handle_async_errors()
+
+        # If the body is a named temporary file use it directly
+        # WARNING: this imply that the file will be deleted after the upload
+        if hasattr(body, 'name') and hasattr(body, 'delete') and \
+                not body.delete:
+            fp = body
+        else:
+            # Write a temporary file with the part contents
+            with NamedTemporaryFile(delete=False) as fp:
+                shutil.copyfileobj(body, fp, BUFSIZE)
+
+        # Pass the job to the uploader process
+        self.queue.put({
+            "job_type": "upload_part",
+            "mpu": mpu,
+            "key": key,
+            "body": fp.name,
+            "part_number": part_number,
+        })
+
     def upload_part(self, mpu, key, body, part_number):
         """
         Upload a part into this multipart upload
@@ -392,6 +597,36 @@ class CloudInterface:
             'PartNumber': part_number,
             'ETag': part['ETag'],
         }
+
+    def async_complete_multipart_upload(self, mpu, key):
+        """
+        Asynchronously finish a certain multipart upload. This method grant
+        that the final S3 call will happen after all the already scheduled
+        parts have been uploaded.
+
+        :param mpu:  The multipart upload handle
+        :param str key: The key to use in the cloud service
+        """
+
+        # If an error has already been reported, do nothing
+        if self.error:
+            return
+
+        self._ensure_async()
+        self._handle_async_errors()
+
+        # Ensure that all the scheduled tasks are done
+        self.queue.join()
+        self._retrieve_results()
+
+        # Finish the job in S3 to the uploader process
+        self.queue.put({
+            "job_type": "complete_multipart_upload",
+            "mpu": mpu,
+            "key": key,
+            "parts": self.parts_db[key],
+        })
+        del self.parts_db[key]
 
     def complete_multipart_upload(self, mpu, key, parts):
         """

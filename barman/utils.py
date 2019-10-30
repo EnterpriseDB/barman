@@ -32,6 +32,7 @@ import pwd
 import re
 import signal
 import sys
+from argparse import ArgumentTypeError
 from contextlib import contextmanager
 
 from distutils.version import Version
@@ -498,3 +499,41 @@ def redact_passwords(text):
         text)
 
     return text
+
+
+def check_non_negative(value):
+    """
+    Check for a positive integer option
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    try:
+        int_value = int(value)
+    except Exception:
+        raise ArgumentTypeError("'%s' is not a valid non negative integer" %
+                                value)
+    if int_value < 0:
+        raise ArgumentTypeError("'%s' is not a valid non negative integer" %
+                                value)
+    return int_value
+
+
+def check_positive(value):
+    """
+    Check for a positive integer option
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    try:
+        int_value = int(value)
+    except Exception:
+        raise ArgumentTypeError("'%s' is not a valid positive integer" %
+                                value)
+    if int_value < 1:
+        raise ArgumentTypeError("'%s' is not a valid positive integer" %
+                                value)
+    return int_value

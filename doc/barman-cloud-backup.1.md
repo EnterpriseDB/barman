@@ -59,7 +59,8 @@ SERVER\_NAME
 :    bzip2-compress the tar files when uploading to the cloud
 
 -e, --encrypt
-:    enable server-side encryption for the transfer
+:    enable server-side encryption for the transfer.
+     Allowed values: 'AES256'|'aws:kms'.
 
 -h, --host
 :    host or Unix socket for PostgreSQL connection (default: libpq settings)
@@ -72,6 +73,9 @@ SERVER\_NAME
 
 --immediate-checkpoint
 :    forces the initial checkpoint to be done as quickly as possible
+
+-J JOBS, --jobs JOBS
+:    number of subprocesses to upload data to S3 (default: 2)
 
 # REFERENCES
 
