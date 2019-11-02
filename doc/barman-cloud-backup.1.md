@@ -15,8 +15,9 @@ barman-cloud-backup [*OPTIONS*] *DESTINATION\_URL* *SERVER\_NAME*
 # DESCRIPTION
 
 This script can be used to perform a backup of a local PostgreSQL instance
-and ship the resulting tarball(s) to the Cloud. Currently only AWS S3 is
-supported.
+and ship the resulting tarball(s) to the Cloud. It requires read access
+to PGDATA and tablespaces (normally run as `postgres` user).
+Currently only AWS S3 is supported.
 
 This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by 2ndQuadrant.
