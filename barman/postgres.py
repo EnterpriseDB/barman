@@ -311,7 +311,7 @@ class StreamingConnection(PostgreSQL):
         """
         result = dict.fromkeys(
             ('connection_error', 'streaming_supported',
-                'streaming', 'systemid',
+                'streaming', 'streaming_systemid',
                 'timeline', 'xlogpos'),
             None)
         try:
@@ -332,7 +332,7 @@ class StreamingConnection(PostgreSQL):
             if row:
                 result['streaming'] = True
                 # IDENTIFY_SYSTEM always return at least two values
-                result['systemid'] = row[0]
+                result['streaming_systemid'] = row[0]
                 result['timeline'] = row[1]
                 # PostgreSQL 9.1+ returns also the current xlog flush location
                 if len(row) > 2:
@@ -747,6 +747,7 @@ class PostgreSQLConnection(PostgreSQL):
             'replication_slot_support',
             'replication_slot',
             'synchronous_standby_names',
+            'postgres_systemid'
         ]
         # Initialise the result dictionary setting all the values to None
         result = dict.fromkeys(
@@ -804,10 +805,29 @@ class PostgreSQLConnection(PostgreSQL):
                 result["synchronous_standby_names"] = (
                     self.get_synchronous_standby_names())
 
+            if self.server_version >= 90600:
+                result["postgres_systemid"] = self.get_systemid()
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.warning("Error retrieving PostgreSQL status: %s",
                             force_str(e).strip())
         return result
+
+    def get_systemid(self):
+        """
+        Get a Postgres instance systemid
+        """
+        if self.server_version < 90600:
+            return
+
+        try:
+            cur = self._cursor()
+            cur.execute(
+                'SELECT system_identifier::text FROM pg_control_system()')
+            return cur.fetchone()[0]
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error retrieving PostgreSQL system Id: %s",
+                          force_str(e).strip())
+            return None
 
     def get_setting(self, name):
         """

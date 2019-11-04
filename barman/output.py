@@ -650,6 +650,8 @@ class ConsoleOutputWriter(object):
         data = dict(backup_ext_info)
         self.info("Backup %s:", data['backup_id'])
         self.info("  Server Name            : %s", data['server_name'])
+        if data['systemid']:
+            self.info("  System Id              : %s", data['systemid'])
         self.info("  Status                 : %s", data['status'])
         if data['status'] in BackupInfo.STATUS_COPY_DONE:
             self.info("  PostgreSQL Version     : %s", data['version'])

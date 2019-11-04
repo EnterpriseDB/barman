@@ -346,6 +346,7 @@ def build_mocked_server(name=None, config=None,
     server.config.name = name or 'main'
     server.postgres.xlog_segment_size = DEFAULT_XLOG_SEG_SIZE
     server.path = '/test/bin'
+    server.systemid = '6721602258895701769'
     return server
 
 

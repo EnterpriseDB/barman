@@ -457,6 +457,7 @@ class BackupInfo(FieldListFile):
     copy_stats = Field('copy_stats', load=ast.literal_eval, dump=null_repr)
     xlog_segment_size = Field('xlog_segment_size', load=int,
                               default=xlog.DEFAULT_XLOG_SEG_SIZE)
+    systemid = Field('systemid')
 
     __slots__ = 'backup_id', 'backup_version'
 
@@ -594,6 +595,7 @@ class LocalBackupInfo(BackupInfo):
                     'both info_file and backup_id parameters are set')
             self.backup_id = backup_id
             self.filename = self.get_filename()
+            self.systemid = server.systemid
             # Check if a backup info file for a given server and a given ID
             # already exists. If so load the values from the file.
             if os.path.exists(self.filename):

@@ -339,6 +339,7 @@ class TestBackup(object):
             global_conf={
                 'barman_home': tmpdir.strpath
             })
+        backup_manager.server.systemid = '123'
 
         # BackupInfo object with status DONE
         b_info = build_test_backup_info(

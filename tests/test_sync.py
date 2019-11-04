@@ -63,6 +63,7 @@ EXPECTED_MINIMAL = {
             'included_files': None,
             'copy_stats': None,
             'xlog_segment_size': 16777216,
+            'systemid': None,
         }
     },
     'config': {},

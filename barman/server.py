@@ -443,6 +443,59 @@ class Server(RemoteStatusMixin):
                     'Invalid retention_policy setting "%s" for server "%s"' % (
                         self.config.retention_policy, self.config.name))
 
+    def get_identity_file_path(self):
+        """
+        Get the path of the file that should contain the identity
+        of the cluster
+        :rtype: str
+        """
+        return os.path.join(
+            self.config.backup_directory,
+            'identity.json')
+
+    def write_identity_file(self):
+        """
+        Store the identity of the server if it doesn't already exist.
+        """
+        file_path = self.get_identity_file_path()
+
+        # Do not write the identity if file already exists
+        if os.path.exists(file_path):
+            return
+
+        systemid = self.systemid
+        if systemid:
+            try:
+                with open(file_path, "w") as fp:
+                    json.dump(
+                        {
+                            "systemid": systemid,
+                            "version": self.postgres.server_major_version
+                        },
+                        fp,
+                        indent=4,
+                        sort_keys=True)
+                    fp.write("\n")
+            except IOError:
+                _logger.exception(
+                    'Cannot write system Id file for server "%s"' % (
+                        self.config.name))
+
+    def read_identity_file(self):
+        """
+        Read the server identity
+        :rtype: dict[str,str]
+        """
+        file_path = self.get_identity_file_path()
+        try:
+            with open(file_path, "r") as fp:
+                return json.load(fp)
+        except IOError:
+            _logger.exception(
+                'Cannot read system Id file for server "%s"' % (
+                    self.config.name))
+            return {}
+
     def close(self):
         """
         Close all the open connections to PostgreSQL
@@ -482,7 +535,9 @@ class Server(RemoteStatusMixin):
                 # Check if the msg_list of the server
                 # contains messages and output eventual failures
                 self.check_configuration(check_strategy)
-
+                # Check the system Id coherence between
+                # streaming and normal connections
+                self.check_identity(check_strategy)
                 # Executes check() for every archiver, passing
                 # remote status information for efficiency
                 for archiver in self.archivers:
@@ -812,6 +867,59 @@ class Server(RemoteStatusMixin):
             hint=WalArchiver.summarise_error_files(errors)
         )
 
+    def check_identity(self, check_strategy):
+        """
+        Check the systemid retrieved from the streaming connection
+        is the same that is retrieved from the standard connection,
+        and then verifies it matches the one stored on disk.
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        check_strategy.init_check("systemid coherence")
+
+        remote_status = self.get_remote_status()
+
+        # Get system identifier from streaming and standard connections
+        systemid_from_streaming = remote_status.get('streaming_systemid')
+        systemid_from_postgres = remote_status.get('postgres_systemid')
+        # If both available, makes sure they are coherent with each other
+        if systemid_from_streaming and systemid_from_postgres:
+            if systemid_from_streaming != systemid_from_postgres:
+                check_strategy.result(
+                    self.config.name,
+                    systemid_from_streaming == systemid_from_postgres,
+                    hint="is the streaming DSN targeting the same server "
+                         "of the PostgreSQL connection string?")
+                return
+
+        systemid_from_server = (
+            systemid_from_streaming or systemid_from_postgres)
+        if not systemid_from_server:
+            # Can't check without system Id information
+            check_strategy.result(self.config.name, True,
+                                  hint="no system Id available")
+            return
+
+        # Retrieves the content on disk and matches it with the live ID
+        file_path = self.get_identity_file_path()
+        if not os.path.exists(file_path):
+            # We still don't have the systemid cached on disk,
+            # so let's wait until we store it
+            check_strategy.result(self.config.name, True,
+                                  hint="no system Id stored on disk")
+            return
+
+        identity_from_file = self.read_identity_file()
+        if systemid_from_server != identity_from_file.get('systemid'):
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint='the system Id of the connected PostgreSQL server '
+                     'changed, stored in "%s"' % file_path)
+        else:
+            check_strategy.result(self.config.name, True)
+
     def status_postgres(self):
         """
         Status of PostgreSQL server
@@ -1068,6 +1176,9 @@ class Server(RemoteStatusMixin):
             output.error('failed to create %s directory: %s',
                          e.filename, e.strerror)
             return
+
+        # Save the database identity
+        self.write_identity_file()
 
         # Make sure we are not wasting an precious streaming PostgreSQL
         # connection that may have been opened by the self.check() call
@@ -2032,6 +2143,19 @@ class Server(RemoteStatusMixin):
             else:
                 output.info("Another receive-wal process is already running "
                             "for server %s." % self.config.name)
+
+    @property
+    def systemid(self):
+        """
+        Get the system identifier, as returned by the PostgreSQL server
+        :return str: the system identifier
+        """
+        status = self.get_remote_status()
+        # Main PostgreSQL connection has higher priority
+        if status.get('postgres_systemid'):
+            return status.get('postgres_systemid')
+        # Fallback: streaming connection
+        return status.get('streaming_systemid')
 
     @property
     def xlogdb_file_name(self):

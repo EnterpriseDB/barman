@@ -476,6 +476,36 @@ class TestPostgres(object):
         assert server.postgres.get_setting('test_setting') is None
 
     @patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_get_systemid(self, conn):
+        """
+        Simple test for retrieving the systemid from the database
+        """
+        # Build and configure a server
+        server = build_real_server()
+        conn.return_value.server_version = 90600
+
+        # expect no errors
+        server.postgres.get_systemid()
+        cursor_mock = conn.return_value.cursor.return_value
+        cursor_mock.execute.assert_called_once_with(
+            'SELECT system_identifier::text FROM pg_control_system()')
+        # reset the mock for the second test
+        conn.reset_mock()
+
+        # Test 2: Setup the mock to trigger an exception
+        # expect the method to return None
+        cursor_mock.execute.side_effect = psycopg2.Error
+        # Check that the method returns None as result
+        assert server.postgres.get_systemid() is None
+        # reset the mock for the third test
+        conn.reset_mock()
+
+        # Test 3: setup the mock to return a PostgreSQL version that
+        # don't support pg_control_system()
+        conn.return_value.server_version = 90500
+        assert server.postgres.get_systemid() is None
+
+    @patch('barman.postgres.PostgreSQLConnection.connect')
     def test_get_tablespaces(self, conn):
         """
         Simple test for pg_start_backup method of the RsyncBackupExecutor class
@@ -807,8 +837,10 @@ class TestPostgres(object):
     @patch('barman.postgres.PostgreSQLConnection.get_setting')
     @patch('barman.postgres.'
            'PostgreSQLConnection.get_synchronous_standby_names')
+    @patch('barman.postgres.PostgreSQLConnection.get_systemid')
     def test_get_remote_status(self,
-                               get_synchronous_standby_names,
+                               get_systemid_mock,
+                               get_synchronous_standby_names_mock,
                                get_setting_mock,
                                get_configuration_files_mock,
                                current_size_mock,
@@ -833,11 +865,12 @@ class TestPostgres(object):
         is_in_recovery_mock.return_value = False
         is_superuser_mock.return_value = True
         get_configuration_files_mock.return_value = {'a': 'b'}
-        get_synchronous_standby_names.return_value = []
+        get_synchronous_standby_names_mock.return_value = []
         conn_mock.return_value.server_version = 90500
         archive_timeout_mock.return_value = 300
         checkpoint_timeout_mock.return_value = 600
         xlog_segment_size.return_value = 2 << 22
+        get_systemid_mock.return_value = 6721602258895701769
 
         settings = {
             'data_directory': 'a directory',
@@ -851,8 +884,8 @@ class TestPostgres(object):
 
         get_setting_mock.side_effect = lambda x: settings.get(x, 'unknown')
 
+        # Test PostgreSQL < 9.6
         result = server.postgres.fetch_remote_status()
-
         assert result == {
             'a': 'b',
             'is_superuser': True,
@@ -874,6 +907,34 @@ class TestPostgres(object):
             'max_replication_slots': 'a max_replication_slots value',
             'wal_compression': 'a wal_compression value',
             'xlog_segment_size': 8388608,
+            'postgres_systemid': None,
+        }
+
+        # Test PostgreSQL 9.6
+        conn_mock.return_value.server_version = 90600
+        result = server.postgres.fetch_remote_status()
+        assert result == {
+            'a': 'b',
+            'is_superuser': True,
+            'is_in_recovery': False,
+            'current_xlog': 'DE/ADBEEF',
+            'data_directory': 'a directory',
+            'pgespresso_installed': True,
+            'server_txt_version': '9.5.0',
+            'wal_level': 'a wal_level value',
+            'current_size': 497354072,
+            'replication_slot_support': True,
+            'replication_slot': None,
+            'synchronous_standby_names': [],
+            'archive_timeout': 300,
+            'checkpoint_timeout': 600,
+            'hot_standby': 'a hot_standby value',
+            'max_wal_senders': 'a max_wal_senderse value',
+            'data_checksums': 'a data_checksums',
+            'max_replication_slots': 'a max_replication_slots value',
+            'wal_compression': 'a wal_compression value',
+            'xlog_segment_size': 8388608,
+            'postgres_systemid': 6721602258895701769,
         }
 
         # Test error management
@@ -889,6 +950,7 @@ class TestPostgres(object):
             'replication_slot_support': None,
             'replication_slot': None,
             'synchronous_standby_names': None,
+            'postgres_systemid': None,
         }
 
         get_setting_mock.side_effect = psycopg2.ProgrammingError
@@ -902,6 +964,7 @@ class TestPostgres(object):
             'replication_slot_support': None,
             'replication_slot': None,
             'synchronous_standby_names': None,
+            'postgres_systemid': None,
         }
 
     @patch('barman.postgres.PostgreSQLConnection.connect')

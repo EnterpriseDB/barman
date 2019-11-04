@@ -17,13 +17,14 @@
 
 import datetime
 import hashlib
+import json
 import os
 import tarfile
 from collections import namedtuple
 from io import BytesIO
 
 import pytest
-from mock import MagicMock, patch
+from mock import MagicMock, PropertyMock, patch
 from psycopg2.tz import FixedOffsetTimezone
 
 from barman import output
@@ -1571,6 +1572,177 @@ class TestServer(object):
         # Verify file mtime
         # Use a round(2) comparison because float is not precise in Python 2.x
         assert round(wal.mtime(), 2) == round(dest_file.mtime(), 2)
+
+    def test_get_systemid_file_path(self):
+        # Basic test for the get_systemid_file_path function
+        server = build_real_server()
+        file_path = '/some/barman/home/main/identity.json'
+        assert server.get_identity_file_path() == file_path
+
+    @patch('barman.postgres.PostgreSQL.server_major_version',
+           new_callable=PropertyMock)
+    @patch('barman.server.Server.get_remote_status')
+    def test_write_systemid_file(self, get_remote_status, major_version,
+                                 tmpdir):
+        """
+        Test the function to write the systemid file in the Barman home
+        """
+        server = build_real_server(
+            global_conf={
+                'barman_home': tmpdir.mkdir('barman_home').strpath,
+            },
+            main_conf={
+                'backup_directory': tmpdir.mkdir('backup').strpath,
+            }
+        )
+        major_version.return_value = "11"
+
+        # First case: we have no systemid defined, the systemid file
+        # cannot be written
+        get_remote_status.return_value = {}
+        server.write_identity_file()
+        assert not os.path.exists(server.get_identity_file_path())
+
+        # Second case: we have systemid defined from the PostgreSQL
+        # connection
+        get_remote_status.return_value = {
+            'postgres_systemid': '1234567890'
+        }
+        server.write_identity_file()
+        with open(server.get_identity_file_path(), "r") as fp:
+            assert json.load(fp) == {
+                "systemid": "1234567890",
+                "version": "11",
+            }
+
+        # Third case: we have systemid defined from the PostgreSQL
+        # streaming connection
+        get_remote_status.return_value = {
+            'streaming_systemid': '0987654321'
+        }
+        server.postgres._remote_status = None
+        # Cleanup old file and write a new one
+        os.unlink(server.get_identity_file_path())
+        server.write_identity_file()
+        with open(server.get_identity_file_path(), "r") as fp:
+            assert json.load(fp) == {
+                "systemid": "0987654321",
+                "version": "11",
+            }
+
+    @patch('barman.server.Server.get_remote_status')
+    def test_check_systemid(self, get_remote_status_mock, capsys, tmpdir):
+        """
+        Test the management of the check_systemid function
+        """
+
+        server = Server(build_config_from_dicts(
+            global_conf={
+                'barman_home': tmpdir.mkdir('barman_home').strpath,
+            },
+            main_conf={
+                'backup_directory': tmpdir.mkdir('backup').strpath,
+            }
+        ).get_server('main'))
+
+        # First case: we can't check anything since
+        # we have no systemid from the PostgreSQL connection and no
+        # systemid from the streaming connection
+        get_remote_status_mock.return_value = {
+            'streaming_systemid': None,
+            'postgres_systemid': None,
+        }
+        strategy = CheckOutputStrategy()
+        server.check_identity(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == '\tsystemid coherence: OK ' \
+                      '(no system Id available)\n'
+        assert not os.path.exists(server.get_identity_file_path())
+
+        # Second case: we have the systemid from the PostgreSQL connection,
+        # but we still haven't written the systemid file
+        get_remote_status_mock.return_value = {
+            'streaming_systemid': '1234567890',
+            'postgres_systemid': None,
+        }
+        strategy = CheckOutputStrategy()
+        server.check_identity(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == '\tsystemid coherence: OK ' \
+                      '(no system Id stored on disk)\n'
+        assert not os.path.exists(server.get_identity_file_path())
+
+        # Third case: we don't have the systemid from the PostgreSQL
+        # connection, but we have the one from the data connection.
+        # The systemid file is still not written
+        get_remote_status_mock.return_value = {
+            'streaming_systemid': None,
+            'postgres_systemid': '1234567890',
+        }
+        strategy = CheckOutputStrategy()
+        server.check_identity(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == '\tsystemid coherence: OK ' \
+                      '(no system Id stored on disk)\n'
+        assert not os.path.exists(server.get_identity_file_path())
+
+        # Forth case: we have the streaming and the normal connection, and
+        # they are pointing to the same server
+        get_remote_status_mock.return_value = {
+            'streaming_systemid': '1234567890',
+            'postgres_systemid': '1234567890',
+        }
+        strategy = CheckOutputStrategy()
+        server.check_identity(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == '\tsystemid coherence: OK ' \
+                      '(no system Id stored on disk)\n'
+        assert not os.path.exists(server.get_identity_file_path())
+
+        # Fifth case: the systemid from the streaming connection and the
+        # one from the data connection are not the same
+        get_remote_status_mock.return_value = {
+            'streaming_systemid': '0987654321',
+            'postgres_systemid': '1234567890',
+        }
+        strategy = CheckOutputStrategy()
+        server.check_identity(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == '\tsystemid coherence: FAILED (is the streaming ' \
+                      'DSN targeting the same server of the PostgreSQL ' \
+                      'connection string?)\n'
+        assert not os.path.exists(server.get_identity_file_path())
+
+        # Sixth case: the systemid loaded from the PostgreSQL connection
+        # is not the same as the one written in the systemid file
+        get_remote_status_mock.return_value = {
+            'streaming_systemid': None,
+            'postgres_systemid': '1234567890',
+        }
+        with open(server.get_identity_file_path(), "w") as fp:
+            fp.write('{"systemid": "test"}')
+        strategy = CheckOutputStrategy()
+        server.check_identity(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == '\tsystemid coherence: FAILED ' \
+                      '(the system Id of the connected PostgreSQL ' \
+                      'server changed, stored in "%s")\n' % \
+            server.get_identity_file_path()
+
+        os.unlink(server.get_identity_file_path())
+
+        # Seventh case: the systemid loaded from the PostgreSQL connection
+        # is the same as the one written in the systemid file
+        get_remote_status_mock.return_value = {
+            'streaming_systemid': None,
+            'postgres_systemid': '1234567890',
+        }
+        with open(server.get_identity_file_path(), "w") as fp:
+            fp.write('{"systemid": "1234567890"}')
+        strategy = CheckOutputStrategy()
+        server.check_identity(strategy)
+        (out, err) = capsys.readouterr()
+        assert out == '\tsystemid coherence: OK\n'
 
 
 class TestCheckStrategy(object):

@@ -550,6 +550,7 @@ class S3BackupUploader(object):
         """
         backup_info = BackupInfo(
             backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'))
+        backup_info.set_attribute("systemid", self.postgres.get_systemid())
         key_prefix = os.path.join(
             self.cloud_interface.path,
             self.server_name,

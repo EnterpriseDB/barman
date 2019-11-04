@@ -14,8 +14,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
-from mock import patch
+
 import json
+
+from mock import patch
 
 import barman
 from barman.cli import diagnose

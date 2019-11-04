@@ -17,7 +17,7 @@
 
 import mock
 import pytest
-from botocore.exceptions import EndpointConnectionError, ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 from barman.cloud import CloudInterface
 
