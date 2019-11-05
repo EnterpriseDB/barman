@@ -18,6 +18,7 @@
 import os
 import shutil
 import time
+from contextlib import closing
 
 import dateutil
 import mock
@@ -807,8 +808,9 @@ class TestRecoveryExecutor(object):
             })
         executor = RecoveryExecutor(server.backup_manager)
         # test local recovery
-        rec_info = executor.recover(backup_info, dest.strpath,
-                                    exclusive=True)
+        with closing(executor):
+            rec_info = executor.recover(backup_info, dest.strpath,
+                                        exclusive=True)
         # remove not useful keys from the result
         del rec_info['cmd']
         sys_tempdir = rec_info['tempdir']
@@ -861,9 +863,10 @@ class TestRecoveryExecutor(object):
             'get_wal': False,
         }
         # test remote recovery
-        rec_info = executor.recover(backup_info, dest.strpath,
-                                    remote_command="remote@command",
-                                    exclusive=True)
+        with closing(executor):
+            rec_info = executor.recover(backup_info, dest.strpath,
+                                        remote_command="remote@command",
+                                        exclusive=True)
         # remove not useful keys from the result
         del rec_info['cmd']
         del rec_info['rsync']
@@ -918,8 +921,9 @@ class TestRecoveryExecutor(object):
         # test failed rsync
         rsync_pg_mock.side_effect = CommandFailedException()
         with pytest.raises(CommandFailedException):
-            executor.recover(backup_info, dest.strpath,
-                             exclusive=True, remote_command="remote@command")
+            with closing(executor):
+                executor.recover(backup_info, dest.strpath, exclusive=True,
+                                 remote_command="remote@command")
 
     def test_recover_standby_mode(self, tmpdir):
         backup_info = testing_helpers.build_test_backup_info()
@@ -933,7 +937,8 @@ class TestRecoveryExecutor(object):
         executor._backup_copy = MagicMock()
         executor._xlog_copy = MagicMock()
         executor._generate_recovery_conf = MagicMock()
-        executor.recover(backup_info, destination, standby_mode=None)
+        with closing(executor):
+            executor.recover(backup_info, destination, standby_mode=None)
         executor._generate_recovery_conf.assert_not_called()
 
         # If standby mode is enabled, recovery.conf is generated
@@ -941,14 +946,16 @@ class TestRecoveryExecutor(object):
         executor._backup_copy.reset_mock()
         executor._xlog_copy.reset_mock()
         executor._generate_recovery_conf.reset_mock()
-        executor.recover(backup_info, destination, standby_mode=True)
+        with closing(executor):
+            executor.recover(backup_info, destination, standby_mode=True)
         executor._generate_recovery_conf.assert_called()
 
         # If standby mode is passed but PostgreSQL is older than 9.0,
         # we must raise an exception
         backup_info.version = 80000
         with pytest.raises(RecoveryStandbyModeException):
-            executor.recover(backup_info, destination, standby_mode=True)
+            with closing(executor):
+                executor.recover(backup_info, destination, standby_mode=True)
 
     @mock.patch('barman.recovery_executor.UnixRemoteCommand')
     @mock.patch('barman.recovery_executor.RsyncPgData')
@@ -970,7 +977,8 @@ class TestRecoveryExecutor(object):
         executor = RecoveryExecutor(backup_manager)
         backup_info.status = BackupInfo.WAITING_FOR_WALS
         destination = tmpdir.mkdir('destination').strpath
-        executor.recover(backup_info, destination, standby_mode=None)
+        with closing(executor):
+            executor.recover(backup_info, destination, standby_mode=None)
 
         # The backup info has been read again
         backup_info_mock.assert_called()
@@ -993,7 +1001,8 @@ class TestRecoveryExecutor(object):
         # message at the end of the recovery process to be emitted again
         output_mock.warning.reset_mock()
         backup_info_mock.return_value.status = BackupInfo.DONE
-        executor.recover(backup_info, destination, standby_mode=None)
+        with closing(executor):
+            executor.recover(backup_info, destination, standby_mode=None)
 
         # The backup info has been read again
         backup_info_mock.assert_called()
