@@ -185,7 +185,7 @@ class TestWalFileInfo(object):
         assert wfile_info.relpath() == (
             '0000000000000000/000000000000000000000001')
 
-    @mock.patch('barman.infofile.identify_compression')
+    @mock.patch('barman.compression.identify_compression')
     def test_from_file_compression(self, id_compression, tmpdir):
         # prepare
         id_compression.return_value = 'test_compression'
@@ -201,7 +201,7 @@ class TestWalFileInfo(object):
         assert wfile_info.relpath() == (
             '0000000000000000/000000000000000000000001')
 
-    @mock.patch('barman.infofile.identify_compression')
+    @mock.patch('barman.compression.identify_compression')
     def test_from_file_unidentified_compression(self, id_compression, tmpdir):
         # prepare
         id_compression.return_value = None
@@ -219,7 +219,7 @@ class TestWalFileInfo(object):
         assert wfile_info.relpath() == (
             '00000001000000E5/00000001000000E500000064')
 
-    @mock.patch('barman.infofile.identify_compression')
+    @mock.patch('barman.compression.identify_compression')
     def test_from_file_override_compression(self, id_compression, tmpdir):
         # prepare
         id_compression.return_value = None
@@ -238,7 +238,7 @@ class TestWalFileInfo(object):
         assert wfile_info.relpath() == (
             '0000000000000000/000000000000000000000001')
 
-    @mock.patch('barman.infofile.identify_compression')
+    @mock.patch('barman.compression.identify_compression')
     def test_from_file_override(self, id_compression, tmpdir):
         # prepare
         id_compression.return_value = None

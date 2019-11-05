@@ -24,8 +24,8 @@ import os
 import dateutil.parser
 import dateutil.tz
 
+import barman.compression
 from barman import xlog
-from barman.compression import identify_compression
 from barman.exceptions import BackupInfoBadInitialisation
 from barman.utils import fsync_dir
 
@@ -337,6 +337,7 @@ class WalFileInfo(FieldListFile):
         :param str unidentified_compression: the compression to set if
             the current schema is not identifiable.
         """
+        identify_compression = barman.compression.identify_compression
         stat = os.stat(filename)
         kwargs.setdefault('name', os.path.basename(filename))
         kwargs.setdefault('size', stat.st_size)
