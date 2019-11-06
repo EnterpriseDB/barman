@@ -419,22 +419,22 @@ class BackupManager(RemoteStatusMixin):
         # KeyboardInterrupt (e.g.: CTRL-C)
         except BaseException as e:
             msg_lines = force_str(e).strip().splitlines()
+            # If the exception has no attached message use the raw
+            # type name
+            if len(msg_lines) == 0:
+                msg_lines = [type(e).__name__]
             if backup_info:
                 # Use only the first line of exception message
                 # in backup_info error field
                 backup_info.set_attribute("status", "FAILED")
-                # If the exception has no attached message use the raw
-                # type name
-                if len(msg_lines) == 0:
-                    msg_lines = [type(e).__name__]
                 backup_info.set_attribute(
                     "error",
                     "failure %s (%s)" % (
                         self.executor.current_action, msg_lines[0]))
 
-            output.error("Backup failed %s.\nDETAILS: %s\n%s",
-                         self.executor.current_action, msg_lines[0],
-                         '\n'.join(msg_lines[1:]))
+            output.error("Backup failed %s.\nDETAILS: %s",
+                         self.executor.current_action,
+                         '\n'.join(msg_lines))
 
         else:
             output.info("Backup end at LSN: %s (%s, %08X)",

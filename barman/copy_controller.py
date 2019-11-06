@@ -76,7 +76,7 @@ def _run_worker(job):
     # This is the entrypoint of the worker process. Since the KeyboardInterrupt
     # exceptions is handled by the main process, let's forget about Ctrl-C
     # here.
-    # When the parent process will receive a KeyboardInterrupt, is will ask
+    # When the parent process will receive a KeyboardInterrupt, it will ask
     # the pool to terminate its workers and then terminate itself.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     return _worker_callable(job)

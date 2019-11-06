@@ -24,6 +24,7 @@ import multiprocessing
 import operator
 import os
 import shutil
+import signal
 import tarfile
 from functools import partial
 from io import BytesIO
@@ -36,7 +37,7 @@ from barman.backup_executor import ConcurrentBackupStrategy
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
-from barman.utils import force_str
+from barman.utils import force_str, human_readable_timedelta
 
 try:
     # Python 3.x
@@ -346,6 +347,7 @@ class CloudInterface:
         self.result_queue = None
         self.errors_queue = None
         self.error = None
+        self.abort_requested = False
         self.worker_processes_count = jobs
         self.worker_processes = []
 
@@ -357,7 +359,6 @@ class CloudInterface:
     def close(self):
         """
         Wait for all the asynchronous operations to be done
-        :return:
         """
         if self.queue:
             for _ in self.worker_processes:
@@ -365,6 +366,15 @@ class CloudInterface:
 
             for process in self.worker_processes:
                 process.join()
+
+    def abort(self):
+        """
+        Abort all the operations
+        """
+        if self.queue:
+            for process in self.worker_processes:
+                os.kill(process.pid, signal.SIGINT)
+        self.close()
 
     def _ensure_async(self):
         """
@@ -418,8 +428,8 @@ class CloudInterface:
         except EmptyQueue:
             return
 
-        logging.error("Uploading error: %s", self.error)
-        self.close()
+        logging.error("Error received from upload worker: %s", self.error)
+        self.abort()
         raise CloudUploadingError(self.error)
 
     def worker_process_main(self, process_number):
@@ -430,7 +440,7 @@ class CloudInterface:
         :param int process_number: the process number, used in the logging
         output
         """
-        logging.info("Upload worker process started")
+        logging.info("Upload process started (worker %s)", process_number)
         while True:
             task = self.queue.get()
             if not task:
@@ -440,12 +450,19 @@ class CloudInterface:
             try:
                 self.worker_process_execute_job(task, process_number)
             except Exception as exc:
-                logging.exception('Uploading error')
+                logging.error('Upload error: %s (worker %s)',
+                              force_str(exc), process_number)
+                logging.debug('Exception details:', exc_info=exc)
                 self.errors_queue.put(force_str(exc))
+            except KeyboardInterrupt:
+                if not self.abort_requested:
+                    logging.info('Got abort request: upload cancelled '
+                                 '(worker %s)', process_number)
+                    self.abort_requested = True
             finally:
                 self.queue.task_done()
 
-        logging.info("Upload worker process stopped")
+        logging.info("Upload process stopped (worker %s)", process_number)
 
     def worker_process_execute_job(self, task, process_number):
         """
@@ -456,32 +473,50 @@ class CloudInterface:
         :return:
         """
         if task["job_type"] == "upload_part":
-            logging.info(
-                "Uploading %s, part %s (worker %s)" % (
-                    task["key"],
-                    task["part_number"],
-                    process_number))
-            with open(task["body"], "rb") as fp:
-                part = self.upload_part(
+            if self.abort_requested:
+                logging.info(
+                    "Skipping %s, part %s (worker %s)" % (
+                        task["key"],
+                        task["part_number"],
+                        process_number))
+                os.unlink(task["body"])
+                return
+            else:
+                logging.info(
+                    "Uploading %s, part %s (worker %s)" % (
+                        task["key"],
+                        task["part_number"],
+                        process_number))
+                with open(task["body"], "rb") as fp:
+                    part = self.upload_part(
+                        task["mpu"],
+                        task["key"],
+                        fp,
+                        task["part_number"])
+                os.unlink(task["body"])
+                self.result_queue.put(
+                    {
+                        "key": task["key"],
+                        "part": part,
+                    })
+        elif task["job_type"] == "complete_multipart_upload":
+            if self.abort_requested:
+                logging.info(
+                    "Aborting %s (worker %s)" % (
+                        task["key"],
+                        process_number))
+                self.abort_multipart_upload(
+                    task["mpu"],
+                    task["key"])
+            else:
+                logging.info(
+                    "Completing %s (worker %s)" % (
+                        task["key"],
+                        process_number))
+                self.complete_multipart_upload(
                     task["mpu"],
                     task["key"],
-                    fp,
-                    task["part_number"])
-            os.unlink(task["body"])
-            self.result_queue.put(
-                {
-                    "key": task["key"],
-                    "part": part,
-                })
-        elif task["job_type"] == "complete_multipart_upload":
-            logging.info(
-                "Completing %s (worker %s)" % (
-                    task["key"],
-                    process_number))
-            self.complete_multipart_upload(
-                task["mpu"],
-                task["key"],
-                task["parts"])
+                    task["parts"])
         else:
             raise ValueError("Unknown task: %s", repr(task))
 
@@ -641,6 +676,18 @@ class CloudInterface:
             Key=key,
             UploadId=mpu["UploadId"],
             MultipartUpload={"Parts": parts})
+
+    def abort_multipart_upload(self, mpu, key):
+        """
+        Abort a certain multipart upload
+
+        :param mpu:  The multipart upload handle
+        :param str key: The key to use in the cloud service
+        """
+        self.s3.meta.client.abort_multipart_upload(
+            Bucket=self.bucket_name,
+            Key=key,
+            UploadId=mpu["UploadId"])
 
 
 class S3BackupUploader(object):
@@ -810,6 +857,37 @@ class S3BackupUploader(object):
                 uid=pgdata_stat.st_uid,
                 gid=pgdata_stat.st_gid,
             )
+        # Use BaseException instead of Exception to catch events like
+        # KeyboardInterrupt (e.g.: CTRL-C)
+        except BaseException as exc:
+            msg_lines = force_str(exc).strip().splitlines()
+            # If the exception has no attached message use the raw
+            # type name
+            if len(msg_lines) == 0:
+                msg_lines = [type(exc).__name__]
+            if backup_info:
+                # Use only the first line of exception message
+                # in backup_info error field
+                backup_info.set_attribute("status", "FAILED")
+                backup_info.set_attribute(
+                    "error",
+                    "failure uploading data (%s)" % msg_lines[0])
+            logging.error("Backup failed uploading data (%s)",
+                          msg_lines[0])
+            logging.debug('Exception details:', exc_info=exc)
+        else:
+            logging.info("Backup end at LSN: %s (%s, %08X)",
+                         backup_info.end_xlog,
+                         backup_info.end_wal,
+                         backup_info.end_offset)
+            logging.info(
+                "Backup completed (start time: %s, elapsed time: %s)",
+                self.copy_start_time,
+                human_readable_timedelta(
+                    datetime.datetime.now() - self.copy_start_time))
+            # Create a restore point after a backup
+            target_name = 'barman_%s' % backup_info.backup_id
+            self.postgres.create_restore_point(target_name)
         finally:
             with BytesIO() as backup_info_file:
                 backup_info.save(file_object=backup_info_file)
