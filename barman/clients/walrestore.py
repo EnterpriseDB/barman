@@ -31,6 +31,7 @@ import sys
 import time
 
 import barman
+from barman.utils import force_str
 
 try:
     import argparse
@@ -70,6 +71,7 @@ def main(args=None):
     except EnvironmentError as e:
         exit_with_error("Cannot open '%s' (WAL_DEST) for writing: %s" %
                         (config.wal_dest, e))
+        return  # never reached
 
     # If the file is present in SPOOL_DIR use it and terminate
     try_deliver_from_spool(config, dest_file)
@@ -82,6 +84,7 @@ def main(args=None):
         ssh_process = RemoteGetWal(config, config.wal_name, dest_file)
     except EnvironmentError as e:
         exit_with_error('Error executing "ssh": %s' % e, sleep=config.sleep)
+        return  # never reached
 
     # Spawn a process for every additional file
     parallel_ssh_processes = spawn_additional_process(
@@ -186,20 +189,23 @@ def build_ssh_command(config, wal_name, peek=0):
     if config.config:
         ssh_command.append("--config %s" % config.config)
 
-    if config.test:
-        get_wal_command = "get-wal --test '%s' '%s'" % (
-            config.server_name, wal_name)
-    elif peek:
-        get_wal_command = "get-wal --peek '%s' '%s' '%s'" % (
-            peek, config.server_name, wal_name)
+    options = []
 
+    if config.test:
+        options.append("--test")
+    if peek:
+        options.append("--peek '%s'" % peek)
+    if config.compression:
+        options.append("--%s" % config.compression)
+    if config.partial:
+        options.append("--partial")
+
+    if options:
+        get_wal_command = "get-wal %s '%s' '%s'" % (
+            ' '.join(options), config.server_name, wal_name)
     else:
-        if config.compression:
-            get_wal_command = "get-wal --%s '%s' '%s'" % (
-                config.compression, config.server_name, wal_name)
-        else:
-            get_wal_command = "get-wal '%s' '%s'" % (
-                config.server_name, wal_name)
+        get_wal_command = "get-wal '%s' '%s'" % (
+            config.server_name, wal_name)
 
     ssh_command.append(get_wal_command)
     return ssh_command
@@ -273,10 +279,12 @@ def connectivity_test(config):
     ssh_command = build_ssh_command(config, 'dummy_wal_name')
     # Issue the command
     try:
-        output = subprocess.Popen(ssh_command,
-                                  stdout=subprocess.PIPE).communicate()
-        print(output[0])
-        sys.exit(0)
+        pipe = subprocess.Popen(ssh_command,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        output = pipe.communicate()
+        print(force_str(output[0]))
+        sys.exit(pipe.returncode)
     except subprocess.CalledProcessError as e:
         exit_with_error("Impossible to invoke remote get-wal: %s" % e)
 
@@ -322,6 +330,11 @@ def parse_arguments(args=None):
         metavar="SPOOL_DIR",
         help="Specifies spool directory for WAL files. Defaults to "
              "'{0}'.".format(DEFAULT_SPOOL_DIR)
+    )
+    parser.add_argument(
+        '-P', '--partial',
+        help='retrieve also partial WAL files (.partial)',
+        action='store_true', dest='partial', default=False,
     )
     parser.add_argument(
         '-z', '--gzip',

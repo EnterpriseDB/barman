@@ -895,6 +895,10 @@ class RecoveryExecutor(object):
         # required wal files. Otherwise use the unix command "cp" to copy
         # them from the barman_wal directory
         if recovery_info['get_wal']:
+            partial_option = ''
+            if not standby_mode:
+                partial_option = '-P'
+
             # We need to create the right restore command.
             # If we are doing a remote recovery,
             # the barman-cli package is REQUIRED on the server that is hosting
@@ -910,8 +914,9 @@ class RecoveryExecutor(object):
                     "# The 'barman-wal-restore' command "
                     "is provided in the 'barman-cli' package")
                 recovery_conf_lines.append(
-                    "restore_command = 'barman-wal-restore -U %s "
-                    "%s %s %%f %%p'" % (self.config.config.user,
+                    "restore_command = 'barman-wal-restore %s -U %s "
+                    "%s %s %%f %%p'" % (partial_option,
+                                        self.config.config.user,
                                         fqdn, self.config.name))
             else:
                 recovery_conf_lines.append(
@@ -919,8 +924,9 @@ class RecoveryExecutor(object):
                     "must run as '%s' user" % self.config.config.user)
                 recovery_conf_lines.append(
                     "restore_command = 'sudo -u %s "
-                    "barman get-wal %s %%f > %%p'" % (
+                    "barman get-wal %s %s %%f > %%p'" % (
                         self.config.config.user,
+                        partial_option,
                         self.config.name))
             recovery_info['results']['get_wal'] = True
         else:

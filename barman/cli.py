@@ -814,6 +814,9 @@ def delete(args):
      help='put the retrieved WAL file in this directory '
           'with the original name',
      default=SUPPRESS)
+@arg('--partial', '-P',
+     help='retrieve also partial WAL files (.partial)',
+     action='store_true', dest='partial', default=False)
 @arg('--gzip', '-z', '-x',
      help='compress the output with gzip',
      action='store_const', const='gzip', dest='compression', default=SUPPRESS)
@@ -859,7 +862,8 @@ def get_wal(args):
         server.get_wal(args.wal_name,
                        compression=compression,
                        output_directory=output_directory,
-                       peek=peek)
+                       peek=peek,
+                       partial=args.partial)
     output.close_and_exit()
 
 

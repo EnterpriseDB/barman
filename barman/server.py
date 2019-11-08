@@ -19,7 +19,7 @@
 This module represents a Server.
 Barman is able to manage multiple servers.
 """
-
+import errno
 import json
 import logging
 import os
@@ -67,6 +67,7 @@ from barman.utils import (BarmanEncoder, file_md5, force_str, fsync_dir,
 from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
                                  WalArchiver)
 
+PARTIAL_EXTENSION = '.partial'
 PRIMARY_INFO_FILE = 'primary.info'
 SYNC_WALS_INFO_FILE = 'sync-wals.info'
 
@@ -1394,6 +1395,47 @@ class Server(RemoteStatusMixin):
         full_path = os.path.join(hash_dir, wal_name)
         return full_path
 
+    def get_wal_possible_paths(self, wal_name, partial=False):
+        """
+        Build a list of possible positions of a WAL file
+
+        :param str wal_name: WAL file name
+        :param bool partial: add also the '.partial' paths
+        """
+        paths = list()
+
+        # Path in the archive
+        hash_dir = os.path.join(self.config.wals_directory,
+                                xlog.hash_dir(wal_name))
+        full_path = os.path.join(hash_dir, wal_name)
+        paths.append(full_path)
+
+        # Path in incoming directory
+        incoming_path = os.path.join(self.config.incoming_wals_directory,
+                                     wal_name)
+        paths.append(incoming_path)
+
+        # Path in streaming directory
+        streaming_path = os.path.join(self.config.streaming_wals_directory,
+                                      wal_name)
+        paths.append(streaming_path)
+
+        # If partial files are required check also the '.partial' path
+        if partial:
+            paths.append(streaming_path + PARTIAL_EXTENSION)
+            # Add the streaming_path again to handle races with pg_receivewal
+            # completing the WAL file
+            paths.append(streaming_path)
+            # The following two path are only useful to retrieve the last
+            # incomplete segment archived before a promotion.
+            paths.append(full_path + PARTIAL_EXTENSION)
+            paths.append(incoming_path + PARTIAL_EXTENSION)
+
+        # Append the archive path again, to handle races with the archiver
+        paths.append(full_path)
+
+        return paths
+
     def get_wal_info(self, backup_info):
         """
         Returns information about WALs for the given backup
@@ -1502,7 +1544,7 @@ class Server(RemoteStatusMixin):
             backup_info, dest, tablespaces, remote_command, **kwargs)
 
     def get_wal(self, wal_name, compression=None, output_directory=None,
-                peek=None):
+                peek=None, partial=False):
         """
         Retrieve a WAL file from the archive
 
@@ -1511,6 +1553,7 @@ class Server(RemoteStatusMixin):
         :param str|None output_directory: directory where to deposit the
             WAL file
         :param int|None peek: if defined list the next N WAL file
+        :param bool partial: retrieve also partial WAL files
         """
 
         # If used through SSH identify the client to add it to logs
@@ -1553,11 +1596,14 @@ class Server(RemoteStatusMixin):
                     # No more item in wal_peek_list
                     break
 
-                wal_peek_file = self.get_wal_full_path(wal_peek_name)
+                # Get list of possible location. We do not prefetch
+                # partial files
+                wal_peek_paths = self.get_wal_possible_paths(wal_peek_name,
+                                                             partial=False)
 
                 # If the next WAL file is found, output the name
                 # and continue to the next one
-                if os.path.exists(wal_peek_file):
+                if any(os.path.exists(path) for path in wal_peek_paths):
                     count += 1
                     output.info(wal_peek_name, log=False)
                     continue
@@ -1585,40 +1631,84 @@ class Server(RemoteStatusMixin):
             # Do not output anything else
             return
 
-        # Get the WAL file full path
-        wal_file = self.get_wal_full_path(wal_name)
-
-        # Check for file existence
-        if not os.path.exists(wal_file):
-            output.error("WAL file '%s' not found in server '%s'%s",
-                         wal_name, self.config.name, source_suffix)
-            return
-
         # If an output directory was provided write the file inside it
         # otherwise we use standard output
         if output_directory is not None:
             destination_path = os.path.join(output_directory, wal_name)
+            destination_description = "into '%s' file" % destination_path
+            # Use the standard output for messages
+            logger = output
             try:
                 destination = open(destination_path, 'wb')
-                output.info(
-                    "Writing WAL '%s' for server '%s' into '%s' file%s",
-                    wal_name, self.config.name, destination_path,
-                    source_suffix)
             except IOError as e:
                 output.error("Unable to open '%s' file%s: %s",
                              destination_path, source_suffix, e)
                 return
         else:
+            destination_description = 'to standard output'
+            # Do not use the standard output for messages, otherwise we would
+            # taint the output stream
+            logger = _logger
             try:
                 # Python 3.x
                 destination = sys.stdout.buffer
             except AttributeError:
                 # Python 2.x
                 destination = sys.stdout
-            _logger.info(
-                "Writing WAL '%s' for server '%s' to standard output%s",
-                wal_name, self.config.name, source_suffix)
 
+        # Get the list of WAL file possible paths
+        wal_paths = self.get_wal_possible_paths(wal_name, partial)
+
+        for wal_file in wal_paths:
+
+            # Check for file existence
+            if not os.path.exists(wal_file):
+                continue
+
+            logger.info(
+                "Writing WAL '%s' for server '%s' %s%s",
+                os.path.basename(wal_file), self.config.name,
+                destination_description, source_suffix)
+
+            try:
+                # Try returning the wal_file to the client
+                self.get_wal_sendfile(wal_file, compression, destination)
+                # We are done, return to the caller
+                return
+            except CommandFailedException:
+                # If an external command fails we cannot really know why,
+                # but if the WAL file disappeared, we assume
+                # it has been moved in the archive so we ignore the error.
+                # This file will be retrieved later, as the last entry
+                # returned by get_wal_possible_paths() is the archive position
+                if not os.path.exists(wal_file):
+                    pass
+                else:
+                    raise
+            except OSError as exc:
+                # If the WAL file disappeared just ignore the error
+                # This file will be retrieved later, as the last entry
+                # returned by get_wal_possible_paths() is the archive
+                # position
+                if exc.errno == errno.ENOENT and exc.filename == wal_file:
+                    pass
+                else:
+                    raise
+
+            logger.info("Skipping vanished WAL file '%s'%s",
+                        wal_file, source_suffix)
+
+        output.error("WAL file '%s' not found in server '%s'%s",
+                     wal_name, self.config.name, source_suffix)
+
+    def get_wal_sendfile(self, wal_file, compression, destination):
+        """
+        Send a WAL file to the destination file, using the required compression
+
+        :param str wal_file: WAL file path
+        :param str compression: required compression
+        :param destination: file stream to use to write the data
+        """
         # Identify the wal file
         wal_info = self.backup_manager.compression_manager \
             .get_wal_file_info(wal_file)
@@ -1646,7 +1736,7 @@ class Server(RemoteStatusMixin):
             if wal_compressor is not None:
                 uncompressed_file = NamedTemporaryFile(
                     dir=self.config.wals_directory,
-                    prefix='.%s.' % wal_name,
+                    prefix='.%s.' % os.path.basename(wal_file),
                     suffix='.uncompressed')
                 # decompress wal file
                 wal_compressor.decompress(source_file, uncompressed_file.name)
@@ -1657,7 +1747,7 @@ class Server(RemoteStatusMixin):
             if out_compressor is not None:
                 compressed_file = NamedTemporaryFile(
                     dir=self.config.wals_directory,
-                    prefix='.%s.' % wal_name,
+                    prefix='.%s.' % os.path.basename(wal_file),
                     suffix='.compressed')
                 out_compressor.compress(source_file, compressed_file.name)
                 source_file = compressed_file.name

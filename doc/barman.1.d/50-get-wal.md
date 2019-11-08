@@ -7,6 +7,9 @@ get-wal *\[OPTIONS\]* *SERVER\_NAME* *WAL\_NAME*
     -o *OUTPUT\_DIRECTORY*
     :   destination directory where the `get-wal` will deposit the requested WAL
 
+    -P, --partial
+    :   retrieve also partial WAL files (.partial)
+
     -z
     :   output will be compressed using gzip
 

@@ -118,12 +118,13 @@ the `.partial` file that has been streamed to Barman contains very important
 information that the standard archiver (through PostgreSQL's `archive_command`)
 has not been able to deliver to Barman.
 
-> **IMPORTANT:**
-> A current limitation of Barman is that the `recover` command is not yet able
-> to transparently manage `.partial` files. In such situations, users will need
-> to manually copy the latest partial file from the server's
-> `streaming_wals_directory` of their Barman installation to the destination
-> for recovery, making sure that the `.partial` suffix is removed.
-> Restoring a server using the last partial file, reduces data loss, by bringing
-> down _recovery point objective_ to values around 0, or exactly 0 in case of
-> synchronous replication.
+As of Barman 2.10, the `get-wal` command is able to return the content of
+the current `.partial` WAL file through the `--partial/-P` option.
+This is particularly useful in the case of recovery, both full or to a point
+in time. Therefore, in case you run a `recover` command with `get-wal` enabled,
+and without `--standby-mode`, Barman will automatically add the `-P` option
+to `barman-wal-restore` (which will then relay that to the remote `get-wal`
+command) in the `restore_command` recovery option.
+
+`get-wal` will also search in the `incoming` directory, in case a WAL file
+has already been shipped to Barman, but not yet archived.

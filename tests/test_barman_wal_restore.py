@@ -48,6 +48,7 @@ class TestRemoteGetWal(object):
     def test_connectivity_test_ok(self, popen_mock, capsys):
 
         popen_mock.return_value.communicate.return_value = ('Good test!', '')
+        popen_mock.return_value.returncode = 0
 
         with pytest.raises(SystemExit) as exc:
             walrestore.main(['a.host', 'a-server', '--test',

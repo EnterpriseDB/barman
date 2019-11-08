@@ -58,6 +58,12 @@ WAL\_DEST
 :    specifies the number of files to peek and transfer in parallel,
      defaults to 0 (disabled).
 
+--spool-dir *SPOOL_DIR*
+:    Specifies spool directory for WAL files. Defaults to '/var/tmp/walrestore'
+
+-P, --partial
+:    retrieve also partial WAL files (.partial)
+
 -z, --gzip
 :    transfer the WAL files compressed with gzip
 
