@@ -812,7 +812,7 @@ class S3BackupUploader(object):
         self.copy_end_time = datetime.datetime.now()
 
         # Store statistics about the copy
-        backup_info.copy_stats = controller.statistics()
+        backup_info.set_attribute("copy_stats", controller.statistics())
 
         # Check for any include directives in PostgreSQL configuration
         # Currently, include directives are not supported for files that
@@ -857,44 +857,62 @@ class S3BackupUploader(object):
                 uid=pgdata_stat.st_uid,
                 gid=pgdata_stat.st_gid,
             )
+            # Closing the controller will finalize all the running uploads
+            controller.close()
         # Use BaseException instead of Exception to catch events like
         # KeyboardInterrupt (e.g.: CTRL-C)
         except BaseException as exc:
-            msg_lines = force_str(exc).strip().splitlines()
-            # If the exception has no attached message use the raw
-            # type name
-            if len(msg_lines) == 0:
-                msg_lines = [type(exc).__name__]
-            if backup_info:
-                # Use only the first line of exception message
-                # in backup_info error field
-                backup_info.set_attribute("status", "FAILED")
-                backup_info.set_attribute(
-                    "error",
-                    "failure uploading data (%s)" % msg_lines[0])
-            logging.error("Backup failed uploading data (%s)",
-                          msg_lines[0])
-            logging.debug('Exception details:', exc_info=exc)
-        else:
-            logging.info("Backup end at LSN: %s (%s, %08X)",
-                         backup_info.end_xlog,
-                         backup_info.end_wal,
-                         backup_info.end_offset)
-            logging.info(
-                "Backup completed (start time: %s, elapsed time: %s)",
-                self.copy_start_time,
-                human_readable_timedelta(
-                    datetime.datetime.now() - self.copy_start_time))
-            # Create a restore point after a backup
-            target_name = 'barman_%s' % backup_info.backup_id
-            self.postgres.create_restore_point(target_name)
+            # Mark the backup as failed and exit
+            self.handle_backup_errors("uploading data", backup_info, exc)
+            raise SystemExit(1)
         finally:
-            with BytesIO() as backup_info_file:
-                backup_info.save(file_object=backup_info_file)
-                backup_info_file.seek(0, os.SEEK_SET)
-                controller.upload_fileobj(
-                    label='backup_info',
-                    fileobj=backup_info_file,
-                    dst='backup.info'
-                )
-            controller.close()
+            try:
+                with BytesIO() as backup_info_file:
+                    backup_info.save(file_object=backup_info_file)
+                    backup_info_file.seek(0, os.SEEK_SET)
+                    controller.upload_fileobj(
+                        label='backup_info',
+                        fileobj=backup_info_file,
+                        dst='backup.info'
+                    )
+            except BaseException as exc:
+                # Mark the backup as failed and exit
+                self.handle_backup_errors("uploading backup.info file",
+                                          backup_info, exc)
+                raise SystemExit(1)
+
+        logging.info("Backup end at LSN: %s (%s, %08X)",
+                     backup_info.end_xlog,
+                     backup_info.end_wal,
+                     backup_info.end_offset)
+        logging.info(
+            "Backup completed (start time: %s, elapsed time: %s)",
+            self.copy_start_time,
+            human_readable_timedelta(
+                datetime.datetime.now() - self.copy_start_time))
+        # Create a restore point after a backup
+        target_name = 'barman_%s' % backup_info.backup_id
+        self.postgres.create_restore_point(target_name)
+
+    def handle_backup_errors(self, action, backup_info, exc):
+        """
+        Mark the backup as failed and exit
+
+        :param str action: the upload phase that has failed
+        :param barman.infofile.BackupInfo backup_info: the backup info file
+        :param BaseException exc: the exception that caused the failure
+        """
+        msg_lines = force_str(exc).strip().splitlines()
+        # If the exception has no attached message use the raw
+        # type name
+        if len(msg_lines) == 0:
+            msg_lines = [type(exc).__name__]
+        if backup_info:
+            # Use only the first line of exception message
+            # in backup_info error field
+            backup_info.set_attribute("status", "FAILED")
+            backup_info.set_attribute(
+                "error",
+                "failure %s (%s)" % (action, msg_lines[0]))
+        logging.error("Backup failed %s (%s)", action, msg_lines[0])
+        logging.debug('Exception details:', exc_info=exc)

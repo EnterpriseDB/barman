@@ -21,8 +21,9 @@ from contextlib import closing
 
 import barman
 from barman.cloud import CloudInterface, S3BackupUploader
+from barman.exceptions import PostgresConnectionError
 from barman.postgres import PostgreSQLConnection
-from barman.utils import check_positive
+from barman.utils import check_positive, force_str
 
 try:
     import argparse
@@ -72,42 +73,51 @@ def main(args=None):
     """
     config = parse_arguments(args)
     configure_logging(config)
-    postgres = None
     try:
         conninfo = build_conninfo(config)
         postgres = PostgreSQLConnection(conninfo, config.immediate_checkpoint,
                                         application_name='barman_cloud_backup')
+        try:
+            postgres.connect()
+        except PostgresConnectionError as exc:
+            logging.error("Cannot connect to postgres: %s", force_str(exc))
+            logging.debug('Exception details:', exc_info=exc)
+            raise SystemExit(1)
 
-        cloud_interface = CloudInterface(
-            destination_url=config.destination_url,
-            encryption=config.encryption,
-            jobs=config.jobs,
-            profile_name=config.profile)
-        with closing(cloud_interface):
-            uploader = S3BackupUploader(
-                server_name=config.server_name,
-                compression=config.compression,
-                postgres=postgres,
-                cloud_interface=cloud_interface)
+        with closing(postgres):
+            cloud_interface = CloudInterface(
+                destination_url=config.destination_url,
+                encryption=config.encryption,
+                jobs=config.jobs,
+                profile_name=config.profile)
 
-            # If test is requested, just test connectivity and exit
-            # TODO: add postgresql connectivity test
-            if config.test:
-                if cloud_interface.test_connectivity():
-                    raise SystemExit(0)
+            if not cloud_interface.test_connectivity():
                 raise SystemExit(1)
+            # If test is requested, just exit after connectivity test
+            elif config.test:
+                raise SystemExit(0)
 
-            # TODO: Should the setup be optional?
-            cloud_interface.setup_bucket()
+            with closing(cloud_interface):
 
-            # Perform the backup
-            uploader.backup()
-    except Exception as exc:
-        logging.exception("Barman cloud backup exception: %s", exc)
+                # TODO: Should the setup be optional?
+                cloud_interface.setup_bucket()
+
+                uploader = S3BackupUploader(
+                    server_name=config.server_name,
+                    compression=config.compression,
+                    postgres=postgres,
+                    cloud_interface=cloud_interface)
+
+                # Perform the backup
+                uploader.backup()
+    except KeyboardInterrupt as exc:
+        logging.error("Barman cloud backup was interrupted by the user")
+        logging.debug('Exception details:', exc_info=exc)
         raise SystemExit(1)
-    finally:
-        if postgres:
-            postgres.close()
+    except Exception as exc:
+        logging.error("Barman cloud backup exception: %s", force_str(exc))
+        logging.debug('Exception details:', exc_info=exc)
+        raise SystemExit(1)
 
 
 def parse_arguments(args=None):

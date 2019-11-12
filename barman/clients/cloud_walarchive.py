@@ -26,6 +26,7 @@ from io import BytesIO
 
 import barman
 from barman.cloud import CloudInterface
+from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file
 
 try:
@@ -64,16 +65,20 @@ def main(args=None):
                 server_name=config.server_name,
                 compression=config.compression)
 
-            # If test is requested just test connectivity and exit
-            if config.test:
-                if cloud_interface.test_connectivity():
-                    raise SystemExit(0)
+            if not cloud_interface.test_connectivity():
                 raise SystemExit(1)
+            # If test is requested, just exit after connectivity test
+            elif config.test:
+                raise SystemExit(0)
 
+            # TODO: Should the setup be optional?
             cloud_interface.setup_bucket()
+
             uploader.upload_wal(config.wal_path)
-    except Exception as ex:
-        logging.error("Barman cloud WAL archiver exception: %s", ex)
+    except Exception as exc:
+        logging.error("Barman cloud WAL archiver exception: %s",
+                      force_str(exc))
+        logging.debug('Exception details:', exc_info=exc)
         raise SystemExit(1)
 
 
