@@ -1204,6 +1204,16 @@ class Server(RemoteStatusMixin):
             if not previous_backup:
                 self.backup_manager.remove_wal_before_backup(backup_info)
 
+            if backup_info.status == BackupInfo.WAITING_FOR_WALS:
+                output.warning(
+                    "IMPORTANT: this backup is classified as "
+                    "WAITING_FOR_WALS, meaning that Barman has not received "
+                    "yet all the required WAL files for the backup "
+                    "consistency.\n"
+                    "This is a common behaviour in concurrent backup "
+                    "scenarios, and Barman automatically set the backup as "
+                    "DONE once all the required WAL files have been "
+                    "archived.")
         except LockFileBusy:
             output.error("Another backup process is running")
 
