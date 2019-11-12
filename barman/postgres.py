@@ -404,7 +404,8 @@ class PostgreSQLConnection(PostgreSQL):
     WALSTREAMER = 2
     ANY_STREAMING_CLIENT = (STANDBY, WALSTREAMER)
 
-    def __init__(self, conninfo, immediate_checkpoint=False, slot_name=None):
+    def __init__(self, conninfo, immediate_checkpoint=False, slot_name=None,
+                 application_name='barman'):
         """
         PostgreSQL connection constructor.
 
@@ -416,6 +417,7 @@ class PostgreSQLConnection(PostgreSQL):
         super(PostgreSQLConnection, self).__init__(conninfo)
         self.immediate_checkpoint = immediate_checkpoint
         self.slot_name = slot_name
+        self.application_name = application_name
         self.configuration_files = None
 
     def connect(self):
@@ -431,7 +433,9 @@ class PostgreSQLConnection(PostgreSQL):
         if server_version >= 90000 and not use_app_name:
             try:
                 cur = self._conn.cursor()
-                cur.execute('SET application_name TO barman')
+                # Do not use parameter substitution with SET
+                cur.execute('SET application_name TO %s' %
+                            self.application_name)
                 cur.close()
             # If psycopg2 fails to set the application name,
             # raise the appropriate exception

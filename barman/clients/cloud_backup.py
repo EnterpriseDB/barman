@@ -75,7 +75,8 @@ def main(args=None):
     postgres = None
     try:
         conninfo = build_conninfo(config)
-        postgres = PostgreSQLConnection(conninfo, config.immediate_checkpoint)
+        postgres = PostgreSQLConnection(conninfo, config.immediate_checkpoint,
+                                        application_name='barman_cloud_backup')
 
         cloud_interface = CloudInterface(
             destination_url=config.destination_url,
