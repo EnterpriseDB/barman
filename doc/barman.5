@@ -185,6 +185,13 @@ for more information.
 Commonly used keys are: host, hostaddr, port, dbname, user, password.
 Server.
 .TP
+.B create_slot
+When set to \f[C]auto\f[R] and \f[C]slot_name\f[R] is defined, Barman
+automatically attempts to create the replication slot if not present.
+When set to \f[C]manual\f[R] (default), the replication slot needs to be
+manually created.
+Global/Server.
+.TP
 .B custom_compression_filter
 Customised compression algorithm applied to WAL files.
 Global/Server.

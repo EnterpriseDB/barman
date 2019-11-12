@@ -63,6 +63,8 @@ REUSE_BACKUP_VALUES = ('copy', 'link', 'off')
 # Possible copy methods for backups (must be all lowercase)
 BACKUP_METHOD_VALUES = ['rsync', 'postgres']
 
+CREATE_SLOT_VALUES = ['manual', 'auto']
+
 
 class CsvOption(set):
 
@@ -267,6 +269,26 @@ def parse_slot_name(value):
     return value
 
 
+def parse_create_slot(value):
+    """
+    Parse a string to a valid create_slot value.
+
+    Valid values are "manual" and "auto"
+
+    :param str value: create_slot value
+    :raises ValueError: if the value is invalid
+    """
+    if value is None:
+        return None
+    value = value.lower()
+    if value in CREATE_SLOT_VALUES:
+        return value
+    raise ValueError(
+        "Invalid value (use '%s' or '%s')" % (
+            "', '".join(CREATE_SLOT_VALUES[:-1]),
+            CREATE_SLOT_VALUES[-1]))
+
+
 class ServerConfig(object):
     """
     This class represents the configuration for a specific Server instance.
@@ -321,6 +343,7 @@ class ServerConfig(object):
         'pre_wal_delete_retry_script',
         'primary_ssh_command',
         'recovery_options',
+        'create_slot',
         'retention_policy',
         'retention_policy_mode',
         'reuse_backup',
@@ -379,6 +402,7 @@ class ServerConfig(object):
         'pre_wal_delete_retry_script',
         'primary_ssh_command',
         'recovery_options',
+        'create_slot',
         'retention_policy',
         'retention_policy_mode',
         'reuse_backup',
@@ -410,6 +434,7 @@ class ServerConfig(object):
         'network_compression': 'false',
         'parallel_jobs': '1',
         'recovery_options': '',
+        'create_slot': 'manual',
         'retention_policy_mode': 'auto',
         'streaming_archiver': 'off',
         'streaming_archiver_batch_size': '0',
@@ -441,6 +466,7 @@ class ServerConfig(object):
         'network_compression': parse_boolean,
         'parallel_jobs': int,
         'recovery_options': RecoveryOptions,
+        'create_slot': parse_create_slot,
         'reuse_backup': parse_reuse_backup,
         'streaming_archiver': parse_boolean,
         'streaming_archiver_batch_size': int,

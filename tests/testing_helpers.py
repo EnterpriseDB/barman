@@ -297,6 +297,7 @@ def build_config_dictionary(config_keys=None):
         'streaming_wals_directory': '/some/barman/home/main/streaming',
         'errors_directory': '/some/barman/home/main/errors',
         'parallel_jobs': 1,
+        'create_slot': 'manual',
     }
     # Check for overriding keys
     if config_keys is not None:

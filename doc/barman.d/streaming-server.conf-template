@@ -32,6 +32,7 @@ backup_method = postgres
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 streaming_archiver = on
 slot_name = barman
+;create_slot = auto
 ;streaming_archiver_name = barman_receive_wal
 ;streaming_archiver_batch_size = 50
 

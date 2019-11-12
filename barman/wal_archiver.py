@@ -723,13 +723,18 @@ class StreamingWalArchiver(WalArchiver):
                     self.server.streaming.server_txt_version)
             # Check if the required slot exists
             if postgres_status['replication_slot'] is None:
-                raise ArchiverFailure(
-                    "replication slot '%s' doesn't exist. "
-                    "Please execute "
-                    "'barman receive-wal --create-slot %s'" %
-                    (self.config.slot_name, self.config.name))
+                if self.config.create_slot == 'auto':
+                    output.info("Creating replication slot '%s'",
+                                self.config.slot_name)
+                    self.server.create_physical_repslot()
+                else:
+                    raise ArchiverFailure(
+                        "replication slot '%s' doesn't exist. "
+                        "Please execute "
+                        "'barman receive-wal --create-slot %s'" %
+                        (self.config.slot_name, self.config.name))
             # Check if the required slot is available
-            if postgres_status['replication_slot'].active:
+            elif postgres_status['replication_slot'].active:
                 raise ArchiverFailure(
                     "replication slot '%s' is already in use" %
                     (self.config.slot_name,))

@@ -94,13 +94,20 @@ slot_name = barman
 This option defines the name of the replication slot that will be
 used by Barman. It is mandatory if you want to use replication slots.
 
-When you configure the replication slot name, you can create a
+When you configure the replication slot name, you can manually create a
 replication slot for Barman with this command:
 
 ``` bash
 barman@backup$ barman receive-wal --create-slot pg
 Creating physical replication slot 'barman' on server 'pg'
 Replication slot 'barman' created
+```
+
+Starting with Barman 2.10, you can configure Barman to automatically
+create the replication slot by setting:
+
+``` ini
+create_slot = auto
 ```
 
 ### Limitations of partial WAL files with recovery
