@@ -545,9 +545,26 @@ class CloudInterface:
             # If it was a 404 error, then the bucket does not exist.
             error_code = exc.response['Error']['Code']
             if error_code == '404':
-                logging.debug("Bucket %s does not exist, creating it",
-                              self.bucket_name)
-                self.s3.Bucket(self.bucket_name).create()
+                # Get the current region from client.
+                # Do not use session.region_name here because it may be None
+                region = self.s3.meta.client.meta.region_name
+                logging.info(
+                    "Bucket %s does not exist, creating it on region %s",
+                    self.bucket_name, region)
+                create_bucket_config = {
+                    'ACL': 'private',
+                }
+                # The location constraint is required during bucket creation
+                # for all regions outside of us-east-1. This constraint cannot
+                # be specified in us-east-1; specifying it in this region
+                # results in a failure, so we will only
+                # add it if we are deploying outside of us-east-1.
+                # See https://github.com/boto/boto3/issues/125
+                if region != 'us-east-1':
+                    create_bucket_config['CreateBucketConfiguration'] = {
+                        'LocationConstraint': region,
+                    }
+                self.s3.Bucket(self.bucket_name).create(**create_bucket_config)
             else:
                 raise
 
