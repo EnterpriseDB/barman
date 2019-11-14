@@ -1183,7 +1183,8 @@ def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
             output.error("You cannot use 'all' with other server names")
         servers = available_servers
     else:
-        servers = args.server_name
+        # Put servers in a set, so multiple occurrences are counted only once
+        servers = set(args.server_name)
 
     # Loop through all the requested servers
     for server in servers:
