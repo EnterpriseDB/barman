@@ -709,7 +709,19 @@ class TestStreamingWalArchiver(object):
             'host=pg01.nowhere user=postgres port=5432 '
             'application_name=barman_receive_wal')
         streaming_mock.get_remote_status.return_value = {
-            "streaming_supported": True
+            "streaming_supported": True,
+            "timeline": 1,
+        }
+        postgres_mock = backup_manager.server.postgres
+        replication_slot_status = MagicMock(
+            restart_lsn="F/A12D687",
+            active=False
+        )
+        postgres_mock.get_remote_status.return_value = {
+            "current_xlog": "000000010000000F0000000A",
+            "current_lsn": "F/A12D687",
+            "replication_slot": replication_slot_status,
+            "xlog_segment_size": 16777216,
         }
         backup_manager.server.streaming.conn_parameters = {
             'host': 'pg01.nowhere',
@@ -731,10 +743,11 @@ class TestStreamingWalArchiver(object):
         }
 
         # Test: execute a reset request
-        partial = streaming_dir.join('test.partial')
+        partial = streaming_dir.join('000000010000000100000001.partial')
         partial.ensure()
         archiver.receive_wal(reset=True)
         assert not partial.check()
+        assert streaming_dir.join('000000010000000F0000000A.partial').check()
 
         archiver.receive_wal(reset=False)
         receivexlog_mock.assert_called_once_with(

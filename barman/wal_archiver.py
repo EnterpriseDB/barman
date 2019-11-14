@@ -687,11 +687,6 @@ class StreamingWalArchiver(WalArchiver):
         # Ensure the presence of the destination directory
         mkpath(self.config.streaming_wals_directory)
 
-        # Check if is a reset request
-        if reset:
-            self._reset_streaming_status()
-            return
-
         # Execute basic sanity checks on PostgreSQL connection
         streaming_status = self.server.streaming.get_remote_status()
         if streaming_status["streaming_supported"] is None:
@@ -724,9 +719,10 @@ class StreamingWalArchiver(WalArchiver):
             # Check if the required slot exists
             if postgres_status['replication_slot'] is None:
                 if self.config.create_slot == 'auto':
-                    output.info("Creating replication slot '%s'",
-                                self.config.slot_name)
-                    self.server.create_physical_repslot()
+                    if not reset:
+                        output.info("Creating replication slot '%s'",
+                                    self.config.slot_name)
+                        self.server.create_physical_repslot()
                 else:
                     raise ArchiverFailure(
                         "replication slot '%s' doesn't exist. "
@@ -738,6 +734,11 @@ class StreamingWalArchiver(WalArchiver):
                 raise ArchiverFailure(
                     "replication slot '%s' is already in use" %
                     (self.config.slot_name,))
+
+        # Check if is a reset request
+        if reset:
+            self._reset_streaming_status(postgres_status, streaming_status)
+            return
 
         # Check the size of the .partial WAL file and truncate it if needed
         self._truncate_partial_file_if_needed(
@@ -783,16 +784,54 @@ class StreamingWalArchiver(WalArchiver):
             # informing the user.
             output.info('SIGINT received. Terminate gracefully.')
 
-    def _reset_streaming_status(self):
+    def _reset_streaming_status(self, postgres_status, streaming_status):
         """
-        Reset the status of receive-wal removing any .partial files
+        Reset the status of receive-wal by removing the .partial file that
+        is marking the current position and creating one that is current with
+        the PostgreSQL insert location
         """
+        current_wal = xlog.location_to_xlogfile_name_offset(
+            postgres_status['current_lsn'],
+            streaming_status['timeline'],
+            postgres_status['xlog_segment_size']
+        )['file_name']
+        restart_wal = current_wal
+        if postgres_status['replication_slot']:
+            restart_wal = xlog.location_to_xlogfile_name_offset(
+                postgres_status['replication_slot'].restart_lsn,
+                streaming_status['timeline'],
+                postgres_status['xlog_segment_size']
+            )['file_name']
+        restart_path = os.path.join(self.config.streaming_wals_directory,
+                                    restart_wal)
+        restart_partial_path = restart_path + '.partial'
+        wal_files = sorted(glob(os.path.join(
+            self.config.streaming_wals_directory, '*')), reverse=True)
+
+        # Pick the newer file
+        last = None
+        for last in wal_files:
+            if xlog.is_wal_file(last) or xlog.is_partial_file(last):
+                break
+
+        # Check if the status is already up-to-date
+        if not last or last == restart_partial_path or last == restart_path:
+            output.info("Nothing to do. Position of receive-wal is aligned.")
+            return
+
+        if os.path.basename(last) > current_wal:
+            output.error(
+                "The receive-wal position is ahead of PostgreSQL "
+                "current WAL lsn (%s > %s)",
+                os.path.basename(last), postgres_status['current_xlog'])
+            return
+
         output.info("Resetting receive-wal directory status")
-        partial_files = glob(os.path.join(
-            self.config.streaming_wals_directory, '*.partial'))
-        for partial in partial_files:
-            output.info("Removing status file %s" % partial)
-            os.unlink(partial)
+        if xlog.is_partial_file(last):
+            output.info("Removing status file %s" % last)
+            os.unlink(last)
+        output.info("Creating status file %s" % restart_partial_path)
+        open(restart_partial_path, 'w').close()
 
     def _truncate_partial_file_if_needed(self, xlog_segment_size):
         """

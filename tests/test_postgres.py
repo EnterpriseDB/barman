@@ -829,7 +829,7 @@ class TestPostgres(object):
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.has_pgespresso',
            new_callable=PropertyMock)
-    @patch('barman.postgres.PostgreSQLConnection.current_xlog_file_name',
+    @patch('barman.postgres.PostgreSQLConnection.current_xlog_info',
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.current_size',
            new_callable=PropertyMock)
@@ -844,7 +844,7 @@ class TestPostgres(object):
                                get_setting_mock,
                                get_configuration_files_mock,
                                current_size_mock,
-                               current_xlog_file_mock,
+                               current_xlog_info,
                                has_pgespresso_mock,
                                server_txt_version_mock,
                                is_superuser_mock,
@@ -858,7 +858,12 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        current_xlog_file_mock.return_value = 'DE/ADBEEF'
+        current_xlog_info.return_value = {
+            'location': 'DE/ADBEEF',
+            'file_name': '00000001000000DE00000000',
+            'file_offset': 11386607,
+            'timestamp': datetime.datetime(2016, 3, 30, 17, 4, 20, 271376),
+        }
         current_size_mock.return_value = 497354072
         has_pgespresso_mock.return_value = True
         server_txt_version_mock.return_value = '9.5.0'
@@ -890,7 +895,8 @@ class TestPostgres(object):
             'a': 'b',
             'is_superuser': True,
             'is_in_recovery': False,
-            'current_xlog': 'DE/ADBEEF',
+            'current_lsn': 'DE/ADBEEF',
+            'current_xlog': '00000001000000DE00000000',
             'data_directory': 'a directory',
             'pgespresso_installed': True,
             'server_txt_version': '9.5.0',
@@ -917,7 +923,8 @@ class TestPostgres(object):
             'a': 'b',
             'is_superuser': True,
             'is_in_recovery': False,
-            'current_xlog': 'DE/ADBEEF',
+            'current_lsn': 'DE/ADBEEF',
+            'current_xlog': '00000001000000DE00000000',
             'data_directory': 'a directory',
             'pgespresso_installed': True,
             'server_txt_version': '9.5.0',

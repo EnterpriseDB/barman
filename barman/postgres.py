@@ -787,7 +787,13 @@ class PostgreSQLConnection(PostgreSQL):
             result['is_in_recovery'] = self.is_in_recovery
             result['server_txt_version'] = self.server_txt_version
             result['pgespresso_installed'] = self.has_pgespresso
-            result['current_xlog'] = self.current_xlog_file_name
+            current_xlog_info = self.current_xlog_info
+            if current_xlog_info:
+                result['current_lsn'] = current_xlog_info['location']
+                result['current_xlog'] = current_xlog_info['file_name']
+            else:
+                result['current_lsn'] = None
+                result['current_xlog'] = None
             result['current_size'] = self.current_size
             result['archive_timeout'] = self.archive_timeout
             result['checkpoint_timeout'] = self.checkpoint_timeout
