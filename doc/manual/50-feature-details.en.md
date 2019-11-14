@@ -176,6 +176,8 @@ rules:
 > Barman. Barman 2.5 introduces a new state, called `WAITING_FOR_WALS`,
 > which is managed by the `check-backup` command (part of the
 > ordinary maintenance job performed by the `cron` command).
+> From Barman 2.10, you can use the `--wait` option with `barman backup`
+> command.
 
 #### Current limitations on backup from standby
 

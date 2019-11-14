@@ -374,10 +374,12 @@ class BackupManager(RemoteStatusMixin):
 
         return True
 
-    def backup(self):
+    def backup(self, wait=False, wait_timeout=None):
         """
         Performs a backup for the server
 
+        :param bool wait: wait for all the required WAL files to be archived
+        :param int|None wait_timeout:
         :return BackupInfo: the generated BackupInfo
         """
         _logger.debug("initialising backup information")
@@ -451,6 +453,18 @@ class BackupManager(RemoteStatusMixin):
             # Create a restore point after a backup
             target_name = 'barman_%s' % backup_info.backup_id
             self.server.postgres.create_restore_point(target_name)
+
+            # If requested, wait for end_wal to be archived
+            if wait:
+                try:
+                    self.server.wait_for_wal(backup_info.end_wal, wait_timeout)
+                    self.check_backup(backup_info)
+                except KeyboardInterrupt:
+                    # Ignore CTRL-C pressed while waiting for WAL files
+                    output.info(
+                        "Got CTRL-C. Continuing without waiting for '%s' "
+                        "to be archived", backup_info.end_wal)
+
         finally:
             if backup_info:
                 backup_info.save()

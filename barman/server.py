@@ -1153,9 +1153,13 @@ class Server(RemoteStatusMixin):
             output.error("Permission denied, unable to access '%s'" % e)
             return
 
-    def backup(self):
+    def backup(self, wait=False, wait_timeout=None):
         """
         Performs a backup for the server
+        :param bool wait: wait for all the required WAL files to be archived
+        :param int|None wait_timeout: the time, in seconds, the backup
+            will wait for the required WAL files to be archived
+            before timing out
         """
         # The 'backup' command is not available on a passive node.
         # We assume that if we get here the node is not passive
@@ -1190,7 +1194,8 @@ class Server(RemoteStatusMixin):
             # lock acquisition and backup execution
             with ServerBackupLock(self.config.barman_lock_directory,
                                   self.config.name):
-                backup_info = self.backup_manager.backup()
+                backup_info = self.backup_manager.backup(
+                    wait=wait, wait_timeout=wait_timeout)
 
             # Archive incoming WALs and update WAL catalogue
             self.archive_wal(verbose=False)
@@ -1214,7 +1219,8 @@ class Server(RemoteStatusMixin):
                     "This is a common behaviour in concurrent backup "
                     "scenarios, and Barman automatically set the backup as "
                     "DONE once all the required WAL files have been "
-                    "archived.")
+                    "archived.\n"
+                    "Hint: execute the backup command with '--wait'")
         except LockFileBusy:
             output.error("Another backup process is running")
 
@@ -2481,10 +2487,13 @@ class Server(RemoteStatusMixin):
         """
         Wait for a WAL file to be archived on the server
 
-        :param str wal_file: Name of the WAL file, or None if we should just
-          wait for a new WAL file to be archived
-        :param int archive_timeout: Timeout in seconds
+        :param str|None wal_file: Name of the WAL file, or None if we should
+          just wait for a new WAL file to be archived
+        :param int|None archive_timeout: Timeout in seconds
         """
+        max_msg = ""
+        if archive_timeout:
+            max_msg = " (max: %s seconds)" % archive_timeout
 
         initial_wals = dict()
         if not wal_file:
@@ -2493,20 +2502,18 @@ class Server(RemoteStatusMixin):
 
         if wal_file:
             output.info(
-                "Waiting for the WAL file %s from server '%s' "
-                "(max: %s seconds)",
-                wal_file, self.config.name, archive_timeout)
+                "Waiting for the WAL file %s from server '%s'%s",
+                wal_file, self.config.name, max_msg)
         else:
             output.info(
-                "Waiting for a WAL file from server '%s' to be archived "
-                "(max: %s seconds)",
-                self.config.name, archive_timeout)
+                "Waiting for a WAL file from server '%s' to be archived%s",
+                self.config.name, max_msg)
 
-        # Wait for a new file until end_time
-        end_time = time.time()
+        # Wait for a new file until end_time or forever if no archive_timeout
+        end_time = None
         if archive_timeout:
-            end_time += archive_timeout
-        while time.time() < end_time:
+            end_time = time.time() + archive_timeout
+        while not end_time or time.time() < end_time:
             self.archive_wal(verbose=False)
 
             # Finish if the closed wal file is in the archive.

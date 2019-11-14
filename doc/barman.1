@@ -96,7 +96,7 @@ Used during both backup and recovery operations.
 Overrides value of the parameter \f[C]basebackup_retry_sleep\f[R], if
 present in the configuration file.
 .TP
-.B -j , --jobs
+.B -j, --jobs
 Number of parallel workers to copy files during backup.
 Overrides value of the parameter \f[C]parallel_jobs\f[R], if present in
 the configuration file.
@@ -106,6 +106,13 @@ maximum transfer rate in kilobytes per second.
 A value of 0 means no limit.
 Overrides \[aq]bandwidth_limit\[aq] configuration option.
 Default is undefined.
+.TP
+.B --wait, -w
+wait for all required WAL files by the base backup to be archived
+.TP
+.B --wait-timeout
+the time, in seconds, spent waiting for the required WAL files to be
+archived before timing out
 .RE
 .TP
 .B check-backup \f[I]SERVER_NAME\f[R] \f[I]BACKUP_ID\f[R]

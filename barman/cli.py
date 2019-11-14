@@ -191,6 +191,18 @@ def backup_completer(prefix, parsed_args, **kwargs):
      metavar='KBPS',
      type=check_non_negative,
      default=SUPPRESS)
+@arg('--wait', '-w',
+     help='wait for all the required WAL files to be archived',
+     dest='wait',
+     action='store_true',
+     default=False)
+@arg('--wait-timeout',
+     help='the time, in seconds, spent waiting for the required '
+          'WAL files to be archived before timing out',
+     dest='wait_timeout',
+     metavar='TIMEOUT',
+     default=None,
+     type=check_non_negative)
 @expects_obj
 def backup(args):
     """
@@ -217,7 +229,7 @@ def backup(args):
         if hasattr(args, 'bwlimit'):
             server.config.bandwidth_limit = args.bwlimit
         with closing(server):
-            server.backup()
+            server.backup(wait=args.wait, wait_timeout=args.wait_timeout)
     output.close_and_exit()
 
 
@@ -1147,7 +1159,7 @@ def get_server_list(args=None, skip_inactive=False, skip_disabled=False,
     :param bool skip_passive: skip passive servers when 'all' is required
     :param bool on_error_stop: stop if an error is found
     :param bool suppress_error: suppress display of errors (e.g. diagnose)
-    :rtype: dict(str,barman.server.Server|None)
+    :rtype: dict[str,Server]
     """
     server_dict = {}
 

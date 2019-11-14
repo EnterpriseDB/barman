@@ -612,7 +612,7 @@ class TestServer(object):
 
         dir_mock.side_effect = None
         server.backup()
-        backup_mock.assert_called_once_with()
+        backup_mock.assert_called_once_with(wait=False, wait_timeout=None)
         archive_wal_mock.assert_called_once_with(verbose=False)
 
         backup_mock.side_effect = LockFileBusy()
@@ -1380,15 +1380,20 @@ class TestServer(object):
         assert backup_info.status == BackupInfo.FAILED
         backup_info_save.reset_mock()
 
-    def test_wait_for_wal(self):
+    def test_wait_for_wal(self, tmpdir):
         # Waiting for a new WAL without archive_timeout without any WAL
         # file archived and no timeout should not raise an error.
-        server = build_real_server()
-        server.wait_for_wal()
+        server = build_real_server(
+            global_conf={
+                'barman_home': tmpdir.mkdir('barman_home').strpath,
+            },
+        )
+        server.wait_for_wal(archive_timeout=.1)
 
-        # Doing the same thing with a timeout should also not raise an
+        # Doing the same thing with a wal file should also not raise an
         # error
-        server.wait_for_wal(1)
+        server.wait_for_wal(wal_file='00000001000000EF000000AB',
+                            archive_timeout=.1)
 
     @pytest.mark.parametrize('mode, success, error_msg', [
         ['plain', True, None],

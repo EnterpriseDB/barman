@@ -42,7 +42,7 @@ backup *SERVER_NAME*
         Overrides value of the parameter `basebackup_retry_sleep`,
         if present in the configuration file.
 
-    -j , --jobs
+    -j, --jobs
     :   Number of parallel workers to copy files during backup. Overrides
         value of the parameter `parallel_jobs`, if present in the
         configuration file.
@@ -51,3 +51,10 @@ backup *SERVER_NAME*
     :   maximum transfer rate in kilobytes per second.
         A value of 0 means no limit.
         Overrides 'bandwidth_limit' configuration option. Default is undefined.
+
+    --wait, -w
+    :   wait for all required WAL files by the base backup to be archived
+
+    --wait-timeout
+    :   the time, in seconds, spent waiting for the required WAL
+        files to be archived before timing out
