@@ -15,11 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-try:
-    from queue import Queue
-except ImportError:
-    from Queue import Queue
-
+import datetime
 from io import BytesIO
 
 import mock
@@ -27,7 +23,13 @@ import pytest
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-from barman.cloud import CloudInterface, CloudUploadingError
+from barman.cloud import (CloudInterface, CloudUploadingError,
+                          FileUploadStatistics)
+
+try:
+    from queue import Queue
+except ImportError:
+    from Queue import Queue
 
 
 class TestCloudInterface(object):
@@ -70,7 +72,7 @@ class TestCloudInterface(object):
         assert interface.errors_queue is not None
         assert len(interface.worker_processes) == jobs_count
         assert mp.JoinableQueue.call_count == 1
-        assert mp.Queue.call_count == 2
+        assert mp.Queue.call_count == 3
         assert mp.Process.call_count == jobs_count
         mp.reset_mock()
 
@@ -85,17 +87,27 @@ class TestCloudInterface(object):
         interface = CloudInterface(
             destination_url='s3://bucket/path/to/dir',
             encryption=None)
+        interface.done_queue = Queue()
         interface.result_queue = Queue()
 
         # With an empty queue, the parts DB is empty
         interface._retrieve_results()
         assert len(interface.parts_db) == 0
 
+        # Preset the upload statistics, to avoid a random start_date
+        for name in ["test/file", "test/another_file"]:
+            interface.upload_stats[name] = FileUploadStatistics(
+                status='uploading',
+                start_time=datetime.datetime(2016, 3, 30, 17, 1, 0),
+            )
+
         # Fill the result queue with mock results, and assert that after
         # the refresh the result queue is empty and the parts_db full with
         # ordered results
         interface.result_queue.put({
             "key": "test/file",
+            "part_number": 2,
+            "end_time": datetime.datetime(2016, 3, 30, 17, 2, 20),
             "part": {
                 "ETag": "becb2f30c11b6a2b5c069f3c8a5b798c",
                 "PartNumber": "2"
@@ -103,6 +115,8 @@ class TestCloudInterface(object):
         })
         interface.result_queue.put({
             "key": "test/file",
+            "part_number": 1,
+            "end_time": datetime.datetime(2016, 3, 30, 17, 1, 20),
             "part": {
                 "ETag": "27960aa8b7b851eb0277f0f3f5d15d68",
                 "PartNumber": "1"
@@ -110,6 +124,8 @@ class TestCloudInterface(object):
         })
         interface.result_queue.put({
             "key": "test/file",
+            "part_number": 3,
+            "end_time": datetime.datetime(2016, 3, 30, 17, 3, 20),
             "part": {
                 "ETag": "724a0685c99b457d4ddd93814c2d3e2b",
                 "PartNumber": "3"
@@ -117,6 +133,8 @@ class TestCloudInterface(object):
         })
         interface.result_queue.put({
             "key": "test/another_file",
+            "part_number": 1,
+            "end_time": datetime.datetime(2016, 3, 30, 17, 5, 20),
             "part": {
                 "ETag": "89d4f0341d9091aa21ddf67d3b32c34a",
                 "PartNumber": "1"
@@ -145,6 +163,36 @@ class TestCloudInterface(object):
                     "PartNumber": "1"
                 }
             ]
+        }
+        assert interface.upload_stats == {
+            'test/another_file': {
+                'start_time': datetime.datetime(2016, 3, 30, 17, 1, 0),
+                'status': 'uploading',
+                'parts': {
+                    1: {
+                        'end_time': datetime.datetime(2016, 3, 30, 17, 5, 20),
+                        'part_number': 1,
+                    },
+                },
+            },
+            'test/file': {
+                'start_time': datetime.datetime(2016, 3, 30, 17, 1, 0),
+                'status': 'uploading',
+                'parts': {
+                    1: {
+                        'end_time': datetime.datetime(2016, 3, 30, 17, 1, 20),
+                        'part_number': 1,
+                    },
+                    2: {
+                        'end_time': datetime.datetime(2016, 3, 30, 17, 2, 20),
+                        'part_number': 2,
+                    },
+                    3: {
+                        'end_time': datetime.datetime(2016, 3, 30, 17, 3, 20),
+                        'part_number': 3,
+                    },
+                },
+            },
         }
 
     @mock.patch('barman.cloud.CloudInterface.worker_process_execute_job')
@@ -195,7 +243,9 @@ class TestCloudInterface(object):
     @mock.patch('barman.cloud.open')
     @mock.patch('barman.cloud.CloudInterface.complete_multipart_upload')
     @mock.patch('barman.cloud.CloudInterface.upload_part')
+    @mock.patch('datetime.datetime')
     def test_worker_process_execute_job(self,
+                                        datetime_mock,
                                         upload_part_mock,
                                         complete_multipart_upload_mock,
                                         open_mock,
@@ -206,6 +256,7 @@ class TestCloudInterface(object):
             destination_url='s3://bucket/path/to/dir',
             encryption=None)
         interface.result_queue = Queue()
+        interface.done_queue = Queue()
         with pytest.raises(ValueError):
             interface.worker_process_execute_job({"job_type": "error"}, 1)
         assert upload_part_mock.call_count == 0
@@ -232,8 +283,10 @@ class TestCloudInterface(object):
             10)
         assert not interface.result_queue.empty()
         assert interface.result_queue.get() == {
+            "end_time": datetime_mock.now.return_value,
             "key": "this/key",
             "part": part_result,
+            "part_number": 10,
         }
         assert unlink_mock.call_count == 1
 
@@ -246,6 +299,12 @@ class TestCloudInterface(object):
             "parts": ["parts", "list"]}, 0)
         complete_multipart_upload_mock.assert_called_once_with(
             "mpu", "this/key", ["parts", "list"])
+        assert not interface.done_queue.empty()
+        assert interface.done_queue.get() == {
+            "end_time": datetime_mock.now.return_value,
+            "key": "this/key",
+            "status": "done",
+        }
 
     def test_handle_async_errors(self):
         # If we the upload process has already raised an error, we immediately
