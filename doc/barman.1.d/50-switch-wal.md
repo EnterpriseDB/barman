@@ -10,7 +10,7 @@ switch-wal *SERVER_NAME*
     --archive
     :   Wait for one xlog file to be archived.
         If after a defined amount of time (default: 30 seconds) no xlog
-        file is archived, Barman will teminate with failure exit code.
+        file is archived, Barman will terminate with failure exit code.
         Available also on standby servers.
 
     --archive-timeout *TIMEOUT*

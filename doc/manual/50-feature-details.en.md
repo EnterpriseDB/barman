@@ -548,7 +548,7 @@ The shell environment will contain the following variables:
 
 Version **2.4** introduces pre and post backup delete scripts.
 
-As previous scripts, bakup delete scripts can be configured within global
+As previous scripts, backup delete scripts can be configured within global
 configuration options, and it is possible to override them on a per server
 basis:
 

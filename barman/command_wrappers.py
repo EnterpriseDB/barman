@@ -132,7 +132,7 @@ class Command(object):
         a maximum of `retry_times` times, waiting for `retry_sleep` seconds
         between every attempt.
 
-        Everytime a command is retried the `retry_handler` is executed
+        Every time a command is retried the `retry_handler` is executed
         before running the command again. The retry_handler must be a callable
         that accepts the following fields:
 
@@ -444,7 +444,7 @@ class Command(object):
             will be closed before the child process is executed.
         :rtype: subprocess.Popen
         """
-        # Append the argument provided to this method ot the base argument list
+        # Append the argument provided to this method of the base argument list
         args = self.args + list(args)
         # If shell is True, properly quote the command
         if self.shell:
@@ -575,7 +575,8 @@ class Rsync(Command):
                  include=None, network_compression=None, path=None, **kwargs):
         """
         :param str rsync: rsync executable name
-        :param list[str]|None args: List of additional argument to aways append
+        :param list[str]|None args: List of additional argument to always
+            append
         :param str ssh: the ssh executable to be used when building
             the `-e` argument
         :param list[str] ssh_options: the ssh options to be used when building

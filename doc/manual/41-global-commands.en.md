@@ -75,7 +75,7 @@ for your backup system with:
 barman list-server
 ```
 
-A machine readble output can be obtained with the `--minimal` option:
+A machine readable output can be obtained with the `--minimal` option:
 
 ``` bash
 barman list-server --minimal

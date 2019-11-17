@@ -162,7 +162,7 @@ max_replication_slots = 2
 
 The values proposed for `max_replication_slots` and `max_wal_senders`
 must be considered as examples, and the values you will use in your
-actual setup must be choosen after a careful evaluation of the
+actual setup must be chosen after a careful evaluation of the
 architecture. Please consult the PostgreSQL documentation for
 guidelines and clarifications.
 

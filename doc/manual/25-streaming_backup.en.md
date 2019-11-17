@@ -7,7 +7,7 @@ PostgreSQL 9.1.
 > **IMPORTANT:** Barman requires that `pg_basebackup` is installed in
 > the same server. For PostgreSQL 9.2 servers, you need the
 > `pg_basebackup` of version 9.2 installed alongside with Barman.  For
-> PostgreSQL 9.3 and above, it is recommented to install the last
+> PostgreSQL 9.3 and above, it is recommended to install the last
 > available version of `pg_basebackup`, as it is back compatible.  You
 > can even install multiple versions of `pg_basebackup` on the Barman
 > server and properly point to the specific version for a server,

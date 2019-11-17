@@ -4,12 +4,12 @@
 
 As we said in the previous section, server commands work directly on
 a PostgreSQL server or on its area in Barman, and are useful to check
-its status, perform maintainance operations, take backups, and
+its status, perform maintenance operations, take backups, and
 manage the WAL archive.
 
 ## `archive-wal`
 
-The `archive-wal` command execute maintainance operations on WAL files
+The `archive-wal` command execute maintenance operations on WAL files
 for a given server. This operations include processing of the WAL
 files received from the streaming connection or from the
 `archive_command` or both.

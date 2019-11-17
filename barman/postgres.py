@@ -961,7 +961,7 @@ class PostgreSQLConnection(PostgreSQL):
                 self.configuration_files[cname] = cpath
 
             # Retrieve additional configuration files
-            # If PostgresSQL is older than 8.4 disable this check
+            # If PostgreSQL is older than 8.4 disable this check
             if self.server_version >= 80400:
                 cur.execute(
                     "SELECT DISTINCT sourcefile AS included_file "
