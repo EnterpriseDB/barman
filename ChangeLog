@@ -58,7 +58,7 @@
 
 	Fix execution environment of recovery retry scripts
 	This patch fix the execution environment of the recovery retry
-	scripts: previously the environment applyied was the one for the
+	scripts: previously the environment applied was the one for the
 	"recovery script" instead of the one for the "recovery retry script".
 
 	Pull request GH-203
@@ -436,7 +436,7 @@
 
 2018-11-23  Martín Marqués  <martin.marques@2ndquadrant.com>
 
-	Typo in NEWS file refering to xlogdb
+	Typo in NEWS file referring to xlogdb
 
 2018-11-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
@@ -913,7 +913,7 @@
 2017-08-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Add `--target-immediate` option to `recover` command
-	Throught the `--target-immediate` option, Barman writes the
+	Through the `--target-immediate` option, Barman writes the
 	`recovery_target = 'immediate'` line to recovery.conf.
 	By doing so, PostgreSQL will exit from recovery mode as soon as a
 	consistent state is reached (end of the base backup).
@@ -1420,7 +1420,7 @@
 
 2016-10-06  Martin Swiech  <martin.swiech@zonky.cz>
 
-	Fix comparation of last archiving failure
+	Fix comparison of last archiving failure
 	Compare the time of last failure instead of the WAL name to detect
 	archiving failures.
 
@@ -1486,7 +1486,7 @@
 2016-09-30  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
 
 	Split the logic of the copy method in CopyController
-	This patch creates an analisys phase and a copy phase. the analisys
+	This patch creates an analysis phase and a copy phase. the analysis
 	phase is responsible for the preparation of the list of files that we
 	want to copy. The copy phase is responsible for the execution of the
 	actual copy using rsync.
@@ -1706,7 +1706,7 @@
 
 	The reason for this is that now Barman does not have a sequential
 	installation procedure, but different options for backup and
-	WAL archiving that produce several possibile combinations of
+	WAL archiving that produce several possible combinations of
 	setups.
 
 2016-09-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
@@ -1983,12 +1983,12 @@
 	JSON stream, which is not serializable by default.
 
 	This patch add the support for (Loose|Strict)Version objects to the
-	BarmanEncoder object treting them as a string.
+	BarmanEncoder object treating them as a string.
 
 2016-08-22  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
 
 	Fix archiver by catching ENOENT exception
-	Fixed a corner-case error that could occour when an unexpected
+	Fixed a corner-case error that could occur when an unexpected
 	file (e.g. .partial file) was not found anymore by the archiver
 	process while trying to move it in the errors directory.
 
@@ -2177,7 +2177,7 @@
 	`pg_last_xlog_replay_location` if the server is in recovery mode.
 
 	Uniform backup_label parsing
-	The backup_label file was previouly parsed in multiple places of code.
+	The backup_label file was previously parsed in multiple places of code.
 	This code has been moved in a dedicated method.
 
 2016-05-30  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
@@ -2445,7 +2445,7 @@
 2016-04-12  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
 
 	Avoid crashing with a malformed conninfo parameter
-	When a connection fails, prepend the error message with the connnection
+	When a connection fails, prepend the error message with the connection
 	type ('conninfo' or 'streaming_conninfo').
 
 2016-04-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
@@ -2620,7 +2620,7 @@
 
 2016-02-12  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
 
-	Add --reset option to receive-wal comand
+	Add --reset option to receive-wal command
 	Add the `--reset` option to the `receive-wal` command, allowing
 	users to reset the WAL location of the streaming archiver.
 	This is useful in case Barman goes out of sync with the master
@@ -2996,7 +2996,7 @@
 	enables continuous WAL archiving (through log shipping using
 	PostgreSQL's archive_command) for a specific server.
 	If set the 'true' (default), Barman expects that PostgreSQL
-	continously deposits WAL files in the 'incoming' directory
+	continuously deposits WAL files in the 'incoming' directory
 	of that server, and subsequently activates proper checks and
 	management.
 
@@ -3780,7 +3780,7 @@
 2014-09-26  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
 
 	Remove all remaining output done by yield
-	Migrate all the remaining part using yeld to do output to using the new
+	Migrate all the remaining part using yield to do output to using the new
 	output module.
 
 2014-10-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
@@ -3820,7 +3820,7 @@
 	  are automatically started for successful backups (equivalent to
 	  manually executing a 'barman cron' command, just for that server)
 
-	* Trashing of unuseful WALs (part of 'barman cron') has been changed
+	* Trashing of useless WALs (part of 'barman cron') has been changed
 	  as follows:
 
 	  * in case of one or more backups, delete WAL files older than
@@ -4521,7 +4521,7 @@
 	object which is OBSOLETE but cannot be removed
 	automatically due to minimum_redundancy requirements).
 	Created the report() method for the retention policy
-	base class, which exected the _backup_report() method
+	base class, which executed the _backup_report() method
 	for base backups and the _wal_report() method for WAL
 	retention policies (currently not enforced).
 	The report method iterates through the DONE backups

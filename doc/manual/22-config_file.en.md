@@ -24,5 +24,5 @@ parameter in your server configuration file:
 streaming_conninfo = host=pg user=streaming_barman dbname=postgres
 ```
 
-This value must be choosen accordingly as described in the section
+This value must be chosen accordingly as described in the section
 _"Preliminary steps: PostgreSQL connection"_.

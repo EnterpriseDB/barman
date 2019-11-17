@@ -76,7 +76,7 @@ def exec_diagnose(servers, errors_list):
                     command.get_system_info())
             except FsOperationFailed:
                 pass
-        # barman statuts information for the server
+        # barman status information for the server
         diagnosis['servers'][name]['status'] = server.get_remote_status()
         # backup list
         backups = server.get_available_backups(BackupInfo.STATUS_ALL)

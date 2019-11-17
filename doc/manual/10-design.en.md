@@ -20,7 +20,7 @@ Even though there is no _"one size fits all"_ way to setup Barman, there are a c
 
 A reasonable way to start modelling your disaster recovery architecture is to:
 
-- design a couple of possibile architectures in respect to PostgreSQL and Barman, such as:
+- design a couple of possible architectures in respect to PostgreSQL and Barman, such as:
     1. same data centre
     2. different data centre in the same metropolitan area
     3. different data centre
@@ -91,7 +91,7 @@ Unless you have strong reasons not to do it, we recommend to use both channels, 
 
 ## Two typical scenarios for backups
 
-In order to make life easier for you, below we summarise the two most typical scenarios for a given PostgreSQL server in Barman.
+In order to make life easier for you, below we summarize the two most typical scenarios for a given PostgreSQL server in Barman.
 
 Bear in mind that this is a decision that you must make for every single server that you decide to back up with Barman. This means that you can have heterogeneous setups within the same installation.
 

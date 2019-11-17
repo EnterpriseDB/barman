@@ -716,7 +716,7 @@ Version 1.2.0 - 31 Jan 2013
   the minimum number of backups to be kept for a server
 
 * Added the "retention_policy" global/server option which defines
-  retention policies management based on redunancy (e.g. REDUNDANCY 4)
+  retention policies management based on redundancy (e.g. REDUNDANCY 4)
   or recovery window (e.g. RECOVERY WINDOW OF 3 MONTHS)
 
 * Added retention policy support to the logging infrastructure, the

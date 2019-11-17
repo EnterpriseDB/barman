@@ -25,7 +25,7 @@ backup *SERVER_NAME*
            and space);
 
         `link` is the default target if `--reuse-backup` is used and
-        `INCREMENTAL_TYPE` is not explicited.
+        `INCREMENTAL_TYPE` is not explicitly.
 
     --retry-times
     :   Number of retries of base backup copy, after an error.

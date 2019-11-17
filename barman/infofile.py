@@ -677,7 +677,7 @@ class LocalBackupInfo(BackupInfo):
 
         # Build the requested path according to backup_version value
         path = [self.get_basebackup_directory()]
-        # Check te version of the backup
+        # Check the version of the backup
         if self.backup_version == 2:
             # If an oid has been provided, we are looking for a tablespace
             if tablespace_oid is not None:

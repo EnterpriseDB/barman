@@ -145,7 +145,7 @@ def pretty_size(size, unit=1024):
     suffixes = ["B"] + [i + {1000: "B", 1024: "iB"}[unit] for i in "KMGTPEZY"]
     if unit == 1000:
         suffixes[1] = 'kB'  # special case kB instead of KB
-    # cast to float to avoid loosing decimals
+    # cast to float to avoid losing decimals
     size = float(size)
     for suffix in suffixes:
         if abs(size) < unit or suffix == suffixes[-1]:

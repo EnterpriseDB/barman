@@ -1771,7 +1771,7 @@ class Server(RemoteStatusMixin):
 
         except LockFileBusy:
             # Another archive process is running for the server,
-            # warn the user and skip to the next sever.
+            # warn the user and skip to the next one.
             output.info(
                 "Another archive-wal process is already running "
                 "on server %s. Skipping to the next server"
