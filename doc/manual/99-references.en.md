@@ -4,7 +4,6 @@
   [rto]: https://en.wikipedia.org/wiki/Recovery_time_objective
   [repmgr]: http://www.repmgr.org/
   [sqldump]: https://www.postgresql.org/docs/current/static/backup-dump.html
-  [recoveryconfig]: https://www.postgresql.org/docs/current/static/recovery-config.html
   [physicalbackup]: https://www.postgresql.org/docs/current/static/backup-file.html
   [pitr]: https://www.postgresql.org/docs/current/static/continuous-archiving.html
   [adminbook]: https://www.2ndquadrant.com/en/books/postgresql-10-administration-cookbook/

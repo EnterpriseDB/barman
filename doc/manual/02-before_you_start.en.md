@@ -11,7 +11,6 @@ Below you can find a non exhaustive list of resources that we recommend for you 
     - [SQL Dump][sqldump][^pgdump]
     - [File System Level Backup][physicalbackup]
     - [Continuous Archiving and Point-in-Time Recovery (PITR)][pitr]
-    - [Recovery Configuration][recoveryconfig]
     - [Reliability and the Write-Ahead Log][wal]
 - _Book_: [PostgreSQL 10 Administration Cookbook][adminbook]
 
