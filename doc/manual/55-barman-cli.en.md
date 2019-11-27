@@ -22,6 +22,13 @@ client utilities to be installed alongside the PostgreSQL server:
 For more detailed information, please refer to the specific man pages
 or the `--help` option.
 
+> **WARNING:** `barman-cloud-wal-archive` and `barman-cloud-backup` have been
+> introduced in Barman 2.10. The corresponding utilities for restore
+> (`barman-cloud-wal-restore` and `barman-cloud-recover`) will be included
+> in the next 2.11 release. For the moment, restore of WAL files and backups
+> requires manual intervention (using for example third-party utilities like
+> `aws-cli`). Cloud utilities require boto3 library installed in your system.
+
 ## Installation
 
 Barman client utilities are normally installed where PostgreSQL is installed.
