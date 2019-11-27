@@ -25,7 +25,6 @@
   [replication-slots]: https://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION-SLOTS
   [synch]: http://www.postgresql.org/docs/current/static/warm-standby.html#SYNCHRONOUS-REPLICATION
   [target]: https://www.postgresql.org/docs/current/static/recovery-target-settings.html
-  [standby]: https://www.postgresql.org/docs/current/static/standby-settings.html
   [2ndqrpmrepo]: https://rpm.2ndquadrant.com/
   [2ndqdebrepo]: https://apt.2ndquadrant.com/
 
