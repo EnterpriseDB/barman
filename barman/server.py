@@ -1672,7 +1672,7 @@ class Server(RemoteStatusMixin):
                 continue
 
             logger.info(
-                "Writing WAL '%s' for server '%s' %s%s",
+                "Sending WAL '%s' for server '%s' %s%s",
                 os.path.basename(wal_file), self.config.name,
                 destination_description, source_suffix)
 
