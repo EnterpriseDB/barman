@@ -76,7 +76,7 @@ def list_server(minimal=False):
         # we want all servers and the server cannot be None
 
         output.init('list_server', name, minimal=minimal)
-        description = server.config.description
+        description = server.config.description or ''
         # If the server has been manually disabled
         if not server.config.active:
             description += " (inactive)"
