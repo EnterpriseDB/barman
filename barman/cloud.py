@@ -30,14 +30,17 @@ from functools import partial
 from io import BytesIO
 from tempfile import NamedTemporaryFile
 
-import boto3
-from botocore.exceptions import ClientError, EndpointConnectionError
-
 from barman.backup_executor import ConcurrentBackupStrategy
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.utils import force_str, human_readable_timedelta, total_seconds
+
+try:
+    import boto3
+    from botocore.exceptions import ClientError, EndpointConnectionError
+except ImportError:
+    raise SystemExit("Missing required python module: boto3")
 
 try:
     # Python 3.x
