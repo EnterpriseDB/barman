@@ -48,8 +48,7 @@ def main(args=None):
     configure_logging()
 
     # Validate the WAL file name before uploading it
-    file_name = os.path.basename(config.wal_path)
-    if not is_any_xlog_file(os.path.splitext(file_name)[0]):
+    if not is_any_xlog_file(config.wal_path):
         logging.error('%s is an invalid name for a WAL file' % config.wal_path)
         raise SystemExit(1)
 
