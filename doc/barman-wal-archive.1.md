@@ -27,14 +27,14 @@ of PostgreSQL servers written in Python and maintained by 2ndQuadrant.
 
 # POSITIONAL ARGUMENTS
 
-BARMAN\_HOST
+BARMAN_HOST
 :    the host of the Barman server.
 
-SERVER\_NAME
+SERVER_NAME
 :    the server name configured in Barman from which WALs are taken.
 
-WAL\_PATH
-:    the value of the '%p' keyword (according to 'archive\_command').
+WAL_PATH
+:    the value of the '%p' keyword (according to 'archive_command').
 
 # OPTIONS
 
@@ -54,7 +54,7 @@ WAL\_PATH
 -t, --test
 :    test both the connection and the configuration of the
      requested PostgreSQL server in Barman for WAL retrieval.
-     With this option, the 'WAL\_PATH' mandatory argument is ignored.
+     With this option, the 'WAL_PATH' mandatory argument is ignored.
 
 # EXIT STATUS
 

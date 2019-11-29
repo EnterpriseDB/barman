@@ -27,6 +27,7 @@
   [target]: https://www.postgresql.org/docs/current/static/recovery-target-settings.html
   [2ndqrpmrepo]: https://rpm.2ndquadrant.com/
   [2ndqdebrepo]: https://apt.2ndquadrant.com/
+  [boto3creds]: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
 
 
   [3]: https://sourceforge.net/projects/pgbarman/files/

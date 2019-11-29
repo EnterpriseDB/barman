@@ -1,10 +1,10 @@
-get-wal *\[OPTIONS\]* *SERVER\_NAME* *WAL\_NAME*
+get-wal *\[OPTIONS\]* *SERVER_NAME* *WAL\_NAME*
 :   Retrieve a WAL file from the `xlog` archive of a given server.
     By default, the requested WAL file, if found, is returned as
     uncompressed content to `STDOUT`. The following options allow
     users to change this behaviour:
 
-    -o *OUTPUT\_DIRECTORY*
+    -o *OUTPUT_DIRECTORY*
     :   destination directory where the `get-wal` will deposit the requested WAL
 
     -P, --partial
@@ -25,4 +25,4 @@ get-wal *\[OPTIONS\]* *SERVER\_NAME* *WAL\_NAME*
     -t, --test
     :   test both the connection and the configuration of the
         requested PostgreSQL server in Barman for WAL retrieval.
-        With this option, the 'WAL\_NAME' mandatory argument is ignored.
+        With this option, the 'WAL_NAME' mandatory argument is ignored.

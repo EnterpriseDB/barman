@@ -9,7 +9,7 @@ barman-cloud-wal-archive - Archive PostgreSQL WAL files in the Cloud using `arch
 
 # SYNOPSIS
 
-barman-cloud-wal-archive [*OPTIONS*] *DESTINATION\_URL* *SERVER\_NAME* *WAL\_PATH*
+barman-cloud-wal-archive [*OPTIONS*] *DESTINATION_URL* *SERVER_NAME* *WAL_PATH*
 
 
 # DESCRIPTION
@@ -23,15 +23,17 @@ of PostgreSQL servers written in Python and maintained by 2ndQuadrant.
 
 # POSITIONAL ARGUMENTS
 
-DESTINATION\_URL
+DESTINATION_URL
 :    URL of the cloud destination, such as a bucket in AWS S3.
-     For example: `s3://bucket/path/to/folder`.
+     For example: `s3://BUCKET_NAME/path/to/folder` (where `BUCKET_NAME`
+     is the bucket you have created in AWS).
 
-SERVER\_NAME
+
+SERVER_NAME
 :    the name of the server as configured in Barman.
 
-WAL\_PATH
-:    the value of the '%p' keyword (according to 'archive\_command').
+WAL_PATH
+:    the value of the '%p' keyword (according to 'archive_command').
 
 # OPTIONS
 
@@ -59,6 +61,10 @@ WAL\_PATH
 
 # REFERENCES
 
+For Boto:
+
+* https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
+
 For AWS:
 
 * http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html
@@ -83,7 +89,7 @@ This script can be used in conjunction with `pre_archive_retry_script` to relay 
 files to S3, as follows:
 
 ```
-pre_archive_retry_script = 'barman-cloud-wal-archive [*OPTIONS*] *DESTINATION\_URL* ${BARMAN_SERVER} ${BARMAN_FILE}'
+pre_archive_retry_script = 'barman-cloud-wal-archive [*OPTIONS*] *DESTINATION_URL* ${BARMAN_SERVER} ${BARMAN_FILE}'
 ```
 
 

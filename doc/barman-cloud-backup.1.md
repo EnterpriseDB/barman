@@ -9,7 +9,7 @@ barman-cloud-backup - Backup a PostgreSQL instance and stores it in the Cloud
 
 # SYNOPSIS
 
-barman-cloud-backup [*OPTIONS*] *DESTINATION\_URL* *SERVER\_NAME*
+barman-cloud-backup [*OPTIONS*] *DESTINATION_URL* *SERVER_NAME*
 
 
 # DESCRIPTION
@@ -25,11 +25,12 @@ of PostgreSQL servers written in Python and maintained by 2ndQuadrant.
 
 # POSITIONAL ARGUMENTS
 
-DESTINATION\_URL
+DESTINATION_URL
 :    URL of the cloud destination, such as a bucket in AWS S3.
-     For example: `s3://bucket/path/to/folder`.
+     For example: `s3://BUCKET_NAME/path/to/folder` (where `BUCKET_NAME`
+     is the bucket you have created in AWS).
 
-SERVER\_NAME
+SERVER_NAME
 :    the name of the server as configured in Barman.
 
 # OPTIONS
@@ -78,6 +79,10 @@ SERVER\_NAME
 :    number of subprocesses to upload data to S3 (default: 2)
 
 # REFERENCES
+
+For Boto:
+
+* https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
 
 For AWS:
 

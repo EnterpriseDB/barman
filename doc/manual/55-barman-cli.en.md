@@ -20,7 +20,9 @@ client utilities to be installed alongside the PostgreSQL server:
   bypassing the Barman server.
 
 For more detailed information, please refer to the specific man pages
-or the `--help` option.
+or the `--help` option. For information on how to setup credentials
+for the Cloud utilities, please refer to the
+["Credentials" section in Boto 3 documentation][boto3creds].
 
 > **WARNING:** `barman-cloud-wal-archive` and `barman-cloud-backup` have been
 > introduced in Barman 2.10. The corresponding utilities for restore

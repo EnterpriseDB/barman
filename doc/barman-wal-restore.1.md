@@ -26,17 +26,17 @@ of PostgreSQL servers written in Python and maintained by 2ndQuadrant.
 
 # POSITIONAL ARGUMENTS
 
-BARMAN\_HOST
+BARMAN_HOST
 :    the host of the Barman server.
 
-SERVER\_NAME
+SERVER_NAME
 :    the server name configured in Barman from which WALs are taken.
 
-WAL\_NAME
-:    the value of the '%f' keyword (according to 'restore\_command').
+WAL_NAME
+:    the value of the '%f' keyword (according to 'restore_command').
 
-WAL\_DEST
-:    the value of the '%p' keyword (according to 'restore\_command').
+WAL_DEST
+:    the value of the '%p' keyword (according to 'restore_command').
 
 # OPTIONS
 
@@ -77,7 +77,7 @@ WAL\_DEST
 :    test both the connection and the configuration of the
      requested PostgreSQL server in Barman to make sure it
      is ready to receive WAL files. With this option, the
-     'WAL\_NAME' and 'WAL\_DEST' mandatory arguments are ignored.
+     'WAL_NAME' and 'WAL\_DEST' mandatory arguments are ignored.
 
 # EXIT STATUS
 

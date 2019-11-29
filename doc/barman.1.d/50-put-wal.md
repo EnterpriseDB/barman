@@ -1,6 +1,6 @@
-put-wal *\[OPTIONS\]* *SERVER\_NAME*
+put-wal *\[OPTIONS\]* *SERVER_NAME*
 :   Receive a WAL file from a remote server and securely store it into
-    the `SERVER\_NAME` incoming directory.
+    the `SERVER_NAME` incoming directory.
     The WAL file is retrieved from the `STDIN`, and must be encapsulated
     in a tar stream together with a `MD5SUMS` file to validate it.
     This command is meant to be invoked through SSH from a remote

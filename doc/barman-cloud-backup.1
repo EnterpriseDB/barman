@@ -24,7 +24,8 @@ PostgreSQL servers written in Python and maintained by 2ndQuadrant.
 .TP
 .B DESTINATION_URL
 URL of the cloud destination, such as a bucket in AWS S3.
-For example: \f[C]s3://bucket/path/to/folder\f[R].
+For example: \f[C]s3://BUCKET_NAME/path/to/folder\f[R] (where
+\f[C]BUCKET_NAME\f[R] is the bucket you have created in AWS).
 .TP
 .B SERVER_NAME
 the name of the server as configured in Barman.
@@ -73,6 +74,10 @@ forces the initial checkpoint to be done as quickly as possible
 .B -J JOBS, \[en]jobs JOBS
 number of subprocesses to upload data to S3 (default: 2)
 .SH REFERENCES
+.PP
+For Boto:
+.IP \[bu] 2
+https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
 .PP
 For AWS:
 .IP \[bu] 2
