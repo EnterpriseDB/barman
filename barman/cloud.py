@@ -19,6 +19,7 @@ import collections
 import copy
 import datetime
 import errno
+import json
 import logging
 import multiprocessing
 import operator
@@ -34,7 +35,8 @@ from barman.backup_executor import ConcurrentBackupStrategy
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
-from barman.utils import force_str, human_readable_timedelta, total_seconds
+from barman.utils import (BarmanEncoder, force_str, human_readable_timedelta,
+                          total_seconds)
 
 try:
     import boto3
@@ -349,6 +351,9 @@ class S3UploadController(object):
         serialized_time = datetime.timedelta(0)
         for name in self.upload_stats:
             data = self.upload_stats[name]
+            logging.debug('Calculating statistics for file %s, data: %s',
+                          name, json.dumps(data, indent=2, sort_keys=True,
+                                           cls=BarmanEncoder))
             if upload_start is None or upload_start > data['start_time']:
                 upload_start = data['start_time']
             if upload_end is None or upload_end < data['end_time']:
@@ -487,6 +492,9 @@ class CloudInterface(object):
         making sure that each part list is sorted by part number
         """
 
+        # Wait for all the current jobs to be completed
+        self.queue.join()
+
         touched_keys = []
         while not self.result_queue.empty():
             result = self.result_queue.get()
@@ -502,7 +510,7 @@ class CloudInterface(object):
                 self.parts_db[key],
                 key=operator.itemgetter("PartNumber"))
 
-        # Read the results of terminated parts
+        # Read the results of completed uploads
         while not self.done_queue.empty():
             result = self.done_queue.get()
             self.upload_stats[result["key"]].update(result)
@@ -780,8 +788,8 @@ class CloudInterface(object):
         self._ensure_async()
         self._handle_async_errors()
 
-        # Ensure that all the scheduled tasks are done
-        self.queue.join()
+        # Wait for all the current jobs to be completed and
+        # receive all available updates on worker status
         self._retrieve_results()
 
         # Finish the job in S3 to the uploader process
@@ -830,13 +838,11 @@ class CloudInterface(object):
         # async_complete_multipart_upload must have been called
         assert key not in self.parts_db
 
-        # If status is not uploading the upload has already finished
-        if self.upload_stats[key]['status'] == 'uploading':
-            # Wait for all the current jobs to be completed
-            self.queue.join()
-
-        # Receive all available updates on worker status
-        self._retrieve_results()
+        # If status is still uploading the upload has not finished yet
+        while self.upload_stats[key]['status'] == 'uploading':
+            # Wait for all the current jobs to be completed and
+            # receive all available updates on worker status
+            self._retrieve_results()
 
         return self.upload_stats[key]
 

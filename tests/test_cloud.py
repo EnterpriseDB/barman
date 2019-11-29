@@ -87,6 +87,7 @@ class TestCloudInterface(object):
         interface = CloudInterface(
             destination_url='s3://bucket/path/to/dir',
             encryption=None)
+        interface.queue = Queue()
         interface.done_queue = Queue()
         interface.result_queue = Queue()
 
@@ -377,7 +378,6 @@ class TestCloudInterface(object):
         interface.async_complete_multipart_upload('mpu', 'key')
         ensure_async_mock.assert_called_once_with()
         handle_async_errors_mock.assert_called_once_with()
-        interface.queue.join.assert_called_once_with()
         retrieve_results_mock.assert_called_once_with()
 
         interface.queue.put.assert_called_once_with({
