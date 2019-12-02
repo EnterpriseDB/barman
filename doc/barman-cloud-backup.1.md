@@ -1,6 +1,6 @@
-% BARMAN-CLOUD-BACKUP(1) Barman User manuals | Version 2.8a1
+% BARMAN-CLOUD-BACKUP(1) Barman User manuals | Version 2.10
 % 2ndQuadrant <http://www.2ndQuadrant.com>
-% Month DD, 2019
+% December 5, 2019
 
 # NAME
 

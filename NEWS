@@ -1,6 +1,55 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2019 2ndQuadrant Limited
 
+Version 2.10 - 5 Dec 2019
+
+-   Pull .partial WAL files with get-wal and barman-wal-restore,
+    allowing restore_command in a recovery scenario to fetch a partial
+    WAL file's content from the Barman server. This feature simplifies
+    and enhances RPO=0 recovery operations.
+
+-   Store the PostgreSQL system identifier in the server directory and
+    inside the backup information file. Improve check command to verify
+    the consistency of the system identifier with active connections
+    (standard and replication) and data on disk.
+
+-   A new script called barman-cloud-wal-archive has been added to the
+    barman-cli package to directly ship WAL files from PostgreSQL (using
+    archive_command) to cloud object storage services that are
+    compatible with AWS S3. It supports encryption and compression.
+
+-   A new script called barman-cloud-backup has been added to the
+    barman-cli package to directly ship base backups from a local
+    PostgreSQL server to cloud object storage services that are
+    compatible with AWS S3. It supports encryption, parallel upload,
+    compression.
+
+-   Automated creation of replication slots through the server/global
+    option create_slot. When set to auto, Barman creates the replication
+    slot, in case streaming_archiver is enabled and slot_name is
+    defined. The default value is manual for back-compatibility.
+
+-   Add '-w/--wait' option to backup command, making Barman wait for all
+    required WAL files to be archived before considering the backup
+    completed. Add also the --wait-timeout option (default 0, no
+    timeout).
+
+-   Redact passwords from Barman output, in particular from
+    barman diagnose (InfoSec)
+
+-   Improve robustness of receive-wal --reset command, by verifying that
+    the last partial file is aligned with the current location or, if
+    present, with replication slot's.
+
+-   Documentation improvements
+
+-   Bug fixes:
+
+    -   Wrong string matching operation when excluding tablespaces
+        inside PGDATA (GH-245)
+    -   Minor fixes in WAL delete hook scripts (GH-240)
+    -   Fix PostgreSQL connection aliveness check (GH-239)
+
 Version 2.9 - 1 Aug 2019
 
 -   Transparently support PostgreSQL 12, by supporting the new way of
