@@ -1,3 +1,312 @@
+2019-12-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+2019-12-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Version set to 2.10
+
+2019-11-29  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Small improvements in cloud utilities documentation
+
+2019-11-29  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Remove race condition on cloud upload completion
+
+2019-11-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix WAL file name validation in barman-cloud-walarchive
+
+2019-11-27  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Fix issue with list-server and empty description
+	Fixes GH-242
+
+	Removed broken link on standby settings
+	Fixes GH-251
+
+2019-11-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improve error in cloud clients when boto3 is missing
+
+2019-11-27  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add man pages for cloud utilities to setup.py
+
+	Add disclaimer for experimental support for cloud utilities
+
+2019-11-27  Anna Bellandi  <anna.bellandi@2ndquadrant.com>
+
+	Remove recovery documentation link from documentation
+
+2019-11-27  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Small change in log file for `get-wal` command
+
+2019-11-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update set-version.sh script with the new doc files
+
+2019-11-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Implement statistics during cloud-backup upload
+
+2019-11-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improve `receive-wal --reset` command
+	Verify the last partial file is aligned with current WAL location
+	or, if present, with the replication slot's.
+
+	Add '-w/--wait' option to backup command
+	With this option, Barman wait for all required WAL files to
+	be archived before considering the backup completed.
+
+	The patch includes `--wait-timeout` option (default 0, no timeout)
+
+2019-11-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Automated creation of replication slots
+	Introduce the `create_slot` option with two possible values:
+	`auto` and `manual` (default, for back-compatibility).
+	When set to `auto`, Barman automatically attemps to create the
+	replication slot defined by the `slot_name` option.
+
+2019-11-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Setup the bucket in the region specified in the AWS profile
+
+2019-11-14  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix exception when a server is passed twice on the command line
+
+2019-11-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add support for .partial WAL files to `get-wal`
+	Remove the long-standing limitation of `restore_command` that
+	were not capable of automatically handling `.partial` WAL files
+	shipped to Barman via streaming replication.
+	When invoked with `--partial/-P`, `get-wal` command will look
+	also for the `.partial` content of the requested WAL file.
+	This is extremely useful in case of disaster recovery situations
+	with RPO=0.
+
+	The patch also covers `barman-wal-restore`.
+
+2019-11-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improve error handling in `barman-cloud-backup`
+
+	Set application name in barman-cloud-backup
+
+2019-11-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Display a warning for WAITING_FOR_WALS backups
+	In case a backup is completed as 'WAITING_FOR_WALS' display
+	a warning that explains the state.
+
+2019-11-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Manage KeyboardInterrupt exception in barman-cloud-backup
+
+2019-11-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make sure to remove temporary files during unit tests
+
+	Fix circular import error importing barman.compression
+
+2019-10-30  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Parallel barman-cloud-backup upload
+	Add a parallel S3 upload feature to barman-cloud-backup to
+	enhance performance.
+
+2019-11-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add sphinx to isort configuration
+
+2019-11-06  Ian Barwick  <ian@2ndquadrant.com>
+
+	Minor clarification to "backup_options" description
+	Make it clear that "concurrent_backup" should be set for *all
+	versions* from 9.6.
+
+2019-11-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add documentation section about `barman-cli`
+
+2019-11-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Verify the PostgreSQL system identifier
+	Retrieve the PostgreSQL system identifier (`systemid`) from the
+	from the main connection or from the streaming connection, then
+	store it in the server directory and in every backup.
+
+	Verify via the `check` command that systemid does not change over
+	time, otherwise fail. This reduces the risk of data corruption
+	and mixing data originating from different PostgreSQL instances
+	or physical clusters.
+
+	Fix GH-246
+
+2019-10-30  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add WAL file name validation in barman-cloud-walarchive
+
+2019-10-28  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Use the same WAL directory structure in S3
+
+	Fix exception with server side encryption
+
+2019-06-12  frankgard  <frankgard@users.noreply.github.com>
+
+	Enable python3 for bash completion
+	This modified bash completion snippet should work for Python3
+	(preferred, if installed) and Python2 (as a fallback)
+
+2019-10-25  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add `--keep-descriptors` run-time option to `cron` command
+	That new command-line option enables Docker-based installations
+	of Barman to show the output of the Barman subprocess in the
+	container log.
+
+	Fixes GH-243
+
+2019-10-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add current timestamp to diagnose
+
+2019-10-24  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Use CloudInterface class in cloud_wal_archive
+	Refactor Cloud WAL archive code to reuse the CloudInterface module
+
+2019-10-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Ignore vanished and truncated files uploading cloud backups
+	This is to avoid backup errors if PostgreSQL rewrite or delete a file in
+	its data directory while the backup is running.
+
+	If a file change its size during the backup, we pad the file contents
+	with zeroes, and the WAL reply will take care of the original contents
+	during recovery.
+
+2019-10-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Redact passwords from Barman output (InfoSec)
+	This prevents that `barman diagnose` or other output commands
+	will contain a password.
+
+	Co-authored-by: Leonardo Cecchi <leonardo.cecchi@2ndquadrant.it>
+
+2019-10-24  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add note about PostgreSQL upgrades
+	Closes GH-244
+
+2019-10-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Wrong string matching operation when excluding tablespaces inside PGDATA
+	Fixes GH-245
+
+2019-10-15  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Move cloud functions to a dedicated file
+
+2019-10-15  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Isolate all S3-related methods in their own class
+	This patch isolates all the AWS methods in a class, to make parallel
+	processing easier.
+
+2019-07-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Implement include/exclude logic on cloud backup
+	Filter the files to include in the backup using a pattern-matching
+	algorithm similar to the one implemented by rsync, which is powering the
+	BackupExecutor.
+
+	The patterns have been moved in a new module, named
+	`postgres_plumbing.py`, containing them and also the low-level
+	PostgreSQL related features.
+
+	Co-authored-by: Leonardo Cecchi <leonardo.cecchi@2ndquadrant.it>
+
+	Add barman-cloud-backup command
+
+2019-05-16  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Add barman-cloud-wal-archive command
+
+2019-06-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Untie PostgreSQLConnection from a barman configuration
+
+2019-06-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Separate BackupInfo and LocalBackupInfo
+	Minor changes:
+
+	* Improve Python 3 support
+	* Do not close a fileobj passed to save()
+
+2019-10-21  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Mention `wal_level = logical` in documentation
+
+2019-08-09  Ian Barwick  <ian@2ndquadrant.com>
+
+	Log formatting tweak for consistency
+	Patch changes the "Starting check" log output to quote the check name,
+	which is consistent with the following "Check '...' succeeded" log output.
+
+	Closes GH-236
+
+2019-08-28  vegorov  <egorovvv@kadastr.ru>
+
+	Minor fixes in WAL delete hook scripts
+	Fixed bug, enviroment variables not set in wal delete retry scripts.
+	Wrong parameter passed to HookScriptRunner for wal delete scripts.
+
+	Closes GH-240
+
+2019-09-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Pandoc not to be smart while producing Barman documentation
+
+	Better handling of unicode output and logging
+
+2019-09-03  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improved documentation on upgrading Barman
+
+2019-09-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix PostgreSQL connection aliveness check
+	The previous code was raising an error when the PostgreSQL connection
+	was unexpectedly dropped:
+
+	    ERROR: Backup failed issuing stop backup command.
+	    DETAILS: 'NoneType' object has no attribute 'rollback'
+
+	Now the rollback is only issued when the connection is healty.
+
+	Regression introduced in 4b493022be79624da8deef95b88dd57b3ab5c12b
+
+	Closes: GH-239
+
+2019-08-29  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Add note about `receive-wal` being run as a foreground process
+
+2019-07-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Upgrade testing tools version
+
+	Declare argcomplete requirement as optional
+
 2019-07-26  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
