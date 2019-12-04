@@ -596,7 +596,6 @@ class LocalBackupInfo(BackupInfo):
                     'both info_file and backup_id parameters are set')
             self.backup_id = backup_id
             self.filename = self.get_filename()
-            self.systemid = server.systemid
             # Check if a backup info file for a given server and a given ID
             # already exists. If so load the values from the file.
             if os.path.exists(self.filename):

@@ -390,6 +390,7 @@ class BackupManager(RemoteStatusMixin):
             backup_info = LocalBackupInfo(
                 self.server,
                 backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'))
+            backup_info.set_attribute('systemid', self.server.systemid)
             backup_info.save()
             self.backup_cache_add(backup_info)
             output.info(

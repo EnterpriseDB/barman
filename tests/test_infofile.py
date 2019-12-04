@@ -26,7 +26,9 @@ from dateutil.tz import tzlocal, tzoffset
 
 from barman.infofile import (BackupInfo, Field, FieldListFile, LocalBackupInfo,
                              WalFileInfo, load_datetime_tz)
-from testing_helpers import build_backup_manager, build_mocked_server
+from testing_helpers import (build_backup_manager, build_mocked_server,
+                             build_real_server)
+
 
 BASE_BACKUP_INFO = """backup_label=None
 begin_offset=40
@@ -579,3 +581,25 @@ class TestBackupInfo(object):
         # load the data from the backup.info file
         b_info = LocalBackupInfo(server, info_file=infofile.strpath)
         assert b_info.xlog_segment_size == 1 << 24
+
+    @mock.patch('barman.postgres.PostgreSQLConnection.connect')
+    def test_backupinfo_load(self, connect_mock, tmpdir):
+        server = build_real_server(
+            main_conf={
+                'basebackups_directory': tmpdir.strpath
+            },
+        )
+
+        # Build a fake backup info and try to load id, to ensure that we won't
+        # need a PostgreSQL connection to do that
+        backup_dir = tmpdir.mkdir('fake_backup_id')
+        info_file = backup_dir.join('backup.info')
+        info_file.write(BASE_BACKUP_INFO)
+
+        # Monkey patch the PostgreSQL connection function to raise a
+        # RuntimeError
+        connect_mock.side_effect = RuntimeError
+
+        # The following constructor will raise a RuntimeError if we are
+        # needing a PostgreSQL connection
+        LocalBackupInfo(server, backup_id="fake_backup_id")
