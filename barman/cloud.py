@@ -421,6 +421,7 @@ class CloudInterface(object):
         if parsed_url.netloc == '' or parsed_url.scheme != 's3':
             raise ValueError('Invalid s3 URL address: %s' % destination_url)
         self.bucket_name = parsed_url.netloc
+        self.bucket_exists = None
         self.path = parsed_url.path
 
         # Build a session, so we can extract the correct resource
@@ -642,48 +643,62 @@ class CloudInterface(object):
         Test the S3 connectivity trying to access a bucket
         """
         try:
-            self.s3.Bucket(self.bucket_name).load()
             # We are not even interested in the existence of the bucket,
             # we just want to try if aws is reachable
+            self.bucket_exists = self.check_bucket_existence(self.bucket_name)
             return True
         except EndpointConnectionError as exc:
             logging.error("Can't connect to Amazon AWS/S3: %s", exc)
             return False
 
+    def check_bucket_existence(self, bucket_name):
+        """
+        Search for the target bucket
+        """
+        try:
+            # Search the bucket on s3
+            self.s3.meta.client.head_bucket(Bucket=bucket_name)
+            return True
+        except ClientError as exc:
+            # If a client error is thrown, then check the error code.
+            # If code was 404, then the bucket does not exist
+            error_code = exc.response['Error']['Code']
+            if error_code == '404':
+                return False
+            # Otherwise there is nothing else to do than re-raise the original
+            # exception
+            raise
+
     def setup_bucket(self):
         """
         Search for the target bucket. Create it if not exists
         """
-        try:
-            # Search the bucket on s3
-            self.s3.meta.client.head_bucket(Bucket=self.bucket_name)
-        except ClientError as exc:
-            # If a client error is thrown, then check that it was a 405 error.
-            # If it was a 404 error, then the bucket does not exist.
-            error_code = exc.response['Error']['Code']
-            if error_code == '404':
-                # Get the current region from client.
-                # Do not use session.region_name here because it may be None
-                region = self.s3.meta.client.meta.region_name
-                logging.info(
-                    "Bucket %s does not exist, creating it on region %s",
-                    self.bucket_name, region)
-                create_bucket_config = {
-                    'ACL': 'private',
+        if self.bucket_exists is None:
+            self.bucket_exists = self.check_bucket_existence(self.bucket_name)
+
+        # Create the bucket if it doesn't exist
+        if not self.bucket_exists:
+            # Get the current region from client.
+            # Do not use session.region_name here because it may be None
+            region = self.s3.meta.client.meta.region_name
+            logging.info(
+                "Bucket %s does not exist, creating it on region %s",
+                self.bucket_name, region)
+            create_bucket_config = {
+                'ACL': 'private',
+            }
+            # The location constraint is required during bucket creation
+            # for all regions outside of us-east-1. This constraint cannot
+            # be specified in us-east-1; specifying it in this region
+            # results in a failure, so we will only
+            # add it if we are deploying outside of us-east-1.
+            # See https://github.com/boto/boto3/issues/125
+            if region != 'us-east-1':
+                create_bucket_config['CreateBucketConfiguration'] = {
+                    'LocationConstraint': region,
                 }
-                # The location constraint is required during bucket creation
-                # for all regions outside of us-east-1. This constraint cannot
-                # be specified in us-east-1; specifying it in this region
-                # results in a failure, so we will only
-                # add it if we are deploying outside of us-east-1.
-                # See https://github.com/boto/boto3/issues/125
-                if region != 'us-east-1':
-                    create_bucket_config['CreateBucketConfiguration'] = {
-                        'LocationConstraint': region,
-                    }
-                self.s3.Bucket(self.bucket_name).create(**create_bucket_config)
-            else:
-                raise
+            self.s3.Bucket(self.bucket_name).create(**create_bucket_config)
+            self.bucket_exists = True
 
     def upload_fileobj(self, fileobj, key):
         """

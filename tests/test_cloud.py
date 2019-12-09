@@ -412,9 +412,8 @@ class TestCloudInterface(object):
         assert cloud_interface.test_connectivity() is True
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
-        bucket_mock = s3_mock.Bucket
-        bucket_mock.assert_called_once_with('bucket')
-        bucket_mock.return_value.load.assert_called_once()
+        client_mock = s3_mock.meta.client
+        client_mock.head_bucket.assert_called_once_with(Bucket='bucket')
 
     @mock.patch('barman.cloud.boto3')
     def test_connectivity_failure(self, boto_mock):
@@ -426,9 +425,9 @@ class TestCloudInterface(object):
             encryption=None)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
-        bucket_mock = s3_mock.Bucket
+        client_mock = s3_mock.meta.client
         # Raise the exception for the "I'm unable to reach amazon" event
-        bucket_mock.return_value.load.side_effect = EndpointConnectionError(
+        client_mock.head_bucket.side_effect = EndpointConnectionError(
             endpoint_url='bucket'
         )
         assert cloud_interface.test_connectivity() is False
