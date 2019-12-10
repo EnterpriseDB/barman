@@ -61,6 +61,16 @@ except ImportError:
 
 DEFAULT_CHUNK_SIZE = 20 << 20
 BUFSIZE = 16 * 1024
+LOGGING_FORMAT = "%(asctime)s %(levelname)s %(message)s"
+
+
+def configure_logging(config):
+    """
+    Get a nicer output from the Python logging package
+    """
+    verbosity = config.verbose - config.quiet
+    log_level = max(logging.WARNING - verbosity * 10, logging.DEBUG)
+    logging.basicConfig(format=LOGGING_FORMAT, level=log_level)
 
 
 def copyfileobj_pad_truncate(src, dst, length=None):

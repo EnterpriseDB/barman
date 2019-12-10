@@ -20,7 +20,7 @@ import re
 from contextlib import closing
 
 import barman
-from barman.cloud import CloudInterface, S3BackupUploader
+from barman.cloud import CloudInterface, S3BackupUploader, configure_logging
 from barman.exceptions import PostgresConnectionError
 from barman.postgres import PostgreSQLConnection
 from barman.utils import check_positive, force_str
@@ -217,15 +217,6 @@ def parse_arguments(args=None):
              'defaults to 2',
         default=2)
     return parser.parse_args(args=args)
-
-
-def configure_logging(config):
-    """
-    Get a nicer output from the Python logging package
-    """
-    verbosity = config.verbose - config.quiet
-    log_level = max(logging.WARNING - verbosity * 10, logging.DEBUG)
-    logging.basicConfig(format=LOGGING_FORMAT, level=log_level)
 
 
 if __name__ == '__main__':

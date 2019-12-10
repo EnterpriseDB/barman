@@ -25,7 +25,7 @@ from contextlib import closing
 from io import BytesIO
 
 import barman
-from barman.cloud import CloudInterface
+from barman.cloud import CloudInterface, configure_logging
 from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file
 
@@ -33,8 +33,6 @@ try:
     import argparse
 except ImportError:
     raise SystemExit("Missing required python module: argparse")
-
-LOGGING_FORMAT = "%(asctime)s %(levelname)s %(message)s"
 
 
 def main(args=None):
@@ -45,7 +43,7 @@ def main(args=None):
         it defaults to sys.args[1:]
     """
     config = parse_arguments(args)
-    configure_logging()
+    configure_logging(config)
 
     # Validate the WAL file name before uploading it
     if not is_any_xlog_file(config.wal_path):
@@ -91,7 +89,8 @@ def parse_arguments(args=None):
     parser = argparse.ArgumentParser(
         description='This script can be used in the `archive_command` '
                     'of a PostgreSQL server to ship WAL files to the Cloud. '
-                    'Currently only AWS S3 is supported.'
+                    'Currently only AWS S3 is supported.',
+        add_help=False
     )
     parser.add_argument(
         'destination_url',
@@ -111,6 +110,21 @@ def parse_arguments(args=None):
         '-V', '--version',
         action='version', version='%%(prog)s %s' % barman.__version__
     )
+    parser.add_argument(
+        '--help',
+        action='help',
+        help='show this help message and exit')
+    verbosity = parser.add_mutually_exclusive_group()
+    verbosity.add_argument(
+        '-v', '--verbose',
+        action='count',
+        default=0,
+        help='increase output verbosity (e.g., -vv is more than -v)')
+    verbosity.add_argument(
+        '-q', '--quiet',
+        action='count',
+        default=0,
+        help='decrease output verbosity (e.g., -qq is less than -q)')
     parser.add_argument(
         '-P', '--profile',
         help='profile name (e.g. INI section in AWS credentials file)',
@@ -144,13 +158,6 @@ def parse_arguments(args=None):
         default=False
     )
     return parser.parse_args(args=args)
-
-
-def configure_logging():
-    """
-    Get a nicer output from the Python logging package
-    """
-    logging.basicConfig(format=LOGGING_FORMAT, level=logging.ERROR)
 
 
 class S3WalUploader(object):
