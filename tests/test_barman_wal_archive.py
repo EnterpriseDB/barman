@@ -70,7 +70,7 @@ class TestMain(object):
                          'a-server', source.strpath])
 
         popen_mock.assert_called_once_with(
-            ['ssh', 'user@a.host',
+            ['ssh', '-q', '-T', 'user@a.host',
              'barman', "--config='/etc/bwa.conf'", 'put-wal', 'a-server'],
             stdin=subprocess.PIPE)
 
@@ -205,7 +205,7 @@ class TestRemotePutWal(object):
         rpw = walarchive.RemotePutWal(config, source_path)
 
         popen_mock.assert_called_once_with(
-            ['ssh', 'barman@remote.barman.host',
+            ['ssh', '-q', '-T', 'barman@remote.barman.host',
              'barman', 'put-wal', 'this-server'], stdin=subprocess.PIPE)
 
         assert rpw.returncode == 0
@@ -249,7 +249,7 @@ class TestRemotePutWal(object):
         rwa = walarchive.RemotePutWal(config, source_path)
 
         popen_mock.assert_called_once_with(
-            ['ssh', 'barman@remote.barman.host',
+            ['ssh', '-q', '-T', 'barman@remote.barman.host',
              'barman', 'put-wal', 'this-server'], stdin=subprocess.PIPE)
 
         assert rwa.returncode == 5

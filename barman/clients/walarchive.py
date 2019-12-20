@@ -94,6 +94,8 @@ def build_ssh_command(config):
     """
     ssh_command = [
         'ssh',
+        '-q',  # quiet mode - suppress warnings
+        '-T',  # disable pseudo-terminal allocation
         "%s@%s" % (config.user, config.barman_host),
         "barman",
     ]
