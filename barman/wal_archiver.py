@@ -796,7 +796,8 @@ class StreamingWalArchiver(WalArchiver):
             postgres_status['xlog_segment_size']
         )['file_name']
         restart_wal = current_wal
-        if postgres_status['replication_slot']:
+        if postgres_status['replication_slot'] and \
+                postgres_status['replication_slot'].restart_lsn:
             restart_wal = xlog.location_to_xlogfile_name_offset(
                 postgres_status['replication_slot'].restart_lsn,
                 streaming_status['timeline'],
