@@ -90,6 +90,7 @@ class TestCloudInterface(object):
         interface.queue = Queue()
         interface.done_queue = Queue()
         interface.result_queue = Queue()
+        interface.errors_queue = Queue()
 
         # With an empty queue, the parts DB is empty
         interface._retrieve_results()
@@ -375,7 +376,11 @@ class TestCloudInterface(object):
             "key": ["part", "list"]
         }
 
-        interface.async_complete_multipart_upload('mpu', 'key')
+        def retrieve_results_effect():
+            interface.parts_db["key"].append("complete")
+        retrieve_results_mock.side_effect = retrieve_results_effect
+
+        interface.async_complete_multipart_upload('mpu', 'key', 3)
         ensure_async_mock.assert_called_once_with()
         handle_async_errors_mock.assert_called_once_with()
         retrieve_results_mock.assert_called_once_with()
@@ -384,7 +389,7 @@ class TestCloudInterface(object):
             "job_type": "complete_multipart_upload",
             "mpu": "mpu",
             "key": "key",
-            "parts": ["part", "list"],
+            "parts": ["part", "list", "complete"],
         })
 
     @mock.patch('barman.cloud.boto3')

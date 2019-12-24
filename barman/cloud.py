@@ -168,7 +168,7 @@ class S3TarUploader(object):
         self.mpu = None
         self.chunk_size = chunk_size
         self.buffer = None
-        self.counter = 1
+        self.counter = 0
         tar_mode = 'w|%s' % (compression or '')
         self.tar = TarFileIgnoringTruncate.open(fileobj=self,
                                                 mode=tar_mode)
@@ -186,12 +186,12 @@ class S3TarUploader(object):
             self.mpu = self.cloud_interface.create_multipart_upload(self.key)
         self.buffer.flush()
         self.buffer.seek(0, os.SEEK_SET)
+        self.counter += 1
         self.cloud_interface.async_upload_part(
             mpu=self.mpu,
             key=self.key,
             body=self.buffer,
             part_number=self.counter)
-        self.counter += 1
         self.buffer.close()
         self.buffer = None
 
@@ -201,7 +201,9 @@ class S3TarUploader(object):
         self.flush()
         self.cloud_interface.async_complete_multipart_upload(
             mpu=self.mpu,
-            key=self.key)
+            key=self.key,
+            parts_count=self.counter,
+        )
         self.stats = self.cloud_interface.wait_for_multipart_upload(self.key)
 
 
@@ -526,6 +528,9 @@ class CloudInterface(object):
             result = self.done_queue.get()
             self.upload_stats[result["key"]].update(result)
 
+        # Raise an error if a job failed
+        self._handle_async_errors()
+
     def _handle_async_errors(self):
         """
         If an upload error has been discovered, stop the upload
@@ -796,7 +801,7 @@ class CloudInterface(object):
             'ETag': part['ETag'],
         }
 
-    def async_complete_multipart_upload(self, mpu, key):
+    def async_complete_multipart_upload(self, mpu, key, parts_count):
         """
         Asynchronously finish a certain multipart upload. This method grant
         that the final S3 call will happen after all the already scheduled
@@ -804,6 +809,7 @@ class CloudInterface(object):
 
         :param mpu:  The multipart upload handle
         :param str key: The key to use in the cloud service
+        :param int parts_count: Number of parts
         """
 
         # If an error has already been reported, do nothing
@@ -813,9 +819,12 @@ class CloudInterface(object):
         self._ensure_async()
         self._handle_async_errors()
 
-        # Wait for all the current jobs to be completed and
-        # receive all available updates on worker status
-        self._retrieve_results()
+        # If parts_db has less then expected parts for this upload,
+        # wait for the workers to send the missing metadata
+        while len(self.parts_db[key]) < parts_count:
+            # Wait for all the current jobs to be completed and
+            # receive all available updates on worker status
+            self._retrieve_results()
 
         # Finish the job in S3 to the uploader process
         self.queue.put({
