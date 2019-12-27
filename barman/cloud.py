@@ -1024,6 +1024,14 @@ class S3BackupUploader(object):
             self.backup_copy(controller, backup_info)
             logging.info("Stopping backup %s", backup_info.backup_id)
             strategy.stop_backup(backup_info)
+
+            # Create a restore point after a backup
+            target_name = 'barman_%s' % backup_info.backup_id
+            self.postgres.create_restore_point(target_name)
+
+            # Free the Postgres connection
+            self.postgres.close()
+
             pgdata_stat = os.stat(backup_info.pgdata)
             controller.add_fileobj(
                 label='backup_label',
@@ -1071,9 +1079,6 @@ class S3BackupUploader(object):
             self.copy_start_time,
             human_readable_timedelta(
                 datetime.datetime.now() - self.copy_start_time))
-        # Create a restore point after a backup
-        target_name = 'barman_%s' % backup_info.backup_id
-        self.postgres.create_restore_point(target_name)
 
     def handle_backup_errors(self, action, backup_info, exc):
         """

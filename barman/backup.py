@@ -413,6 +413,13 @@ class BackupManager(RemoteStatusMixin):
             # Do the backup using the BackupExecutor
             self.executor.backup(backup_info)
 
+            # Create a restore point after a backup
+            target_name = 'barman_%s' % backup_info.backup_id
+            self.server.postgres.create_restore_point(target_name)
+
+            # Free the Postgres connection
+            self.server.postgres.close()
+
             # Compute backup size and fsync it on disk
             self.backup_fsync_and_set_sizes(backup_info)
 
@@ -451,9 +458,6 @@ class BackupManager(RemoteStatusMixin):
                 self.executor.copy_start_time,
                 human_readable_timedelta(
                     datetime.datetime.now() - executor.copy_start_time))
-            # Create a restore point after a backup
-            target_name = 'barman_%s' % backup_info.backup_id
-            self.server.postgres.create_restore_point(target_name)
 
             # If requested, wait for end_wal to be archived
             if wait:
