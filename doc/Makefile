@@ -3,6 +3,7 @@ MANPAGES=barman.1 barman.5 \
     barman-cloud-backup.1 \
     barman-cloud-backup-list.1 \
     barman-cloud-wal-archive.1 \
+    barman-cloud-restore.1 \
     barman-cloud-wal-restore.1
 
 SUBDIRS=manual
@@ -35,6 +36,9 @@ barman-cloud-backup.1: barman-cloud-backup.1.md
 	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
 
 barman-cloud-backup-list.1: barman-cloud-backup-list.1.md
+	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
+
+barman-cloud-restore.1: barman-cloud-restore.1.md
 	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
 
 barman-cloud-wal-archive.1: barman-cloud-wal-archive.1.md

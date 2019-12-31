@@ -804,6 +804,18 @@ class CloudInterface(object):
             else:
                 raise
 
+    def extract_tar(self, key, dst):
+        """
+        Extract a tar archive from cloud to the local directory
+        """
+        extension = os.path.splitext(key)[-1]
+        compression = '' if extension == '.tar' else extension[1:]
+        tar_mode = 'r|%s' % compression
+        obj = self.s3.Object(self.bucket_name, key)
+        fileobj = obj.get()['Body']
+        with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
+            tf.extractall(path=dst)
+
     def upload_fileobj(self, fileobj, key):
         """
         Synchronously upload the content of a file-like object to a cloud key
@@ -1202,6 +1214,14 @@ class S3BackupUploader(object):
         logging.debug('Exception details:', exc_info=exc)
 
 
+class BackupFileInfo(object):
+    def __init__(self, oid=None, base=None, path=None, compression=None):
+        self.oid = oid
+        self.base = base
+        self.path = path
+        self.compression = compression
+
+
 class S3BackupCatalog(object):
     """
     S3 backup catalog
@@ -1262,3 +1282,53 @@ class S3BackupCatalog(object):
         backup_info = BackupInfo(backup_id)
         backup_info.load(file_object=backup_info_file)
         return backup_info
+
+    def get_backup_files(self, backup_info):
+        """
+        Get the list of expected files part of a backup
+
+        :param BackupInfo backup_info: the backup information
+        :rtype: dict[int, BackupFileInfo]
+        """
+        # Correctly format the source path on s3
+        source_dir = os.path.join(self.prefix, backup_info.backup_id)
+
+        base_path = os.path.join(source_dir, 'data.tar')
+        backup_files = {
+            None: BackupFileInfo(None, base_path)
+        }
+        if backup_info.tablespaces:
+            for tblspc in backup_info.tablespaces:
+                base_path = os.path.join(source_dir, '%s.tar' % tblspc.oid)
+                backup_files[tblspc.oid] = BackupFileInfo(tblspc.oid,
+                                                          base_path)
+
+        for item in self.cloud_interface.list_bucket(source_dir + '/'):
+            for backup_file in backup_files.values():
+                if item.startswith(backup_file.base):
+                    # Automatically detect compressed backups
+                    if item != backup_file.base:
+                        ext = item[len(backup_file.base):]
+                        if ext == '.gz':
+                            backup_file.compression = 'gzip'
+                        elif ext == '.bz2':
+                            backup_file.compression = 'bzip2'
+                        else:
+                            logging.warning("Skipping unknown extension: %s",
+                                            ext)
+                            continue
+                    backup_file.path = item
+                    logging.info("Found backup %s for server %s as %s",
+                                 backup_info.backup_id,
+                                 self.server_name,
+                                 backup_file.path)
+                    break
+
+        for backup_file in backup_files.values():
+            if backup_file.path is None:
+                logging.error("Missing file %s.* for server %s",
+                              backup_file.base,
+                              self.server_name)
+                raise SystemExit(1)
+
+        return backup_files
