@@ -72,6 +72,7 @@ setup(
     data_files=[
         ('share/man/man1', ['doc/barman.1',
                             'doc/barman-cloud-backup.1',
+                            'doc/barman-cloud-backup-list.1',
                             'doc/barman-cloud-wal-archive.1',
                             'doc/barman-cloud-wal-restore.1',
                             'doc/barman-wal-archive.1',
@@ -84,6 +85,7 @@ setup(
             'barman-cloud-backup=barman.clients.cloud_backup:main',
             'barman-cloud-wal-archive=barman.clients.cloud_walarchive:main',
             'barman-cloud-wal-restore=barman.clients.cloud_walrestore:main',
+            'barman-cloud-backup-list=barman.clients.cloud_backup_list:main',
             'barman-wal-archive=barman.clients.walarchive:main',
             'barman-wal-restore=barman.clients.walrestore:main',
         ],

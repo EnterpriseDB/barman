@@ -30,7 +30,7 @@ import shutil
 import signal
 import tarfile
 from functools import partial
-from io import BytesIO
+from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
 
 from barman.backup_executor import ConcurrentBackupStrategy
@@ -413,6 +413,21 @@ class FileUploadStatistics(dict):
         part['start_time'] = start_time
 
 
+class StreamingBodyIO(RawIOBase):
+    """
+    Wrap a boto StreamingBody in the IOBase API.
+    """
+    def __init__(self, body):
+        self.body = body
+
+    def readable(self):
+        return True
+
+    def read(self, n=-1):
+        n = None if n < 0 else n
+        return self.body.read(n)
+
+
 class CloudInterface(object):
     def __init__(self, url, encryption, jobs=2, profile_name=None):
         """
@@ -772,6 +787,22 @@ class CloudInterface(object):
 
             with source_file:
                 shutil.copyfileobj(source_file, dest_file)
+
+    def remote_open(self, key):
+        """
+        Open a remote S3 object and returns a readable stream
+
+        Returns None is the the Key does not exist
+        """
+        try:
+            obj = self.s3.Object(self.bucket_name, key)
+            return StreamingBodyIO(obj.get()['Body'])
+        except ClientError as exc:
+            error_code = exc.response['Error']['Code']
+            if error_code == 'NoSuchKey':
+                return None
+            else:
+                raise
 
     def upload_fileobj(self, fileobj, key):
         """
@@ -1169,3 +1200,65 @@ class S3BackupUploader(object):
                 "failure %s (%s)" % (action, msg_lines[0]))
         logging.error("Backup failed %s (%s)", action, msg_lines[0])
         logging.debug('Exception details:', exc_info=exc)
+
+
+class S3BackupCatalog(object):
+    """
+    S3 backup catalog
+    """
+    def __init__(self, cloud_interface,
+                 server_name):
+        """
+        Object responsible for retrievin backup catalog from S3
+
+        :param CloudInterface cloud_interface: The interface to use to
+          upload the backup
+        :param str server_name: The name of the server as configured in Barman
+        """
+
+        self.cloud_interface = cloud_interface
+        self.server_name = server_name
+        self.prefix = os.path.join(
+            self.cloud_interface.path,
+            self.server_name,
+            'base')
+        self._backup_list = None
+
+    def get_backup_list(self):
+        """
+        Retrieve the list of available backup from S3
+
+        :rtype: Dict[str,BackupInfo]
+        """
+        if self._backup_list is None:
+
+            backup_list = {}
+
+            # get backups metadata
+            for backup_dir in self.cloud_interface.list_bucket(
+                    self.prefix + '/'):
+                # We want only the directories
+                if backup_dir[-1] != '/':
+                    continue
+                backup_id = os.path.basename(backup_dir.rstrip('/'))
+                backup_info = self.get_backup_info(backup_id)
+
+                if backup_info:
+                    backup_list[backup_id] = backup_info
+            self._backup_list = backup_list
+        return self._backup_list
+
+    def get_backup_info(self, backup_id):
+        """
+        Load a BackupInfo from S3
+
+        :param str backup_id: The backup id to load
+        :rtype: BackupInfo
+        """
+        backup_info_path = os.path.join(self.prefix, backup_id, 'backup.info')
+        backup_info_file = self.cloud_interface.remote_open(backup_info_path)
+        if backup_info_file is None:
+            return None
+        backup_info = BackupInfo(backup_id)
+        backup_info.load(file_object=backup_info_file)
+        return backup_info
