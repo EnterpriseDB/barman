@@ -76,7 +76,8 @@ sed -i -e "3s/^%.*/% ${release_date}/; 1s/| Version .*/| Version ${release_versi
     doc/barman-wal-archive.1.md \
     doc/barman-wal-restore.1.md \
     doc/barman-cloud-backup.1.md \
-    doc/barman-cloud-wal-archive.1.md
+    doc/barman-cloud-wal-archive.1.md \
+    doc/barman-cloud-wal-restore.1.md
 sed -i -e "3s/^%.*/% ${release_date} (${release_version})/" \
     doc/manual/00-head.en.md
 sed -i -e "s/__version__ = .*/__version__ = '${release_version}'/" \

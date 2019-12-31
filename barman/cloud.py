@@ -15,10 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import bz2
 import collections
 import copy
 import datetime
 import errno
+import gzip
 import json
 import logging
 import multiprocessing
@@ -714,6 +716,62 @@ class CloudInterface(object):
                 }
             self.s3.Bucket(self.bucket_name).create(**create_bucket_config)
             self.bucket_exists = True
+
+    def list_bucket(self, prefix='', delimiter='/'):
+        """
+        List bucket content in a directory manner
+        :param str prefix:
+        :param str delimiter:
+        :return: List of objects and dirs right under the prefix
+        """
+        if prefix.startswith(delimiter):
+            prefix = prefix.lstrip(delimiter)
+
+        res = self.s3.meta.client.list_objects_v2(
+            Bucket=self.bucket_name,
+            Prefix=prefix,
+            Delimiter=delimiter)
+
+        # List "folders"
+        keys = res.get("CommonPrefixes")
+        if keys is not None:
+            for k in keys:
+                yield k.get("Prefix")
+
+        # List "files"
+        objects = res.get("Contents")
+        if objects is not None:
+            for o in objects:
+                yield o.get("Key")
+
+    def download_file(self, key, dest_path, decompress):
+        """
+        Download a file from S3
+
+        :param str key: The S3 key to download
+        :param str dest_path: Where to put the destination file
+        :param bool decompress: Whenever to decompress this file or not
+        """
+        # Open the remote file
+        obj = self.s3.Object(self.bucket_name, key)
+        remote_file = obj.get()['Body']
+
+        # Write the dest file in binary mode
+        with open(dest_path, 'wb') as dest_file:
+            # If the file is not compressed, just copy its content
+            if not decompress:
+                shutil.copyfileobj(remote_file, dest_file)
+                return
+
+            if decompress == 'gzip':
+                source_file = gzip.GzipFile(fileobj=remote_file, mode='rb')
+            elif decompress == 'bzip2':
+                source_file = bz2.BZ2File(remote_file, 'rb')
+            else:
+                raise ValueError("Unknown compression type: %s" % decompress)
+
+            with source_file:
+                shutil.copyfileobj(source_file, dest_file)
 
     def upload_fileobj(self, fileobj, key):
         """
