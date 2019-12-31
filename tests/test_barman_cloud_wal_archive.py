@@ -169,7 +169,7 @@ class TestWalUploader(object):
                 uploader.server_name,
                 'wals',
                 hash_dir(source),
-                os.path.basename(source))[1:],
+                os.path.basename(source)),
             ExtraArgs={}
         )
 
@@ -201,7 +201,7 @@ class TestWalUploader(object):
                 uploader.server_name,
                 'wals',
                 hash_dir(source),
-                os.path.basename(source))[1:],
+                os.path.basename(source)),
             ExtraArgs={'ServerSideEncryption': 'AES256'}
         )
 

@@ -42,7 +42,7 @@ class TestCloudInterface(object):
             url='s3://bucket/path/to/dir',
             encryption=None)
         assert cloud_interface.bucket_name == 'bucket'
-        assert cloud_interface.path == '/path/to/dir'
+        assert cloud_interface.path == 'path/to/dir'
         boto_mock.Session.assert_called_once_with(profile_name=None)
         session_mock = boto_mock.Session.return_value
         session_mock.resource.assert_called_once_with('s3')

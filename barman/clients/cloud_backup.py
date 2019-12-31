@@ -30,9 +30,6 @@ try:
 except ImportError:
     raise SystemExit("Missing required python module: argparse")
 
-
-LOGGING_FORMAT = "%(asctime)s %(levelname)s %(message)s"
-
 _find_space = re.compile(r'[\s]').search
 
 

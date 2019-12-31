@@ -176,7 +176,6 @@ class S3WalUploader(object):
         """
 
         self.cloud_interface = cloud_interface
-        # If netloc is not present, the s3 url is badly formatted.
         self.compression = compression
         self.server_name = server_name
 
@@ -198,11 +197,6 @@ class S3WalUploader(object):
             hash_dir(wal_path),
             wal_name
         )
-
-        # Remove initial "/", otherwise we will create a folder with an empty
-        # name.
-        if destination[0] == '/':
-            destination = destination[1:]
 
         # Put the file in the correct bucket.
         # The put method will handle automatically multipart upload

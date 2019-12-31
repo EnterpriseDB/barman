@@ -434,7 +434,7 @@ class CloudInterface(object):
             raise ValueError('Invalid s3 URL address: %s' % url)
         self.bucket_name = parsed_url.netloc
         self.bucket_exists = None
-        self.path = parsed_url.path
+        self.path = parsed_url.path.lstrip('/')
 
         # Build a session, so we can extract the correct resource
         session = boto3.Session(profile_name=profile_name)
