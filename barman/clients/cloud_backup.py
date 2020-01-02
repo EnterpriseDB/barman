@@ -86,7 +86,7 @@ def main(args=None):
 
         with closing(postgres):
             cloud_interface = CloudInterface(
-                destination_url=config.destination_url,
+                url=config.destination_url,
                 encryption=config.encryption,
                 jobs=config.jobs,
                 profile_name=config.profile)

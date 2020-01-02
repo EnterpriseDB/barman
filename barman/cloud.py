@@ -412,26 +412,26 @@ class FileUploadStatistics(dict):
 
 
 class CloudInterface(object):
-    def __init__(self, destination_url, encryption, jobs=2, profile_name=None):
+    def __init__(self, url, encryption, jobs=2, profile_name=None):
         """
         Create a new S3 interface given the S3 destination url and the profile
         name
 
-        :param str destination_url: Full URL of the cloud destination
+        :param str url: Full URL of the cloud destination/source
         :param str|None encryption: Encryption type string
         :param int jobs: How many sub-processes to use for asynchronous
           uploading, defaults to 2.
         :param str profile_name: Amazon auth profile identifier
         """
-        self.destination_url = destination_url
+        self.url = url
         self.profile_name = profile_name
         self.encryption = encryption
 
         # Extract information from the destination URL
-        parsed_url = urlparse(destination_url)
+        parsed_url = urlparse(url)
         # If netloc is not present, the s3 url is badly formatted.
         if parsed_url.netloc == '' or parsed_url.scheme != 's3':
-            raise ValueError('Invalid s3 URL address: %s' % destination_url)
+            raise ValueError('Invalid s3 URL address: %s' % url)
         self.bucket_name = parsed_url.netloc
         self.bucket_exists = None
         self.path = parsed_url.path

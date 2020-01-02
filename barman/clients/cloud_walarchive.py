@@ -52,7 +52,7 @@ def main(args=None):
 
     try:
         cloud_interface = CloudInterface(
-            destination_url=config.destination_url,
+            url=config.destination_url,
             encryption=config.encryption,
             profile_name=config.profile)
 

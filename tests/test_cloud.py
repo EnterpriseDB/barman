@@ -39,7 +39,7 @@ class TestCloudInterface(object):
         Minimal build of the CloudInterface class
         """
         cloud_interface = CloudInterface(
-            destination_url='s3://bucket/path/to/dir',
+            url='s3://bucket/path/to/dir',
             encryption=None)
         assert cloud_interface.bucket_name == 'bucket'
         assert cloud_interface.path == '/path/to/dir'
@@ -60,7 +60,7 @@ class TestCloudInterface(object):
     def test_ensure_async(self, mp):
         jobs_count = 30
         interface = CloudInterface(
-            destination_url='s3://bucket/path/to/dir',
+            url='s3://bucket/path/to/dir',
             encryption=None,
             jobs=jobs_count)
 
@@ -85,7 +85,7 @@ class TestCloudInterface(object):
 
     def test_retrieve_results(self):
         interface = CloudInterface(
-            destination_url='s3://bucket/path/to/dir',
+            url='s3://bucket/path/to/dir',
             encryption=None)
         interface.queue = Queue()
         interface.done_queue = Queue()
@@ -207,7 +207,7 @@ class TestCloudInterface(object):
         ]
 
         interface = CloudInterface(
-            destination_url='s3://bucket/path/to/dir',
+            url='s3://bucket/path/to/dir',
             encryption=None)
         interface.queue = mock.MagicMock()
         interface.errors_queue = Queue()
@@ -255,7 +255,7 @@ class TestCloudInterface(object):
         # Unknown job type, no boto functions are being called and
         # an exception is being raised
         interface = CloudInterface(
-            destination_url='s3://bucket/path/to/dir',
+            url='s3://bucket/path/to/dir',
             encryption=None)
         interface.result_queue = Queue()
         interface.done_queue = Queue()
@@ -312,7 +312,7 @@ class TestCloudInterface(object):
         # If we the upload process has already raised an error, we immediately
         # exit without doing anything
         interface = CloudInterface(
-            destination_url='s3://bucket/path/to/dir',
+            url='s3://bucket/path/to/dir',
             encryption=None)
         interface.error = "test"
         interface.errors_queue = None  # If get called raises AttributeError
@@ -342,7 +342,7 @@ class TestCloudInterface(object):
         temp_stream.name = temp_name
 
         interface = CloudInterface(
-            destination_url='s3://bucket/path/to/dir',
+            url='s3://bucket/path/to/dir',
             encryption=None)
         interface.queue = Queue()
         interface.async_upload_part(
@@ -369,7 +369,7 @@ class TestCloudInterface(object):
                                              handle_async_errors_mock,
                                              retrieve_results_mock):
         interface = CloudInterface(
-            destination_url='s3://bucket/path/to/dir',
+            url='s3://bucket/path/to/dir',
             encryption=None)
         interface.queue = mock.MagicMock()
         interface.parts_db = {
