@@ -195,7 +195,8 @@ class TestRsyncCopyController(object):
         # Check the order of calls to the Rsync mock
         assert rsync_mock.mock_calls == [
             mock.call(network_compression=False,
-                      args=['--itemize-changes',
+                      args=['--ignore-missing-args',
+                            '--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
@@ -205,7 +206,8 @@ class TestRsyncCopyController(object):
                       exclude=None, exclude_and_protect=None, include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call(network_compression=False,
-                      args=['--itemize-changes',
+                      args=['--ignore-missing-args',
+                            '--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
@@ -215,7 +217,8 @@ class TestRsyncCopyController(object):
                       exclude=None, exclude_and_protect=None, include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call(network_compression=False,
-                      args=['--itemize-changes',
+                      args=['--ignore-missing-args',
+                            '--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
@@ -233,7 +236,8 @@ class TestRsyncCopyController(object):
                       include=None,
                       retry_sleep=0, retry_times=0, retry_handler=mock.ANY),
             mock.call(network_compression=False,
-                      args=['--itemize-changes',
+                      args=['--ignore-missing-args',
+                            '--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
@@ -247,7 +251,8 @@ class TestRsyncCopyController(object):
                 backup_info.get_data_directory(),
                 allowed_retval=(0, 23, 24)),
             mock.call(network_compression=False,
-                      args=['--itemize-changes',
+                      args=['--ignore-missing-args',
+                            '--itemize-changes',
                             '--itemize-changes'],
                       bwlimit=None, ssh='ssh', path=None,
                       ssh_options=['-c', '"arcfour"', '-p', '22',
@@ -312,7 +317,8 @@ class TestRsyncCopyController(object):
                 file_list=file_list_name('pgdata', 'check')),
         ]
 
-    def test_list_files(self):
+    @patch('barman.copy_controller.RsyncCopyController._rsync_factory')
+    def test_list_files(self, rsync_factory_mock):
         """
         Unit test for RsyncCopyController._list_file's code
         """
@@ -323,12 +329,29 @@ class TestRsyncCopyController(object):
                          'drwxrwxrwt       69612 Thu Feb 19 15:01:22 2015 tmp2'
         rsync_mock.err = 'err'
 
+        # Mock _rsync_factory() invocation
+        rsync_factory_mock.return_value = rsync_mock
+
+        # Create an item to inspect
+        item = _RsyncCopyItem(
+            label='pgdata',
+            src=':/pg/data/',
+            dst='/some/dir',
+            is_directory=True,
+            item_class=RsyncCopyController.PGDATA_CLASS,
+            optional=False)
+
         # Test the _list_files internal method
         rcc = RsyncCopyController()
-        return_values = list(rcc._list_files(rsync_mock, 'some/path'))
+        return_values = list(rcc._list_files(item, 'some/path'))
 
         # Returned list must contain two elements
         assert len(return_values) == 2
+
+        # Verify that _rsync_factory has been called correctly
+        assert rsync_factory_mock.mock_calls == [
+            mock.call(item),
+        ]
 
         # Check rsync.get_output has called correctly
         rsync_mock.get_output.assert_called_with(
@@ -410,10 +433,8 @@ class TestRsyncCopyController(object):
                 # The bucket cannot be empty
                 assert len(bucket), "Bucket %s (%s) is empty" % (i, workers)
 
-    @patch('barman.copy_controller.RsyncCopyController._rsync_factory')
     @patch('barman.copy_controller.RsyncCopyController._list_files')
-    def test_analyze_directory(self, list_files_mock, rsync_factory_mock,
-                               tmpdir):
+    def test_analyze_directory(self, list_files_mock, tmpdir):
         """
         Unit test for RsyncCopyController._analyze_directory's code
         """
@@ -542,17 +563,10 @@ class TestRsyncCopyController(object):
         # Then run the _analyze_directory method
         rcc._analyze_directory(item)
 
-        # Verify that _rsync_factory has been called correctly
-        assert rsync_factory_mock.mock_calls == [
-            mock.call(item),
-        ]
-
         # Verify that _list_files has been called correctly
         assert list_files_mock.mock_calls == [
-            mock.call(rsync_factory_mock.return_value,
-                      backup_info.get_data_directory() + '/'),
-            mock.call(rsync_factory_mock.return_value,
-                      ':/pg/data/')]
+            mock.call(item, backup_info.get_data_directory() + '/'),
+            mock.call(item, ':/pg/data/')]
 
         # Check the result
         # 1) The list of directories should be there and should contain all

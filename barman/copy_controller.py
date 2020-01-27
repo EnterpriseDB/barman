@@ -304,6 +304,9 @@ class RsyncCopyController(object):
         self.retry_sleep = retry_sleep
         self.workers = workers
 
+        # Assume we are running with a recent rsync (>= 3.1)
+        self.rsync_has_ignore_missing_args = True
+
         self.item_list = []
         """List of items to be copied"""
 
@@ -419,6 +422,14 @@ class RsyncCopyController(object):
         else:
             exclude = self.exclude or item.exclude
 
+        # Using `--ignore-missing-args` could fail in case
+        # the local or the remote rsync is older than 3.1.
+        # In that case we expect that during the analyze phase
+        # we get an error. The analyze code must catch that error
+        # and retry after flushing the rsync cache.
+        if self.rsync_has_ignore_missing_args:
+            args.append('--ignore-missing-args')
+
         # TODO: remove debug output or use it to progress tracking
         # By adding a double '--itemize-changes' option, the rsync
         # output will contain the full list of files that have been
@@ -443,6 +454,16 @@ class RsyncCopyController(object):
         )
         self.rsync_cache[item] = rsync
         return rsync
+
+    def _rsync_set_pre_31_mode(self):
+        """
+        Stop using `--ignore-missing-args` and restore rsync < 3.1
+        compatibility
+        """
+        _logger.info("Detected rsync version less than 3.1. "
+                     "top using '--ignore-missing-args' argument.")
+        self.rsync_has_ignore_missing_args = False
+        self.rsync_cache.clear()
 
     def copy(self):
         """
@@ -788,9 +809,6 @@ class RsyncCopyController(object):
         :param _RsyncCopyItem item: information about a copy operation
         """
 
-        # Build the rsync object required for the analysis
-        rsync = self._rsync_factory(item)
-
         # If reference is not set we use dst as reference path
         ref = item.reuse
         if ref is None:
@@ -806,7 +824,7 @@ class RsyncCopyController(object):
         try:
             ref_hash = dict((
                 (item.path, item)
-                for item in self._list_files(rsync, ref)
+                for item in self._list_files(item, ref)
                 if item.mode[0] != 'd'))
         except (CommandFailedException, RsyncListFilesFailure) as e:
             # Here we set ref_hash to None, thus disable the code that marks as
@@ -837,7 +855,7 @@ class RsyncCopyController(object):
         # The `check_list` will contain all items that need
         # to be copied with checksum option enabled
         item.check_list = []
-        for entry in self._list_files(rsync, item.src):
+        for entry in self._list_files(item, item.src):
             # If item is a directory, we only need to save it in 'dir.list'
             if entry.mode[0] == 'd':
                 dir_list.write(entry.path + '\n')
@@ -923,22 +941,41 @@ class RsyncCopyController(object):
             args.append('--checksum')
         self._rsync_ignore_vanished_files(rsync, src, dst, *args, check=True)
 
-    def _list_files(self, rsync, path):
+    def _list_files(self, item, path):
         """
         This method recursively retrieves a list of files contained in a
         directory, either local or remote (if starts with ':')
 
-        :param Rsync rsync: the Rsync object used to retrieve the list
+        :param _RsyncCopyItem item: information about a copy operation
         :param str path: the path we want to inspect
         :except CommandFailedException: if rsync call fails
         :except RsyncListFilesFailure: if rsync output can't be parsed
         """
         _logger.debug("list_files: %r", path)
-        # Use the --no-human-readable option to avoid digit groupings
-        # in "size" field with rsync >= 3.1.0.
-        # Ref: http://ftp.samba.org/pub/rsync/src/rsync-3.1.0-NEWS
-        rsync.get_output('--no-human-readable', '--list-only', '-r', path,
-                         check=True)
+
+        # Build the rsync object required for the analysis
+        rsync = self._rsync_factory(item)
+
+        try:
+            # Use the --no-human-readable option to avoid digit groupings
+            # in "size" field with rsync >= 3.1.0.
+            # Ref: http://ftp.samba.org/pub/rsync/src/rsync-3.1.0-NEWS
+            rsync.get_output('--no-human-readable', '--list-only',
+                             '-r', path, check=True)
+        except CommandFailedException:
+            # This could fail due to the local or the remote rsync
+            # older than 3.1. IF so, fallback to pre 3.1 mode
+            if self.rsync_has_ignore_missing_args and rsync.ret in (
+                    12,  # Error in rsync protocol data stream (remote)
+                    1):  # Syntax or usage error (local)
+                self._rsync_set_pre_31_mode()
+                # Recursive call, uses the compatibility mode
+                for item in self._list_files(item, path):
+                    yield item
+                return
+            else:
+                raise
+
         # Cache tzlocal object we need to build dates
         tzinfo = dateutil.tz.tzlocal()
         for line in rsync.out.splitlines():
