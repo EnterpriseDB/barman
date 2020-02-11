@@ -344,6 +344,20 @@ class PyBZip2Compressor(InternalCompressor):
         return bz2.BZ2File(name, mode='rb')
 
 
+class ZstdCompressor(CommandCompressor):
+    """
+    Predefined compressor with Zstd
+    """
+
+    MAGIC = b'\x28\xb5\x2f\xfd'
+
+    def __init__(self, config, compression, path=None):
+        super(ZstdCompressor, self).__init__(
+            config, compression, path)
+        self._compress = self._build_command('zstd -q --single-thread -c')
+        self._decompress = self._build_command('zstd -q --single-thread -c -d')
+
+
 class CustomCompressor(CommandCompressor):
     """
     Custom compressor
@@ -371,6 +385,7 @@ compression_registry = {
     'gzip': GZipCompressor,
     'pigz': PigzCompressor,
     'bzip2': BZip2Compressor,
+    'zstd': ZstdCompressor,
     'pygzip': PyGZipCompressor,
     'pybzip2': PyBZip2Compressor,
     'custom': CustomCompressor,
