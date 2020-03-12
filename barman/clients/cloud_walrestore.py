@@ -22,7 +22,7 @@ from contextlib import closing
 import barman
 from barman.cloud import CloudInterface, configure_logging
 from barman.utils import force_str
-from barman.xlog import hash_dir, is_any_xlog_file
+from barman.xlog import hash_dir, is_any_xlog_file, is_backup_file
 
 try:
     import argparse
@@ -153,6 +153,10 @@ class S3WalDownloader(object):
     """
     S3 download client
     """
+
+    # Allowed compression algorithms
+    ALLOWED_COMPRESSIONS = {'.gz': 'gzip', '.bz2': 'bzip2'}
+
     def __init__(self, cloud_interface,
                  server_name):
         """
@@ -180,7 +184,10 @@ class S3WalDownloader(object):
             self.server_name,
             'wals',
             hash_dir(wal_name)
-        ) + '/'
+        )
+        # Add a path separator if needed
+        if not source_dir.endswith(os.path.sep):
+            source_dir += os.path.sep
 
         wal_path = os.path.join(source_dir, wal_name)
 
@@ -188,17 +195,30 @@ class S3WalDownloader(object):
         # Automatically detect compression based on the file extension
         compression = None
         for item in self.cloud_interface.list_bucket(source_dir):
-            if item.startswith(wal_path):
+            # perfect match (uncompressed file)
+            if item == wal_path:
+                remote_name = item
+            # look for compressed files or .partial files
+            elif item.startswith(wal_path):
                 # Detect compression
-                if item != wal_path:
-                    ext = item[len(wal_path):]
-                    if ext == '.gz':
-                        compression = 'gzip'
-                    elif ext == '.bz2':
-                        compression = 'bzip2'
-                    else:
-                        logging.warning("Unknown extension, skipping: %s", ext)
-                        continue
+                basename = item
+                for e, c in self.ALLOWED_COMPRESSIONS.items():
+                    if item[-len(e):] == e:
+                        # Strip extension
+                        basename = basename[:-len(e)]
+                        compression = c
+                        break
+
+                # Check basename is a known xlog file (.partial?)
+                if not is_any_xlog_file(basename):
+                    logging.warning("Unknown WAL file: %s", item)
+                    continue
+                # Exclude backup informative files (not needed in recovery)
+                elif is_backup_file(basename):
+                    logging.info("Skipping backup file: %s", item)
+                    continue
+
+                # Found candidate
                 remote_name = item
                 logging.info("Found WAL %s for server %s as %s",
                              wal_name, self.server_name, remote_name)
