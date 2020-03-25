@@ -926,7 +926,7 @@ class TestPostgresBackupExecutor(object):
         # Simulate the presence of pg_basebackup 9.5.1 and pg 95
         find_command.side_effect = None
         find_command.return_value.cmd = '/fake/path'
-        find_command.return_value.out = '9.5.1'
+        find_command.return_value.out = 'pg_basebackup 9.5.1'
         backup_manager.server.streaming.server_major_version = '9.5'
         backup_manager.server.path = 'fake/path2'
         remote = backup_manager.executor.fetch_remote_status()
@@ -939,7 +939,7 @@ class TestPostgresBackupExecutor(object):
         # Simulate the presence of pg_basebackup 9.5.1 and no Pg
         backup_manager.server.streaming.server_major_version = None
         find_command.reset_mock()
-        find_command.return_value.out = '9.5.1'
+        find_command.return_value.out = 'pg_basebackup 9.5.1'
         remote = backup_manager.executor.fetch_remote_status()
         assert remote['pg_basebackup_installed'] is True
         assert remote['pg_basebackup_path'] == '/fake/path'
@@ -950,7 +950,7 @@ class TestPostgresBackupExecutor(object):
         # Simulate the presence of pg_basebackup 9.3.3 and Pg 9.5
         backup_manager.server.streaming.server_major_version = '9.5'
         find_command.reset_mock()
-        find_command.return_value.out = '9.3.3'
+        find_command.return_value.out = 'pg_basebackup 9.3.3'
         remote = backup_manager.executor.fetch_remote_status()
         assert remote['pg_basebackup_installed'] is True
         assert remote['pg_basebackup_path'] == '/fake/path'

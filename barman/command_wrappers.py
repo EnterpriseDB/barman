@@ -25,6 +25,7 @@ import errno
 import inspect
 import logging
 import os
+import re
 import select
 import signal
 import subprocess
@@ -808,10 +809,9 @@ class PostgreSQLClient(Command):
             raise NotImplementedError(
                 "get_version_info cannot be invoked on %s" % cls.__name__)
 
-        version_info = dict.fromkeys(('full_path',
-                                      'full_version',
-                                      'major_version'),
-                                     None)
+        version_info = dict.fromkeys(
+            ('full_path', 'full_version', 'major_version'),
+            None)
 
         # Get the version string
         try:
@@ -823,14 +823,23 @@ class PostgreSQLClient(Command):
         version_info['full_path'] = command.cmd
         # Parse the full text version
         try:
-            full_version = command.out.strip().split()[-1]
-            version_info['full_version'] = Version(full_version)
+            full_version = command.out.strip()
+            # Remove values inside parenthesis, they
+            # carries additional information we do not need.
+            full_version = re.sub(r'\s*\([^)]*\)', '', full_version)
+            full_version = full_version.split()[1]
         except IndexError:
             _logger.debug("Error parsing %s version output",
                           version_info['full_path'])
             return version_info
 
+        if not re.match(r'(\d+)\.(\d+).*', full_version):
+            _logger.debug("Error parsing %s version output",
+                          version_info['full_path'])
+            return version_info
+
         # Extract the major version
+        version_info['full_version'] = Version(full_version)
         version_info['major_version'] = Version(barman.utils.simplify_version(
             full_version))
 

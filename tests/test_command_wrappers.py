@@ -1241,6 +1241,36 @@ class TestReceiveXlog(object):
         ]
         assert command == command_mock.return_value
 
+    @mock.patch('barman.command_wrappers.PostgreSQLClient.find_command')
+    def test_get_version_info(self, find_command_mock):
+        """
+        Test the `get_version_info` class method
+        """
+        command_mock = find_command_mock.return_value
+        command_mock.cmd = '/some/path/pg_receivewal'
+        command_mock.out = \
+            'pg_receivewal (PostgreSQL) 11.7 (ev1 12) (ev2 2:3.4)'
+
+        # Test with normal output
+        version_info = PgReceiveXlog.get_version_info()
+        assert version_info['full_path'] == '/some/path/pg_receivewal'
+        assert version_info['full_version'] == '11.7'
+        assert version_info['major_version'] == '11'
+
+        # Test with bad output
+        command_mock.out = 'pg_receivewal'
+        version_info = PgReceiveXlog.get_version_info()
+        assert version_info['full_path'] == '/some/path/pg_receivewal'
+        assert version_info['full_version'] is None
+        assert version_info['major_version'] is None
+
+        # Test with invocation error
+        find_command_mock.side_effect = CommandFailedException
+        version_info = PgReceiveXlog.get_version_info()
+        assert version_info['full_path'] is None
+        assert version_info['full_version'] is None
+        assert version_info['major_version'] is None
+
 
 # noinspection PyMethodMayBeStatic
 class TestBarmanSubProcess(object):
