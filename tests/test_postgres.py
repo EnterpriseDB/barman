@@ -26,7 +26,9 @@ from barman.exceptions import (PostgresConnectionError,
                                PostgresDuplicateReplicationSlot,
                                PostgresException,
                                PostgresInvalidReplicationSlot,
-                               PostgresIsInRecovery, PostgresSuperuserRequired,
+                               PostgresIsInRecovery,
+                               PostgresSuperuserRequired,
+                               PostgresSuperuserOrBackupFunctionsAccessRequired,
                                PostgresUnsupportedFeature)
 from barman.postgres import PostgreSQLConnection
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
@@ -894,6 +896,7 @@ class TestPostgres(object):
         assert result == {
             'a': 'b',
             'is_superuser': True,
+            'is_backup_eligible': False,
             'is_in_recovery': False,
             'current_lsn': 'DE/ADBEEF',
             'current_xlog': '00000001000000DE00000000',
@@ -922,6 +925,7 @@ class TestPostgres(object):
         assert result == {
             'a': 'b',
             'is_superuser': True,
+            'is_backup_eligible': False,
             'is_in_recovery': False,
             'current_lsn': 'DE/ADBEEF',
             'current_xlog': '00000001000000DE00000000',
@@ -1007,7 +1011,9 @@ class TestPostgres(object):
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.is_superuser',
            new_callable=PropertyMock)
-    def test_switch_wal(self, is_superuser_mock,
+    @patch('barman.postgres.PostgreSQLConnection.is_backup_eligible',
+           new_callable=PropertyMock)
+    def test_switch_wal(self, is_superuser_mock, is_backup_eligible_mock,
                         is_in_recovery_mock, conn_mock):
         """
         Simple test for the execution of a switch of a xlog on a given server
@@ -1017,6 +1023,7 @@ class TestPostgres(object):
         cursor_mock = conn_mock.return_value.cursor.return_value
         is_in_recovery_mock.return_value = False
         is_superuser_mock.return_value = True
+        is_backup_eligible_mock.return_value = True
 
         # Test for the response of a correct switch for PostgreSQL < 10
         conn_mock.return_value.server_version = 90100
@@ -1065,7 +1072,8 @@ class TestPostgres(object):
         # Missing required permissions
         is_in_recovery_mock.return_value = False
         is_superuser_mock.return_value = False
-        with pytest.raises(PostgresSuperuserRequired):
+        is_backup_eligible_mock.return_value = False
+        with pytest.raises(PostgresSuperuserOrBackupFunctionsAccessRequired):
             server.postgres.switch_wal()
         # Check for the right invocation
         assert not cursor_mock.execute.called
@@ -1084,7 +1092,9 @@ class TestPostgres(object):
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.is_superuser',
            new_callable=PropertyMock)
-    def test_get_replication_stats(self, is_superuser_mock,
+    @patch('barman.postgres.PostgreSQLConnection.is_backup_eligible',
+           new_callable=PropertyMock)
+    def test_get_replication_stats(self, is_superuser_mock, is_backup_eligible_mock,
                                    server_version_mock, conn_mock):
         """
         Simple test for the execution of get_replication_stats on a server
@@ -1093,6 +1103,7 @@ class TestPostgres(object):
         server = build_real_server()
         cursor_mock = conn_mock.return_value.cursor.return_value
         is_superuser_mock.return_value = True
+        is_backup_eligible_mock.return_value = True
 
         # 10 ALL
         cursor_mock.reset_mock()
@@ -1397,7 +1408,8 @@ class TestPostgres(object):
         cursor_mock.reset_mock()
         # Missing required permissions
         is_superuser_mock.return_value = False
-        with pytest.raises(PostgresSuperuserRequired):
+        is_backup_eligible_mock.return_value = False
+        with pytest.raises(PostgresSuperuserOrBackupFunctionsAccessRequired):
             server.postgres.get_replication_stats(
                 PostgreSQLConnection.ANY_STREAMING_CLIENT)
         # Check for the right invocation
@@ -1406,6 +1418,7 @@ class TestPostgres(object):
         cursor_mock.reset_mock()
         # Too old version (9.0)
         is_superuser_mock.return_value = True
+        is_backup_eligible_mock.return_value = True
         server_version_mock.return_value = 90000
         with pytest.raises(PostgresUnsupportedFeature):
             server.postgres.get_replication_stats(

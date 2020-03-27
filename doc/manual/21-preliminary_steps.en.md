@@ -13,7 +13,10 @@ undertake before setting up your PostgreSQL server in Barman.
 ### PostgreSQL connection
 
 You need to make sure that the `backup` server can connect to
-the PostgreSQL server on `pg` as superuser. This operation is mandatory.
+the PostgreSQL server on `pg` as superuser or if superuser is not an
+option due to security requirements, then for versions 10 and higher
+it's also possible to grant equivalent privileges listed below. This
+operation is mandatory.
 
 We recommend creating a specific user in PostgreSQL, named `barman`,
 as follows:
@@ -22,7 +25,27 @@ as follows:
 postgres@pg$ createuser -s -P barman
 ```
 
-> **IMPORTANT:** The above command will prompt for a password,
+or equivalent privileges without real superuser:
+
+``` bash
+postgres@pg$ createuser --replication -P barman
+```
+
+``` sql
+GRANT EXECUTE ON FUNCTION pg_start_backup(text, boolean, boolean) to barman;
+GRANT EXECUTE ON FUNCTION pg_stop_backup() to barman;
+GRANT EXECUTE ON FUNCTION pg_stop_backup(boolean, boolean) to barman;
+GRANT EXECUTE ON FUNCTION pg_switch_wal() to barman;
+GRANT EXECUTE ON FUNCTION pg_create_restore_point(text) to barman;
+
+GRANT pg_read_all_settings TO barman;
+GRANT pg_read_all_stats TO barman;
+```
+
+Note though that without real superuser, the `barman switch-wal` command's
+`--force` option will not function.
+
+> **IMPORTANT:** The above `createuser` command will prompt for a password,
 > which you are then advised to add to the `~barman/.pgpass` file
 > on the `backup` server. For further information, please refer to
 > ["The Password File" section in the PostgreSQL Documentation][pgpass].

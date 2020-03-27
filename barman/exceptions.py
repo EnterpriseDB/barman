@@ -240,6 +240,12 @@ class PostgresSuperuserRequired(PostgresException):
     """
 
 
+class PostgresSuperuserOrBackupFunctionsAccessRequired(PostgresException):
+    """
+    Superuser or pg_start_backup(), pg_switch_wal(), ... etc access is required
+    """
+
+
 class PostgresIsInRecovery(PostgresException):
     """
     PostgreSQL is in recovery, so no write operations are allowed
