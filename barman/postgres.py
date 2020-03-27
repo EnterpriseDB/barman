@@ -29,16 +29,13 @@ from psycopg2.errorcodes import (DUPLICATE_OBJECT, OBJECT_IN_USE,
 from psycopg2.extensions import STATUS_IN_TRANSACTION, STATUS_READY
 from psycopg2.extras import DictCursor, NamedTupleCursor
 
-from barman.exceptions import (ConninfoException, PostgresAppNameError,
-                               PostgresConnectionError,
-                               PostgresDuplicateReplicationSlot,
-                               PostgresException,
-                               PostgresInvalidReplicationSlot,
-                               PostgresIsInRecovery,
-                               PostgresReplicationSlotInUse,
-                               PostgresReplicationSlotsFull,
-                               PostgresSuperuserRequired,
-                               PostgresUnsupportedFeature)
+from barman.exceptions import (
+    ConninfoException, PostgresAppNameError, PostgresConnectionError,
+    PostgresDuplicateReplicationSlot, PostgresException,
+    PostgresInvalidReplicationSlot, PostgresIsInRecovery,
+    PostgresReplicationSlotInUse, PostgresReplicationSlotsFull,
+    BackupFunctionsAccessRequired,
+    PostgresSuperuserRequired, PostgresUnsupportedFeature)
 from barman.infofile import Tablespace
 from barman.postgres_plumbing import function_name_map
 from barman.remote_status import RemoteStatusMixin
@@ -514,6 +511,62 @@ class PostgreSQLConnection(PostgreSQL):
             return None
 
     @property
+    def has_backup_privileges(self):
+        """
+        Returns true if current user is superuser or, for PostgreSQL 10
+        or above, is a standard user that has grants to read server
+        settings and to execute all the functions needed for
+        exclusive/concurrent backup control and WAL control.
+        """
+        # pg_monitor / pg_read_all_settings only available from v10
+        if self.server_version < 100000:
+            return self.is_superuser
+
+        backup_check_query = """
+        SELECT
+          usesuper
+          OR
+          (
+            userepl
+            AND
+            (
+              pg_has_role(CURRENT_USER, 'pg_monitor', 'MEMBER')
+              OR
+              (
+                pg_has_role(CURRENT_USER, 'pg_read_all_settings', 'MEMBER')
+                AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'MEMBER')
+              )
+            )
+            AND has_function_privilege(
+              CURRENT_USER, 'pg_start_backup(text,bool,bool)', 'EXECUTE')
+            AND
+            (
+              has_function_privilege(
+                CURRENT_USER, 'pg_stop_backup()', 'EXECUTE')
+              OR has_function_privilege(
+                CURRENT_USER, 'pg_stop_backup(bool,bool)', 'EXECUTE')
+            )
+            AND has_function_privilege(
+              CURRENT_USER, 'pg_switch_wal()', 'EXECUTE')
+            AND has_function_privilege(
+              CURRENT_USER, 'pg_create_restore_point(text)', 'EXECUTE')
+          )
+        FROM
+          pg_user
+        WHERE
+          usename = CURRENT_USER
+        """
+        try:
+            cur = self._cursor()
+            cur.execute(backup_check_query)
+            return cur.fetchone()[0]
+        except (PostgresConnectionError, psycopg2.Error) as e:
+            _logger.debug("Error checking privileges for functions "
+                          "needed for backups: %s",
+                          force_str(e).strip())
+            return None
+
+    @property
     def current_xlog_info(self):
         """
         Get detailed information about the current WAL position in PostgreSQL.
@@ -628,9 +681,10 @@ class PostgreSQLConnection(PostgreSQL):
     @property
     def current_size(self):
         """
-        Returns the total size of the PostgreSQL server (requires superuser)
+        Returns the total size of the PostgreSQL server
+        (requires superuser or pg_read_all_stats)
         """
-        if not self.is_superuser:
+        if not self.has_backup_privileges:
             return None
 
         try:
@@ -780,7 +834,7 @@ class PostgreSQLConnection(PostgreSQL):
                 pg_settings.append('wal_compression')
 
             # retrieves superuser settings
-            if self.is_superuser:
+            if self.has_backup_privileges:
                 for name in pg_superuser_settings:
                     result[name] = self.get_setting(name)
 
@@ -789,6 +843,7 @@ class PostgreSQLConnection(PostgreSQL):
                 result[name] = self.get_setting(name)
 
             result['is_superuser'] = self.is_superuser
+            result['has_backup_privileges'] = self.has_backup_privileges
             result['is_in_recovery'] = self.is_in_recovery
             result['server_txt_version'] = self.server_txt_version
             result['pgespresso_installed'] = self.has_pgespresso
@@ -1218,8 +1273,8 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             conn = self.connect()
             # Requires superuser privilege
-            if not self.is_superuser:
-                raise PostgresSuperuserRequired()
+            if not self.has_backup_privileges:
+                raise BackupFunctionsAccessRequired()
 
             # If this server is in recovery there is nothing to do
             if self.is_in_recovery:
@@ -1275,10 +1330,8 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             cur = self._cursor(cursor_factory=NamedTupleCursor)
 
-            # Without superuser rights, this function is useless
-            # TODO: provide a simplified version for non-superusers
-            if not self.is_superuser:
-                raise PostgresSuperuserRequired()
+            if not self.has_backup_privileges:
+                raise BackupFunctionsAccessRequired()
 
             # pg_stat_replication is a system view that contains one
             # row per WAL sender process with information about the

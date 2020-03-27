@@ -22,12 +22,11 @@ import pytest
 from mock import PropertyMock, call, patch
 from psycopg2.errorcodes import DUPLICATE_OBJECT, UNDEFINED_OBJECT
 
-from barman.exceptions import (PostgresConnectionError,
-                               PostgresDuplicateReplicationSlot,
-                               PostgresException,
-                               PostgresInvalidReplicationSlot,
-                               PostgresIsInRecovery, PostgresSuperuserRequired,
-                               PostgresUnsupportedFeature)
+from barman.exceptions import (
+    PostgresConnectionError, PostgresDuplicateReplicationSlot,
+    PostgresException, PostgresInvalidReplicationSlot, PostgresIsInRecovery,
+    BackupFunctionsAccessRequired,
+    PostgresSuperuserRequired, PostgresUnsupportedFeature)
 from barman.postgres import PostgreSQLConnection
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 from testing_helpers import build_real_server
@@ -894,6 +893,7 @@ class TestPostgres(object):
         assert result == {
             'a': 'b',
             'is_superuser': True,
+            'has_backup_privileges': True,
             'is_in_recovery': False,
             'current_lsn': 'DE/ADBEEF',
             'current_xlog': '00000001000000DE00000000',
@@ -922,6 +922,7 @@ class TestPostgres(object):
         assert result == {
             'a': 'b',
             'is_superuser': True,
+            'has_backup_privileges': True,
             'is_in_recovery': False,
             'current_lsn': 'DE/ADBEEF',
             'current_xlog': '00000001000000DE00000000',
@@ -1005,9 +1006,9 @@ class TestPostgres(object):
     @patch('barman.postgres.PostgreSQLConnection.connect')
     @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
            new_callable=PropertyMock)
-    @patch('barman.postgres.PostgreSQLConnection.is_superuser',
+    @patch('barman.postgres.PostgreSQLConnection.has_backup_privileges',
            new_callable=PropertyMock)
-    def test_switch_wal(self, is_superuser_mock,
+    def test_switch_wal(self, has_backup_privileges_mock,
                         is_in_recovery_mock, conn_mock):
         """
         Simple test for the execution of a switch of a xlog on a given server
@@ -1016,7 +1017,7 @@ class TestPostgres(object):
         server = build_real_server()
         cursor_mock = conn_mock.return_value.cursor.return_value
         is_in_recovery_mock.return_value = False
-        is_superuser_mock.return_value = True
+        has_backup_privileges_mock.return_value = True
 
         # Test for the response of a correct switch for PostgreSQL < 10
         conn_mock.return_value.server_version = 90100
@@ -1064,8 +1065,8 @@ class TestPostgres(object):
         cursor_mock.reset_mock()
         # Missing required permissions
         is_in_recovery_mock.return_value = False
-        is_superuser_mock.return_value = False
-        with pytest.raises(PostgresSuperuserRequired):
+        has_backup_privileges_mock.return_value = False
+        with pytest.raises(BackupFunctionsAccessRequired):
             server.postgres.switch_wal()
         # Check for the right invocation
         assert not cursor_mock.execute.called
@@ -1073,7 +1074,7 @@ class TestPostgres(object):
         cursor_mock.reset_mock()
         # Server in recovery
         is_in_recovery_mock.return_value = True
-        is_superuser_mock.return_value = True
+        has_backup_privileges_mock.return_value = True
         with pytest.raises(PostgresIsInRecovery):
             server.postgres.switch_wal()
         # Check for the right invocation
@@ -1082,17 +1083,19 @@ class TestPostgres(object):
     @patch('barman.postgres.PostgreSQLConnection.connect')
     @patch('barman.postgres.PostgreSQLConnection.server_version',
            new_callable=PropertyMock)
-    @patch('barman.postgres.PostgreSQLConnection.is_superuser',
+    @patch('barman.postgres.PostgreSQLConnection.has_backup_privileges',
            new_callable=PropertyMock)
-    def test_get_replication_stats(self, is_superuser_mock,
-                                   server_version_mock, conn_mock):
+    def test_get_replication_stats(self,
+                                   has_backup_privileges_mock,
+                                   server_version_mock,
+                                   conn_mock):
         """
         Simple test for the execution of get_replication_stats on a server
         """
         # Build a server
         server = build_real_server()
         cursor_mock = conn_mock.return_value.cursor.return_value
-        is_superuser_mock.return_value = True
+        has_backup_privileges_mock.return_value = True
 
         # 10 ALL
         cursor_mock.reset_mock()
@@ -1396,8 +1399,8 @@ class TestPostgres(object):
 
         cursor_mock.reset_mock()
         # Missing required permissions
-        is_superuser_mock.return_value = False
-        with pytest.raises(PostgresSuperuserRequired):
+        has_backup_privileges_mock.return_value = False
+        with pytest.raises(BackupFunctionsAccessRequired):
             server.postgres.get_replication_stats(
                 PostgreSQLConnection.ANY_STREAMING_CLIENT)
         # Check for the right invocation
@@ -1405,7 +1408,7 @@ class TestPostgres(object):
 
         cursor_mock.reset_mock()
         # Too old version (9.0)
-        is_superuser_mock.return_value = True
+        has_backup_privileges_mock.return_value = True
         server_version_mock.return_value = 90000
         with pytest.raises(PostgresUnsupportedFeature):
             server.postgres.get_replication_stats(

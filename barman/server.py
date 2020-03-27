@@ -661,18 +661,21 @@ class Server(RemoteStatusMixin):
         else:
             check_strategy.result(self.config.name, False)
             return
-        # Check for superuser privileges in PostgreSQL
-        if remote_status.get('is_superuser') is not None:
-            check_strategy.init_check('is_superuser')
-            if remote_status.get('is_superuser'):
+
+        # Check for superuser privileges or
+        # privileges needed to perform backups
+        if remote_status.get('has_backup_privileges') is not None:
+            check_strategy.init_check(
+                'superuser or standard user with backup privileges')
+            if remote_status.get('has_backup_privileges'):
                 check_strategy.result(
                     self.config.name, True)
             else:
                 check_strategy.result(
                     self.config.name, False,
-                    hint='superuser privileges for PostgreSQL '
-                         'connection required',
-                    check='not superuser'
+                    hint='privileges for PostgreSQL backup functions are '
+                         'required (see documentation)',
+                    check='no access to backup functions'
                 )
 
         if 'streaming_supported' in remote_status:
