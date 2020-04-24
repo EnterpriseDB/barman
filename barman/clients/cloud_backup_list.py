@@ -43,7 +43,8 @@ def main(args=None):
         cloud_interface = CloudInterface(
             url=config.source_url,
             encryption=config.encryption,
-            profile_name=config.profile)
+            profile_name=config.profile,
+            endpoint_url=config.endpoint_url)
 
         with closing(cloud_interface):
             catalog = S3BackupCatalog(
@@ -149,6 +150,10 @@ def parse_arguments(args=None):
         "--format",
         default="console",
         help="Output format (console or json). Default console."
+    )
+    parser.add_argument(
+        "--endpoint-url",
+        help="Override default S3 endpoint URL with the given one",
     )
     return parser.parse_args(args=args)
 

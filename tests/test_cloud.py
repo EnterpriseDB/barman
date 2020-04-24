@@ -45,7 +45,7 @@ class TestCloudInterface(object):
         assert cloud_interface.path == 'path/to/dir'
         boto_mock.Session.assert_called_once_with(profile_name=None)
         session_mock = boto_mock.Session.return_value
-        session_mock.resource.assert_called_once_with('s3')
+        session_mock.resource.assert_called_once_with('s3', endpoint_url=None)
         assert cloud_interface.s3 == session_mock.resource.return_value
 
         # Asynchronous uploading infrastructure is not initialized when

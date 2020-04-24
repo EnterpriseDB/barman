@@ -78,6 +78,9 @@ SERVER_NAME
 -J JOBS, --jobs JOBS
 :    number of subprocesses to upload data to S3 (default: 2)
 
+--endpoint-url
+: override the default S3 URL construction mechanism by specifying an endpoint.
+
 # REFERENCES
 
 For Boto:

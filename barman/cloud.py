@@ -429,7 +429,8 @@ class StreamingBodyIO(RawIOBase):
 
 
 class CloudInterface(object):
-    def __init__(self, url, encryption, jobs=2, profile_name=None):
+    def __init__(self, url, encryption, jobs=2,
+                 profile_name=None, endpoint_url=None):
         """
         Create a new S3 interface given the S3 destination url and the profile
         name
@@ -439,10 +440,13 @@ class CloudInterface(object):
         :param int jobs: How many sub-processes to use for asynchronous
           uploading, defaults to 2.
         :param str profile_name: Amazon auth profile identifier
+        :param str endpoint_url: override default endpoint detection strategy
+          with this one
         """
         self.url = url
         self.profile_name = profile_name
         self.encryption = encryption
+        self.endpoint_url = endpoint_url
 
         # Extract information from the destination URL
         parsed_url = urlparse(url)
@@ -455,7 +459,7 @@ class CloudInterface(object):
 
         # Build a session, so we can extract the correct resource
         session = boto3.Session(profile_name=profile_name)
-        self.s3 = session.resource('s3')
+        self.s3 = session.resource('s3', endpoint_url=endpoint_url)
 
         # The worker process and the shared queue are created only when
         # needed

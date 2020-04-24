@@ -86,7 +86,8 @@ def main(args=None):
                 url=config.destination_url,
                 encryption=config.encryption,
                 jobs=config.jobs,
-                profile_name=config.profile)
+                profile_name=config.profile,
+                endpoint_url=config.endpoint_url)
 
             if not cloud_interface.test_connectivity():
                 raise SystemExit(1)
@@ -213,6 +214,10 @@ def parse_arguments(args=None):
         help='number of subprocesses to upload data to S3, '
              'defaults to 2',
         default=2)
+    parser.add_argument(
+        "--endpoint-url",
+        help="Override default S3 endpoint URL with the given one",
+    )
     return parser.parse_args(args=args)
 
 

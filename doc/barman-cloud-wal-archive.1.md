@@ -59,6 +59,9 @@ WAL_PATH
 : enable server-side encryption with the given method for the transfer.
   Allowed methods: `AES256` and `aws:kms`.
 
+--endpoint-url
+: override the default S3 URL construction mechanism by specifying an endpoint.
+
 # REFERENCES
 
 For Boto:
