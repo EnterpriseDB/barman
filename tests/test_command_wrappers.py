@@ -1257,6 +1257,12 @@ class TestReceiveXlog(object):
         assert version_info['full_version'] == '11.7'
         assert version_info['major_version'] == '11'
 
+        # Test with development branch
+        command_mock.out = 'pg_receivewal 13devel'
+        version_info = PgReceiveXlog.get_version_info()
+        assert version_info['full_version'] == '13devel'
+        assert version_info['major_version'] == '13'
+
         # Test with bad output
         command_mock.out = 'pg_receivewal'
         version_info = PgReceiveXlog.get_version_info()

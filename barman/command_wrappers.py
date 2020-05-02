@@ -833,7 +833,7 @@ class PostgreSQLClient(Command):
                           version_info['full_path'])
             return version_info
 
-        if not re.match(r'(\d+)\.(\d+).*', full_version):
+        if not re.match(r'(\d+)(\.(\d+)|devel).*', full_version):
             _logger.debug("Error parsing %s version output",
                           version_info['full_path'])
             return version_info
