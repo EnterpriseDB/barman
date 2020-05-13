@@ -223,7 +223,8 @@ class PostgresConnectionError(PostgresException):
     def __str__(self):
         # Returns the first line
         if self.args and self.args[0]:
-            return str(self.args[0]).splitlines()[0].strip()
+            from barman.utils import force_str
+            return force_str(self.args[0]).splitlines()[0].strip()
         else:
             return ''
 
