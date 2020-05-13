@@ -195,8 +195,8 @@ class _RsyncCopyItem(object):
         formatted_class += ' directory' if self.is_directory else ' file'
 
         # Log the operation that is being executed
-        if self.item_class in(RsyncCopyController.PGDATA_CLASS,
-                              RsyncCopyController.PGCONTROL_CLASS):
+        if self.item_class in (RsyncCopyController.PGDATA_CLASS,
+                               RsyncCopyController.PGCONTROL_CLASS):
             return "%s: %s" % (
                 formatted_class, formatted_name)
         else:
