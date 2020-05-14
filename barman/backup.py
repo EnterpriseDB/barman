@@ -961,7 +961,7 @@ class BackupManager(RemoteStatusMixin):
 
                     # Keeps the WAL segment if it is a newer
                     # than the given backup (the first available)
-                    if backup_info:
+                    if backup_info and backup_info.begin_wal is not None:
                         keep |= wal_info.name >= backup_info.begin_wal
 
                     # If the file has to be kept write it in the new xlogdb
