@@ -140,6 +140,11 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         if application_name and 'application_name' not in self.conn_parameters:
             # Then add the it to the connection string
             conn_string += ' application_name=%s' % application_name
+        # adopt a secure schema-usage pattern. See:
+        # https://www.postgresql.org/docs/current/libpq-connect.html
+        if 'options' not in self.conn_parameters:
+            conn_string += ' options=-csearch_path='
+
         return conn_string
 
     def connect(self):
