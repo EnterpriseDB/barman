@@ -68,7 +68,7 @@ servers.
 
 ## `list-server`
 
-You can display the list of active servers that have been configured
+You can display the list of servers that have been configured
 for your backup system with:
 
 ``` bash

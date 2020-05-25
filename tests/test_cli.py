@@ -126,6 +126,20 @@ class TestCli(object):
         assert err == ''
         assert not to_be_executed
 
+        # Request to include inactive server
+        to_be_executed = manage_server_command(server, skip_inactive=False)
+        out, err = capsys.readouterr()
+        # Expect no error whatsoever
+        assert err == ''
+        assert to_be_executed
+
+        # Request exclude include inactive server
+        to_be_executed = manage_server_command(server, skip_inactive=True)
+        out, err = capsys.readouterr()
+        # Expect no error whatsoever
+        assert err == ''
+        assert not to_be_executed
+
     def test_get_server_global_error_list(self, monkeypatch, capsys):
         """
         Test the management of multiple servers and the

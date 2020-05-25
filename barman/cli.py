@@ -244,12 +244,12 @@ def list_backup(args):
     """
     List available backups for the given server (supports 'all')
     """
-    servers = get_server_list(args, skip_inactive=True)
+    servers = get_server_list(args, skip_inactive=False)
     for name in sorted(servers):
         server = servers[name]
 
         # Skip the server (apply general rule)
-        if not manage_server_command(server, name):
+        if not manage_server_command(server, name, skip_inactive=False):
             continue
 
         output.init('list_backup', name, minimal=args.minimal)
@@ -1133,7 +1133,9 @@ def get_server(args, skip_inactive=True, skip_disabled=False,
     # the server if inactive or disabled, displaying standard
     # error messages. If on_error_stop (default) exits
     if not manage_server_command(server, name,
-                                 inactive_is_error) and \
+                                 inactive_is_error,
+                                 True,
+                                 skip_inactive) and \
             on_error_stop:
         output.close_and_exit()
         # The following return statement will never be reached
