@@ -35,7 +35,6 @@ barman backup <server_name>
 > You can use `barman backup all` to sequentially backup all your
 > configured servers.
 
-
 ## `check`
 
 You can check the connection to a given server and the

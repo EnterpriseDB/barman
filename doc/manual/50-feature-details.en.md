@@ -209,6 +209,27 @@ by disabling WAL streaming.
 > and streaming from the standby due to the way Barman performs WAL duplication
 > checks and [an undocumented behaviours in all versions of PostgreSQL](https://www.postgresql.org/message-id/20170316170513.1429.77904@wrigleys.postgresql.org).
 
+### Immediate checkpoint
+
+Before starting a backup, Barman requests a checkpoint, which
+generates additional workload. Normally that checkpoint is throttled
+according to the settings for workload control on the PostgreSQL
+server, which means that the backup could be delayed.
+
+This default behaviour can be changed through the `immediate_checkpoint`
+configuration global/server option (set to `false` by default).
+
+If `immediate_checkpoint` is set to `true`, PostgreSQL will not try to
+limit the workload, and the checkpoint will happen at maximum speed,
+starting the backup as soon as possible.
+
+At any time, you can override the configuration option behaviour, by
+issuing `barman backup` with any of these two options:
+
+- `--immediate-checkpoint`, which forces an immediate checkpoint;
+- `--no-immediate-checkpoint`, which forces to wait for the checkpoint
+  to happen.
+
 
 ## Archiving features
 ### WAL compression
