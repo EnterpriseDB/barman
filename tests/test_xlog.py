@@ -420,36 +420,64 @@ class Test(object):
         assert xlog.diff_lsn(None, '2/8100168') is None
         assert xlog.diff_lsn('2/8300168', None) is None
 
-    def test_location_to_xlogfile_name_offset(self):
+    @pytest.mark.parametrize("size, name, offset, lsn", [
+        [24, '000000030000000A00000012', 0x345678, 'A/12345678'],
+        [28, '000000030000000A00000001', 0x2345678, 'A/12345678'],
+        [20, '000000030000000A00000123', 0x45678, 'A/12345678'],
+        [26, '000000030000011300000022', 0xB5ADC0, '113/88B5ADC0'],
+        [28, '000000030000005600000003', 0x80537A8, '56/380537A8'],
+    ])
+    def test_location_to_xlogfile_name_offset(self, size, name, offset, lsn):
         result = xlog.location_to_xlogfile_name_offset(
-            'A/12345678', 3, xlog.DEFAULT_XLOG_SEG_SIZE)
+            lsn, 3, 1 << size)
         assert result == {
-            'file_name': '000000030000000A00000012',
-            'file_offset': 0x345678
+            'file_name': name,
+            'file_offset': offset,
         }
 
-    def test_location_from_xlogfile_name_offset(self):
+    @pytest.mark.parametrize("size, name, offset, lsn", [
+        [24, '000000030000000A00000012', 0x345678, 'A/12345678'],
+        [28, '000000030000000A00000001', 0x2345678, 'A/12345678'],
+        [20, '000000030000000A00000123', 0x45678, 'A/12345678'],
+        [26, '000000030000011300000022', 0xB5ADC0, '113/88B5ADC0'],
+        [28, '000000030000005600000003', 0x80537A8, '56/380537A8'],
+    ])
+    def test_location_from_xlogfile_name_offset(self, size, name, offset, lsn):
         assert xlog.location_from_xlogfile_name_offset(
-            '000000030000000A00000012', 0x345678) == 'A/12345678'
+            name,
+            offset,
+            1 << size) == lsn
 
     @pytest.mark.parametrize("segments, size", [
-        # There are 255 segments with default XLOG file size
+        # There are 1023 segments with 4 MiB XLOG file size
+        [1023, 1 << 22],
+        # There are 511 segments with 8 MiB XLOG file size
+        [511, 1 << 23],
+        # There are 255 segments with 16 MiB (default) XLOG file size
         [255, 1 << 24],
+        # There are 127 segments with 32 MiB XLOG file size
+        [127, 1 << 25],
         # There are 63 segments with 64 MiB XLOG file size
         [63, 1 << 26],
-        # There are 1023 segments with 4 MiB XLOG file size
-        [1023, 1 << 22]
+        # There are 31 segments with 128 MiB XLOG file size
+        [31, 1 << 27],
+        # There are 15 segments with 256 MiB XLOG file size
+        [15, 1 << 28],
+        # There are 7 segments with 512 MiB XLOG file size
+        [7, 1 << 29],
+        # There are 3 segments with 1 GiB XLOG file size
+        [3, 1 << 30],
     ])
     def test_xlog_segment_in_file(self, segments, size):
         assert segments == xlog.xlog_segments_per_file(size)
 
-    @pytest.mark.parametrize("segments, size", [
+    @pytest.mark.parametrize("mask, size", [
         # There are 255 segments with default XLOG file size
-        [255, 1 << 24],
+        [0xff000000, 1 << 24],
         # There are 63 segments with 64 MiB XLOG file size
-        [63, 1 << 26],
+        [0xfc000000, 1 << 26],
         # There are 1023 segments with 4 MiB XLOG file size
-        [1023, 1 << 22]
+        [0xffc00000, 1 << 22]
     ])
-    def test_xlog_file_size(self, segments, size):
-        assert segments * size == xlog.xlog_file_size(size)
+    def test_xlog_segment_mask(self, mask, size):
+        assert mask == xlog.xlog_segment_mask(size)

@@ -1684,7 +1684,9 @@ class ConcurrentBackupStrategy(BackupStrategy):
         # We don't know the exact backup stop location,
         # so we include the whole segment.
         stop_info['location'] = xlog.location_from_xlogfile_name_offset(
-            stop_info['end_wal'], 0xFFFFFF)
+            stop_info['end_wal'],
+            self.postgres.xlog_segment_size - 1,
+            self.postgres.xlog_segment_size)
         self._backup_info_from_stop_location(backup_info, stop_info)
 
     def _concurrent_start_backup(self, backup_info, label):

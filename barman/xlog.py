@@ -207,14 +207,14 @@ def xlog_segments_per_file(xlog_segment_size):
     return 0xffffffff // xlog_segment_size
 
 
-def xlog_file_size(xlog_segment_size):
+def xlog_segment_mask(xlog_segment_size):
     """
     Given that WAL files are named using the following pattern:
 
         <timeline_number><xlog_file_number><xlog_segment_number>
 
-    this is the size in bytes of an XLOG file, which is composed on many
-    segments. See the documentation of `xlog_segments_per_file` for a
+    this is the bitmask of segment part of an XLOG file.
+    See the documentation of `xlog_segments_per_file` for a
     commentary on the definition of `XLOG` file.
 
     :param int xlog_segment_size: The XLOG segment size in bytes
@@ -367,15 +367,16 @@ def location_to_xlogfile_name_offset(location, timeline, xlog_segment_size):
     """
     lsn = parse_lsn(location)
     log = lsn >> 32
-    seg = (lsn & xlog_file_size(xlog_segment_size)) >> 24
-    offset = lsn & 0xFFFFFF
+    seg = (lsn & xlog_segment_mask(xlog_segment_size)) // xlog_segment_size
+    offset = lsn & (xlog_segment_size - 1)
     return {
         'file_name': encode_segment_name(timeline, log, seg),
         'file_offset': offset,
     }
 
 
-def location_from_xlogfile_name_offset(file_name, file_offset):
+def location_from_xlogfile_name_offset(file_name, file_offset,
+                                       xlog_segment_size):
     """
     Convert file_name and file_offset to a transaction log location.
 
@@ -384,11 +385,13 @@ def location_from_xlogfile_name_offset(file_name, file_offset):
 
     :param str file_name: a WAL file name
     :param int file_offset: a numeric offset
+    :param int xlog_segment_size: the size of a XLOG segment
     :rtype: str
     """
     decoded_segment = decode_segment_name(file_name)
-    location = (
-        (decoded_segment[1] << 32) + (decoded_segment[2] << 24) + file_offset)
+    location = (decoded_segment[1] << 32)
+    location += (decoded_segment[2] * xlog_segment_size)
+    location += file_offset
     return format_lsn(location)
 
 
