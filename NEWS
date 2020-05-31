@@ -1,6 +1,56 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2020 2ndQuadrant Limited
 
+Version 2.11 - 9 Jul 2020
+
+-   Introduction of the barman-cli-cloud package that contains all cloud
+    related utilities.
+
+-   Add barman-cloud-wal-restore to restore a WAL file previously
+    archived with barman-cloud-wal-archive from an object store
+
+-   Add barman-cloud-restore to restore a backup previously taken with
+    barman-cloud-backup from an object store
+
+-   Add barman-cloud-backup-list to list backups taken with
+    barman-cloud-backup in an object store
+
+-   Add support for arbitrary archive size for barman-cloud-backup
+
+-   Add support for --endpoint-url option to cloud utilities
+
+-   Remove strict superuser requirement for PG 10+ (by Kaarel Moppel)
+
+-   Add --log-level runtime option for barman to override default log
+    level for a specific command
+
+-   Support for PostgreSQL 13
+
+-   Bug fixes:
+
+    -   Suppress messages and warning with SSH connections in barman-cli
+        (GH-257)
+    -   Fix a race condition when retrieving uploaded parts in
+        barman-cloud-backup (GH-259)
+    -   Close the PostgreSQL connection after a backup (GH-258)
+    -   Check for uninitialized replication slots in receive-wal --reset
+        (GH-260)
+    -   Ensure that begin_wal is valorised before acting on it (GH-262)
+    -   Fix bug in XLOG/WAL arithmetic with custom segment size (GH-287)
+    -   Fix rsync compatibility error with recent rsync
+    -   Fix PostgreSQLClient version parsing
+    -   Fix PostgreSQL exception handling with non ASCII messages
+    -   Ensure each postgres connection has an empty search_path
+    -   Avoid connecting to PostgreSQL while reading a backup.info file
+
+If you are using already barman-cloud-wal-archive or barman-cloud-backup
+installed via RPM/Apt package and you are upgrading your system, you
+must install the barman-cli-cloud package. All cloud related tools are
+now part of the barman-cli-cloud package, including
+barman-cloud-wal-archive and barman-cloud-backup that were previosly
+shipped with barman-cli. The reason is complex dependency management of
+the boto3 library, which is a requirement for the cloud utilities.
+
 Version 2.10 - 5 Dec 2019
 
 -   Pull .partial WAL files with get-wal and barman-wal-restore,
