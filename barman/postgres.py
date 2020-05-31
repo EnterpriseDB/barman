@@ -333,7 +333,7 @@ class StreamingConnection(PostgreSQL):
             # to a replication backend
             if row:
                 result['streaming'] = True
-                # IDENTIFY_SYSTEM always return at least two values
+                # IDENTIFY_SYSTEM always returns at least two values
                 result['streaming_systemid'] = row[0]
                 result['timeline'] = row[1]
                 # PostgreSQL 9.1+ returns also the current xlog flush location
@@ -361,6 +361,8 @@ class StreamingConnection(PostgreSQL):
             # connection, otherwise if will fail with a generic
             # "syntax error"
             cursor.execute('CREATE_REPLICATION_SLOT %s PHYSICAL' % slot_name)
+            _logger.info("Replication slot '%s' successfully created",
+                         slot_name)
         except psycopg2.DatabaseError as exc:
             if exc.pgcode == DUPLICATE_OBJECT:
                 # A replication slot with the same name exists
@@ -385,6 +387,8 @@ class StreamingConnection(PostgreSQL):
             # connection, otherwise if will fail with a generic
             # "syntax error"
             cursor.execute('DROP_REPLICATION_SLOT %s' % slot_name)
+            _logger.info("Replication slot '%s' successfully dropped",
+                         slot_name)
         except psycopg2.DatabaseError as exc:
             if exc.pgcode == UNDEFINED_OBJECT:
                 # A replication slot with the that name does not exist
@@ -1007,6 +1011,8 @@ class PostgreSQLConnection(PostgreSQL):
             cur = self._cursor()
             cur.execute(
                 "SELECT pg_create_restore_point(%s)", [target_name])
+            _logger.info("Restore point '%s' successfully created",
+                         target_name)
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug('Error issuing pg_create_restore_point()'
