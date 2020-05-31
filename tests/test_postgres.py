@@ -884,6 +884,7 @@ class TestPostgres(object):
             'data_checksums': 'a data_checksums',
             'max_replication_slots': 'a max_replication_slots value',
             'wal_compression': 'a wal_compression value',
+            'wal_keep_segments': 'a wal_keep_segments value',
         }
 
         get_setting_mock.side_effect = lambda x: settings.get(x, 'unknown')
@@ -907,6 +908,7 @@ class TestPostgres(object):
             'synchronous_standby_names': [],
             'archive_timeout': 300,
             'checkpoint_timeout': 600,
+            'wal_keep_segments': 'a wal_keep_segments value',
             'hot_standby': 'a hot_standby value',
             'max_wal_senders': 'a max_wal_senderse value',
             'data_checksums': 'a data_checksums',
@@ -936,6 +938,7 @@ class TestPostgres(object):
             'synchronous_standby_names': [],
             'archive_timeout': 300,
             'checkpoint_timeout': 600,
+            'wal_keep_segments': 'a wal_keep_segments value',
             'hot_standby': 'a hot_standby value',
             'max_wal_senders': 'a max_wal_senderse value',
             'data_checksums': 'a data_checksums',
