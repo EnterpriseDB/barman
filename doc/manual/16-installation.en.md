@@ -104,6 +104,16 @@ using `yum update` or `apt update`.
 There have been, however, the following exceptions in our development
 history, which required some small changes to the configuration.
 
+## Upgrading from Barman 2.10
+
+If you are using `barman-cloud-wal-archive` or `barman-cloud-backup`
+you need to be aware that from version 2.11 all cloud utilities
+have been moved into the new `barman-cli-cloud` package.
+Therefore, you need to ensure that the `barman-cli-cloud` package
+is properly installed as part of the upgrade to the latest version.
+If you are not using the above tools, you can upgrade to the latest
+version as usual.
+
 ## Upgrading from Barman 2.X (prior to 2.8)
 
 Before upgrading from a version of Barman 2.7 or older
