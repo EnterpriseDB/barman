@@ -314,7 +314,8 @@ def fsync_dir(dir_path):
         # raises an EINVAL error. Ignoring it is usually safe.
         if e.errno != errno.EINVAL:
             raise
-    os.close(dir_fd)
+    finally:
+        os.close(dir_fd)
 
 
 def fsync_file(file_path):
@@ -329,8 +330,24 @@ def fsync_file(file_path):
     """
     file_fd = os.open(file_path, os.O_RDONLY)
     file_stat = os.fstat(file_fd)
-    os.fsync(file_fd)
-    os.close(file_fd)
+    try:
+        os.fsync(file_fd)
+        return file_stat
+    except OSError as e:
+        # On some filesystem doing a fsync on a O_RDONLY fd
+        # raises an EACCES error. In that case we need to try again after
+        # reopening as O_RDWR.
+        if e.errno != errno.EACCES:
+            raise
+    finally:
+        os.close(file_fd)
+
+    file_fd = os.open(file_path, os.O_RDWR)
+    try:
+        os.fsync(file_fd)
+    finally:
+        os.close(file_fd)
+
     return file_stat
 
 
