@@ -647,8 +647,6 @@ class TestStrategy(object):
     def test_exclusive_stop_backup(self):
         """
         Basic test for the stop_backup method
-
-        :param stop_mock: mimic the response od _pg_stop_backup
         """
         # Build a backup info and configure the mocks
         server = build_mocked_server(main_conf={
@@ -656,7 +654,7 @@ class TestStrategy(object):
             BackupOptions.EXCLUSIVE_BACKUP
         })
         backup_manager = build_backup_manager(server=server)
-        # Mock executor._pg_stop_backup(backup_info) call
+        # Mock postgres.stop_exclusive_backup() call
         stop_time = datetime.datetime.now()
         server.postgres.stop_exclusive_backup.return_value = {
             'location': "266/4A9C1EF8",
@@ -665,7 +663,7 @@ class TestStrategy(object):
             'timestamp': stop_time
         }
 
-        backup_info = build_test_backup_info()
+        backup_info = build_test_backup_info(server=server)
         backup_manager.executor.strategy.stop_backup(backup_info)
 
         # check that the submitted values are stored inside the BackupInfo obj

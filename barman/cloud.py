@@ -33,7 +33,8 @@ from functools import partial
 from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
 
-from barman.backup_executor import ConcurrentBackupStrategy
+from barman.backup_executor import (ConcurrentBackupStrategy,
+                                    ExclusiveBackupStrategy)
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
@@ -1120,8 +1121,11 @@ class S3BackupUploader(object):
         """
         Upload a Backup  to S3
         """
+        server_name = 'cloud'
         backup_info = BackupInfo(
-            backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'))
+            backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'),
+            server_name=server_name,
+        )
         backup_info.set_attribute("systemid", self.postgres.get_systemid())
         key_prefix = os.path.join(
             self.cloud_interface.path,
@@ -1131,7 +1135,11 @@ class S3BackupUploader(object):
         )
         controller = S3UploadController(
             self.cloud_interface, key_prefix, self.compression)
-        strategy = ConcurrentBackupStrategy(self.postgres)
+        if self.postgres.server_version >= 90600 \
+                or self.postgres.has_pgespresso:
+            strategy = ConcurrentBackupStrategy(self.postgres, server_name)
+        else:
+            strategy = ExclusiveBackupStrategy(self.postgres, server_name)
         logging.info("Starting backup %s", backup_info.backup_id)
         strategy.start_backup(backup_info)
         try:
@@ -1146,15 +1154,18 @@ class S3BackupUploader(object):
             # Free the Postgres connection
             self.postgres.close()
 
-            pgdata_stat = os.stat(backup_info.pgdata)
-            controller.add_fileobj(
-                label='backup_label',
-                fileobj=BytesIO(backup_info.backup_label.encode('UTF-8')),
-                dst='data',
-                path='backup_label',
-                uid=pgdata_stat.st_uid,
-                gid=pgdata_stat.st_gid,
-            )
+            # Eventually, add the backup_label from the backup_info
+            if backup_info.backup_label:
+                pgdata_stat = os.stat(backup_info.pgdata)
+                controller.add_fileobj(
+                    label='backup_label',
+                    fileobj=BytesIO(backup_info.backup_label.encode('UTF-8')),
+                    dst='data',
+                    path='backup_label',
+                    uid=pgdata_stat.st_uid,
+                    gid=pgdata_stat.st_gid,
+                )
+
             # Closing the controller will finalize all the running uploads
             controller.close()
 
