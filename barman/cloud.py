@@ -154,7 +154,7 @@ class S3TarUploader(object):
     # We use named temporary files, so we can pass them by name to
     # other processes
     _buffer = partial(NamedTemporaryFile, delete=False,
-                      prefix='barman-cloud-', suffix='.part')
+                      prefix='barman-upload-', suffix='.part')
 
     def __init__(self, cloud_interface, key,
                  compression=None, chunk_size=DEFAULT_CHUNK_SIZE):

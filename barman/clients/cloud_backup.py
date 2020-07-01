@@ -17,7 +17,9 @@
 
 import logging
 import re
+import tempfile
 from contextlib import closing
+from shutil import rmtree
 
 import barman
 from barman.cloud import CloudInterface, S3BackupUploader, configure_logging
@@ -70,7 +72,11 @@ def main(args=None):
     """
     config = parse_arguments(args)
     configure_logging(config)
+    tempdir = tempfile.mkdtemp(prefix='barman-cloud-backup-')
     try:
+        # Create any temporary file in the `tempdir` subdirectory
+        tempfile.tempdir = tempdir
+
         conninfo = build_conninfo(config)
         postgres = PostgreSQLConnection(conninfo, config.immediate_checkpoint,
                                         application_name='barman_cloud_backup')
@@ -116,6 +122,9 @@ def main(args=None):
         logging.error("Barman cloud backup exception: %s", force_str(exc))
         logging.debug('Exception details:', exc_info=exc)
         raise SystemExit(1)
+    finally:
+        # Remove the temporary directory and all the contained files
+        rmtree(tempdir, ignore_errors=True)
 
 
 def parse_arguments(args=None):
