@@ -636,13 +636,8 @@ def check(args):
                 skip_disabled=False, disabled_is_error=False):
             continue
 
-        # If the server has been manually disabled
-        if not server.config.active:
-            name += " (inactive)"
-        # If server has configuration errors
-        elif server.config.disabled:
-            name += " (WARNING: disabled)"
-        output.init('check', name, server.config.active)
+        output.init('check', name,
+                    server.config.active, server.config.disabled)
         with closing(server):
             server.check()
     output.close_and_exit()

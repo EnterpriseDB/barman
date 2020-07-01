@@ -559,14 +559,22 @@ class ConsoleOutputWriter(object):
             global error_occurred
             error_occurred = True
 
-    def init_check(self, server_name, active):
+    def init_check(self, server_name, active, disabled):
         """
         Init the check command
 
         :param str server_name: the server we are start listing
         :param boolean active: The server is active
+        :param boolean disabled: The server is disabled
         """
-        self.info("Server %s:" % server_name)
+        display_name = server_name
+        # If the server has been manually disabled
+        if not active:
+            display_name += " (inactive)"
+        # If server has configuration errors
+        elif disabled:
+            display_name += " (WARNING: disabled)"
+        self.info("Server %s:" % display_name)
         self.active = active
 
     def result_check(self, server_name, check, status, hint=None):
@@ -1131,12 +1139,13 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 (datetime.datetime.now() - results['recovery_start_time'])
                 .total_seconds()})
 
-    def init_check(self, server_name, active):
+    def init_check(self, server_name, active, disabled):
         """
         Init the check command
 
         :param str server_name: the server we are start listing
         :param boolean active: The server is active
+        :param boolean disabled: The server is disabled
         """
         self.json_output[server_name] = {}
         self.active = active

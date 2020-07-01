@@ -927,7 +927,7 @@ class TestConsoleWriter(object):
 
         server = 'test'
 
-        writer.init_check(server, True)
+        writer.init_check(server, True, False)
         (out, err) = capsys.readouterr()
         assert out == 'Server %s:\n' % server
         assert err == ''
@@ -975,9 +975,9 @@ class TestConsoleWriter(object):
         # Test an inactive server
         # Shows error, but does not change error_occurred
         output.error_occurred = False
-        writer.init_check(server, False)
+        writer.init_check(server, False, False)
         (out, err) = capsys.readouterr()
-        assert out == 'Server %s:\n' % server
+        assert out == 'Server %s (inactive):\n' % server
         assert err == ''
         assert not output.error_occurred
 
@@ -986,6 +986,21 @@ class TestConsoleWriter(object):
         assert out == '\t%s: FAILED\n' % check
         assert err == ''
         assert not output.error_occurred
+
+        # Test a disabled server
+        # Shows error, and change error_occurred
+        output.error_occurred = False
+        writer.init_check(server, True, True)
+        (out, err) = capsys.readouterr()
+        assert out == 'Server %s (WARNING: disabled):\n' % server
+        assert err == ''
+        assert not output.error_occurred
+
+        writer.result_check(server, check, False)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: FAILED\n' % check
+        assert err == ''
+        assert output.error_occurred
 
     def test_result_check_failed_hint(self, capsys):
         writer = output.ConsoleOutputWriter()
@@ -1047,9 +1062,9 @@ class TestConsoleWriter(object):
         # Test an inactive server
         # Shows error, but does not change error_occurred
         output.error_occurred = False
-        writer.init_check(server, False)
+        writer.init_check(server, False, False)
         (out, err) = capsys.readouterr()
-        assert out == 'Server %s:\n' % server
+        assert out == 'Server %s (inactive):\n' % server
         assert err == ''
         assert not output.error_occurred
 
@@ -1058,6 +1073,21 @@ class TestConsoleWriter(object):
         assert out == '\t%s: %sFAILED%s\n' % (check, RED, RESET)
         assert err == ''
         assert not output.error_occurred
+
+        # Test a disabled server
+        # Shows error, and change error_occurred
+        output.error_occurred = False
+        writer.init_check(server, True, True)
+        (out, err) = capsys.readouterr()
+        assert out == 'Server %s (WARNING: disabled):\n' % server
+        assert err == ''
+        assert not output.error_occurred
+
+        writer.result_check(server, check, False)
+        (out, err) = capsys.readouterr()
+        assert out == '\t%s: %sFAILED%s\n' % (check, RED, RESET)
+        assert err == ''
+        assert output.error_occurred
 
     def test_result_check_failed_hint_color(self, capsys, monkeypatch):
         monkeypatch.setattr(output, 'ansi_colors_enabled', True)
@@ -1515,7 +1545,7 @@ class TestJsonWriter(object):
 
         server = 'test'
 
-        writer.init_check(server, True)
+        writer.init_check(server, True, False)
         writer.close()
 
         (out, err) = capsys.readouterr()
@@ -1531,7 +1561,7 @@ class TestJsonWriter(object):
         server = 'test'
         check = 'test check'
 
-        writer.init_check(server, active=True)
+        writer.init_check(server, active=True, disabled=False)
         writer.result_check(server, check, True)
         writer.close()
 
@@ -1550,7 +1580,7 @@ class TestJsonWriter(object):
         check = 'test check'
         hint = 'do something'
 
-        writer.init_check(server, active=True)
+        writer.init_check(server, active=True, disabled=False)
         writer.result_check(server, check, True, hint)
         writer.close()
 
@@ -1569,7 +1599,7 @@ class TestJsonWriter(object):
         server = 'test'
         check = 'test check'
 
-        writer.init_check(server, active=True)
+        writer.init_check(server, active=True, disabled=False)
         writer.result_check(server, check, False)
         writer.close()
 
@@ -1584,7 +1614,7 @@ class TestJsonWriter(object):
         # Test an inactive server
         # Shows error, but does not change error_occurred
         output.error_occurred = False
-        writer.init_check(server, active=False)
+        writer.init_check(server, active=False, disabled=False)
         writer.result_check(server, check, False)
         writer.close()
 
@@ -1604,7 +1634,7 @@ class TestJsonWriter(object):
         check = 'test check'
         hint = 'do something'
 
-        writer.init_check(server, active=True)
+        writer.init_check(server, active=True, disabled=False)
         writer.result_check(server, check, False, hint)
         writer.close()
 
