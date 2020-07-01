@@ -1308,7 +1308,7 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         :param DictCursor start_info: the result of the pg_start_backup
         command
         """
-        backup_info.set_attribute('status', "STARTED")
+        backup_info.set_attribute('status', BackupInfo.STARTED)
         backup_info.set_attribute('begin_time', start_info['timestamp'])
         backup_info.set_attribute('begin_xlog', start_info['location'])
 
@@ -1658,7 +1658,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        backup_info.set_attribute('status', "STARTED")
+        backup_info.set_attribute('status', BackupInfo.STARTED)
         start_info = self.postgres.pgespresso_start_backup(label)
         backup_info.set_attribute('backup_label', start_info['backup_label'])
         self._backup_info_from_backup_label(backup_info)

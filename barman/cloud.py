@@ -1175,6 +1175,9 @@ class S3BackupUploader(object):
             # Store statistics about the copy
             backup_info.set_attribute("copy_stats", controller.statistics())
 
+            # Set the backup status as DONE
+            backup_info.set_attribute("status", BackupInfo.DONE)
+
         # Use BaseException instead of Exception to catch events like
         # KeyboardInterrupt (e.g.: CTRL-C)
         except BaseException as exc:
@@ -1221,7 +1224,7 @@ class S3BackupUploader(object):
         if backup_info:
             # Use only the first line of exception message
             # in backup_info error field
-            backup_info.set_attribute("status", "FAILED")
+            backup_info.set_attribute("status", BackupInfo.FAILED)
             backup_info.set_attribute(
                 "error",
                 "failure %s (%s)" % (action, msg_lines[0]))

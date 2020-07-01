@@ -436,7 +436,7 @@ class BackupManager(RemoteStatusMixin):
             if backup_info:
                 # Use only the first line of exception message
                 # in backup_info error field
-                backup_info.set_attribute("status", "FAILED")
+                backup_info.set_attribute("status", BackupInfo.FAILED)
                 backup_info.set_attribute(
                     "error",
                     "failure %s (%s)" % (

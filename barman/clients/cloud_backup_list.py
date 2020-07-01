@@ -21,6 +21,7 @@ from contextlib import closing
 
 import barman
 from barman.cloud import CloudInterface, S3BackupCatalog, configure_logging
+from barman.infofile import BackupInfo
 from barman.utils import force_str
 
 try:
@@ -70,11 +71,12 @@ def main(args=None):
                 print(COLUMNS.format("Backup ID", "End Time", "Begin Wal"))
                 for backup_id in sorted(backup_list):
                     item = backup_list[backup_id]
-                    print(COLUMNS.format(
-                        item.backup_id,
-                        item.end_time.strftime("%Y-%m-%d %H:%M:%S"),
-                        item.begin_wal
-                    ))
+                    if item and item.status == BackupInfo.DONE:
+                        print(COLUMNS.format(
+                            item.backup_id,
+                            item.end_time.strftime("%Y-%m-%d %H:%M:%S"),
+                            item.begin_wal
+                        ))
             else:
                 print(json.dumps({"backups_list": [
                     backup_list[backup_id].to_json()
