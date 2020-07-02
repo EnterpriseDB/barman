@@ -135,6 +135,21 @@ def parse_log_level(log_level):
     return None
 
 
+# noinspection PyProtectedMember
+def get_log_levels():
+    """
+    Return a list of available log level names
+    """
+    try:
+        level_to_name = logging._levelToName
+    except AttributeError:
+        level_to_name = dict([(key, logging._levelNames[key])
+                              for key in logging._levelNames
+                              if isinstance(key, int)])
+    for level in sorted(level_to_name):
+        yield level_to_name[level]
+
+
 def pretty_size(size, unit=1024):
     """
     This function returns a pretty representation of a size value

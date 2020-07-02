@@ -137,6 +137,15 @@ class TestParseLogLevel(object):
 
 
 # noinspection PyMethodMayBeStatic
+class TestGetLogLevels(object):
+    def test_get_log_levels(self):
+        levels = list(barman.utils.get_log_levels())
+        assert len(levels) > 0
+        for level in levels:
+            assert isinstance(level, barman.utils._string_types)
+
+
+# noinspection PyMethodMayBeStatic
 @mock.patch('barman.utils.os')
 class TestMkpath(object):
     def test_path_exists(self, mock_os):

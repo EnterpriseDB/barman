@@ -38,7 +38,7 @@ from barman.infofile import BackupInfo
 from barman.server import Server
 from barman.utils import (BarmanEncoder, check_non_negative, check_positive,
                           configure_logging, drop_privileges, force_str,
-                          parse_log_level)
+                          get_log_levels, parse_log_level)
 
 _logger = logging.getLogger(__name__)
 
@@ -1035,6 +1035,8 @@ def global_config(args):
         raise SystemExit(msg)
 
     # configure logging
+    if hasattr(args, 'log_level'):
+        config.log_level = args.log_level
     log_level = parse_log_level(config.log_level)
     configure_logging(config.log_file,
                       log_level or barman.config.DEFAULT_LOG_LEVEL,
@@ -1312,6 +1314,10 @@ def main():
                    help='Whether to use colors in the output',
                    choices=['never', 'always', 'auto'],
                    default='auto')
+    p.add_argument('--log-level',
+                   help='Override the default log level',
+                   choices=list(get_log_levels()),
+                   default=SUPPRESS)
     p.add_argument('-q', '--quiet', help='be quiet', action='store_true')
     p.add_argument('-d', '--debug', help='debug output', action='store_true')
     p.add_argument('-f', '--format', help='output format',

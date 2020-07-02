@@ -18,6 +18,9 @@
 -d, --debug
 :   debug output (default: False)
 
+--log-level {NOTSET,DEBUG,INFO,WARNING,ERROR,CRITICAL}
+:   Override the default log level
+
 
 -f {json,console}, --format {json,console}
 :   output format (default: 'console')
