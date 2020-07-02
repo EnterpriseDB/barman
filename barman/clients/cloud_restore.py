@@ -69,8 +69,12 @@ def main(args=None):
 
             downloader.download_backup(config.backup_id, config.recovery_dir)
 
+    except KeyboardInterrupt as exc:
+        logging.error("Barman cloud restore was interrupted by the user")
+        logging.debug('Exception details:', exc_info=exc)
+        raise SystemExit(1)
     except Exception as exc:
-        logging.error("Barman cloud backup restore exception: %s",
+        logging.error("Barman cloud restore exception: %s",
                       force_str(exc))
         logging.debug('Exception details:', exc_info=exc)
         raise SystemExit(1)
