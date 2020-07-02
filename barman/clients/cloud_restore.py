@@ -216,6 +216,8 @@ class S3BackupDownloader(object):
                     target_dir)
                 raise SystemExit(1)
             copy_jobs.append([file_info, target_dir])
+            for additional_file in file_info.additional_files:
+                copy_jobs.append([additional_file, target_dir])
 
         # Now it's time to download the files
         for file_info, target_dir in copy_jobs:

@@ -39,7 +39,7 @@ from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.utils import (BarmanEncoder, force_str, human_readable_timedelta,
-                          total_seconds)
+                          pretty_size, total_seconds)
 
 try:
     import boto3
@@ -62,7 +62,17 @@ except ImportError:
     from Queue import Empty as EmptyQueue
 
 
-DEFAULT_CHUNK_SIZE = 20 << 20
+# S3 multipart upload limitations
+# http://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadUploadPart.html
+MAX_CHUNKS_PER_FILE = 10000
+MIN_CHUNK_SIZE = 5 << 20
+
+# S3 permit a maximum of 5TB per file
+# https://docs.aws.amazon.com/AmazonS3/latest/dev/UploadingObjects.html
+# This is a hard limit, while our upload procedure can go over the specified
+# MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
+MAX_ARCHIVE_SIZE = 1 << 40
+
 BUFSIZE = 16 * 1024
 LOGGING_FORMAT = "%(asctime)s %(levelname)s %(message)s"
 
@@ -157,7 +167,7 @@ class S3TarUploader(object):
                       prefix='barman-upload-', suffix='.part')
 
     def __init__(self, cloud_interface, key,
-                 compression=None, chunk_size=DEFAULT_CHUNK_SIZE):
+                 compression=None, chunk_size=MIN_CHUNK_SIZE):
         """
         A tar archive that resides on S3
 
@@ -169,12 +179,13 @@ class S3TarUploader(object):
         self.cloud_interface = cloud_interface
         self.key = key
         self.mpu = None
-        self.chunk_size = chunk_size
+        self.chunk_size = max(chunk_size, MIN_CHUNK_SIZE)
         self.buffer = None
         self.counter = 0
         tar_mode = 'w|%s' % (compression or '')
         self.tar = TarFileIgnoringTruncate.open(fileobj=self,
                                                 mode=tar_mode)
+        self.size = 0
         self.stats = None
 
     def write(self, buf):
@@ -183,6 +194,7 @@ class S3TarUploader(object):
         if not self.buffer:
             self.buffer = self._buffer()
         self.buffer.write(buf)
+        self.size += len(buf)
 
     def flush(self):
         if not self.mpu:
@@ -211,12 +223,14 @@ class S3TarUploader(object):
 
 
 class S3UploadController(object):
-    def __init__(self, cloud_interface, key_prefix, compression):
+    def __init__(self, cloud_interface, key_prefix, max_archive_size,
+                 compression):
         """
         Create a new controller that upload the backup in S3
 
         :param CloudInterface cloud_interface: cloud interface instance
         :param str|None key_prefix: path inside the bucket
+        :param int max_archive_size: the maximum size of an archive
         :param str|None compression: required compression
         """
 
@@ -224,6 +238,14 @@ class S3UploadController(object):
         if key_prefix and key_prefix[0] == '/':
             key_prefix = key_prefix[1:]
         self.key_prefix = key_prefix
+        if max_archive_size < MAX_ARCHIVE_SIZE:
+            self.max_archive_size = max_archive_size
+        else:
+            logging.warning("max-archive-size too big. Capping it to to %s",
+                            pretty_size(MAX_ARCHIVE_SIZE))
+            self.max_archive_size = MAX_ARCHIVE_SIZE
+        # We aim to a maximum of MAX_CHUNKS_PER_FILE / 2 chinks per file
+        self.chunk_size = 2 * int(max_archive_size / MAX_CHUNKS_PER_FILE)
         self.compression = compression
         self.tar_list = {}
 
@@ -236,17 +258,22 @@ class S3UploadController(object):
         self.copy_end_time = None
         """Copy end time"""
 
-    def _build_dest_name(self, name):
+    def _build_dest_name(self, name, count=0):
         """
-        Get the name suffix
+        Get the destination tar name
+        :param str name: the name prefix
+        :param int count: the part count
         :rtype: str
         """
-        if self.compression == 'gz':
-            return "%s.tar.gz" % name
-        elif self.compression == 'bz2':
-            return "%s.tar.bz2" % name
-        else:
-            return "%s.tar" % name
+        components = [name]
+        if count > 0:
+            components.append("_%04d" % count)
+        components.append(".tar")
+        if self.compression == "gz":
+            components.append(".gz")
+        elif self.compression == "bz2":
+            components.append(".bz2")
+        return "".join(components)
 
     def _get_tar(self, name):
         """
@@ -257,24 +284,38 @@ class S3UploadController(object):
         """
         if name not in self.tar_list or not self.tar_list[name]:
 
-            self.tar_list[name] = S3TarUploader(
+            self.tar_list[name] = [S3TarUploader(
                 cloud_interface=self.cloud_interface,
                 key=os.path.join(self.key_prefix, self._build_dest_name(name)),
-                compression=self.compression
+                compression=self.compression,
+                chunk_size=self.chunk_size,
+            )]
+        # If the current uploading file size is over DEFAULT_MAX_TAR_SIZE
+        # Close the current file and open the next part
+        uploader = self.tar_list[name][-1]
+        if uploader.size > self.max_archive_size:
+            uploader.close()
+            uploader = S3TarUploader(
+                cloud_interface=self.cloud_interface,
+                key=os.path.join(
+                    self.key_prefix,
+                    self._build_dest_name(name, len(self.tar_list[name]))),
+                compression=self.compression,
+                chunk_size=self.chunk_size,
             )
-        return self.tar_list[name].tar
+            self.tar_list[name].append(uploader)
+        return uploader.tar
 
     def upload_directory(self, label, src, dst, exclude=None, include=None):
         logging.info("S3UploadController.upload_directory(%r, %r, %r)",
                      label, src, dst)
-        tar = self._get_tar(dst)
         for root, dirs, files in os.walk(src):
             tar_root = os.path.relpath(root, src)
             if not path_allowed(exclude, include,
                                 tar_root, True):
                 continue
             try:
-                tar.add(root, arcname=tar_root, recursive=False)
+                self._get_tar(dst).add(root, arcname=tar_root, recursive=False)
             except EnvironmentError as e:
                 if e.errno == errno.ENOENT:
                     # If a directory disappeared just skip it,
@@ -290,7 +331,8 @@ class S3UploadController(object):
                     continue
                 logging.debug("Uploading %s", tar_item)
                 try:
-                    tar.add(os.path.join(root, item), arcname=tar_item)
+                    self._get_tar(dst).add(os.path.join(root, item),
+                                           arcname=tar_item)
                 except EnvironmentError as e:
                     if e.errno == errno.ENOENT:
                         # If a file disappeared just skip it,
@@ -327,10 +369,12 @@ class S3UploadController(object):
     def close(self):
         logging.info("S3UploadController.close()")
         for name in self.tar_list:
-            tar = self.tar_list[name]
-            if tar:
-                tar.close()
-                self.upload_stats[name] = tar.stats
+            if self.tar_list[name]:
+                # Tho only opened file is the last one, all the others
+                # have been already closed
+                self.tar_list[name][-1].close()
+                self.upload_stats[name] = [tar.stats
+                                           for tar in self.tar_list[name]]
             self.tar_list[name] = None
 
         # Store the end time
@@ -365,26 +409,33 @@ class S3UploadController(object):
         upload_end = None
         serialized_time = datetime.timedelta(0)
         for name in self.upload_stats:
-            data = self.upload_stats[name]
-            logging.debug('Calculating statistics for file %s, data: %s',
-                          name, json.dumps(data, indent=2, sort_keys=True,
-                                           cls=BarmanEncoder))
-            if upload_start is None or upload_start > data['start_time']:
-                upload_start = data['start_time']
-            if upload_end is None or upload_end < data['end_time']:
-                upload_end = data['end_time']
+            name_start = None
+            name_end = None
+            total_time = datetime.timedelta(0)
+            for index, data in enumerate(self.upload_stats[name]):
+                logging.debug(
+                    'Calculating statistics for file %s, index %s, data: %s',
+                    name, index, json.dumps(data, indent=2, sort_keys=True,
+                                            cls=BarmanEncoder))
+                if upload_start is None or upload_start > data['start_time']:
+                    upload_start = data['start_time']
+                if upload_end is None or upload_end < data['end_time']:
+                    upload_end = data['end_time']
+                if name_start is None or name_start > data['start_time']:
+                    name_start = data['start_time']
+                if name_end is None or name_end < data['end_time']:
+                    name_end = data['end_time']
+                parts = data['parts']
+                for num in parts:
+                    part = parts[num]
+                    total_time += part['end_time'] - part['start_time']
+                stat['serialized_copy_time_per_item'][name] = total_seconds(
+                    total_time)
+                serialized_time += total_time
             # Cloud uploads have no analysis
             stat['analysis_time_per_item'][name] = 0
             stat['copy_time_per_item'][name] = total_seconds(
-                data['end_time'] - data['start_time'])
-            parts = data['parts']
-            total_time = datetime.timedelta(0)
-            for num in parts:
-                part = parts[num]
-                total_time += part['end_time'] - part['start_time']
-            stat['serialized_copy_time_per_item'][name] = total_seconds(
-                total_time)
-            serialized_time += total_time
+                name_end - name_start)
 
         # Store the total time spent by copying
         stat['copy_time'] = total_seconds(upload_end - upload_start)
@@ -993,7 +1044,7 @@ class S3BackupUploader(object):
     """
 
     def __init__(self, server_name, postgres, cloud_interface,
-                 compression=None):
+                 max_archive_size, compression=None):
         """
         Object responsible for handling interactions with S3
 
@@ -1001,6 +1052,7 @@ class S3BackupUploader(object):
         :param PostgreSQLConnection postgres: The PostgreSQL connection info
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
+        :param int max_archive_size: the maximum size of an uploading archive
         :param str compression: Compression algorithm to use
         """
 
@@ -1008,6 +1060,7 @@ class S3BackupUploader(object):
         self.server_name = server_name
         self.postgres = postgres
         self.cloud_interface = cloud_interface
+        self.max_archive_size = max_archive_size
 
         # Stats
         self.copy_start_time = None
@@ -1134,7 +1187,11 @@ class S3BackupUploader(object):
             backup_info.backup_id
         )
         controller = S3UploadController(
-            self.cloud_interface, key_prefix, self.compression)
+            self.cloud_interface,
+            key_prefix,
+            self.max_archive_size,
+            self.compression,
+        )
         if self.postgres.server_version >= 90600 \
                 or self.postgres.has_pgespresso:
             strategy = ConcurrentBackupStrategy(self.postgres, server_name)
@@ -1238,6 +1295,7 @@ class BackupFileInfo(object):
         self.base = base
         self.path = path
         self.compression = compression
+        self.additional_files = []
 
 
 class S3BackupCatalog(object):
@@ -1311,35 +1369,52 @@ class S3BackupCatalog(object):
         # Correctly format the source path on s3
         source_dir = os.path.join(self.prefix, backup_info.backup_id)
 
-        base_path = os.path.join(source_dir, 'data.tar')
+        base_path = os.path.join(source_dir, 'data')
         backup_files = {
             None: BackupFileInfo(None, base_path)
         }
         if backup_info.tablespaces:
             for tblspc in backup_info.tablespaces:
-                base_path = os.path.join(source_dir, '%s.tar' % tblspc.oid)
+                base_path = os.path.join(source_dir, '%s' % tblspc.oid)
                 backup_files[tblspc.oid] = BackupFileInfo(tblspc.oid,
                                                           base_path)
 
         for item in self.cloud_interface.list_bucket(source_dir + '/'):
             for backup_file in backup_files.values():
                 if item.startswith(backup_file.base):
-                    # Automatically detect compressed backups
-                    if item != backup_file.base:
-                        ext = item[len(backup_file.base):]
-                        if ext == '.gz':
-                            backup_file.compression = 'gzip'
-                        elif ext == '.bz2':
-                            backup_file.compression = 'bzip2'
-                        else:
-                            logging.warning("Skipping unknown extension: %s",
-                                            ext)
-                            continue
-                    backup_file.path = item
-                    logging.info("Found backup %s for server %s as %s",
-                                 backup_info.backup_id,
-                                 self.server_name,
-                                 backup_file.path)
+                    # Automatically detect additional files
+                    suffix = item[len(backup_file.base):]
+                    # Avoid to match items that are prefix of other items
+                    if not suffix or suffix[0] not in ('.', '_'):
+                        logging.debug("Skipping spurious prefix match: %s|%s",
+                                      backup_file.base, suffix)
+                        continue
+                    # If this file have a suffix starting with `_`,
+                    # it is an additional file and we add it to the main
+                    # BackupFileInfo ...
+                    if suffix[0] == '_':
+                        info = BackupFileInfo(backup_file.oid, base_path)
+                        backup_file.additional_files.append(info)
+                        ext = suffix.split('.', 1)[-1]
+                    # ... otherwise this is the main file
+                    else:
+                        info = backup_file
+                        ext = suffix[1:]
+                    # Infer the compression from the file extension
+                    if ext == 'tar':
+                        info.compression = None
+                    elif ext == 'tar.gz':
+                        info.compression = 'gzip'
+                    elif ext == 'tar.bz2':
+                        info.compression = 'bzip2'
+                    else:
+                        logging.warning("Skipping unknown extension: %s",
+                                        ext)
+                        continue
+                    info.path = item
+                    logging.info(
+                        "Found file from backup %s of server %s: %s",
+                        backup_info.backup_id, self.server_name, info.path)
                     break
 
         for backup_file in backup_files.values():

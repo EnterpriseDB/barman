@@ -20,6 +20,7 @@ import json
 import logging
 import signal
 import sys
+from argparse import ArgumentTypeError
 from datetime import datetime, timedelta
 
 import mock
@@ -677,3 +678,31 @@ class TestForceText(object):
         # ASCII).
         obj = MyString()
         assert barman.utils.force_str(obj) == repr(obj)
+
+
+class TestCheckSize(object):
+    @pytest.mark.parametrize("size, bytes", [
+        ['12345', 12345],
+        ['4321B', 4321],
+        ['12kB', 12 << 10],
+        ['300MB', 300 << 20],
+        ['20GB', 20 << 30],
+        ['1TB', 1 << 40],
+        ['12kiB', 12 * 10 ** 3],
+        ['300MiB', 300 * 10 ** 6],
+        ['20GiB', 20 * 10 ** 9],
+        ['1TiB', 1 * 10 ** 12],
+    ])
+    def test_parse(self, size, bytes):
+        assert barman.utils.check_size(size) == bytes
+
+    def test_parse_error(self):
+        with pytest.raises(ArgumentTypeError):
+            barman.utils.check_size('1X2')
+
+    def test_negative_size(self):
+        with pytest.raises(ArgumentTypeError):
+            barman.utils.check_size('-1')
+
+    def test_none(self):
+        assert barman.utils.check_size(None) is None

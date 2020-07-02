@@ -78,6 +78,9 @@ SERVER_NAME
 -J JOBS, --jobs JOBS
 :    number of subprocesses to upload data to S3 (default: 2)
 
+-S MAX_ARCHIVE_SIZE, --max-archive-size MAX_ARCHIVE_SIZE
+:    maximum size of an archive when uploading to S3 (default: 100GB)
+
 --endpoint-url
 : override the default S3 URL construction mechanism by specifying an endpoint.
 

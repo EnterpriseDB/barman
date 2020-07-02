@@ -569,3 +569,46 @@ def check_positive(value):
         raise ArgumentTypeError("'%s' is not a valid positive integer" %
                                 value)
     return int_value
+
+
+def check_size(value):
+    """
+    Check user input for a human readable size
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    # Ignore cases
+    value = value.upper()
+    try:
+        # If value ends with `B` we try to parse the multiplier,
+        # otherwise it is a plain integer
+        if value[-1] == 'B':
+            # By default we use base=1024, if the value ends with `iB`
+            # it is a SI value and we use base=1000
+            if value[-2] == 'I':
+                base = 1000
+                idx = 3
+            else:
+                base = 1024
+                idx = 2
+            multiplier = base
+            # Parse the multiplicative prefix
+            for prefix in 'KMGTPEZY':
+                if value[-idx] == prefix:
+                    int_value = int(float(value[:-idx]) * multiplier)
+                    break
+                multiplier *= base
+            else:
+                # If we do not find the prefix, remove the unit
+                # and try to parse the remainder as an integer
+                # (e.g. '1234B')
+                int_value = int(value[:-idx + 1])
+        else:
+            int_value = int(value)
+    except ValueError:
+        raise ArgumentTypeError("'%s' is not a valid size string" % value)
+    if int_value is None or int_value < 1:
+        raise ArgumentTypeError("'%s' is not a valid size string" % value)
+    return int_value

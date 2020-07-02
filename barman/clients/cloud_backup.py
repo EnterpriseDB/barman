@@ -25,7 +25,7 @@ import barman
 from barman.cloud import CloudInterface, S3BackupUploader, configure_logging
 from barman.exceptions import PostgresConnectionError
 from barman.postgres import PostgreSQLConnection
-from barman.utils import check_positive, force_str
+from barman.utils import check_positive, check_size, force_str
 
 try:
     import argparse
@@ -110,6 +110,7 @@ def main(args=None):
                     server_name=config.server_name,
                     compression=config.compression,
                     postgres=postgres,
+                    max_archive_size=config.max_archive_size,
                     cloud_interface=cloud_interface)
 
                 # Perform the backup
@@ -220,9 +221,15 @@ def parse_arguments(args=None):
     parser.add_argument(
         '-J', '--jobs',
         type=check_positive,
-        help='number of subprocesses to upload data to S3, '
-             'defaults to 2',
+        help='number of subprocesses to upload data to S3 '
+             '(default: 2)',
         default=2)
+    parser.add_argument(
+        '-S', '--max-archive-size',
+        type=check_size,
+        help="maximum size of an archive when uploading to S3 "
+             "(default: 100GB)",
+        default='100GB')
     parser.add_argument(
         "--endpoint-url",
         help="Override default S3 endpoint URL with the given one",
