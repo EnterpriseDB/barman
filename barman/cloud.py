@@ -74,7 +74,7 @@ MIN_CHUNK_SIZE = 5 << 20
 MAX_ARCHIVE_SIZE = 1 << 40
 
 BUFSIZE = 16 * 1024
-LOGGING_FORMAT = "%(asctime)s %(levelname)s %(message)s"
+LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
 
 
 def configure_logging(config):
@@ -307,8 +307,8 @@ class S3UploadController(object):
         return uploader.tar
 
     def upload_directory(self, label, src, dst, exclude=None, include=None):
-        logging.info("S3UploadController.upload_directory(%r, %r, %r)",
-                     label, src, dst)
+        logging.info("Uploading '%s' directory '%s' as '%s'",
+                     label, src, self._build_dest_name(dst))
         for root, dirs, files in os.walk(src):
             tar_root = os.path.relpath(root, src)
             if not path_allowed(exclude, include,
@@ -342,17 +342,17 @@ class S3UploadController(object):
                         raise
 
     def add_file(self, label, src, dst, path, optional=False):
-        logging.info("S3UploadController.add_file(%r, %r, %r, %r, %r)",
-                     label, src, dst, path, optional)
         if optional and not os.path.exists(src):
             return
+        logging.info("Uploading '%s' file from '%s' to '%s' with path '%s'",
+                     label, src, self._build_dest_name(dst), path)
         tar = self._get_tar(dst)
         tar.add(src, arcname=path)
 
     def add_fileobj(self, label, fileobj, dst, path,
                     mode=None, uid=None, gid=None):
-        logging.info("S3UploadController.add_fileobj(%r, %r, %r)",
-                     label, dst, path)
+        logging.info("Uploading '%s' file to '%s' with path '%s'",
+                     label, self._build_dest_name(dst), path)
         tar = self._get_tar(dst)
         tarinfo = tar.tarinfo(path)
         fileobj.seek(0, os.SEEK_END)
@@ -367,7 +367,7 @@ class S3UploadController(object):
         tar.addfile(tarinfo, fileobj)
 
     def close(self):
-        logging.info("S3UploadController.close()")
+        logging.info("Marking all the uploaded archives as 'completed'")
         for name in self.tar_list:
             if self.tar_list[name]:
                 # Tho only opened file is the last one, all the others
@@ -386,7 +386,7 @@ class S3UploadController(object):
 
         :rtype: dict
         """
-        logging.info("S3UploadController.statistics()")
+        logging.info("Calculating backup statistics")
 
         # This method can only run at the end of a non empty copy
         assert self.copy_end_time
@@ -667,7 +667,7 @@ class CloudInterface(object):
         if task["job_type"] == "upload_part":
             if self.abort_requested:
                 logging.info(
-                    "Skipping %s, part %s (worker %s)" % (
+                    "Skipping '%s', part '%s' (worker %s)" % (
                         task["key"],
                         task["part_number"],
                         process_number))
@@ -675,7 +675,7 @@ class CloudInterface(object):
                 return
             else:
                 logging.info(
-                    "Uploading %s, part %s (worker %s)" % (
+                    "Uploading '%s', part '%s' (worker %s)" % (
                         task["key"],
                         task["part_number"],
                         process_number))
@@ -710,7 +710,7 @@ class CloudInterface(object):
                     })
             else:
                 logging.info(
-                    "Completing %s (worker %s)" % (
+                    "Completing '%s' (worker %s)" % (
                         task["key"],
                         process_number))
                 self.complete_multipart_upload(
@@ -770,7 +770,7 @@ class CloudInterface(object):
             # Do not use session.region_name here because it may be None
             region = self.s3.meta.client.meta.region_name
             logging.info(
-                "Bucket %s does not exist, creating it on region %s",
+                "Bucket '%s' does not exist, creating it on region '%s'",
                 self.bucket_name, region)
             create_bucket_config = {
                 'ACL': 'private',
@@ -1197,11 +1197,11 @@ class S3BackupUploader(object):
             strategy = ConcurrentBackupStrategy(self.postgres, server_name)
         else:
             strategy = ExclusiveBackupStrategy(self.postgres, server_name)
-        logging.info("Starting backup %s", backup_info.backup_id)
+        logging.info("Starting backup '%s'", backup_info.backup_id)
         strategy.start_backup(backup_info)
         try:
             self.backup_copy(controller, backup_info)
-            logging.info("Stopping backup %s", backup_info.backup_id)
+            logging.info("Stopping backup '%s'", backup_info.backup_id)
             strategy.stop_backup(backup_info)
 
             # Create a restore point after a backup
@@ -1247,7 +1247,7 @@ class S3BackupUploader(object):
                     backup_info.save(file_object=backup_info_file)
                     backup_info_file.seek(0, os.SEEK_SET)
                     key = os.path.join(controller.key_prefix, 'backup.info')
-                    logging.info("Uploading %s", key)
+                    logging.info("Uploading '%s'", key)
                     self.cloud_interface.upload_fileobj(backup_info_file, key)
             except BaseException as exc:
                 # Mark the backup as failed and exit
@@ -1413,7 +1413,7 @@ class S3BackupCatalog(object):
                         continue
                     info.path = item
                     logging.info(
-                        "Found file from backup %s of server %s: %s",
+                        "Found file from backup '%s' of server '%s': %s",
                         backup_info.backup_id, self.server_name, info.path)
                     break
 
