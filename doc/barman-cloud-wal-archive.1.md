@@ -115,4 +115,4 @@ Any bug can be reported via the Github issue tracker.
 Barman is the property of 2ndQuadrant Limited
 and its code is distributed under GNU General Public License v3.
 
-Copyright (C) 2011-2019 2ndQuadrant Ltd - <http://www.2ndQuadrant.com/>.
+Copyright (C) 2011-2020 2ndQuadrant Ltd - <http://www.2ndQuadrant.com/>.

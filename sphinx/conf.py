@@ -2,7 +2,7 @@
 #
 # barman - Backup and Recovery Manager for PostgreSQL
 #
-# Copyright (C) 2011-2018 2ndQuadrant Limited <info@2ndquadrant.com>
+# Copyright (C) 2011-2020 2ndQuadrant Limited <info@2ndquadrant.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -69,7 +69,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Barman'
-copyright = u'2011-2019 2ndQuadrant Limited]'
+copyright = u'2011-2020 2ndQuadrant Limited]'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

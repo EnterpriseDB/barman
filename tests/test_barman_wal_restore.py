@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2019 2ndQuadrant Limited
+# Copyright (C) 2013-2020 2ndQuadrant Limited
 #
 # Client Utilities for Barman, Backup and Recovery Manager for PostgreSQL
 #

@@ -42,7 +42,7 @@ Web resources
 Licence
 -------
 
-Copyright (C) 2011-2019 2ndQuadrant Limited
+Copyright (C) 2011-2020 2ndQuadrant Limited
 
 Barman is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
