@@ -22,6 +22,13 @@ Currently only AWS S3 is supported.
 This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by 2ndQuadrant.
 
+**IMPORTANT:** the Cloud upload process may fail if any file with a
+size greater than the configured `--max-archive-size` is present
+either in the data directory or in any tablespaces.
+However, PostgreSQL creates files with a maximum size of 1GB,
+and that size is always allowed, regardless of the `max-archive-size`
+parameter.
+
 
 # POSITIONAL ARGUMENTS
 
@@ -124,7 +131,6 @@ Any bug can be reported via the Github issue tracker.
 * Homepage: <http://www.pgbarman.org/>
 * Documentation: <http://docs.pgbarman.org/>
 * Professional support: <http://www.2ndQuadrant.com/>
-
 
 # COPYING
 
