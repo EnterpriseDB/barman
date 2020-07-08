@@ -92,7 +92,10 @@ git add doc/barman.1.d/00-header.md \
     doc/barman-wal-archive.1.md \
     doc/barman-wal-restore.1.md \
     doc/barman-cloud-backup.1.md \
+    doc/barman-cloud-backup-list.1.md \
+    doc/barman-cloud-restore.1.md \
     doc/barman-cloud-wal-archive.1.md \
+    doc/barman-cloud-wal-restore.1.md \
     doc/manual/00-head.en.md \
     barman/version.py \
     doc/barman.1 \
@@ -100,7 +103,10 @@ git add doc/barman.1.d/00-header.md \
     doc/barman-wal-archive.1 \
     doc/barman-wal-restore.1 \
     doc/barman-cloud-backup.1 \
-    doc/barman-cloud-wal-archive.1
+    doc/barman-cloud-backup-list.1 \
+    doc/barman-cloud-restore.1 \
+    doc/barman-cloud-wal-archive.1 \
+    doc/barman-cloud-wal-restore.1
 git commit -sm "Version set to ${release_version}"
 
 echo "Version set to ${release_version}"
