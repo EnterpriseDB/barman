@@ -1,3 +1,248 @@
+2020-07-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Add Python 3.8 compatibility to release metadata
+
+	Version set to 2.11
+
+	Add missing files in scripts/set-version.sh
+
+2020-05-31  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Release notes for 2.11
+
+2020-07-07  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Updated copyright years
+
+2020-07-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Improve logging of `barman-cloud-backup`
+
+2020-07-07  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Document `--max-archive-size` behaviour in man page
+
+2020-07-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support arbitrary archive size in barman-cloud-backup
+	S3 has some limitations on the maximum size of a single file.
+	For this reason, when uploading large tar files, we need to split
+	them in multiple files.
+
+	A new option to `barman-cloud-backup` called `--max-archive-size`,
+	by default set to 100GB, to split a tar file in multiple parts
+	when that size is reached.
+
+2020-07-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Pin isort version < 5.0 because it currently breaks flake8-isort
+	This pinning should be removed as soon as gforcada/flake8-isort#88 is
+	resolved.
+
+2020-07-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add --log-level option to override the global configuration
+
+	Gracefully handle KeyboardInterrupt in barman-cloud-restore
+
+2020-06-01  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Document `barman-cli-cloud` installation
+
+2019-11-18  Andrea Gelmini  <andrea.gelmini@gelma.net>
+
+	Fix typos
+	Closes: GH-253
+
+2020-07-01  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Make sure to delete all temporary files at the end of a cloud backup
+
+	Set completed cloud backups status to DONE
+
+	Fix error checking inactive servers with JSON output
+
+2020-06-29  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add testing on Python 3.8
+
+2020-06-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Do not require pgespresso in cloud backup with PostgreSQL 9.5 or lower
+
+2020-06-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add support for pre-release versions in PostgreSQLClient wrapper
+
+2020-06-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Run flake8 on python3.7
+
+2020-06-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Support for barman archive on CIFS
+	This closes GH-228, closes GH-228 and closes SF-80
+
+2020-05-31  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Improve logging of replication slots and restore points
+	Add an `info` message in the log when a replication slot is
+	created/dropped and when a restore point is created.
+
+	Collect `wal_keep_segments` in server status
+
+2020-05-29  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix bug in XLOG/WAL arithmetic with custom segment size
+	Fixes GH-287
+
+2020-05-28  Mark Wong  <mark@2ndQuadrant.com>
+
+	Add text about immediate checkpoints
+	There previously was a section "Immediate Checkpoint" but not
+	integrating that information under the "barman backup" server command
+	section.
+
+2020-03-27  Kaarel Moppel  <kaarel.moppel@gmail.com>
+
+	Remove strict superuser requirement for PG 10+
+	As of PostgreSQL 10 it is possible to execute backups
+	without superuser privileges - which is actually the
+	recommended method for security reasons.
+
+	Non-superuser backups need to grant some privileges
+	to the user used by Barman to connect to PostgreSQL,
+	as documented in the 21-preliminary_steps.en.md section.
+
+	Closes GH-271 and GH-213
+
+2020-05-17  Andrew Dunstan  <andrew.dunstan@2ndquadrant.com>
+
+	Ensure each postgres connection has an empty search_path
+	This is the only safe option when we have no information about how
+	secure the search path is on the target database. We do this by
+	appending " options=-csearch_path=" to any conninfo string.
+
+2020-05-14  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	Ensure that begin_wal is valorised before acting on it
+	Closes GH-262
+
+2020-05-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix PostgreSQL exception handling with non ASCII messages
+
+	Fix cosmetic issue detected by flake8
+
+2020-05-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Detect PostgreSQL devel versions (i.e. 13devel)
+
+2020-04-24  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+
+	Add support for `--endpoint-url` option to cloud utilities
+	This option allows the user to override the default discovery mechanism
+	for boto endpoints.
+
+	Closes: #14965
+
+2020-03-25  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix PostgreSQLClient version parsing
+	The PostgreSQL version string could contain additional information
+	that can confuse Barman. The new parsing code is more resilient and
+	tries to ignore any unneeded information that is appended to the main
+	Postgres version.
+
+2020-03-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	S3 WAL restore gets .partial files and skips backup files
+	Improved the way we check which files to restore from S3 for
+	`barman-cloud-wal-archive`
+
+2020-01-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix rsync compatibility error with recent rsync
+	Using `--ignore-missing-args` could fail in case
+	the local or the remote rsync is older than 3.1.
+
+	In that case we expect that during the analyze phase
+	we get an error.
+
+	The analyze code must catch that error
+	and retry after flushing the rsync cache.
+
+	Require boto3 < 1.11 when testing with Python 2.6
+	Boto3 dropped support for Python 2.6 in version 1.11.0
+
+2019-12-31  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Prototype of barman-cloud-restore
+	Client script to be used to download in the Cloud a backup previously
+	made with `barman-cloud-backup` command.
+	Currently, tablespace mapping is not possible (tablespaces are
+	restored in the original location).
+
+	Prototype of barman-cloud-backup-list
+	Client script to be used to list backups made with `barman-cloud-backup`
+
+	Prototype of barman-cloud-wal-restore
+	Client script to be used in `restore_command` to download WAL
+	files that were previously archived with `barman-cloud-wal-archive`
+	command in the Cloud.
+
+	Strip leading '/' from CloudInterface.path
+
+2020-01-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Rename CloudInterface.destination_url to a more generic `url`
+
+2019-12-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Fix race condition when retrieving uploaded parts in barman-cloud-backup
+	Additionally, check for errors when retrieving job results in order
+	to avoid waiting forever in case of errors.
+
+	Fixes GH-259
+
+2019-12-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Close the PostgreSQL connection after a backup
+	Closes: GH-258
+
+2019-12-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Check for uninitialized replication slots in receive-wal --reset
+	Fixes GH-260
+
+2019-12-20  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Suppress messages and warning with SSH connections in barman-cli
+	Add `-q` and `-T` to SSH connections with both `barman-wal-archive`
+	and `barman-wal-restore`, in order to avoid SSH banners to interfere
+	with `get-wal` or `put-wal` output.
+
+	Fixes GH-257
+
+2019-12-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Add verbose logging to barman-cloud-wal-archive
+
+2019-12-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Do not require ListBuckets permission to use barman-cloud
+
+2019-12-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid connecting to PostgreSQL while reading a backup.info file
+	Prevent Barman from opening a PostgreSQL transaction that lasts until
+	termination, even in operations that should not require to speak with
+	Postgres (i.e. list-backup or recover).
+
+	This fixes a regression introduced with systemid check code.
+
 2019-12-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
