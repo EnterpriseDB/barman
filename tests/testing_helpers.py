@@ -248,6 +248,7 @@ def build_config_dictionary(config_keys=None):
         "check_timeout": 30,
         "custom_compression_filter": None,
         "custom_decompression_filter": None,
+        "custom_compression_magic": None,
         "description": " Text with quotes ",
         "immediate_checkpoint": False,
         "incoming_wals_directory": "/some/barman/home/main/incoming",

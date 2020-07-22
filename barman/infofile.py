@@ -354,6 +354,16 @@ class WalFileInfo(FieldListFile):
         obj.orig_filename = filename
         return obj
 
+    @classmethod
+    def from_file_with_compression(cls, filename, compression_manager,
+                                   unidentified_compression=None, **kwargs):
+        obj = WalFileInfo.from_file(filename,
+                                    unidentified_compression, *kwargs)
+
+        obj.compression = compression_manager.identify_compression(filename)
+
+        return obj
+
     def to_xlogdb_line(self):
         """
         Format the content of this object as a xlogdb line.

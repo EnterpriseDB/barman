@@ -58,12 +58,15 @@ class TestCompressionManager(object):
         # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "custom"
+        config_mock.custom_compression_magic = "0x28b52ffd"
         config_mock.custom_compression_filter = "test_custom_compression_filter"
         config_mock.custom_decompression_filter = "test_custom_decompression_filter"
 
         # check custom compression method creation
         comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.get_default_compressor() is not None
+
+        assert comp_manager.get_default_compressor().MAGIC == b"\x28\xb5\x2f\xfd"
 
     def test_get_compressor_gzip(self):
         # prepare mock obj
@@ -90,6 +93,38 @@ class TestCompressionManager(object):
         # check custom compression method creation
         comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.get_compressor("test_compression") is None
+
+    def test_identify_compression(self, tmpdir):
+        # prepare mock obj
+        config_mock = mock.Mock()
+        config_mock.compression = "bzip2"
+
+        # check custom compression method creation
+        comp_manager = CompressionManager(config_mock, None)
+        assert comp_manager.get_default_compressor() is not None
+
+        bz2_tmp_file = tmpdir.join("test_file")
+        # "test" in bz2 compression
+        bz2_tmp_file.write(
+            base64.b64decode(
+                b"QlpoOTFBWSZTWczDcdQAAAJBgAAQAgAMACAAIZpoM00Zl4u5IpwoSGZhuOoA"
+            ),
+            mode="wb",
+        )
+
+        compression_bz2 = comp_manager.identify_compression(bz2_tmp_file.strpath)
+
+        assert compression_bz2 == "bzip2"
+
+        zip_tmp_file = tmpdir.join("test_file")
+        # "test" in bz2 compression
+        zip_tmp_file.write(
+            base64.b64decode(b"H4sIAF0ssFIAAytJLS7hAgDGNbk7BQAAAA=="), mode="wb"
+        )
+
+        # check custom compression method creation
+        compression_zip = comp_manager.identify_compression(zip_tmp_file.strpath)
+        assert compression_zip == "gzip"
 
 
 # noinspection PyMethodMayBeStatic
@@ -268,3 +303,15 @@ class TestCustomCompressor(object):
         validate = compressor.validate("custom")
 
         assert validate is None
+
+    def test_validate_with_magic(self):
+        config_mock = mock.Mock()
+        config_mock.custom_compression_filter = "dummy_compression_filter"
+        config_mock.custom_decompression_filter = "dummy_decompression_filter"
+        config_mock.custom_compression_magic = "0x28b52ffd"
+
+        compressor = CustomCompressor(config=config_mock, compression="custom")
+
+        validate = compressor.validateInstance(b"\x28\xb5\x2f\xfd\x00\x00\x00")
+
+        assert validate is True
