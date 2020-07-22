@@ -577,7 +577,7 @@ class TestFileWalArchiver(object):
 
     @patch('barman.wal_archiver.glob')
     @patch('os.path.isfile')
-    @patch('barman.wal_archiver.WalFileInfo.from_file')
+    @patch('barman.wal_archiver.WalFileInfo.from_file_with_compression')
     def test_get_next_batch(self, from_file_mock, isfile_mock, glob_mock):
         """
         Test the FileWalArchiver.get_next_batch method
@@ -589,7 +589,8 @@ class TestFileWalArchiver(object):
         # This is an hack, instead of a WalFileInfo we use a simple string to
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
-        from_file_mock.side_effect = lambda wal_name: ':%s:' % wal_name
+        from_file_mock.side_effect = \
+            lambda wal_name, compressionmanager: ':%s:' % wal_name
 
         backup_manager = build_backup_manager(
             name='TestServer'

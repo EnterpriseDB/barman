@@ -247,6 +247,7 @@ values:
   following options as well:
       - `custom_compression_filter`: a compression filter
       - `custom_decompression_filter`: a decompression filter
+      - `custom_compression_magic`: a hex string to identify a custom compressed wal file
 
 > *NOTE:* All methods but `pybzip2` and `pygzip` require `barman
 > archive-wal` to fork a new process.

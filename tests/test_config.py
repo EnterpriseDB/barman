@@ -61,6 +61,7 @@ backup_directory =  /some/barman/home/main
 basebackups_directory = /some/barman/home/main/base
 wals_directory = wals
 incoming_wals_directory = /some/barman/home/main/incoming
+custom_compression_magic = 0x425a68
 custom_compression_filter = bzip2 -c -9
 custom_decompression_filter = bzip2 -c -d
 reuse_backup = link
@@ -125,6 +126,7 @@ class TestConfig(object):
             'description': 'Main PostgreSQL Database',
             'ssh_command': 'ssh -c arcfour -p 22 postgres@pg01.nowhere',
             'wal_retention_policy': 'base',
+            'custom_compression_magic': '0x425a68',
             'custom_compression_filter': 'bzip2 -c -9',
             'wals_directory': 'wals',
             'custom_decompression_filter': 'bzip2 -c -d',
@@ -146,6 +148,7 @@ class TestConfig(object):
             'name': 'web',
             'reuse_backup': None,
             'retention_policy': 'redundancy 2',
+            'custom_compression_magic': None,
             'wals_directory': '/some/barman/home/web/wals',
             'wal_retention_policy': 'base',
             'last_backup_maximum_age': timedelta(1),
