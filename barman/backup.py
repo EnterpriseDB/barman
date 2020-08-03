@@ -69,6 +69,8 @@ class BackupManager(RemoteStatusMixin):
                 self.executor = PassiveBackupExecutor(self)
             elif self.config.backup_method == "postgres":
                 self.executor = PostgresBackupExecutor(self)
+            elif self.config.backup_method == "local-rsync":
+                self.executor = RsyncBackupExecutor(self, local_mode=True)
             else:
                 self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:

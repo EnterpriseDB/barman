@@ -61,7 +61,7 @@ _SLOT_NAME_RE = re.compile("^[0-9a-z_]+$")
 REUSE_BACKUP_VALUES = ('copy', 'link', 'off')
 
 # Possible copy methods for backups (must be all lowercase)
-BACKUP_METHOD_VALUES = ['rsync', 'postgres']
+BACKUP_METHOD_VALUES = ['rsync', 'postgres', 'local-rsync']
 
 CREATE_SLOT_VALUES = ['manual', 'auto']
 

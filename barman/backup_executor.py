@@ -44,7 +44,7 @@ from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (CommandFailedException, DataTransferFailure,
                                FsOperationFailed, PostgresConnectionError,
                                PostgresIsInRecovery, SshCommandException)
-from barman.fs import UnixRemoteCommand
+from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.remote_status import RemoteStatusMixin
@@ -633,34 +633,50 @@ class PostgresBackupExecutor(BackupExecutor):
                     backup_info.backup_id)
 
 
-class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
+class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
     """
-    Abstract base class for any backup executors based on Ssh
-    remote connections. This class is also a factory for
-    exclusive/concurrent backup strategy objects.
+    Abstract base class file system level backup executors that
+    can operate remotely via SSH or locally:
+    - remote mode (default), operates via SSH
+    - local mode, operates as the same user that Barman runs with
+    It is also a factory for exclusive/concurrent backup strategy objects.
 
-    Raises a SshCommandException if 'ssh_command' is not set.
+    Raises a SshCommandException if 'ssh_command' is not set and
+    not operating in local mode.
     """
 
-    def __init__(self, backup_manager, mode):
+    def __init__(self, backup_manager, mode, local_mode=False):
         """
         Constructor of the abstract class for backups via Ssh
 
         :param barman.backup.BackupManager backup_manager: the BackupManager
             assigned to the executor
+        :param bool local_mode: if set to False (default), the class is able
+            to operate on remote servers using SSH. Operates only locally
+            if set to True.
         """
-        super(SshBackupExecutor, self).__init__(backup_manager, mode)
+        super(FsBackupExecutor, self).__init__(backup_manager, mode)
+
+        # Set local/remote mode for copy
+        self.local_mode = local_mode
 
         # Retrieve the ssh command and the options necessary for the
         # remote ssh access.
         self.ssh_command, self.ssh_options = _parse_ssh_command(
             backup_manager.config.ssh_command)
 
-        # Requires ssh_command to be set
-        if not self.ssh_command:
-            raise SshCommandException(
-                'Missing or invalid ssh_command in barman configuration '
-                'for server %s' % backup_manager.config.name)
+        if not self.local_mode:
+            # Remote copy requires ssh_command to be set
+            if not self.ssh_command:
+                raise SshCommandException(
+                    'Missing or invalid ssh_command in barman configuration '
+                    'for server %s' % backup_manager.config.name)
+        else:
+            # Local copy requires ssh_command not to be set
+            if self.ssh_command:
+                raise SshCommandException(
+                    'Local copy requires ssh_command in barman configuration '
+                    'to be empty for server %s' % backup_manager.config.name)
 
         # Apply the default backup strategy
         backup_options = self.config.backup_options
@@ -714,7 +730,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         through the generic interface of a BackupExecutor. This implementation
         is responsible for performing a backup through a remote connection
         to the PostgreSQL server via Ssh. The specific set of instructions
-        depends on both the specific class that derives from SshBackupExecutor
+        depends on both the specific class that derives from FsBackupExecutor
         and the selected strategy (e.g. exclusive backup through Rsync).
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
@@ -770,15 +786,36 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                 self._update_action_from_strategy()
                 raise
 
-    def check(self, check_strategy):
+    def _local_check(self, check_strategy):
         """
-        Perform additional checks for SshBackupExecutor, including
-        Ssh connection (executing a 'true' command on the remote server)
-        and specific checks for the given backup strategy.
+        Specific checks for local mode of FsBackupExecutor (same user)
 
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
+        cmd = UnixLocalCommand(path=self.server.path)
+        pgdata = self.server.postgres.get_setting('data_directory')
+
+        # Check that PGDATA is accessible
+        check_strategy.init_check('local PGDATA')
+        hint = "Access to local PGDATA"
+        try:
+            cmd.check_directory_exists(pgdata)
+        except FsOperationFailed as e:
+            hint = force_str(e).strip()
+
+        # Output the result
+        check_strategy.result(self.config.name, cmd is not None, hint=hint)
+
+    def _remote_check(self, check_strategy):
+        """
+        Specific checks for remote mode of FsBackupExecutor, via SSH.
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+
+        # Check the SSH connection
         check_strategy.init_check('ssh')
         hint = "PostgreSQL server"
         cmd = None
@@ -794,7 +831,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         # Output the result
         check_strategy.result(self.config.name, cmd is not None, hint=hint)
 
-        # Check if the communication channel is "clean"
+        # Check that the communication channel is "clean"
         if minimal_ssh_output:
             check_strategy.init_check('ssh output clean')
             check_strategy.result(
@@ -823,7 +860,28 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                 if exists:
                     hint = "Check that the PostgreSQL server is up " \
                            "and no 'backup_label' file is in PGDATA."
-                    check_strategy.result(self.config.name, False, hint=hint)
+                    check_strategy.result(
+                        self.config.name,
+                        False,
+                        hint=hint
+                    )
+
+    def check(self, check_strategy):
+        """
+        Perform additional checks for FsBackupExecutor, including
+        Ssh connection (executing a 'true' command on the remote server)
+        and specific checks for the given backup strategy.
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+
+        if self.local_mode:
+            # Perform checks for the local case
+            self._local_check(check_strategy)
+        else:
+            # Perform checks for the remote case
+            self._remote_check(check_strategy)
 
         try:
             # Invoke specific checks for the backup strategy
@@ -834,7 +892,7 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
     def status(self):
         """
-        Set additional status info for SshBackupExecutor using remote
+        Set additional status info for FsBackupExecutor using remote
         commands via Ssh, as well as those defined by the given
         backup strategy.
         """
@@ -865,9 +923,12 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
                 remote_status['last_archived_wal'] = None
                 if self.server.postgres.get_setting('data_directory') and \
                         self.server.postgres.get_setting('archive_command'):
-                    cmd = UnixRemoteCommand(self.ssh_command,
-                                            self.ssh_options,
-                                            path=self.server.path)
+                    if not self.local_mode:
+                        cmd = UnixRemoteCommand(self.ssh_command,
+                                                self.ssh_options,
+                                                path=self.server.path)
+                    else:
+                        cmd = UnixLocalCommand(path=self.server.path)
                     # Here the name of the PostgreSQL WALs directory is
                     # hardcoded, but that doesn't represent a problem as
                     # this code runs only for PostgreSQL < 9.4
@@ -887,8 +948,11 @@ class SshBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
     def _start_backup_copy_message(self, backup_info):
         number_of_workers = self.config.parallel_jobs
-        message = "Starting backup copy via rsync/SSH for %s" % (
-            backup_info.backup_id,)
+        via = 'rsync/SSH'
+        if self.local_mode:
+            via = 'local rsync'
+        message = "Starting backup copy via %s for %s" % (
+            via, backup_info.backup_id,)
         if number_of_workers > 1:
             message += " (%s jobs)" % number_of_workers
         output.info(message)
@@ -983,24 +1047,26 @@ class PassiveBackupExecutor(BackupExecutor):
         return 'passive'
 
 
-class RsyncBackupExecutor(SshBackupExecutor):
+class RsyncBackupExecutor(FsBackupExecutor):
     """
     Concrete class for backup via Rsync+Ssh.
 
     It invokes PostgreSQL commands to start and stop the backup, depending
     on the defined strategy. Data files are copied using Rsync via Ssh.
-    It heavily relies on methods defined in the SshBackupExecutor class
+    It heavily relies on methods defined in the FsBackupExecutor class
     from which it derives.
     """
 
-    def __init__(self, backup_manager):
+    def __init__(self, backup_manager, local_mode=False):
         """
         Constructor
 
         :param barman.backup.BackupManager backup_manager: the BackupManager
             assigned to the strategy
         """
-        super(RsyncBackupExecutor, self).__init__(backup_manager, 'rsync')
+        super(RsyncBackupExecutor, self).__init__(
+            backup_manager, 'rsync', local_mode
+        )
 
     def backup_copy(self, backup_info):
         """
@@ -1079,7 +1145,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 # production system as it filters out other major versions.
                 controller.add_directory(
                     label=tablespace.name,
-                    src=':%s/' % tablespace.location,
+                    src="%s/" % self._format_src(tablespace.location),
                     dst=tablespace_dest,
                     exclude=['/*'] + EXCLUDE_LIST,
                     include=['/PG_%s_*' %
@@ -1098,7 +1164,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
         # by the controller
         controller.add_directory(
             label='pgdata',
-            src=':%s/' % backup_info.pgdata,
+            src="%s/" % self._format_src(backup_info.pgdata),
             dst=backup_dest,
             exclude=PGDATA_EXCLUDE_LIST + EXCLUDE_LIST,
             exclude_and_protect=exclude_and_protect,
@@ -1110,7 +1176,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
         # At last copy pg_control
         controller.add_file(
             label='pg_control',
-            src=':%s/global/pg_control' % backup_info.pgdata,
+            src='%s/global/pg_control' % self._format_src(backup_info.pgdata),
             dst='%s/global/pg_control' % (backup_dest,),
             item_class=controller.PGCONTROL_CLASS,
         )
@@ -1134,7 +1200,7 @@ class RsyncBackupExecutor(SshBackupExecutor):
             # Create the actual copy jobs in the controller
             controller.add_file(
                 label=config_file.file_type,
-                src=':%s' % config_file.path,
+                src=self._format_src(config_file.path),
                 dst=backup_dest,
                 optional=optional,
                 item_class=controller.CONFIG_CLASS,
@@ -1198,6 +1264,18 @@ class RsyncBackupExecutor(SshBackupExecutor):
                 return previous_backup_info.get_data_directory(oid)
             except ValueError:
                 return None
+
+    def _format_src(self, path):
+        """
+        If the executor is operating in remote mode,
+        add a `:` in front of the path for rsync to work via SSH.
+
+        :param string path: the path to format
+        :return str: the formatted path string
+        """
+        if not self.local_mode:
+            return ":%s" % path
+        return path
 
 
 class BackupStrategy(with_metaclass(ABCMeta, object)):
@@ -1478,7 +1556,7 @@ class ExclusiveBackupStrategy(BackupStrategy):
     """
     Concrete class for exclusive backup strategy.
 
-    This strategy is for SshBackupExecutor only and is responsible for
+    This strategy is for FsBackupExecutor only and is responsible for
     coordinating Barman with PostgreSQL on standard physical backup
     operations (known as 'exclusive' backup), such as invoking
     pg_start_backup() and pg_stop_backup() on the master server.
@@ -1710,7 +1788,7 @@ class LocalConcurrentBackupStrategy(ConcurrentBackupStrategy):
     """
     Concrete class for concurrent backup strategy writing data locally.
 
-    This strategy is for SshBackupExecutor only and is responsible for
+    This strategy is for FsBackupExecutor only and is responsible for
     coordinating Barman with PostgreSQL on concurrent physical backup
     operations through the pgespresso extension.
     """

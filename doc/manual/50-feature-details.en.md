@@ -10,6 +10,7 @@ on the Barman configuration. Nevertheless, it is useful to discuss
 common patterns.
 
 ## Backup features
+
 ### Incremental backup
 
 Barman implements **file-level incremental backup**. Incremental
@@ -230,6 +231,52 @@ issuing `barman backup` with any of these two options:
 - `--no-immediate-checkpoint`, which forces to wait for the checkpoint
   to happen.
 
+### Local backup
+
+> **DISCLAIMER:** This feature is not recommended for production usage,
+> as Barman and PostgreSQL reside on the same server and are part of
+> the same single point of failure.
+> Some of 2ndQuadrant customers have requested to add support for
+> local backup to Barman to be used under specific circumstances
+> and, most importantly, under the 24/7 production service delivered
+> by the company. Using this feature currently requires installation
+> from sources, or to customise the environment for the `postgres`
+> user in terms of permissions as well as logging and cron configurations.
+
+Under special circumstances, Barman can be installed on the same
+server where the PostgreSQL instance resides, with backup data stored
+on a separate volume from PGDATA and, where applicable, tablespaces.
+Usually, these volumes reside on network storage appliances, with
+filesystems like NFS.
+
+This architecture is not endorsed by 2ndQuadrant.
+For an enhanced business continuity experience of PostgreSQL, with better
+results in terms of RPO and RTO, 2ndQuadrant still recommends the
+shared nothing architecture with a remote installation of Barman, capable
+of acting like a witness server for replication and monitoring purposes.
+
+The only requirement for local backup is that Barman runs with the
+same user as the PostgreSQL server, which is normally `postgres`.
+Given that the Community packages by default install Barman under the `barman`
+user, this use case requires manual installation procedures that include:
+
+- cron configurations
+- log configurations, including logrotate
+
+In order to use local backup for a given server in Barman, you need to
+set `backup_method` to `local-rsync`. The feature is essentially identical
+to its `rsync` equivalent, which relies on SSH instead and operates remotely.
+With `local-rsync` file system copy is performed issuing `rsync` commands locally
+(for this reason it is required that Barman runs with the same user as PostgreSQL).
+
+An excerpt of configuration for local backup for a server named `local-pg13` is:
+
+```ini
+[local-pg13]
+description = "Local PostgreSQL 13"
+backup_method = local-rsync
+...
+```
 
 ## Archiving features
 ### WAL compression

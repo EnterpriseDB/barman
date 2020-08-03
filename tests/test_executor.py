@@ -55,6 +55,11 @@ class TestRsyncBackupExecutor(object):
             server.config.ssh_command = None
             RsyncBackupExecutor(server)
 
+        # Test exception with local backup and not empty ssh_command
+        with pytest.raises(SshCommandException):
+            server.config.ssh_command = "Fake ssh command"
+            RsyncBackupExecutor(server, local_mode=True)
+
     def test_reuse_path(self):
         """
         Simple test for the reuse_dir method
