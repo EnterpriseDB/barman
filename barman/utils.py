@@ -415,7 +415,8 @@ def timeout(timeout_duration):
 
     # set the timeout handler
     previous_handler = signal.signal(signal.SIGALRM, handler)
-    if previous_handler != signal.SIG_DFL and previous_handler != signal.SIG_IGN:
+    if previous_handler != signal.SIG_DFL \
+            and previous_handler != signal.SIG_IGN:
         signal.signal(signal.SIGALRM, previous_handler)
         raise AssertionError("Another timeout is already defined")
     # set the timeout duration
