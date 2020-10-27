@@ -633,6 +633,12 @@ class CloudInterface(object):
         output
         """
         logging.info("Upload process started (worker %s)", process_number)
+
+        # We create a new session instead of reusing the one
+        # from the parent process to avoid any race condition
+        session = boto3.Session(profile_name=self.profile_name)
+        self.s3 = session.resource('s3', endpoint_url=self.endpoint_url)
+
         while True:
             task = self.queue.get()
             if not task:
