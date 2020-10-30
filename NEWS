@@ -1,6 +1,18 @@
 Barman News - History of user-visible changes
 Copyright (C) 2011-2020 2ndQuadrant Limited
 
+Version 2.12 - 5 Nov 2020
+
+-   Introduce a new backup_method option called local-rsync which
+    targets those cases where Barman is installed on the same server
+    where PostgreSQL is and directly uses rsync to take base backups,
+    bypassing the SSH layer.
+
+-   Bug fixes:
+
+    -   Avoid corrupting boto connection in worker processes
+    -   Avoid connection attempts to PostgreSQL during tests
+
 Version 2.11 - 9 Jul 2020
 
 -   Introduction of the barman-cli-cloud package that contains all cloud
