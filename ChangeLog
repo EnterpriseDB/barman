@@ -1,3 +1,39 @@
+2020-11-03  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Update the ChangeLog file
+
+	Version set to 2.12
+
+2020-10-30  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
+	Release notes for 2.12
+
+2020-10-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid corrupting boto connection in worker processes
+
+2020-08-03  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+
+	New `backup_method` option: `local-rsync`
+	Under special circumstances, Barman can be installed on the same
+	server where the PostgreSQL instance resides, with backup data stored
+	on a separate volume from PGDATA and, where applicable, tablespaces.
+	Usually, these volumes reside on network storage appliances, with
+	filesystems like NFS.
+
+	The only requirement for local backup is that Barman runs with the
+	same user as the PostgreSQL server, which is normally `postgres`.
+
+	In order to use local backup for a given server in Barman, you need to
+	set `backup_method` to `local-rsync`. The feature is essentially identical
+	to its `rsync` equivalent, which relies on SSH instead and operates remotely.
+	With `local-rsync` file system copy is performed issuing `rsync` commands locally
+	(for this reason it is required that Barman runs with the same user as PostgreSQL).
+
+2020-08-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
+	Avoid any attempt to connect to PostgreSQL during tests
+
 2020-07-08  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
