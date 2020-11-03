@@ -1,6 +1,6 @@
-% BARMAN-CLOUD-WAL-RESTORE(1) Barman User manuals | Version 2.11
+% BARMAN-CLOUD-WAL-RESTORE(1) Barman User manuals | Version 2.12
 % 2ndQuadrant <http://www.2ndQuadrant.com>
-% July 9, 2020
+% November 5, 2020
 
 # NAME
 
