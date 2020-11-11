@@ -29,7 +29,7 @@ yum install barman
 > to any PGDG repository definition that is included in the Barman server inside
 > any `/etc/yum.repos.d/pgdg-*.repo` file:
    ```ini
-   exclude=barman*
+   exclude=barman* python*-barman
    ```
 > By doing this, you solely rely on
 > 2ndQuadrant repositories for package management of Barman software.
