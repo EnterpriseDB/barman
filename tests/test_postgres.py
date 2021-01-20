@@ -822,6 +822,8 @@ class TestPostgres(object):
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.is_in_recovery',
            new_callable=PropertyMock)
+    @patch('barman.postgres.PostgreSQLConnection.has_backup_privileges',
+           new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.is_superuser',
            new_callable=PropertyMock)
     @patch('barman.postgres.PostgreSQLConnection.server_txt_version',
@@ -847,6 +849,7 @@ class TestPostgres(object):
                                has_pgespresso_mock,
                                server_txt_version_mock,
                                is_superuser_mock,
+                               has_backup_privileges_mock,
                                is_in_recovery_mock,
                                archive_timeout_mock,
                                checkpoint_timeout_mock,
@@ -867,6 +870,7 @@ class TestPostgres(object):
         has_pgespresso_mock.return_value = True
         server_txt_version_mock.return_value = '9.5.0'
         is_in_recovery_mock.return_value = False
+        has_backup_privileges_mock.return_value = True
         is_superuser_mock.return_value = True
         get_configuration_files_mock.return_value = {'a': 'b'}
         get_synchronous_standby_names_mock.return_value = []
@@ -885,6 +889,7 @@ class TestPostgres(object):
             'max_replication_slots': 'a max_replication_slots value',
             'wal_compression': 'a wal_compression value',
             'wal_keep_segments': 'a wal_keep_segments value',
+            'wal_keep_size': 'a wal_keep_size value',
         }
 
         get_setting_mock.side_effect = lambda x: settings.get(x, 'unknown')
@@ -939,6 +944,36 @@ class TestPostgres(object):
             'archive_timeout': 300,
             'checkpoint_timeout': 600,
             'wal_keep_segments': 'a wal_keep_segments value',
+            'hot_standby': 'a hot_standby value',
+            'max_wal_senders': 'a max_wal_senderse value',
+            'data_checksums': 'a data_checksums',
+            'max_replication_slots': 'a max_replication_slots value',
+            'wal_compression': 'a wal_compression value',
+            'xlog_segment_size': 8388608,
+            'postgres_systemid': 6721602258895701769,
+        }
+
+        # Test PostgreSQL 13
+        conn_mock.return_value.server_version = 130000
+        result = server.postgres.fetch_remote_status()
+        assert result == {
+            'a': 'b',
+            'is_superuser': True,
+            'has_backup_privileges': True,
+            'is_in_recovery': False,
+            'current_lsn': 'DE/ADBEEF',
+            'current_xlog': '00000001000000DE00000000',
+            'data_directory': 'a directory',
+            'pgespresso_installed': True,
+            'server_txt_version': '9.5.0',
+            'wal_level': 'a wal_level value',
+            'current_size': 497354072,
+            'replication_slot_support': True,
+            'replication_slot': None,
+            'synchronous_standby_names': [],
+            'archive_timeout': 300,
+            'checkpoint_timeout': 600,
+            'wal_keep_size': 'a wal_keep_size value',
             'hot_standby': 'a hot_standby value',
             'max_wal_senders': 'a max_wal_senderse value',
             'data_checksums': 'a data_checksums',

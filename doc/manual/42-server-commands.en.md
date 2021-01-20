@@ -198,7 +198,8 @@ record of the transaction log. When the status file needs to be
 cleaned, the `--reset` option can be used.
 
 > **IMPORTANT:** If you are not using replication slots, you rely
-> on the value of `wal_keep_segments`. Be aware that under high peeks
+> on the value of `wal_keep_segments` (or `wal_keep_size` from
+> PostgreSQL version 13.0 onwards). Be aware that under high peaks
 > of workload on the database, the `receive-wal` process
 > might fall behind and go out of sync. As a precautionary measure,
 > Barman currently requires that users manually execute the command with the

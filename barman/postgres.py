@@ -827,7 +827,12 @@ class PostgreSQLConnection(PostgreSQL):
                 pg_settings.append('wal_level')
                 pg_settings.append('hot_standby')
                 pg_settings.append('max_wal_senders')
-                pg_settings.append('wal_keep_segments')
+                # Retrieve wal_keep_segments from version 9.0 onwards, until
+                # version 13.0, where it was renamed to wal_keep_size
+                if self.server_version < 130000:
+                    pg_settings.append('wal_keep_segments')
+                else:
+                    pg_settings.append('wal_keep_size')
 
             if self.server_version >= 90300:
                 pg_settings.append('data_checksums')
