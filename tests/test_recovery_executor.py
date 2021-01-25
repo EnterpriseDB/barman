@@ -652,6 +652,7 @@ class TestRecoveryExecutor(object):
                 dst=dest.strpath,
                 exclude=[
                     '/pg_log/*',
+                    '/log/*',
                     '/pg_xlog/*',
                     '/pg_wal/*',
                     '/postmaster.pid',

@@ -690,6 +690,7 @@ class RecoveryExecutor(object):
             bwlimit=self.config.get_bwlimit(),
             exclude=[
                 '/pg_log/*',
+                '/log/*',
                 '/pg_xlog/*',
                 '/pg_wal/*',
                 '/postmaster.pid',

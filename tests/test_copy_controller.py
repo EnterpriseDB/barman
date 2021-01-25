@@ -176,6 +176,7 @@ class TestRsyncCopyController(object):
             item_class=rcc.PGDATA_CLASS,
             exclude=['/pg_xlog/*',
                      '/pg_log/*',
+                     '/log/*',
                      '/recovery.conf',
                      '/postmaster.pid'],
             exclude_and_protect=['pg_tblspc/16387', 'pg_tblspc/16405'])
@@ -228,6 +229,7 @@ class TestRsyncCopyController(object):
                       exclude=[
                           '/pg_xlog/*',
                           '/pg_log/*',
+                          '/log/*',
                           '/recovery.conf',
                           '/postmaster.pid'],
                       exclude_and_protect=[
@@ -899,6 +901,7 @@ class TestRsyncCopyController(object):
             item_class=rcc.PGDATA_CLASS,
             exclude=['/pg_xlog/*',
                      '/pg_log/*',
+                     '/log/*',
                      '/recovery.conf',
                      '/postmaster.pid'],
             exclude_and_protect=['pg_tblspc/16387', 'pg_tblspc/16405'])

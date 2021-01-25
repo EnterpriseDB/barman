@@ -25,11 +25,11 @@ versions.
 
 
 PGDATA_EXCLUDE_LIST = [
-    # Exclude this to avoid log files copy
+    # Exclude log files (pg_log was renamed to log in Postgres v10)
     '/pg_log/*',
-    # Exclude this for (PostgreSQL < 10) to avoid WAL files copy
+    '/log/*',
+    # Exclude WAL files (pg_xlog was renamed to pg_wal in Postgres v10)
     '/pg_xlog/*',
-    # This have been renamed on PostgreSQL 10
     '/pg_wal/*',
     # We handle this on a different step of the copy
     '/global/pg_control',
