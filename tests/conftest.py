@@ -35,7 +35,7 @@ def default_session_fixture(request):
     connect_mock.side_effect = psycopg2.DatabaseError
 
     def unpatch():
-        connect_patch.__exit__()
+        connect_patch.__exit__([None])
         logging.info("Unpatching barman.postgres.psycopg2.connect")
 
     request.addfinalizer(unpatch)
