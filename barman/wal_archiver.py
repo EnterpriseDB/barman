@@ -504,7 +504,10 @@ class FileWalArchiver(WalArchiver):
                 errors.append(file_name)
 
         # Build the list of WalFileInfo
-        wal_files = [WalFileInfo.from_file(f) for f in files]
+        wal_files = [
+            WalFileInfo.from_file_with_compression(
+                f, self.backup_manager.compression_manager
+            )for f in files]
         return WalArchiverQueue(wal_files,
                                 batch_size=batch_size,
                                 errors=errors)

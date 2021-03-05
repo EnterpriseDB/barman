@@ -244,6 +244,7 @@ def build_config_dictionary(config_keys=None):
         'conninfo': 'host=pg01.nowhere user=postgres port=5432',
         'backup_method': 'rsync',
         'check_timeout': 30,
+        'custom_compression_magic': None,
         'custom_compression_filter': None,
         'custom_decompression_filter': None,
         'description': ' Text with quotes ',
