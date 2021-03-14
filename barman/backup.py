@@ -868,8 +868,8 @@ class BackupManager(RemoteStatusMixin):
                                 'rebuilding the wal database: %s',
                                 fullname)
                 os.fsync(fxlogdb_new.fileno())
-        shutil.move(xlogdb_new, fxlogdb.name)
-        fsync_dir(os.path.dirname(fxlogdb.name))
+            shutil.move(xlogdb_new, fxlogdb.name)
+            fsync_dir(os.path.dirname(fxlogdb.name))
         output.info('Done rebuilding xlogdb for server %s '
                     '(history: %s, backup_labels: %s, wal_file: %s)',
                     self.config.name, history_count, label_count, wal_count)
@@ -975,8 +975,8 @@ class BackupManager(RemoteStatusMixin):
                         removed.append(wal_info.name)
                 fxlogdb_new.flush()
                 os.fsync(fxlogdb_new.fileno())
-        shutil.move(xlogdb_new, fxlogdb.name)
-        fsync_dir(os.path.dirname(fxlogdb.name))
+            shutil.move(xlogdb_new, fxlogdb.name)
+            fsync_dir(os.path.dirname(fxlogdb.name))
         return removed
 
     def validate_last_backup_maximum_age(self, last_backup_maximum_age):
