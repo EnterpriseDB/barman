@@ -80,7 +80,7 @@ Past contributors:
 Barman is the property of 2ndQuadrant Limited and its code is
 distributed under GNU General Public License 3.
 
-Copyright (C) 2011-2017 [2ndQuadrant Limited][13].
+© Copyright EnterpriseDB UK Limited 2011-2021
 
 Barman has been partially funded through [4CaaSt][18], a research
 project funded by the European Commission's Seventh Framework

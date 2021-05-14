@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # walarchive - Remote Barman WAL archive command for PostgreSQL
 #
 # This script remotely sends WAL files to Barman via SSH, on demand.
@@ -5,7 +6,7 @@
 #
 # See the help page for usage information.
 #
-# Copyright (C) 2019-2020 2ndQuadrant Limited
+# © Copyright EnterpriseDB UK Limited 2019-2021
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

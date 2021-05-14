@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # walrestore - Remote Barman WAL restore command for PostgreSQL
 #
 # This script remotely fetches WAL files from Barman via SSH, on demand.
@@ -7,7 +8,7 @@
 #
 # See the help page for usage information.
 #
-# Copyright (C) 2016-2020 2ndQuadrant Limited
+# © Copyright EnterpriseDB UK Limited 2016-2021
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by

@@ -1,4 +1,5 @@
-# Copyright (C) 2019-2020 2ndQuadrant Limited
+# -*- coding: utf-8 -*-
+# © Copyright EnterpriseDB UK Limited 2019-2021
 #
 # This file is part of Barman.
 #

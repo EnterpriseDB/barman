@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (C) 2019 2ndQuadrant Limited
+© Copyright EnterpriseDB UK Limited 2019-2021
 #
 # This file is part of Barman.
 #

@@ -1,4 +1,5 @@
-# Copyright (C) 2013-2020 2ndQuadrant Limited
+# -*- coding: utf-8 -*-
+# © Copyright EnterpriseDB UK Limited 2013-2021
 #
 # Client Utilities for Barman, Backup and Recovery Manager for PostgreSQL
 #

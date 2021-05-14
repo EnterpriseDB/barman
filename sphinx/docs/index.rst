@@ -1,5 +1,5 @@
 
-..  Copyright (C) 2011-2020 2ndQuadrant Limited
+..  © Copyright EnterpriseDB UK Limited 2011-2021
     Barman is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -47,7 +47,7 @@ Web resources
 Licence
 =======
 
-Copyright (C) 2011-2020 2ndQuadrant Limited
+© Copyright EnterpriseDB UK Limited 2011-2021
 
 Barman is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
