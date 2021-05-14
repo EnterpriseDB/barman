@@ -32,3 +32,6 @@ venv/*
 
 # OSX
 .DS_Store
+
+# pyenv
+.python-version
