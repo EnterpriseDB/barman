@@ -18,6 +18,7 @@
 
 # PyCharm
 /.idea
+venv/*
 
 # tox testing
 .tox/
