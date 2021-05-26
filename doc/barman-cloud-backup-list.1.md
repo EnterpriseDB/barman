@@ -4,7 +4,7 @@
 
 # NAME
 
-barman-cloud-backup-list - Restore PostgreSQL WAL files from the Cloud using `restore_command`
+barman-cloud-backup-list - List backups stored in the Cloud
 
 
 # SYNOPSIS
