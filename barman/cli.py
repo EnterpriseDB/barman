@@ -494,8 +494,8 @@ def recover(args):
     # [1]: https://www.postgresql.org/docs/current/static/
     #   recovery-target-settings.html
 
-    target_options = ['target_tli', 'target_time', 'target_xid',
-                      'target_lsn', 'target_name', 'target_immediate']
+    target_options = ['target_time', 'target_xid', 'target_lsn',
+                      'target_name', 'target_immediate']
     specified_target_options = len(
         [option for option in target_options if getattr(args, option)])
     if specified_target_options > 1:
