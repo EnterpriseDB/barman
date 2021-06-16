@@ -94,7 +94,8 @@ def main(args=None):
                 encryption=config.encryption,
                 jobs=config.jobs,
                 profile_name=config.profile,
-                endpoint_url=config.endpoint_url)
+                endpoint_url=config.endpoint_url,
+                storage_class=config.storage_class)
 
             if not cloud_interface.test_connectivity():
                 raise SystemExit(1)
@@ -195,6 +196,12 @@ def parse_arguments(args=None):
         help="Enable server-side encryption for the transfer. "
              "Allowed values: 'AES256'|'aws:kms'.",
         choices=['AES256', 'aws:kms'],
+    )
+    parser.add_argument(
+        "-s", "--storage-class",
+        help="Configure storage class for objects stored in cloud"
+             "Allowed values depend on your S3 provider",
+        default="STANDARD",
     )
     parser.add_argument(
         "-t", "--test",

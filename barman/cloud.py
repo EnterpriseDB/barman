@@ -481,9 +481,10 @@ class StreamingBodyIO(RawIOBase):
         return self.body.read(n)
 
 
-class CloudInterface(object):
+class CloudInterface:
     def __init__(self, url, encryption, jobs=2,
-                 profile_name=None, endpoint_url=None):
+                 profile_name=None, endpoint_url=None,
+                 storage_class="STANDARD"):
         """
         Create a new S3 interface given the S3 destination url and the profile
         name
@@ -495,11 +496,13 @@ class CloudInterface(object):
         :param str profile_name: Amazon auth profile identifier
         :param str endpoint_url: override default endpoint detection strategy
           with this one
+        :param str storage_class: override default S3 storage class
         """
         self.url = url
         self.profile_name = profile_name
         self.encryption = encryption
         self.endpoint_url = endpoint_url
+        self.storage_class = storage_class
 
         # Extract information from the destination URL
         parsed_url = urlparse(url)
@@ -883,7 +886,7 @@ class CloudInterface(object):
         """
         Synchronously upload the content of a file-like object to a cloud key
         """
-        additional_args = {}
+        additional_args = {'StorageClass': self.storage_class}
         if self.encryption:
             additional_args['ServerSideEncryption'] = self.encryption
 
@@ -901,7 +904,7 @@ class CloudInterface(object):
         :return: The multipart upload handle
         """
         return self.s3.meta.client.create_multipart_upload(
-            Bucket=self.bucket_name, Key=key)
+            Bucket=self.bucket_name, StorageClass=self.storage_class, Key=key)
 
     def async_upload_part(self, mpu, key, body, part_number):
         """

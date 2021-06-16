@@ -56,7 +56,8 @@ def main(args=None):
             url=config.destination_url,
             encryption=config.encryption,
             profile_name=config.profile,
-            endpoint_url=config.endpoint_url)
+            endpoint_url=config.endpoint_url,
+            storage_class=config.storage_class)
 
         with closing(cloud_interface):
             uploader = S3WalUploader(
@@ -152,6 +153,12 @@ def parse_arguments(args=None):
              "Allowed values: 'AES256', 'aws:kms'",
         choices=['AES256', 'aws:kms'],
         metavar="ENCRYPTION",
+    )
+    parser.add_argument(
+        "-s", "--storage-class",
+        help="Configure storage class for objects stored in cloud"
+             "Allowed values depend on your S3 provider",
+        default="STANDARD",
     )
     parser.add_argument(
         "-t", "--test",
