@@ -25,54 +25,55 @@ from barman.clients import walrestore
 
 # noinspection PyMethodMayBeStatic
 class TestRemoteGetWal(object):
-
-    @mock.patch('barman.clients.walrestore.subprocess.Popen')
+    @mock.patch("barman.clients.walrestore.subprocess.Popen")
     def test_string_dest_file(self, popen_mock, tmpdir):
         config = mock.Mock(
             compression=False,
-            user='barman',
-            barman_host='remote.barman.host',
+            user="barman",
+            barman_host="remote.barman.host",
             config=None,
-            server_name='this-server')
-        dest_file = tmpdir.join('test-dest').strpath
+            server_name="this-server",
+        )
+        dest_file = tmpdir.join("test-dest").strpath
 
         # dest_file is a str object
-        walrestore.RemoteGetWal(
-            config, '000000010000000000000001', dest_file)
+        walrestore.RemoteGetWal(config, "000000010000000000000001", dest_file)
 
         # In python2 the dest_file can be an unicode object
-        if hasattr(dest_file, 'decode'):
+        if hasattr(dest_file, "decode"):
             walrestore.RemoteGetWal(
-                config, '000000010000000000000001', dest_file.decode())
+                config, "000000010000000000000001", dest_file.decode()
+            )
 
-    @mock.patch('barman.clients.walrestore.subprocess.Popen')
+    @mock.patch("barman.clients.walrestore.subprocess.Popen")
     def test_connectivity_test_ok(self, popen_mock, capsys):
 
-        popen_mock.return_value.communicate.return_value = ('Good test!', '')
+        popen_mock.return_value.communicate.return_value = ("Good test!", "")
         popen_mock.return_value.returncode = 0
 
         with pytest.raises(SystemExit) as exc:
-            walrestore.main(['a.host', 'a-server', '--test',
-                             'dummy_wal', 'dummy_dest'])
+            walrestore.main(["a.host", "a-server", "--test", "dummy_wal", "dummy_dest"])
 
         assert exc.value.code == 0
         out, err = capsys.readouterr()
         assert "Good test!" in out
         assert not err
 
-    @mock.patch('barman.clients.walrestore.subprocess.Popen')
+    @mock.patch("barman.clients.walrestore.subprocess.Popen")
     def test_connectivity_test_error(self, popen_mock, capsys):
 
-        popen_mock.return_value.communicate.side_effect = subprocess.\
-            CalledProcessError(255, "remote barman")
+        popen_mock.return_value.communicate.side_effect = subprocess.CalledProcessError(
+            255, "remote barman"
+        )
 
         with pytest.raises(SystemExit) as exc:
-            walrestore.main(['a.host', 'a-server', '--test',
-                             'dummy_wal', 'dummy_dest'])
+            walrestore.main(["a.host", "a-server", "--test", "dummy_wal", "dummy_dest"])
 
         assert exc.value.code == 2
         out, err = capsys.readouterr()
         assert not out
-        assert ("ERROR: Impossible to invoke remote get-wal: "
-                "Command 'remote barman' returned non-zero "
-                "exit status 255") in err
+        assert (
+            "ERROR: Impossible to invoke remote get-wal: "
+            "Command 'remote barman' returned non-zero "
+            "exit status 255"
+        ) in err

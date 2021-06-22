@@ -24,8 +24,7 @@ import pytest
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-from barman.cloud import (CloudInterface, CloudUploadingError,
-                          FileUploadStatistics)
+from barman.cloud import CloudInterface, CloudUploadingError, FileUploadStatistics
 
 try:
     from queue import Queue
@@ -34,19 +33,17 @@ except ImportError:
 
 
 class TestCloudInterface(object):
-    @mock.patch('barman.cloud.boto3')
+    @mock.patch("barman.cloud.boto3")
     def test_uploader_minimal(self, boto_mock):
         """
         Minimal build of the CloudInterface class
         """
-        cloud_interface = CloudInterface(
-            url='s3://bucket/path/to/dir',
-            encryption=None)
-        assert cloud_interface.bucket_name == 'bucket'
-        assert cloud_interface.path == 'path/to/dir'
+        cloud_interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        assert cloud_interface.bucket_name == "bucket"
+        assert cloud_interface.path == "path/to/dir"
         boto_mock.Session.assert_called_once_with(profile_name=None)
         session_mock = boto_mock.Session.return_value
-        session_mock.resource.assert_called_once_with('s3', endpoint_url=None)
+        session_mock.resource.assert_called_once_with("s3", endpoint_url=None)
         assert cloud_interface.s3 == session_mock.resource.return_value
 
         # Asynchronous uploading infrastructure is not initialized when
@@ -57,13 +54,12 @@ class TestCloudInterface(object):
         assert len(cloud_interface.parts_db) == 0
         assert len(cloud_interface.worker_processes) == 0
 
-    @mock.patch('barman.cloud.multiprocessing')
+    @mock.patch("barman.cloud.multiprocessing")
     def test_ensure_async(self, mp):
         jobs_count = 30
         interface = CloudInterface(
-            url='s3://bucket/path/to/dir',
-            encryption=None,
-            jobs=jobs_count)
+            url="s3://bucket/path/to/dir", encryption=None, jobs=jobs_count
+        )
 
         # Test that the asynchronous uploading infrastructure is getting
         # created
@@ -85,9 +81,7 @@ class TestCloudInterface(object):
         assert not mp.Process.called
 
     def test_retrieve_results(self):
-        interface = CloudInterface(
-            url='s3://bucket/path/to/dir',
-            encryption=None)
+        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = Queue()
         interface.done_queue = Queue()
         interface.result_queue = Queue()
@@ -100,105 +94,89 @@ class TestCloudInterface(object):
         # Preset the upload statistics, to avoid a random start_date
         for name in ["test/file", "test/another_file"]:
             interface.upload_stats[name] = FileUploadStatistics(
-                status='uploading',
+                status="uploading",
                 start_time=datetime.datetime(2016, 3, 30, 17, 1, 0),
             )
 
         # Fill the result queue with mock results, and assert that after
         # the refresh the result queue is empty and the parts_db full with
         # ordered results
-        interface.result_queue.put({
-            "key": "test/file",
-            "part_number": 2,
-            "end_time": datetime.datetime(2016, 3, 30, 17, 2, 20),
-            "part": {
-                "ETag": "becb2f30c11b6a2b5c069f3c8a5b798c",
-                "PartNumber": "2"
+        interface.result_queue.put(
+            {
+                "key": "test/file",
+                "part_number": 2,
+                "end_time": datetime.datetime(2016, 3, 30, 17, 2, 20),
+                "part": {"ETag": "becb2f30c11b6a2b5c069f3c8a5b798c", "PartNumber": "2"},
             }
-        })
-        interface.result_queue.put({
-            "key": "test/file",
-            "part_number": 1,
-            "end_time": datetime.datetime(2016, 3, 30, 17, 1, 20),
-            "part": {
-                "ETag": "27960aa8b7b851eb0277f0f3f5d15d68",
-                "PartNumber": "1"
+        )
+        interface.result_queue.put(
+            {
+                "key": "test/file",
+                "part_number": 1,
+                "end_time": datetime.datetime(2016, 3, 30, 17, 1, 20),
+                "part": {"ETag": "27960aa8b7b851eb0277f0f3f5d15d68", "PartNumber": "1"},
             }
-        })
-        interface.result_queue.put({
-            "key": "test/file",
-            "part_number": 3,
-            "end_time": datetime.datetime(2016, 3, 30, 17, 3, 20),
-            "part": {
-                "ETag": "724a0685c99b457d4ddd93814c2d3e2b",
-                "PartNumber": "3"
+        )
+        interface.result_queue.put(
+            {
+                "key": "test/file",
+                "part_number": 3,
+                "end_time": datetime.datetime(2016, 3, 30, 17, 3, 20),
+                "part": {"ETag": "724a0685c99b457d4ddd93814c2d3e2b", "PartNumber": "3"},
             }
-        })
-        interface.result_queue.put({
-            "key": "test/another_file",
-            "part_number": 1,
-            "end_time": datetime.datetime(2016, 3, 30, 17, 5, 20),
-            "part": {
-                "ETag": "89d4f0341d9091aa21ddf67d3b32c34a",
-                "PartNumber": "1"
+        )
+        interface.result_queue.put(
+            {
+                "key": "test/another_file",
+                "part_number": 1,
+                "end_time": datetime.datetime(2016, 3, 30, 17, 5, 20),
+                "part": {"ETag": "89d4f0341d9091aa21ddf67d3b32c34a", "PartNumber": "1"},
             }
-        })
+        )
         interface._retrieve_results()
         assert interface.result_queue.empty()
         assert interface.parts_db == {
             "test/file": [
-                {
-                    "ETag": "27960aa8b7b851eb0277f0f3f5d15d68",
-                    "PartNumber": "1"
-                },
-                {
-                    "ETag": "becb2f30c11b6a2b5c069f3c8a5b798c",
-                    "PartNumber": "2"
-                },
-                {
-                    "ETag": "724a0685c99b457d4ddd93814c2d3e2b",
-                    "PartNumber": "3"
-                }
+                {"ETag": "27960aa8b7b851eb0277f0f3f5d15d68", "PartNumber": "1"},
+                {"ETag": "becb2f30c11b6a2b5c069f3c8a5b798c", "PartNumber": "2"},
+                {"ETag": "724a0685c99b457d4ddd93814c2d3e2b", "PartNumber": "3"},
             ],
             "test/another_file": [
-                {
-                    "ETag": "89d4f0341d9091aa21ddf67d3b32c34a",
-                    "PartNumber": "1"
-                }
-            ]
+                {"ETag": "89d4f0341d9091aa21ddf67d3b32c34a", "PartNumber": "1"}
+            ],
         }
         assert interface.upload_stats == {
-            'test/another_file': {
-                'start_time': datetime.datetime(2016, 3, 30, 17, 1, 0),
-                'status': 'uploading',
-                'parts': {
+            "test/another_file": {
+                "start_time": datetime.datetime(2016, 3, 30, 17, 1, 0),
+                "status": "uploading",
+                "parts": {
                     1: {
-                        'end_time': datetime.datetime(2016, 3, 30, 17, 5, 20),
-                        'part_number': 1,
+                        "end_time": datetime.datetime(2016, 3, 30, 17, 5, 20),
+                        "part_number": 1,
                     },
                 },
             },
-            'test/file': {
-                'start_time': datetime.datetime(2016, 3, 30, 17, 1, 0),
-                'status': 'uploading',
-                'parts': {
+            "test/file": {
+                "start_time": datetime.datetime(2016, 3, 30, 17, 1, 0),
+                "status": "uploading",
+                "parts": {
                     1: {
-                        'end_time': datetime.datetime(2016, 3, 30, 17, 1, 20),
-                        'part_number': 1,
+                        "end_time": datetime.datetime(2016, 3, 30, 17, 1, 20),
+                        "part_number": 1,
                     },
                     2: {
-                        'end_time': datetime.datetime(2016, 3, 30, 17, 2, 20),
-                        'part_number': 2,
+                        "end_time": datetime.datetime(2016, 3, 30, 17, 2, 20),
+                        "part_number": 2,
                     },
                     3: {
-                        'end_time': datetime.datetime(2016, 3, 30, 17, 3, 20),
-                        'part_number': 3,
+                        "end_time": datetime.datetime(2016, 3, 30, 17, 3, 20),
+                        "part_number": 3,
                     },
                 },
             },
         }
 
-    @mock.patch('barman.cloud.CloudInterface.worker_process_execute_job')
+    @mock.patch("barman.cloud.CloudInterface.worker_process_execute_job")
     def test_worker_process_main(self, worker_process_execute_job_mock):
         job_collection = [
             {"job_id": 1, "job_type": "upload_part"},
@@ -207,9 +185,7 @@ class TestCloudInterface(object):
             None,
         ]
 
-        interface = CloudInterface(
-            url='s3://bucket/path/to/dir',
-            encryption=None)
+        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = mock.MagicMock()
         interface.errors_queue = Queue()
         interface.queue.get.side_effect = job_collection
@@ -229,6 +205,7 @@ class TestCloudInterface(object):
         def execute_mock(job, process_number):
             if job["job_id"] == 2:
                 raise Boto3Error("Something is gone wrong")
+
         interface.queue.reset_mock()
         worker_process_execute_job_mock.reset_mock()
         worker_process_execute_job_mock.side_effect = execute_mock
@@ -242,22 +219,22 @@ class TestCloudInterface(object):
         assert interface.errors_queue.get() == "Something is gone wrong"
         assert interface.errors_queue.empty()
 
-    @mock.patch('barman.cloud.os.unlink')
-    @mock.patch('barman.cloud.open')
-    @mock.patch('barman.cloud.CloudInterface.complete_multipart_upload')
-    @mock.patch('barman.cloud.CloudInterface.upload_part')
-    @mock.patch('datetime.datetime')
-    def test_worker_process_execute_job(self,
-                                        datetime_mock,
-                                        upload_part_mock,
-                                        complete_multipart_upload_mock,
-                                        open_mock,
-                                        unlink_mock):
+    @mock.patch("barman.cloud.os.unlink")
+    @mock.patch("barman.cloud.open")
+    @mock.patch("barman.cloud.CloudInterface.complete_multipart_upload")
+    @mock.patch("barman.cloud.CloudInterface.upload_part")
+    @mock.patch("datetime.datetime")
+    def test_worker_process_execute_job(
+        self,
+        datetime_mock,
+        upload_part_mock,
+        complete_multipart_upload_mock,
+        open_mock,
+        unlink_mock,
+    ):
         # Unknown job type, no boto functions are being called and
         # an exception is being raised
-        interface = CloudInterface(
-            url='s3://bucket/path/to/dir',
-            encryption=None)
+        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.result_queue = Queue()
         interface.done_queue = Queue()
         with pytest.raises(ValueError):
@@ -268,22 +245,21 @@ class TestCloudInterface(object):
 
         # upload_part job, a file with the passed name is opened, uploaded
         # and them deleted
-        part_result = {
-            "ETag": "89d4f0341d9091aa21ddf67d3b32c34a",
-            "PartNumber": "10"
-        }
+        part_result = {"ETag": "89d4f0341d9091aa21ddf67d3b32c34a", "PartNumber": "10"}
         upload_part_mock.return_value = part_result
-        interface.worker_process_execute_job({
-            "job_type": "upload_part",
-            "mpu": "mpu",
-            "part_number": 10,
-            "key": "this/key",
-            "body": "body"}, 0)
+        interface.worker_process_execute_job(
+            {
+                "job_type": "upload_part",
+                "mpu": "mpu",
+                "part_number": 10,
+                "key": "this/key",
+                "body": "body",
+            },
+            0,
+        )
         upload_part_mock.assert_called_once_with(
-            "mpu",
-            "this/key",
-            open_mock.return_value.__enter__.return_value,
-            10)
+            "mpu", "this/key", open_mock.return_value.__enter__.return_value, 10
+        )
         assert not interface.result_queue.empty()
         assert interface.result_queue.get() == {
             "end_time": datetime_mock.now.return_value,
@@ -295,13 +271,18 @@ class TestCloudInterface(object):
 
         # complete_multipart_upload, an S3 call to create a key in the bucket
         # with the right parts is called
-        interface.worker_process_execute_job({
-            "job_type": "complete_multipart_upload",
-            "mpu": "mpu",
-            "key": "this/key",
-            "parts": ["parts", "list"]}, 0)
+        interface.worker_process_execute_job(
+            {
+                "job_type": "complete_multipart_upload",
+                "mpu": "mpu",
+                "key": "this/key",
+                "parts": ["parts", "list"],
+            },
+            0,
+        )
         complete_multipart_upload_mock.assert_called_once_with(
-            "mpu", "this/key", ["parts", "list"])
+            "mpu", "this/key", ["parts", "list"]
+        )
         assert not interface.done_queue.empty()
         assert interface.done_queue.get() == {
             "end_time": datetime_mock.now.return_value,
@@ -312,9 +293,7 @@ class TestCloudInterface(object):
     def test_handle_async_errors(self):
         # If we the upload process has already raised an error, we immediately
         # exit without doing anything
-        interface = CloudInterface(
-            url='s3://bucket/path/to/dir',
-            encryption=None)
+        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.error = "test"
         interface.errors_queue = None  # If get called raises AttributeError
         interface._handle_async_errors()
@@ -331,26 +310,19 @@ class TestCloudInterface(object):
         with pytest.raises(CloudUploadingError):
             interface._handle_async_errors()
 
-    @mock.patch('barman.cloud.NamedTemporaryFile')
-    @mock.patch('barman.cloud.CloudInterface._handle_async_errors')
-    @mock.patch('barman.cloud.CloudInterface._ensure_async')
-    def test_async_upload_part(self,
-                               ensure_async_mock,
-                               handle_async_errors_mock,
-                               temp_file_mock):
+    @mock.patch("barman.cloud.NamedTemporaryFile")
+    @mock.patch("barman.cloud.CloudInterface._handle_async_errors")
+    @mock.patch("barman.cloud.CloudInterface._ensure_async")
+    def test_async_upload_part(
+        self, ensure_async_mock, handle_async_errors_mock, temp_file_mock
+    ):
         temp_name = "tmp_file"
         temp_stream = temp_file_mock.return_value.__enter__.return_value
         temp_stream.name = temp_name
 
-        interface = CloudInterface(
-            url='s3://bucket/path/to/dir',
-            encryption=None)
+        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = Queue()
-        interface.async_upload_part(
-            'mpu',
-            'test/key',
-            BytesIO(b'test'),
-            1)
+        interface.async_upload_part("mpu", "test/key", BytesIO(b"test"), 1)
         ensure_async_mock.assert_called_once_with()
         handle_async_errors_mock.assert_called_once_with()
         assert not interface.queue.empty()
@@ -362,38 +334,36 @@ class TestCloudInterface(object):
             "part_number": 1,
         }
 
-    @mock.patch('barman.cloud.CloudInterface._retrieve_results')
-    @mock.patch('barman.cloud.CloudInterface._handle_async_errors')
-    @mock.patch('barman.cloud.CloudInterface._ensure_async')
-    def test_async_complete_multipart_upload(self,
-                                             ensure_async_mock,
-                                             handle_async_errors_mock,
-                                             retrieve_results_mock):
-        interface = CloudInterface(
-            url='s3://bucket/path/to/dir',
-            encryption=None)
+    @mock.patch("barman.cloud.CloudInterface._retrieve_results")
+    @mock.patch("barman.cloud.CloudInterface._handle_async_errors")
+    @mock.patch("barman.cloud.CloudInterface._ensure_async")
+    def test_async_complete_multipart_upload(
+        self, ensure_async_mock, handle_async_errors_mock, retrieve_results_mock
+    ):
+        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = mock.MagicMock()
-        interface.parts_db = {
-            "key": ["part", "list"]
-        }
+        interface.parts_db = {"key": ["part", "list"]}
 
         def retrieve_results_effect():
             interface.parts_db["key"].append("complete")
+
         retrieve_results_mock.side_effect = retrieve_results_effect
 
-        interface.async_complete_multipart_upload('mpu', 'key', 3)
+        interface.async_complete_multipart_upload("mpu", "key", 3)
         ensure_async_mock.assert_called_once_with()
         handle_async_errors_mock.assert_called_once_with()
         retrieve_results_mock.assert_called_once_with()
 
-        interface.queue.put.assert_called_once_with({
-            "job_type": "complete_multipart_upload",
-            "mpu": "mpu",
-            "key": "key",
-            "parts": ["part", "list", "complete"],
-        })
+        interface.queue.put.assert_called_once_with(
+            {
+                "job_type": "complete_multipart_upload",
+                "mpu": "mpu",
+                "key": "key",
+                "parts": ["part", "list", "complete"],
+            }
+        )
 
-    @mock.patch('barman.cloud.boto3')
+    @mock.patch("barman.cloud.boto3")
     def test_invalid_uploader_minimal(self, boto_mock):
         """
         Minimal build of the CloudInterface class
@@ -401,51 +371,42 @@ class TestCloudInterface(object):
         # Check that the creation of the cloud interface class fails in case of
         # wrongly formatted/invalid s3 uri
         with pytest.raises(ValueError) as excinfo:
-            CloudInterface(
-                '/bucket/path/to/dir',
-                encryption=None)
-        assert str(excinfo.value) == \
-            'Invalid s3 URL address: /bucket/path/to/dir'
+            CloudInterface("/bucket/path/to/dir", encryption=None)
+        assert str(excinfo.value) == "Invalid s3 URL address: /bucket/path/to/dir"
 
-    @mock.patch('barman.cloud.boto3')
+    @mock.patch("barman.cloud.boto3")
     def test_connectivity(self, boto_mock):
         """
         test the  test_connectivity method
         """
-        cloud_interface = CloudInterface(
-            's3://bucket/path/to/dir',
-            encryption=None)
+        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
         assert cloud_interface.test_connectivity() is True
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         client_mock = s3_mock.meta.client
-        client_mock.head_bucket.assert_called_once_with(Bucket='bucket')
+        client_mock.head_bucket.assert_called_once_with(Bucket="bucket")
 
-    @mock.patch('barman.cloud.boto3')
+    @mock.patch("barman.cloud.boto3")
     def test_connectivity_failure(self, boto_mock):
         """
         test the test_connectivity method in case of failure
         """
-        cloud_interface = CloudInterface(
-            's3://bucket/path/to/dir',
-            encryption=None)
+        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         client_mock = s3_mock.meta.client
         # Raise the exception for the "I'm unable to reach amazon" event
         client_mock.head_bucket.side_effect = EndpointConnectionError(
-            endpoint_url='bucket'
+            endpoint_url="bucket"
         )
         assert cloud_interface.test_connectivity() is False
 
-    @mock.patch('barman.cloud.boto3')
+    @mock.patch("barman.cloud.boto3")
     def test_setup_bucket(self, boto_mock):
         """
         Test if a bucket already exists
         """
-        cloud_interface = CloudInterface(
-            's3://bucket/path/to/dir',
-            encryption=None)
+        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
         cloud_interface.setup_bucket()
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
@@ -455,21 +416,18 @@ class TestCloudInterface(object):
             Bucket=cloud_interface.bucket_name
         )
 
-    @mock.patch('barman.cloud.boto3')
+    @mock.patch("barman.cloud.boto3")
     def test_setup_bucket_create(self, boto_mock):
         """
         Test auto-creation of a bucket if it not exists
         """
-        cloud_interface = CloudInterface(
-            's3://bucket/path/to/dir',
-            encryption=None)
+        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         s3_client = s3_mock.meta.client
         # Simulate a 404 error from amazon for 'bucket not found'
         s3_client.head_bucket.side_effect = ClientError(
-            error_response={'Error': {'Code': '404'}},
-            operation_name='load'
+            error_response={"Error": {"Code": "404"}}, operation_name="load"
         )
         cloud_interface.setup_bucket()
         bucket_mock = s3_mock.Bucket

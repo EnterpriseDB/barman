@@ -24,14 +24,13 @@ import pytest
 from barman import output
 from barman.infofile import BackupInfo
 from barman.utils import BarmanEncoder, pretty_size
-from testing_helpers import (build_test_backup_info, find_by_attr,
-                             mock_backup_ext_info)
+from testing_helpers import build_test_backup_info, find_by_attr, mock_backup_ext_info
 
 # Color output constants
-RED = '\033[31m'
-GREEN = '\033[32m'
-YELLOW = '\033[33m'
-RESET = '\033[0m'
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+RESET = "\033[0m"
 
 
 def teardown_module(module):
@@ -49,11 +48,11 @@ def barman_encoder():
     """
     real_default = BarmanEncoder.default
 
-    with mock.patch.object(BarmanEncoder, 'default', autospec=True) as default:
+    with mock.patch.object(BarmanEncoder, "default", autospec=True) as default:
 
         def extended_default(self, obj):
             if isinstance(obj, mock.Mock):
-                raise Exception('Mock object serialization detected: %s', obj)
+                raise Exception("Mock object serialization detected: %s", obj)
             return real_default(self, obj)
 
         default.side_effect = extended_default
@@ -80,13 +79,12 @@ class TestOutputAPI(object):
 
         assert output._writer == old_writer
 
-        args = ('1', 'two')
+        args = ("1", "two")
         kwargs = dict(three=3, four=5)
-        output.set_output_writer('mock', *args, **kwargs)
+        output.set_output_writer("mock", *args, **kwargs)
 
         old_writer.close.assert_called_once_with()
-        output.AVAILABLE_WRITERS['mock'].assert_called_once_with(*args,
-                                                                 **kwargs)
+        output.AVAILABLE_WRITERS["mock"].assert_called_once_with(*args, **kwargs)
 
     def test_debug(self, caplog):
         # See all logs
@@ -95,12 +93,12 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test message'
+        msg = "test message"
         output.debug(msg)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'DEBUG'
+            assert record.levelname == "DEBUG"
             assert record.name == __name__
         assert msg in caplog.text
 
@@ -118,13 +116,13 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
         output.debug(msg, *args)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'DEBUG'
+            assert record.levelname == "DEBUG"
             assert record.name == __name__
         assert msg % args in caplog.text
 
@@ -142,12 +140,12 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test message'
+        msg = "test message"
         output.debug(msg, is_error=True)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'DEBUG'
+            assert record.levelname == "DEBUG"
             assert record.name == __name__
         assert msg in caplog.text
 
@@ -163,7 +161,7 @@ class TestOutputAPI(object):
         self._mock_writer()
 
         with pytest.raises(TypeError):
-            output.debug('message', bad_arg=True)
+            output.debug("message", bad_arg=True)
 
     def test_info(self, caplog):
         # See all logs
@@ -172,12 +170,12 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test message'
+        msg = "test message"
         output.info(msg)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'INFO'
+            assert record.levelname == "INFO"
             assert record.name == __name__
         assert msg in caplog.text
 
@@ -195,13 +193,13 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
         output.info(msg, *args)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'INFO'
+            assert record.levelname == "INFO"
             assert record.name == __name__
         assert msg % args in caplog.text
 
@@ -219,12 +217,12 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test message'
+        msg = "test message"
         output.info(msg, is_error=True)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'INFO'
+            assert record.levelname == "INFO"
             assert record.name == __name__
         assert msg in caplog.text
 
@@ -239,12 +237,12 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test message'
+        msg = "test message"
         output.warning(msg)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'WARNING'
+            assert record.levelname == "WARNING"
             assert record.name == __name__
         assert msg in caplog.text
 
@@ -259,13 +257,13 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
         output.warning(msg, *args)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'WARNING'
+            assert record.levelname == "WARNING"
             assert record.name == __name__
         assert msg % args in caplog.text
 
@@ -280,12 +278,12 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test message'
+        msg = "test message"
         output.warning(msg, is_error=True)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'WARNING'
+            assert record.levelname == "WARNING"
             assert record.name == __name__
         assert msg in caplog.text
 
@@ -300,12 +298,12 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test message'
+        msg = "test message"
         output.error(msg)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
+            assert record.levelname == "ERROR"
             assert record.name == __name__
         assert msg in caplog.text
 
@@ -320,13 +318,13 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
         output.error(msg, *args)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
+            assert record.levelname == "ERROR"
             assert record.name == __name__
         assert msg % args in caplog.text
 
@@ -341,13 +339,13 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
         output.error(msg, ignore=True, *args)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
+            assert record.levelname == "ERROR"
             assert record.name == __name__
         assert msg % args in caplog.text
 
@@ -362,18 +360,18 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test message'
+        msg = "test message"
         try:
-            raise ValueError('test exception')
+            raise ValueError("test exception")
         except ValueError:
             output.exception(msg)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
+            assert record.levelname == "ERROR"
             assert record.name == __name__
         assert msg in caplog.text
-        assert 'Traceback' in caplog.text
+        assert "Traceback" in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -386,19 +384,19 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
         try:
-            raise ValueError('test exception')
+            raise ValueError("test exception")
         except ValueError:
             output.exception(msg, *args)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
+            assert record.levelname == "ERROR"
             assert record.name == __name__
         assert msg % args in caplog.text
-        assert 'Traceback' in caplog.text
+        assert "Traceback" in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -411,19 +409,19 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
         try:
-            raise ValueError('test exception')
+            raise ValueError("test exception")
         except ValueError:
             output.exception(msg, ignore=True, *args)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
+            assert record.levelname == "ERROR"
             assert record.name == __name__
         assert msg % args in caplog.text
-        assert 'Traceback' in caplog.text
+        assert "Traceback" in caplog.text
 
         # writer test
         assert not writer.error_occurred.called
@@ -436,21 +434,21 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
 
         try:
-            raise ValueError('test exception')
+            raise ValueError("test exception")
         except ValueError:
             with pytest.raises(ValueError):
                 output.exception(msg, raise_exception=True, *args)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
+            assert record.levelname == "ERROR"
             assert record.name == __name__
         assert msg % args in caplog.text
-        assert 'Traceback' in caplog.text
+        assert "Traceback" in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -463,21 +461,21 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
 
         try:
-            raise ValueError('test exception')
+            raise ValueError("test exception")
         except ValueError:
             with pytest.raises(KeyError):
                 output.exception(msg, raise_exception=KeyError(), *args)
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
+            assert record.levelname == "ERROR"
             assert record.name == __name__
         assert msg % args in caplog.text
-        assert 'Traceback' in caplog.text
+        assert "Traceback" in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -490,20 +488,20 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        msg = 'test format %02d %s'
-        args = (1, '2nd')
+        msg = "test format %02d %s"
+        args = (1, "2nd")
 
         try:
-            raise ValueError('test exception')
+            raise ValueError("test exception")
         except ValueError:
             with pytest.raises(KeyError):
                 output.exception(msg, raise_exception=KeyError, *args)
         assert msg % args in caplog.text
-        assert 'Traceback' in caplog.text
+        assert "Traceback" in caplog.text
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
+            assert record.levelname == "ERROR"
             assert record.name == __name__
 
         # writer test
@@ -517,28 +515,28 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        args = ('1', 'two')
+        args = ("1", "two")
         kwargs = dict(three=3, four=5)
-        output.init('command', *args, **kwargs)
-        output.init('another_command')
+        output.init("command", *args, **kwargs)
+        output.init("another_command")
 
         # writer test
         writer.init_command.assert_called_once_with(*args, **kwargs)
         writer.init_another_command.assert_called_once_with()
 
-    @mock.patch('sys.exit')
+    @mock.patch("sys.exit")
     def test_init_bad_command(self, exit_mock, caplog):
         # preparation
         writer = self._mock_writer()
         del writer.init_bad_command
 
-        output.init('bad_command')
+        output.init("bad_command")
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
-        assert 'bad_command' in caplog.text
-        assert 'Traceback' in caplog.text
+            assert record.levelname == "ERROR"
+        assert "bad_command" in caplog.text
+        assert "Traceback" in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -553,28 +551,28 @@ class TestOutputAPI(object):
         # preparation
         writer = self._mock_writer()
 
-        args = ('1', 'two')
+        args = ("1", "two")
         kwargs = dict(three=3, four=5)
-        output.result('command', *args, **kwargs)
-        output.result('another_command')
+        output.result("command", *args, **kwargs)
+        output.result("another_command")
 
         # writer test
         writer.result_command.assert_called_once_with(*args, **kwargs)
         writer.result_another_command.assert_called_once_with()
 
-    @mock.patch('sys.exit')
+    @mock.patch("sys.exit")
     def test_result_bad_command(self, exit_mock, caplog):
         # preparation
         writer = self._mock_writer()
         del writer.result_bad_command
 
-        output.result('bad_command')
+        output.result("bad_command")
 
         # logging test
         for record in caplog.records:
-            assert record.levelname == 'ERROR'
-        assert 'bad_command' in caplog.text
-        assert 'Traceback' in caplog.text
+            assert record.levelname == "ERROR"
+        assert "bad_command" in caplog.text
+        assert "Traceback" in caplog.text
 
         # writer test
         writer.error_occurred.assert_called_once_with()
@@ -593,7 +591,7 @@ class TestOutputAPI(object):
 
         writer.close.assert_called_once_with()
 
-    @mock.patch('sys.exit')
+    @mock.patch("sys.exit")
     def test_close_and_exit(self, exit_mock):
         # preparation
         writer = self._mock_writer()
@@ -603,7 +601,7 @@ class TestOutputAPI(object):
         writer.close.assert_called_once_with()
         exit_mock.assert_called_once_with(0)
 
-    @mock.patch('sys.exit')
+    @mock.patch("sys.exit")
     def test_close_and_exit_with_error(self, exit_mock):
         # preparation
         writer = self._mock_writer()
@@ -619,358 +617,357 @@ class TestOutputAPI(object):
 
 # noinspection PyMethodMayBeStatic
 class TestConsoleWriter(object):
-
     def test_debug(self, capsys):
         writer = output.ConsoleOutputWriter(debug=True)
 
-        msg = 'test message'
+        msg = "test message"
         writer.debug(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'DEBUG: ' + msg + '\n'
+        assert out == ""
+        assert err == "DEBUG: " + msg + "\n"
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'DEBUG: ' + msg % args + '\n'
+        assert out == ""
+        assert err == "DEBUG: " + msg % args + "\n"
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'DEBUG: ' + msg % args + '\n'
+        assert out == ""
+        assert err == "DEBUG: " + msg % args + "\n"
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.debug(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'DEBUG: ' + msg % kwargs + '\n'
+        assert out == ""
+        assert err == "DEBUG: " + msg % kwargs + "\n"
 
     def test_debug_disabled(self, capsys):
         writer = output.ConsoleOutputWriter(debug=False)
 
-        msg = 'test message'
+        msg = "test message"
         writer.debug(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.debug(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
     def test_info_verbose(self, capsys):
         writer = output.ConsoleOutputWriter(quiet=False)
 
-        msg = 'test message'
+        msg = "test message"
         writer.info(msg)
         (out, err) = capsys.readouterr()
-        assert out == msg + '\n'
-        assert err == ''
+        assert out == msg + "\n"
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.info(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == msg % args + '\n'
-        assert err == ''
+        assert out == msg % args + "\n"
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.info(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == msg % args + '\n'
-        assert err == ''
+        assert out == msg % args + "\n"
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.info(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == msg % kwargs + '\n'
-        assert err == ''
+        assert out == msg % kwargs + "\n"
+        assert err == ""
 
     def test_info_quiet(self, capsys):
         writer = output.ConsoleOutputWriter(quiet=True)
 
-        msg = 'test message'
+        msg = "test message"
         writer.info(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.info(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.info(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.info(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
     def test_warning(self, capsys):
         writer = output.ConsoleOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.warning(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'WARNING: ' + msg + '\n'
+        assert out == ""
+        assert err == "WARNING: " + msg + "\n"
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.warning(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'WARNING: ' + msg % args + '\n'
+        assert out == ""
+        assert err == "WARNING: " + msg % args + "\n"
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.warning(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'WARNING: ' + msg % args + '\n'
+        assert out == ""
+        assert err == "WARNING: " + msg % args + "\n"
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.warning(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'WARNING: ' + msg % kwargs + '\n'
+        assert out == ""
+        assert err == "WARNING: " + msg % kwargs + "\n"
 
     def test_error(self, capsys):
         writer = output.ConsoleOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.error(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'ERROR: ' + msg + '\n'
+        assert out == ""
+        assert err == "ERROR: " + msg + "\n"
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.error(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'ERROR: ' + msg % args + '\n'
+        assert out == ""
+        assert err == "ERROR: " + msg % args + "\n"
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.error(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'ERROR: ' + msg % args + '\n'
+        assert out == ""
+        assert err == "ERROR: " + msg % args + "\n"
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.error(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'ERROR: ' + msg % kwargs + '\n'
+        assert out == ""
+        assert err == "ERROR: " + msg % kwargs + "\n"
 
     def test_exception(self, capsys):
         writer = output.ConsoleOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.exception(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'EXCEPTION: ' + msg + '\n'
+        assert out == ""
+        assert err == "EXCEPTION: " + msg + "\n"
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.exception(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'EXCEPTION: ' + msg % args + '\n'
+        assert out == ""
+        assert err == "EXCEPTION: " + msg % args + "\n"
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.exception(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'EXCEPTION: ' + msg % args + '\n'
+        assert out == ""
+        assert err == "EXCEPTION: " + msg % args + "\n"
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.exception(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == 'EXCEPTION: ' + msg % kwargs + '\n'
+        assert out == ""
+        assert err == "EXCEPTION: " + msg % kwargs + "\n"
 
     def test_colored_warning(self, capsys, monkeypatch):
-        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        monkeypatch.setattr(output, "ansi_colors_enabled", True)
         writer = output.ConsoleOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.warning(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == YELLOW + 'WARNING: ' + msg + RESET + '\n'
+        assert out == ""
+        assert err == YELLOW + "WARNING: " + msg + RESET + "\n"
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.warning(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == YELLOW + 'WARNING: ' + msg % args + RESET + '\n'
+        assert out == ""
+        assert err == YELLOW + "WARNING: " + msg % args + RESET + "\n"
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.warning(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == YELLOW + 'WARNING: ' + msg % args + RESET + '\n'
+        assert out == ""
+        assert err == YELLOW + "WARNING: " + msg % args + RESET + "\n"
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.warning(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == YELLOW + 'WARNING: ' + msg % kwargs + RESET + '\n'
+        assert out == ""
+        assert err == YELLOW + "WARNING: " + msg % kwargs + RESET + "\n"
 
     def test_colored_error(self, capsys, monkeypatch):
-        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        monkeypatch.setattr(output, "ansi_colors_enabled", True)
         writer = output.ConsoleOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.error(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == RED + 'ERROR: ' + msg + RESET + '\n'
+        assert out == ""
+        assert err == RED + "ERROR: " + msg + RESET + "\n"
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.error(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == RED + 'ERROR: ' + msg % args + RESET + '\n'
+        assert out == ""
+        assert err == RED + "ERROR: " + msg % args + RESET + "\n"
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.error(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == RED + 'ERROR: ' + msg % args + RESET + '\n'
+        assert out == ""
+        assert err == RED + "ERROR: " + msg % args + RESET + "\n"
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.error(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == RED + 'ERROR: ' + msg % kwargs + RESET + '\n'
+        assert out == ""
+        assert err == RED + "ERROR: " + msg % kwargs + RESET + "\n"
 
     def test_colored_exception(self, capsys, monkeypatch):
-        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        monkeypatch.setattr(output, "ansi_colors_enabled", True)
         writer = output.ConsoleOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.exception(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == RED + 'EXCEPTION: ' + msg + RESET + '\n'
+        assert out == ""
+        assert err == RED + "EXCEPTION: " + msg + RESET + "\n"
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.exception(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == RED + 'EXCEPTION: ' + msg % args + RESET + '\n'
+        assert out == ""
+        assert err == RED + "EXCEPTION: " + msg % args + RESET + "\n"
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.exception(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == RED + 'EXCEPTION: ' + msg % args + RESET + '\n'
+        assert out == ""
+        assert err == RED + "EXCEPTION: " + msg % args + RESET + "\n"
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.exception(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == RED + 'EXCEPTION: ' + msg % kwargs + RESET + '\n'
+        assert out == ""
+        assert err == RED + "EXCEPTION: " + msg % kwargs + RESET + "\n"
 
     def test_init_check(self, capsys):
         writer = output.ConsoleOutputWriter()
 
-        server = 'test'
+        server = "test"
 
         writer.init_check(server, True, False)
         (out, err) = capsys.readouterr()
-        assert out == 'Server %s:\n' % server
-        assert err == ''
+        assert out == "Server %s:\n" % server
+        assert err == ""
 
     def test_result_check_ok(self, capsys):
         writer = output.ConsoleOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
+        server = "test"
+        check = "test check"
 
         writer.result_check(server, check, True)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: OK\n' % check
-        assert err == ''
+        assert out == "\t%s: OK\n" % check
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_ok_hint(self, capsys):
         writer = output.ConsoleOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
-        hint = 'do something'
+        server = "test"
+        check = "test check"
+        hint = "do something"
 
         writer.result_check(server, check, True, hint)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: OK (%s)\n' % (check, hint)
-        assert err == ''
+        assert out == "\t%s: OK (%s)\n" % (check, hint)
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_failed(self, capsys):
         writer = output.ConsoleOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
+        server = "test"
+        check = "test check"
 
         writer.result_check(server, check, False)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: FAILED\n' % check
-        assert err == ''
+        assert out == "\t%s: FAILED\n" % check
+        assert err == ""
         assert output.error_occurred
 
         # Test an inactive server
@@ -978,14 +975,14 @@ class TestConsoleWriter(object):
         output.error_occurred = False
         writer.init_check(server, False, False)
         (out, err) = capsys.readouterr()
-        assert out == 'Server %s (inactive):\n' % server
-        assert err == ''
+        assert out == "Server %s (inactive):\n" % server
+        assert err == ""
         assert not output.error_occurred
 
         writer.result_check(server, check, False)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: FAILED\n' % check
-        assert err == ''
+        assert out == "\t%s: FAILED\n" % check
+        assert err == ""
         assert not output.error_occurred
 
         # Test a disabled server
@@ -993,71 +990,71 @@ class TestConsoleWriter(object):
         output.error_occurred = False
         writer.init_check(server, True, True)
         (out, err) = capsys.readouterr()
-        assert out == 'Server %s (WARNING: disabled):\n' % server
-        assert err == ''
+        assert out == "Server %s (WARNING: disabled):\n" % server
+        assert err == ""
         assert not output.error_occurred
 
         writer.result_check(server, check, False)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: FAILED\n' % check
-        assert err == ''
+        assert out == "\t%s: FAILED\n" % check
+        assert err == ""
         assert output.error_occurred
 
     def test_result_check_failed_hint(self, capsys):
         writer = output.ConsoleOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
-        hint = 'do something'
+        server = "test"
+        check = "test check"
+        hint = "do something"
 
         writer.result_check(server, check, False, hint)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: FAILED (%s)\n' % (check, hint)
-        assert err == ''
+        assert out == "\t%s: FAILED (%s)\n" % (check, hint)
+        assert err == ""
         assert output.error_occurred
 
     def test_result_check_ok_color(self, capsys, monkeypatch):
-        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        monkeypatch.setattr(output, "ansi_colors_enabled", True)
         writer = output.ConsoleOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
+        server = "test"
+        check = "test check"
 
         writer.result_check(server, check, True)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: %sOK%s\n' % (check, GREEN, RESET)
-        assert err == ''
+        assert out == "\t%s: %sOK%s\n" % (check, GREEN, RESET)
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_ok_hint_color(self, capsys, monkeypatch):
-        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        monkeypatch.setattr(output, "ansi_colors_enabled", True)
         writer = output.ConsoleOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
-        hint = 'do something'
+        server = "test"
+        check = "test check"
+        hint = "do something"
 
         writer.result_check(server, check, True, hint)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: %sOK%s (%s)\n' % (check, GREEN, RESET, hint)
-        assert err == ''
+        assert out == "\t%s: %sOK%s (%s)\n" % (check, GREEN, RESET, hint)
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_failed_color(self, capsys, monkeypatch):
-        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        monkeypatch.setattr(output, "ansi_colors_enabled", True)
         writer = output.ConsoleOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
+        server = "test"
+        check = "test check"
 
         writer.result_check(server, check, False)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: %sFAILED%s\n' % (check, RED, RESET)
-        assert err == ''
+        assert out == "\t%s: %sFAILED%s\n" % (check, RED, RESET)
+        assert err == ""
         assert output.error_occurred
 
         # Test an inactive server
@@ -1065,14 +1062,14 @@ class TestConsoleWriter(object):
         output.error_occurred = False
         writer.init_check(server, False, False)
         (out, err) = capsys.readouterr()
-        assert out == 'Server %s (inactive):\n' % server
-        assert err == ''
+        assert out == "Server %s (inactive):\n" % server
+        assert err == ""
         assert not output.error_occurred
 
         writer.result_check(server, check, False)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: %sFAILED%s\n' % (check, RED, RESET)
-        assert err == ''
+        assert out == "\t%s: %sFAILED%s\n" % (check, RED, RESET)
+        assert err == ""
         assert not output.error_occurred
 
         # Test a disabled server
@@ -1080,38 +1077,38 @@ class TestConsoleWriter(object):
         output.error_occurred = False
         writer.init_check(server, True, True)
         (out, err) = capsys.readouterr()
-        assert out == 'Server %s (WARNING: disabled):\n' % server
-        assert err == ''
+        assert out == "Server %s (WARNING: disabled):\n" % server
+        assert err == ""
         assert not output.error_occurred
 
         writer.result_check(server, check, False)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: %sFAILED%s\n' % (check, RED, RESET)
-        assert err == ''
+        assert out == "\t%s: %sFAILED%s\n" % (check, RED, RESET)
+        assert err == ""
         assert output.error_occurred
 
     def test_result_check_failed_hint_color(self, capsys, monkeypatch):
-        monkeypatch.setattr(output, 'ansi_colors_enabled', True)
+        monkeypatch.setattr(output, "ansi_colors_enabled", True)
         writer = output.ConsoleOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
-        hint = 'do something'
+        server = "test"
+        check = "test check"
+        hint = "do something"
 
         writer.result_check(server, check, False, hint)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: %sFAILED%s (%s)\n' % (check, RED, RESET, hint)
-        assert err == ''
+        assert out == "\t%s: %sFAILED%s (%s)\n" % (check, RED, RESET, hint)
+        assert err == ""
         assert output.error_occurred
 
     def test_init_list_backup(self):
         writer = output.ConsoleOutputWriter()
 
-        writer.init_list_backup('test server')
+        writer.init_list_backup("test server")
         assert not writer.minimal
 
-        writer.init_list_backup('test server', True)
+        writer.init_list_backup("test server", True)
         assert writer.minimal
 
     def test_result_list_backup(self, capsys):
@@ -1119,7 +1116,7 @@ class TestConsoleWriter(object):
         bi = build_test_backup_info()
         backup_size = 12345
         wal_size = 54321
-        retention_status = 'test status'
+        retention_status = "test status"
 
         writer = output.ConsoleOutputWriter()
 
@@ -1130,7 +1127,7 @@ class TestConsoleWriter(object):
         (out, err) = capsys.readouterr()
         assert writer.minimal
         assert bi.backup_id in out
-        assert err == ''
+        assert err == ""
 
         # test status=DONE output
         writer.init_list_backup(bi.server_name, False)
@@ -1142,10 +1139,10 @@ class TestConsoleWriter(object):
         assert bi.backup_id in out
         assert str(bi.end_time.ctime()) in out
         for name, _, location in bi.tablespaces:
-            assert '%s:%s' % (name, location)
-        assert 'Size: ' + pretty_size(backup_size) in out
-        assert 'WAL Size: ' + pretty_size(wal_size) in out
-        assert err == ''
+            assert "%s:%s" % (name, location)
+        assert "Size: " + pretty_size(backup_size) in out
+        assert "WAL Size: " + pretty_size(wal_size) in out
+        assert err == ""
 
         # test status = FAILED output
         bi = build_test_backup_info(status=BackupInfo.FAILED)
@@ -1161,8 +1158,9 @@ class TestConsoleWriter(object):
     def test_result_show_backup(self, capsys):
         # mock the backup ext info
         wal_per_second = 0.01
-        ext_info = mock_backup_ext_info(status=BackupInfo.DONE,
-                                        wals_per_second=wal_per_second)
+        ext_info = mock_backup_ext_info(
+            status=BackupInfo.DONE, wals_per_second=wal_per_second
+        )
 
         writer = output.ConsoleOutputWriter()
 
@@ -1170,22 +1168,21 @@ class TestConsoleWriter(object):
         writer.result_show_backup(ext_info)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert ext_info['server_name'] in out
-        assert ext_info['backup_id'] in out
-        assert ext_info['status'] in out
-        assert str(ext_info['end_time']) in out
-        for name, _, location in ext_info['tablespaces']:
-            assert '%s: %s' % (name, location) in out
-        assert (pretty_size(ext_info['size'] + ext_info['wal_size'])) in out
-        assert (pretty_size(ext_info['wal_until_next_size'])) in out
-        assert 'WAL rate             : %0.2f/hour' % \
-               (wal_per_second * 3600) in out
+        assert ext_info["server_name"] in out
+        assert ext_info["backup_id"] in out
+        assert ext_info["status"] in out
+        assert str(ext_info["end_time"]) in out
+        for name, _, location in ext_info["tablespaces"]:
+            assert "%s: %s" % (name, location) in out
+        assert (pretty_size(ext_info["size"] + ext_info["wal_size"])) in out
+        assert (pretty_size(ext_info["wal_until_next_size"])) in out
+        assert "WAL rate             : %0.2f/hour" % (wal_per_second * 3600) in out
         # TODO: this test can be expanded
-        assert err == ''
+        assert err == ""
 
     def test_result_show_backup_error(self, capsys):
         # mock the backup ext info
-        msg = 'test error message'
+        msg = "test error message"
         ext_info = mock_backup_ext_info(status=BackupInfo.FAILED, error=msg)
 
         writer = output.ConsoleOutputWriter()
@@ -1194,63 +1191,63 @@ class TestConsoleWriter(object):
         writer.result_show_backup(ext_info)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert ext_info['server_name'] in out
-        assert ext_info['backup_id'] in out
-        assert ext_info['status'] in out
-        assert str(ext_info['end_time']) not in out
+        assert ext_info["server_name"] in out
+        assert ext_info["backup_id"] in out
+        assert ext_info["status"] in out
+        assert str(ext_info["end_time"]) not in out
         assert msg in out
-        assert err == ''
+        assert err == ""
 
     def test_init_status(self, capsys):
         writer = output.ConsoleOutputWriter()
 
-        server = 'test'
+        server = "test"
 
         writer.init_status(server)
         (out, err) = capsys.readouterr()
-        assert out == 'Server %s:\n' % server
-        assert err == ''
+        assert out == "Server %s:\n" % server
+        assert err == ""
 
     def test_result_status(self, capsys):
         writer = output.ConsoleOutputWriter()
 
-        server = 'test'
-        name = 'test name'
-        description = 'test description'
-        message = 'test message'
+        server = "test"
+        name = "test name"
+        description = "test description"
+        message = "test message"
 
         writer.result_status(server, name, description, message)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: %s\n' % (description, message)
-        assert err == ''
+        assert out == "\t%s: %s\n" % (description, message)
+        assert err == ""
 
     def test_result_status_non_str(self, capsys):
         writer = output.ConsoleOutputWriter()
 
-        server = 'test'
-        name = 'test name'
-        description = 'test description'
+        server = "test"
+        name = "test name"
+        description = "test description"
         message = 1
 
         writer.result_status(server, name, description, message)
         (out, err) = capsys.readouterr()
-        assert out == '\t%s: %s\n' % (description, message)
-        assert err == ''
+        assert out == "\t%s: %s\n" % (description, message)
+        assert err == ""
 
     def test_redact_passwords(self, capsys):
         writer = output.ConsoleOutputWriter()
 
-        msg = 'message with password=SHAME_ON_ME inside'
+        msg = "message with password=SHAME_ON_ME inside"
         writer.info(msg)
         (out, err) = capsys.readouterr()
-        assert out == 'message with password=*REDACTED* inside\n'
-        assert err == ''
+        assert out == "message with password=*REDACTED* inside\n"
+        assert err == ""
 
-        msg = 'some postgresql://me:SECRET@host:5432/mydb conn'
+        msg = "some postgresql://me:SECRET@host:5432/mydb conn"
         writer.info(msg)
         (out, err) = capsys.readouterr()
-        assert out == 'some postgresql://me:*REDACTED*@host:5432/mydb conn\n'
-        assert err == ''
+        assert out == "some postgresql://me:*REDACTED*@host:5432/mydb conn\n"
+        assert err == ""
 
     def test_readact_passwords_in_json(self, capsys):
         writer = output.ConsoleOutputWriter()
@@ -1260,291 +1257,290 @@ class TestConsoleWriter(object):
         (out, err) = capsys.readouterr()
         json_out = '{"conninfo": "dbname=t password=*REDACTED*", "a": "b"}\n'
         assert out == json_out
-        assert err == ''
+        assert err == ""
 
 
 # noinspection PyMethodMayBeStatic
 class TestJsonWriter(object):
-
     def test_debug(self, capsys):
         writer = output.JsonOutputWriter(debug=True)
 
-        msg = 'test message'
-        msg2 = 'second message'
+        msg = "test message"
+        msg2 = "second message"
 
         writer.debug(msg)
         writer.debug(msg2)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg in json_output['_DEBUG']
-        assert msg2 in json_output['_DEBUG']
-        assert err == ''
+        assert msg in json_output["_DEBUG"]
+        assert msg2 in json_output["_DEBUG"]
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.debug(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_DEBUG']
-        assert err == ''
+        assert msg % args in json_output["_DEBUG"]
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.debug(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_DEBUG']
-        assert err == ''
+        assert msg % args in json_output["_DEBUG"]
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.debug(msg, kwargs)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % kwargs in json_output['_DEBUG']
-        assert err == ''
+        assert msg % kwargs in json_output["_DEBUG"]
+        assert err == ""
 
     def test_debug_disabled(self, capsys):
         writer = output.JsonOutputWriter(debug=False)
 
-        msg = 'test message'
+        msg = "test message"
         writer.debug(msg)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == '{}'
-        assert err == ''
+        assert out == "{}"
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.debug(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == '{}'
-        assert err == ''
+        assert out == "{}"
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.debug(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == '{}'
-        assert err == ''
+        assert out == "{}"
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.debug(msg, kwargs)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == '{}'
-        assert err == ''
+        assert out == "{}"
+        assert err == ""
 
     def test_info_verbose(self, capsys):
         writer = output.JsonOutputWriter(quiet=False)
 
-        msg = 'test message'
-        msg2 = 'second message'
+        msg = "test message"
+        msg2 = "second message"
         writer.info(msg)
         writer.info(msg2)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg in json_output['_INFO']
-        assert msg2 in json_output['_INFO']
-        assert err == ''
+        assert msg in json_output["_INFO"]
+        assert msg2 in json_output["_INFO"]
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.info(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_INFO']
-        assert err == ''
+        assert msg % args in json_output["_INFO"]
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.info(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_INFO']
-        assert err == ''
+        assert msg % args in json_output["_INFO"]
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.info(msg, kwargs)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % kwargs in json_output['_INFO']
-        assert err == ''
+        assert msg % kwargs in json_output["_INFO"]
+        assert err == ""
 
     def test_info_quiet(self, capsys):
         writer = output.JsonOutputWriter(quiet=True)
 
-        msg = 'test message'
+        msg = "test message"
         writer.info(msg)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.info(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.info(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.info(msg, kwargs)
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
     def test_warning(self, capsys):
         writer = output.JsonOutputWriter()
 
-        msg = 'test message'
-        msg2 = 'second message'
+        msg = "test message"
+        msg2 = "second message"
 
         writer.warning(msg)
         writer.warning(msg2)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg in json_output['_WARNING']
-        assert msg2 in json_output['_WARNING']
-        assert err == ''
+        assert msg in json_output["_WARNING"]
+        assert msg2 in json_output["_WARNING"]
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.warning(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_WARNING']
-        assert err == ''
+        assert msg % args in json_output["_WARNING"]
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.warning(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_WARNING']
-        assert err == ''
+        assert msg % args in json_output["_WARNING"]
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.warning(msg, kwargs)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % kwargs in json_output['_WARNING']
-        assert err == ''
+        assert msg % kwargs in json_output["_WARNING"]
+        assert err == ""
 
     def test_error(self, capsys):
         writer = output.JsonOutputWriter()
 
-        msg = 'test message'
-        msg2 = 'second message'
+        msg = "test message"
+        msg2 = "second message"
         writer.error(msg)
         writer.error(msg2)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg in json_output['_ERROR']
-        assert msg2 in json_output['_ERROR']
-        assert err == ''
+        assert msg in json_output["_ERROR"]
+        assert msg2 in json_output["_ERROR"]
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.error(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_ERROR']
-        assert err == ''
+        assert msg % args in json_output["_ERROR"]
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.error(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_ERROR']
-        assert err == ''
+        assert msg % args in json_output["_ERROR"]
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.error(msg, kwargs)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % kwargs in json_output['_ERROR']
-        assert err == ''
+        assert msg % kwargs in json_output["_ERROR"]
+        assert err == ""
 
     def test_exception(self, capsys):
         writer = output.JsonOutputWriter()
 
-        msg = 'test message'
-        msg2 = 'second message'
+        msg = "test message"
+        msg2 = "second message"
         writer.exception(msg)
         writer.exception(msg2)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg in json_output['_EXCEPTION']
-        assert msg2 in json_output['_EXCEPTION']
-        assert err == ''
+        assert msg in json_output["_EXCEPTION"]
+        assert msg2 in json_output["_EXCEPTION"]
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.exception(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_EXCEPTION']
-        assert err == ''
+        assert msg % args in json_output["_EXCEPTION"]
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.exception(msg, *args)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % args in json_output['_EXCEPTION']
-        assert err == ''
+        assert msg % args in json_output["_EXCEPTION"]
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.exception(msg, kwargs)
         writer.close()
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert msg % kwargs in json_output['_EXCEPTION']
-        assert err == ''
+        assert msg % kwargs in json_output["_EXCEPTION"]
+        assert err == ""
 
     def test_init_check(self, capsys):
         writer = output.JsonOutputWriter()
 
-        server = 'test'
+        server = "test"
 
         writer.init_check(server, True, False)
         writer.close()
@@ -1553,14 +1549,14 @@ class TestJsonWriter(object):
         json_output = json.loads(out)
 
         assert server in json_output
-        assert err == ''
+        assert err == ""
 
     def test_result_check_ok(self, capsys):
         writer = output.JsonOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
+        server = "test"
+        check = "test check"
 
         writer.init_check(server, active=True, disabled=False)
         writer.result_check(server, check, True)
@@ -1569,17 +1565,17 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        assert 'OK' == json_output[server][check.replace(' ', '_')]['status']
-        assert err == ''
+        assert "OK" == json_output[server][check.replace(" ", "_")]["status"]
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_ok_hint(self, capsys):
         writer = output.JsonOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
-        hint = 'do something'
+        server = "test"
+        check = "test check"
+        hint = "do something"
 
         writer.init_check(server, active=True, disabled=False)
         writer.result_check(server, check, True, hint)
@@ -1588,17 +1584,17 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        assert 'OK' == json_output[server][check.replace(' ', '_')]['status']
-        assert hint == json_output[server][check.replace(' ', '_')]['hint']
-        assert err == ''
+        assert "OK" == json_output[server][check.replace(" ", "_")]["status"]
+        assert hint == json_output[server][check.replace(" ", "_")]["hint"]
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_failed(self, capsys):
         writer = output.JsonOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
+        server = "test"
+        check = "test check"
 
         writer.init_check(server, active=True, disabled=False)
         writer.result_check(server, check, False)
@@ -1607,9 +1603,9 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        check_key = check.replace(' ', '_')
-        assert 'FAILED' == json_output[server][check_key]['status']
-        assert err == ''
+        check_key = check.replace(" ", "_")
+        assert "FAILED" == json_output[server][check_key]["status"]
+        assert err == ""
         assert output.error_occurred
 
         # Test an inactive server
@@ -1622,18 +1618,18 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        check_key = check.replace(' ', '_')
-        assert 'FAILED' == json_output[server][check_key]['status']
-        assert err == ''
+        check_key = check.replace(" ", "_")
+        assert "FAILED" == json_output[server][check_key]["status"]
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_failed_hint(self, capsys):
         writer = output.JsonOutputWriter()
         output.error_occurred = False
 
-        server = 'test'
-        check = 'test check'
-        hint = 'do something'
+        server = "test"
+        check = "test check"
+        hint = "do something"
 
         writer.init_check(server, active=True, disabled=False)
         writer.result_check(server, check, False, hint)
@@ -1642,16 +1638,16 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        check_key = check.replace(' ', '_')
-        assert 'FAILED' == json_output[server][check_key]['status']
-        assert hint == json_output[server][check_key]['hint']
-        assert err == ''
+        check_key = check.replace(" ", "_")
+        assert "FAILED" == json_output[server][check_key]["status"]
+        assert hint == json_output[server][check_key]["hint"]
+        assert err == ""
         assert output.error_occurred
 
     def test_init_list_backup(self, capsys):
         writer = output.JsonOutputWriter()
 
-        server_name = 'test server'
+        server_name = "test server"
         writer.init_list_backup(server_name)
         writer.close()
 
@@ -1675,7 +1671,7 @@ class TestJsonWriter(object):
         bi = build_test_backup_info()
         backup_size = 12345
         wal_size = 54321
-        retention_status = 'test status'
+        retention_status = "test status"
 
         writer = output.JsonOutputWriter()
 
@@ -1689,7 +1685,7 @@ class TestJsonWriter(object):
 
         assert writer.minimal
         assert bi.backup_id in json_output[bi.server_name]
-        assert err == ''
+        assert err == ""
 
         # test status=DONE output
         writer.init_list_backup(bi.server_name, False)
@@ -1702,17 +1698,16 @@ class TestJsonWriter(object):
         assert not writer.minimal
         assert bi.server_name in json_output
 
-        backup = find_by_attr(
-            json_output[bi.server_name], 'backup_id', bi.backup_id)
-        assert bi.backup_id == backup['backup_id']
-        assert str(bi.end_time.ctime()) == backup['end_time']
+        backup = find_by_attr(json_output[bi.server_name], "backup_id", bi.backup_id)
+        assert bi.backup_id == backup["backup_id"]
+        assert str(bi.end_time.ctime()) == backup["end_time"]
         for name, _, location in bi.tablespaces:
-            tablespace = find_by_attr(backup['tablespaces'], 'name', name)
-            assert name == tablespace['name']
-            assert location == tablespace['location']
-        assert pretty_size(backup_size) == backup['size']
-        assert pretty_size(wal_size) == backup['wal_size']
-        assert err == ''
+            tablespace = find_by_attr(backup["tablespaces"], "name", name)
+            assert name == tablespace["name"]
+            assert location == tablespace["location"]
+        assert pretty_size(backup_size) == backup["size"]
+        assert pretty_size(wal_size) == backup["wal_size"]
+        assert err == ""
 
         # test status = FAILED output
         bi = build_test_backup_info(status=BackupInfo.FAILED)
@@ -1725,17 +1720,17 @@ class TestJsonWriter(object):
 
         assert not writer.minimal
         assert bi.server_name in json_output
-        backup = find_by_attr(
-            json_output[bi.server_name], 'backup_id', bi.backup_id)
-        assert bi.backup_id == backup['backup_id']
-        assert bi.status == backup['status']
+        backup = find_by_attr(json_output[bi.server_name], "backup_id", bi.backup_id)
+        assert bi.backup_id == backup["backup_id"]
+        assert bi.status == backup["status"]
 
     def test_result_show_backup(self, capsys):
         # mock the backup ext info
         wal_per_second = 0.01
-        ext_info = mock_backup_ext_info(status=BackupInfo.DONE,
-                                        wals_per_second=wal_per_second)
-        server_name = ext_info['server_name']
+        ext_info = mock_backup_ext_info(
+            status=BackupInfo.DONE, wals_per_second=wal_per_second
+        )
+        server_name = ext_info["server_name"]
 
         writer = output.JsonOutputWriter()
         writer.result_show_backup(ext_info)
@@ -1744,35 +1739,36 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        base_information = json_output[server_name]['base_backup_information']
-        wal_information = json_output[server_name]['wal_information']
+        base_information = json_output[server_name]["base_backup_information"]
+        wal_information = json_output[server_name]["wal_information"]
 
         assert server_name in json_output
-        assert ext_info['backup_id'] == json_output[server_name]['backup_id']
-        assert ext_info['status'] == json_output[server_name]['status']
-        assert str(ext_info['end_time']) == \
-            base_information['end_time']
+        assert ext_info["backup_id"] == json_output[server_name]["backup_id"]
+        assert ext_info["status"] == json_output[server_name]["status"]
+        assert str(ext_info["end_time"]) == base_information["end_time"]
 
-        for name, _, location in ext_info['tablespaces']:
+        for name, _, location in ext_info["tablespaces"]:
             tablespace = find_by_attr(
-                json_output[server_name]['tablespaces'], 'name', name)
-            assert name == tablespace['name']
-            assert location == tablespace['location']
+                json_output[server_name]["tablespaces"], "name", name
+            )
+            assert name == tablespace["name"]
+            assert location == tablespace["location"]
 
-        assert (pretty_size(ext_info['size'] + ext_info['wal_size'])) == \
-            base_information['disk_usage_with_wals']
-        assert (pretty_size(ext_info['wal_until_next_size'])) == \
-            wal_information['disk_usage']
-        assert "%0.2f/hour" % (wal_per_second * 3600) == \
-            wal_information['wal_rate']
+        assert (
+            pretty_size(ext_info["size"] + ext_info["wal_size"])
+        ) == base_information["disk_usage_with_wals"]
+        assert (pretty_size(ext_info["wal_until_next_size"])) == wal_information[
+            "disk_usage"
+        ]
+        assert "%0.2f/hour" % (wal_per_second * 3600) == wal_information["wal_rate"]
 
-        assert err == ''
+        assert err == ""
 
     def test_result_show_backup_error(self, capsys):
         # mock the backup ext info
-        msg = 'test error message'
+        msg = "test error message"
         ext_info = mock_backup_ext_info(status=BackupInfo.FAILED, error=msg)
-        server_name = ext_info['server_name']
+        server_name = ext_info["server_name"]
 
         writer = output.JsonOutputWriter()
         writer.result_show_backup(ext_info)
@@ -1782,16 +1778,16 @@ class TestJsonWriter(object):
         json_output = json.loads(out)
 
         assert server_name in json_output
-        assert ext_info['backup_id'] == json_output[server_name]['backup_id']
-        assert ext_info['status'] == json_output[server_name]['status']
-        assert 'base_backup_information' not in json_output[server_name]
-        assert msg == json_output[server_name]['error']
-        assert err == ''
+        assert ext_info["backup_id"] == json_output[server_name]["backup_id"]
+        assert ext_info["status"] == json_output[server_name]["status"]
+        assert "base_backup_information" not in json_output[server_name]
+        assert msg == json_output[server_name]["error"]
+        assert err == ""
 
     def test_init_status(self, capsys):
         writer = output.JsonOutputWriter()
 
-        server = 'test'
+        server = "test"
 
         writer.init_status(server)
         writer.close()
@@ -1800,15 +1796,15 @@ class TestJsonWriter(object):
         json_output = json.loads(out)
 
         assert server in json_output
-        assert err == ''
+        assert err == ""
 
     def test_result_status(self, capsys):
         writer = output.JsonOutputWriter()
 
-        server = 'test'
-        name = 'test_name'
-        description = 'test description'
-        message = 'test message'
+        server = "test"
+        name = "test_name"
+        description = "test description"
+        message = "test message"
 
         writer.init_status(server)
         writer.result_status(server, name, description, message)
@@ -1816,16 +1812,17 @@ class TestJsonWriter(object):
 
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
-        assert dict(description=description,
-                    message=message) == json_output[server][name]
-        assert err == ''
+        assert (
+            dict(description=description, message=message) == json_output[server][name]
+        )
+        assert err == ""
 
     def test_result_status_non_str(self, capsys):
         writer = output.JsonOutputWriter()
 
-        server = 'test'
-        name = 'test_name'
-        description = 'test description'
+        server = "test"
+        name = "test_name"
+        description = "test description"
         message = 1
 
         writer.init_status(server)
@@ -1835,193 +1832,194 @@ class TestJsonWriter(object):
         (out, err) = capsys.readouterr()
         json_output = json.loads(out)
 
-        assert dict(description=description,
-                    message=str(message)) == json_output[server][name]
-        assert err == ''
+        assert (
+            dict(description=description, message=str(message))
+            == json_output[server][name]
+        )
+        assert err == ""
 
 
 # noinspection PyMethodMayBeStatic
 class TestNagiosWriter(object):
-
     def test_debug(self, capsys):
         writer = output.NagiosOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.debug(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.debug(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
     def test_debug_disabled(self, capsys):
         writer = output.NagiosOutputWriter(debug=False)
 
-        msg = 'test message'
+        msg = "test message"
         writer.debug(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.debug(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.debug(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
     def test_info(self, capsys):
         writer = output.NagiosOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.info(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.info(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.info(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.info(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
     def test_warning(self, capsys):
         writer = output.NagiosOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.warning(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.warning(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.warning(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.warning(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
     def test_error(self, capsys):
         writer = output.NagiosOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.error(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.error(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.error(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.error(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
     def test_exception(self, capsys):
         writer = output.NagiosOutputWriter()
 
-        msg = 'test message'
+        msg = "test message"
         writer.exception(msg)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test arg %s'
-        args = ('1st',)
+        msg = "test arg %s"
+        args = ("1st",)
         writer.exception(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test args %d %s'
-        args = (1, 'two')
+        msg = "test args %d %s"
+        args = (1, "two")
         writer.exception(msg, *args)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
-        msg = 'test kwargs %(num)d %(string)s'
-        kwargs = dict(num=1, string='two')
+        msg = "test kwargs %(num)d %(string)s"
+        kwargs = dict(num=1, string="two")
         writer.exception(msg, kwargs)
         (out, err) = capsys.readouterr()
-        assert out == ''
-        assert err == ''
+        assert out == ""
+        assert err == ""
 
     def test_no_server_result_check(self, capsys):
         writer = output.NagiosOutputWriter()
@@ -2029,8 +2027,8 @@ class TestNagiosWriter(object):
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN OK - No server configured\n'
-        assert err == ''
+        assert out == "BARMAN OK - No server configured\n"
+        assert err == ""
         assert not output.error_occurred
 
     def test_single_result_check(self, capsys):
@@ -2038,13 +2036,12 @@ class TestNagiosWriter(object):
         output.error_occurred = False
 
         # one server with no error
-        writer.result_check('a', 'test', True, None)
+        writer.result_check("a", "test", True, None)
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
-                      'for a\n'
-        assert err == ''
+        assert out == "BARMAN OK - Ready to serve the Espresso backup " "for a\n"
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check(self, capsys):
@@ -2052,15 +2049,17 @@ class TestNagiosWriter(object):
         output.error_occurred = False
 
         # three server with no error
-        writer.result_check('a', 'test', True, None)
-        writer.result_check('b', 'test', True, None)
-        writer.result_check('c', 'test', True, None)
+        writer.result_check("a", "test", True, None)
+        writer.result_check("b", "test", True, None)
+        writer.result_check("c", "test", True, None)
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
-                      'for 3 servers * a * b * c\n'
-        assert err == ''
+        assert (
+            out == "BARMAN OK - Ready to serve the Espresso backup "
+            "for 3 servers * a * b * c\n"
+        )
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_single_ignore(self, capsys):
@@ -2068,16 +2067,18 @@ class TestNagiosWriter(object):
         output.error_occurred = False
 
         # three server with no error
-        writer.result_check('a', 'test', True, None)
+        writer.result_check("a", "test", True, None)
         writer.active = False
-        writer.result_check('b', 'test', False, None)
-        writer.result_check('c', 'test', False, None)
+        writer.result_check("b", "test", False, None)
+        writer.result_check("c", "test", False, None)
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
-                      'for a * IGNORING: b * IGNORING: c\n'
-        assert err == ''
+        assert (
+            out == "BARMAN OK - Ready to serve the Espresso backup "
+            "for a * IGNORING: b * IGNORING: c\n"
+        )
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_multiple_ignore(self, capsys):
@@ -2085,16 +2086,18 @@ class TestNagiosWriter(object):
         output.error_occurred = False
 
         # three server with no error
-        writer.result_check('a', 'test', True, None)
-        writer.result_check('b', 'test', True, None)
+        writer.result_check("a", "test", True, None)
+        writer.result_check("b", "test", True, None)
         writer.active = False
-        writer.result_check('c', 'test', False, None)
+        writer.result_check("c", "test", False, None)
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN OK - Ready to serve the Espresso backup ' \
-                      'for 2 servers * a * b * IGNORING: c\n'
-        assert err == ''
+        assert (
+            out == "BARMAN OK - Ready to serve the Espresso backup "
+            "for 2 servers * a * b * IGNORING: c\n"
+        )
+        assert err == ""
         assert not output.error_occurred
 
     def test_result_check_all_ignore(self, capsys):
@@ -2103,15 +2106,17 @@ class TestNagiosWriter(object):
 
         # three server with no error
         writer.active = False
-        writer.result_check('a', 'test', False, None)
-        writer.result_check('b', 'test', False, None)
-        writer.result_check('c', 'test', False, None)
+        writer.result_check("a", "test", False, None)
+        writer.result_check("b", "test", False, None)
+        writer.result_check("c", "test", False, None)
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN OK - No server configured ' \
-                      '* IGNORING: a * IGNORING: b * IGNORING: c\n'
-        assert err == ''
+        assert (
+            out == "BARMAN OK - No server configured "
+            "* IGNORING: a * IGNORING: b * IGNORING: c\n"
+        )
+        assert err == ""
         assert not output.error_occurred
 
     def test_single_result_check_error(self, capsys):
@@ -2119,13 +2124,15 @@ class TestNagiosWriter(object):
         output.error_occurred = False
 
         # one server with one error
-        writer.result_check('a', 'test', False, None)
+        writer.result_check("a", "test", False, None)
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN CRITICAL - server a has issues * ' \
-                      'a FAILED: test\na.test: FAILED\n'
-        assert err == ''
+        assert (
+            out == "BARMAN CRITICAL - server a has issues * "
+            "a FAILED: test\na.test: FAILED\n"
+        )
+        assert err == ""
         assert output.error_occurred
         assert output.error_exit_code == 2
 
@@ -2134,14 +2141,16 @@ class TestNagiosWriter(object):
         output.error_occurred = False
 
         # three server with one error
-        writer.result_check('a', 'test', True, None)
-        writer.result_check('b', 'test', False, "hint")
-        writer.result_check('c', 'test', True, None)
+        writer.result_check("a", "test", True, None)
+        writer.result_check("b", "test", False, "hint")
+        writer.result_check("c", "test", True, None)
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == 'BARMAN CRITICAL - 1 server out of 3 have issues * ' \
-                      'b FAILED: test\nb.test: FAILED (hint)\n'
-        assert err == ''
+        assert (
+            out == "BARMAN CRITICAL - 1 server out of 3 have issues * "
+            "b FAILED: test\nb.test: FAILED (hint)\n"
+        )
+        assert err == ""
         assert output.error_occurred
         assert output.error_exit_code == 2

@@ -31,32 +31,32 @@ class TestDiagnose(object):
         self.test_config = build_config_from_dicts(
             global_conf=None,
             main_conf={
-                'backup_directory': '/some/barman/home/main',
-                'archiver': 'on',
+                "backup_directory": "/some/barman/home/main",
+                "archiver": "on",
             },
             test_conf={
-                'backup_directory': '/some/barman/home/main',
-                'archiver': 'on',
-            })
+                "backup_directory": "/some/barman/home/main",
+                "archiver": "on",
+            },
+        )
 
         self.test_config_with_pwd = build_config_from_dicts(
             global_conf=None,
             main_conf={
-                'backup_directory': '/some/barman/home/main',
-                'conninfo':
-                    'host=pg01.nowhere user=postgres password=testpassword',
-                'archiver': 'on',
+                "backup_directory": "/some/barman/home/main",
+                "conninfo": "host=pg01.nowhere user=postgres password=testpassword",
+                "archiver": "on",
             },
             test_conf={
-                'backup_directory': '/some/barman/home/main',
-                'archiver': 'on',
-            })
+                "backup_directory": "/some/barman/home/main",
+                "archiver": "on",
+            },
+        )
 
-    @patch('barman.cli.output.close_and_exit')
-    @patch('barman.diagnose.output.info')
-    def test_diagnose_json(self, info_mock_output, close_exit_mock,
-                           monkeypatch):
-        monkeypatch.setattr(barman, '__config__', self.test_config)
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.diagnose.output.info")
+    def test_diagnose_json(self, info_mock_output, close_exit_mock, monkeypatch):
+        monkeypatch.setattr(barman, "__config__", self.test_config)
         diagnose()
         info_mock_output.assert_called_once()
         json_output = info_mock_output.call_args[0][0]
@@ -64,11 +64,12 @@ class TestDiagnose(object):
         # Assert that the JSON output syntax is correct
         json.loads(json_output)
 
-    @patch('barman.cli.output.close_and_exit')
-    @patch('barman.diagnose.output.info')
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.diagnose.output.info")
     def test_diagnose_json_with_password(
-            self, info_mock_output, close_exit_mock, monkeypatch):
-        monkeypatch.setattr(barman, '__config__', self.test_config_with_pwd)
+        self, info_mock_output, close_exit_mock, monkeypatch
+    ):
+        monkeypatch.setattr(barman, "__config__", self.test_config_with_pwd)
         diagnose()
         info_mock_output.assert_called_once()
         json_output = info_mock_output.call_args[0][0]

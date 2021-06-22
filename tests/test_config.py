@@ -22,8 +22,13 @@ import mock
 import pytest
 from mock import patch
 
-from barman.config import (BackupOptions, Config, RecoveryOptions,
-                           parse_slot_name, parse_time_interval)
+from barman.config import (
+    BackupOptions,
+    Config,
+    RecoveryOptions,
+    parse_slot_name,
+    parse_time_interval,
+)
 from testing_helpers import build_config_dictionary, build_config_from_dicts
 
 try:
@@ -84,6 +89,7 @@ class TestConfig(object):
     """
     Test class for the configuration object
     """
+
     def test_server_list(self):
         """
         Test parsing of a config file
@@ -91,7 +97,7 @@ class TestConfig(object):
         fp = StringIO(TEST_CONFIG)
         c = Config(fp)
         dbs = c.server_names()
-        assert set(dbs) == set(['main', 'web'])
+        assert set(dbs) == set(["main", "web"])
 
     def test_config_file_existence(self, capsys):
         """
@@ -99,14 +105,14 @@ class TestConfig(object):
         """
         # Check that an SystemExit is raised if no configuration
         # file is present inside the default configuration directories
-        with patch('os.path.exists') as exists_mock:
+        with patch("os.path.exists") as exists_mock:
             exists_mock.return_value = False
             with pytest.raises(SystemExit):
                 Config(None)
         # Check that a SystemExit is raised if the user defined
         # configuration file does not exists
         with pytest.raises(SystemExit):
-            Config('/very/fake/path/to.file')
+            Config("/very/fake/path/to.file")
 
     def test_config(self):
         """
@@ -115,48 +121,52 @@ class TestConfig(object):
         fp = StringIO(TEST_CONFIG)
         c = Config(fp)
 
-        main = c.get_server('main')
+        main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary({
-            'config': main.config,
-            'compression': 'gzip',
-            'last_backup_maximum_age': timedelta(1),
-            'retention_policy': 'redundancy 3',
-            'reuse_backup': 'link',
-            'description': 'Main PostgreSQL Database',
-            'ssh_command': 'ssh -c arcfour -p 22 postgres@pg01.nowhere',
-            'wal_retention_policy': 'base',
-            'custom_compression_filter': 'bzip2 -c -9',
-            'wals_directory': 'wals',
-            'custom_decompression_filter': 'bzip2 -c -d',
-            'backup_method': 'rsync',
-            'max_incoming_wals_queue': None,
-        })
+        expected = build_config_dictionary(
+            {
+                "config": main.config,
+                "compression": "gzip",
+                "last_backup_maximum_age": timedelta(1),
+                "retention_policy": "redundancy 3",
+                "reuse_backup": "link",
+                "description": "Main PostgreSQL Database",
+                "ssh_command": "ssh -c arcfour -p 22 postgres@pg01.nowhere",
+                "wal_retention_policy": "base",
+                "custom_compression_filter": "bzip2 -c -9",
+                "wals_directory": "wals",
+                "custom_decompression_filter": "bzip2 -c -d",
+                "backup_method": "rsync",
+                "max_incoming_wals_queue": None,
+            }
+        )
         assert main.__dict__ == expected
 
-        web = c.get_server('web')
+        web = c.get_server("web")
         # create the expected dictionary
-        expected = build_config_dictionary({
-            'config': web.config,
-            'backup_directory': '/some/barman/home/web',
-            'basebackups_directory': '/some/barman/home/web/base',
-            'compression': None,
-            'conninfo': 'host=web01 user=postgres port=5432',
-            'description': 'Web applications database',
-            'incoming_wals_directory': '/some/barman/home/web/incoming',
-            'name': 'web',
-            'reuse_backup': None,
-            'retention_policy': 'redundancy 2',
-            'wals_directory': '/some/barman/home/web/wals',
-            'wal_retention_policy': 'base',
-            'last_backup_maximum_age': timedelta(1),
-            'ssh_command': 'ssh -I ~/.ssh/web01_rsa -c arcfour '
-                           '-p 22 postgres@web01',
-            'streaming_conninfo': 'host=web01 user=postgres port=5432',
-            'streaming_wals_directory': '/some/barman/home/web/streaming',
-            'errors_directory': '/some/barman/home/web/errors',
-            'max_incoming_wals_queue': None,
-        })
+        expected = build_config_dictionary(
+            {
+                "config": web.config,
+                "backup_directory": "/some/barman/home/web",
+                "basebackups_directory": "/some/barman/home/web/base",
+                "compression": None,
+                "conninfo": "host=web01 user=postgres port=5432",
+                "description": "Web applications database",
+                "incoming_wals_directory": "/some/barman/home/web/incoming",
+                "name": "web",
+                "reuse_backup": None,
+                "retention_policy": "redundancy 2",
+                "wals_directory": "/some/barman/home/web/wals",
+                "wal_retention_policy": "base",
+                "last_backup_maximum_age": timedelta(1),
+                "ssh_command": "ssh -I ~/.ssh/web01_rsa -c arcfour "
+                "-p 22 postgres@web01",
+                "streaming_conninfo": "host=web01 user=postgres port=5432",
+                "streaming_wals_directory": "/some/barman/home/web/streaming",
+                "errors_directory": "/some/barman/home/web/errors",
+                "max_incoming_wals_queue": None,
+            }
+        )
         assert web.__dict__ == expected
 
     def test_quotes(self):
@@ -165,10 +175,9 @@ class TestConfig(object):
         """
         fp = StringIO(MINIMAL_CONFIG)
         c = Config(fp)
-        main = c.get_server('main')
-        assert main.description == ' Text with quotes '
-        assert main.ssh_command == 'ssh -c "arcfour" ' \
-                                   '-p 22 postgres@pg01.nowhere'
+        main = c.get_server("main")
+        assert main.description == " Text with quotes "
+        assert main.ssh_command == 'ssh -c "arcfour" ' "-p 22 postgres@pg01.nowhere"
 
     def test_interpolation(self):
         """
@@ -176,10 +185,10 @@ class TestConfig(object):
         """
         fp = StringIO(MINIMAL_CONFIG)
         c = Config(fp)
-        main = c.get_server('main')
+        main = c.get_server("main")
 
         # create the expected dictionary
-        expected = build_config_dictionary({'config': main.config})
+        expected = build_config_dictionary({"config": main.config})
         assert main.__dict__ == expected
 
     def test_parse_time_interval(self):
@@ -188,18 +197,18 @@ class TestConfig(object):
         pass a value, check if is correctly transformed in a timedelta
         """
         # 1 day
-        val = parse_time_interval('1 day')
+        val = parse_time_interval("1 day")
         assert val == timedelta(days=1)
         # 2 weeks
-        val = parse_time_interval('2 weeks')
+        val = parse_time_interval("2 weeks")
         assert val == timedelta(days=14)
         # 3 months
-        val = parse_time_interval('3 months')
+        val = parse_time_interval("3 months")
         assert val == timedelta(days=93)
         # this string is something that the regexp cannot manage,
         # so we expect a ValueError exception
         with pytest.raises(ValueError):
-            parse_time_interval('test_string')
+            parse_time_interval("test_string")
 
     def test_primary_ssh_command(self):
         """
@@ -226,43 +235,52 @@ class TestConfig(object):
         c = build_config_from_dicts(
             global_conf=None,
             main_conf={
-                'primary_ssh_command': 'barman@backup1.nowhere',
-            })
-        main = c.get_server('main')
-        expected = build_config_dictionary({
-            'config': c,
-            'primary_ssh_command': 'barman@backup1.nowhere',
-        })
+                "primary_ssh_command": "barman@backup1.nowhere",
+            },
+        )
+        main = c.get_server("main")
+        expected = build_config_dictionary(
+            {
+                "config": c,
+                "primary_ssh_command": "barman@backup1.nowhere",
+            }
+        )
         assert main.__dict__ == expected
 
         # test case 2
         # primary_ssh_command set only globally
         c = build_config_from_dicts(
             global_conf={
-                'primary_ssh_command': 'barman@backup2.nowhere',
+                "primary_ssh_command": "barman@backup2.nowhere",
             },
-            main_conf=None)
-        main = c.get_server('main')
-        expected = build_config_dictionary({
-            'config': c,
-            'primary_ssh_command': 'barman@backup2.nowhere',
-        })
+            main_conf=None,
+        )
+        main = c.get_server("main")
+        expected = build_config_dictionary(
+            {
+                "config": c,
+                "primary_ssh_command": "barman@backup2.nowhere",
+            }
+        )
         assert main.__dict__ == expected
 
         # test case 3
         # primary_ssh_command set both globally and on server main
         c = build_config_from_dicts(
             global_conf={
-                'primary_ssh_command': 'barman@backup3.nowhere',
+                "primary_ssh_command": "barman@backup3.nowhere",
             },
             main_conf={
-                'primary_ssh_command': 'barman@backup4.nowhere',
-            })
-        main = c.get_server('main')
-        expected = build_config_dictionary({
-            'config': c,
-            'primary_ssh_command': 'barman@backup4.nowhere',
-        })
+                "primary_ssh_command": "barman@backup4.nowhere",
+            },
+        )
+        main = c.get_server("main")
+        expected = build_config_dictionary(
+            {
+                "config": c,
+                "primary_ssh_command": "barman@backup4.nowhere",
+            }
+        )
         assert main.__dict__ == expected
 
     def test_server_conflict_paths(self):
@@ -272,23 +290,28 @@ class TestConfig(object):
         # Build a configuration with conflicts:
         # basebackups_directory = /some/barman/home/main/wals
         # wals_directory = /some/barman/home/main/wals
-        c = build_config_from_dicts(main_conf={
-            'archiver': 'on',
-            'basebackups_directory': '/some/barman/home/main/wals',
-            'description': ' Text with quotes ',
-        })
-        main = c.get_server('main')
+        c = build_config_from_dicts(
+            main_conf={
+                "archiver": "on",
+                "basebackups_directory": "/some/barman/home/main/wals",
+                "description": " Text with quotes ",
+            }
+        )
+        main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary({
-            'config': main.config,
-            'disabled': True,
-            'basebackups_directory': '/some/barman/home/main/wals',
-            'msg_list': [
-                'Conflicting path: wals_directory=/some/barman/home/main/wals '
-                'conflicts with \'basebackups_directory\' '
-                'for server \'main\''],
-            'description': 'Text with quotes',
-        })
+        expected = build_config_dictionary(
+            {
+                "config": main.config,
+                "disabled": True,
+                "basebackups_directory": "/some/barman/home/main/wals",
+                "msg_list": [
+                    "Conflicting path: wals_directory=/some/barman/home/main/wals "
+                    "conflicts with 'basebackups_directory' "
+                    "for server 'main'"
+                ],
+                "description": "Text with quotes",
+            }
+        )
         assert main.__dict__ == expected
 
     def test_populate_servers(self):
@@ -299,11 +322,12 @@ class TestConfig(object):
         c = build_config_from_dicts(
             global_conf=None,
             main_conf={
-                'backup_directory': '/some/barman/home/main',
+                "backup_directory": "/some/barman/home/main",
             },
             test_conf={
-                'backup_directory': '/some/barman/home/main',
-            })
+                "backup_directory": "/some/barman/home/main",
+            },
+        )
 
         # attribute servers_msg_list is empty before _populate_server()
         assert len(c.servers_msg_list) == 0
@@ -327,20 +351,21 @@ class TestConfig(object):
         c = build_config_from_dicts(
             global_conf=None,
             main_conf={
-                'basebackups_directory': incoming_dir.strpath,
-                'incoming_wals_directory': incoming_dir.strpath,
-                'wals_directory': wals_dir.strpath,
-                'backup_directory': tmpdir.strpath,
-            })
+                "basebackups_directory": incoming_dir.strpath,
+                "incoming_wals_directory": incoming_dir.strpath,
+                "wals_directory": wals_dir.strpath,
+                "backup_directory": tmpdir.strpath,
+            },
+        )
 
         c._populate_servers()
 
         # If there is one or more path errors are present,
         # the msg_list of the 'main' server is populated during
         # the creation of the server configuration object
-        assert len(c._servers['main'].msg_list) == 2
+        assert len(c._servers["main"].msg_list) == 2
         symlink = 0
-        for msg in c._servers['main'].msg_list:
+        for msg in c._servers["main"].msg_list:
             # Check for symlinks presence
             if "(symlink to: " in msg:
                 symlink += 1
@@ -356,22 +381,22 @@ class TestConfig(object):
         assert parse_slot_name(None) is None
 
         # If the slot name is valid then it will passed intact
-        assert parse_slot_name('barman_slot_name') == 'barman_slot_name'
+        assert parse_slot_name("barman_slot_name") == "barman_slot_name"
 
         # If the slot name is not valid but can be fixed by putting
         # the name in lower case, then it will be fixed
-        assert parse_slot_name('Barman_slot_Name') == 'barman_slot_name'
+        assert parse_slot_name("Barman_slot_Name") == "barman_slot_name"
 
         # Even this slot name can be fixed
-        assert parse_slot_name('Barman_2_slot_name') == 'barman_2_slot_name'
+        assert parse_slot_name("Barman_2_slot_name") == "barman_2_slot_name"
 
         # If the slot name is not valid and lowering its case don't fix it,
         # we will raise a ValueError
         with pytest.raises(ValueError):
-            parse_slot_name('Barman_(slot_name)')
+            parse_slot_name("Barman_(slot_name)")
 
         with pytest.raises(ValueError):
-            parse_slot_name('barman slot name')
+            parse_slot_name("barman slot name")
 
 
 # noinspection PyMethodMayBeStatic
@@ -393,18 +418,19 @@ class TestCsvParsing(object):
         # add backup_options configuration to minimal configuration string
         c = build_config_from_dicts(
             global_conf={
-                'archiver': 'on',
-                'backup_options': BackupOptions.EXCLUSIVE_BACKUP
+                "archiver": "on",
+                "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
             },
-            main_conf={'backup_options': ''})
-        main = c.get_server('main')
+            main_conf={"backup_options": ""},
+        )
+        main = c.get_server("main")
 
         # create the expected dictionary
-        expected = build_config_dictionary({'config': main.config})
+        expected = build_config_dictionary({"config": main.config})
 
         assert main.__dict__ == expected
 
-    @patch('barman.config.output')
+    @patch("barman.config.output")
     def test_csv_values_global_conflict(self, out_mock):
         """
         test case
@@ -420,29 +446,29 @@ class TestCsvParsing(object):
         :param out_mock: Mock the output
         """
         # build a string with conflicting values
-        conflict = "%s, %s" % (BackupOptions.EXCLUSIVE_BACKUP,
-                               BackupOptions.CONCURRENT_BACKUP)
+        conflict = "%s, %s" % (
+            BackupOptions.EXCLUSIVE_BACKUP,
+            BackupOptions.CONCURRENT_BACKUP,
+        )
         # add backup_options to minimal configuration string
         c = build_config_from_dicts(
-            global_conf={
-                'archiver': 'on',
-                'backup_options': conflict
-            },
-            main_conf=None)
-        main = c.get_server('main')
+            global_conf={"archiver": "on", "backup_options": conflict}, main_conf=None
+        )
+        main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary({'config': main.config})
+        expected = build_config_dictionary({"config": main.config})
         assert main.__dict__ == expected
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
-        out_mock.warning.assert_called_with("Ignoring invalid configuration "
-                                            "value '%s' for key %s in %s: %s",
-                                            'exclusive_backup, '
-                                            'concurrent_backup',
-                                            'backup_options',
-                                            '[barman] section', mock.ANY)
+        out_mock.warning.assert_called_with(
+            "Ignoring invalid configuration " "value '%s' for key %s in %s: %s",
+            "exclusive_backup, " "concurrent_backup",
+            "backup_options",
+            "[barman] section",
+            mock.ANY,
+        )
 
-    @patch('barman.config.output')
+    @patch("barman.config.output")
     def test_csv_values_invalid_server_value(self, out_mock):
         """
         test case
@@ -458,28 +484,32 @@ class TestCsvParsing(object):
         # add backup_options to minimal configuration string
         c = build_config_from_dicts(
             global_conf={
-                'archiver': 'on',
-                'backup_options': BackupOptions.EXCLUSIVE_BACKUP
+                "archiver": "on",
+                "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
             },
-            main_conf={
-                'backup_options': 'none_of_your_business'
-            })
-        main = c.get_server('main')
+            main_conf={"backup_options": "none_of_your_business"},
+        )
+        main = c.get_server("main")
 
         # create the expected dictionary
         expected = build_config_dictionary(
-            {'config': main.config,
-             'backup_options': set([BackupOptions.EXCLUSIVE_BACKUP])})
+            {
+                "config": main.config,
+                "backup_options": set([BackupOptions.EXCLUSIVE_BACKUP]),
+            }
+        )
         assert main.__dict__ == expected
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
-        out_mock.warning.assert_called_with("Ignoring invalid configuration "
-                                            "value '%s' for key %s in %s: %s",
-                                            'none_of_your_business',
-                                            'backup_options',
-                                            '[main] section', mock.ANY)
+        out_mock.warning.assert_called_with(
+            "Ignoring invalid configuration " "value '%s' for key %s in %s: %s",
+            "none_of_your_business",
+            "backup_options",
+            "[main] section",
+            mock.ANY,
+        )
 
-    @patch('barman.config.output')
+    @patch("barman.config.output")
     def test_csv_values_multikey_invalid_server_value(self, out_mock):
         """
         test case
@@ -493,33 +523,36 @@ class TestCsvParsing(object):
         We expect to fallback to the global 'concurrent_backup' value.
         """
         # build a string with a wrong value
-        wrong_parameters = "%s, %s" % (BackupOptions.EXCLUSIVE_BACKUP,
-                                       'none_of_your_business')
+        wrong_parameters = "%s, %s" % (
+            BackupOptions.EXCLUSIVE_BACKUP,
+            "none_of_your_business",
+        )
         # add backup_options to minimal configuration string
         c = build_config_from_dicts(
             global_conf={
-                'archiver': 'on',
-                'backup_options': BackupOptions.CONCURRENT_BACKUP
+                "archiver": "on",
+                "backup_options": BackupOptions.CONCURRENT_BACKUP,
             },
-            main_conf={
-                'backup_options': wrong_parameters
-            })
-        main = c.get_server('main')
+            main_conf={"backup_options": wrong_parameters},
+        )
+        main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary({
-            'config': main.config,
-            'backup_options': set(['concurrent_backup']),
-        })
+        expected = build_config_dictionary(
+            {
+                "config": main.config,
+                "backup_options": set(["concurrent_backup"]),
+            }
+        )
         assert main.__dict__ == expected
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
-        out_mock.warning.assert_called_with("Ignoring invalid configuration "
-                                            "value '%s' "
-                                            "for key %s in %s: %s",
-                                            'exclusive_backup, '
-                                            'none_of_your_business',
-                                            'backup_options',
-                                            '[main] section', mock.ANY)
+        out_mock.warning.assert_called_with(
+            "Ignoring invalid configuration " "value '%s' " "for key %s in %s: %s",
+            "exclusive_backup, " "none_of_your_business",
+            "backup_options",
+            "[main] section",
+            mock.ANY,
+        )
 
     def test_csv_values_global_concurrent(self):
         """
@@ -532,17 +565,20 @@ class TestCsvParsing(object):
         # add backup_options to minimal configuration string
         c = build_config_from_dicts(
             global_conf={
-                'archiver': 'on',
-                'backup_options': BackupOptions.CONCURRENT_BACKUP
+                "archiver": "on",
+                "backup_options": BackupOptions.CONCURRENT_BACKUP,
             },
-            main_conf=None)
-        main = c.get_server('main')
+            main_conf=None,
+        )
+        main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary({
-            'config': main.config,
-            'backup_options': set(['concurrent_backup']),
-            'backup_method': 'rsync',
-        })
+        expected = build_config_dictionary(
+            {
+                "config": main.config,
+                "backup_options": set(["concurrent_backup"]),
+                "backup_method": "rsync",
+            }
+        )
         assert main.__dict__ == expected
 
     def test_backup_option_parser(self):
@@ -554,17 +590,21 @@ class TestCsvParsing(object):
         Then tests for ValueError conditions
         """
         # Builds using the two allowed values
-        assert set([BackupOptions.CONCURRENT_BACKUP]) == \
-            BackupOptions(BackupOptions.CONCURRENT_BACKUP, "", "")
-        assert set([BackupOptions.EXCLUSIVE_BACKUP]) == \
-            BackupOptions(BackupOptions.EXCLUSIVE_BACKUP, "", "")
+        assert set([BackupOptions.CONCURRENT_BACKUP]) == BackupOptions(
+            BackupOptions.CONCURRENT_BACKUP, "", ""
+        )
+        assert set([BackupOptions.EXCLUSIVE_BACKUP]) == BackupOptions(
+            BackupOptions.EXCLUSIVE_BACKUP, "", ""
+        )
         # build using a not allowed value
         with pytest.raises(ValueError):
             BackupOptions("test_string", "", "")
         # conflicting values error
         with pytest.raises(ValueError):
-            conflict = "%s, %s" % (BackupOptions.EXCLUSIVE_BACKUP,
-                                   BackupOptions.CONCURRENT_BACKUP)
+            conflict = "%s, %s" % (
+                BackupOptions.EXCLUSIVE_BACKUP,
+                BackupOptions.CONCURRENT_BACKUP,
+            )
             BackupOptions(conflict, "", "")
 
     def test_csv_values_recovery_options(self):
@@ -581,32 +621,31 @@ class TestCsvParsing(object):
         """
         # Build configuration with empty recovery_options
         c = build_config_from_dicts(
-            global_conf={
-                'archiver': 'on',
-                'recovery_options': ''
-            },
-            main_conf=None)
-        main = c.get_server('main')
+            global_conf={"archiver": "on", "recovery_options": ""}, main_conf=None
+        )
+        main = c.get_server("main")
 
-        expected = build_config_dictionary({
-            'config': c,
-            'recovery_options': RecoveryOptions('', '', ''),
-        })
+        expected = build_config_dictionary(
+            {
+                "config": c,
+                "recovery_options": RecoveryOptions("", "", ""),
+            }
+        )
         assert main.__dict__ == expected
 
         # Build configuration with recovery_options set to get-wal
         c = build_config_from_dicts(
-            global_conf={
-                'archiver': 'on',
-                'recovery_options': 'get-wal'
-            },
-            main_conf=None)
-        main = c.get_server('main')
+            global_conf={"archiver": "on", "recovery_options": "get-wal"},
+            main_conf=None,
+        )
+        main = c.get_server("main")
 
-        expected = build_config_dictionary({
-            'config': c,
-            'recovery_options': RecoveryOptions('get-wal', '', ''),
-        })
+        expected = build_config_dictionary(
+            {
+                "config": c,
+                "recovery_options": RecoveryOptions("get-wal", "", ""),
+            }
+        )
         assert main.__dict__ == expected
 
     def test_recovery_option_parser(self):
@@ -618,15 +657,15 @@ class TestCsvParsing(object):
         Tests for ValueError conditions
         """
         # Builds using the two allowed values
-        assert set([]) == \
-            RecoveryOptions('', '', '')
-        assert set([RecoveryOptions.GET_WAL]) == \
-            RecoveryOptions(RecoveryOptions.GET_WAL, '', '')
+        assert set([]) == RecoveryOptions("", "", "")
+        assert set([RecoveryOptions.GET_WAL]) == RecoveryOptions(
+            RecoveryOptions.GET_WAL, "", ""
+        )
         # build using a not allowed value
         with pytest.raises(ValueError):
             BackupOptions("test_string", "", "")
 
-    @patch('barman.config.output')
+    @patch("barman.config.output")
     def test_invalid_option_output(self, out_mock):
         """
         Test the config behavior with unknown options
@@ -634,20 +673,23 @@ class TestCsvParsing(object):
         # build a configuration with a a server and a global unknown vale. then
         # add them to the minimal configuration.
         c = build_config_from_dicts(
-            {'test_global_option': 'invalid_value'},
-            {'test_server_option': 'invalid_value'})
+            {"test_global_option": "invalid_value"},
+            {"test_server_option": "invalid_value"},
+        )
         c.validate_global_config()
         # use the mocked output class to verify the presence of the warning
         # for a unknown configuration parameter in the barman subsection
         out_mock.warning.assert_called_with(
             'Invalid configuration option "%s" in [%s] section.',
-            'test_global_option',
-            'barman')
+            "test_global_option",
+            "barman",
+        )
         # parse main section
-        c.get_server('main')
+        c.get_server("main")
         # use the mocked output class to verify the presence of the warning
         # for a unknown configuration parameter in the server subsection
         out_mock.warning.assert_called_with(
             'Invalid configuration option "%s" in [%s] section.',
-            'test_server_option',
-            'main')
+            "test_server_option",
+            "main",
+        )
