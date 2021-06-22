@@ -40,7 +40,7 @@ try:
 except ImportError:
     raise SystemExit("Missing required python module: argparse")
 
-DEFAULT_USER = 'barman'
+DEFAULT_USER = "barman"
 BUFSIZE = 16 * 1024
 
 
@@ -60,14 +60,13 @@ def main(args=None):
 
     # Check WAL destination is not a directory
     if os.path.isdir(config.wal_path):
-        exit_with_error("WAL_PATH cannot be a directory: %s" %
-                        config.wal_path)
+        exit_with_error("WAL_PATH cannot be a directory: %s" % config.wal_path)
 
     try:
         # Execute barman put-wal through the ssh connection
         ssh_process = RemotePutWal(config, config.wal_path)
     except EnvironmentError as exc:
-        exit_with_error('Error executing ssh: %s' % exc)
+        exit_with_error("Error executing ssh: %s" % exc)
         return  # never reached
 
     # Wait for termination of every subprocess. If CTRL+C is pressed,
@@ -82,8 +81,9 @@ def main(args=None):
     if ssh_process.returncode == 255:
         exit_with_error("Connection problem with ssh", 3)
     else:
-        exit_with_error("Remote 'barman put-wal' command has failed!",
-                        ssh_process.returncode)
+        exit_with_error(
+            "Remote 'barman put-wal' command has failed!", ssh_process.returncode
+        )
 
 
 def build_ssh_command(config):
@@ -94,9 +94,9 @@ def build_ssh_command(config):
     :return list[str]: the ssh command as list of string
     """
     ssh_command = [
-        'ssh',
-        '-q',  # quiet mode - suppress warnings
-        '-T',  # disable pseudo-terminal allocation
+        "ssh",
+        "-q",  # quiet mode - suppress warnings
+        "-T",  # disable pseudo-terminal allocation
         "%s@%s" % (config.user, config.barman_host),
         "barman",
     ]
@@ -104,7 +104,7 @@ def build_ssh_command(config):
     if config.config:
         ssh_command.append("--config='%s'" % config.config)
 
-    ssh_command.extend(['put-wal', config.server_name])
+    ssh_command.extend(["put-wal", config.server_name])
 
     if config.test:
         ssh_command.append("--test")
@@ -131,8 +131,7 @@ def connectivity_test(config):
     """
     ssh_command = build_ssh_command(config)
     try:
-        output = subprocess.Popen(ssh_command,
-                                  stdout=subprocess.PIPE).communicate()
+        output = subprocess.Popen(ssh_command, stdout=subprocess.PIPE).communicate()
         print(output[0])
         sys.exit(0)
     except subprocess.CalledProcessError as e:
@@ -149,29 +148,33 @@ def parse_arguments(args=None):
     """
     parser = argparse.ArgumentParser(
         description="This script will be used as an 'archive_command' "
-                    "based on the put-wal feature of Barman. "
-                    "A ssh connection will be opened to the Barman host.",
+        "based on the put-wal feature of Barman. "
+        "A ssh connection will be opened to the Barman host.",
     )
     parser.add_argument(
-        '-V', '--version',
-        action='version', version='%%(prog)s %s' % barman.__version__)
+        "-V", "--version", action="version", version="%%(prog)s %s" % barman.__version__
+    )
     parser.add_argument(
-        "-U", "--user", default=DEFAULT_USER,
+        "-U",
+        "--user",
+        default=DEFAULT_USER,
         help="The user used for the ssh connection to the Barman server. "
-             "Defaults to '%(default)s'.",
+        "Defaults to '%(default)s'.",
     )
     parser.add_argument(
-        '-c', '--config',
+        "-c",
+        "--config",
         metavar="CONFIG",
-        help='configuration file on the Barman server',
+        help="configuration file on the Barman server",
     )
     parser.add_argument(
-        '-t', '--test',
-        action='store_true',
+        "-t",
+        "--test",
+        action="store_true",
         help="test both the connection and the configuration of the "
-             "requested PostgreSQL server in Barman for WAL retrieval. "
-             "With this option, the 'wal_name' mandatory argument is "
-             "ignored.",
+        "requested PostgreSQL server in Barman for WAL retrieval. "
+        "With this option, the 'wal_name' mandatory argument is "
+        "ignored.",
     )
     parser.add_argument(
         "barman_host",
@@ -181,14 +184,12 @@ def parse_arguments(args=None):
     parser.add_argument(
         "server_name",
         metavar="SERVER_NAME",
-        help="The server name configured in Barman "
-             "from which WALs are taken.",
+        help="The server name configured in Barman " "from which WALs are taken.",
     )
     parser.add_argument(
         "wal_path",
         metavar="WAL_PATH",
-        help="The value of the '%%p' keyword "
-             "(according to 'archive_command').",
+        help="The value of the '%%p' keyword " "(according to 'archive_command').",
     )
     return parser.parse_args(args=args)
 
@@ -234,6 +235,7 @@ class ChecksumTarInfo(tarfile.TarInfo):
     """
     Special TarInfo that can hold a file checksum
     """
+
     def __init__(self, *args, **kwargs):
         super(ChecksumTarInfo, self).__init__(*args, **kwargs)
         self.data_checksum = None
@@ -268,12 +270,10 @@ class ChecksumTarFile(tarfile.TarFile):
 
         # If there's data to follow, append it.
         if fileobj is not None:
-            tarinfo.data_checksum = md5copyfileobj(
-                fileobj, self.fileobj, tarinfo.size)
+            tarinfo.data_checksum = md5copyfileobj(fileobj, self.fileobj, tarinfo.size)
             blocks, remainder = divmod(tarinfo.size, tarfile.BLOCKSIZE)
             if remainder > 0:
-                self.fileobj.write(
-                    tarfile.NUL * (tarfile.BLOCKSIZE - remainder))
+                self.fileobj.write(tarfile.NUL * (tarfile.BLOCKSIZE - remainder))
                 blocks += 1
             self.offset += blocks * tarfile.BLOCKSIZE
 
@@ -291,8 +291,7 @@ class ChecksumTarFile(tarfile.TarFile):
         if self.mode in "aw":
             with BytesIO() as md5sums:
                 for tarinfo in self.members:
-                    line = "%s *%s\n" % (
-                        tarinfo.data_checksum, tarinfo.name)
+                    line = "%s *%s\n" % (tarinfo.data_checksum, tarinfo.name)
                     md5sums.write(line.encode())
                 md5sums.seek(0, os.SEEK_END)
                 size = md5sums.tell()
@@ -324,16 +323,15 @@ class RemotePutWal(object):
 
         # Spawn a remote put-wal process
         self.ssh_process = subprocess.Popen(
-            build_ssh_command(config),
-            stdin=subprocess.PIPE)
+            build_ssh_command(config), stdin=subprocess.PIPE
+        )
 
         # Register the spawned processes in the class registry
         self.processes.add(self.ssh_process)
 
         # Send the data as a tar file (containing checksums)
         with self.ssh_process.stdin as dest_file:
-            with closing(ChecksumTarFile.open(
-                    mode='w|', fileobj=dest_file)) as tar:
+            with closing(ChecksumTarFile.open(mode="w|", fileobj=dest_file)) as tar:
                 tar.add(wal_path, os.path.basename(wal_path))
 
     @classmethod
@@ -352,7 +350,7 @@ class RemotePutWal(object):
             # terminate
             for process in cls.processes:
                 process.kill()
-            exit_with_error('SIGINT received! Terminating.')
+            exit_with_error("SIGINT received! Terminating.")
 
     @property
     def returncode(self):
@@ -366,5 +364,5 @@ class RemotePutWal(object):
         return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

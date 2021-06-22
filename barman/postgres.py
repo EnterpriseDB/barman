@@ -25,18 +25,24 @@ import logging
 from abc import ABCMeta
 
 import psycopg2
-from psycopg2.errorcodes import (DUPLICATE_OBJECT, OBJECT_IN_USE,
-                                 UNDEFINED_OBJECT)
+from psycopg2.errorcodes import DUPLICATE_OBJECT, OBJECT_IN_USE, UNDEFINED_OBJECT
 from psycopg2.extensions import STATUS_IN_TRANSACTION, STATUS_READY
 from psycopg2.extras import DictCursor, NamedTupleCursor
 
 from barman.exceptions import (
-    ConninfoException, PostgresAppNameError, PostgresConnectionError,
-    PostgresDuplicateReplicationSlot, PostgresException,
-    PostgresInvalidReplicationSlot, PostgresIsInRecovery,
-    PostgresReplicationSlotInUse, PostgresReplicationSlotsFull,
+    ConninfoException,
+    PostgresAppNameError,
+    PostgresConnectionError,
+    PostgresDuplicateReplicationSlot,
+    PostgresException,
+    PostgresInvalidReplicationSlot,
+    PostgresIsInRecovery,
+    PostgresReplicationSlotInUse,
+    PostgresReplicationSlotsFull,
     BackupFunctionsAccessRequired,
-    PostgresSuperuserRequired, PostgresUnsupportedFeature)
+    PostgresSuperuserRequired,
+    PostgresUnsupportedFeature,
+)
 from barman.infofile import Tablespace
 from barman.postgres_plumbing import function_name_map
 from barman.remote_status import RemoteStatusMixin
@@ -49,7 +55,7 @@ from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 try:
     from psycopg2.errorcodes import CONFIGURATION_LIMIT_EXCEEDED
 except ImportError:
-    CONFIGURATION_LIMIT_EXCEEDED = '53400'
+    CONFIGURATION_LIMIT_EXCEEDED = "53400"
 
 
 _logger = logging.getLogger(__name__)
@@ -69,8 +75,8 @@ def _atexit():
     # Take a copy of the list because the conn.close() method modify it
     for conn in list(_live_connections):
         _logger.warning(
-            "Forcing %s cleanup during process shut down.",
-            conn.__class__.__name__)
+            "Forcing %s cleanup during process shut down.", conn.__class__.__name__
+        )
         conn.close()
 
 
@@ -79,7 +85,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
     This abstract class represents a generic interface to a PostgreSQL server.
     """
 
-    CHECK_QUERY = 'SELECT 1'
+    CHECK_QUERY = "SELECT 1"
 
     def __init__(self, conninfo):
         """
@@ -97,9 +103,10 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             self.conn_parameters = self.parse_dsn(conninfo)
         except (ValueError, TypeError) as e:
             _logger.debug(e)
-            raise ConninfoException('Cannot connect to postgres: "%s" '
-                                    'is not a valid connection string' %
-                                    conninfo)
+            raise ConninfoException(
+                'Cannot connect to postgres: "%s" '
+                "is not a valid connection string" % conninfo
+            )
 
     @staticmethod
     def parse_dsn(dsn):
@@ -110,7 +117,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         :rtype: dict[str,str]
         """
         # TODO: this might be made more robust in the future
-        return dict(x.split('=', 1) for x in dsn.split())
+        return dict(x.split("=", 1) for x in dsn.split())
 
     @staticmethod
     def encode_dsn(parameters):
@@ -122,8 +129,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         :rtype: str
         """
         # TODO: this might be made more robust in the future
-        return ' '.join(
-            ["%s=%s" % (k, v) for k, v in sorted(parameters.items())])
+        return " ".join(["%s=%s" % (k, v) for k, v in sorted(parameters.items())])
 
     def get_connection_string(self, application_name=None):
         """
@@ -135,13 +141,13 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         """
         conn_string = self.conninfo
         # check if the application name is already defined by user
-        if application_name and 'application_name' not in self.conn_parameters:
+        if application_name and "application_name" not in self.conn_parameters:
             # Then add the it to the connection string
-            conn_string += ' application_name=%s' % application_name
+            conn_string += " application_name=%s" % application_name
         # adopt a secure schema-usage pattern. See:
         # https://www.postgresql.org/docs/current/libpq-connect.html
-        if 'options' not in self.conn_parameters:
-            conn_string += ' options=-csearch_path='
+        if "options" not in self.conn_parameters:
+            conn_string += " options=-csearch_path="
 
         return conn_string
 
@@ -188,7 +194,8 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             # Raise an error if reconnect is not allowed
             if not self.allow_reconnect:
                 raise PostgresConnectionError(
-                    "Connection lost, reconnection not allowed")
+                    "Connection lost, reconnection not allowed"
+                )
             return False
         finally:
             if cursor:
@@ -242,11 +249,14 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             if minor != 0:
                 _logger.warning(
                     "Unexpected non zero minor version %s in %s",
-                    minor, conn.server_version)
+                    minor,
+                    conn.server_version,
+                )
             return "%d.%d" % (major, patch)
         except PostgresConnectionError as e:
-            _logger.debug("Error retrieving PostgreSQL version: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error retrieving PostgreSQL version: %s", force_str(e).strip()
+            )
             return None
 
     @property
@@ -267,7 +277,7 @@ class StreamingConnection(PostgreSQL):
     This class represents a streaming connection to a PostgreSQL server.
     """
 
-    CHECK_QUERY = 'IDENTIFY_SYSTEM'
+    CHECK_QUERY = "IDENTIFY_SYSTEM"
 
     def __init__(self, conninfo):
         """
@@ -279,13 +289,13 @@ class StreamingConnection(PostgreSQL):
 
         # Make sure we connect using the 'replication' option which
         # triggers streaming replication protocol communication
-        self.conn_parameters['replication'] = 'true'
+        self.conn_parameters["replication"] = "true"
         # ensure that the datestyle is set to iso, working around an
         # issue in some psycopg2 versions
-        self.conn_parameters['options'] = '-cdatestyle=iso'
+        self.conn_parameters["options"] = "-cdatestyle=iso"
         # Override 'dbname' parameter. This operation is required to mimic
         # the behaviour of pg_receivexlog and pg_basebackup
-        self.conn_parameters['dbname'] = 'replication'
+        self.conn_parameters["dbname"] = "replication"
         # Rebuild the conninfo string from the modified parameter lists
         self.conninfo = self.encode_dsn(self.conn_parameters)
 
@@ -313,10 +323,16 @@ class StreamingConnection(PostgreSQL):
         :rtype: dict[str, None|str]
         """
         result = dict.fromkeys(
-            ('connection_error', 'streaming_supported',
-                'streaming', 'streaming_systemid',
-                'timeline', 'xlogpos'),
-            None)
+            (
+                "connection_error",
+                "streaming_supported",
+                "streaming",
+                "streaming_systemid",
+                "timeline",
+                "xlogpos",
+            ),
+            None,
+        )
         try:
             # If the server is too old to support `pg_receivexlog`,
             # exit immediately.
@@ -333,20 +349,21 @@ class StreamingConnection(PostgreSQL):
             # If something has been returned, barman is connected
             # to a replication backend
             if row:
-                result['streaming'] = True
+                result["streaming"] = True
                 # IDENTIFY_SYSTEM always returns at least two values
-                result['streaming_systemid'] = row[0]
-                result['timeline'] = row[1]
+                result["streaming_systemid"] = row[0]
+                result["timeline"] = row[1]
                 # PostgreSQL 9.1+ returns also the current xlog flush location
                 if len(row) > 2:
-                    result['xlogpos'] = row[2]
+                    result["xlogpos"] = row[2]
         except psycopg2.ProgrammingError:
             # This is not a streaming connection
-            result['streaming'] = False
+            result["streaming"] = False
         except PostgresConnectionError as e:
-            result['connection_error'] = force_str(e).strip()
-            _logger.warning("Error retrieving PostgreSQL status: %s",
-                            force_str(e).strip())
+            result["connection_error"] = force_str(e).strip()
+            _logger.warning(
+                "Error retrieving PostgreSQL status: %s", force_str(e).strip()
+            )
         return result
 
     def create_physical_repslot(self, slot_name):
@@ -361,9 +378,8 @@ class StreamingConnection(PostgreSQL):
             # quoting. This is a characteristic of the streaming
             # connection, otherwise if will fail with a generic
             # "syntax error"
-            cursor.execute('CREATE_REPLICATION_SLOT %s PHYSICAL' % slot_name)
-            _logger.info("Replication slot '%s' successfully created",
-                         slot_name)
+            cursor.execute("CREATE_REPLICATION_SLOT %s PHYSICAL" % slot_name)
+            _logger.info("Replication slot '%s' successfully created", slot_name)
         except psycopg2.DatabaseError as exc:
             if exc.pgcode == DUPLICATE_OBJECT:
                 # A replication slot with the same name exists
@@ -387,9 +403,8 @@ class StreamingConnection(PostgreSQL):
             # quoting. This is a characteristic of the streaming
             # connection, otherwise if will fail with a generic
             # "syntax error"
-            cursor.execute('DROP_REPLICATION_SLOT %s' % slot_name)
-            _logger.info("Replication slot '%s' successfully dropped",
-                         slot_name)
+            cursor.execute("DROP_REPLICATION_SLOT %s" % slot_name)
+            _logger.info("Replication slot '%s' successfully dropped", slot_name)
         except psycopg2.DatabaseError as exc:
             if exc.pgcode == UNDEFINED_OBJECT:
                 # A replication slot with the that name does not exist
@@ -411,8 +426,13 @@ class PostgreSQLConnection(PostgreSQL):
     WALSTREAMER = 2
     ANY_STREAMING_CLIENT = (STANDBY, WALSTREAMER)
 
-    def __init__(self, conninfo, immediate_checkpoint=False, slot_name=None,
-                 application_name='barman'):
+    def __init__(
+        self,
+        conninfo,
+        immediate_checkpoint=False,
+        slot_name=None,
+        application_name="barman",
+    ):
         """
         PostgreSQL connection constructor.
 
@@ -436,13 +456,12 @@ class PostgreSQLConnection(PostgreSQL):
 
         self._conn = super(PostgreSQLConnection, self).connect()
         server_version = self._conn.server_version
-        use_app_name = 'application_name' in self.conn_parameters
+        use_app_name = "application_name" in self.conn_parameters
         if server_version >= 90000 and not use_app_name:
             try:
                 cur = self._conn.cursor()
                 # Do not use parameter substitution with SET
-                cur.execute('SET application_name TO %s' %
-                            self.application_name)
+                cur.execute("SET application_name TO %s" % self.application_name)
                 cur.close()
             # If psycopg2 fails to set the application name,
             # raise the appropriate exception
@@ -460,8 +479,9 @@ class PostgreSQLConnection(PostgreSQL):
             cur.execute("SELECT version()")
             return cur.fetchone()[0].split()[1]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL version: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error retrieving PostgreSQL version: %s", force_str(e).strip()
+            )
             return None
 
     @property
@@ -474,13 +494,15 @@ class PostgreSQLConnection(PostgreSQL):
             if self.server_version < 90100:
                 return False
             cur = self._cursor()
-            cur.execute("SELECT count(*) FROM pg_extension "
-                        "WHERE extname = 'pgespresso'")
+            cur.execute(
+                "SELECT count(*) FROM pg_extension " "WHERE extname = 'pgespresso'"
+            )
             q_result = cur.fetchone()[0]
             return q_result > 0
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving pgespresso information: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error retrieving pgespresso information: %s", force_str(e).strip()
+            )
             return None
 
     @property
@@ -496,8 +518,9 @@ class PostgreSQLConnection(PostgreSQL):
             cur.execute("SELECT pg_is_in_recovery()")
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error calling pg_is_in_recovery() function: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error calling pg_is_in_recovery() function: %s", force_str(e).strip()
+            )
             return None
 
     @property
@@ -507,12 +530,12 @@ class PostgreSQLConnection(PostgreSQL):
         """
         try:
             cur = self._cursor()
-            cur.execute('SELECT usesuper FROM pg_user '
-                        'WHERE usename = CURRENT_USER')
+            cur.execute("SELECT usesuper FROM pg_user " "WHERE usename = CURRENT_USER")
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error calling is_superuser() function: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error calling is_superuser() function: %s", force_str(e).strip()
+            )
             return None
 
     @property
@@ -566,9 +589,10 @@ class PostgreSQLConnection(PostgreSQL):
             cur.execute(backup_check_query)
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error checking privileges for functions "
-                          "needed for backups: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error checking privileges for functions " "needed for backups: %s",
+                force_str(e).strip(),
+            )
             return None
 
     @property
@@ -595,8 +619,8 @@ class PostgreSQLConnection(PostgreSQL):
                     "SELECT location, "
                     "({pg_walfile_name_offset}(location)).*, "
                     "CURRENT_TIMESTAMP AS timestamp "
-                    "FROM {pg_current_wal_lsn}() AS location"
-                    .format(**self.name_map))
+                    "FROM {pg_current_wal_lsn}() AS location".format(**self.name_map)
+                )
                 return cur.fetchone()
             else:
                 cur.execute(
@@ -604,13 +628,16 @@ class PostgreSQLConnection(PostgreSQL):
                     "NULL AS file_name, "
                     "NULL AS file_offset, "
                     "CURRENT_TIMESTAMP AS timestamp "
-                    "FROM {pg_last_wal_replay_lsn}() AS location"
-                    .format(**self.name_map))
+                    "FROM {pg_last_wal_replay_lsn}() AS location".format(
+                        **self.name_map
+                    )
+                )
                 return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving current xlog "
-                          "detailed information: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error retrieving current xlog " "detailed information: %s",
+                force_str(e).strip(),
+            )
         return None
 
     @property
@@ -622,7 +649,7 @@ class PostgreSQLConnection(PostgreSQL):
         """
         current_xlog_info = self.current_xlog_info
         if current_xlog_info is not None:
-            return current_xlog_info['file_name']
+            return current_xlog_info["file_name"]
         return None
 
     @property
@@ -647,18 +674,18 @@ class PostgreSQLConnection(PostgreSQL):
             # We can't use the `get_setting` method here, because it
             # use `SHOW`, returning an human readable value such as "16MB",
             # while we prefer a raw value such as 16777216.
-            cur.execute("SELECT setting "
-                        "FROM pg_settings "
-                        "WHERE name='wal_segment_size'")
+            cur.execute(
+                "SELECT setting " "FROM pg_settings " "WHERE name='wal_segment_size'"
+            )
             result = cur.fetchone()
             wal_segment_size = int(result[0])
 
             # Prior to PostgreSQL 11, the wal segment size is returned in
             # blocks
             if self.server_version < 110000:
-                cur.execute("SELECT setting "
-                            "FROM pg_settings "
-                            "WHERE name='wal_block_size'")
+                cur.execute(
+                    "SELECT setting " "FROM pg_settings " "WHERE name='wal_block_size'"
+                )
                 result = cur.fetchone()
                 wal_block_size = int(result[0])
 
@@ -666,9 +693,10 @@ class PostgreSQLConnection(PostgreSQL):
 
             return wal_segment_size
         except ValueError as e:
-            _logger.error("Error retrieving current xlog "
-                          "segment size: %s",
-                          force_str(e).strip())
+            _logger.error(
+                "Error retrieving current xlog " "segment size: %s",
+                force_str(e).strip(),
+            )
             return None
 
     @property
@@ -680,7 +708,7 @@ class PostgreSQLConnection(PostgreSQL):
         """
         current_xlog_info = self.current_xlog_info
         if current_xlog_info is not None:
-            return current_xlog_info['location']
+            return current_xlog_info["location"]
         return None
 
     @property
@@ -694,13 +722,12 @@ class PostgreSQLConnection(PostgreSQL):
 
         try:
             cur = self._cursor()
-            cur.execute(
-                "SELECT sum(pg_tablespace_size(oid)) "
-                "FROM pg_tablespace")
+            cur.execute("SELECT sum(pg_tablespace_size(oid)) " "FROM pg_tablespace")
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL total size: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error retrieving PostgreSQL total size: %s", force_str(e).strip()
+            )
             return None
 
     @property
@@ -715,16 +742,15 @@ class PostgreSQLConnection(PostgreSQL):
             # We can't use the `get_setting` method here, because it
             # uses `SHOW`, returning an human readable value such as "5min",
             # while we prefer a raw value such as 300.
-            cur.execute("SELECT setting "
-                        "FROM pg_settings "
-                        "WHERE name='archive_timeout'")
+            cur.execute(
+                "SELECT setting " "FROM pg_settings " "WHERE name='archive_timeout'"
+            )
             result = cur.fetchone()
             archive_timeout = int(result[0])
 
             return archive_timeout
         except ValueError as e:
-            _logger.error("Error retrieving archive_timeout: %s",
-                          force_str(e).strip())
+            _logger.error("Error retrieving archive_timeout: %s", force_str(e).strip())
             return None
 
     @property
@@ -739,16 +765,17 @@ class PostgreSQLConnection(PostgreSQL):
             # We can't use the `get_setting` method here, because it
             # uses `SHOW`, returning an human readable value such as "5min",
             # while we prefer a raw value such as 300.
-            cur.execute("SELECT setting "
-                        "FROM pg_settings "
-                        "WHERE name='checkpoint_timeout'")
+            cur.execute(
+                "SELECT setting " "FROM pg_settings " "WHERE name='checkpoint_timeout'"
+            )
             result = cur.fetchone()
             checkpoint_timeout = int(result[0])
 
             return checkpoint_timeout
         except ValueError as e:
-            _logger.error("Error retrieving checkpoint_timeout: %s",
-                          force_str(e).strip())
+            _logger.error(
+                "Error retrieving checkpoint_timeout: %s", force_str(e).strip()
+            )
             return None
 
     def get_archiver_stats(self):
@@ -785,11 +812,13 @@ class PostgreSQLConnection(PostgreSQL):
                 "CAST (archived_count AS NUMERIC) "
                 "/ EXTRACT (EPOCH FROM age(now(), stats_reset)) "
                 "AS current_archived_wals_per_second "
-                "FROM pg_stat_archiver")
+                "FROM pg_stat_archiver"
+            )
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving pg_stat_archive data: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error retrieving pg_stat_archive data: %s", force_str(e).strip()
+            )
             return None
 
     def fetch_remote_status(self):
@@ -802,47 +831,46 @@ class PostgreSQLConnection(PostgreSQL):
         :rtype: dict[str, None|str]
         """
         # PostgreSQL settings to get from the server (requiring superuser)
-        pg_superuser_settings = [
-            'data_directory']
+        pg_superuser_settings = ["data_directory"]
         # PostgreSQL settings to get from the server
         pg_settings = []
         pg_query_keys = [
-            'server_txt_version',
-            'is_superuser',
-            'is_in_recovery',
-            'current_xlog',
-            'pgespresso_installed',
-            'replication_slot_support',
-            'replication_slot',
-            'synchronous_standby_names',
-            'postgres_systemid'
+            "server_txt_version",
+            "is_superuser",
+            "is_in_recovery",
+            "current_xlog",
+            "pgespresso_installed",
+            "replication_slot_support",
+            "replication_slot",
+            "synchronous_standby_names",
+            "postgres_systemid",
         ]
         # Initialise the result dictionary setting all the values to None
         result = dict.fromkeys(
-            pg_superuser_settings + pg_settings + pg_query_keys,
-            None)
+            pg_superuser_settings + pg_settings + pg_query_keys, None
+        )
         try:
             # Retrieve wal_level, hot_standby and max_wal_senders
             # only if version is >= 9.0
             if self.server_version >= 90000:
-                pg_settings.append('wal_level')
-                pg_settings.append('hot_standby')
-                pg_settings.append('max_wal_senders')
+                pg_settings.append("wal_level")
+                pg_settings.append("hot_standby")
+                pg_settings.append("max_wal_senders")
                 # Retrieve wal_keep_segments from version 9.0 onwards, until
                 # version 13.0, where it was renamed to wal_keep_size
                 if self.server_version < 130000:
-                    pg_settings.append('wal_keep_segments')
+                    pg_settings.append("wal_keep_segments")
                 else:
-                    pg_settings.append('wal_keep_size')
+                    pg_settings.append("wal_keep_size")
 
             if self.server_version >= 90300:
-                pg_settings.append('data_checksums')
+                pg_settings.append("data_checksums")
 
             if self.server_version >= 90400:
-                pg_settings.append('max_replication_slots')
+                pg_settings.append("max_replication_slots")
 
             if self.server_version >= 90500:
-                pg_settings.append('wal_compression')
+                pg_settings.append("wal_compression")
 
             # retrieves superuser settings
             if self.has_backup_privileges:
@@ -853,22 +881,22 @@ class PostgreSQLConnection(PostgreSQL):
             for name in pg_settings:
                 result[name] = self.get_setting(name)
 
-            result['is_superuser'] = self.is_superuser
-            result['has_backup_privileges'] = self.has_backup_privileges
-            result['is_in_recovery'] = self.is_in_recovery
-            result['server_txt_version'] = self.server_txt_version
-            result['pgespresso_installed'] = self.has_pgespresso
+            result["is_superuser"] = self.is_superuser
+            result["has_backup_privileges"] = self.has_backup_privileges
+            result["is_in_recovery"] = self.is_in_recovery
+            result["server_txt_version"] = self.server_txt_version
+            result["pgespresso_installed"] = self.has_pgespresso
             current_xlog_info = self.current_xlog_info
             if current_xlog_info:
-                result['current_lsn'] = current_xlog_info['location']
-                result['current_xlog'] = current_xlog_info['file_name']
+                result["current_lsn"] = current_xlog_info["location"]
+                result["current_xlog"] = current_xlog_info["file_name"]
             else:
-                result['current_lsn'] = None
-                result['current_xlog'] = None
-            result['current_size'] = self.current_size
-            result['archive_timeout'] = self.archive_timeout
-            result['checkpoint_timeout'] = self.checkpoint_timeout
-            result['xlog_segment_size'] = self.xlog_segment_size
+                result["current_lsn"] = None
+                result["current_xlog"] = None
+            result["current_size"] = self.current_size
+            result["archive_timeout"] = self.archive_timeout
+            result["checkpoint_timeout"] = self.checkpoint_timeout
+            result["xlog_segment_size"] = self.xlog_segment_size
 
             result.update(self.get_configuration_files())
 
@@ -877,20 +905,23 @@ class PostgreSQLConnection(PostgreSQL):
             if self.server_version >= 90400:
                 result["replication_slot_support"] = True
                 if self.slot_name is not None:
-                    result["replication_slot"] = (
-                        self.get_replication_slot(self.slot_name))
+                    result["replication_slot"] = self.get_replication_slot(
+                        self.slot_name
+                    )
 
             # Retrieve the list of synchronous standby names
             result["synchronous_standby_names"] = []
             if self.server_version >= 90100:
-                result["synchronous_standby_names"] = (
-                    self.get_synchronous_standby_names())
+                result[
+                    "synchronous_standby_names"
+                ] = self.get_synchronous_standby_names()
 
             if self.server_version >= 90600:
                 result["postgres_systemid"] = self.get_systemid()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.warning("Error retrieving PostgreSQL status: %s",
-                            force_str(e).strip())
+            _logger.warning(
+                "Error retrieving PostgreSQL status: %s", force_str(e).strip()
+            )
         return result
 
     def get_systemid(self):
@@ -902,12 +933,12 @@ class PostgreSQLConnection(PostgreSQL):
 
         try:
             cur = self._cursor()
-            cur.execute(
-                'SELECT system_identifier::text FROM pg_control_system()')
+            cur.execute("SELECT system_identifier::text FROM pg_control_system()")
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL system Id: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error retrieving PostgreSQL system Id: %s", force_str(e).strip()
+            )
             return None
 
     def get_setting(self, name):
@@ -921,8 +952,11 @@ class PostgreSQLConnection(PostgreSQL):
             cur.execute('SHOW "%s"' % name.replace('"', '""'))
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL setting '%s': %s",
-                          name.replace('"', '""'), force_str(e).strip())
+            _logger.debug(
+                "Error retrieving PostgreSQL setting '%s': %s",
+                name.replace('"', '""'),
+                force_str(e).strip(),
+            )
             return None
 
     def get_tablespaces(self):
@@ -936,16 +970,19 @@ class PostgreSQLConnection(PostgreSQL):
                     "SELECT spcname, oid, "
                     "pg_tablespace_location(oid) AS spclocation "
                     "FROM pg_tablespace "
-                    "WHERE pg_tablespace_location(oid) != ''")
+                    "WHERE pg_tablespace_location(oid) != ''"
+                )
             else:
                 cur.execute(
                     "SELECT spcname, oid, spclocation "
-                    "FROM pg_tablespace WHERE spclocation != ''")
+                    "FROM pg_tablespace WHERE spclocation != ''"
+                )
             # Generate a list of tablespace objects
             return [Tablespace._make(item) for item in cur.fetchall()]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL tablespaces: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error retrieving PostgreSQL tablespaces: %s", force_str(e).strip()
+            )
             return None
 
     def get_configuration_files(self):
@@ -962,7 +999,8 @@ class PostgreSQLConnection(PostgreSQL):
             cur = self._cursor()
             cur.execute(
                 "SELECT name, setting FROM pg_settings "
-                "WHERE name IN ('config_file', 'hba_file', 'ident_file')")
+                "WHERE name IN ('config_file', 'hba_file', 'ident_file')"
+            )
             for cname, cpath in cur.fetchall():
                 self.configuration_files[cname] = cpath
 
@@ -976,16 +1014,18 @@ class PostgreSQLConnection(PostgreSQL):
                     "AND sourcefile NOT IN "
                     "(SELECT setting FROM pg_settings "
                     "WHERE name = 'config_file') "
-                    "ORDER BY 1")
+                    "ORDER BY 1"
+                )
                 # Extract the values from the containing single element tuples
-                included_files = [included_file
-                                  for included_file, in cur.fetchall()]
+                included_files = [included_file for included_file, in cur.fetchall()]
                 if len(included_files) > 0:
-                    self.configuration_files['included_files'] = included_files
+                    self.configuration_files["included_files"] = included_files
 
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving PostgreSQL configuration files "
-                          "location: %s", force_str(e).strip())
+            _logger.debug(
+                "Error retrieving PostgreSQL configuration files " "location: %s",
+                force_str(e).strip(),
+            )
             self.configuration_files = {}
 
         return self.configuration_files
@@ -1015,14 +1055,14 @@ class PostgreSQLConnection(PostgreSQL):
 
         try:
             cur = self._cursor()
-            cur.execute(
-                "SELECT pg_create_restore_point(%s)", [target_name])
-            _logger.info("Restore point '%s' successfully created",
-                         target_name)
+            cur.execute("SELECT pg_create_restore_point(%s)", [target_name])
+            _logger.info("Restore point '%s' successfully created", target_name)
             return cur.fetchone()[0]
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug('Error issuing pg_create_restore_point()'
-                          'command: %s', force_str(e).strip())
+            _logger.debug(
+                "Error issuing pg_create_restore_point()" "command: %s",
+                force_str(e).strip(),
+            )
             return None
 
     def start_exclusive_backup(self, label):
@@ -1053,17 +1093,17 @@ class PostgreSQLConnection(PostgreSQL):
                     "SELECT location, "
                     "({pg_walfile_name_offset}(location)).*, "
                     "now() AS timestamp "
-                    "FROM pg_start_backup(%s) AS location"
-                    .format(**self.name_map),
-                    (label,))
+                    "FROM pg_start_backup(%s) AS location".format(**self.name_map),
+                    (label,),
+                )
             else:
                 cur.execute(
                     "SELECT location, "
                     "({pg_walfile_name_offset}(location)).*, "
                     "now() AS timestamp "
-                    "FROM pg_start_backup(%s,%s) AS location"
-                    .format(**self.name_map),
-                    (label, self.immediate_checkpoint))
+                    "FROM pg_start_backup(%s,%s) AS location".format(**self.name_map),
+                    (label, self.immediate_checkpoint),
+                )
 
             start_row = cur.fetchone()
 
@@ -1106,7 +1146,8 @@ class PostgreSQLConnection(PostgreSQL):
                 "FROM pg_control_checkpoint()) AS timeline, "
                 "now() AS timestamp "
                 "FROM pg_start_backup(%s, %s, FALSE) AS location",
-                (label, self.immediate_checkpoint))
+                (label, self.immediate_checkpoint),
+            )
             start_row = cur.fetchone()
 
             # Rollback to release the transaction, as the connection
@@ -1145,19 +1186,18 @@ class PostgreSQLConnection(PostgreSQL):
                 "SELECT location, "
                 "({pg_walfile_name_offset}(location)).*, "
                 "now() AS timestamp "
-                "FROM pg_stop_backup() AS location"
-                .format(**self.name_map)
+                "FROM pg_stop_backup() AS location".format(**self.name_map)
             )
 
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = ("Error issuing pg_stop_backup command: %s" %
-                   force_str(e).strip())
+            msg = "Error issuing pg_stop_backup command: %s" % force_str(e).strip()
             _logger.debug(msg)
             raise PostgresException(
-                'Cannot terminate exclusive backup. '
-                'You might have to manually execute pg_stop_backup '
-                'on your PostgreSQL server')
+                "Cannot terminate exclusive backup. "
+                "You might have to manually execute pg_stop_backup "
+                "on your PostgreSQL server"
+            )
 
     def stop_concurrent_backup(self):
         """
@@ -1183,18 +1223,18 @@ class PostgreSQLConnection(PostgreSQL):
             # Stop the backup  using the api introduced with version 9.6
             cur = conn.cursor(cursor_factory=DictCursor)
             cur.execute(
-                'SELECT end_row.lsn AS location, '
-                '(SELECT CASE WHEN pg_is_in_recovery() '
-                'THEN min_recovery_end_timeline ELSE timeline_id END '
-                'FROM pg_control_checkpoint(), pg_control_recovery()'
-                ') AS timeline, '
-                'end_row.labelfile AS backup_label, '
-                'now() AS timestamp FROM pg_stop_backup(FALSE) AS end_row')
+                "SELECT end_row.lsn AS location, "
+                "(SELECT CASE WHEN pg_is_in_recovery() "
+                "THEN min_recovery_end_timeline ELSE timeline_id END "
+                "FROM pg_control_checkpoint(), pg_control_recovery()"
+                ") AS timeline, "
+                "end_row.labelfile AS backup_label, "
+                "now() AS timestamp FROM pg_stop_backup(FALSE) AS end_row"
+            )
 
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = ("Error issuing pg_stop_backup command: %s" %
-                   force_str(e).strip())
+            msg = "Error issuing pg_stop_backup command: %s" % force_str(e).strip()
             _logger.debug(msg)
             raise PostgresException(msg)
 
@@ -1221,9 +1261,10 @@ class PostgreSQLConnection(PostgreSQL):
             # Start the concurrent backup using pgespresso
             cur = conn.cursor(cursor_factory=DictCursor)
             cur.execute(
-                'SELECT pgespresso_start_backup(%s,%s) AS backup_label, '
-                'now() AS timestamp',
-                (label, self.immediate_checkpoint))
+                "SELECT pgespresso_start_backup(%s,%s) AS backup_label, "
+                "now() AS timestamp",
+                (label, self.immediate_checkpoint),
+            )
 
             start_row = cur.fetchone()
 
@@ -1255,19 +1296,22 @@ class PostgreSQLConnection(PostgreSQL):
             # Issue a rollback to release any unneeded lock
             conn.rollback()
             cur = conn.cursor(cursor_factory=DictCursor)
-            cur.execute("SELECT pgespresso_stop_backup(%s) AS end_wal, "
-                        "now() AS timestamp",
-                        (backup_label,))
+            cur.execute(
+                "SELECT pgespresso_stop_backup(%s) AS end_wal, " "now() AS timestamp",
+                (backup_label,),
+            )
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
             msg = "Error issuing pgespresso_stop_backup() command: %s" % (
-                force_str(e).strip())
+                force_str(e).strip()
+            )
             _logger.debug(msg)
             raise PostgresException(
-                '%s\n'
-                'HINT: You might have to manually execute '
-                'pgespresso_abort_backup() on your PostgreSQL '
-                'server' % msg)
+                "%s\n"
+                "HINT: You might have to manually execute "
+                "pgespresso_abort_backup() on your PostgreSQL "
+                "server" % msg
+            )
 
     def switch_wal(self):
         """
@@ -1295,27 +1339,30 @@ class PostgreSQLConnection(PostgreSQL):
 
             cur = conn.cursor()
             # Collect the xlog file name before the switch
-            cur.execute('SELECT {pg_walfile_name}('
-                        '{pg_current_wal_insert_lsn}())'
-                        .format(**self.name_map))
+            cur.execute(
+                "SELECT {pg_walfile_name}("
+                "{pg_current_wal_insert_lsn}())".format(**self.name_map)
+            )
             pre_switch = cur.fetchone()[0]
             # Switch
-            cur.execute('SELECT {pg_walfile_name}({pg_switch_wal}())'
-                        .format(**self.name_map))
+            cur.execute(
+                "SELECT {pg_walfile_name}({pg_switch_wal}())".format(**self.name_map)
+            )
             # Collect the xlog file name after the switch
-            cur.execute('SELECT {pg_walfile_name}('
-                        '{pg_current_wal_insert_lsn}())'
-                        .format(**self.name_map))
+            cur.execute(
+                "SELECT {pg_walfile_name}("
+                "{pg_current_wal_insert_lsn}())".format(**self.name_map)
+            )
             post_switch = cur.fetchone()[0]
             if pre_switch < post_switch:
                 return pre_switch
             else:
-                return ''
+                return ""
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
-                "Error issuing {pg_switch_wal}() command: %s"
-                .format(**self.name_map),
-                force_str(e).strip())
+                "Error issuing {pg_switch_wal}() command: %s".format(**self.name_map),
+                force_str(e).strip(),
+            )
             return None
 
     def checkpoint(self):
@@ -1332,9 +1379,7 @@ class PostgreSQLConnection(PostgreSQL):
             cur = conn.cursor()
             cur.execute("CHECKPOINT")
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug(
-                "Error issuing CHECKPOINT: %s",
-                force_str(e).strip())
+            _logger.debug("Error issuing CHECKPOINT: %s", force_str(e).strip())
 
     def get_replication_stats(self, client_type=STANDBY):
         """
@@ -1370,7 +1415,7 @@ class PostgreSQLConnection(PostgreSQL):
             #
 
             if self.server_version < 90100:
-                raise PostgresUnsupportedFeature('9.1')
+                raise PostgresUnsupportedFeature("9.1")
 
             from_repslot = ""
             where_clauses = []
@@ -1378,103 +1423,113 @@ class PostgreSQLConnection(PostgreSQL):
                 # Current implementation (10+)
                 what = "r.*, rs.slot_name"
                 # Look for replication slot name
-                from_repslot = "LEFT JOIN pg_replication_slots rs " \
-                               "ON (r.pid = rs.active_pid) "
-                where_clauses += ["(rs.slot_type IS NULL OR "
-                                  "rs.slot_type = 'physical')"]
+                from_repslot = (
+                    "LEFT JOIN pg_replication_slots rs " "ON (r.pid = rs.active_pid) "
+                )
+                where_clauses += [
+                    "(rs.slot_type IS NULL OR " "rs.slot_type = 'physical')"
+                ]
             elif self.server_version >= 90500:
                 # PostgreSQL 9.5/9.6
-                what = "pid, " \
-                    "usesysid, " \
-                    "usename, " \
-                    "application_name, " \
-                    "client_addr, " \
-                    "client_hostname, " \
-                    "client_port, " \
-                    "backend_start, " \
-                    "backend_xmin, " \
-                    "state, " \
-                    "sent_location AS sent_lsn, " \
-                    "write_location AS write_lsn, " \
-                    "flush_location AS flush_lsn, " \
-                    "replay_location AS replay_lsn, " \
-                    "sync_priority, " \
-                    "sync_state, " \
+                what = (
+                    "pid, "
+                    "usesysid, "
+                    "usename, "
+                    "application_name, "
+                    "client_addr, "
+                    "client_hostname, "
+                    "client_port, "
+                    "backend_start, "
+                    "backend_xmin, "
+                    "state, "
+                    "sent_location AS sent_lsn, "
+                    "write_location AS write_lsn, "
+                    "flush_location AS flush_lsn, "
+                    "replay_location AS replay_lsn, "
+                    "sync_priority, "
+                    "sync_state, "
                     "rs.slot_name"
+                )
                 # Look for replication slot name
-                from_repslot = "LEFT JOIN pg_replication_slots rs " \
-                               "ON (r.pid = rs.active_pid) "
-                where_clauses += ["(rs.slot_type IS NULL OR "
-                                  "rs.slot_type = 'physical')"]
+                from_repslot = (
+                    "LEFT JOIN pg_replication_slots rs " "ON (r.pid = rs.active_pid) "
+                )
+                where_clauses += [
+                    "(rs.slot_type IS NULL OR " "rs.slot_type = 'physical')"
+                ]
             elif self.server_version >= 90400:
                 # PostgreSQL 9.4
-                what = "pid, " \
-                    "usesysid, " \
-                    "usename, " \
-                    "application_name, " \
-                    "client_addr, " \
-                    "client_hostname, " \
-                    "client_port, " \
-                    "backend_start, " \
-                    "backend_xmin, " \
-                    "state, " \
-                    "sent_location AS sent_lsn, " \
-                    "write_location AS write_lsn, " \
-                    "flush_location AS flush_lsn, " \
-                    "replay_location AS replay_lsn, " \
-                    "sync_priority, " \
+                what = (
+                    "pid, "
+                    "usesysid, "
+                    "usename, "
+                    "application_name, "
+                    "client_addr, "
+                    "client_hostname, "
+                    "client_port, "
+                    "backend_start, "
+                    "backend_xmin, "
+                    "state, "
+                    "sent_location AS sent_lsn, "
+                    "write_location AS write_lsn, "
+                    "flush_location AS flush_lsn, "
+                    "replay_location AS replay_lsn, "
+                    "sync_priority, "
                     "sync_state"
+                )
             elif self.server_version >= 90200:
                 # PostgreSQL 9.2/9.3
-                what = "pid, " \
-                    "usesysid, " \
-                    "usename, " \
-                    "application_name, " \
-                    "client_addr, " \
-                    "client_hostname, " \
-                    "client_port, " \
-                    "backend_start, " \
-                    "CAST (NULL AS xid) AS backend_xmin, " \
-                    "state, " \
-                    "sent_location AS sent_lsn, " \
-                    "write_location AS write_lsn, " \
-                    "flush_location AS flush_lsn, " \
-                    "replay_location AS replay_lsn, " \
-                    "sync_priority, " \
+                what = (
+                    "pid, "
+                    "usesysid, "
+                    "usename, "
+                    "application_name, "
+                    "client_addr, "
+                    "client_hostname, "
+                    "client_port, "
+                    "backend_start, "
+                    "CAST (NULL AS xid) AS backend_xmin, "
+                    "state, "
+                    "sent_location AS sent_lsn, "
+                    "write_location AS write_lsn, "
+                    "flush_location AS flush_lsn, "
+                    "replay_location AS replay_lsn, "
+                    "sync_priority, "
                     "sync_state"
+                )
             else:
                 # PostgreSQL 9.1
-                what = "procpid AS pid, " \
-                    "usesysid, " \
-                    "usename, " \
-                    "application_name, " \
-                    "client_addr, " \
-                    "client_hostname, " \
-                    "client_port, " \
-                    "backend_start, " \
-                    "CAST (NULL AS xid) AS backend_xmin, " \
-                    "state, " \
-                    "sent_location AS sent_lsn, " \
-                    "write_location AS write_lsn, " \
-                    "flush_location AS flush_lsn, " \
-                    "replay_location AS replay_lsn, " \
-                    "sync_priority, " \
+                what = (
+                    "procpid AS pid, "
+                    "usesysid, "
+                    "usename, "
+                    "application_name, "
+                    "client_addr, "
+                    "client_hostname, "
+                    "client_port, "
+                    "backend_start, "
+                    "CAST (NULL AS xid) AS backend_xmin, "
+                    "state, "
+                    "sent_location AS sent_lsn, "
+                    "write_location AS write_lsn, "
+                    "flush_location AS flush_lsn, "
+                    "replay_location AS replay_lsn, "
+                    "sync_priority, "
                     "sync_state"
+                )
 
             # Streaming client
             if client_type == self.STANDBY:
                 # Standby server
-                where_clauses += ['{replay_lsn} IS NOT NULL'.format(
-                    **self.name_map)]
+                where_clauses += ["{replay_lsn} IS NOT NULL".format(**self.name_map)]
             elif client_type == self.WALSTREAMER:
                 # WAL streamer
-                where_clauses += ['{replay_lsn} IS NULL'.format(
-                    **self.name_map)]
+                where_clauses += ["{replay_lsn} IS NULL".format(**self.name_map)]
 
             if where_clauses:
-                where = 'WHERE %s ' % ' AND '.join(where_clauses)
+                where = "WHERE %s " % " AND ".join(where_clauses)
             else:
-                where = ''
+                where = ""
 
             # Execute the query
             cur.execute(
@@ -1487,15 +1542,16 @@ class PostgreSQLConnection(PostgreSQL):
                 "FROM pg_stat_replication r "
                 "%s"
                 "%s"
-                "ORDER BY sync_state DESC, sync_priority"
-                .format(**self.name_map)
-                % (what, from_repslot, where))
+                "ORDER BY sync_state DESC, sync_priority".format(**self.name_map)
+                % (what, from_repslot, where)
+            )
 
             # Generate a list of standby objects
             return cur.fetchall()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug("Error retrieving status of standby servers: %s",
-                          force_str(e).strip())
+            _logger.debug(
+                "Error retrieving status of standby servers: %s", force_str(e).strip()
+            )
             return None
 
     def get_replication_slot(self, slot_name):
@@ -1515,21 +1571,24 @@ class PostgreSQLConnection(PostgreSQL):
         if self.server_version < 90400:
             # Raise exception if replication slot are not supported
             # by PostgreSQL version
-            raise PostgresUnsupportedFeature('9.4')
+            raise PostgresUnsupportedFeature("9.4")
         else:
             cur = self._cursor(cursor_factory=NamedTupleCursor)
             try:
-                cur.execute("SELECT slot_name, "
-                            "active, "
-                            "restart_lsn "
-                            "FROM pg_replication_slots "
-                            "WHERE slot_type = 'physical' "
-                            "AND slot_name = '%s'" % slot_name)
+                cur.execute(
+                    "SELECT slot_name, "
+                    "active, "
+                    "restart_lsn "
+                    "FROM pg_replication_slots "
+                    "WHERE slot_type = 'physical' "
+                    "AND slot_name = '%s'" % slot_name
+                )
                 # Retrieve the replication slot information
                 return cur.fetchone()
             except (PostgresConnectionError, psycopg2.Error) as e:
-                _logger.debug("Error retrieving replication_slots: %s",
-                              force_str(e).strip())
+                _logger.debug(
+                    "Error retrieving replication_slots: %s", force_str(e).strip()
+                )
                 raise
 
     def get_synchronous_standby_names(self):
@@ -1542,10 +1601,9 @@ class PostgreSQLConnection(PostgreSQL):
         """
         if self.server_version < 90100:
             # Raise exception if synchronous replication is not supported
-            raise PostgresUnsupportedFeature('9.1')
+            raise PostgresUnsupportedFeature("9.1")
         else:
-            synchronous_standby_names = (
-                self.get_setting('synchronous_standby_names'))
+            synchronous_standby_names = self.get_setting("synchronous_standby_names")
             # Return empty list if not defined
             if synchronous_standby_names is None:
                 return []
@@ -1556,14 +1614,14 @@ class PostgreSQLConnection(PostgreSQL):
             # We only need the name list, so we discard everything else.
 
             # The name list starts after the first parenthesis or at pos 0
-            names_start = synchronous_standby_names.find('(') + 1
-            names_end = synchronous_standby_names.rfind(')')
+            names_start = synchronous_standby_names.find("(") + 1
+            names_end = synchronous_standby_names.rfind(")")
             if names_end < 0:
                 names_end = len(synchronous_standby_names)
             names_list = synchronous_standby_names[names_start:names_end]
             # We can blindly strip double quotes because PostgreSQL enforces
             # the format of the synchronous_standby_names content
-            return [x.strip().strip('"') for x in names_list.split(',')]
+            return [x.strip().strip('"') for x in names_list.split(",")]
 
     @property
     def name_map(self):
@@ -1581,8 +1639,10 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             server_version = self.server_version
         except PostgresConnectionError:
-            _logger.debug('Impossible to detect the PostgreSQL version, '
-                          'name_map will return names from latest version')
+            _logger.debug(
+                "Impossible to detect the PostgreSQL version, "
+                "name_map will return names from latest version"
+            )
             server_version = None
 
         return function_name_map(server_version)

@@ -56,9 +56,7 @@ class ProcessManager(object):
     """
 
     # Map containing the tasks we want to retrieve (and eventually manage)
-    TASKS = {
-        'receive-wal': ServerWalReceiveLock
-    }
+    TASKS = {"receive-wal": ServerWalReceiveLock}
 
     def __init__(self, config):
         """
@@ -69,8 +67,11 @@ class ProcessManager(object):
         self.config = config
         self.process_list = []
         # Cycle over the lock files in the lock directory for this server
-        for path in glob(os.path.join(self.config.barman_lock_directory,
-                                      '.%s-*.lock' % self.config.name)):
+        for path in glob(
+            os.path.join(
+                self.config.barman_lock_directory, ".%s-*.lock" % self.config.name
+            )
+        ):
             for task, lock_class in self.TASKS.items():
                 # Check the lock_name against the lock class
                 lock = lock_class.build_if_matches(path)
@@ -82,12 +83,14 @@ class ProcessManager(object):
                         _logger.warning(
                             "Skipping the %s process for server %s: "
                             "Error reading the PID from lock file '%s'",
-                            task, self.config.name, path)
+                            task,
+                            self.config.name,
+                            path,
+                        )
                         break
                     # If there is a pid save it in the process list
                     if pid:
-                        self.process_list.append(
-                            ProcessInfo(pid, config.name, task))
+                        self.process_list.append(ProcessInfo(pid, config.name, task))
                     # In any case, we found a match, so we must stop iterating
                     # over the task types and handle the the next path
                     break
@@ -140,8 +143,9 @@ class ProcessManager(object):
         # killed successfully, otherwise is still alive.
         for counter in range(retries):
             try:
-                _logger.debug("Checking with SIG_DFL if PID %s is still alive",
-                              process_info.pid)
+                _logger.debug(
+                    "Checking with SIG_DFL if PID %s is still alive", process_info.pid
+                )
                 os.kill(process_info.pid, signal.SIG_DFL)
                 _logger.debug("os.kill call succeeded")
             except OSError as e:
@@ -153,6 +157,9 @@ class ProcessManager(object):
                 output.error("%s", e)
                 return False
             time.sleep(1)
-        _logger.debug("The PID %s has not been terminated after %s retries",
-                      process_info.pid, retries)
+        _logger.debug(
+            "The PID %s has not been terminated after %s retries",
+            process_info.pid,
+            retries,
+        )
         return False

@@ -41,8 +41,9 @@ def main(args=None):
 
     # Validate the destination directory before starting recovery
     if os.path.exists(config.recovery_dir) and os.listdir(config.recovery_dir):
-        logging.error("Destination %s already exists and it is not empty",
-                      config.recovery_dir)
+        logging.error(
+            "Destination %s already exists and it is not empty", config.recovery_dir
+        )
         raise SystemExit(1)
 
     try:
@@ -50,12 +51,13 @@ def main(args=None):
             url=config.source_url,
             encryption=config.encryption,
             profile_name=config.profile,
-            endpoint_url=config.endpoint_url)
+            endpoint_url=config.endpoint_url,
+        )
 
         with closing(cloud_interface):
             downloader = S3BackupDownloader(
-                cloud_interface=cloud_interface,
-                server_name=config.server_name)
+                cloud_interface=cloud_interface, server_name=config.server_name
+            )
 
             if not cloud_interface.test_connectivity():
                 raise SystemExit(1)
@@ -64,20 +66,18 @@ def main(args=None):
                 raise SystemExit(0)
 
             if not cloud_interface.bucket_exists:
-                logging.error("Bucket %s does not exist",
-                              cloud_interface.bucket_name)
+                logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise SystemExit(1)
 
             downloader.download_backup(config.backup_id, config.recovery_dir)
 
     except KeyboardInterrupt as exc:
         logging.error("Barman cloud restore was interrupted by the user")
-        logging.debug('Exception details:', exc_info=exc)
+        logging.debug("Exception details:", exc_info=exc)
         raise SystemExit(1)
     except Exception as exc:
-        logging.error("Barman cloud restore exception: %s",
-                      force_str(exc))
-        logging.debug('Exception details:', exc_info=exc)
+        logging.error("Barman cloud restore exception: %s", force_str(exc))
+        logging.debug("Exception details:", exc_info=exc)
         raise SystemExit(1)
 
 
@@ -89,64 +89,60 @@ def parse_arguments(args=None):
     """
 
     parser = argparse.ArgumentParser(
-        description='This script can be used to download a backup '
-                    'previously made with barman-cloud-backup command.'
-                    'Currently only AWS S3 is supported.',
-        add_help=False
+        description="This script can be used to download a backup "
+        "previously made with barman-cloud-backup command."
+        "Currently only AWS S3 is supported.",
+        add_help=False,
     )
 
     parser.add_argument(
-        'source_url',
-        help='URL of the cloud source, such as a bucket in AWS S3.'
-             ' For example: `s3://bucket/path/to/folder`.'
+        "source_url",
+        help="URL of the cloud source, such as a bucket in AWS S3."
+        " For example: `s3://bucket/path/to/folder`.",
     )
     parser.add_argument(
-        'server_name',
-        help='the name of the server as configured in Barman.'
+        "server_name", help="the name of the server as configured in Barman."
     )
+    parser.add_argument("backup_id", help="the backup ID")
+    parser.add_argument("recovery_dir", help="the path to a directory for recovery.")
     parser.add_argument(
-        'backup_id',
-        help='the backup ID'
+        "-V", "--version", action="version", version="%%(prog)s %s" % barman.__version__
     )
-    parser.add_argument(
-        'recovery_dir',
-        help='the path to a directory for recovery.'
-    )
-    parser.add_argument(
-        '-V', '--version',
-        action='version', version='%%(prog)s %s' % barman.__version__
-    )
-    parser.add_argument(
-        '--help',
-        action='help',
-        help='show this help message and exit')
+    parser.add_argument("--help", action="help", help="show this help message and exit")
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument(
-        '-v', '--verbose',
-        action='count',
+        "-v",
+        "--verbose",
+        action="count",
         default=0,
-        help='increase output verbosity (e.g., -vv is more than -v)')
+        help="increase output verbosity (e.g., -vv is more than -v)",
+    )
     verbosity.add_argument(
-        '-q', '--quiet',
-        action='count',
+        "-q",
+        "--quiet",
+        action="count",
         default=0,
-        help='decrease output verbosity (e.g., -qq is less than -q)')
-    parser.add_argument(
-        '-P', '--profile',
-        help='profile name (e.g. INI section in AWS credentials file)',
+        help="decrease output verbosity (e.g., -qq is less than -q)",
     )
     parser.add_argument(
-        "-e", "--encryption",
+        "-P",
+        "--profile",
+        help="profile name (e.g. INI section in AWS credentials file)",
+    )
+    parser.add_argument(
+        "-e",
+        "--encryption",
         help="Enable server-side encryption for the transfer. "
-             "Allowed values: 'AES256', 'aws:kms'",
-        choices=['AES256', 'aws:kms'],
+        "Allowed values: 'AES256', 'aws:kms'",
+        choices=["AES256", "aws:kms"],
         metavar="ENCRYPTION",
     )
     parser.add_argument(
-        "-t", "--test",
+        "-t",
+        "--test",
         help="Test cloud connectivity and exit",
         action="store_true",
-        default=False
+        default=False,
     )
     parser.add_argument(
         "--endpoint-url",
@@ -160,8 +156,8 @@ class S3BackupDownloader(object):
     """
     S3 download client
     """
-    def __init__(self, cloud_interface,
-                 server_name):
+
+    def __init__(self, cloud_interface, server_name):
         """
         Object responsible for handling interactions with S3
 
@@ -185,8 +181,9 @@ class S3BackupDownloader(object):
         backup_info = self.catalog.get_backup_info(backup_id)
 
         if not backup_info:
-            logging.error("Backup %s for server %s does not exists",
-                          backup_id, self.server_name)
+            logging.error(
+                "Backup %s for server %s does not exists", backup_id, self.server_name
+            )
             raise SystemExit(1)
 
         backup_files = self.catalog.get_backup_files(backup_info)
@@ -208,13 +205,14 @@ class S3BackupDownloader(object):
                 else:
                     raise AssertionError(
                         "The backup file oid '%s' must be present "
-                        "in backupinfo.tablespaces list")
+                        "in backupinfo.tablespaces list"
+                    )
 
             # Validate the destination directory before starting recovery
             if os.path.exists(target_dir) and os.listdir(target_dir):
                 logging.error(
-                    "Destination %s already exists and it is not empty",
-                    target_dir)
+                    "Destination %s already exists and it is not empty", target_dir
+                )
                 raise SystemExit(1)
             copy_jobs.append([file_info, target_dir])
             for additional_file in file_info.additional_files:
@@ -223,13 +221,16 @@ class S3BackupDownloader(object):
         # Now it's time to download the files
         for file_info, target_dir in copy_jobs:
             # Download the file
-            logging.debug("Extracting %s to %s (%s)",
-                          file_info.path, target_dir,
-                          "decompressing " + file_info.compression
-                          if file_info.compression
-                          else "no compression")
+            logging.debug(
+                "Extracting %s to %s (%s)",
+                file_info.path,
+                target_dir,
+                "decompressing " + file_info.compression
+                if file_info.compression
+                else "no compression",
+            )
             self.cloud_interface.extract_tar(file_info.path, target_dir)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

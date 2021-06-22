@@ -30,8 +30,12 @@ from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
 from barman.command_wrappers import CommandFailedException, PgReceiveXlog
-from barman.exceptions import (AbortedRetryHookScript, ArchiverFailure,
-                               DuplicateWalFile, MatchingDuplicateWalFile)
+from barman.exceptions import (
+    AbortedRetryHookScript,
+    ArchiverFailure,
+    DuplicateWalFile,
+    MatchingDuplicateWalFile,
+)
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import WalFileInfo
 from barman.remote_status import RemoteStatusMixin
@@ -134,12 +138,13 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
         :param boolean verbose: Flag for verbose output
         """
-        compressor = self.backup_manager.compression_manager \
-            .get_default_compressor()
-        stamp = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+        compressor = self.backup_manager.compression_manager.get_default_compressor()
+        stamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
         processed = 0
         header = "Processing xlog segments from %s for %s" % (
-                 self.name, self.config.name)
+            self.name,
+            self.config.name,
+        )
 
         # Get the next batch of WAL files to be processed
         batch = self.get_next_batch()
@@ -148,24 +153,28 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         if batch.size:
             if batch.size > batch.run_size:
                 # Batch mode enabled
-                _logger.info("Found %s xlog segments from %s for %s."
-                             " Archive a batch of %s segments in this run.",
-                             batch.size,
-                             self.name,
-                             self.config.name,
-                             batch.run_size)
+                _logger.info(
+                    "Found %s xlog segments from %s for %s."
+                    " Archive a batch of %s segments in this run.",
+                    batch.size,
+                    self.name,
+                    self.config.name,
+                    batch.run_size,
+                )
                 header += " (batch size: %s)" % batch.run_size
             else:
                 # Single run mode (traditional)
-                _logger.info("Found %s xlog segments from %s for %s."
-                             " Archive all segments in one run.",
-                             batch.size,
-                             self.name,
-                             self.config.name)
+                _logger.info(
+                    "Found %s xlog segments from %s for %s."
+                    " Archive all segments in one run.",
+                    batch.size,
+                    self.name,
+                    self.config.name,
+                )
         else:
-            _logger.info("No xlog segments found from %s for %s.",
-                         self.name,
-                         self.config.name)
+            _logger.info(
+                "No xlog segments found from %s for %s.", self.name, self.config.name
+            )
 
         # Print the header (verbose mode)
         if verbose:
@@ -179,20 +188,26 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
             # Exit when archive batch size is reached
             if processed >= batch.run_size:
-                _logger.debug("Batch size reached (%s) - "
-                              "Exit %s process for %s",
-                              batch.batch_size,
-                              self.name,
-                              self.config.name)
+                _logger.debug(
+                    "Batch size reached (%s) - " "Exit %s process for %s",
+                    batch.batch_size,
+                    self.name,
+                    self.config.name,
+                )
                 break
 
             processed += 1
 
             # Report to the user the WAL file we are archiving
             output.info("\t%s", wal_info.name, log=False)
-            _logger.info("Archiving segment %s of %s from %s: %s/%s",
-                         processed, batch.run_size, self.name,
-                         self.config.name, wal_info.name)
+            _logger.info(
+                "Archiving segment %s of %s from %s: %s/%s",
+                processed,
+                batch.run_size,
+                self.name,
+                self.config.name,
+                wal_info.name,
+            )
             # Archive the WAL file
             try:
                 self.archive_wal(compressor, wal_info)
@@ -201,58 +216,73 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                 os.unlink(wal_info.orig_filename)
                 continue
             except DuplicateWalFile:
-                output.info("\tError: %s is already present in server %s. "
-                            "File moved to errors directory.",
-                            wal_info.name,
-                            self.config.name)
+                output.info(
+                    "\tError: %s is already present in server %s. "
+                    "File moved to errors directory.",
+                    wal_info.name,
+                    self.config.name,
+                )
                 error_dst = os.path.join(
                     self.config.errors_directory,
-                    "%s.%s.duplicate" % (wal_info.name,
-                                         stamp))
+                    "%s.%s.duplicate" % (wal_info.name, stamp),
+                )
                 # TODO: cover corner case of duplication (unlikely,
                 # but theoretically possible)
                 shutil.move(wal_info.orig_filename, error_dst)
                 continue
             except AbortedRetryHookScript as e:
-                _logger.warning("Archiving of %s/%s aborted by "
-                                "pre_archive_retry_script."
-                                "Reason: %s" % (self.config.name,
-                                                wal_info.name,
-                                                e))
+                _logger.warning(
+                    "Archiving of %s/%s aborted by "
+                    "pre_archive_retry_script."
+                    "Reason: %s" % (self.config.name, wal_info.name, e)
+                )
                 return
 
         if processed:
-            _logger.debug("Archived %s out of %s xlog segments from %s for %s",
-                          processed, batch.size, self.name, self.config.name)
+            _logger.debug(
+                "Archived %s out of %s xlog segments from %s for %s",
+                processed,
+                batch.size,
+                self.name,
+                self.config.name,
+            )
         elif verbose:
             output.info("\tno file found", log=False)
 
         if batch.errors:
-            output.info("Some unknown objects have been found while "
-                        "processing xlog segments for %s. "
-                        "Objects moved to errors directory:",
-                        self.config.name,
-                        log=False)
+            output.info(
+                "Some unknown objects have been found while "
+                "processing xlog segments for %s. "
+                "Objects moved to errors directory:",
+                self.config.name,
+                log=False,
+            )
             # Log unexpected files
-            _logger.warning("Archiver is about to move %s unexpected file(s) "
-                            "to errors directory for %s from %s",
-                            len(batch.errors),
-                            self.config.name,
-                            self.name)
+            _logger.warning(
+                "Archiver is about to move %s unexpected file(s) "
+                "to errors directory for %s from %s",
+                len(batch.errors),
+                self.config.name,
+                self.name,
+            )
             for error in batch.errors:
                 basename = os.path.basename(error)
                 output.info("\t%s", basename, log=False)
                 # Print informative log line.
-                _logger.warning("Moving unexpected file for %s from %s: %s",
-                                self.config.name, self.name, basename)
+                _logger.warning(
+                    "Moving unexpected file for %s from %s: %s",
+                    self.config.name,
+                    self.name,
+                    basename,
+                )
                 error_dst = os.path.join(
-                    self.config.errors_directory,
-                    "%s.%s.unknown" % (basename, stamp))
+                    self.config.errors_directory, "%s.%s.unknown" % (basename, stamp)
+                )
                 try:
                     shutil.move(error, error_dst)
                 except IOError as e:
                     if e.errno == errno.ENOENT:
-                        _logger.warning('%s not found' % error)
+                        _logger.warning("%s not found" % error)
 
     def archive_wal(self, compressor, wal_info):
         """
@@ -265,7 +295,7 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         src_file = wal_info.orig_filename
         src_dir = os.path.dirname(src_file)
         dst_file = wal_info.fullpath(self.server)
-        tmp_file = dst_file + '.tmp'
+        tmp_file = dst_file + ".tmp"
         dst_dir = os.path.dirname(dst_file)
 
         comp_manager = self.backup_manager.compression_manager
@@ -273,15 +303,14 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         error = None
         try:
             # Run the pre_archive_script if present.
-            script = HookScriptRunner(self.backup_manager,
-                                      'archive_script', 'pre')
+            script = HookScriptRunner(self.backup_manager, "archive_script", "pre")
             script.env_from_wal_info(wal_info, src_file)
             script.run()
 
             # Run the pre_archive_retry_script if present.
-            retry_script = RetryHookScriptRunner(self.backup_manager,
-                                                 'archive_retry_script',
-                                                 'pre')
+            retry_script = RetryHookScriptRunner(
+                self.backup_manager, "archive_retry_script", "pre"
+            )
             retry_script.env_from_wal_info(wal_info, src_file)
             retry_script.run()
 
@@ -292,15 +321,15 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
                 dst_info = comp_manager.get_wal_file_info(dst_file)
                 try:
                     if dst_info.compression is not None:
-                        dst_uncompressed = dst_file + '.uncompressed'
-                        comp_manager \
-                            .get_compressor(dst_info.compression) \
-                            .decompress(dst_file, dst_uncompressed)
+                        dst_uncompressed = dst_file + ".uncompressed"
+                        comp_manager.get_compressor(dst_info.compression).decompress(
+                            dst_file, dst_uncompressed
+                        )
                     if wal_info.compression:
-                        src_uncompressed = src_file + '.uncompressed'
-                        comp_manager \
-                            .get_compressor(wal_info.compression) \
-                            .decompress(src_file, src_uncompressed)
+                        src_uncompressed = src_file + ".uncompressed"
+                        comp_manager.get_compressor(wal_info.compression).decompress(
+                            src_file, src_uncompressed
+                        )
                     # Directly compare files.
                     # When the files are identical
                     # raise a MatchingDuplicateWalFile exception,
@@ -322,7 +351,7 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
             # Perform the real filesystem operation with the xlogdb lock taken.
             # This makes the operation atomic from the xlogdb file POV
-            with self.server.xlogdb('a') as fxlogdb:
+            with self.server.xlogdb("a") as fxlogdb:
                 if compressor and not wal_info.compression:
                     shutil.copystat(src_file, tmp_file)
                     os.rename(tmp_file, dst_file)
@@ -369,20 +398,23 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         finally:
             # Run the post_archive_retry_script if present.
             try:
-                retry_script = RetryHookScriptRunner(self,
-                                                     'archive_retry_script',
-                                                     'post')
+                retry_script = RetryHookScriptRunner(
+                    self, "archive_retry_script", "post"
+                )
                 retry_script.env_from_wal_info(wal_info, dst_file, error)
                 retry_script.run()
             except AbortedRetryHookScript as e:
                 # Ignore the ABORT_STOP as it is a post-hook operation
-                _logger.warning("Ignoring stop request after receiving "
-                                "abort (exit code %d) from post-archive "
-                                "retry hook script: %s",
-                                e.hook.exit_status, e.hook.script)
+                _logger.warning(
+                    "Ignoring stop request after receiving "
+                    "abort (exit code %d) from post-archive "
+                    "retry hook script: %s",
+                    e.hook.exit_status,
+                    e.hook.script,
+                )
 
             # Run the post_archive_script if present.
-            script = HookScriptRunner(self, 'archive_script', 'post', error)
+            script = HookScriptRunner(self, "archive_script", "post", error)
             script.env_from_wal_info(wal_info, dst_file)
             script.run()
 
@@ -428,16 +460,16 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
         # Count the file types
         for name in error_files:
             if name.endswith(".error"):
-                counters['not relevant'] += 1
+                counters["not relevant"] += 1
             elif name.endswith(".duplicate"):
-                counters['duplicates'] += 1
+                counters["duplicates"] += 1
             elif name.endswith(".unknown"):
-                counters['unknown'] += 1
+                counters["unknown"] += 1
             else:
-                counters['unknown failure'] += 1
+                counters["unknown failure"] += 1
 
         # Return a summary list of the form: "item a: 2, item b: 5"
-        return ', '.join("%s: %s" % entry for entry in counters.items())
+        return ", ".join("%s: %s" % entry for entry in counters.items())
 
 
 class FileWalArchiver(WalArchiver):
@@ -447,7 +479,7 @@ class FileWalArchiver(WalArchiver):
 
     def __init__(self, backup_manager):
 
-        super(FileWalArchiver, self).__init__(backup_manager, 'file archival')
+        super(FileWalArchiver, self).__init__(backup_manager, "file archival")
 
     def fetch_remote_status(self):
         """
@@ -458,15 +490,14 @@ class FileWalArchiver(WalArchiver):
 
         :rtype: dict[str, None|str]
         """
-        result = dict.fromkeys(
-            ['archive_mode', 'archive_command'], None)
+        result = dict.fromkeys(["archive_mode", "archive_command"], None)
         postgres = self.server.postgres
         # If Postgres is not available we cannot detect anything
         if not postgres:
             return result
         # Query the database for 'archive_mode' and 'archive_command'
-        result['archive_mode'] = postgres.get_setting('archive_mode')
-        result['archive_command'] = postgres.get_setting('archive_command')
+        result["archive_mode"] = postgres.get_setting("archive_mode")
+        result["archive_command"] = postgres.get_setting("archive_command")
 
         # Add pg_stat_archiver statistics if the view is supported
         pg_stat_archiver = postgres.get_archiver_stats()
@@ -487,8 +518,7 @@ class FileWalArchiver(WalArchiver):
         # IMPORTANT: the list is sorted, and this allows us to know that the
         # WAL stream we have is monotonically increasing. That allows us to
         # verify that a backup has all the WALs required for the restore.
-        file_names = glob(os.path.join(
-            self.config.incoming_wals_directory, '*'))
+        file_names = glob(os.path.join(self.config.incoming_wals_directory, "*"))
         file_names.sort()
 
         # Process anything that looks like a valid WAL file. Anything
@@ -497,7 +527,7 @@ class FileWalArchiver(WalArchiver):
         errors = []
         for file_name in file_names:
             # Ignore temporary files
-            if file_name.endswith('.tmp'):
+            if file_name.endswith(".tmp"):
                 continue
             if xlog.is_any_xlog_file(file_name) and os.path.isfile(file_name):
                 files.append(file_name)
@@ -506,9 +536,7 @@ class FileWalArchiver(WalArchiver):
 
         # Build the list of WalFileInfo
         wal_files = [WalFileInfo.from_file(f) for f in files]
-        return WalArchiverQueue(wal_files,
-                                batch_size=batch_size,
-                                errors=errors)
+        return WalArchiverQueue(wal_files, batch_size=batch_size, errors=errors)
 
     def check(self, check_strategy):
         """
@@ -518,38 +546,41 @@ class FileWalArchiver(WalArchiver):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        check_strategy.init_check('archive_mode')
+        check_strategy.init_check("archive_mode")
         remote_status = self.get_remote_status()
         # If archive_mode is None, there are issues connecting to PostgreSQL
-        if remote_status['archive_mode'] is None:
+        if remote_status["archive_mode"] is None:
             return
         # Check archive_mode parameter: must be on
-        if remote_status['archive_mode'] in ('on', 'always'):
+        if remote_status["archive_mode"] in ("on", "always"):
             check_strategy.result(self.config.name, True)
         else:
             msg = "please set it to 'on'"
             if self.server.postgres.server_version >= 90500:
                 msg += " or 'always'"
             check_strategy.result(self.config.name, False, hint=msg)
-        check_strategy.init_check('archive_command')
-        if remote_status['archive_command'] and \
-                remote_status['archive_command'] != '(disabled)':
-            check_strategy.result(self.config.name,
-                                  True,
-                                  check='archive_command')
+        check_strategy.init_check("archive_command")
+        if (
+            remote_status["archive_command"]
+            and remote_status["archive_command"] != "(disabled)"
+        ):
+            check_strategy.result(self.config.name, True, check="archive_command")
 
             # Report if the archiving process works without issues.
             # Skip if the archive_command check fails
             # It can be None if PostgreSQL is older than 9.4
-            if remote_status.get('is_archiving') is not None:
+            if remote_status.get("is_archiving") is not None:
                 check_strategy.result(
                     self.config.name,
-                    remote_status['is_archiving'],
-                    check='continuous archiving')
+                    remote_status["is_archiving"],
+                    check="continuous archiving",
+                )
         else:
             check_strategy.result(
-                self.config.name, False,
-                hint='please set it accordingly to documentation')
+                self.config.name,
+                False,
+                hint="please set it accordingly to documentation",
+            )
 
     def status(self):
         """
@@ -559,40 +590,53 @@ class FileWalArchiver(WalArchiver):
         remote_status = self.server.get_remote_status()
 
         # If archive_mode is None, there are issues connecting to PostgreSQL
-        if remote_status['archive_mode'] is None:
+        if remote_status["archive_mode"] is None:
             return
 
         output.result(
-            'status', self.config.name,
+            "status",
+            self.config.name,
             "archive_command",
             "PostgreSQL 'archive_command' setting",
-            remote_status['archive_command'] or "FAILED "
-            "(please set it accordingly to documentation)")
-        last_wal = remote_status.get('last_archived_wal')
+            remote_status["archive_command"]
+            or "FAILED " "(please set it accordingly to documentation)",
+        )
+        last_wal = remote_status.get("last_archived_wal")
         # If PostgreSQL is >= 9.4 we have the last_archived_time
-        if last_wal and remote_status.get('last_archived_time'):
-            last_wal += ", at %s" % (
-                remote_status['last_archived_time'].ctime())
-        output.result('status', self.config.name,
-                      "last_archived_wal",
-                      "Last archived WAL",
-                      last_wal or "No WAL segment shipped yet")
+        if last_wal and remote_status.get("last_archived_time"):
+            last_wal += ", at %s" % (remote_status["last_archived_time"].ctime())
+        output.result(
+            "status",
+            self.config.name,
+            "last_archived_wal",
+            "Last archived WAL",
+            last_wal or "No WAL segment shipped yet",
+        )
         # Set output for WAL archive failures (PostgreSQL >= 9.4)
-        if remote_status.get('failed_count') is not None:
-            remote_fail = str(remote_status['failed_count'])
-            if int(remote_status['failed_count']) > 0:
+        if remote_status.get("failed_count") is not None:
+            remote_fail = str(remote_status["failed_count"])
+            if int(remote_status["failed_count"]) > 0:
                 remote_fail += " (%s at %s)" % (
-                    remote_status['last_failed_wal'],
-                    remote_status['last_failed_time'].ctime())
-            output.result('status', self.config.name, 'failed_count',
-                          'Failures of WAL archiver', remote_fail)
-        # Add hourly archive rate if available (PostgreSQL >= 9.4) and > 0
-        if remote_status.get('current_archived_wals_per_second'):
+                    remote_status["last_failed_wal"],
+                    remote_status["last_failed_time"].ctime(),
+                )
             output.result(
-                'status', self.config.name,
-                'server_archived_wals_per_hour',
-                'Server WAL archiving rate', '%0.2f/hour' % (
-                    3600 * remote_status['current_archived_wals_per_second']))
+                "status",
+                self.config.name,
+                "failed_count",
+                "Failures of WAL archiver",
+                remote_fail,
+            )
+        # Add hourly archive rate if available (PostgreSQL >= 9.4) and > 0
+        if remote_status.get("current_archived_wals_per_second"):
+            output.result(
+                "status",
+                self.config.name,
+                "server_archived_wals_per_hour",
+                "Server WAL archiving rate",
+                "%0.2f/hour"
+                % (3600 * remote_status["current_archived_wals_per_second"]),
+            )
 
 
 class StreamingWalArchiver(WalArchiver):
@@ -601,7 +645,7 @@ class StreamingWalArchiver(WalArchiver):
     """
 
     def __init__(self, backup_manager):
-        super(StreamingWalArchiver, self).__init__(backup_manager, 'streaming')
+        super(StreamingWalArchiver, self).__init__(backup_manager, "streaming")
 
     def fetch_remote_status(self):
         """
@@ -613,23 +657,24 @@ class StreamingWalArchiver(WalArchiver):
         :rtype: dict[str, None|str]
         """
         remote_status = dict.fromkeys(
-            ('pg_receivexlog_compatible',
-             'pg_receivexlog_installed',
-             'pg_receivexlog_path',
-             'pg_receivexlog_supports_slots',
-             'pg_receivexlog_synchronous',
-             'pg_receivexlog_version'),
-            None)
+            (
+                "pg_receivexlog_compatible",
+                "pg_receivexlog_installed",
+                "pg_receivexlog_path",
+                "pg_receivexlog_supports_slots",
+                "pg_receivexlog_synchronous",
+                "pg_receivexlog_version",
+            ),
+            None,
+        )
 
         # Test pg_receivexlog existence
-        version_info = PgReceiveXlog.get_version_info(
-            self.server.path)
-        if version_info['full_path']:
+        version_info = PgReceiveXlog.get_version_info(self.server.path)
+        if version_info["full_path"]:
             remote_status["pg_receivexlog_installed"] = True
-            remote_status["pg_receivexlog_path"] = version_info['full_path']
-            remote_status["pg_receivexlog_version"] = (
-                version_info['full_version'])
-            pgreceivexlog_version = version_info['major_version']
+            remote_status["pg_receivexlog_path"] = version_info["full_path"]
+            remote_status["pg_receivexlog_version"] = version_info["full_version"]
+            pgreceivexlog_version = version_info["major_version"]
         else:
             remote_status["pg_receivexlog_installed"] = False
             return remote_status
@@ -649,7 +694,7 @@ class StreamingWalArchiver(WalArchiver):
 
         # Set conservative default values (False) for modern features
         remote_status["pg_receivexlog_compatible"] = False
-        remote_status['pg_receivexlog_supports_slots'] = False
+        remote_status["pg_receivexlog_supports_slots"] = False
         remote_status["pg_receivexlog_synchronous"] = False
 
         # pg_receivexlog 9.2 is compatible only with PostgreSQL 9.2.
@@ -667,13 +712,12 @@ class StreamingWalArchiver(WalArchiver):
 
             # replication slots are supported starting from version 9.4
             if "9.4" <= pg_version <= pgreceivexlog_version:
-                remote_status['pg_receivexlog_supports_slots'] = True
+                remote_status["pg_receivexlog_supports_slots"] = True
 
             # Synchronous WAL streaming requires replication slots
             # and pg_receivexlog >= 9.5
             if "9.4" <= pg_version and "9.5" <= pgreceivexlog_version:
-                remote_status["pg_receivexlog_synchronous"] = (
-                    self._is_synchronous())
+                remote_status["pg_receivexlog_synchronous"] = self._is_synchronous()
 
         return remote_status
 
@@ -692,49 +736,54 @@ class StreamingWalArchiver(WalArchiver):
         streaming_status = self.server.streaming.get_remote_status()
         if streaming_status["streaming_supported"] is None:
             raise ArchiverFailure(
-                'failed opening the PostgreSQL streaming connection '
-                'for server %s' % (self.config.name))
+                "failed opening the PostgreSQL streaming connection "
+                "for server %s" % (self.config.name)
+            )
         elif not streaming_status["streaming_supported"]:
             raise ArchiverFailure(
-                'PostgreSQL version too old (%s < 9.2)' %
-                self.server.streaming.server_txt_version)
+                "PostgreSQL version too old (%s < 9.2)"
+                % self.server.streaming.server_txt_version
+            )
         # Execute basic sanity checks on pg_receivexlog
         remote_status = self.get_remote_status()
         if not remote_status["pg_receivexlog_installed"]:
+            raise ArchiverFailure("pg_receivexlog not present in $PATH")
+        if not remote_status["pg_receivexlog_compatible"]:
             raise ArchiverFailure(
-                'pg_receivexlog not present in $PATH')
-        if not remote_status['pg_receivexlog_compatible']:
-            raise ArchiverFailure(
-                'pg_receivexlog version not compatible with '
-                'PostgreSQL server version')
+                "pg_receivexlog version not compatible with "
+                "PostgreSQL server version"
+            )
 
         # Execute sanity check on replication slot usage
         postgres_status = self.server.postgres.get_remote_status()
         if self.config.slot_name:
             # Check if slots are supported
-            if not remote_status['pg_receivexlog_supports_slots']:
+            if not remote_status["pg_receivexlog_supports_slots"]:
                 raise ArchiverFailure(
-                    'Physical replication slot not supported by %s '
-                    '(9.4 or higher is required)' %
-                    self.server.streaming.server_txt_version)
+                    "Physical replication slot not supported by %s "
+                    "(9.4 or higher is required)"
+                    % self.server.streaming.server_txt_version
+                )
             # Check if the required slot exists
-            if postgres_status['replication_slot'] is None:
-                if self.config.create_slot == 'auto':
+            if postgres_status["replication_slot"] is None:
+                if self.config.create_slot == "auto":
                     if not reset:
-                        output.info("Creating replication slot '%s'",
-                                    self.config.slot_name)
+                        output.info(
+                            "Creating replication slot '%s'", self.config.slot_name
+                        )
                         self.server.create_physical_repslot()
                 else:
                     raise ArchiverFailure(
                         "replication slot '%s' doesn't exist. "
                         "Please execute "
-                        "'barman receive-wal --create-slot %s'" %
-                        (self.config.slot_name, self.config.name))
+                        "'barman receive-wal --create-slot %s'"
+                        % (self.config.slot_name, self.config.name)
+                    )
             # Check if the required slot is available
-            elif postgres_status['replication_slot'].active:
+            elif postgres_status["replication_slot"].active:
                 raise ArchiverFailure(
-                    "replication slot '%s' is already in use" %
-                    (self.config.slot_name,))
+                    "replication slot '%s' is already in use" % (self.config.slot_name,)
+                )
 
         # Check if is a reset request
         if reset:
@@ -742,48 +791,44 @@ class StreamingWalArchiver(WalArchiver):
             return
 
         # Check the size of the .partial WAL file and truncate it if needed
-        self._truncate_partial_file_if_needed(
-            postgres_status['xlog_segment_size'])
+        self._truncate_partial_file_if_needed(postgres_status["xlog_segment_size"])
 
         # Make sure we are not wasting precious PostgreSQL resources
         self.server.close()
 
-        _logger.info('Activating WAL archiving through streaming protocol')
+        _logger.info("Activating WAL archiving through streaming protocol")
         try:
-            output_handler = PgReceiveXlog.make_output_handler(
-                self.config.name + ': ')
+            output_handler = PgReceiveXlog.make_output_handler(self.config.name + ": ")
             receive = PgReceiveXlog(
                 connection=self.server.streaming,
                 destination=self.config.streaming_wals_directory,
-                command=remote_status['pg_receivexlog_path'],
-                version=remote_status['pg_receivexlog_version'],
+                command=remote_status["pg_receivexlog_path"],
+                version=remote_status["pg_receivexlog_version"],
                 app_name=self.config.streaming_archiver_name,
                 path=self.server.path,
                 slot_name=self.config.slot_name,
-                synchronous=remote_status['pg_receivexlog_synchronous'],
+                synchronous=remote_status["pg_receivexlog_synchronous"],
                 out_handler=output_handler,
-                err_handler=output_handler
+                err_handler=output_handler,
             )
             # Finally execute the pg_receivexlog process
             receive.execute()
         except CommandFailedException as e:
             # Retrieve the return code from the exception
-            ret_code = e.args[0]['ret']
+            ret_code = e.args[0]["ret"]
             if ret_code < 0:
                 # If the return code is negative, then pg_receivexlog
                 # was terminated by a signal
-                msg = "pg_receivexlog terminated by signal: %s" \
-                      % abs(ret_code)
+                msg = "pg_receivexlog terminated by signal: %s" % abs(ret_code)
             else:
                 # Otherwise terminated with an error
-                msg = "pg_receivexlog terminated with error code: %s"\
-                      % ret_code
+                msg = "pg_receivexlog terminated with error code: %s" % ret_code
 
             raise ArchiverFailure(msg)
         except KeyboardInterrupt:
             # This is a normal termination, so there is nothing to do beside
             # informing the user.
-            output.info('SIGINT received. Terminate gracefully.')
+            output.info("SIGINT received. Terminate gracefully.")
 
     def _reset_streaming_status(self, postgres_status, streaming_status):
         """
@@ -792,23 +837,25 @@ class StreamingWalArchiver(WalArchiver):
         the PostgreSQL insert location
         """
         current_wal = xlog.location_to_xlogfile_name_offset(
-            postgres_status['current_lsn'],
-            streaming_status['timeline'],
-            postgres_status['xlog_segment_size']
-        )['file_name']
+            postgres_status["current_lsn"],
+            streaming_status["timeline"],
+            postgres_status["xlog_segment_size"],
+        )["file_name"]
         restart_wal = current_wal
-        if postgres_status['replication_slot'] and \
-                postgres_status['replication_slot'].restart_lsn:
+        if (
+            postgres_status["replication_slot"]
+            and postgres_status["replication_slot"].restart_lsn
+        ):
             restart_wal = xlog.location_to_xlogfile_name_offset(
-                postgres_status['replication_slot'].restart_lsn,
-                streaming_status['timeline'],
-                postgres_status['xlog_segment_size']
-            )['file_name']
-        restart_path = os.path.join(self.config.streaming_wals_directory,
-                                    restart_wal)
-        restart_partial_path = restart_path + '.partial'
-        wal_files = sorted(glob(os.path.join(
-            self.config.streaming_wals_directory, '*')), reverse=True)
+                postgres_status["replication_slot"].restart_lsn,
+                streaming_status["timeline"],
+                postgres_status["xlog_segment_size"],
+            )["file_name"]
+        restart_path = os.path.join(self.config.streaming_wals_directory, restart_wal)
+        restart_partial_path = restart_path + ".partial"
+        wal_files = sorted(
+            glob(os.path.join(self.config.streaming_wals_directory, "*")), reverse=True
+        )
 
         # Pick the newer file
         last = None
@@ -825,7 +872,9 @@ class StreamingWalArchiver(WalArchiver):
             output.error(
                 "The receive-wal position is ahead of PostgreSQL "
                 "current WAL lsn (%s > %s)",
-                os.path.basename(last), postgres_status['current_xlog'])
+                os.path.basename(last),
+                postgres_status["current_xlog"],
+            )
             return
 
         output.info("Resetting receive-wal directory status")
@@ -833,7 +882,7 @@ class StreamingWalArchiver(WalArchiver):
             output.info("Removing status file %s" % last)
             os.unlink(last)
         output.info("Creating status file %s" % restart_partial_path)
-        open(restart_partial_path, 'w').close()
+        open(restart_partial_path, "w").close()
 
     def _truncate_partial_file_if_needed(self, xlog_segment_size):
         """
@@ -842,8 +891,9 @@ class StreamingWalArchiver(WalArchiver):
         :param int xlog_segment_size:
         """
         # Retrieve the partial list (only one is expected)
-        partial_files = glob(os.path.join(
-            self.config.streaming_wals_directory, '*.partial'))
+        partial_files = glob(
+            os.path.join(self.config.streaming_wals_directory, "*.partial")
+        )
 
         # Take the last partial file, ignoring wrongly formatted file names
         last_partial = None
@@ -864,10 +914,11 @@ class StreamingWalArchiver(WalArchiver):
 
         # otherwise truncate the file to be empty. This is safe because
         # pg_receivewal pads the file to the full size before start writing.
-        output.info("Truncating partial file %s that has wrong size %s "
-                    "while %s was expected." %
-                    (last_partial, partial_size, xlog_segment_size))
-        open(last_partial, 'wb').close()
+        output.info(
+            "Truncating partial file %s that has wrong size %s "
+            "while %s was expected." % (last_partial, partial_size, xlog_segment_size)
+        )
+        open(last_partial, "wb").close()
 
     def get_next_batch(self):
         """
@@ -886,8 +937,7 @@ class StreamingWalArchiver(WalArchiver):
         # IMPORTANT: the list is sorted, and this allows us to know that the
         # WAL stream we have is monotonically increasing. That allows us to
         # verify that a backup has all the WALs required for the restore.
-        file_names = glob(os.path.join(
-            self.config.streaming_wals_directory, '*'))
+        file_names = glob(os.path.join(self.config.streaming_wals_directory, "*"))
         file_names.sort()
 
         # Process anything that looks like a valid WAL file,
@@ -898,7 +948,7 @@ class StreamingWalArchiver(WalArchiver):
         errors = []
         for file_name in file_names:
             # Ignore temporary files
-            if file_name.endswith('.tmp'):
+            if file_name.endswith(".tmp"):
                 continue
             # If the file doesn't exist, it has been renamed/removed while
             # we were reading the directory. Ignore it.
@@ -916,9 +966,10 @@ class StreamingWalArchiver(WalArchiver):
         # and treat the rest as normal files
         if len(skip) > 1:
             partials = skip[:-1]
-            _logger.info('Archiving partial files for server %s: %s' %
-                         (self.config.name,
-                          ", ".join([os.path.basename(f) for f in partials])))
+            _logger.info(
+                "Archiving partial files for server %s: %s"
+                % (self.config.name, ", ".join([os.path.basename(f) for f in partials]))
+            )
             files.extend(partials)
             skip = skip[-1:]
 
@@ -928,9 +979,9 @@ class StreamingWalArchiver(WalArchiver):
 
         # Build the list of WalFileInfo
         wal_files = [WalFileInfo.from_file(f, compression=None) for f in files]
-        return WalArchiverQueue(wal_files,
-                                batch_size=batch_size,
-                                errors=errors, skip=skip)
+        return WalArchiverQueue(
+            wal_files, batch_size=batch_size, errors=errors, skip=skip
+        )
 
     def check(self, check_strategy):
         """
@@ -941,41 +992,39 @@ class StreamingWalArchiver(WalArchiver):
              of the results of the various checks
         """
 
-        check_strategy.init_check('pg_receivexlog')
+        check_strategy.init_check("pg_receivexlog")
         # Check the version of pg_receivexlog
         remote_status = self.get_remote_status()
         check_strategy.result(
-            self.config.name,
-            remote_status['pg_receivexlog_installed'])
+            self.config.name, remote_status["pg_receivexlog_installed"]
+        )
         hint = None
-        check_strategy.init_check('pg_receivexlog compatible')
-        if not remote_status['pg_receivexlog_compatible']:
-            pg_version = 'Unknown'
+        check_strategy.init_check("pg_receivexlog compatible")
+        if not remote_status["pg_receivexlog_compatible"]:
+            pg_version = "Unknown"
             if self.server.streaming is not None:
                 pg_version = self.server.streaming.server_txt_version
             hint = "PostgreSQL version: %s, pg_receivexlog version: %s" % (
                 pg_version,
-                remote_status['pg_receivexlog_version']
+                remote_status["pg_receivexlog_version"],
             )
-        check_strategy.result(self.config.name,
-                              remote_status['pg_receivexlog_compatible'],
-                              hint=hint)
+        check_strategy.result(
+            self.config.name, remote_status["pg_receivexlog_compatible"], hint=hint
+        )
 
         # Check if pg_receivexlog is running, by retrieving a list
         # of running 'receive-wal' processes from the process manager.
-        receiver_list = self.server.process_manager.list('receive-wal')
+        receiver_list = self.server.process_manager.list("receive-wal")
 
         # If there's at least one 'receive-wal' process running for this
         # server, the test is passed
-        check_strategy.init_check('receive-wal running')
+        check_strategy.init_check("receive-wal running")
         if receiver_list:
-            check_strategy.result(
-                self.config.name, True)
+            check_strategy.result(self.config.name, True)
         else:
             check_strategy.result(
-                self.config.name,
-                False,
-                hint='See the Barman log file for more details')
+                self.config.name, False, hint="See the Barman log file for more details"
+            )
 
     def _is_synchronous(self):
         """
@@ -995,19 +1044,22 @@ class StreamingWalArchiver(WalArchiver):
         # Check if synchronous WAL streaming can be enabled
         # by peeking 'synchronous_standby_names'
         postgres_status = postgres.get_remote_status()
-        syncnames = postgres_status['synchronous_standby_names']
-        _logger.debug("Look for '%s' in "
-                      "'synchronous_standby_names': %s",
-                      self.config.streaming_archiver_name, syncnames)
+        syncnames = postgres_status["synchronous_standby_names"]
+        _logger.debug(
+            "Look for '%s' in " "'synchronous_standby_names': %s",
+            self.config.streaming_archiver_name,
+            syncnames,
+        )
         # The receive-wal process is eligible for synchronous replication
         # if `synchronous_standby_names` is configured and contains
         # the value of `streaming_archiver_name`
         streaming_archiver_name = self.config.streaming_archiver_name
-        synchronous = (syncnames and (
-            '*' in syncnames or streaming_archiver_name in syncnames))
-        _logger.debug('Synchronous WAL streaming for %s: %s',
-                      streaming_archiver_name,
-                      synchronous)
+        synchronous = syncnames and (
+            "*" in syncnames or streaming_archiver_name in syncnames
+        )
+        _logger.debug(
+            "Synchronous WAL streaming for %s: %s", streaming_archiver_name, synchronous
+        )
         return synchronous
 
     def status(self):

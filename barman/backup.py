@@ -31,21 +31,31 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.backup_executor import (PassiveBackupExecutor,
-                                    PostgresBackupExecutor,
-                                    RsyncBackupExecutor)
+from barman.backup_executor import (
+    PassiveBackupExecutor,
+    PostgresBackupExecutor,
+    RsyncBackupExecutor,
+)
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
-from barman.exceptions import (AbortedRetryHookScript,
-                               CompressionIncompatibility, SshCommandException,
-                               UnknownBackupIdException)
+from barman.exceptions import (
+    AbortedRetryHookScript,
+    CompressionIncompatibility,
+    SshCommandException,
+    UnknownBackupIdException,
+)
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
 from barman.lockfile import ServerBackupSyncLock
 from barman.recovery_executor import RecoveryExecutor
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import (force_str, fsync_dir, fsync_file,
-                          human_readable_timedelta, pretty_size)
+from barman.utils import (
+    force_str,
+    fsync_dir,
+    fsync_file,
+    human_readable_timedelta,
+    pretty_size,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -96,7 +106,9 @@ class BackupManager(RemoteStatusMixin):
         """
         # If the filter is not a tuple, create a tuple using the filter
         if not isinstance(status_filter, tuple):
-            status_filter = tuple(status_filter,)
+            status_filter = tuple(
+                status_filter,
+            )
         # Load the cache if necessary
         if self._backup_cache is None:
             self._load_backup_cache()
@@ -114,8 +126,7 @@ class BackupManager(RemoteStatusMixin):
         """
         self._backup_cache = {}
         # Load all the backups from disk reading the backup.info files
-        for filename in glob("%s/*/backup.info" %
-                             self.config.basebackups_directory):
+        for filename in glob("%s/*/backup.info" % self.config.basebackups_directory):
             backup = LocalBackupInfo(self.server, filename)
             self._backup_cache[backup.backup_id] = backup
 
@@ -161,14 +172,12 @@ class BackupManager(RemoteStatusMixin):
         """
         if backup_id is not None:
             # Get all the available backups from the cache
-            available_backups = self.get_available_backups(
-                BackupInfo.STATUS_ALL)
+            available_backups = self.get_available_backups(BackupInfo.STATUS_ALL)
             # Return the BackupInfo if present, or None
             return available_backups.get(backup_id)
         return None
 
-    def get_previous_backup(self, backup_id,
-                            status_filter=DEFAULT_STATUS_FILTER):
+    def get_previous_backup(self, backup_id, status_filter=DEFAULT_STATUS_FILTER):
         """
         Get the previous backup (if any) in the catalog
 
@@ -178,8 +187,7 @@ class BackupManager(RemoteStatusMixin):
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
         backup = LocalBackupInfo(self.server, backup_id=backup_id)
-        available_backups = self.get_available_backups(
-            status_filter + (backup.status,))
+        available_backups = self.get_available_backups(status_filter + (backup.status,))
         ids = sorted(available_backups.keys())
         try:
             current = ids.index(backup_id)
@@ -190,8 +198,7 @@ class BackupManager(RemoteStatusMixin):
                 current -= 1
             return None
         except ValueError:
-            raise UnknownBackupIdException('Could not find backup_id %s' %
-                                           backup_id)
+            raise UnknownBackupIdException("Could not find backup_id %s" % backup_id)
 
     def get_next_backup(self, backup_id, status_filter=DEFAULT_STATUS_FILTER):
         """
@@ -203,8 +210,7 @@ class BackupManager(RemoteStatusMixin):
         if not isinstance(status_filter, tuple):
             status_filter = tuple(status_filter)
         backup = LocalBackupInfo(self.server, backup_id=backup_id)
-        available_backups = self.get_available_backups(
-            status_filter + (backup.status,))
+        available_backups = self.get_available_backups(status_filter + (backup.status,))
         ids = sorted(available_backups.keys())
         try:
             current = ids.index(backup_id)
@@ -215,8 +221,7 @@ class BackupManager(RemoteStatusMixin):
                 current += 1
             return None
         except ValueError:
-            raise UnknownBackupIdException('Could not find backup_id %s' %
-                                           backup_id)
+            raise UnknownBackupIdException("Could not find backup_id %s" % backup_id)
 
     def get_last_backup_id(self, status_filter=DEFAULT_STATUS_FILTER):
         """
@@ -255,45 +260,51 @@ class BackupManager(RemoteStatusMixin):
         :param backup: the backup to delete
         :return bool: True if deleted, False if could not delete the backup
         """
-        available_backups = self.get_available_backups(
-            status_filter=(BackupInfo.DONE,))
+        available_backups = self.get_available_backups(status_filter=(BackupInfo.DONE,))
         minimum_redundancy = self.server.config.minimum_redundancy
         # Honour minimum required redundancy
-        if backup.status == BackupInfo.DONE and \
-                minimum_redundancy >= len(available_backups):
-            output.warning("Skipping delete of backup %s for server %s "
-                           "due to minimum redundancy requirements "
-                           "(minimum redundancy = %s, "
-                           "current redundancy = %s)",
-                           backup.backup_id,
-                           self.config.name,
-                           minimum_redundancy,
-                           len(available_backups))
+        if backup.status == BackupInfo.DONE and minimum_redundancy >= len(
+            available_backups
+        ):
+            output.warning(
+                "Skipping delete of backup %s for server %s "
+                "due to minimum redundancy requirements "
+                "(minimum redundancy = %s, "
+                "current redundancy = %s)",
+                backup.backup_id,
+                self.config.name,
+                minimum_redundancy,
+                len(available_backups),
+            )
             return False
         # Keep track of when the delete operation started.
         delete_start_time = datetime.datetime.now()
 
         # Run the pre_delete_script if present.
-        script = HookScriptRunner(self, 'delete_script', 'pre')
+        script = HookScriptRunner(self, "delete_script", "pre")
         script.env_from_backup_info(backup)
         script.run()
 
         # Run the pre_delete_retry_script if present.
-        retry_script = RetryHookScriptRunner(
-            self, 'delete_retry_script', 'pre')
+        retry_script = RetryHookScriptRunner(self, "delete_retry_script", "pre")
         retry_script.env_from_backup_info(backup)
         retry_script.run()
 
-        output.info("Deleting backup %s for server %s",
-                    backup.backup_id, self.config.name)
+        output.info(
+            "Deleting backup %s for server %s", backup.backup_id, self.config.name
+        )
         previous_backup = self.get_previous_backup(backup.backup_id)
         next_backup = self.get_next_backup(backup.backup_id)
         # Delete all the data contained in the backup
         try:
             self.delete_backup_data(backup)
         except OSError as e:
-            output.error("Failure deleting backup %s for server %s.\n%s",
-                         backup.backup_id, self.config.name, e)
+            output.error(
+                "Failure deleting backup %s for server %s.\n%s",
+                backup.backup_id,
+                self.config.name,
+                e,
+            )
             return False
         # Check if we are deleting the first available backup
         if not previous_backup:
@@ -315,7 +326,8 @@ class BackupManager(RemoteStatusMixin):
                 # Retrieve the list of extra timelines that contains at least
                 # a backup. On such timelines we don't want to delete any WAL
                 for value in self.get_available_backups(
-                        BackupInfo.STATUS_ARCHIVING).values():
+                    BackupInfo.STATUS_ARCHIVING
+                ).values():
                     # Ignore the backup that is being deleted
                     if value == backup:
                         continue
@@ -326,52 +338,60 @@ class BackupManager(RemoteStatusMixin):
                 timelines_to_protect -= set([remove_until.timeline])
 
             output.info("Delete associated WAL segments:")
-            for name in self.remove_wal_before_backup(remove_until,
-                                                      timelines_to_protect):
+            for name in self.remove_wal_before_backup(
+                remove_until, timelines_to_protect
+            ):
                 output.info("\t%s", name)
         # As last action, remove the backup directory,
         # ending the delete operation
         try:
             self.delete_basebackup(backup)
         except OSError as e:
-            output.error("Failure deleting backup %s for server %s.\n%s\n"
-                         "Please manually remove the '%s' directory",
-                         backup.backup_id, self.config.name, e,
-                         backup.get_basebackup_directory())
+            output.error(
+                "Failure deleting backup %s for server %s.\n%s\n"
+                "Please manually remove the '%s' directory",
+                backup.backup_id,
+                self.config.name,
+                e,
+                backup.get_basebackup_directory(),
+            )
             return False
         self.backup_cache_remove(backup)
         # Save the time of the complete removal of the backup
         delete_end_time = datetime.datetime.now()
-        output.info("Deleted backup %s (start time: %s, elapsed time: %s)",
-                    backup.backup_id,
-                    delete_start_time.ctime(),
-                    human_readable_timedelta(
-                        delete_end_time - delete_start_time))
+        output.info(
+            "Deleted backup %s (start time: %s, elapsed time: %s)",
+            backup.backup_id,
+            delete_start_time.ctime(),
+            human_readable_timedelta(delete_end_time - delete_start_time),
+        )
 
         # Remove the sync lockfile if exists
-        sync_lock = ServerBackupSyncLock(self.config.barman_lock_directory,
-                                         self.config.name, backup.backup_id)
+        sync_lock = ServerBackupSyncLock(
+            self.config.barman_lock_directory, self.config.name, backup.backup_id
+        )
         if os.path.exists(sync_lock.filename):
-            _logger.debug("Deleting backup sync lockfile: %s" %
-                          sync_lock.filename)
+            _logger.debug("Deleting backup sync lockfile: %s" % sync_lock.filename)
 
             os.unlink(sync_lock.filename)
 
         # Run the post_delete_retry_script if present.
         try:
-            retry_script = RetryHookScriptRunner(
-                self, 'delete_retry_script', 'post')
+            retry_script = RetryHookScriptRunner(self, "delete_retry_script", "post")
             retry_script.env_from_backup_info(backup)
             retry_script.run()
         except AbortedRetryHookScript as e:
             # Ignore the ABORT_STOP as it is a post-hook operation
-            _logger.warning("Ignoring stop request after receiving "
-                            "abort (exit code %d) from post-delete "
-                            "retry hook script: %s",
-                            e.hook.exit_status, e.hook.script)
+            _logger.warning(
+                "Ignoring stop request after receiving "
+                "abort (exit code %d) from post-delete "
+                "retry hook script: %s",
+                e.hook.exit_status,
+                e.hook.script,
+            )
 
         # Run the post_delete_script if present.
-        script = HookScriptRunner(self, 'delete_script', 'post')
+        script = HookScriptRunner(self, "delete_script", "post")
         script.env_from_backup_info(backup)
         script.run()
 
@@ -391,25 +411,25 @@ class BackupManager(RemoteStatusMixin):
         try:
             # Create the BackupInfo object representing the backup
             backup_info = LocalBackupInfo(
-                self.server,
-                backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'))
-            backup_info.set_attribute('systemid', self.server.systemid)
+                self.server, backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+            )
+            backup_info.set_attribute("systemid", self.server.systemid)
             backup_info.save()
             self.backup_cache_add(backup_info)
             output.info(
                 "Starting backup using %s method for server %s in %s",
                 self.mode,
                 self.config.name,
-                backup_info.get_basebackup_directory())
+                backup_info.get_basebackup_directory(),
+            )
 
             # Run the pre-backup-script if present.
-            script = HookScriptRunner(self, 'backup_script', 'pre')
+            script = HookScriptRunner(self, "backup_script", "pre")
             script.env_from_backup_info(backup_info)
             script.run()
 
             # Run the pre-backup-retry-script if present.
-            retry_script = RetryHookScriptRunner(
-                self, 'backup_retry_script', 'pre')
+            retry_script = RetryHookScriptRunner(self, "backup_retry_script", "pre")
             retry_script.env_from_backup_info(backup_info)
             retry_script.run()
 
@@ -417,7 +437,7 @@ class BackupManager(RemoteStatusMixin):
             self.executor.backup(backup_info)
 
             # Create a restore point after a backup
-            target_name = 'barman_%s' % backup_info.backup_id
+            target_name = "barman_%s" % backup_info.backup_id
             self.server.postgres.create_restore_point(target_name)
 
             # Free the Postgres connection
@@ -442,25 +462,31 @@ class BackupManager(RemoteStatusMixin):
                 backup_info.set_attribute("status", BackupInfo.FAILED)
                 backup_info.set_attribute(
                     "error",
-                    "failure %s (%s)" % (
-                        self.executor.current_action, msg_lines[0]))
+                    "failure %s (%s)" % (self.executor.current_action, msg_lines[0]),
+                )
 
-            output.error("Backup failed %s.\nDETAILS: %s",
-                         self.executor.current_action,
-                         '\n'.join(msg_lines))
+            output.error(
+                "Backup failed %s.\nDETAILS: %s",
+                self.executor.current_action,
+                "\n".join(msg_lines),
+            )
 
         else:
-            output.info("Backup end at LSN: %s (%s, %08X)",
-                        backup_info.end_xlog,
-                        backup_info.end_wal,
-                        backup_info.end_offset)
+            output.info(
+                "Backup end at LSN: %s (%s, %08X)",
+                backup_info.end_xlog,
+                backup_info.end_wal,
+                backup_info.end_offset,
+            )
 
             executor = self.executor
             output.info(
                 "Backup completed (start time: %s, elapsed time: %s)",
                 self.executor.copy_start_time,
                 human_readable_timedelta(
-                    datetime.datetime.now() - executor.copy_start_time))
+                    datetime.datetime.now() - executor.copy_start_time
+                ),
+            )
 
             # If requested, wait for end_wal to be archived
             if wait:
@@ -471,7 +497,9 @@ class BackupManager(RemoteStatusMixin):
                     # Ignore CTRL-C pressed while waiting for WAL files
                     output.info(
                         "Got CTRL-C. Continuing without waiting for '%s' "
-                        "to be archived", backup_info.end_wal)
+                        "to be archived",
+                        backup_info.end_wal,
+                    )
 
         finally:
             if backup_info:
@@ -484,26 +512,31 @@ class BackupManager(RemoteStatusMixin):
                 # Run the post-backup-retry-script if present.
                 try:
                     retry_script = RetryHookScriptRunner(
-                        self, 'backup_retry_script', 'post')
+                        self, "backup_retry_script", "post"
+                    )
                     retry_script.env_from_backup_info(backup_info)
                     retry_script.run()
                 except AbortedRetryHookScript as e:
                     # Ignore the ABORT_STOP as it is a post-hook operation
-                    _logger.warning("Ignoring stop request after receiving "
-                                    "abort (exit code %d) from post-backup "
-                                    "retry hook script: %s",
-                                    e.hook.exit_status, e.hook.script)
+                    _logger.warning(
+                        "Ignoring stop request after receiving "
+                        "abort (exit code %d) from post-backup "
+                        "retry hook script: %s",
+                        e.hook.exit_status,
+                        e.hook.script,
+                    )
 
                 # Run the post-backup-script if present.
-                script = HookScriptRunner(self, 'backup_script', 'post')
+                script = HookScriptRunner(self, "backup_script", "post")
                 script.env_from_backup_info(backup_info)
                 script.run()
 
-        output.result('backup', backup_info)
+        output.result("backup", backup_info)
         return backup_info
 
-    def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
-                **kwargs):
+    def recover(
+        self, backup_info, dest, tablespaces=None, remote_command=None, **kwargs
+    ):
         """
         Performs a recovery of a backup
 
@@ -534,24 +567,17 @@ class BackupManager(RemoteStatusMixin):
         executor = RecoveryExecutor(self)
 
         # Run the pre_recovery_script if present.
-        script = HookScriptRunner(self, 'recovery_script', 'pre')
+        script = HookScriptRunner(self, "recovery_script", "pre")
         script.env_from_recover(
-            backup_info,
-            dest,
-            tablespaces,
-            remote_command,
-            **kwargs)
+            backup_info, dest, tablespaces, remote_command, **kwargs
+        )
         script.run()
 
         # Run the pre_recovery_retry_script if present.
-        retry_script = RetryHookScriptRunner(
-            self, 'recovery_retry_script', 'pre')
+        retry_script = RetryHookScriptRunner(self, "recovery_retry_script", "pre")
         retry_script.env_from_recover(
-            backup_info,
-            dest,
-            tablespaces,
-            remote_command,
-            **kwargs)
+            backup_info, dest, tablespaces, remote_command, **kwargs
+        )
         retry_script.run()
 
         # Execute the recovery.
@@ -559,36 +585,39 @@ class BackupManager(RemoteStatusMixin):
         # any resource eventually allocated during recovery.
         with closing(executor):
             recovery_info = executor.recover(
-                backup_info, dest,
-                tablespaces=tablespaces, remote_command=remote_command,
-                **kwargs)
+                backup_info,
+                dest,
+                tablespaces=tablespaces,
+                remote_command=remote_command,
+                **kwargs
+            )
 
         # Run the post_recovery_retry_script if present.
         try:
-            retry_script = RetryHookScriptRunner(
-                self, 'recovery_retry_script', 'post')
+            retry_script = RetryHookScriptRunner(self, "recovery_retry_script", "post")
             retry_script.env_from_recover(
-                backup_info,
-                dest,
-                tablespaces,
-                remote_command,
-                **kwargs)
+                backup_info, dest, tablespaces, remote_command, **kwargs
+            )
             retry_script.run()
         except AbortedRetryHookScript as e:
             # Ignore the ABORT_STOP as it is a post-hook operation
-            _logger.warning("Ignoring stop request after receiving "
-                            "abort (exit code %d) from post-recovery "
-                            "retry hook script: %s",
-                            e.hook.exit_status, e.hook.script)
+            _logger.warning(
+                "Ignoring stop request after receiving "
+                "abort (exit code %d) from post-recovery "
+                "retry hook script: %s",
+                e.hook.exit_status,
+                e.hook.script,
+            )
 
         # Run the post-recovery-script if present.
-        script = HookScriptRunner(self, 'recovery_script', 'post')
-        script.env_from_recover(backup_info, dest, tablespaces, remote_command,
-                                **kwargs)
+        script = HookScriptRunner(self, "recovery_script", "post")
+        script.env_from_recover(
+            backup_info, dest, tablespaces, remote_command, **kwargs
+        )
         script.run()
 
         # Output recovery results
-        output.result('recovery', recovery_info['results'])
+        output.result("recovery", recovery_info["results"])
 
     def archive_wal(self, verbose=True):
         """
@@ -608,15 +637,15 @@ class BackupManager(RemoteStatusMixin):
         """
         enforce_retention_policies = self.server.enforce_retention_policies
         retention_policy_mode = self.config.retention_policy_mode
-        if (enforce_retention_policies and retention_policy_mode == 'auto'):
-            available_backups = self.get_available_backups(
-                BackupInfo.STATUS_ALL)
+        if enforce_retention_policies and retention_policy_mode == "auto":
+            available_backups = self.get_available_backups(BackupInfo.STATUS_ALL)
             retention_status = self.config.retention_policy.report()
             for bid in sorted(retention_status.keys()):
                 if retention_status[bid] == BackupInfo.OBSOLETE:
                     output.info(
                         "Enforcing retention policy: removing backup %s for "
-                        "server %s" % (bid, self.config.name))
+                        "server %s" % (bid, self.config.name)
+                    )
                     self.delete_backup(available_backups[bid])
 
     def delete_basebackup(self, backup):
@@ -639,13 +668,14 @@ class BackupManager(RemoteStatusMixin):
             if backup.backup_version == 2:
                 tbs_dir = backup.get_basebackup_directory()
             else:
-                tbs_dir = os.path.join(backup.get_data_directory(),
-                                       'pg_tblspc')
+                tbs_dir = os.path.join(backup.get_data_directory(), "pg_tblspc")
             for tablespace in backup.tablespaces:
                 rm_dir = os.path.join(tbs_dir, str(tablespace.oid))
                 if os.path.exists(rm_dir):
-                    _logger.debug("Deleting tablespace %s directory: %s" %
-                                  (tablespace.name, rm_dir))
+                    _logger.debug(
+                        "Deleting tablespace %s directory: %s"
+                        % (tablespace.name, rm_dir)
+                    )
                     shutil.rmtree(rm_dir)
 
         pg_data = backup.get_data_directory()
@@ -661,13 +691,12 @@ class BackupManager(RemoteStatusMixin):
         """
 
         # Run the pre_wal_delete_script if present.
-        script = HookScriptRunner(self, 'wal_delete_script', 'pre')
+        script = HookScriptRunner(self, "wal_delete_script", "pre")
         script.env_from_wal_info(wal_info)
         script.run()
 
         # Run the pre_wal_delete_retry_script if present.
-        retry_script = RetryHookScriptRunner(
-            self, 'wal_delete_retry_script', 'pre')
+        retry_script = RetryHookScriptRunner(self, "wal_delete_retry_script", "pre")
         retry_script.env_from_wal_info(wal_info)
         retry_script.run()
 
@@ -682,25 +711,32 @@ class BackupManager(RemoteStatusMixin):
                 # this means that hashdir is not empty.
                 pass
         except OSError as e:
-            error = ('Ignoring deletion of WAL file %s for server %s: %s' %
-                     (wal_info.name, self.config.name, e))
+            error = "Ignoring deletion of WAL file %s for server %s: %s" % (
+                wal_info.name,
+                self.config.name,
+                e,
+            )
             output.warning(error)
 
         # Run the post_wal_delete_retry_script if present.
         try:
             retry_script = RetryHookScriptRunner(
-                self, 'wal_delete_retry_script', 'post')
+                self, "wal_delete_retry_script", "post"
+            )
             retry_script.env_from_wal_info(wal_info, None, error)
             retry_script.run()
         except AbortedRetryHookScript as e:
             # Ignore the ABORT_STOP as it is a post-hook operation
-            _logger.warning("Ignoring stop request after receiving "
-                            "abort (exit code %d) from post-wal-delete "
-                            "retry hook script: %s",
-                            e.hook.exit_status, e.hook.script)
+            _logger.warning(
+                "Ignoring stop request after receiving "
+                "abort (exit code %d) from post-wal-delete "
+                "retry hook script: %s",
+                e.hook.exit_status,
+                e.hook.script,
+            )
 
         # Run the post_wal_delete_script if present.
-        script = HookScriptRunner(self, 'wal_delete_script', 'post')
+        script = HookScriptRunner(self, "wal_delete_script", "post")
         script.env_from_wal_info(wal_info, None, error)
         script.run()
 
@@ -711,7 +747,7 @@ class BackupManager(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        check_strategy.init_check('compression settings')
+        check_strategy.init_check("compression settings")
         # Check compression_setting parameter
         if self.config.compression and not self.compression_manager.check():
             check_strategy.result(self.config.name, False)
@@ -720,33 +756,38 @@ class BackupManager(RemoteStatusMixin):
             try:
                 self.compression_manager.get_default_compressor()
             except CompressionIncompatibility as field:
-                check_strategy.result(self.config.name,
-                                      '%s setting' % field, False)
+                check_strategy.result(self.config.name, "%s setting" % field, False)
                 status = False
             check_strategy.result(self.config.name, status)
 
         # Failed backups check
-        check_strategy.init_check('failed backups')
+        check_strategy.init_check("failed backups")
         failed_backups = self.get_available_backups((BackupInfo.FAILED,))
         status = len(failed_backups) == 0
         check_strategy.result(
             self.config.name,
             status,
-            hint='there are %s failed backups' % (len(failed_backups,))
+            hint="there are %s failed backups"
+            % (
+                len(
+                    failed_backups,
+                )
+            ),
         )
-        check_strategy.init_check('minimum redundancy requirements')
+        check_strategy.init_check("minimum redundancy requirements")
         # Minimum redundancy checks
-        no_backups = len(self.get_available_backups(
-            status_filter=(BackupInfo.DONE,)))
+        no_backups = len(self.get_available_backups(status_filter=(BackupInfo.DONE,)))
         # Check minimum_redundancy_requirements parameter
         if no_backups < int(self.config.minimum_redundancy):
             status = False
         else:
             status = True
         check_strategy.result(
-            self.config.name, status,
-            hint='have %s backups, expected at least %s' % (
-                no_backups, self.config.minimum_redundancy))
+            self.config.name,
+            status,
+            hint="have %s backups, expected at least %s"
+            % (no_backups, self.config.minimum_redundancy),
+        )
 
         # TODO: Add a check for the existence of ssh and of rsync
 
@@ -759,35 +800,46 @@ class BackupManager(RemoteStatusMixin):
         This function show the server status
         """
         # get number of backups
-        no_backups = len(self.get_available_backups(
-            status_filter=(BackupInfo.DONE,)))
-        output.result('status', self.config.name,
-                      "backups_number",
-                      "No. of available backups", no_backups)
-        output.result('status', self.config.name,
-                      "first_backup",
-                      "First available backup",
-                      self.get_first_backup_id())
-        output.result('status', self.config.name,
-                      "last_backup",
-                      "Last available backup",
-                      self.get_last_backup_id())
+        no_backups = len(self.get_available_backups(status_filter=(BackupInfo.DONE,)))
+        output.result(
+            "status",
+            self.config.name,
+            "backups_number",
+            "No. of available backups",
+            no_backups,
+        )
+        output.result(
+            "status",
+            self.config.name,
+            "first_backup",
+            "First available backup",
+            self.get_first_backup_id(),
+        )
+        output.result(
+            "status",
+            self.config.name,
+            "last_backup",
+            "Last available backup",
+            self.get_last_backup_id(),
+        )
         # Minimum redundancy check. if number of backups minor than minimum
         # redundancy, fail.
         if no_backups < self.config.minimum_redundancy:
-            output.result('status', self.config.name,
-                          "minimum_redundancy",
-                          "Minimum redundancy requirements",
-                          "FAILED (%s/%s)" % (
-                              no_backups,
-                              self.config.minimum_redundancy))
+            output.result(
+                "status",
+                self.config.name,
+                "minimum_redundancy",
+                "Minimum redundancy requirements",
+                "FAILED (%s/%s)" % (no_backups, self.config.minimum_redundancy),
+            )
         else:
-            output.result('status', self.config.name,
-                          "minimum_redundancy",
-                          "Minimum redundancy requirements",
-                          "satisfied (%s/%s)" % (
-                              no_backups,
-                              self.config.minimum_redundancy))
+            output.result(
+                "status",
+                self.config.name,
+                "minimum_redundancy",
+                "Minimum redundancy requirements",
+                "satisfied (%s/%s)" % (no_backups, self.config.minimum_redundancy),
+            )
 
         # Output additional status defined by the BackupExecutor
         if self.executor:
@@ -818,9 +870,9 @@ class BackupManager(RemoteStatusMixin):
         comp_manager = self.compression_manager
         wal_count = label_count = history_count = 0
         # lock the xlogdb as we are about replacing it completely
-        with self.server.xlogdb('w') as fxlogdb:
+        with self.server.xlogdb("w") as fxlogdb:
             xlogdb_new = fxlogdb.name + ".new"
-            with open(xlogdb_new, 'w') as fxlogdb_new:
+            with open(xlogdb_new, "w") as fxlogdb_new:
                 for name in sorted(os.listdir(root)):
                     # ignore the xlogdb and its lockfile
                     if name.startswith(self.server.XLOG_DB):
@@ -833,47 +885,53 @@ class BackupManager(RemoteStatusMixin):
                             fullname = join(hash_dir, wal_name)
                             if isdir(fullname):
                                 _logger.warning(
-                                    'unexpected directory '
-                                    'rebuilding the wal database: %s',
-                                    fullname)
+                                    "unexpected directory "
+                                    "rebuilding the wal database: %s",
+                                    fullname,
+                                )
                             else:
                                 if xlog.is_wal_file(fullname):
                                     wal_count += 1
                                 elif xlog.is_backup_file(fullname):
                                     label_count += 1
-                                elif fullname.endswith('.tmp'):
+                                elif fullname.endswith(".tmp"):
                                     _logger.warning(
-                                        'temporary file found '
-                                        'rebuilding the wal database: %s',
-                                        fullname)
+                                        "temporary file found "
+                                        "rebuilding the wal database: %s",
+                                        fullname,
+                                    )
                                     continue
                                 else:
                                     _logger.warning(
-                                        'unexpected file '
-                                        'rebuilding the wal database: %s',
-                                        fullname)
+                                        "unexpected file "
+                                        "rebuilding the wal database: %s",
+                                        fullname,
+                                    )
                                     continue
-                                wal_info = comp_manager.get_wal_file_info(
-                                    fullname)
+                                wal_info = comp_manager.get_wal_file_info(fullname)
                                 fxlogdb_new.write(wal_info.to_xlogdb_line())
                     else:
                         # only history files are here
                         if xlog.is_history_file(fullname):
                             history_count += 1
-                            wal_info = comp_manager.get_wal_file_info(
-                                fullname)
+                            wal_info = comp_manager.get_wal_file_info(fullname)
                             fxlogdb_new.write(wal_info.to_xlogdb_line())
                         else:
                             _logger.warning(
-                                'unexpected file '
-                                'rebuilding the wal database: %s',
-                                fullname)
+                                "unexpected file " "rebuilding the wal database: %s",
+                                fullname,
+                            )
                 os.fsync(fxlogdb_new.fileno())
         shutil.move(xlogdb_new, fxlogdb.name)
         fsync_dir(os.path.dirname(fxlogdb.name))
-        output.info('Done rebuilding xlogdb for server %s '
-                    '(history: %s, backup_labels: %s, wal_file: %s)',
-                    self.config.name, history_count, label_count, wal_count)
+        output.info(
+            "Done rebuilding xlogdb for server %s "
+            "(history: %s, backup_labels: %s, wal_file: %s)",
+            self.config.name,
+            history_count,
+            label_count,
+            wal_count,
+        )
 
     def get_latest_archived_wals_info(self):
         """
@@ -917,8 +975,7 @@ class BackupManager(RemoteStatusMixin):
                     fullname = join(hash_dir, wal_name)
                     # Return the first file that has the correct name
                     if not isdir(fullname) and xlog.is_wal_file(fullname):
-                        timelines[timeline] = comp_manager.get_wal_file_info(
-                            fullname)
+                        timelines[timeline] = comp_manager.get_wal_file_info(fullname)
                         break
 
         # Return the timeline map
@@ -942,15 +999,17 @@ class BackupManager(RemoteStatusMixin):
         removed = []
         with self.server.xlogdb() as fxlogdb:
             xlogdb_new = fxlogdb.name + ".new"
-            with open(xlogdb_new, 'w') as fxlogdb_new:
+            with open(xlogdb_new, "w") as fxlogdb_new:
                 for line in fxlogdb:
                     wal_info = WalFileInfo.from_xlogdb_line(line)
                     if not xlog.is_any_xlog_file(wal_info.name):
                         output.error(
                             "invalid WAL segment name %r\n"
-                            "HINT: Please run \"barman rebuild-xlogdb %s\" "
+                            'HINT: Please run "barman rebuild-xlogdb %s" '
                             "to solve this issue",
-                            wal_info.name, self.config.name)
+                            wal_info.name,
+                            self.config.name,
+                        )
                         continue
 
                     # Keeps the WAL segment if it is a history file
@@ -1041,25 +1100,27 @@ class BackupManager(RemoteStatusMixin):
                 if file_stat.st_nlink == 1:
                     deduplicated_size += file_stat.st_size
         # Save size into BackupInfo object
-        backup_info.set_attribute('size', backup_size)
-        backup_info.set_attribute('deduplicated_size', deduplicated_size)
+        backup_info.set_attribute("size", backup_size)
+        backup_info.set_attribute("deduplicated_size", deduplicated_size)
         if backup_info.size > 0:
-            deduplication_ratio = 1 - (float(
-                backup_info.deduplicated_size) / backup_info.size)
+            deduplication_ratio = 1 - (
+                float(backup_info.deduplicated_size) / backup_info.size
+            )
         else:
             deduplication_ratio = 0
 
-        if self.config.reuse_backup == 'link':
+        if self.config.reuse_backup == "link":
             output.info(
                 "Backup size: %s. Actual size on disk: %s"
-                " (-%s deduplication ratio)." % (
+                " (-%s deduplication ratio)."
+                % (
                     pretty_size(backup_info.size),
                     pretty_size(backup_info.deduplicated_size),
-                    '{percent:.2%}'.format(percent=deduplication_ratio)
-                ))
+                    "{percent:.2%}".format(percent=deduplication_ratio),
+                )
+            )
         else:
-            output.info("Backup size: %s" %
-                        pretty_size(backup_info.size))
+            output.info("Backup size: %s" % pretty_size(backup_info.size))
 
     def check_backup(self, backup_info):
         """
@@ -1128,7 +1189,8 @@ class BackupManager(RemoteStatusMixin):
             # to store the error message
             backup_info.error = (
                 "At least one WAL file is missing. "
-                "The first missing WAL file is %s" % missing_wal)
+                "The first missing WAL file is %s" % missing_wal
+            )
             backup_info.status = BackupInfo.FAILED
             backup_info.save()
             return

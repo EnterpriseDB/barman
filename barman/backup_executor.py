@@ -42,15 +42,25 @@ from barman import output, xlog
 from barman.command_wrappers import PgBaseBackup
 from barman.config import BackupOptions
 from barman.copy_controller import RsyncCopyController
-from barman.exceptions import (CommandFailedException, DataTransferFailure,
-                               FsOperationFailed, PostgresConnectionError,
-                               PostgresIsInRecovery, SshCommandException)
+from barman.exceptions import (
+    CommandFailedException,
+    DataTransferFailure,
+    FsOperationFailed,
+    PostgresConnectionError,
+    PostgresIsInRecovery,
+    SshCommandException,
+)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.remote_status import RemoteStatusMixin
-from barman.utils import (force_str, human_readable_timedelta, mkpath,
-                          total_seconds, with_metaclass)
+from barman.utils import (
+    force_str,
+    human_readable_timedelta,
+    mkpath,
+    total_seconds,
+    with_metaclass,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -148,21 +158,22 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
             return
 
         # If this is the first backup, purge unused WAL files
-        previous_backup = self.backup_manager.get_previous_backup(
-            backup_info.backup_id)
+        previous_backup = self.backup_manager.get_previous_backup(backup_info.backup_id)
         if not previous_backup:
-            output.info("This is the first backup for server %s",
-                        self.config.name)
-            removed = self.backup_manager.remove_wal_before_backup(
-                backup_info)
+            output.info("This is the first backup for server %s", self.config.name)
+            removed = self.backup_manager.remove_wal_before_backup(backup_info)
             if removed:
                 # report the list of the removed WAL files
-                output.info("WAL segments preceding the current backup "
-                            "have been found:", log=False)
+                output.info(
+                    "WAL segments preceding the current backup " "have been found:",
+                    log=False,
+                )
                 for wal_name in removed:
-                    output.info("\t%s from server %s "
-                                "has been removed",
-                                wal_name, self.config.name)
+                    output.info(
+                        "\t%s from server %s " "has been removed",
+                        wal_name,
+                        self.config.name,
+                    )
 
     def _start_backup_copy_message(self, backup_info):
         """
@@ -178,9 +189,12 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
-        output.info("Copy done (time: %s)",
-                    human_readable_timedelta(datetime.timedelta(
-                        seconds=backup_info.copy_stats['copy_time'])))
+        output.info(
+            "Copy done (time: %s)",
+            human_readable_timedelta(
+                datetime.timedelta(seconds=backup_info.copy_stats["copy_time"])
+            ),
+        )
 
 
 def _parse_ssh_command(ssh_command):
@@ -217,11 +231,9 @@ class PostgresBackupExecutor(BackupExecutor):
         :param barman.backup.BackupManager backup_manager: the BackupManager
             assigned to the executor
         """
-        super(PostgresBackupExecutor, self).__init__(backup_manager,
-                                                     'postgres')
+        super(PostgresBackupExecutor, self).__init__(backup_manager, "postgres")
         self.validate_configuration()
-        self.strategy = PostgresBackupStrategy(self.server.postgres,
-                                               self.config.name)
+        self.strategy = PostgresBackupStrategy(self.server.postgres, self.config.name)
 
     def validate_configuration(self):
         """
@@ -233,19 +245,20 @@ class PostgresBackupExecutor(BackupExecutor):
 
         # Check for the correct backup options
         if BackupOptions.EXCLUSIVE_BACKUP in self.config.backup_options:
-            self.config.backup_options.remove(
-                BackupOptions.EXCLUSIVE_BACKUP)
+            self.config.backup_options.remove(BackupOptions.EXCLUSIVE_BACKUP)
             output.warning(
                 "'exclusive_backup' is not a valid backup_option "
                 "using postgres backup_method. "
-                "Overriding with 'concurrent_backup'.")
+                "Overriding with 'concurrent_backup'."
+            )
 
         # Apply the default backup strategy
-        if BackupOptions.CONCURRENT_BACKUP not in \
-                self.config.backup_options:
+        if BackupOptions.CONCURRENT_BACKUP not in self.config.backup_options:
             self.config.backup_options.add(BackupOptions.CONCURRENT_BACKUP)
-            output.debug("The default backup strategy for "
-                         "postgres backup_method is: concurrent_backup")
+            output.debug(
+                "The default backup strategy for "
+                "postgres backup_method is: concurrent_backup"
+            )
 
         # Forbid tablespace_bandwidth_limit option.
         # It works only with rsync based backups.
@@ -253,17 +266,18 @@ class PostgresBackupExecutor(BackupExecutor):
             self.server.config.disabled = True
             # Report the error in the configuration errors message list
             self.server.config.msg_list.append(
-                'tablespace_bandwidth_limit option is not supported by '
-                'postgres backup_method')
+                "tablespace_bandwidth_limit option is not supported by "
+                "postgres backup_method"
+            )
 
         # Forbid reuse_backup option.
         # It works only with rsync based backups.
-        if self.config.reuse_backup in ('copy', 'link'):
+        if self.config.reuse_backup in ("copy", "link"):
             self.server.config.disabled = True
             # Report the error in the configuration errors message list
             self.server.config.msg_list.append(
-                'reuse_backup option is not supported by '
-                'postgres backup_method')
+                "reuse_backup option is not supported by " "postgres backup_method"
+            )
 
         # Forbid network_compression option.
         # It works only with rsync based backups.
@@ -271,8 +285,9 @@ class PostgresBackupExecutor(BackupExecutor):
             self.server.config.disabled = True
             # Report the error in the configuration errors message list
             self.server.config.msg_list.append(
-                'network_compression option is not supported by '
-                'postgres backup_method')
+                "network_compression option is not supported by "
+                "postgres backup_method"
+            )
 
         # bandwidth_limit option is supported by pg_basebackup executable
         # starting from Postgres 9.4
@@ -283,13 +298,14 @@ class PostgresBackupExecutor(BackupExecutor):
             remote_status = self.fetch_remote_status()
             # If pg_basebackup is present and it doesn't support bwlimit
             # disable the server.
-            if remote_status['pg_basebackup_bwlimit'] is False:
+            if remote_status["pg_basebackup_bwlimit"] is False:
                 self.server.config.disabled = True
                 # Report the error in the configuration errors message list
                 self.server.config.msg_list.append(
                     "bandwidth_limit option is not supported by "
-                    "pg_basebackup version (current: %s, required: 9.4)" %
-                    remote_status['pg_basebackup_version'])
+                    "pg_basebackup version (current: %s, required: 9.4)"
+                    % remote_status["pg_basebackup_version"]
+                )
 
     def backup(self, backup_info):
         """
@@ -313,13 +329,14 @@ class PostgresBackupExecutor(BackupExecutor):
             backup_info.save()
 
             if backup_info.begin_wal is not None:
-                output.info("Backup start at LSN: %s (%s, %08X)",
-                            backup_info.begin_xlog,
-                            backup_info.begin_wal,
-                            backup_info.begin_offset)
+                output.info(
+                    "Backup start at LSN: %s (%s, %08X)",
+                    backup_info.begin_xlog,
+                    backup_info.begin_wal,
+                    backup_info.begin_offset,
+                )
             else:
-                output.info("Backup start at LSN: %s",
-                            backup_info.begin_xlog)
+                output.info("Backup start at LSN: %s", backup_info.begin_xlog)
 
             # Start the copy
             self.current_action = "copying files"
@@ -341,31 +358,33 @@ class PostgresBackupExecutor(BackupExecutor):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        check_strategy.init_check('pg_basebackup')
+        check_strategy.init_check("pg_basebackup")
         remote_status = self.get_remote_status()
 
         # Check for the presence of pg_basebackup
         check_strategy.result(
-            self.config.name, remote_status['pg_basebackup_installed'])
+            self.config.name, remote_status["pg_basebackup_installed"]
+        )
 
         # remote_status['pg_basebackup_compatible'] is None if
         # pg_basebackup cannot be executed and False if it is
         # not compatible.
         hint = None
-        check_strategy.init_check('pg_basebackup compatible')
-        if not remote_status['pg_basebackup_compatible']:
-            pg_version = 'Unknown'
-            basebackup_version = 'Unknown'
+        check_strategy.init_check("pg_basebackup compatible")
+        if not remote_status["pg_basebackup_compatible"]:
+            pg_version = "Unknown"
+            basebackup_version = "Unknown"
             if self.server.streaming is not None:
                 pg_version = self.server.streaming.server_txt_version
-            if remote_status['pg_basebackup_version'] is not None:
-                basebackup_version = remote_status['pg_basebackup_version']
+            if remote_status["pg_basebackup_version"] is not None:
+                basebackup_version = remote_status["pg_basebackup_version"]
             hint = "PostgreSQL version: %s, pg_basebackup version: %s" % (
-                pg_version, basebackup_version
+                pg_version,
+                basebackup_version,
             )
         check_strategy.result(
-            self.config.name,
-            remote_status['pg_basebackup_compatible'], hint=hint)
+            self.config.name, remote_status["pg_basebackup_compatible"], hint=hint
+        )
 
         # Skip further checks if the postgres connection doesn't work.
         # We assume that this error condition will be reported by
@@ -374,7 +393,7 @@ class PostgresBackupExecutor(BackupExecutor):
         if postgres is None or postgres.server_txt_version is None:
             return
 
-        check_strategy.init_check('pg_basebackup supports tablespaces mapping')
+        check_strategy.init_check("pg_basebackup supports tablespaces mapping")
         # We can't backup a cluster with tablespaces if the tablespace
         # mapping option is not available in the installed version
         # of pg_basebackup.
@@ -383,7 +402,7 @@ class PostgresBackupExecutor(BackupExecutor):
 
         # pg_basebackup supports the tablespace-mapping option,
         # so there are no problems in this case
-        if remote_status['pg_basebackup_tbls_mapping']:
+        if remote_status["pg_basebackup_tbls_mapping"]:
             hint = None
             check_result = True
 
@@ -393,30 +412,32 @@ class PostgresBackupExecutor(BackupExecutor):
         elif tablespaces_list:
             check_result = False
 
-            if pg_version < '9.3':
-                hint = "pg_basebackup can't be used with tablespaces "  \
-                       "and PostgreSQL older than 9.3"
+            if pg_version < "9.3":
+                hint = (
+                    "pg_basebackup can't be used with tablespaces "
+                    "and PostgreSQL older than 9.3"
+                )
             else:
-                hint = "pg_basebackup 9.4 or higher is required for " \
-                       "tablespaces support"
+                hint = (
+                    "pg_basebackup 9.4 or higher is required for " "tablespaces support"
+                )
 
         # Even if pg_basebackup doesn't support the tablespace-mapping
         # option, this location can be correctly backed up as doesn't
         # have any tablespaces
         else:
             check_result = True
-            if pg_version < '9.3':
-                hint = "pg_basebackup can be used as long as tablespaces " \
-                       "support is not required"
+            if pg_version < "9.3":
+                hint = (
+                    "pg_basebackup can be used as long as tablespaces "
+                    "support is not required"
+                )
             else:
-                hint = "pg_basebackup 9.4 or higher is required for " \
-                       "tablespaces support"
+                hint = (
+                    "pg_basebackup 9.4 or higher is required for " "tablespaces support"
+                )
 
-        check_strategy.result(
-            self.config.name,
-            check_result,
-            hint=hint
-        )
+        check_strategy.result(self.config.name, check_result, hint=hint)
 
     def fetch_remote_status(self):
         """
@@ -426,36 +447,39 @@ class PostgresBackupExecutor(BackupExecutor):
         but set the missing values to None in the resulting dictionary.
         """
         remote_status = dict.fromkeys(
-            ('pg_basebackup_compatible',
-             'pg_basebackup_installed',
-             'pg_basebackup_tbls_mapping',
-             'pg_basebackup_path',
-             'pg_basebackup_bwlimit',
-             'pg_basebackup_version'),
-            None)
+            (
+                "pg_basebackup_compatible",
+                "pg_basebackup_installed",
+                "pg_basebackup_tbls_mapping",
+                "pg_basebackup_path",
+                "pg_basebackup_bwlimit",
+                "pg_basebackup_version",
+            ),
+            None,
+        )
 
         # Test pg_basebackup existence
-        version_info = PgBaseBackup.get_version_info(
-            self.server.path)
-        if version_info['full_path']:
+        version_info = PgBaseBackup.get_version_info(self.server.path)
+        if version_info["full_path"]:
             remote_status["pg_basebackup_installed"] = True
-            remote_status["pg_basebackup_path"] = version_info['full_path']
-            remote_status["pg_basebackup_version"] = (
-                version_info['full_version'])
-            pgbasebackup_version = version_info['major_version']
+            remote_status["pg_basebackup_path"] = version_info["full_path"]
+            remote_status["pg_basebackup_version"] = version_info["full_version"]
+            pgbasebackup_version = version_info["major_version"]
         else:
             remote_status["pg_basebackup_installed"] = False
             return remote_status
 
         # Is bandwidth limit supported?
-        if remote_status['pg_basebackup_version'] is not None \
-                and remote_status['pg_basebackup_version'] < '9.4':
-            remote_status['pg_basebackup_bwlimit'] = False
+        if (
+            remote_status["pg_basebackup_version"] is not None
+            and remote_status["pg_basebackup_version"] < "9.4"
+        ):
+            remote_status["pg_basebackup_bwlimit"] = False
         else:
-            remote_status['pg_basebackup_bwlimit'] = True
+            remote_status["pg_basebackup_bwlimit"] = True
 
         # Is the tablespace mapping option supported?
-        if pgbasebackup_version >= '9.4':
+        if pgbasebackup_version >= "9.4":
             remote_status["pg_basebackup_tbls_mapping"] = True
         else:
             remote_status["pg_basebackup_tbls_mapping"] = False
@@ -530,7 +554,7 @@ class PostgresBackupExecutor(BackupExecutor):
 
         # If pg_basebackup supports --max-rate set the bandwidth_limit
         bandwidth_limit = None
-        if remote_status['pg_basebackup_bwlimit']:
+        if remote_status["pg_basebackup_bwlimit"]:
             bandwidth_limit = self.config.bandwidth_limit
 
         # Make sure we are not wasting precious PostgreSQL resources
@@ -540,8 +564,8 @@ class PostgresBackupExecutor(BackupExecutor):
         pg_basebackup = PgBaseBackup(
             connection=self.server.streaming,
             destination=backup_dest,
-            command=remote_status['pg_basebackup_path'],
-            version=remote_status['pg_basebackup_version'],
+            command=remote_status["pg_basebackup_path"],
+            version=remote_status["pg_basebackup_version"],
             app_name=self.config.streaming_backup_name,
             tbs_mapping=tbs_map,
             bwlimit=bandwidth_limit,
@@ -549,16 +573,18 @@ class PostgresBackupExecutor(BackupExecutor):
             path=self.server.path,
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
-            retry_handler=partial(self._retry_handler, dest_dirs))
+            retry_handler=partial(self._retry_handler, dest_dirs),
+        )
 
         # Do the actual copy
         try:
             pg_basebackup()
         except CommandFailedException as e:
-            msg = "data transfer failure on directory '%s'" % \
-                  backup_info.get_data_directory()
-            raise DataTransferFailure.from_command_error(
-                'pg_basebackup', e, msg)
+            msg = (
+                "data transfer failure on directory '%s'"
+                % backup_info.get_data_directory()
+            )
+            raise DataTransferFailure.from_command_error("pg_basebackup", e, msg)
 
         # Store the end time
         self.copy_end_time = datetime.datetime.now()
@@ -566,28 +592,27 @@ class PostgresBackupExecutor(BackupExecutor):
         # Store statistics about the copy
         copy_time = total_seconds(self.copy_end_time - self.copy_start_time)
         backup_info.copy_stats = {
-            'copy_time': copy_time,
-            'total_time': copy_time,
+            "copy_time": copy_time,
+            "total_time": copy_time,
         }
 
         # Check for the presence of configuration files outside the PGDATA
         external_config = backup_info.get_external_config_files()
         if any(external_config):
-            msg = ("pg_basebackup does not copy the PostgreSQL "
-                   "configuration files that reside outside PGDATA. "
-                   "Please manually backup the following files:\n"
-                   "\t%s\n" %
-                   "\n\t".join(ecf.path for ecf in external_config))
+            msg = (
+                "pg_basebackup does not copy the PostgreSQL "
+                "configuration files that reside outside PGDATA. "
+                "Please manually backup the following files:\n"
+                "\t%s\n" % "\n\t".join(ecf.path for ecf in external_config)
+            )
             # Show the warning only if the EXTERNAL_CONFIGURATION option
             # is not specified in the backup_options.
-            if (BackupOptions.EXTERNAL_CONFIGURATION
-                    not in self.config.backup_options):
+            if BackupOptions.EXTERNAL_CONFIGURATION not in self.config.backup_options:
                 output.warning(msg)
             else:
                 _logger.debug(msg)
 
-    def _retry_handler(self, dest_dirs, command, args, kwargs,
-                       attempt, exc):
+    def _retry_handler(self, dest_dirs, command, args, kwargs, attempt, exc):
         """
         Handler invoked during a backup in case of retry.
 
@@ -602,11 +627,14 @@ class PostgresBackupExecutor(BackupExecutor):
         :param CommandFailedException exc: the exception which caused the
             failure
         """
-        output.warning("Failure executing a backup using pg_basebackup "
-                       "(attempt %s)", attempt)
-        output.warning("The files copied so far will be removed and "
-                       "the backup process will restart in %s seconds",
-                       self.config.basebackup_retry_sleep)
+        output.warning(
+            "Failure executing a backup using pg_basebackup " "(attempt %s)", attempt
+        )
+        output.warning(
+            "The files copied so far will be removed and "
+            "the backup process will restart in %s seconds",
+            self.config.basebackup_retry_sleep,
+        )
         # Remove all the destination directories and reinit the backup
         self._prepare_backup_destination(dest_dirs)
 
@@ -630,8 +658,9 @@ class PostgresBackupExecutor(BackupExecutor):
             os.chmod(dest_dir, 448)
 
     def _start_backup_copy_message(self, backup_info):
-        output.info("Starting backup copy via pg_basebackup for %s",
-                    backup_info.backup_id)
+        output.info(
+            "Starting backup copy via pg_basebackup for %s", backup_info.backup_id
+        )
 
 
 class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
@@ -664,47 +693,52 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         # Retrieve the ssh command and the options necessary for the
         # remote ssh access.
         self.ssh_command, self.ssh_options = _parse_ssh_command(
-            backup_manager.config.ssh_command)
+            backup_manager.config.ssh_command
+        )
 
         if not self.local_mode:
             # Remote copy requires ssh_command to be set
             if not self.ssh_command:
                 raise SshCommandException(
-                    'Missing or invalid ssh_command in barman configuration '
-                    'for server %s' % backup_manager.config.name)
+                    "Missing or invalid ssh_command in barman configuration "
+                    "for server %s" % backup_manager.config.name
+                )
         else:
             # Local copy requires ssh_command not to be set
             if self.ssh_command:
                 raise SshCommandException(
-                    'Local copy requires ssh_command in barman configuration '
-                    'to be empty for server %s' % backup_manager.config.name)
+                    "Local copy requires ssh_command in barman configuration "
+                    "to be empty for server %s" % backup_manager.config.name
+                )
 
         # Apply the default backup strategy
         backup_options = self.config.backup_options
-        concurrent_backup = (
-            BackupOptions.CONCURRENT_BACKUP in backup_options)
-        exclusive_backup = (
-            BackupOptions.EXCLUSIVE_BACKUP in backup_options)
+        concurrent_backup = BackupOptions.CONCURRENT_BACKUP in backup_options
+        exclusive_backup = BackupOptions.EXCLUSIVE_BACKUP in backup_options
         if not concurrent_backup and not exclusive_backup:
             self.config.backup_options.add(BackupOptions.EXCLUSIVE_BACKUP)
             output.warning(
                 "No backup strategy set for server '%s' "
                 "(using default 'exclusive_backup').",
-                self.config.name)
+                self.config.name,
+            )
             output.warning(
                 "The default backup strategy will change "
                 "to 'concurrent_backup' in the future. "
-                "Explicitly set 'backup_options' to silence this warning.")
+                "Explicitly set 'backup_options' to silence this warning."
+            )
 
         # Depending on the backup options value, create the proper strategy
         if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
             # Concurrent backup strategy
             self.strategy = LocalConcurrentBackupStrategy(
-                self.server.postgres, self.config.name)
+                self.server.postgres, self.config.name
+            )
         else:
             # Exclusive backup strategy
             self.strategy = ExclusiveBackupStrategy(
-                self.server.postgres, self.config.name)
+                self.server.postgres, self.config.name
+            )
 
     def _update_action_from_strategy(self):
         """
@@ -713,7 +747,7 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         where the failure occurred.
         """
 
-        action = getattr(self.strategy, 'current_action', None)
+        action = getattr(self.strategy, "current_action", None)
         if action:
             self.current_action = action
 
@@ -751,13 +785,14 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             backup_info.save()
 
             if backup_info.begin_wal is not None:
-                output.info("Backup start at LSN: %s (%s, %08X)",
-                            backup_info.begin_xlog,
-                            backup_info.begin_wal,
-                            backup_info.begin_offset)
+                output.info(
+                    "Backup start at LSN: %s (%s, %08X)",
+                    backup_info.begin_xlog,
+                    backup_info.begin_wal,
+                    backup_info.begin_offset,
+                )
             else:
-                output.info("Backup start at LSN: %s",
-                            backup_info.begin_xlog)
+                output.info("Backup start at LSN: %s", backup_info.begin_xlog)
 
             # If this is the first backup, purge eventually unused WAL files
             self._purge_unused_wal_files(backup_info)
@@ -795,10 +830,10 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
              of the results of the various checks
         """
         cmd = UnixLocalCommand(path=self.server.path)
-        pgdata = self.server.postgres.get_setting('data_directory')
+        pgdata = self.server.postgres.get_setting("data_directory")
 
         # Check that PGDATA is accessible
-        check_strategy.init_check('local PGDATA')
+        check_strategy.init_check("local PGDATA")
         hint = "Access to local PGDATA"
         try:
             cmd.check_directory_exists(pgdata)
@@ -817,15 +852,15 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         """
 
         # Check the SSH connection
-        check_strategy.init_check('ssh')
+        check_strategy.init_check("ssh")
         hint = "PostgreSQL server"
         cmd = None
         minimal_ssh_output = None
         try:
-            cmd = UnixRemoteCommand(self.ssh_command,
-                                    self.ssh_options,
-                                    path=self.server.path)
-            minimal_ssh_output = ''.join(cmd.get_last_output())
+            cmd = UnixRemoteCommand(
+                self.ssh_command, self.ssh_options, path=self.server.path
+            )
+            minimal_ssh_output = "".join(cmd.get_last_output())
         except FsOperationFailed as e:
             hint = force_str(e).strip()
 
@@ -834,16 +869,16 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
         # Check that the communication channel is "clean"
         if minimal_ssh_output:
-            check_strategy.init_check('ssh output clean')
+            check_strategy.init_check("ssh output clean")
             check_strategy.result(
                 self.config.name,
                 False,
                 hint="the configured ssh_command must not add anything to "
-                     "the remote command output")
+                "the remote command output",
+            )
 
         # If SSH works but PostgreSQL is not responding
-        server_txt_version = self.server.get_remote_status().get(
-            'server_txt_version')
+        server_txt_version = self.server.get_remote_status().get("server_txt_version")
         if cmd is not None and server_txt_version is None:
             # Check for 'backup_label' presence
             last_backup = self.server.get_backup(
@@ -851,21 +886,18 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             )
             # Look for the latest backup in the catalogue
             if last_backup:
-                check_strategy.init_check('backup_label')
+                check_strategy.init_check("backup_label")
                 # Get PGDATA and build path to 'backup_label'
-                backup_label = os.path.join(last_backup.pgdata,
-                                            'backup_label')
+                backup_label = os.path.join(last_backup.pgdata, "backup_label")
                 # Verify that backup_label exists in the remote PGDATA.
                 # If so, send an alert. Do not show anything if OK.
                 exists = cmd.exists(backup_label)
                 if exists:
-                    hint = "Check that the PostgreSQL server is up " \
-                           "and no 'backup_label' file is in PGDATA."
-                    check_strategy.result(
-                        self.config.name,
-                        False,
-                        hint=hint
+                    hint = (
+                        "Check that the PostgreSQL server is up "
+                        "and no 'backup_label' file is in PGDATA."
                     )
+                    check_strategy.result(self.config.name, False, hint=hint)
 
     def check(self, check_strategy):
         """
@@ -919,29 +951,31 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         # the remote server and executing an 'ls' command. Only
         # for pre-9.4 versions of PostgreSQL.
         try:
-            if self.server.postgres and \
-                    self.server.postgres.server_version < 90400:
-                remote_status['last_archived_wal'] = None
-                if self.server.postgres.get_setting('data_directory') and \
-                        self.server.postgres.get_setting('archive_command'):
+            if self.server.postgres and self.server.postgres.server_version < 90400:
+                remote_status["last_archived_wal"] = None
+                if self.server.postgres.get_setting(
+                    "data_directory"
+                ) and self.server.postgres.get_setting("archive_command"):
                     if not self.local_mode:
-                        cmd = UnixRemoteCommand(self.ssh_command,
-                                                self.ssh_options,
-                                                path=self.server.path)
+                        cmd = UnixRemoteCommand(
+                            self.ssh_command, self.ssh_options, path=self.server.path
+                        )
                     else:
                         cmd = UnixLocalCommand(path=self.server.path)
                     # Here the name of the PostgreSQL WALs directory is
                     # hardcoded, but that doesn't represent a problem as
                     # this code runs only for PostgreSQL < 9.4
                     archive_dir = os.path.join(
-                        self.server.postgres.get_setting('data_directory'),
-                        'pg_xlog', 'archive_status')
-                    out = str(cmd.list_dir_content(archive_dir, ['-t']))
+                        self.server.postgres.get_setting("data_directory"),
+                        "pg_xlog",
+                        "archive_status",
+                    )
+                    out = str(cmd.list_dir_content(archive_dir, ["-t"]))
                     for line in out.splitlines():
-                        if line.endswith('.done'):
+                        if line.endswith(".done"):
                             name = line[:-5]
                             if xlog.is_any_xlog_file(name):
-                                remote_status['last_archived_wal'] = name
+                                remote_status["last_archived_wal"] = name
                                 break
         except (PostgresConnectionError, FsOperationFailed) as e:
             _logger.warning("Error retrieving PostgreSQL status: %s", e)
@@ -949,11 +983,13 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
     def _start_backup_copy_message(self, backup_info):
         number_of_workers = self.config.parallel_jobs
-        via = 'rsync/SSH'
+        via = "rsync/SSH"
         if self.local_mode:
-            via = 'local rsync'
+            via = "local rsync"
         message = "Starting backup copy via %s for %s" % (
-            via, backup_info.backup_id,)
+            via,
+            backup_info.backup_id,
+        )
         if number_of_workers > 1:
             message += " (%s jobs)" % number_of_workers
         output.info(message)
@@ -978,13 +1014,15 @@ class PassiveBackupExecutor(BackupExecutor):
         # Retrieve the ssh command and the options necessary for the
         # remote ssh access.
         self.ssh_command, self.ssh_options = _parse_ssh_command(
-            backup_manager.config.primary_ssh_command)
+            backup_manager.config.primary_ssh_command
+        )
 
         # Requires ssh_command to be set
         if not self.ssh_command:
             raise SshCommandException(
-                'Invalid primary_ssh_command in barman configuration '
-                'for server %s' % backup_manager.config.name)
+                "Invalid primary_ssh_command in barman configuration "
+                "for server %s" % backup_manager.config.name
+            )
 
     def backup(self, backup_info):
         """
@@ -1005,15 +1043,15 @@ class PassiveBackupExecutor(BackupExecutor):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        check_strategy.init_check('ssh')
-        hint = 'Barman primary node'
+        check_strategy.init_check("ssh")
+        hint = "Barman primary node"
         cmd = None
         minimal_ssh_output = None
         try:
-            cmd = UnixRemoteCommand(self.ssh_command,
-                                    self.ssh_options,
-                                    path=self.server.path)
-            minimal_ssh_output = ''.join(cmd.get_last_output())
+            cmd = UnixRemoteCommand(
+                self.ssh_command, self.ssh_options, path=self.server.path
+            )
+            minimal_ssh_output = "".join(cmd.get_last_output())
         except FsOperationFailed as e:
             hint = force_str(e).strip()
 
@@ -1022,22 +1060,26 @@ class PassiveBackupExecutor(BackupExecutor):
 
         # Check if the communication channel is "clean"
         if minimal_ssh_output:
-            check_strategy.init_check('ssh output clean')
+            check_strategy.init_check("ssh output clean")
             check_strategy.result(
                 self.config.name,
                 False,
                 hint="the configured ssh_command must not add anything to "
-                     "the remote command output")
+                "the remote command output",
+            )
 
     def status(self):
         """
         Set additional status info for PassiveBackupExecutor.
         """
         # On passive nodes show the primary_ssh_command
-        output.result('status', self.config.name,
-                      "primary_ssh_command",
-                      "SSH command to primary server",
-                      self.config.primary_ssh_command)
+        output.result(
+            "status",
+            self.config.name,
+            "primary_ssh_command",
+            "SSH command to primary server",
+            self.config.primary_ssh_command,
+        )
 
     @property
     def mode(self):
@@ -1045,7 +1087,7 @@ class PassiveBackupExecutor(BackupExecutor):
         Property that defines the mode used for the backup.
         :return str: a string describing the mode used for the backup
         """
-        return 'passive'
+        return "passive"
 
 
 class RsyncBackupExecutor(FsBackupExecutor):
@@ -1065,9 +1107,7 @@ class RsyncBackupExecutor(FsBackupExecutor):
         :param barman.backup.BackupManager backup_manager: the BackupManager
             assigned to the strategy
         """
-        super(RsyncBackupExecutor, self).__init__(
-            backup_manager, 'rsync', local_mode
-        )
+        super(RsyncBackupExecutor, self).__init__(backup_manager, "rsync", local_mode)
 
     def backup_copy(self, backup_info):
         """
@@ -1083,8 +1123,7 @@ class RsyncBackupExecutor(FsBackupExecutor):
         """
 
         # Retrieve the previous backup metadata, then calculate safe_horizon
-        previous_backup = self.backup_manager.get_previous_backup(
-            backup_info.backup_id)
+        previous_backup = self.backup_manager.get_previous_backup(backup_info.backup_id)
         safe_horizon = None
         reuse_backup = None
 
@@ -1121,9 +1160,10 @@ class RsyncBackupExecutor(FsBackupExecutor):
                 # If the tablespace location is inside the data directory,
                 # exclude and protect it from being copied twice during
                 # the data directory copy
-                if tablespace.location.startswith(backup_info.pgdata + '/'):
+                if tablespace.location.startswith(backup_info.pgdata + "/"):
                     exclude_and_protect += [
-                        tablespace.location[len(backup_info.pgdata):]]
+                        tablespace.location[len(backup_info.pgdata) :]
+                    ]
 
                 # Exclude and protect the tablespace from being copied again
                 # during the data directory copy
@@ -1131,8 +1171,7 @@ class RsyncBackupExecutor(FsBackupExecutor):
 
                 # Make sure the destination directory exists in order for
                 # smart copy to detect that no file is present there
-                tablespace_dest = backup_info.get_data_directory(
-                    tablespace.oid)
+                tablespace_dest = backup_info.get_data_directory(tablespace.oid)
                 mkpath(tablespace_dest)
 
                 # Add the tablespace directory to the list of objects
@@ -1148,9 +1187,8 @@ class RsyncBackupExecutor(FsBackupExecutor):
                     label=tablespace.name,
                     src="%s/" % self._format_src(tablespace.location),
                     dst=tablespace_dest,
-                    exclude=['/*'] + EXCLUDE_LIST,
-                    include=['/PG_%s_*' %
-                             self.server.postgres.server_major_version],
+                    exclude=["/*"] + EXCLUDE_LIST,
+                    include=["/PG_%s_*" % self.server.postgres.server_major_version],
                     bwlimit=self.config.get_bwlimit(tablespace),
                     reuse=self._reuse_path(previous_backup, tablespace),
                     item_class=controller.TABLESPACE_CLASS,
@@ -1164,7 +1202,7 @@ class RsyncBackupExecutor(FsBackupExecutor):
         # Add the PGDATA directory to the list of objects to be copied
         # by the controller
         controller.add_directory(
-            label='pgdata',
+            label="pgdata",
             src="%s/" % self._format_src(backup_info.pgdata),
             dst=backup_dest,
             exclude=PGDATA_EXCLUDE_LIST + EXCLUDE_LIST,
@@ -1176,9 +1214,9 @@ class RsyncBackupExecutor(FsBackupExecutor):
 
         # At last copy pg_control
         controller.add_file(
-            label='pg_control',
-            src='%s/global/pg_control' % self._format_src(backup_info.pgdata),
-            dst='%s/global/pg_control' % (backup_dest,),
+            label="pg_control",
+            src="%s/global/pg_control" % self._format_src(backup_info.pgdata),
+            dst="%s/global/pg_control" % (backup_dest,),
             item_class=controller.PGCONTROL_CLASS,
         )
 
@@ -1187,7 +1225,7 @@ class RsyncBackupExecutor(FsBackupExecutor):
         included_config_files = []
         for config_file in external_config_files:
             # Add included files to a list, they will be handled later
-            if config_file.file_type == 'include':
+            if config_file.file_type == "include":
                 included_config_files.append(config_file)
                 continue
 
@@ -1195,7 +1233,7 @@ class RsyncBackupExecutor(FsBackupExecutor):
             # for PostgreSQL.
             # Barman is consistent with this behavior.
             optional = False
-            if config_file.file_type == 'ident_file':
+            if config_file.file_type == "ident_file":
                 optional = True
 
             # Create the actual copy jobs in the controller
@@ -1213,8 +1251,7 @@ class RsyncBackupExecutor(FsBackupExecutor):
         # TODO: Improve the exception output
         except CommandFailedException as e:
             msg = "data transfer failure"
-            raise DataTransferFailure.from_command_error(
-                'rsync', e, msg)
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
 
         # Store the end time
         self.copy_end_time = datetime.datetime.now()
@@ -1227,15 +1264,15 @@ class RsyncBackupExecutor(FsBackupExecutor):
         # reside outside PGDATA. These files must be manually backed up.
         # Barman will emit a warning and list those files
         if any(included_config_files):
-            msg = ("The usage of include directives is not supported "
-                   "for files that reside outside PGDATA.\n"
-                   "Please manually backup the following files:\n"
-                   "\t%s\n" %
-                   "\n\t".join(icf.path for icf in included_config_files))
+            msg = (
+                "The usage of include directives is not supported "
+                "for files that reside outside PGDATA.\n"
+                "Please manually backup the following files:\n"
+                "\t%s\n" % "\n\t".join(icf.path for icf in included_config_files)
+            )
             # Show the warning only if the EXTERNAL_CONFIGURATION option
             # is not specified in the backup_options.
-            if (BackupOptions.EXTERNAL_CONFIGURATION
-                    not in self.config.backup_options):
+            if BackupOptions.EXTERNAL_CONFIGURATION not in self.config.backup_options:
                 output.warning(msg)
             else:
                 _logger.debug(msg)
@@ -1259,8 +1296,10 @@ class RsyncBackupExecutor(FsBackupExecutor):
         oid = None
         if tablespace:
             oid = tablespace.oid
-        if self.config.reuse_backup in ('copy', 'link') and \
-                previous_backup_info is not None:
+        if (
+            self.config.reuse_backup in ("copy", "link")
+            and previous_backup_info is not None
+        ):
             try:
                 return previous_backup_info.get_data_directory(oid)
             except ValueError:
@@ -1285,11 +1324,10 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
     """
 
     #: Regex for START WAL LOCATION info
-    START_TIME_RE = re.compile(r'^START TIME: (.*)', re.MULTILINE)
+    START_TIME_RE = re.compile(r"^START TIME: (.*)", re.MULTILINE)
 
     #: Regex for START TIME info
-    WAL_RE = re.compile(r'^START WAL LOCATION: (.*) \(file (.*)\)',
-                        re.MULTILINE)
+    WAL_RE = re.compile(r"^START WAL LOCATION: (.*) \(file (.*)\)", re.MULTILINE)
 
     def __init__(self, postgres, server_name, mode=None):
         """
@@ -1349,17 +1387,16 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
         # Get the PostgreSQL data directory location
-        self.current_action = 'detecting data directory'
+        self.current_action = "detecting data directory"
         output.debug(self.current_action)
-        data_directory = self.postgres.get_setting('data_directory')
-        backup_info.set_attribute('pgdata', data_directory)
+        data_directory = self.postgres.get_setting("data_directory")
+        backup_info.set_attribute("pgdata", data_directory)
 
         # Set server version
-        backup_info.set_attribute('version', self.postgres.server_version)
+        backup_info.set_attribute("version", self.postgres.server_version)
 
         # Set XLOG segment size
-        backup_info.set_attribute('xlog_segment_size',
-                                  self.postgres.xlog_segment_size)
+        backup_info.set_attribute("xlog_segment_size", self.postgres.xlog_segment_size)
 
         # Set configuration files location
         cf = self.postgres.get_configuration_files()
@@ -1367,11 +1404,11 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
             backup_info.set_attribute(key, cf[key])
 
         # Get tablespaces information
-        self.current_action = 'detecting tablespaces'
+        self.current_action = "detecting tablespaces"
         output.debug(self.current_action)
         tablespaces = self.postgres.get_tablespaces()
         if tablespaces and len(tablespaces) > 0:
-            backup_info.set_attribute('tablespaces', tablespaces)
+            backup_info.set_attribute("tablespaces", tablespaces)
             for item in tablespaces:
                 msg = "\t%s, %s, %s" % (item.oid, item.name, item.location)
                 _logger.info(msg)
@@ -1387,34 +1424,35 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         :param DictCursor start_info: the result of the pg_start_backup
         command
         """
-        backup_info.set_attribute('status', BackupInfo.STARTED)
-        backup_info.set_attribute('begin_time', start_info['timestamp'])
-        backup_info.set_attribute('begin_xlog', start_info['location'])
+        backup_info.set_attribute("status", BackupInfo.STARTED)
+        backup_info.set_attribute("begin_time", start_info["timestamp"])
+        backup_info.set_attribute("begin_xlog", start_info["location"])
 
         # PostgreSQL 9.6+ directly provides the timeline
-        if start_info.get('timeline') is not None:
-            backup_info.set_attribute('timeline', start_info['timeline'])
+        if start_info.get("timeline") is not None:
+            backup_info.set_attribute("timeline", start_info["timeline"])
             # Take a copy of stop_info because we are going to update it
             start_info = start_info.copy()
-            start_info.update(xlog.location_to_xlogfile_name_offset(
-                start_info['location'],
-                start_info['timeline'],
-                backup_info.xlog_segment_size))
+            start_info.update(
+                xlog.location_to_xlogfile_name_offset(
+                    start_info["location"],
+                    start_info["timeline"],
+                    backup_info.xlog_segment_size,
+                )
+            )
 
         # If file_name and file_offset are available, use them
-        file_name = start_info.get('file_name')
-        file_offset = start_info.get('file_offset')
+        file_name = start_info.get("file_name")
+        file_offset = start_info.get("file_offset")
         if file_name is not None and file_offset is not None:
-            backup_info.set_attribute('begin_wal',
-                                      start_info['file_name'])
-            backup_info.set_attribute('begin_offset',
-                                      start_info['file_offset'])
+            backup_info.set_attribute("begin_wal", start_info["file_name"])
+            backup_info.set_attribute("begin_offset", start_info["file_offset"])
 
             # If the timeline is still missing, extract it from the file_name
             if backup_info.timeline is None:
                 backup_info.set_attribute(
-                    'timeline',
-                    int(start_info['file_name'][0:8], 16))
+                    "timeline", int(start_info["file_name"][0:8], 16)
+                )
 
     @staticmethod
     def _backup_info_from_stop_location(backup_info, stop_info):
@@ -1428,25 +1466,26 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
 
         # If file_name or file_offset are missing build them using the stop
         # location and the timeline.
-        file_name = stop_info.get('file_name')
-        file_offset = stop_info.get('file_offset')
+        file_name = stop_info.get("file_name")
+        file_offset = stop_info.get("file_offset")
         if file_name is None or file_offset is None:
             # Take a copy of stop_info because we are going to update it
             stop_info = stop_info.copy()
             # Get the timeline from the stop_info if available, otherwise
             # Use the one from the backup_label
-            timeline = stop_info.get('timeline')
+            timeline = stop_info.get("timeline")
             if timeline is None:
                 timeline = backup_info.timeline
-            stop_info.update(xlog.location_to_xlogfile_name_offset(
-                stop_info['location'],
-                timeline,
-                backup_info.xlog_segment_size))
+            stop_info.update(
+                xlog.location_to_xlogfile_name_offset(
+                    stop_info["location"], timeline, backup_info.xlog_segment_size
+                )
+            )
 
-        backup_info.set_attribute('end_time', stop_info['timestamp'])
-        backup_info.set_attribute('end_xlog', stop_info['location'])
-        backup_info.set_attribute('end_wal', stop_info['file_name'])
-        backup_info.set_attribute('end_offset', stop_info['file_offset'])
+        backup_info.set_attribute("end_time", stop_info["timestamp"])
+        backup_info.set_attribute("end_xlog", stop_info["location"])
+        backup_info.set_attribute("end_wal", stop_info["file_name"])
+        backup_info.set_attribute("end_offset", stop_info["file_offset"])
 
     def _backup_info_from_backup_label(self, backup_info):
         """
@@ -1462,17 +1501,21 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         wal_info = self.WAL_RE.search(backup_info.backup_label)
         start_time = self.START_TIME_RE.search(backup_info.backup_label)
         if wal_info is None or start_time is None:
-            raise ValueError("Failure parsing backup_label for backup %s" %
-                             backup_info.backup_id)
+            raise ValueError(
+                "Failure parsing backup_label for backup %s" % backup_info.backup_id
+            )
 
         # Set data in backup_info from backup_label
-        backup_info.set_attribute('timeline', int(wal_info.group(2)[0:8], 16))
-        backup_info.set_attribute('begin_xlog', wal_info.group(1))
-        backup_info.set_attribute('begin_wal', wal_info.group(2))
-        backup_info.set_attribute('begin_offset', xlog.parse_lsn(
-            wal_info.group(1)) % backup_info.xlog_segment_size)
-        backup_info.set_attribute('begin_time', dateutil.parser.parse(
-            start_time.group(1)))
+        backup_info.set_attribute("timeline", int(wal_info.group(2)[0:8], 16))
+        backup_info.set_attribute("begin_xlog", wal_info.group(1))
+        backup_info.set_attribute("begin_wal", wal_info.group(2))
+        backup_info.set_attribute(
+            "begin_offset",
+            xlog.parse_lsn(wal_info.group(1)) % backup_info.xlog_segment_size,
+        )
+        backup_info.set_attribute(
+            "begin_time", dateutil.parser.parse(start_time.group(1))
+        )
 
     def _read_backup_label(self, backup_info):
         """
@@ -1481,11 +1524,10 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         :param barman.infofile.LocalBackupInfo  backup_info: backup information
         """
         self.current_action = "reading the backup label"
-        label_path = os.path.join(backup_info.get_data_directory(),
-                                  'backup_label')
+        label_path = os.path.join(backup_info.get_data_directory(), "backup_label")
         output.debug("Reading backup label: %s" % label_path)
-        with open(label_path, 'r') as f:
-            backup_info.set_attribute('backup_label', f.read())
+        with open(label_path, "r") as f:
+            backup_info.set_attribute("backup_label", f.read())
 
 
 class PostgresBackupStrategy(BackupStrategy):
@@ -1540,8 +1582,7 @@ class PostgresBackupStrategy(BackupStrategy):
         # Get the current xlog position
         current_xlog_info = self.postgres.current_xlog_info
         if current_xlog_info:
-            self._backup_info_from_stop_location(
-                backup_info, current_xlog_info)
+            self._backup_info_from_stop_location(backup_info, current_xlog_info)
 
         # Ask PostgreSQL to switch to another WAL file. This is needed
         # to archive the transaction log file containing the backup
@@ -1572,7 +1613,8 @@ class ExclusiveBackupStrategy(BackupStrategy):
         :param str server_name: The name of the server
         """
         super(ExclusiveBackupStrategy, self).__init__(
-            postgres, server_name, 'exclusive')
+            postgres, server_name, "exclusive"
+        )
 
     def start_backup(self, backup_info):
         """
@@ -1585,8 +1627,7 @@ class ExclusiveBackupStrategy(BackupStrategy):
         :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
         super(ExclusiveBackupStrategy, self).start_backup(backup_info)
-        label = "Barman backup %s %s" % (
-            backup_info.server_name, backup_info.backup_id)
+        label = "Barman backup %s %s" % (backup_info.server_name, backup_info.backup_id)
 
         # Issue an exclusive start backup command
         _logger.debug("Start of exclusive backup")
@@ -1617,16 +1658,17 @@ class ExclusiveBackupStrategy(BackupStrategy):
              of the results of the various checks
         """
         # Make sure PostgreSQL is not in recovery (i.e. is a master)
-        check_strategy.init_check('not in recovery')
+        check_strategy.init_check("not in recovery")
         if self.postgres:
             is_in_recovery = self.postgres.is_in_recovery
             if not is_in_recovery:
-                check_strategy.result(
-                    self.server_name, True)
+                check_strategy.result(self.server_name, True)
             else:
                 check_strategy.result(
-                    self.server_name, False,
-                    hint='cannot perform exclusive backup on a standby')
+                    self.server_name,
+                    False,
+                    hint="cannot perform exclusive backup on a standby",
+                )
 
 
 class ConcurrentBackupStrategy(BackupStrategy):
@@ -1647,7 +1689,8 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param str server_name: The name of the server
         """
         super(ConcurrentBackupStrategy, self).__init__(
-            postgres, server_name, 'concurrent')
+            postgres, server_name, "concurrent"
+        )
 
     def check(self, check_strategy):
         """
@@ -1656,7 +1699,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        check_strategy.init_check('pgespresso extension')
+        check_strategy.init_check("pgespresso extension")
         try:
             # We execute this check only if the postgres connection is non None
             # and the server version is lower than 9.6. On latest PostgreSQL
@@ -1666,10 +1709,11 @@ class ConcurrentBackupStrategy(BackupStrategy):
                     check_strategy.result(self.server_name, True)
                 else:
                     check_strategy.result(
-                        self.server_name, False,
-                        hint='required for concurrent '
-                             'backups on PostgreSQL %s' %
-                             self.postgres.server_major_version)
+                        self.server_name,
+                        False,
+                        hint="required for concurrent "
+                        "backups on PostgreSQL %s" % self.postgres.server_major_version,
+                    )
         except PostgresConnectionError:
             # Skip the check if the postgres connection doesn't work.
             # We assume that this error condition will be reported by
@@ -1687,8 +1731,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         """
         super(ConcurrentBackupStrategy, self).start_backup(backup_info)
 
-        label = "Barman backup %s %s" % (
-            backup_info.server_name, backup_info.backup_id)
+        label = "Barman backup %s %s" % (backup_info.server_name, backup_info.backup_id)
 
         pg_version = self.postgres.server_version
         if pg_version >= 90600:
@@ -1737,9 +1780,9 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        backup_info.set_attribute('status', BackupInfo.STARTED)
+        backup_info.set_attribute("status", BackupInfo.STARTED)
         start_info = self.postgres.pgespresso_start_backup(label)
-        backup_info.set_attribute('backup_label', start_info['backup_label'])
+        backup_info.set_attribute("backup_label", start_info["backup_label"])
         self._backup_info_from_backup_label(backup_info)
 
     def _pgespresso_stop_backup(self, backup_info):
@@ -1748,16 +1791,16 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        stop_info = self.postgres.pgespresso_stop_backup(
-            backup_info.backup_label)
+        stop_info = self.postgres.pgespresso_stop_backup(backup_info.backup_label)
         # Obtain a modifiable copy of stop_info object
         stop_info = stop_info.copy()
         # We don't know the exact backup stop location,
         # so we include the whole segment.
-        stop_info['location'] = xlog.location_from_xlogfile_name_offset(
-            stop_info['end_wal'],
+        stop_info["location"] = xlog.location_from_xlogfile_name_offset(
+            stop_info["end_wal"],
             self.postgres.xlog_segment_size - 1,
-            self.postgres.xlog_segment_size)
+            self.postgres.xlog_segment_size,
+        )
         self._backup_info_from_stop_location(backup_info, stop_info)
 
     def _concurrent_start_backup(self, backup_info, label):
@@ -1781,7 +1824,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
         """
         stop_info = self.postgres.stop_concurrent_backup()
         self.postgres.allow_reconnect = True
-        backup_info.set_attribute('backup_label', stop_info['backup_label'])
+        backup_info.set_attribute("backup_label", stop_info["backup_label"])
         self._backup_info_from_stop_location(backup_info, stop_info)
 
 
@@ -1801,10 +1844,9 @@ class LocalConcurrentBackupStrategy(ConcurrentBackupStrategy):
 
         :param barman.infofile.LocalBackupInfo  backup_info: backup information
         """
-        label_file = os.path.join(backup_info.get_data_directory(),
-                                  'backup_label')
+        label_file = os.path.join(backup_info.get_data_directory(), "backup_label")
         output.debug("Writing backup label: %s" % label_file)
-        with open(label_file, 'w') as f:
+        with open(label_file, "w") as f:
             f.write(backup_info.backup_label)
 
     def stop_backup(self, backup_info):
