@@ -69,7 +69,7 @@ def drop_privileges(user):
     os.setgroups(groups)
     os.setgid(pw.pw_gid)
     os.setuid(pw.pw_uid)
-    os.environ['HOME'] = pw.pw_dir
+    os.environ["HOME"] = pw.pw_dir
 
 
 def mkpath(directory):
@@ -85,9 +85,10 @@ def mkpath(directory):
 
 
 def configure_logging(
-        log_file,
-        log_level=logging.INFO,
-        log_format="%(asctime)s %(name)s %(levelname)s: %(message)s"):
+    log_file,
+    log_level=logging.INFO,
+    log_format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+):
     """
     Configure the logging module
 
@@ -104,12 +105,13 @@ def configure_logging(
         log_dir = os.path.dirname(log_file)
         try:
             mkpath(log_dir)
-            handler = logging.handlers.WatchedFileHandler(
-                log_file, encoding='utf-8')
+            handler = logging.handlers.WatchedFileHandler(log_file, encoding="utf-8")
         except (OSError, IOError):
             # fallback to standard error
-            warn = "Failed opening the requested log file. " \
-                   "Using standard error instead."
+            warn = (
+                "Failed opening the requested log file. "
+                "Using standard error instead."
+            )
     formatter = logging.Formatter(log_format)
     handler.setFormatter(formatter)
     logging.root.addHandler(handler)
@@ -144,9 +146,13 @@ def get_log_levels():
     try:
         level_to_name = logging._levelToName
     except AttributeError:
-        level_to_name = dict([(key, logging._levelNames[key])
-                              for key in logging._levelNames
-                              if isinstance(key, int)])
+        level_to_name = dict(
+            [
+                (key, logging._levelNames[key])
+                for key in logging._levelNames
+                if isinstance(key, int)
+            ]
+        )
     for level in sorted(level_to_name):
         yield level_to_name[level]
 
@@ -161,7 +167,7 @@ def pretty_size(size, unit=1024):
     """
     suffixes = ["B"] + [i + {1000: "B", 1024: "iB"}[unit] for i in "KMGTPEZY"]
     if unit == 1000:
-        suffixes[1] = 'kB'  # special case kB instead of KB
+        suffixes[1] = "kB"  # special case kB instead of KB
     # cast to float to avoid losing decimals
     size = float(size)
     for suffix in suffixes:
@@ -183,47 +189,47 @@ def human_readable_timedelta(timedelta):
     delta = abs(timedelta)
     # Calculate time units for the given interval
     time_map = {
-        'day': int(delta.days),
-        'hour': int(delta.seconds / 3600),
-        'minute': int(delta.seconds / 60) % 60,
-        'second': int(delta.seconds % 60),
+        "day": int(delta.days),
+        "hour": int(delta.seconds / 3600),
+        "minute": int(delta.seconds / 60) % 60,
+        "second": int(delta.seconds % 60),
     }
     # Build the resulting string
     time_list = []
 
     # 'Day' part
-    if time_map['day'] > 0:
-        if time_map['day'] == 1:
-            time_list.append('%s day' % time_map['day'])
+    if time_map["day"] > 0:
+        if time_map["day"] == 1:
+            time_list.append("%s day" % time_map["day"])
         else:
-            time_list.append('%s days' % time_map['day'])
+            time_list.append("%s days" % time_map["day"])
 
     # 'Hour' part
-    if time_map['hour'] > 0:
-        if time_map['hour'] == 1:
-            time_list.append('%s hour' % time_map['hour'])
+    if time_map["hour"] > 0:
+        if time_map["hour"] == 1:
+            time_list.append("%s hour" % time_map["hour"])
         else:
-            time_list.append('%s hours' % time_map['hour'])
+            time_list.append("%s hours" % time_map["hour"])
 
     # 'Minute' part
-    if time_map['minute'] > 0:
-        if time_map['minute'] == 1:
-            time_list.append('%s minute' % time_map['minute'])
+    if time_map["minute"] > 0:
+        if time_map["minute"] == 1:
+            time_list.append("%s minute" % time_map["minute"])
         else:
-            time_list.append('%s minutes' % time_map['minute'])
+            time_list.append("%s minutes" % time_map["minute"])
 
     # 'Second' part
-    if time_map['second'] > 0:
-        if time_map['second'] == 1:
-            time_list.append('%s second' % time_map['second'])
+    if time_map["second"] > 0:
+        if time_map["second"] == 1:
+            time_list.append("%s second" % time_map["second"])
         else:
-            time_list.append('%s seconds' % time_map['second'])
+            time_list.append("%s seconds" % time_map["second"])
 
-    human = ', '.join(time_list)
+    human = ", ".join(time_list)
 
     # Take care of timedelta when is shorter than a second
     if delta < datetime.timedelta(seconds=1):
-        human = 'less than one second'
+        human = "less than one second"
 
     # If timedelta is negative append 'ago' suffix
     if delta != timedelta:
@@ -239,11 +245,11 @@ def total_seconds(timedelta):
     :param timedelta: a timedelta object
     :rtype: float
     """
-    if hasattr(timedelta, 'total_seconds'):
+    if hasattr(timedelta, "total_seconds"):
         return timedelta.total_seconds()
     else:
-        secs = (timedelta.seconds + timedelta.days * 24 * 3600) * 10**6
-        return (timedelta.microseconds + secs) / 10.0**6
+        secs = (timedelta.seconds + timedelta.days * 24 * 3600) * 10 ** 6
+        return (timedelta.microseconds + secs) / 10.0 ** 6
 
 
 def which(executable, path=None):
@@ -257,7 +263,7 @@ def which(executable, path=None):
     """
     # Get the system path if needed
     if path is None:
-        path = os.getenv('PATH')
+        path = os.getenv("PATH")
     # If the path is None at this point we have nothing to search
     if path is None:
         return None
@@ -289,12 +295,13 @@ class BarmanEncoder(json.JSONEncoder):
     * objects that implement the 'to_json' method.
     * binary strings (python 3)
     """
+
     def default(self, obj):
         # If the object implements to_json() method use it
-        if hasattr(obj, 'to_json'):
+        if hasattr(obj, "to_json"):
             return obj.to_json()
         # Serialise date and datetime objects using ctime() method
-        if hasattr(obj, 'ctime') and callable(obj.ctime):
+        if hasattr(obj, "ctime") and callable(obj.ctime):
             return obj.ctime()
         # Serialise timedelta objects using human_readable_timedelta()
         if isinstance(obj, datetime.timedelta):
@@ -306,8 +313,8 @@ class BarmanEncoder(json.JSONEncoder):
             return float(obj)
         # Binary strings must be decoded before using them in
         # an unicode string
-        if hasattr(obj, 'decode') and callable(obj.decode):
-            return obj.decode('utf-8', 'replace')
+        if hasattr(obj, "decode") and callable(obj.decode):
+            return obj.decode("utf-8", "replace")
         # Manage (Loose|Strict)Version objects as strings.
         if isinstance(obj, Version):
             return str(obj)
@@ -376,15 +383,15 @@ def simplify_version(version_string):
     """
     if version_string is None:
         return None
-    version = version_string.split('.')
+    version = version_string.split(".")
     # If a development/beta/rc version, split out the string part
-    unreleased = re.search(r'[^0-9.]', version[-1])
+    unreleased = re.search(r"[^0-9.]", version[-1])
     if unreleased:
         last_component = version.pop()
-        number = last_component[:unreleased.start()]
-        string = last_component[unreleased.start():]
+        number = last_component[: unreleased.start()]
+        string = last_component[unreleased.start() :]
         version += [number, string]
-    return '.'.join(version[:-1])
+    return ".".join(version[:-1])
 
 
 def with_metaclass(meta, *bases):
@@ -401,7 +408,8 @@ def with_metaclass(meta, *bases):
     class Metaclass(type):
         def __new__(mcs, name, this_bases, d):
             return meta(name, bases, d)
-    return type.__new__(Metaclass, 'temporary_class', (), {})
+
+    return type.__new__(Metaclass, "temporary_class", (), {})
 
 
 @contextmanager
@@ -416,8 +424,7 @@ def timeout(timeout_duration):
 
     # set the timeout handler
     previous_handler = signal.signal(signal.SIGALRM, handler)
-    if previous_handler != signal.SIG_DFL \
-            and previous_handler != signal.SIG_IGN:
+    if previous_handler != signal.SIG_DFL and previous_handler != signal.SIG_IGN:
         signal.signal(signal.SIGALRM, previous_handler)
         raise AssertionError("Another timeout is already defined")
     # set the timeout duration
@@ -459,7 +466,7 @@ def file_md5(file_path, buffer_size=1024 * 16):
     :return str: Hexadecimal md5 string
     """
     md5 = hashlib.md5()
-    with open(file_path, 'rb') as file_object:
+    with open(file_path, "rb") as file_object:
         while 1:
             buf = file_object.read(buffer_size)
             if not buf:
@@ -468,7 +475,7 @@ def file_md5(file_path, buffer_size=1024 * 16):
     return md5.hexdigest()
 
 
-def force_str(obj, encoding='utf-8', errors='replace'):
+def force_str(obj, encoding="utf-8", errors="replace"):
     """
     Force any object to an unicode string.
 
@@ -486,7 +493,7 @@ def force_str(obj, encoding='utf-8', errors='replace'):
                     obj = _text_type(obj, encoding, errors)
                 else:
                     obj = _text_type(obj)
-            elif hasattr(obj, '__unicode__'):
+            elif hasattr(obj, "__unicode__"):
                 obj = _text_type(obj)
             else:
                 obj = _text_type(bytes(obj), encoding, errors)
@@ -497,8 +504,7 @@ def force_str(obj, encoding='utf-8', errors='replace'):
             # working unicode method. Try to handle this without raising a
             # further exception by individually forcing the exception args
             # to unicode.
-            obj = ' '.join(force_str(arg, encoding, errors)
-                           for arg in obj.args)
+            obj = " ".join(force_str(arg, encoding, errors) for arg in obj.args)
         else:
             # As last resort, use a repr call to avoid any exception
             obj = repr(obj)
@@ -521,16 +527,10 @@ def redact_passwords(text):
     """
 
     # Remove passwords as found in key/value connection strings
-    text = re.sub(
-        "password=('(\\'|[^'])+'|[^ '\"]*)",
-        "password=*REDACTED*",
-        text)
+    text = re.sub("password=('(\\'|[^'])+'|[^ '\"]*)", "password=*REDACTED*", text)
 
     # Remove passwords in connection URLs
-    text = re.sub(
-        r'(?<=postgresql:\/\/)([^ :@]+:)([^ :@]+)?@',
-        r'\1*REDACTED*@',
-        text)
+    text = re.sub(r"(?<=postgresql:\/\/)([^ :@]+:)([^ :@]+)?@", r"\1*REDACTED*@", text)
 
     return text
 
@@ -546,11 +546,9 @@ def check_non_negative(value):
     try:
         int_value = int(value)
     except Exception:
-        raise ArgumentTypeError("'%s' is not a valid non negative integer" %
-                                value)
+        raise ArgumentTypeError("'%s' is not a valid non negative integer" % value)
     if int_value < 0:
-        raise ArgumentTypeError("'%s' is not a valid non negative integer" %
-                                value)
+        raise ArgumentTypeError("'%s' is not a valid non negative integer" % value)
     return int_value
 
 
@@ -565,11 +563,9 @@ def check_positive(value):
     try:
         int_value = int(value)
     except Exception:
-        raise ArgumentTypeError("'%s' is not a valid positive integer" %
-                                value)
+        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
     if int_value < 1:
-        raise ArgumentTypeError("'%s' is not a valid positive integer" %
-                                value)
+        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
     return int_value
 
 
@@ -586,10 +582,10 @@ def check_size(value):
     try:
         # If value ends with `B` we try to parse the multiplier,
         # otherwise it is a plain integer
-        if value[-1] == 'B':
+        if value[-1] == "B":
             # By default we use base=1024, if the value ends with `iB`
             # it is a SI value and we use base=1000
-            if value[-2] == 'I':
+            if value[-2] == "I":
                 base = 1000
                 idx = 3
             else:
@@ -597,7 +593,7 @@ def check_size(value):
                 idx = 2
             multiplier = base
             # Parse the multiplicative prefix
-            for prefix in 'KMGTPEZY':
+            for prefix in "KMGTPEZY":
                 if value[-idx] == prefix:
                     int_value = int(float(value[:-idx]) * multiplier)
                     break
@@ -606,7 +602,7 @@ def check_size(value):
                 # If we do not find the prefix, remove the unit
                 # and try to parse the remainder as an integer
                 # (e.g. '1234B')
-                int_value = int(value[:-idx + 1])
+                int_value = int(value[: -idx + 1])
         else:
             int_value = int(value)
     except ValueError:

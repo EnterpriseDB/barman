@@ -59,19 +59,18 @@ class RetentionPolicy(with_metaclass(ABCMeta, object)):
             context = self.context
         # Overrides the list of available backups
         if source is None:
-            source = self.server.get_available_backups(
-                BackupInfo.STATUS_NOT_EMPTY)
-        if context == 'BASE':
+            source = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
+        if context == "BASE":
             return self._backup_report(source)
-        elif context == 'WAL':
+        elif context == "WAL":
             return self._wal_report()
         else:
-            raise ValueError('Invalid context %s', context)
+            raise ValueError("Invalid context %s", context)
 
     def backup_status(self, backup_id):
         """Report the status of a backup according to the retention policy"""
         source = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
-        if self.context == 'BASE':
+        if self.context == "BASE":
             return self._backup_report(source)[backup_id]
         else:
             return BackupInfo.NONE
@@ -79,13 +78,13 @@ class RetentionPolicy(with_metaclass(ABCMeta, object)):
     def first_backup(self):
         """Returns the first valid backup according to retention policies"""
         if not self._first_backup:
-            self.report(context='BASE')
+            self.report(context="BASE")
         return self._first_backup
 
     def first_wal(self):
         """Returns the first valid WAL according to retention policies"""
         if not self._first_wal:
-            self.report(context='WAL')
+            self.report(context="WAL")
         return self._first_wal
 
     @abstractmethod
@@ -116,8 +115,8 @@ class RetentionPolicy(with_metaclass(ABCMeta, object)):
         """
         # using @abstractclassmethod from python3 would be better here
         raise NotImplementedError(
-            'The class %s must override the create() class method',
-            cls.__name__)
+            "The class %s must override the create() class method", cls.__name__
+        )
 
     def to_json(self):
         """
@@ -133,12 +132,13 @@ class RedundancyRetentionPolicy(RetentionPolicy):
     is contrasted with retention policy that uses a recovery window.
     """
 
-    _re = re.compile(r'^\s*redundancy\s+(\d+)\s*$', re.IGNORECASE)
+    _re = re.compile(r"^\s*redundancy\s+(\d+)\s*$", re.IGNORECASE)
 
     def __init__(self, context, value, server):
-        super(RedundancyRetentionPolicy, self
-              ).__init__('redundancy', 'b', value, 'BASE', server)
-        assert (value >= 0)
+        super(RedundancyRetentionPolicy, self).__init__(
+            "redundancy", "b", value, "BASE", server
+        )
+        assert value >= 0
 
     def __str__(self):
         return "REDUNDANCY %s" % self.value
@@ -156,8 +156,10 @@ class RedundancyRetentionPolicy(RetentionPolicy):
             _logger.warning(
                 "Retention policy redundancy (%s) is lower than "
                 "the required minimum redundancy (%s). Enforce %s.",
-                redundancy, self.server.config.minimum_redundancy,
-                self.server.config.minimum_redundancy)
+                redundancy,
+                self.server.config.minimum_redundancy,
+                self.server.config.minimum_redundancy,
+            )
             redundancy = self.server.config.minimum_redundancy
 
         # Map the latest 'redundancy' DONE backups as VALID
@@ -211,21 +213,23 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
         (\d+)\s+(day|month|week)s?  # N (day|month|week) with optional 's'
         \s*$
         """,
-        re.IGNORECASE | re.VERBOSE)
-    _kw = {'d': 'DAYS', 'm': 'MONTHS', 'w': 'WEEKS'}
+        re.IGNORECASE | re.VERBOSE,
+    )
+    _kw = {"d": "DAYS", "m": "MONTHS", "w": "WEEKS"}
 
     def __init__(self, context, value, unit, server):
-        super(RecoveryWindowRetentionPolicy, self
-              ).__init__('window', unit, value, context, server)
-        assert (value >= 0)
-        assert (unit == 'd' or unit == 'm' or unit == 'w')
-        assert (context == 'WAL' or context == 'BASE')
+        super(RecoveryWindowRetentionPolicy, self).__init__(
+            "window", unit, value, context, server
+        )
+        assert value >= 0
+        assert unit == "d" or unit == "m" or unit == "w"
+        assert context == "WAL" or context == "BASE"
         # Calculates the time delta
-        if unit == 'd':
+        if unit == "d":
             self.timedelta = timedelta(days=self.value)
-        elif unit == 'w':
+        elif unit == "w":
             self.timedelta = timedelta(weeks=self.value)
-        elif unit == 'm':
+        elif unit == "m":
             self.timedelta = timedelta(days=(31 * self.value))
 
     def __str__(self):
@@ -233,8 +237,11 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
 
     def debug(self):
         return "Recovery Window: %s %s: %s (%s)" % (
-            self.value, self.unit, self.context,
-            self._point_of_recoverability())
+            self.value,
+            self.unit,
+            self.context,
+            self._point_of_recoverability(),
+        )
 
     def _point_of_recoverability(self):
         """
@@ -265,9 +272,11 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
                             "Keeping obsolete backup %s for server %s "
                             "(older than %s) "
                             "due to minimum redundancy requirements (%s)",
-                            bid, self.server.config.name,
+                            bid,
+                            self.server.config.name,
                             self._point_of_recoverability(),
-                            self.server.config.minimum_redundancy)
+                            self.server.config.minimum_redundancy,
+                        )
                         # We mark the backup as potentially obsolete
                         # as we must respect minimum redundancy requirements
                         report[bid] = BackupInfo.POTENTIALLY_OBSOLETE
@@ -279,15 +288,18 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
                         _logger.info(
                             "Reporting backup %s for server %s as OBSOLETE "
                             "(older than %s)",
-                            bid, self.server.config.name,
-                            self._point_of_recoverability())
+                            bid,
+                            self.server.config.name,
+                            self._point_of_recoverability(),
+                        )
                         report[bid] = BackupInfo.OBSOLETE
                 else:
                     _logger.debug(
-                        "Reporting backup %s for server %s as VALID "
-                        "(newer than %s)",
-                        bid, self.server.config.name,
-                        self._point_of_recoverability())
+                        "Reporting backup %s for server %s as VALID " "(newer than %s)",
+                        bid,
+                        self.server.config.name,
+                        self._point_of_recoverability(),
+                    )
                     # Backup within the recovery window
                     report[bid] = BackupInfo.VALID
                     self._first_backup = bid
@@ -317,14 +329,15 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
 
 class SimpleWALRetentionPolicy(RetentionPolicy):
     """Simple retention policy for WAL files (identical to the main one)"""
-    _re = re.compile(r'^\s*main\s*$', re.IGNORECASE)
+
+    _re = re.compile(r"^\s*main\s*$", re.IGNORECASE)
 
     def __init__(self, context, policy, server):
-        super(SimpleWALRetentionPolicy, self
-              ).__init__('simple-wal', policy.unit, policy.value,
-                         context, server)
+        super(SimpleWALRetentionPolicy, self).__init__(
+            "simple-wal", policy.unit, policy.value, context, server
+        )
         # The referred policy must be of type 'BASE'
-        assert (self.context == 'WAL' and policy.context == 'BASE')
+        assert self.context == "WAL" and policy.context == "BASE"
         self.policy = policy
 
     def __str__(self):
@@ -339,7 +352,7 @@ class SimpleWALRetentionPolicy(RetentionPolicy):
 
     def _wal_report(self):
         """Report obsolete/valid backups according to the retention policy"""
-        self.policy.report(context='WAL')
+        self.policy.report(context="WAL")
 
     def first_wal(self):
         """Returns the first valid WAL according to retention policies"""
@@ -361,7 +374,7 @@ class RetentionPolicyFactory(object):
     policy_classes = [
         RedundancyRetentionPolicy,
         RecoveryWindowRetentionPolicy,
-        SimpleWALRetentionPolicy
+        SimpleWALRetentionPolicy,
     ]
 
     @classmethod
@@ -371,13 +384,12 @@ class RetentionPolicyFactory(object):
         file, creates the appropriate retention policy object
         for the given server
         """
-        if option == 'wal_retention_policy':
-            context = 'WAL'
-        elif option == 'retention_policy':
-            context = 'BASE'
+        if option == "wal_retention_policy":
+            context = "WAL"
+        elif option == "retention_policy":
+            context = "BASE"
         else:
-            raise ValueError('Unknown option for retention policy: %s' %
-                             option)
+            raise ValueError("Unknown option for retention policy: %s" % option)
 
         # Look for the matching rule
         for policy_class in cls.policy_classes:
@@ -385,4 +397,4 @@ class RetentionPolicyFactory(object):
             if policy:
                 return policy
 
-        raise ValueError('Cannot parse option %s: %s' % (option, value))
+        raise ValueError("Cannot parse option %s: %s" % (option, value))

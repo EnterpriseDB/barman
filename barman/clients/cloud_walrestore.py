@@ -43,7 +43,7 @@ def main(args=None):
 
     # Validate the WAL file name before downloading it
     if not is_any_xlog_file(config.wal_name):
-        logging.error('%s is an invalid name for a WAL file' % config.wal_name)
+        logging.error("%s is an invalid name for a WAL file" % config.wal_name)
         raise SystemExit(1)
 
     try:
@@ -51,12 +51,13 @@ def main(args=None):
             url=config.source_url,
             encryption=config.encryption,
             profile_name=config.profile,
-            endpoint_url=config.endpoint_url)
+            endpoint_url=config.endpoint_url,
+        )
 
         with closing(cloud_interface):
             downloader = S3WalDownloader(
-                cloud_interface=cloud_interface,
-                server_name=config.server_name)
+                cloud_interface=cloud_interface, server_name=config.server_name
+            )
 
             if not cloud_interface.test_connectivity():
                 raise SystemExit(1)
@@ -65,16 +66,14 @@ def main(args=None):
                 raise SystemExit(0)
 
             if not cloud_interface.bucket_exists:
-                logging.error("Bucket %s does not exist",
-                              cloud_interface.bucket_name)
+                logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise SystemExit(1)
 
             downloader.download_wal(config.wal_name, config.wal_dest)
 
     except Exception as exc:
-        logging.error("Barman cloud WAL restore exception: %s",
-                      force_str(exc))
-        logging.debug('Exception details:', exc_info=exc)
+        logging.error("Barman cloud WAL restore exception: %s", force_str(exc))
+        logging.debug("Exception details:", exc_info=exc)
         raise SystemExit(1)
 
 
@@ -86,67 +85,67 @@ def parse_arguments(args=None):
     """
 
     parser = argparse.ArgumentParser(
-        description='This script can be used as a `restore_command` '
-                    'to download WAL files previously archived with '
-                    'barman-cloud-wal-archive command. '
-                    'Currently only AWS S3 is supported.',
-        add_help=False
+        description="This script can be used as a `restore_command` "
+        "to download WAL files previously archived with "
+        "barman-cloud-wal-archive command. "
+        "Currently only AWS S3 is supported.",
+        add_help=False,
     )
 
     parser.add_argument(
-        'source_url',
-        help='URL of the cloud source, such as a bucket in AWS S3.'
-             ' For example: `s3://bucket/path/to/folder`.'
+        "source_url",
+        help="URL of the cloud source, such as a bucket in AWS S3."
+        " For example: `s3://bucket/path/to/folder`.",
     )
     parser.add_argument(
-        'server_name',
-        help='the name of the server as configured in Barman.'
+        "server_name", help="the name of the server as configured in Barman."
     )
     parser.add_argument(
         "wal_name",
-        help="The value of the '%%f' keyword "
-             "(according to 'restore_command').",
+        help="The value of the '%%f' keyword " "(according to 'restore_command').",
     )
     parser.add_argument(
         "wal_dest",
-        help="The value of the '%%p' keyword "
-             "(according to 'restore_command').",
+        help="The value of the '%%p' keyword " "(according to 'restore_command').",
     )
     parser.add_argument(
-        '-V', '--version',
-        action='version', version='%%(prog)s %s' % barman.__version__
+        "-V", "--version", action="version", version="%%(prog)s %s" % barman.__version__
     )
-    parser.add_argument(
-        '--help',
-        action='help',
-        help='show this help message and exit')
+    parser.add_argument("--help", action="help", help="show this help message and exit")
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument(
-        '-v', '--verbose',
-        action='count',
+        "-v",
+        "--verbose",
+        action="count",
         default=0,
-        help='increase output verbosity (e.g., -vv is more than -v)')
+        help="increase output verbosity (e.g., -vv is more than -v)",
+    )
     verbosity.add_argument(
-        '-q', '--quiet',
-        action='count',
+        "-q",
+        "--quiet",
+        action="count",
         default=0,
-        help='decrease output verbosity (e.g., -qq is less than -q)')
-    parser.add_argument(
-        '-P', '--profile',
-        help='profile name (e.g. INI section in AWS credentials file)',
+        help="decrease output verbosity (e.g., -qq is less than -q)",
     )
     parser.add_argument(
-        "-e", "--encryption",
+        "-P",
+        "--profile",
+        help="profile name (e.g. INI section in AWS credentials file)",
+    )
+    parser.add_argument(
+        "-e",
+        "--encryption",
         help="Enable server-side encryption for the transfer. "
-             "Allowed values: 'AES256', 'aws:kms'",
-        choices=['AES256', 'aws:kms'],
+        "Allowed values: 'AES256', 'aws:kms'",
+        choices=["AES256", "aws:kms"],
         metavar="ENCRYPTION",
     )
     parser.add_argument(
-        "-t", "--test",
+        "-t",
+        "--test",
         help="Test cloud connectivity and exit",
         action="store_true",
-        default=False
+        default=False,
     )
     parser.add_argument(
         "--endpoint-url",
@@ -161,10 +160,9 @@ class S3WalDownloader(object):
     """
 
     # Allowed compression algorithms
-    ALLOWED_COMPRESSIONS = {'.gz': 'gzip', '.bz2': 'bzip2'}
+    ALLOWED_COMPRESSIONS = {".gz": "gzip", ".bz2": "bzip2"}
 
-    def __init__(self, cloud_interface,
-                 server_name):
+    def __init__(self, cloud_interface, server_name):
         """
         Object responsible for handling interactions with S3
 
@@ -186,10 +184,7 @@ class S3WalDownloader(object):
 
         # Correctly format the source path on s3
         source_dir = os.path.join(
-            self.cloud_interface.path,
-            self.server_name,
-            'wals',
-            hash_dir(wal_name)
+            self.cloud_interface.path, self.server_name, "wals", hash_dir(wal_name)
         )
         # Add a path separator if needed
         if not source_dir.endswith(os.path.sep):
@@ -209,9 +204,9 @@ class S3WalDownloader(object):
                 # Detect compression
                 basename = item
                 for e, c in self.ALLOWED_COMPRESSIONS.items():
-                    if item[-len(e):] == e:
+                    if item[-len(e) :] == e:
                         # Strip extension
-                        basename = basename[:-len(e)]
+                        basename = basename[: -len(e)]
                         compression = c
                         break
 
@@ -226,22 +221,29 @@ class S3WalDownloader(object):
 
                 # Found candidate
                 remote_name = item
-                logging.info("Found WAL %s for server %s as %s",
-                             wal_name, self.server_name, remote_name)
+                logging.info(
+                    "Found WAL %s for server %s as %s",
+                    wal_name,
+                    self.server_name,
+                    remote_name,
+                )
                 break
 
         if not remote_name:
-            logging.info("WAL file %s for server %s does not exists",
-                         wal_name, self.server_name)
+            logging.info(
+                "WAL file %s for server %s does not exists", wal_name, self.server_name
+            )
             raise SystemExit(1)
 
         # Download the file
-        logging.debug("Downloading %s to %s (%s)",
-                      remote_name, wal_dest,
-                      "decompressing " + compression if compression
-                      else "no compression")
+        logging.debug(
+            "Downloading %s to %s (%s)",
+            remote_name,
+            wal_dest,
+            "decompressing " + compression if compression else "no compression",
+        )
         self.cloud_interface.download_file(remote_name, wal_dest, compression)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

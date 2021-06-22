@@ -27,34 +27,33 @@ versions.
 
 PGDATA_EXCLUDE_LIST = [
     # Exclude log files (pg_log was renamed to log in Postgres v10)
-    '/pg_log/*',
-    '/log/*',
+    "/pg_log/*",
+    "/log/*",
     # Exclude WAL files (pg_xlog was renamed to pg_wal in Postgres v10)
-    '/pg_xlog/*',
-    '/pg_wal/*',
+    "/pg_xlog/*",
+    "/pg_wal/*",
     # We handle this on a different step of the copy
-    '/global/pg_control',
+    "/global/pg_control",
 ]
 
 EXCLUDE_LIST = [
     # Files: see excludeFiles const in PostgreSQL source
-    'pgsql_tmp*',
-    'postgresql.auto.conf.tmp',
-    'current_logfiles.tmp',
-    'pg_internal.init',
-    'postmaster.pid',
-    'postmaster.opts',
-    'recovery.conf',
-    'standby.signal',
-
+    "pgsql_tmp*",
+    "postgresql.auto.conf.tmp",
+    "current_logfiles.tmp",
+    "pg_internal.init",
+    "postmaster.pid",
+    "postmaster.opts",
+    "recovery.conf",
+    "standby.signal",
     # Directories: see excludeDirContents const in PostgreSQL source
-    'pg_dynshmem/*',
-    'pg_notify/*',
-    'pg_replslot/*',
-    'pg_serial/*',
-    'pg_stat_tmp/*',
-    'pg_snapshots/*',
-    'pg_subtrans/*',
+    "pg_dynshmem/*",
+    "pg_notify/*",
+    "pg_replslot/*",
+    "pg_serial/*",
+    "pg_stat_tmp/*",
+    "pg_snapshots/*",
+    "pg_subtrans/*",
 ]
 
 
@@ -74,31 +73,31 @@ def function_name_map(server_version):
 
     if server_version and server_version < 100000:
         return {
-            'pg_switch_wal': 'pg_switch_xlog',
-            'pg_walfile_name': 'pg_xlogfile_name',
-            'pg_wal': 'pg_xlog',
-            'pg_walfile_name_offset': 'pg_xlogfile_name_offset',
-            'pg_last_wal_replay_lsn': 'pg_last_xlog_replay_location',
-            'pg_current_wal_lsn': 'pg_current_xlog_location',
-            'pg_current_wal_insert_lsn': 'pg_current_xlog_insert_location',
-            'pg_last_wal_receive_lsn': 'pg_last_xlog_receive_location',
-            'sent_lsn': 'sent_location',
-            'write_lsn': 'write_location',
-            'flush_lsn': 'flush_location',
-            'replay_lsn': 'replay_location',
+            "pg_switch_wal": "pg_switch_xlog",
+            "pg_walfile_name": "pg_xlogfile_name",
+            "pg_wal": "pg_xlog",
+            "pg_walfile_name_offset": "pg_xlogfile_name_offset",
+            "pg_last_wal_replay_lsn": "pg_last_xlog_replay_location",
+            "pg_current_wal_lsn": "pg_current_xlog_location",
+            "pg_current_wal_insert_lsn": "pg_current_xlog_insert_location",
+            "pg_last_wal_receive_lsn": "pg_last_xlog_receive_location",
+            "sent_lsn": "sent_location",
+            "write_lsn": "write_location",
+            "flush_lsn": "flush_location",
+            "replay_lsn": "replay_location",
         }
 
     return {
-        'pg_switch_wal': 'pg_switch_wal',
-        'pg_walfile_name': 'pg_walfile_name',
-        'pg_wal': 'pg_wal',
-        'pg_walfile_name_offset': 'pg_walfile_name_offset',
-        'pg_last_wal_replay_lsn': 'pg_last_wal_replay_lsn',
-        'pg_current_wal_lsn': 'pg_current_wal_lsn',
-        'pg_current_wal_insert_lsn': 'pg_current_wal_insert_lsn',
-        'pg_last_wal_receive_lsn': 'pg_last_wal_receive_lsn',
-        'sent_lsn': 'sent_lsn',
-        'write_lsn': 'write_lsn',
-        'flush_lsn': 'flush_lsn',
-        'replay_lsn': 'replay_lsn',
+        "pg_switch_wal": "pg_switch_wal",
+        "pg_walfile_name": "pg_walfile_name",
+        "pg_wal": "pg_wal",
+        "pg_walfile_name_offset": "pg_walfile_name_offset",
+        "pg_last_wal_replay_lsn": "pg_last_wal_replay_lsn",
+        "pg_current_wal_lsn": "pg_current_wal_lsn",
+        "pg_current_wal_insert_lsn": "pg_current_wal_insert_lsn",
+        "pg_last_wal_receive_lsn": "pg_last_wal_receive_lsn",
+        "sent_lsn": "sent_lsn",
+        "write_lsn": "write_lsn",
+        "flush_lsn": "flush_lsn",
+        "replay_lsn": "replay_lsn",
     }

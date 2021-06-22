@@ -40,11 +40,15 @@ from barman import output, xlog
 from barman.command_wrappers import RsyncPgData
 from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
-from barman.exceptions import (BadXlogSegmentName, CommandFailedException,
-                               DataTransferFailure, FsOperationFailed,
-                               RecoveryInvalidTargetException,
-                               RecoveryStandbyModeException,
-                               RecoveryTargetActionException)
+from barman.exceptions import (
+    BadXlogSegmentName,
+    CommandFailedException,
+    DataTransferFailure,
+    FsOperationFailed,
+    RecoveryInvalidTargetException,
+    RecoveryStandbyModeException,
+    RecoveryTargetActionException,
+)
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo, LocalBackupInfo
 from barman.utils import force_str, mkpath
@@ -57,7 +61,7 @@ PG_CONF_SETTING_RE = re.compile(r"^\s*([^\s=]+)\s*=?\s*(.*)$")
 
 # create a namedtuple object called Assertion
 # with 'filename', 'line', 'key' and 'value' as properties
-Assertion = collections.namedtuple('Assertion', 'filename line key value')
+Assertion = collections.namedtuple("Assertion", "filename line key value")
 
 
 # noinspection PyMethodMayBeStatic
@@ -68,26 +72,37 @@ class RecoveryExecutor(object):
 
     # Potentially dangerous options list, which need to be revised by the user
     # after a recovery
-    DANGEROUS_OPTIONS = ['data_directory', 'config_file', 'hba_file',
-                         'ident_file', 'external_pid_file', 'ssl_cert_file',
-                         'ssl_key_file', 'ssl_ca_file', 'ssl_crl_file',
-                         'unix_socket_directory', 'unix_socket_directories',
-                         'include', 'include_dir', 'include_if_exists']
+    DANGEROUS_OPTIONS = [
+        "data_directory",
+        "config_file",
+        "hba_file",
+        "ident_file",
+        "external_pid_file",
+        "ssl_cert_file",
+        "ssl_key_file",
+        "ssl_ca_file",
+        "ssl_crl_file",
+        "unix_socket_directory",
+        "unix_socket_directories",
+        "include",
+        "include_dir",
+        "include_if_exists",
+    ]
 
     # List of options that, if present, need to be forced to a specific value
     # during recovery, to avoid data losses
     MANGLE_OPTIONS = {
         # Dangerous options
-        'archive_command': 'false',
+        "archive_command": "false",
         # Recovery options that may interfere with recovery targets
-        'recovery_target': None,
-        'recovery_target_name': None,
-        'recovery_target_time': None,
-        'recovery_target_xid': None,
-        'recovery_target_lsn': None,
-        'recovery_target_inclusive': None,
-        'recovery_target_timeline': None,
-        'recovery_target_action': None,
+        "recovery_target": None,
+        "recovery_target_name": None,
+        "recovery_target_time": None,
+        "recovery_target_xid": None,
+        "recovery_target_lsn": None,
+        "recovery_target_inclusive": None,
+        "recovery_target_timeline": None,
+        "recovery_target_action": None,
     }
 
     def __init__(self, backup_manager):
@@ -102,10 +117,22 @@ class RecoveryExecutor(object):
         self.config = backup_manager.config
         self.temp_dirs = []
 
-    def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
-                target_tli=None, target_time=None, target_xid=None,
-                target_lsn=None, target_name=None, target_immediate=False,
-                exclusive=False, target_action=None, standby_mode=None):
+    def recover(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        target_tli=None,
+        target_time=None,
+        target_xid=None,
+        target_lsn=None,
+        target_name=None,
+        target_immediate=False,
+        exclusive=False,
+        target_action=None,
+        standby_mode=None,
+    ):
         """
         Performs a recovery of a backup
 
@@ -133,57 +160,67 @@ class RecoveryExecutor(object):
         # Run the cron to be sure the wal catalog is up to date
         # Prepare a map that contains all the objects required for a recovery
         recovery_info = self._setup(backup_info, remote_command, dest)
-        output.info("Starting %s restore for server %s using backup %s",
-                    recovery_info['recovery_dest'], self.server.config.name,
-                    backup_info.backup_id)
+        output.info(
+            "Starting %s restore for server %s using backup %s",
+            recovery_info["recovery_dest"],
+            self.server.config.name,
+            backup_info.backup_id,
+        )
         output.info("Destination directory: %s", dest)
         if remote_command:
             output.info("Remote command: %s", remote_command)
 
         # If the backup we are recovering is still not validated and we
         # haven't requested the get-wal feature, display a warning message
-        if not recovery_info['get_wal']:
+        if not recovery_info["get_wal"]:
             if backup_info.status == BackupInfo.WAITING_FOR_WALS:
                 output.warning(
                     "IMPORTANT: You have requested a recovery operation for "
                     "a backup that does not have yet all the WAL files that "
-                    "are required for consistency.")
+                    "are required for consistency."
+                )
 
         # Set targets for PITR
-        self._set_pitr_targets(recovery_info,
-                               backup_info, dest,
-                               target_name,
-                               target_time,
-                               target_tli,
-                               target_xid,
-                               target_lsn,
-                               target_immediate,
-                               target_action)
+        self._set_pitr_targets(
+            recovery_info,
+            backup_info,
+            dest,
+            target_name,
+            target_time,
+            target_tli,
+            target_xid,
+            target_lsn,
+            target_immediate,
+            target_action,
+        )
 
         # Retrieve the safe_horizon for smart copy
         self._retrieve_safe_horizon(recovery_info, backup_info, dest)
 
         # check destination directory. If doesn't exist create it
         try:
-            recovery_info['cmd'].create_dir_if_not_exists(dest)
+            recovery_info["cmd"].create_dir_if_not_exists(dest)
         except FsOperationFailed as e:
-            output.error("unable to initialise destination directory "
-                         "'%s': %s", dest, e)
+            output.error(
+                "unable to initialise destination directory " "'%s': %s", dest, e
+            )
             output.close_and_exit()
 
         # Initialize tablespace directories
         if backup_info.tablespaces:
-            self._prepare_tablespaces(backup_info,
-                                      recovery_info['cmd'],
-                                      dest,
-                                      tablespaces)
+            self._prepare_tablespaces(
+                backup_info, recovery_info["cmd"], dest, tablespaces
+            )
         # Copy the base backup
         output.info("Copying the base backup.")
         try:
             self._backup_copy(
-                backup_info, dest,
-                tablespaces, remote_command,
-                recovery_info['safe_horizon'])
+                backup_info,
+                dest,
+                tablespaces,
+                remote_command,
+                recovery_info["safe_horizon"],
+            )
         except DataTransferFailure as e:
             output.error("Failure copying base backup: %s", e)
             output.close_and_exit()
@@ -192,23 +229,24 @@ class RecoveryExecutor(object):
         # ".barman-recover.info"
         if remote_command:
             try:
-                recovery_info['rsync'](backup_info.filename,
-                                       ':%s/.barman-recover.info' % dest)
+                recovery_info["rsync"](
+                    backup_info.filename, ":%s/.barman-recover.info" % dest
+                )
             except CommandFailedException as e:
-                output.error(
-                    'copy of recovery metadata file failed: %s', e)
+                output.error("copy of recovery metadata file failed: %s", e)
                 output.close_and_exit()
         else:
-            backup_info.save(os.path.join(dest, '.barman-recover.info'))
+            backup_info.save(os.path.join(dest, ".barman-recover.info"))
 
         # Standby mode is not available for PostgreSQL older than 9.0
         if backup_info.version < 90000 and standby_mode:
             raise RecoveryStandbyModeException(
-                'standby_mode is available only from PostgreSQL 9.0')
+                "standby_mode is available only from PostgreSQL 9.0"
+            )
 
         # Restore the WAL segments. If GET_WAL option is set, skip this phase
         # as they will be retrieved using the wal-get command.
-        if not recovery_info['get_wal']:
+        if not recovery_info["get_wal"]:
             # If the backup we restored is still waiting for WALS, read the
             # backup info again and check whether it has been validated.
             # Notify the user if it is still not DONE.
@@ -220,7 +258,8 @@ class RecoveryExecutor(object):
                         "VALID. Required WAL files for consistency are "
                         "missing. Please verify that WAL archiving is "
                         "working correctly or evaluate using the 'get-wal' "
-                        "option for recovery")
+                        "option for recovery"
+                    )
 
             output.info("Copying required WAL segments.")
 
@@ -230,51 +269,65 @@ class RecoveryExecutor(object):
                 # Retrieve a list of required log files
                 required_xlog_files = tuple(
                     self.server.get_required_xlog_files(
-                        backup_info, target_tli,
-                        recovery_info['target_epoch']))
+                        backup_info, target_tli, recovery_info["target_epoch"]
+                    )
+                )
 
                 # Restore WAL segments into the wal_dest directory
-                self._xlog_copy(required_xlog_files,
-                                recovery_info['wal_dest'],
-                                remote_command)
+                self._xlog_copy(
+                    required_xlog_files, recovery_info["wal_dest"], remote_command
+                )
             except DataTransferFailure as e:
                 output.error("Failure copying WAL files: %s", e)
                 output.close_and_exit()
             except BadXlogSegmentName as e:
                 output.error(
                     "invalid xlog segment name %r\n"
-                    "HINT: Please run \"barman rebuild-xlogdb %s\" "
+                    'HINT: Please run "barman rebuild-xlogdb %s" '
                     "to solve this issue",
-                    force_str(e), self.config.name)
+                    force_str(e),
+                    self.config.name,
+                )
                 output.close_and_exit()
             # If WAL files are put directly in the pg_xlog directory,
             # avoid shipping of just recovered files
             # by creating the corresponding archive status file
-            if not recovery_info['is_pitr']:
+            if not recovery_info["is_pitr"]:
                 output.info("Generating archive status files")
-                self._generate_archive_status(recovery_info,
-                                              remote_command,
-                                              required_xlog_files)
+                self._generate_archive_status(
+                    recovery_info, remote_command, required_xlog_files
+                )
 
         # Generate recovery.conf file (only if needed by PITR or get_wal)
-        is_pitr = recovery_info['is_pitr']
-        get_wal = recovery_info['get_wal']
+        is_pitr = recovery_info["is_pitr"]
+        get_wal = recovery_info["get_wal"]
         if is_pitr or get_wal or standby_mode:
             output.info("Generating recovery configuration")
-            self._generate_recovery_conf(recovery_info, backup_info, dest,
-                                         target_immediate, exclusive,
-                                         remote_command, target_name,
-                                         target_time, target_tli, target_xid,
-                                         target_lsn, standby_mode)
+            self._generate_recovery_conf(
+                recovery_info,
+                backup_info,
+                dest,
+                target_immediate,
+                exclusive,
+                remote_command,
+                target_name,
+                target_time,
+                target_tli,
+                target_xid,
+                target_lsn,
+                standby_mode,
+            )
 
         # Create archive_status directory if necessary
-        archive_status_dir = os.path.join(recovery_info['wal_dest'],
-                                          'archive_status')
+        archive_status_dir = os.path.join(recovery_info["wal_dest"], "archive_status")
         try:
-            recovery_info['cmd'].create_dir_if_not_exists(archive_status_dir)
+            recovery_info["cmd"].create_dir_if_not_exists(archive_status_dir)
         except FsOperationFailed as e:
-            output.error("unable to create the archive_status directory "
-                         "'%s': %s", archive_status_dir, e)
+            output.error(
+                "unable to create the archive_status directory " "'%s': %s",
+                archive_status_dir,
+                e,
+            )
             output.close_and_exit()
 
         # As last step, analyse configuration files in order to spot
@@ -287,13 +340,9 @@ class RecoveryExecutor(object):
         # 3) copy
         output.info("Identify dangerous settings in destination directory.")
 
-        self._map_temporary_config_files(recovery_info,
-                                         backup_info,
-                                         remote_command)
+        self._map_temporary_config_files(recovery_info, backup_info, remote_command)
         self._analyse_temporary_config_files(recovery_info)
-        self._copy_temporary_config_files(dest,
-                                          remote_command,
-                                          recovery_info)
+        self._copy_temporary_config_files(dest, remote_command, recovery_info)
 
         return recovery_info
 
@@ -310,74 +359,87 @@ class RecoveryExecutor(object):
         """
         # Calculate the name of the WAL directory
         if backup_info.version < 100000:
-            wal_dest = os.path.join(dest, 'pg_xlog')
+            wal_dest = os.path.join(dest, "pg_xlog")
         else:
-            wal_dest = os.path.join(dest, 'pg_wal')
+            wal_dest = os.path.join(dest, "pg_wal")
 
-        tempdir = tempfile.mkdtemp(prefix='barman_recovery-')
+        tempdir = tempfile.mkdtemp(prefix="barman_recovery-")
         self.temp_dirs.append(tempdir)
 
         recovery_info = {
-            'cmd': None,
-            'recovery_dest': 'local',
-            'rsync': None,
-            'configuration_files': [],
-            'destination_path': dest,
-            'temporary_configuration_files': [],
-            'tempdir': tempdir,
-            'is_pitr': False,
-            'wal_dest': wal_dest,
-            'get_wal': RecoveryOptions.GET_WAL in self.config.recovery_options,
+            "cmd": None,
+            "recovery_dest": "local",
+            "rsync": None,
+            "configuration_files": [],
+            "destination_path": dest,
+            "temporary_configuration_files": [],
+            "tempdir": tempdir,
+            "is_pitr": False,
+            "wal_dest": wal_dest,
+            "get_wal": RecoveryOptions.GET_WAL in self.config.recovery_options,
         }
         # A map that will keep track of the results of the recovery.
         # Used for output generation
         results = {
-            'changes': [],
-            'warnings': [],
-            'delete_barman_wal': False,
-            'missing_files': [],
-            'get_wal': False,
-            'recovery_start_time': datetime.datetime.now()
+            "changes": [],
+            "warnings": [],
+            "delete_barman_wal": False,
+            "missing_files": [],
+            "get_wal": False,
+            "recovery_start_time": datetime.datetime.now(),
         }
-        recovery_info['results'] = results
+        recovery_info["results"] = results
 
         # Set up a list of configuration files
-        recovery_info['configuration_files'].append('postgresql.conf')
+        recovery_info["configuration_files"].append("postgresql.conf")
         if backup_info.version >= 90400:
-            recovery_info['configuration_files'].append('postgresql.auto.conf')
+            recovery_info["configuration_files"].append("postgresql.auto.conf")
 
         # Identify the file holding the recovery configuration
-        results['recovery_configuration_file'] = 'postgresql.auto.conf'
+        results["recovery_configuration_file"] = "postgresql.auto.conf"
         if backup_info.version < 120000:
-            results['recovery_configuration_file'] = 'recovery.conf'
+            results["recovery_configuration_file"] = "recovery.conf"
 
         # Handle remote recovery options
         if remote_command:
-            recovery_info['recovery_dest'] = 'remote'
-            recovery_info['rsync'] = RsyncPgData(
+            recovery_info["recovery_dest"] = "remote"
+            recovery_info["rsync"] = RsyncPgData(
                 path=self.server.path,
                 ssh=remote_command,
                 bwlimit=self.config.bandwidth_limit,
-                network_compression=self.config.network_compression)
+                network_compression=self.config.network_compression,
+            )
 
             try:
                 # create a UnixRemoteCommand obj if is a remote recovery
-                recovery_info['cmd'] = UnixRemoteCommand(remote_command,
-                                                         path=self.server.path)
+                recovery_info["cmd"] = UnixRemoteCommand(
+                    remote_command, path=self.server.path
+                )
             except FsOperationFailed:
                 output.error(
-                    "Unable to connect to the target host using the command "
-                    "'%s'", remote_command)
+                    "Unable to connect to the target host using the command " "'%s'",
+                    remote_command,
+                )
                 output.close_and_exit()
         else:
             # if is a local recovery create a UnixLocalCommand
-            recovery_info['cmd'] = UnixLocalCommand()
+            recovery_info["cmd"] = UnixLocalCommand()
 
         return recovery_info
 
-    def _set_pitr_targets(self, recovery_info, backup_info, dest, target_name,
-                          target_time, target_tli, target_xid, target_lsn,
-                          target_immediate, target_action):
+    def _set_pitr_targets(
+        self,
+        recovery_info,
+        backup_info,
+        dest,
+        target_name,
+        target_time,
+        target_tli,
+        target_xid,
+        target_lsn,
+        target_immediate,
+        target_action,
+    ):
         """
         Set PITR targets - as specified by the user
 
@@ -401,87 +463,89 @@ class RecoveryExecutor(object):
         d_lsn = backup_info.version >= 100000 and target_lsn
         d_tli = target_tli and target_tli != backup_info.timeline
         # Detect PITR
-        if target_time or target_xid or d_tli or target_name or \
-                d_immediate or d_lsn:
-            recovery_info['is_pitr'] = True
+        if target_time or target_xid or d_tli or target_name or d_immediate or d_lsn:
+            recovery_info["is_pitr"] = True
             targets = {}
             if target_time:
                 try:
                     target_datetime = dateutil.parser.parse(target_time)
                 except ValueError as e:
                     raise RecoveryInvalidTargetException(
-                        "Unable to parse the target time parameter %r: %s" % (
-                            target_time, e))
+                        "Unable to parse the target time parameter %r: %s"
+                        % (target_time, e)
+                    )
                 except TypeError:
                     # this should not happen, but there is a known bug in
                     # dateutil.parser.parse() implementation
                     # ref: https://bugs.launchpad.net/dateutil/+bug/1247643
                     raise RecoveryInvalidTargetException(
-                        "Unable to parse the target time parameter %r" %
-                        target_time)
+                        "Unable to parse the target time parameter %r" % target_time
+                    )
 
                 # If the parsed timestamp is naive, forces it to local timezone
                 if target_datetime.tzinfo is None:
                     target_datetime = target_datetime.replace(
-                        tzinfo=dateutil.tz.tzlocal())
+                        tzinfo=dateutil.tz.tzlocal()
+                    )
 
                 # Check if the target time is reachable from the
                 # selected backup
                 if backup_info.end_time > target_datetime:
                     raise RecoveryInvalidTargetException(
                         "The requested target time %s "
-                        "is before the backup end time %s" %
-                        (target_datetime, backup_info.end_time))
+                        "is before the backup end time %s"
+                        % (target_datetime, backup_info.end_time)
+                    )
 
-                ms = target_datetime.microsecond / 1000000.
+                ms = target_datetime.microsecond / 1000000.0
                 target_epoch = time.mktime(target_datetime.timetuple()) + ms
-                targets['time'] = str(target_datetime)
+                targets["time"] = str(target_datetime)
             if target_xid:
-                targets['xid'] = str(target_xid)
+                targets["xid"] = str(target_xid)
             if d_lsn:
-                targets['lsn'] = str(d_lsn)
+                targets["lsn"] = str(d_lsn)
             if d_tli and target_tli != backup_info.timeline:
-                targets['timeline'] = str(d_tli)
+                targets["timeline"] = str(d_tli)
             if target_name:
-                targets['name'] = str(target_name)
+                targets["name"] = str(target_name)
             if d_immediate:
-                targets['immediate'] = d_immediate
+                targets["immediate"] = d_immediate
 
             # Manage the target_action option
             if backup_info.version < 90100:
                 if target_action:
                     raise RecoveryTargetActionException(
                         "Illegal target action '%s' "
-                        "for this version of PostgreSQL" %
-                        target_action)
+                        "for this version of PostgreSQL" % target_action
+                    )
             elif 90100 <= backup_info.version < 90500:
-                if target_action == 'pause':
-                    recovery_info['pause_at_recovery_target'] = "on"
+                if target_action == "pause":
+                    recovery_info["pause_at_recovery_target"] = "on"
                 elif target_action:
                     raise RecoveryTargetActionException(
                         "Illegal target action '%s' "
-                        "for this version of PostgreSQL" %
-                        target_action)
+                        "for this version of PostgreSQL" % target_action
+                    )
             else:
-                if target_action in ('pause', 'shutdown', 'promote'):
-                    recovery_info['recovery_target_action'] = target_action
+                if target_action in ("pause", "shutdown", "promote"):
+                    recovery_info["recovery_target_action"] = target_action
                 elif target_action:
                     raise RecoveryTargetActionException(
                         "Illegal target action '%s' "
-                        "for this version of PostgreSQL" %
-                        target_action)
+                        "for this version of PostgreSQL" % target_action
+                    )
 
             output.info(
                 "Doing PITR. Recovery target %s",
-                (", ".join(["%s: %r" % (k, v) for k, v in targets.items()])))
-            recovery_info['wal_dest'] = os.path.join(dest, 'barman_wal')
+                (", ".join(["%s: %r" % (k, v) for k, v in targets.items()])),
+            )
+            recovery_info["wal_dest"] = os.path.join(dest, "barman_wal")
 
             # With a PostgreSQL version older than 8.4, it is the user's
             # responsibility to delete the "barman_wal" directory as the
             # restore_command option in recovery.conf is not supported
-            if backup_info.version < 80400 and \
-                    not recovery_info['get_wal']:
-                recovery_info['results']['delete_barman_wal'] = True
+            if backup_info.version < 80400 and not recovery_info["get_wal"]:
+                recovery_info["results"]["delete_barman_wal"] = True
         else:
             # Raise an error if target_lsn is used with a pgversion < 10
             if backup_info.version < 100000:
@@ -489,22 +553,23 @@ class RecoveryExecutor(object):
                     raise RecoveryInvalidTargetException(
                         "Illegal use of recovery_target_lsn '%s' "
                         "for this version of PostgreSQL "
-                        "(version 10 minimum required)" %
-                        target_lsn)
+                        "(version 10 minimum required)" % target_lsn
+                    )
 
                 if target_immediate:
                     raise RecoveryInvalidTargetException(
                         "Illegal use of recovery_target_immediate "
                         "for this version of PostgreSQL "
-                        "(version 9.4 minimum required)")
+                        "(version 9.4 minimum required)"
+                    )
 
             if target_action:
                 raise RecoveryTargetActionException(
-                    "Can't enable recovery target action when PITR "
-                    "is not required")
+                    "Can't enable recovery target action when PITR " "is not required"
+                )
 
-        recovery_info['target_epoch'] = target_epoch
-        recovery_info['target_datetime'] = target_datetime
+        recovery_info["target_epoch"] = target_epoch
+        recovery_info["target_datetime"] = target_datetime
 
     def _retrieve_safe_horizon(self, recovery_info, backup_info, dest):
         """
@@ -525,17 +590,19 @@ class RecoveryExecutor(object):
         try:
             backup_begin_time = backup_info.begin_time
             # Retrieve previously recovered backup metadata (if available)
-            dest_info_txt = recovery_info['cmd'].get_file_content(
-                os.path.join(dest, '.barman-recover.info'))
+            dest_info_txt = recovery_info["cmd"].get_file_content(
+                os.path.join(dest, ".barman-recover.info")
+            )
             dest_info = LocalBackupInfo(
-                self.server,
-                info_file=BytesIO(dest_info_txt.encode('utf-8')))
+                self.server, info_file=BytesIO(dest_info_txt.encode("utf-8"))
+            )
             dest_begin_time = dest_info.begin_time
             # Pick the earlier begin time. Both are tz-aware timestamps because
             # BackupInfo class ensure it
             safe_horizon = min(backup_begin_time, dest_begin_time)
-            output.info("Using safe horizon time for smart rsync copy: %s",
-                        safe_horizon)
+            output.info(
+                "Using safe horizon time for smart rsync copy: %s", safe_horizon
+            )
         except FsOperationFailed as e:
             # Setting safe_horizon to None will effectively disable
             # the time-based part of smart_copy method. However it is still
@@ -544,16 +611,18 @@ class RecoveryExecutor(object):
             # FsOperationFailed means the .barman-recover.info is not available
             # on destination directory
             safe_horizon = None
-            _logger.warning('Unable to retrieve safe horizon time '
-                            'for smart rsync copy: %s', e)
+            _logger.warning(
+                "Unable to retrieve safe horizon time " "for smart rsync copy: %s", e
+            )
         except Exception as e:
             # Same as above, but something failed decoding .barman-recover.info
             # or comparing times, so log the full traceback
             safe_horizon = None
-            _logger.exception('Error retrieving safe horizon time '
-                              'for smart rsync copy: %s', e)
+            _logger.exception(
+                "Error retrieving safe horizon time " "for smart rsync copy: %s", e
+            )
 
-        recovery_info['safe_horizon'] = safe_horizon
+        recovery_info["safe_horizon"] = safe_horizon
 
     def _prepare_tablespaces(self, backup_info, cmd, dest, tablespaces):
         """
@@ -567,14 +636,15 @@ class RecoveryExecutor(object):
         :param str dest: destination dir for the recovery
         :param dict tablespaces: dict of all the tablespaces and their location
         """
-        tblspc_dir = os.path.join(dest, 'pg_tblspc')
+        tblspc_dir = os.path.join(dest, "pg_tblspc")
         try:
             # check for pg_tblspc dir into recovery destination folder.
             # if it does not exists, create it
             cmd.create_dir_if_not_exists(tblspc_dir)
         except FsOperationFailed as e:
-            output.error("unable to initialise tablespace directory "
-                         "'%s': %s", tblspc_dir, e)
+            output.error(
+                "unable to initialise tablespace directory " "'%s': %s", tblspc_dir, e
+            )
             output.close_and_exit()
         for item in backup_info.tablespaces:
 
@@ -601,14 +671,23 @@ class RecoveryExecutor(object):
                 # create symlink between tablespace and recovery folder
                 cmd.create_symbolic_link(location, pg_tblspc_file)
             except FsOperationFailed as e:
-                output.error("unable to prepare '%s' tablespace "
-                             "(destination '%s'): %s",
-                             item.name, location, e)
+                output.error(
+                    "unable to prepare '%s' tablespace " "(destination '%s'): %s",
+                    item.name,
+                    location,
+                    e,
+                )
                 output.close_and_exit()
             output.info("\t%s, %s, %s", item.oid, item.name, location)
 
-    def _backup_copy(self, backup_info, dest, tablespaces=None,
-                     remote_command=None, safe_horizon=None):
+    def _backup_copy(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        safe_horizon=None,
+    ):
         """
         Perform the actual copy of the base backup for recovery purposes
 
@@ -631,9 +710,9 @@ class RecoveryExecutor(object):
         """
 
         # Set a ':' prefix to remote destinations
-        dest_prefix = ''
+        dest_prefix = ""
         if remote_command:
-            dest_prefix = ':'
+            dest_prefix = ":"
 
         # Create the copy controller object, specific for rsync,
         # which will drive all the copy operations. Items to be
@@ -666,7 +745,7 @@ class RecoveryExecutor(object):
                 # exclude and protect it from being deleted during
                 # the data directory copy
                 if location.startswith(dest):
-                    exclude_and_protect += [location[len(dest):]]
+                    exclude_and_protect += [location[len(dest) :]]
 
                 # Exclude and protect the tablespace from being deleted during
                 # the data directory copy
@@ -676,30 +755,30 @@ class RecoveryExecutor(object):
                 # to be copied by the controller
                 controller.add_directory(
                     label=tablespace.name,
-                    src='%s/' % backup_info.get_data_directory(tablespace.oid),
+                    src="%s/" % backup_info.get_data_directory(tablespace.oid),
                     dst=dest_prefix + location,
                     bwlimit=self.config.get_bwlimit(tablespace),
-                    item_class=controller.TABLESPACE_CLASS
+                    item_class=controller.TABLESPACE_CLASS,
                 )
 
         # Add the PGDATA directory to the list of objects to be copied
         # by the controller
         controller.add_directory(
-            label='pgdata',
-            src='%s/' % backup_info.get_data_directory(),
+            label="pgdata",
+            src="%s/" % backup_info.get_data_directory(),
             dst=dest_prefix + dest,
             bwlimit=self.config.get_bwlimit(),
             exclude=[
-                '/pg_log/*',
-                '/log/*',
-                '/pg_xlog/*',
-                '/pg_wal/*',
-                '/postmaster.pid',
-                '/recovery.conf',
-                '/tablespace_map',
+                "/pg_log/*",
+                "/log/*",
+                "/pg_xlog/*",
+                "/pg_wal/*",
+                "/postmaster.pid",
+                "/recovery.conf",
+                "/tablespace_map",
             ],
             exclude_and_protect=exclude_and_protect,
-            item_class=controller.PGDATA_CLASS
+            item_class=controller.PGDATA_CLASS,
         )
 
         # TODO: Manage different location for configuration files
@@ -711,8 +790,7 @@ class RecoveryExecutor(object):
         # TODO: Improve the exception output
         except CommandFailedException as e:
             msg = "data transfer failure"
-            raise DataTransferFailure.from_command_error(
-                'rsync', e, msg)
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
 
     def _xlog_copy(self, required_xlog_files, wal_dest, remote_command):
         """
@@ -726,7 +804,7 @@ class RecoveryExecutor(object):
         # List of required WAL files partitioned by containing directory
         xlogs = collections.defaultdict(list)
         # add '/' suffix to ensure it is a directory
-        wal_dest = '%s/' % wal_dest
+        wal_dest = "%s/" % wal_dest
         # Map of every compressor used with any WAL file in the archive,
         # to be used during this recovery
         compressors = {}
@@ -736,17 +814,20 @@ class RecoveryExecutor(object):
             hashdir = xlog.hash_dir(wal_info.name)
             xlogs[hashdir].append(wal_info)
             # If a compressor is required, make sure it exists in the cache
-            if wal_info.compression is not None and \
-                    wal_info.compression not in compressors:
-                compressors[wal_info.compression] = \
-                    compression_manager.get_compressor(
-                        compression=wal_info.compression)
+            if (
+                wal_info.compression is not None
+                and wal_info.compression not in compressors
+            ):
+                compressors[wal_info.compression] = compression_manager.get_compressor(
+                    compression=wal_info.compression
+                )
 
         rsync = RsyncPgData(
             path=self.server.path,
             ssh=remote_command,
             bwlimit=self.config.bandwidth_limit,
-            network_compression=self.config.network_compression)
+            network_compression=self.config.network_compression,
+        )
         # If compression is used and this is a remote recovery, we need a
         # temporary directory where to spool uncompressed files,
         # otherwise we either decompress every WAL file in the local
@@ -754,8 +835,7 @@ class RecoveryExecutor(object):
         if compressors:
             if remote_command:
                 # Decompress to a temporary spool directory
-                wal_decompression_dest = tempfile.mkdtemp(
-                    prefix='barman_wal-')
+                wal_decompression_dest = tempfile.mkdtemp(prefix="barman_wal-")
             else:
                 # Decompress directly to the destination directory
                 wal_decompression_dest = wal_dest
@@ -767,7 +847,7 @@ class RecoveryExecutor(object):
         if remote_command:
             # If remote recovery tell rsync to copy them remotely
             # add ':' prefix to mark it as remote
-            wal_dest = ':%s' % wal_dest
+            wal_dest = ":%s" % wal_dest
         total_wals = sum(map(len, xlogs.values()))
         partial_count = 0
         for prefix in sorted(xlogs):
@@ -780,54 +860,56 @@ class RecoveryExecutor(object):
                 partial_count,
                 total_wals,
                 xlogs[prefix][0],
-                xlogs[prefix][-1])
+                xlogs[prefix][-1],
+            )
             # If at least one compressed file has been found, activate
             # compression check and decompression for each WAL files
             if compressors:
                 for segment in xlogs[prefix]:
-                    dst_file = os.path.join(wal_decompression_dest,
-                                            segment.name)
+                    dst_file = os.path.join(wal_decompression_dest, segment.name)
                     if segment.compression is not None:
                         compressors[segment.compression].decompress(
-                            os.path.join(source_dir, segment.name),
-                            dst_file)
+                            os.path.join(source_dir, segment.name), dst_file
+                        )
                     else:
-                        shutil.copy2(os.path.join(source_dir, segment.name),
-                                     dst_file)
+                        shutil.copy2(os.path.join(source_dir, segment.name), dst_file)
                 if remote_command:
                     try:
                         # Transfer the WAL files
                         rsync.from_file_list(
                             list(segment.name for segment in xlogs[prefix]),
-                            wal_decompression_dest, wal_dest)
+                            wal_decompression_dest,
+                            wal_dest,
+                        )
                     except CommandFailedException as e:
-                        msg = ("data transfer failure while copying WAL files "
-                               "to directory '%s'") % (wal_dest[1:],)
-                        raise DataTransferFailure.from_command_error(
-                            'rsync', e, msg)
+                        msg = (
+                            "data transfer failure while copying WAL files "
+                            "to directory '%s'"
+                        ) % (wal_dest[1:],)
+                        raise DataTransferFailure.from_command_error("rsync", e, msg)
 
                     # Cleanup files after the transfer
                     for segment in xlogs[prefix]:
-                        file_name = os.path.join(wal_decompression_dest,
-                                                 segment.name)
+                        file_name = os.path.join(wal_decompression_dest, segment.name)
                         try:
                             os.unlink(file_name)
                         except OSError as e:
                             output.warning(
-                                "Error removing temporary file '%s': %s",
-                                file_name, e)
+                                "Error removing temporary file '%s': %s", file_name, e
+                            )
             else:
                 try:
                     rsync.from_file_list(
                         list(segment.name for segment in xlogs[prefix]),
-                        "%s/" % os.path.join(self.config.wals_directory,
-                                             prefix),
-                        wal_dest)
+                        "%s/" % os.path.join(self.config.wals_directory, prefix),
+                        wal_dest,
+                    )
                 except CommandFailedException as e:
-                    msg = "data transfer failure while copying WAL files " \
-                          "to directory '%s'" % (wal_dest[1:],)
-                    raise DataTransferFailure.from_command_error(
-                        'rsync', e, msg)
+                    msg = (
+                        "data transfer failure while copying WAL files "
+                        "to directory '%s'" % (wal_dest[1:],)
+                    )
+                    raise DataTransferFailure.from_command_error("rsync", e, msg)
 
         _logger.info("Finished copying %s WAL files.", total_wals)
 
@@ -837,8 +919,9 @@ class RecoveryExecutor(object):
         if wal_decompression_dest and wal_decompression_dest != wal_dest:
             shutil.rmtree(wal_decompression_dest)
 
-    def _generate_archive_status(self, recovery_info, remote_command,
-                                 required_xlog_files):
+    def _generate_archive_status(
+        self, recovery_info, remote_command, required_xlog_files
+    ):
         """
         Populate the archive_status directory
 
@@ -848,30 +931,38 @@ class RecoveryExecutor(object):
         :param tuple required_xlog_files: list of required WAL segments
         """
         if remote_command:
-            status_dir = recovery_info['tempdir']
+            status_dir = recovery_info["tempdir"]
         else:
-            status_dir = os.path.join(recovery_info['wal_dest'],
-                                      'archive_status')
+            status_dir = os.path.join(recovery_info["wal_dest"], "archive_status")
             mkpath(status_dir)
         for wal_info in required_xlog_files:
-            with open(os.path.join(status_dir, "%s.done" % wal_info.name),
-                      'a') as f:
-                f.write('')
+            with open(os.path.join(status_dir, "%s.done" % wal_info.name), "a") as f:
+                f.write("")
         if remote_command:
             try:
-                recovery_info['rsync']('%s/' % status_dir,
-                                       ':%s' % os.path.join(
-                                           recovery_info['wal_dest'],
-                                           'archive_status'))
+                recovery_info["rsync"](
+                    "%s/" % status_dir,
+                    ":%s" % os.path.join(recovery_info["wal_dest"], "archive_status"),
+                )
             except CommandFailedException as e:
-                output.error("unable to populate archive_status "
-                             "directory: %s", e)
+                output.error("unable to populate archive_status " "directory: %s", e)
                 output.close_and_exit()
 
-    def _generate_recovery_conf(self, recovery_info, backup_info, dest,
-                                immediate, exclusive, remote_command,
-                                target_name, target_time, target_tli,
-                                target_xid, target_lsn, standby_mode):
+    def _generate_recovery_conf(
+        self,
+        recovery_info,
+        backup_info,
+        dest,
+        immediate,
+        exclusive,
+        remote_command,
+        target_name,
+        target_time,
+        target_tli,
+        target_xid,
+        target_lsn,
+        standby_mode,
+    ):
         """
         Generate recovery configuration for PITR
 
@@ -896,10 +987,10 @@ class RecoveryExecutor(object):
         # If GET_WAL has been set, use the get-wal command to retrieve the
         # required wal files. Otherwise use the unix command "cp" to copy
         # them from the barman_wal directory
-        if recovery_info['get_wal']:
-            partial_option = ''
+        if recovery_info["get_wal"]:
+            partial_option = ""
             if not standby_mode:
-                partial_option = '-P'
+                partial_option = "-P"
 
             # We need to create the right restore command.
             # If we are doing a remote recovery,
@@ -914,112 +1005,107 @@ class RecoveryExecutor(object):
                 fqdn = socket.getfqdn()
                 recovery_conf_lines.append(
                     "# The 'barman-wal-restore' command "
-                    "is provided in the 'barman-cli' package")
+                    "is provided in the 'barman-cli' package"
+                )
                 recovery_conf_lines.append(
                     "restore_command = 'barman-wal-restore %s -U %s "
-                    "%s %s %%f %%p'" % (partial_option,
-                                        self.config.config.user,
-                                        fqdn, self.config.name))
+                    "%s %s %%f %%p'"
+                    % (partial_option, self.config.config.user, fqdn, self.config.name)
+                )
             else:
                 recovery_conf_lines.append(
                     "# The 'barman get-wal' command "
-                    "must run as '%s' user" % self.config.config.user)
+                    "must run as '%s' user" % self.config.config.user
+                )
                 recovery_conf_lines.append(
                     "restore_command = 'sudo -u %s "
-                    "barman get-wal %s %s %%f > %%p'" % (
-                        self.config.config.user,
-                        partial_option,
-                        self.config.name))
-            recovery_info['results']['get_wal'] = True
+                    "barman get-wal %s %s %%f > %%p'"
+                    % (self.config.config.user, partial_option, self.config.name)
+                )
+            recovery_info["results"]["get_wal"] = True
         else:
-            recovery_conf_lines.append(
-                "restore_command = 'cp barman_wal/%f %p'")
-        if backup_info.version >= 80400 and not recovery_info['get_wal']:
-            recovery_conf_lines.append(
-                "recovery_end_command = 'rm -fr barman_wal'")
+            recovery_conf_lines.append("restore_command = 'cp barman_wal/%f %p'")
+        if backup_info.version >= 80400 and not recovery_info["get_wal"]:
+            recovery_conf_lines.append("recovery_end_command = 'rm -fr barman_wal'")
 
         # Writes recovery target
         if target_time:
-            recovery_conf_lines.append(
-                "recovery_target_time = '%s'" % target_time)
+            recovery_conf_lines.append("recovery_target_time = '%s'" % target_time)
         if target_xid:
-            recovery_conf_lines.append(
-                "recovery_target_xid = '%s'" % target_xid)
+            recovery_conf_lines.append("recovery_target_xid = '%s'" % target_xid)
         if target_lsn:
-            recovery_conf_lines.append(
-                "recovery_target_lsn = '%s'" % target_lsn)
+            recovery_conf_lines.append("recovery_target_lsn = '%s'" % target_lsn)
         if target_name:
-            recovery_conf_lines.append(
-                "recovery_target_name = '%s'" % target_name)
+            recovery_conf_lines.append("recovery_target_name = '%s'" % target_name)
         # TODO: log a warning if PostgreSQL < 9.4 and --immediate
         if backup_info.version >= 90400 and immediate:
-            recovery_conf_lines.append(
-                "recovery_target = 'immediate'")
+            recovery_conf_lines.append("recovery_target = 'immediate'")
 
         # Manage what happens after recovery target is reached
         if (target_xid or target_time or target_lsn) and exclusive:
             recovery_conf_lines.append(
-                "recovery_target_inclusive = '%s'" % (not exclusive))
+                "recovery_target_inclusive = '%s'" % (not exclusive)
+            )
         if target_tli:
-            recovery_conf_lines.append(
-                "recovery_target_timeline = %s" % target_tli)
+            recovery_conf_lines.append("recovery_target_timeline = %s" % target_tli)
 
         # Write recovery target action
-        if 'pause_at_recovery_target' in recovery_info:
+        if "pause_at_recovery_target" in recovery_info:
             recovery_conf_lines.append(
-                "pause_at_recovery_target = '%s'" %
-                recovery_info['pause_at_recovery_target'])
-        if 'recovery_target_action' in recovery_info:
+                "pause_at_recovery_target = '%s'"
+                % recovery_info["pause_at_recovery_target"]
+            )
+        if "recovery_target_action" in recovery_info:
             recovery_conf_lines.append(
-                "recovery_target_action = '%s'" %
-                recovery_info['recovery_target_action'])
+                "recovery_target_action = '%s'"
+                % recovery_info["recovery_target_action"]
+            )
 
         # Set the standby mode
         if backup_info.version >= 120000:
-            signal_file = 'recovery.signal'
+            signal_file = "recovery.signal"
             if standby_mode:
-                signal_file = 'standby.signal'
+                signal_file = "standby.signal"
 
             if remote_command:
-                recovery_file = os.path.join(recovery_info['tempdir'],
-                                             signal_file)
+                recovery_file = os.path.join(recovery_info["tempdir"], signal_file)
             else:
                 recovery_file = os.path.join(dest, signal_file)
 
-            open(recovery_file, 'ab').close()
-            recovery_info['auto_conf_append_lines'] = recovery_conf_lines
+            open(recovery_file, "ab").close()
+            recovery_info["auto_conf_append_lines"] = recovery_conf_lines
         else:
             if standby_mode:
                 recovery_conf_lines.append("standby_mode = 'on'")
 
             if remote_command:
-                recovery_file = os.path.join(recovery_info['tempdir'],
-                                             'recovery.conf')
+                recovery_file = os.path.join(recovery_info["tempdir"], "recovery.conf")
             else:
-                recovery_file = os.path.join(dest, 'recovery.conf')
+                recovery_file = os.path.join(dest, "recovery.conf")
 
-            with open(recovery_file, 'wb') as recovery:
-                recovery.write(('\n'.join(recovery_conf_lines) + '\n')
-                               .encode('utf-8'))
+            with open(recovery_file, "wb") as recovery:
+                recovery.write(("\n".join(recovery_conf_lines) + "\n").encode("utf-8"))
 
         if remote_command:
             plain_rsync = RsyncPgData(
                 path=self.server.path,
                 ssh=remote_command,
                 bwlimit=self.config.bandwidth_limit,
-                network_compression=self.config.network_compression)
+                network_compression=self.config.network_compression,
+            )
             try:
                 plain_rsync.from_file_list(
                     [os.path.basename(recovery_file)],
-                    recovery_info['tempdir'],
-                    ':%s' % dest)
+                    recovery_info["tempdir"],
+                    ":%s" % dest,
+                )
             except CommandFailedException as e:
-                output.error('remote copy of %s failed: %s',
-                             os.path.basename(recovery_file), e)
+                output.error(
+                    "remote copy of %s failed: %s", os.path.basename(recovery_file), e
+                )
                 output.close_and_exit()
 
-    def _map_temporary_config_files(self, recovery_info, backup_info,
-                                    remote_command):
+    def _map_temporary_config_files(self, recovery_info, backup_info, remote_command):
         """
         Map configuration files, by filling the 'temporary_configuration_files'
         array, depending on remote or local recovery. This array will be used
@@ -1039,52 +1125,50 @@ class RecoveryExecutor(object):
         # a configuration file is located outside the data dir.
         # This is not an error condition, so we check also for
         # `pg_ident.conf` which is an optional file.
-        hardcoded_files = ['pg_hba.conf', 'pg_ident.conf']
-        conf_files = recovery_info['configuration_files'] + hardcoded_files
+        hardcoded_files = ["pg_hba.conf", "pg_ident.conf"]
+        conf_files = recovery_info["configuration_files"] + hardcoded_files
         for conf_file in conf_files:
-            source_path = os.path.join(
-                backup_info.get_data_directory(), conf_file)
+            source_path = os.path.join(backup_info.get_data_directory(), conf_file)
             if not os.path.exists(source_path):
-                recovery_info['results']['missing_files'].append(conf_file)
+                recovery_info["results"]["missing_files"].append(conf_file)
                 # Remove the file from the list of configuration files
-                if conf_file in recovery_info['configuration_files']:
-                    recovery_info['configuration_files'].remove(conf_file)
+                if conf_file in recovery_info["configuration_files"]:
+                    recovery_info["configuration_files"].remove(conf_file)
 
-        for conf_file in recovery_info['configuration_files']:
+        for conf_file in recovery_info["configuration_files"]:
             if remote_command:
                 # If the recovery is remote, copy the postgresql.conf
                 # file in a temp dir
                 # Otherwise we can modify the postgresql.conf file
                 # in the destination directory.
-                conf_file_path = os.path.join(
-                    recovery_info['tempdir'], conf_file)
+                conf_file_path = os.path.join(recovery_info["tempdir"], conf_file)
                 shutil.copy2(
-                    os.path.join(backup_info.get_data_directory(),
-                                 conf_file), conf_file_path)
+                    os.path.join(backup_info.get_data_directory(), conf_file),
+                    conf_file_path,
+                )
             else:
                 # Otherwise use the local destination path.
                 conf_file_path = os.path.join(
-                    recovery_info['destination_path'], conf_file)
+                    recovery_info["destination_path"], conf_file
+                )
 
-            recovery_info['temporary_configuration_files'].append(
-                conf_file_path)
+            recovery_info["temporary_configuration_files"].append(conf_file_path)
 
         if backup_info.version >= 120000:
             # Make sure 'postgresql.auto.conf' file exists in
             # recovery_info['temporary_configuration_files'] because
             # the recovery settings will end up there
-            conf_file = 'postgresql.auto.conf'
-            if conf_file not in recovery_info['configuration_files']:
+            conf_file = "postgresql.auto.conf"
+            if conf_file not in recovery_info["configuration_files"]:
                 if remote_command:
-                    conf_file_path = os.path.join(recovery_info['tempdir'],
-                                                  conf_file)
+                    conf_file_path = os.path.join(recovery_info["tempdir"], conf_file)
                 else:
                     conf_file_path = os.path.join(
-                        recovery_info['destination_path'], conf_file)
+                        recovery_info["destination_path"], conf_file
+                    )
                 # Touch the file into existence
-                open(conf_file_path, 'ab').close()
-                recovery_info['temporary_configuration_files'].append(
-                    conf_file_path)
+                open(conf_file_path, "ab").close()
+                recovery_info["temporary_configuration_files"].append(conf_file_path)
 
     def _analyse_temporary_config_files(self, recovery_info):
         """
@@ -1095,27 +1179,23 @@ class RecoveryExecutor(object):
 
         :param dict recovery_info: dictionary holding all recovery parameters
         """
-        results = recovery_info['results']
+        results = recovery_info["results"]
         # Check for dangerous options inside every config file
-        for conf_file in recovery_info['temporary_configuration_files']:
+        for conf_file in recovery_info["temporary_configuration_files"]:
 
             append_lines = None
-            if conf_file.endswith('postgresql.auto.conf'):
-                append_lines = recovery_info.get('auto_conf_append_lines')
+            if conf_file.endswith("postgresql.auto.conf"):
+                append_lines = recovery_info.get("auto_conf_append_lines")
 
             # Identify and comment out dangerous options, replacing them with
             # the appropriate values
-            results['changes'] += self._pg_config_mangle(
-                conf_file,
-                self.MANGLE_OPTIONS,
-                "%s.origin" % conf_file,
-                append_lines)
+            results["changes"] += self._pg_config_mangle(
+                conf_file, self.MANGLE_OPTIONS, "%s.origin" % conf_file, append_lines
+            )
             # Identify dangerous options and warn users about their presence
-            results['warnings'] += self._pg_config_detect_possible_issues(
-                conf_file)
+            results["warnings"] += self._pg_config_detect_possible_issues(conf_file)
 
-    def _copy_temporary_config_files(self, dest,
-                                     remote_command, recovery_info):
+    def _copy_temporary_config_files(self, dest, remote_command, recovery_info):
         """
         Copy modified configuration files using rsync in case of
         remote recovery
@@ -1129,17 +1209,16 @@ class RecoveryExecutor(object):
             # If this is a remote recovery, rsync the modified files from the
             # temporary local directory to the remote destination directory.
             file_list = []
-            for conf_file in recovery_info['configuration_files']:
-                file_list.append('%s' % conf_file)
-                file_list.append('%s.origin' % conf_file)
+            for conf_file in recovery_info["configuration_files"]:
+                file_list.append("%s" % conf_file)
+                file_list.append("%s.origin" % conf_file)
 
             try:
-                recovery_info['rsync'].from_file_list(file_list,
-                                                      recovery_info['tempdir'],
-                                                      ':%s' % dest)
+                recovery_info["rsync"].from_file_list(
+                    file_list, recovery_info["tempdir"], ":%s" % dest
+                )
             except CommandFailedException as e:
-                output.error('remote copy of configuration files failed: %s',
-                             e)
+                output.error("remote copy of configuration files failed: %s", e)
                 output.close_and_exit()
 
     def close(self):
@@ -1151,8 +1230,9 @@ class RecoveryExecutor(object):
             shutil.rmtree(temp_dir, ignore_errors=True)
         self.temp_dirs = []
 
-    def _pg_config_mangle(self, filename, settings, backup_filename=None,
-                          append_lines=None):
+    def _pg_config_mangle(
+        self, filename, settings, backup_filename=None, append_lines=None
+    ):
         """
         This method modifies the given PostgreSQL configuration file,
         commenting out the given settings, and adding the ones generated by
@@ -1165,7 +1245,7 @@ class RecoveryExecutor(object):
         :param backup_filename: config file backup copy. Default is None.
         """
         # Read the full content of the file in memory
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             content = f.readlines()
 
         # Rename the original file to backup_filename or to a temporary name
@@ -1179,31 +1259,30 @@ class RecoveryExecutor(object):
 
         # Write the mangled content
         mangled = []
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             for l_number, line in enumerate(content):
-                rm = PG_CONF_SETTING_RE.match(line.decode('utf-8'))
+                rm = PG_CONF_SETTING_RE.match(line.decode("utf-8"))
                 if rm:
                     key = rm.group(1)
                     if key in settings:
                         value = settings[key]
-                        f.write("#BARMAN#".encode('utf-8') + line)
+                        f.write("#BARMAN#".encode("utf-8") + line)
                         # If value is None, simply comment the old line
                         if value is not None:
                             changes = "%s = %s\n" % (key, value)
-                            f.write(changes.encode('utf-8'))
+                            f.write(changes.encode("utf-8"))
                         mangled.append(
-                            Assertion._make([
-                                os.path.basename(f.name),
-                                l_number,
-                                key,
-                                value]))
+                            Assertion._make(
+                                [os.path.basename(f.name), l_number, key, value]
+                            )
+                        )
                         continue
                 f.write(line)
             # Append content of append_lises array
             if append_lines:
-                if line[-1] != '\n'.encode('utf-8'):
-                    f.write('\n'.encode('utf-8'))
-                f.write(('\n'.join(append_lines) + '\n').encode('utf-8'))
+                if line[-1] != "\n".encode("utf-8"):
+                    f.write("\n".encode("utf-8"))
+                f.write(("\n".join(append_lines) + "\n").encode("utf-8"))
 
         # Restore original permissions
         shutil.copymode(orig_filename, filename)
@@ -1237,10 +1316,9 @@ class RecoveryExecutor(object):
                 key = rm.group(1)
                 if key in self.DANGEROUS_OPTIONS:
                     clashes.append(
-                        Assertion._make([
-                            os.path.basename(f.name),
-                            l_number,
-                            key,
-                            rm.group(2)]))
+                        Assertion._make(
+                            [os.path.basename(f.name), l_number, key, rm.group(2)]
+                        )
+                    )
 
         return clashes

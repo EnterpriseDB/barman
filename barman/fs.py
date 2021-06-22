@@ -32,7 +32,7 @@ class UnixLocalCommand(object):
 
     def __init__(self, path=None):
         # initialize a shell
-        self.internal_cmd = Command(cmd='sh', args=['-c'], path=path)
+        self.internal_cmd = Command(cmd="sh", args=["-c"], path=path)
 
     def cmd(self, cmd_name, args=[]):
         """
@@ -56,22 +56,21 @@ class UnixLocalCommand(object):
 
         :param str dir_path: full path for the directory
         """
-        _logger.debug('Create directory %s if it does not exists' % dir_path)
+        _logger.debug("Create directory %s if it does not exists" % dir_path)
         exists = self.exists(dir_path)
         if exists:
-            is_dir = self.cmd('test', args=['-d', dir_path])
+            is_dir = self.cmd("test", args=["-d", dir_path])
             if is_dir != 0:
-                raise FsOperationFailed(
-                    'A file with the same name already exists')
+                raise FsOperationFailed("A file with the same name already exists")
             else:
                 return False
         else:
             # Make parent directories if needed
-            mkdir_ret = self.cmd('mkdir', args=['-p', dir_path])
+            mkdir_ret = self.cmd("mkdir", args=["-p", dir_path])
             if mkdir_ret == 0:
                 return True
             else:
-                raise FsOperationFailed('mkdir execution failed')
+                raise FsOperationFailed("mkdir execution failed")
 
     def delete_if_exists(self, path):
         """
@@ -83,33 +82,34 @@ class UnixLocalCommand(object):
 
         :param path the full path for the directory
         """
-        _logger.debug('Delete path %s if exists' % path)
+        _logger.debug("Delete path %s if exists" % path)
         exists = self.exists(path, False)
         if exists:
-            rm_ret = self.cmd('rm', args=['-fr', path])
+            rm_ret = self.cmd("rm", args=["-fr", path])
             if rm_ret == 0:
                 return True
             else:
-                raise FsOperationFailed('rm execution failed')
+                raise FsOperationFailed("rm execution failed")
         else:
             return False
 
     def check_directory_exists(self, dir_path):
         """
-            Check for the existence of a directory in path.
-            if the directory exists returns true.
-            if the directory does not exists returns false.
-            if exists a file and is not a directory raises an exception
+        Check for the existence of a directory in path.
+        if the directory exists returns true.
+        if the directory does not exists returns false.
+        if exists a file and is not a directory raises an exception
 
-            :param dir_path full path for the directory
+        :param dir_path full path for the directory
         """
-        _logger.debug('Check if directory %s exists' % dir_path)
+        _logger.debug("Check if directory %s exists" % dir_path)
         exists = self.exists(dir_path)
         if exists:
-            is_dir = self.cmd('test', args=['-d', dir_path])
+            is_dir = self.cmd("test", args=["-d", dir_path])
             if is_dir != 0:
                 raise FsOperationFailed(
-                    'A file with the same name exists, but is not a directory')
+                    "A file with the same name exists, but is not a directory"
+                )
             else:
                 return True
         else:
@@ -117,97 +117,97 @@ class UnixLocalCommand(object):
 
     def check_write_permission(self, dir_path):
         """
-            check write permission for barman on a given path.
-            Creates a hidden file using touch, then remove the file.
-            returns true if the file is written and removed without problems
-            raise exception if the creation fails.
-            raise exception if the removal fails.
+        check write permission for barman on a given path.
+        Creates a hidden file using touch, then remove the file.
+        returns true if the file is written and removed without problems
+        raise exception if the creation fails.
+        raise exception if the removal fails.
 
-            :param dir_path full dir_path for the directory to check
+        :param dir_path full dir_path for the directory to check
         """
-        _logger.debug('Check if directory %s is writable' % dir_path)
+        _logger.debug("Check if directory %s is writable" % dir_path)
         exists = self.exists(dir_path)
         if exists:
-            is_dir = self.cmd('test', args=['-d', dir_path])
+            is_dir = self.cmd("test", args=["-d", dir_path])
             if is_dir == 0:
                 can_write = self.cmd(
-                    'touch', args=["%s/.barman_write_check" % dir_path])
+                    "touch", args=["%s/.barman_write_check" % dir_path]
+                )
                 if can_write == 0:
                     can_remove = self.cmd(
-                        'rm', args=["%s/.barman_write_check" % dir_path])
+                        "rm", args=["%s/.barman_write_check" % dir_path]
+                    )
                     if can_remove == 0:
                         return True
                     else:
-                        raise FsOperationFailed('Unable to remove file')
+                        raise FsOperationFailed("Unable to remove file")
                 else:
-                    raise FsOperationFailed(
-                        'Unable to create write check file')
+                    raise FsOperationFailed("Unable to create write check file")
             else:
-                raise FsOperationFailed('%s is not a directory' % dir_path)
+                raise FsOperationFailed("%s is not a directory" % dir_path)
         else:
-            raise FsOperationFailed('%s does not exists' % dir_path)
+            raise FsOperationFailed("%s does not exists" % dir_path)
 
     def create_symbolic_link(self, src, dst):
         """
-            Create a symlink pointing to src named dst.
-            Check src exists, if so, checks that destination
-            does not exists. if src is an invalid folder, raises an exception.
-            if dst already exists, raises an exception. if ln -s command fails
-            raises an exception
+        Create a symlink pointing to src named dst.
+        Check src exists, if so, checks that destination
+        does not exists. if src is an invalid folder, raises an exception.
+        if dst already exists, raises an exception. if ln -s command fails
+        raises an exception
 
-            :param src full path to the source of the symlink
-            :param dst full path for the destination of the symlink
+        :param src full path to the source of the symlink
+        :param dst full path for the destination of the symlink
         """
-        _logger.debug('Create symbolic link %s -> %s' % (dst, src))
+        _logger.debug("Create symbolic link %s -> %s" % (dst, src))
         exists = self.exists(src)
         if exists:
             exists_dst = self.exists(dst)
             if not exists_dst:
-                link = self.cmd('ln', args=['-s', src, dst])
+                link = self.cmd("ln", args=["-s", src, dst])
                 if link == 0:
                     return True
                 else:
-                    raise FsOperationFailed('ln command failed')
+                    raise FsOperationFailed("ln command failed")
             else:
-                raise FsOperationFailed('ln destination already exists')
+                raise FsOperationFailed("ln destination already exists")
         else:
-            raise FsOperationFailed('ln source does not exists')
+            raise FsOperationFailed("ln source does not exists")
 
     def get_system_info(self):
         """
-            Gather important system information for 'barman diagnose' command
+        Gather important system information for 'barman diagnose' command
         """
         result = {}
         # self.internal_cmd.out can be None. The str() call will ensure it
         # will be translated to a literal 'None'
-        release = ''
-        if self.cmd("lsb_release", args=['-a']) == 0:
+        release = ""
+        if self.cmd("lsb_release", args=["-a"]) == 0:
             release = self.internal_cmd.out.rstrip()
-        elif self.exists('/etc/lsb-release'):
-            self.cmd('cat', args=['/etc/lsb-release'])
+        elif self.exists("/etc/lsb-release"):
+            self.cmd("cat", args=["/etc/lsb-release"])
             release = "Ubuntu Linux %s" % self.internal_cmd.out.rstrip()
-        elif self.exists('/etc/debian_version'):
-            self.cmd('cat', args=['/etc/debian_version'])
+        elif self.exists("/etc/debian_version"):
+            self.cmd("cat", args=["/etc/debian_version"])
             release = "Debian GNU/Linux %s" % self.internal_cmd.out.rstrip()
-        elif self.exists('/etc/redhat-release'):
-            self.cmd('cat', args=['/etc/redhat-release'])
+        elif self.exists("/etc/redhat-release"):
+            self.cmd("cat", args=["/etc/redhat-release"])
             release = "RedHat Linux %s" % self.internal_cmd.out.rstrip()
-        elif self.cmd('sw_vers') == 0:
+        elif self.cmd("sw_vers") == 0:
             release = self.internal_cmd.out.rstrip()
-        result['release'] = release
+        result["release"] = release
 
-        self.cmd('uname', args=['-a'])
-        result['kernel_ver'] = self.internal_cmd.out.rstrip()
-        self.cmd('python', args=['--version', '2>&1'])
-        result['python_ver'] = self.internal_cmd.out.rstrip()
-        self.cmd('rsync', args=['--version', '2>&1'])
+        self.cmd("uname", args=["-a"])
+        result["kernel_ver"] = self.internal_cmd.out.rstrip()
+        self.cmd("python", args=["--version", "2>&1"])
+        result["python_ver"] = self.internal_cmd.out.rstrip()
+        self.cmd("rsync", args=["--version", "2>&1"])
         try:
-            result['rsync_ver'] = self.internal_cmd.out.splitlines(
-                True)[0].rstrip()
+            result["rsync_ver"] = self.internal_cmd.out.splitlines(True)[0].rstrip()
         except IndexError:
-            result['rsync_ver'] = ''
-        self.cmd('ssh', args=['-V', '2>&1'])
-        result['ssh_ver'] = self.internal_cmd.out.rstrip()
+            result["rsync_ver"] = ""
+        self.cmd("ssh", args=["-V", "2>&1"])
+        result["ssh_ver"] = self.internal_cmd.out.rstrip()
         return result
 
     def get_file_content(self, path):
@@ -217,19 +217,19 @@ class UnixLocalCommand(object):
 
         :param str path: full path to the file to read
         """
-        _logger.debug('Reading content of file %s' % path)
+        _logger.debug("Reading content of file %s" % path)
 
         result = self.exists(path)
         if not result:
-            raise FsOperationFailed('The %s file does not exist' % path)
+            raise FsOperationFailed("The %s file does not exist" % path)
 
-        result = self.cmd('test', args=['-r', path])
+        result = self.cmd("test", args=["-r", path])
         if result != 0:
-            raise FsOperationFailed('The %s file is not readable' % path)
+            raise FsOperationFailed("The %s file is not readable" % path)
 
-        result = self.cmd('cat', args=[path])
+        result = self.cmd("cat", args=[path])
         if result != 0:
-            raise FsOperationFailed('Failed to execute "cat \'%s\'"' % path)
+            raise FsOperationFailed("Failed to execute \"cat '%s'\"" % path)
 
         return self.internal_cmd.out
 
@@ -242,11 +242,11 @@ class UnixLocalCommand(object):
             to True
         :return bool: if the file exists or not.
         """
-        _logger.debug('check for existence of: %s' % path)
-        options = ['-e', path]
+        _logger.debug("check for existence of: %s" % path)
+        options = ["-e", path]
         if not dereference:
-            options += ['-o', '-L', path]
-        result = self.cmd('test', args=options)
+            options += ["-o", "-L", path]
+        result = self.cmd("test", args=options)
         return result == 0
 
     def ping(self):
@@ -256,7 +256,7 @@ class UnixLocalCommand(object):
 
         :return int: the true cmd result
         """
-        _logger.debug('execute the true command')
+        _logger.debug("execute the true command")
         result = self.cmd("true")
         return result
 
@@ -269,12 +269,12 @@ class UnixLocalCommand(object):
             command
         :return str: the ls cmd output
         """
-        _logger.debug('list the content of a directory')
+        _logger.debug("list the content of a directory")
         ls_options = []
         if options:
             ls_options += options
         ls_options.append(dir_path)
-        self.cmd('ls', args=ls_options)
+        self.cmd("ls", args=ls_options)
         return self.internal_cmd.out
 
 
@@ -300,21 +300,19 @@ class UnixRemoteCommand(UnixLocalCommand):
             ssh_options = []
 
         if ssh_command is None:
-            raise FsOperationFailed('No ssh command provided')
-        self.internal_cmd = Command(ssh_command,
-                                    args=ssh_options,
-                                    path=path,
-                                    shell=True)
+            raise FsOperationFailed("No ssh command provided")
+        self.internal_cmd = Command(
+            ssh_command, args=ssh_options, path=path, shell=True
+        )
         try:
             ret = self.cmd("true")
         except OSError:
             raise FsOperationFailed("Unable to execute %s" % ssh_command)
         if ret != 0:
             raise FsOperationFailed(
-                "Connection failed using '%s %s' return code %s" % (
-                    ssh_command,
-                    ' '.join(ssh_options),
-                    ret))
+                "Connection failed using '%s %s' return code %s"
+                % (ssh_command, " ".join(ssh_options), ret)
+            )
 
 
 def path_allowed(exclude, include, path, is_dir):
@@ -370,17 +368,17 @@ def _match_path(rules, path, is_dir):
     :return bool:
     """
     for rule in rules:
-        if rule[-1] == '/':
+        if rule[-1] == "/":
             if not is_dir:
                 continue
             rule = rule[:-1]
         anchored = False
-        if rule[0] == '/':
+        if rule[0] == "/":
             rule = rule[1:]
             anchored = True
         if _wildcard_match_path(path, rule):
             return True
-        if not anchored and _wildcard_match_path(path, '**/' + rule):
+        if not anchored and _wildcard_match_path(path, "**/" + rule):
             return True
     return False
 
@@ -414,17 +412,17 @@ def _translate_to_regexp(pattern):
     """
 
     i, n = 0, len(pattern)
-    res = ''
+    res = ""
     while i < n:
         c = pattern[i]
         i = i + 1
-        if pattern[i - 1:].startswith("**"):
-            res = res + '.*'
+        if pattern[i - 1 :].startswith("**"):
+            res = res + ".*"
             i = i + 1
-        elif c == '*':
-            res = res + '[^/]*'
-        elif c == '?':
-            res = res + '.'
+        elif c == "*":
+            res = res + "[^/]*"
+        elif c == "?":
+            res = res + "."
         else:
             res = res + re.escape(c)
-    return r'(?s)%s\Z' % res
+    return r"(?s)%s\Z" % res

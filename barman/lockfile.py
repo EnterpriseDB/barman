@@ -25,8 +25,11 @@ import fcntl
 import os
 import re
 
-from barman.exceptions import (LockFileBusy, LockFileParsingError,
-                               LockFilePermissionDenied)
+from barman.exceptions import (
+    LockFileBusy,
+    LockFileParsingError,
+    LockFilePermissionDenied,
+)
 
 
 class LockFile(object):
@@ -118,8 +121,9 @@ class LockFile(object):
             return True
         fd = None
         # method arguments take precedence on class parameters
-        raise_if_fail = raise_if_fail \
-            if raise_if_fail is not None else self.raise_if_fail
+        raise_if_fail = (
+            raise_if_fail if raise_if_fail is not None else self.raise_if_fail
+        )
         wait = wait if wait is not None else self.wait
         try:
             # 384 is 0600 in octal, 'rw-------'
@@ -131,7 +135,7 @@ class LockFile(object):
             if update_pid:
                 # Once locked, replace the content of the file
                 os.lseek(fd, 0, os.SEEK_SET)
-                os.write(fd, ("%s\n" % os.getpid()).encode('ascii'))
+                os.write(fd, ("%s\n" % os.getpid()).encode("ascii"))
                 # Truncate the file at the current position
                 os.ftruncate(fd, os.lseek(fd, 0, os.SEEK_CUR))
             self.fd = fd
@@ -195,7 +199,7 @@ class LockFile(object):
                 # Read the lock content and parse the PID
                 # NOTE: We cannot read it in the self.acquire method to avoid
                 # reading the previous locker PID
-                with open(self.filename, 'r') as file_object:
+                with open(self.filename, "r") as file_object:
                     return int(file_object.readline().strip())
             except ValueError as e:
                 # This should not happen
@@ -214,8 +218,8 @@ class GlobalCronLock(LockFile):
 
     def __init__(self, lock_directory):
         super(GlobalCronLock, self).__init__(
-            os.path.join(lock_directory, '.cron.lock'),
-            raise_if_fail=True)
+            os.path.join(lock_directory, ".cron.lock"), raise_if_fail=True
+        )
 
 
 class ServerBackupLock(LockFile):
@@ -228,8 +232,9 @@ class ServerBackupLock(LockFile):
 
     def __init__(self, lock_directory, server_name):
         super(ServerBackupLock, self).__init__(
-            os.path.join(lock_directory, '.%s-backup.lock' % server_name),
-            raise_if_fail=True)
+            os.path.join(lock_directory, ".%s-backup.lock" % server_name),
+            raise_if_fail=True,
+        )
 
 
 class ServerCronLock(LockFile):
@@ -242,8 +247,10 @@ class ServerCronLock(LockFile):
 
     def __init__(self, lock_directory, server_name):
         super(ServerCronLock, self).__init__(
-            os.path.join(lock_directory, '.%s-cron.lock' % server_name),
-            raise_if_fail=True, wait=False)
+            os.path.join(lock_directory, ".%s-cron.lock" % server_name),
+            raise_if_fail=True,
+            wait=False,
+        )
 
 
 class ServerXLOGDBLock(LockFile):
@@ -256,8 +263,10 @@ class ServerXLOGDBLock(LockFile):
 
     def __init__(self, lock_directory, server_name):
         super(ServerXLOGDBLock, self).__init__(
-            os.path.join(lock_directory, '.%s-xlogdb.lock' % server_name),
-            raise_if_fail=True, wait=True)
+            os.path.join(lock_directory, ".%s-xlogdb.lock" % server_name),
+            raise_if_fail=True,
+            wait=True,
+        )
 
 
 class ServerWalArchiveLock(LockFile):
@@ -270,8 +279,10 @@ class ServerWalArchiveLock(LockFile):
 
     def __init__(self, lock_directory, server_name):
         super(ServerWalArchiveLock, self).__init__(
-            os.path.join(lock_directory, '.%s-archive-wal.lock' % server_name),
-            raise_if_fail=True, wait=False)
+            os.path.join(lock_directory, ".%s-archive-wal.lock" % server_name),
+            raise_if_fail=True,
+            wait=False,
+        )
 
 
 class ServerWalReceiveLock(LockFile):
@@ -281,13 +292,16 @@ class ServerWalReceiveLock(LockFile):
     Creates a '.<SERVER>-receive-wal.lock' lock file under
     the given lock_directory for the named SERVER.
     """
+
     # TODO: Implement on the other LockFile subclasses
-    LOCK_PATTERN = re.compile(r'\.(?P<server_name>.+)-receive-wal\.lock')
+    LOCK_PATTERN = re.compile(r"\.(?P<server_name>.+)-receive-wal\.lock")
 
     def __init__(self, lock_directory, server_name):
         super(ServerWalReceiveLock, self).__init__(
-            os.path.join(lock_directory, '.%s-receive-wal.lock' % server_name),
-            raise_if_fail=True, wait=False)
+            os.path.join(lock_directory, ".%s-receive-wal.lock" % server_name),
+            raise_if_fail=True,
+            wait=False,
+        )
 
 
 class ServerBackupIdLock(LockFile):
@@ -300,9 +314,10 @@ class ServerBackupIdLock(LockFile):
 
     def __init__(self, lock_directory, server_name, backup_id):
         super(ServerBackupIdLock, self).__init__(
-            os.path.join(lock_directory, '.%s-%s.lock' % (
-                server_name, backup_id)),
-            raise_if_fail=True, wait=False)
+            os.path.join(lock_directory, ".%s-%s.lock" % (server_name, backup_id)),
+            raise_if_fail=True,
+            wait=False,
+        )
 
 
 class ServerBackupSyncLock(LockFile):
@@ -316,9 +331,12 @@ class ServerBackupSyncLock(LockFile):
 
     def __init__(self, lock_directory, server_name, backup_id):
         super(ServerBackupSyncLock, self).__init__(
-            os.path.join(lock_directory, '.%s-%s-sync-backup.lock' % (
-                server_name, backup_id)),
-            raise_if_fail=True, wait=False)
+            os.path.join(
+                lock_directory, ".%s-%s-sync-backup.lock" % (server_name, backup_id)
+            ),
+            raise_if_fail=True,
+            wait=False,
+        )
 
 
 class ServerWalSyncLock(LockFile):
@@ -331,5 +349,7 @@ class ServerWalSyncLock(LockFile):
 
     def __init__(self, lock_directory, server_name):
         super(ServerWalSyncLock, self).__init__(
-            os.path.join(lock_directory, '.%s-sync-wal.lock' % server_name),
-            raise_if_fail=True, wait=True)
+            os.path.join(lock_directory, ".%s-sync-wal.lock" % server_name),
+            raise_if_fail=True,
+            wait=True,
+        )

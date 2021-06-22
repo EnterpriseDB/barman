@@ -25,8 +25,7 @@ from dateutil import tz
 
 from barman.backup import BackupManager
 from barman.config import BackupOptions, Config
-from barman.infofile import (BackupInfo, LocalBackupInfo, Tablespace,
-                             WalFileInfo)
+from barman.infofile import BackupInfo, LocalBackupInfo, Tablespace, WalFileInfo
 from barman.server import Server
 from barman.utils import mkpath
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
@@ -38,33 +37,34 @@ except ImportError:
 
 
 def build_test_backup_info(
-        backup_id='1234567890',
-        begin_offset=40,
-        begin_time=None,
-        begin_wal='000000010000000000000002',
-        begin_xlog='0/2000028',
-        config_file='/pgdata/location/postgresql.conf',
-        end_offset=184,
-        end_time=None,
-        end_wal='000000010000000000000002',
-        end_xlog='0/20000B8',
-        error=None,
-        hba_file='/pgdata/location/pg_hba.conf',
-        ident_file='/pgdata/location/pg_ident.conf',
-        mode='default',
-        pgdata='/pgdata/location',
-        server_name='test_server',
-        size=12345,
-        status=BackupInfo.DONE,
-        included_files=None,
-        tablespaces=(
-            ('tbs1', 16387, '/fake/location'),
-            ('tbs2', 16405, '/another/location'),
-        ),
-        timeline=1,
-        version=90302,
-        server=None,
-        copy_stats=None):
+    backup_id="1234567890",
+    begin_offset=40,
+    begin_time=None,
+    begin_wal="000000010000000000000002",
+    begin_xlog="0/2000028",
+    config_file="/pgdata/location/postgresql.conf",
+    end_offset=184,
+    end_time=None,
+    end_wal="000000010000000000000002",
+    end_xlog="0/20000B8",
+    error=None,
+    hba_file="/pgdata/location/pg_hba.conf",
+    ident_file="/pgdata/location/pg_ident.conf",
+    mode="default",
+    pgdata="/pgdata/location",
+    server_name="test_server",
+    size=12345,
+    status=BackupInfo.DONE,
+    included_files=None,
+    tablespaces=(
+        ("tbs1", 16387, "/fake/location"),
+        ("tbs2", 16405, "/another/location"),
+    ),
+    timeline=1,
+    version=90302,
+    server=None,
+    copy_stats=None,
+):
     """
     Create an 'Ad Hoc' BackupInfo object for testing purposes.
 
@@ -112,37 +112,38 @@ def build_test_backup_info(
     # by the caller use a Mock with a basic configuration
     if server is None:
         server = mock.Mock(name=server_name)
-        server.config = build_config_from_dicts().get_server('main')
+        server.config = build_config_from_dicts().get_server("main")
         server.passive_node = False
-        server.backup_manager.name = 'default'
+        server.backup_manager.name = "default"
 
     backup_info = LocalBackupInfo(**locals())
     return backup_info
 
 
 def mock_backup_ext_info(
-        backup_info=None,
-        previous_backup_id=None,
-        next_backup_id=None,
-        wal_num=1,
-        wal_size=123456,
-        wal_until_next_num=18,
-        wal_until_next_size=2345678,
-        wals_per_second=0.01,
-        wal_first='000000010000000000000014',
-        wal_first_timestamp=None,
-        wal_last='000000010000000000000014',
-        wal_last_timestamp=None,
-        retention_policy_status=None,
-        wal_compression_ratio=0.0,
-        wal_until_next_compression_ratio=0.0,
-        children_timelines=[],
-        copy_stats={},
-        **kwargs):
+    backup_info=None,
+    previous_backup_id=None,
+    next_backup_id=None,
+    wal_num=1,
+    wal_size=123456,
+    wal_until_next_num=18,
+    wal_until_next_size=2345678,
+    wals_per_second=0.01,
+    wal_first="000000010000000000000014",
+    wal_first_timestamp=None,
+    wal_last="000000010000000000000014",
+    wal_last_timestamp=None,
+    retention_policy_status=None,
+    wal_compression_ratio=0.0,
+    wal_until_next_compression_ratio=0.0,
+    children_timelines=[],
+    copy_stats={},
+    **kwargs
+):
 
     # make a dictionary with all the arguments
     ext_info = dict(locals())
-    del ext_info['backup_info']
+    del ext_info["backup_info"]
     if backup_info is None:
         backup_info = build_test_backup_info(**kwargs)
 
@@ -156,9 +157,9 @@ def mock_backup_ext_info(
     return ext_info
 
 
-def build_config_from_dicts(global_conf=None, main_conf=None,
-                            test_conf=None,
-                            config_name=None):
+def build_config_from_dicts(
+    global_conf=None, main_conf=None, test_conf=None, config_name=None
+):
     """
     Utility method, generate a barman.config.Config object
 
@@ -173,22 +174,22 @@ def build_config_from_dicts(global_conf=None, main_conf=None,
     """
     # base barman section
     base_barman = {
-        'barman_home': '/some/barman/home',
-        'barman_user': '{USER}',
-        'log_file': '%(barman_home)s/log/barman.log',
-        'archiver': True
+        "barman_home": "/some/barman/home",
+        "barman_user": "{USER}",
+        "log_file": "%(barman_home)s/log/barman.log",
+        "archiver": True,
     }
     # base main section
     base_main = {
-        'description': '" Text with quotes "',
-        'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere',
-        'conninfo': 'host=pg01.nowhere user=postgres port=5432'
+        "description": '" Text with quotes "',
+        "ssh_command": 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere',
+        "conninfo": "host=pg01.nowhere user=postgres port=5432",
     }
     # base test section
     base_test = {
-        'description': '" Text with quotes "',
-        'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg02.nowhere',
-        'conninfo': 'host=pg02.nowhere user=postgres port=5433'
+        "description": '" Text with quotes "',
+        "ssh_command": 'ssh -c "arcfour" -p 22 postgres@pg02.nowhere',
+        "conninfo": "host=pg02.nowhere user=postgres port=5433",
     }
     # update map values of the two sections
     if global_conf is not None:
@@ -200,21 +201,21 @@ def build_config_from_dicts(global_conf=None, main_conf=None,
 
     # writing the StringIO obj with the barman and main sections
     config_file = StringIO()
-    config_file.write('\n[barman]\n')
+    config_file.write("\n[barman]\n")
     for key in base_barman.keys():
-        config_file.write('%s = %s\n' % (key, base_barman[key]))
+        config_file.write("%s = %s\n" % (key, base_barman[key]))
 
-    config_file.write('[main]\n')
+    config_file.write("[main]\n")
     for key in base_main.keys():
-        config_file.write('%s = %s\n' % (key, base_main[key]))
+        config_file.write("%s = %s\n" % (key, base_main[key]))
 
-    config_file.write('[test]\n')
+    config_file.write("[test]\n")
     for key in base_test.keys():
-        config_file.write('%s = %s\n' % (key, base_main[key]))
+        config_file.write("%s = %s\n" % (key, base_main[key]))
 
     config_file.seek(0)
     config = Config(config_file)
-    config.config_file = config_name or 'build_config_from_dicts'
+    config.config_file = config_name or "build_config_from_dicts"
     return config
 
 
@@ -231,74 +232,74 @@ def build_config_dictionary(config_keys=None):
     """
     # Basic dictionary
     base_config = {
-        'active': True,
-        'archiver': True,
-        'archiver_batch_size': 0,
-        'config': None,
-        'backup_directory': '/some/barman/home/main',
-        'backup_options': BackupOptions("", "", ""),
-        'bandwidth_limit': None,
-        'barman_home': '/some/barman/home',
-        'basebackups_directory': '/some/barman/home/main/base',
-        'barman_lock_directory': '/some/barman/home',
-        'compression': None,
-        'conninfo': 'host=pg01.nowhere user=postgres port=5432',
-        'backup_method': 'rsync',
-        'check_timeout': 30,
-        'custom_compression_filter': None,
-        'custom_decompression_filter': None,
-        'description': ' Text with quotes ',
-        'immediate_checkpoint': False,
-        'incoming_wals_directory': '/some/barman/home/main/incoming',
-        'max_incoming_wals_queue': None,
-        'minimum_redundancy': '0',
-        'name': 'main',
-        'network_compression': False,
-        'post_backup_script': None,
-        'pre_backup_script': None,
-        'post_recovery_script': None,
-        'pre_recovery_script': None,
-        'post_recovery_retry_script': None,
-        'pre_recovery_retry_script': None,
-        'slot_name': None,
-        'streaming_archiver_name': 'barman_receive_wal',
-        'streaming_archiver_batch_size': 0,
-        'post_backup_retry_script': None,
-        'streaming_backup_name': 'barman_streaming_backup',
-        'pre_backup_retry_script': None,
-        'recovery_options': set(),
-        'retention_policy': None,
-        'retention_policy_mode': 'auto',
-        'reuse_backup': None,
-        'ssh_command': 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere',
-        'primary_ssh_command': None,
-        'tablespace_bandwidth_limit': None,
-        'wal_retention_policy': 'main',
-        'wals_directory': '/some/barman/home/main/wals',
-        'basebackup_retry_sleep': 30,
-        'basebackup_retry_times': 0,
-        'post_archive_script': None,
-        'streaming_conninfo': 'host=pg01.nowhere user=postgres port=5432',
-        'pre_archive_script': None,
-        'post_archive_retry_script': None,
-        'pre_archive_retry_script': None,
-        'post_delete_script': None,
-        'pre_delete_script': None,
-        'post_delete_retry_script': None,
-        'pre_delete_retry_script': None,
-        'post_wal_delete_script': None,
-        'pre_wal_delete_script': None,
-        'post_wal_delete_retry_script': None,
-        'pre_wal_delete_retry_script': None,
-        'last_backup_maximum_age': None,
-        'disabled': False,
-        'msg_list': [],
-        'path_prefix': None,
-        'streaming_archiver': False,
-        'streaming_wals_directory': '/some/barman/home/main/streaming',
-        'errors_directory': '/some/barman/home/main/errors',
-        'parallel_jobs': 1,
-        'create_slot': 'manual',
+        "active": True,
+        "archiver": True,
+        "archiver_batch_size": 0,
+        "config": None,
+        "backup_directory": "/some/barman/home/main",
+        "backup_options": BackupOptions("", "", ""),
+        "bandwidth_limit": None,
+        "barman_home": "/some/barman/home",
+        "basebackups_directory": "/some/barman/home/main/base",
+        "barman_lock_directory": "/some/barman/home",
+        "compression": None,
+        "conninfo": "host=pg01.nowhere user=postgres port=5432",
+        "backup_method": "rsync",
+        "check_timeout": 30,
+        "custom_compression_filter": None,
+        "custom_decompression_filter": None,
+        "description": " Text with quotes ",
+        "immediate_checkpoint": False,
+        "incoming_wals_directory": "/some/barman/home/main/incoming",
+        "max_incoming_wals_queue": None,
+        "minimum_redundancy": "0",
+        "name": "main",
+        "network_compression": False,
+        "post_backup_script": None,
+        "pre_backup_script": None,
+        "post_recovery_script": None,
+        "pre_recovery_script": None,
+        "post_recovery_retry_script": None,
+        "pre_recovery_retry_script": None,
+        "slot_name": None,
+        "streaming_archiver_name": "barman_receive_wal",
+        "streaming_archiver_batch_size": 0,
+        "post_backup_retry_script": None,
+        "streaming_backup_name": "barman_streaming_backup",
+        "pre_backup_retry_script": None,
+        "recovery_options": set(),
+        "retention_policy": None,
+        "retention_policy_mode": "auto",
+        "reuse_backup": None,
+        "ssh_command": 'ssh -c "arcfour" -p 22 postgres@pg01.nowhere',
+        "primary_ssh_command": None,
+        "tablespace_bandwidth_limit": None,
+        "wal_retention_policy": "main",
+        "wals_directory": "/some/barman/home/main/wals",
+        "basebackup_retry_sleep": 30,
+        "basebackup_retry_times": 0,
+        "post_archive_script": None,
+        "streaming_conninfo": "host=pg01.nowhere user=postgres port=5432",
+        "pre_archive_script": None,
+        "post_archive_retry_script": None,
+        "pre_archive_retry_script": None,
+        "post_delete_script": None,
+        "pre_delete_script": None,
+        "post_delete_retry_script": None,
+        "pre_delete_retry_script": None,
+        "post_wal_delete_script": None,
+        "pre_wal_delete_script": None,
+        "post_wal_delete_retry_script": None,
+        "pre_wal_delete_retry_script": None,
+        "last_backup_maximum_age": None,
+        "disabled": False,
+        "msg_list": [],
+        "path_prefix": None,
+        "streaming_archiver": False,
+        "streaming_wals_directory": "/some/barman/home/main/streaming",
+        "errors_directory": "/some/barman/home/main/errors",
+        "parallel_jobs": 1,
+        "create_slot": "manual",
     }
     # Check for overriding keys
     if config_keys is not None:
@@ -316,12 +317,14 @@ def build_real_server(global_conf=None, main_conf=None):
         it is possible to override/add new values to the [main] section
     :return barman.server.Server: a barman Server object
     """
-    return Server(build_config_from_dicts(
-        global_conf=global_conf, main_conf=main_conf).get_server('main'))
+    return Server(
+        build_config_from_dicts(
+            global_conf=global_conf, main_conf=main_conf
+        ).get_server("main")
+    )
 
 
-def build_mocked_server(name=None, config=None,
-                        global_conf=None, main_conf=None):
+def build_mocked_server(name=None, config=None, global_conf=None, main_conf=None):
     """
     Build a mock server object
     :param str name: server name, defaults to 'main'
@@ -334,26 +337,27 @@ def build_mocked_server(name=None, config=None,
     :rtype: barman.server.Server
     """
     # instantiate a retention policy object using mocked parameters
-    server = mock.MagicMock(name='barman.server.Server')
+    server = mock.MagicMock(name="barman.server.Server")
 
     if not config:
         server.config = build_config_from_dicts(
-            global_conf=global_conf,
-            main_conf=main_conf).get_server('main')
+            global_conf=global_conf, main_conf=main_conf
+        ).get_server("main")
     else:
         server.config = config
     server.backup_manager.server = server
     server.backup_manager.config = server.config
     server.passive_node = False
-    server.config.name = name or 'main'
+    server.config.name = name or "main"
     server.postgres.xlog_segment_size = DEFAULT_XLOG_SEG_SIZE
-    server.path = '/test/bin'
-    server.systemid = '6721602258895701769'
+    server.path = "/test/bin"
+    server.systemid = "6721602258895701769"
     return server
 
 
-def build_backup_manager(server=None, name=None, config=None,
-                         global_conf=None, main_conf=None):
+def build_backup_manager(
+    server=None, name=None, config=None, global_conf=None, main_conf=None
+):
     """
     Instantiate a BackupManager object using mocked parameters
 
@@ -367,8 +371,7 @@ def build_backup_manager(server=None, name=None, config=None,
     with mock.patch("barman.backup.CompressionManager"):
         manager = BackupManager(server=server)
     server.backup_manager = manager
-    manager.compression_manager.get_wal_file_info.side_effect = \
-        WalFileInfo.from_file
+    manager.compression_manager.get_wal_file_info.side_effect = WalFileInfo.from_file
     return manager
 
 
@@ -402,7 +405,7 @@ def parse_recovery_conf(recovery_conf_file):
     recovery_conf = {}
 
     for line in recovery_conf_file.readlines():
-        key, value = (s.strip() for s in line.strip().split('=', 1))
+        key, value = (s.strip() for s in line.strip().split("=", 1))
         recovery_conf[key] = value
 
     return recovery_conf
@@ -425,6 +428,7 @@ def find_by_attr(iterable, attr, value):
 # The following two functions are useful to create bytes/unicode strings
 # in Python 2 and in Python 3 with the same syntax.
 if sys.version_info[0] >= 3:
+
     def b(s):
         """
         Create a byte string
@@ -436,7 +440,10 @@ if sys.version_info[0] >= 3:
         Create an unicode string
         """
         return s
+
+
 else:
+
     def b(s):
         """
         Create a byte string
@@ -451,4 +458,4 @@ else:
         :param s:
         :return:
         """
-        return unicode(s.replace(r'\\', r'\\\\'), "unicode_escape")  # noqa
+        return unicode(s.replace(r"\\", r"\\\\"), "unicode_escape")  # noqa

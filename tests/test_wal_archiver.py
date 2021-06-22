@@ -22,15 +22,17 @@ from mock import ANY, MagicMock, patch
 
 import barman.xlog
 from barman.compression import PyGZipCompressor, identify_compression
-from barman.exceptions import (ArchiverFailure, CommandFailedException,
-                               DuplicateWalFile, MatchingDuplicateWalFile)
+from barman.exceptions import (
+    ArchiverFailure,
+    CommandFailedException,
+    DuplicateWalFile,
+    MatchingDuplicateWalFile,
+)
 from barman.infofile import WalFileInfo
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy
-from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
-                                 WalArchiverQueue)
-from testing_helpers import (build_backup_manager, build_test_backup_info,
-                             caplog_reset)
+from barman.wal_archiver import FileWalArchiver, StreamingWalArchiver, WalArchiverQueue
+from testing_helpers import build_backup_manager, build_test_backup_info, caplog_reset
 
 
 # noinspection PyMethodMayBeStatic
@@ -51,20 +53,18 @@ class TestFileWalArchiver(object):
         # Set up mock responses
         postgres = backup_manager.server.postgres
         postgres.get_setting.side_effect = ["value1", "value2"]
-        postgres.get_archiver_stats.return_value = {
-            'pg_stat_archiver': 'value3'
-        }
+        postgres.get_archiver_stats.return_value = {"pg_stat_archiver": "value3"}
         # Instantiate a FileWalArchiver obj
         archiver = FileWalArchiver(backup_manager)
         result = {
-            'archive_mode': 'value1',
-            'archive_command': 'value2',
-            'pg_stat_archiver': 'value3',
+            "archive_mode": "value1",
+            "archive_command": "value2",
+            "pg_stat_archiver": "value3",
         }
         # Compare results of the check method
         assert archiver.get_remote_status() == result
 
-    @patch('barman.wal_archiver.FileWalArchiver.get_remote_status')
+    @patch("barman.wal_archiver.FileWalArchiver.get_remote_status")
     def test_check(self, remote_mock, capsys):
         """
         Test management of check_postgres view output
@@ -83,80 +83,91 @@ class TestFileWalArchiver(object):
         strategy = CheckOutputStrategy()
         # Case: no reply by PostgreSQL
         remote_mock.return_value = {
-            'archive_mode': None,
-            'archive_command': None,
+            "archive_mode": None,
+            "archive_command": None,
         }
         # Expect no output from check
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == ''
+        assert out == ""
         # Case: correct configuration
         remote_mock.return_value = {
-            'archive_mode': 'on',
-            'archive_command': 'wal to archive',
-            'is_archiving': True,
-            'incoming_wals_count': 0,
+            "archive_mode": "on",
+            "archive_command": "wal to archive",
+            "is_archiving": True,
+            "incoming_wals_count": 0,
         }
         # Expect out: all parameters: OK
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tarchive_mode: OK\n" \
-            "\tarchive_command: OK\n" \
+        assert (
+            out == "\tarchive_mode: OK\n"
+            "\tarchive_command: OK\n"
             "\tcontinuous archiving: OK\n"
+        )
 
         # Case: archive_command value is not acceptable
         remote_mock.return_value = {
-            'archive_command': None,
-            'archive_mode': 'on',
-            'is_archiving': False,
-            'incoming_wals_count': 0,
+            "archive_command": None,
+            "archive_mode": "on",
+            "is_archiving": False,
+            "incoming_wals_count": 0,
         }
         # Expect out: some parameters: FAILED
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tarchive_mode: OK\n" \
-            "\tarchive_command: FAILED " \
+        assert (
+            out == "\tarchive_mode: OK\n"
+            "\tarchive_command: FAILED "
             "(please set it accordingly to documentation)\n"
+        )
         # Case: all but is_archiving ok
         remote_mock.return_value = {
-            'archive_mode': 'on',
-            'archive_command': 'wal to archive',
-            'is_archiving': False,
-            'incoming_wals_count': 0,
+            "archive_mode": "on",
+            "archive_command": "wal to archive",
+            "is_archiving": False,
+            "incoming_wals_count": 0,
         }
         # Expect out: all parameters: OK
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tarchive_mode: OK\n" \
-            "\tarchive_command: OK\n" \
+        assert (
+            out == "\tarchive_mode: OK\n"
+            "\tarchive_command: OK\n"
             "\tcontinuous archiving: FAILED\n"
+        )
         # Case: too many wal files in the incoming queue
         archiver.config.max_incoming_wals_queue = 10
         remote_mock.return_value = {
-            'archive_mode': 'on',
-            'archive_command': 'wal to archive',
-            'is_archiving': False,
-            'incoming_wals_count': 20,
+            "archive_mode": "on",
+            "archive_command": "wal to archive",
+            "is_archiving": False,
+            "incoming_wals_count": 20,
         }
         # Expect out: the wals incoming queue is too big
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tarchive_mode: OK\n" \
-            "\tarchive_command: OK\n" \
-            "\tcontinuous archiving: FAILED\n" \
+        assert (
+            out == "\tarchive_mode: OK\n"
+            "\tarchive_command: OK\n"
+            "\tcontinuous archiving: FAILED\n"
+        )
 
-
-    @patch('os.unlink')
-    @patch('barman.wal_archiver.FileWalArchiver.get_next_batch')
-    @patch('barman.wal_archiver.FileWalArchiver.archive_wal')
-    @patch('shutil.move')
-    @patch('datetime.datetime')
-    def test_archive(self, datetime_mock, move_mock, archive_wal_mock,
-                     get_next_batch_mock, unlink_mock, capsys, caplog):
+    @patch("os.unlink")
+    @patch("barman.wal_archiver.FileWalArchiver.get_next_batch")
+    @patch("barman.wal_archiver.FileWalArchiver.archive_wal")
+    @patch("shutil.move")
+    @patch("datetime.datetime")
+    def test_archive(
+        self,
+        datetime_mock,
+        move_mock,
+        archive_wal_mock,
+        get_next_batch_mock,
+        unlink_mock,
+        capsys,
+        caplog,
+    ):
         """
         Test FileWalArchiver.archive method
         """
@@ -177,18 +188,20 @@ class TestFileWalArchiver(object):
         assert batch.run_size == 1
         get_next_batch_mock.return_value = batch
         archive_wal_mock.side_effect = DuplicateWalFile
-        datetime_mock.utcnow.return_value.strftime.return_value = 'test_time'
+        datetime_mock.utcnow.return_value.strftime.return_value = "test_time"
 
         archiver.archive(fxlogdb_mock)
 
         out, err = capsys.readouterr()
-        assert ("\tError: %s is already present in server %s. "
-                "File moved to errors directory." %
-                (wal_info.name, archiver.config.name)) in out
+        assert (
+            "\tError: %s is already present in server %s. "
+            "File moved to errors directory." % (wal_info.name, archiver.config.name)
+        ) in out
 
-        assert ("\tError: %s is already present in server %s. "
-                "File moved to errors directory." %
-                (wal_info.name, archiver.config.name)) in caplog.text
+        assert (
+            "\tError: %s is already present in server %s. "
+            "File moved to errors directory." % (wal_info.name, archiver.config.name)
+        ) in caplog.text
 
         archive_wal_mock.side_effect = MatchingDuplicateWalFile
         archiver.archive(fxlogdb_mock)
@@ -196,45 +209,55 @@ class TestFileWalArchiver(object):
 
         # Test batch errors
         caplog_reset(caplog)
-        batch.errors = ['testfile_1', 'testfile_2']
+        batch.errors = ["testfile_1", "testfile_2"]
         archive_wal_mock.side_effect = DuplicateWalFile
         archiver.archive(fxlogdb_mock)
         out, err = capsys.readouterr()
 
-        assert ("Some unknown objects have been found while "
-                "processing xlog segments for %s. "
-                "Objects moved to errors directory:" %
-                archiver.config.name) in out
+        assert (
+            "Some unknown objects have been found while "
+            "processing xlog segments for %s. "
+            "Objects moved to errors directory:" % archiver.config.name
+        ) in out
 
-        assert ("Archiver is about to move %s unexpected file(s) to errors "
-                "directory for %s from %s" %
-                (len(batch.errors),
-                 archiver.config.name,
-                 archiver.name)) in caplog.text
+        assert (
+            "Archiver is about to move %s unexpected file(s) to errors "
+            "directory for %s from %s"
+            % (len(batch.errors), archiver.config.name, archiver.name)
+        ) in caplog.text
 
-        assert ("Moving unexpected file for %s from %s: %s" %
-                (archiver.config.name,
-                 archiver.name, 'testfile_1')) in caplog.text
+        assert (
+            "Moving unexpected file for %s from %s: %s"
+            % (archiver.config.name, archiver.name, "testfile_1")
+        ) in caplog.text
 
-        assert ("Moving unexpected file for %s from %s: %s" %
-                (archiver.config.name,
-                 archiver.name, 'testfile_2')) in caplog.text
-
-        move_mock.assert_any_call(
-            'testfile_1',
-            os.path.join(archiver.config.errors_directory,
-                         "%s.%s.unknown" % ('testfile_1', 'test_time')))
+        assert (
+            "Moving unexpected file for %s from %s: %s"
+            % (archiver.config.name, archiver.name, "testfile_2")
+        ) in caplog.text
 
         move_mock.assert_any_call(
-            'testfile_2',
-            os.path.join(archiver.config.errors_directory,
-                         "%s.%s.unknown" % ('testfile_2', 'test_time')))
+            "testfile_1",
+            os.path.join(
+                archiver.config.errors_directory,
+                "%s.%s.unknown" % ("testfile_1", "test_time"),
+            ),
+        )
 
-    @patch('os.fsync')
-    @patch('barman.wal_archiver.FileWalArchiver.get_next_batch')
-    @patch('barman.wal_archiver.FileWalArchiver.archive_wal')
-    def test_archive_batch(self, archive_wal_mock, get_next_batch_mock,
-                           fsync_mock, caplog):
+        move_mock.assert_any_call(
+            "testfile_2",
+            os.path.join(
+                archiver.config.errors_directory,
+                "%s.%s.unknown" % ("testfile_2", "test_time"),
+            ),
+        )
+
+    @patch("os.fsync")
+    @patch("barman.wal_archiver.FileWalArchiver.get_next_batch")
+    @patch("barman.wal_archiver.FileWalArchiver.archive_wal")
+    def test_archive_batch(
+        self, archive_wal_mock, get_next_batch_mock, fsync_mock, caplog
+    ):
         """
         Test archive using batch limit
         """
@@ -260,17 +283,16 @@ class TestFileWalArchiver(object):
         get_next_batch_mock.return_value = batch
         archiver.archive(fxlogdb_mock)
         # check the log for messages
-        assert ("Found %s xlog segments from %s for %s."
-                " Archive a batch of %s segments in this run." %
-                (batch.size,
-                 archiver.name,
-                 archiver.config.name,
-                 batch.run_size)) in caplog.text
-        assert ("Batch size reached (%s) - "
-                "Exit %s process for %s" %
-                (batch.batch_size,
-                 archiver.name,
-                 archiver.config.name)) in caplog.text
+        assert (
+            "Found %s xlog segments from %s for %s."
+            " Archive a batch of %s segments in this run."
+            % (batch.size, archiver.name, archiver.config.name, batch.run_size)
+        ) in caplog.text
+        assert (
+            "Batch size reached (%s) - "
+            "Exit %s process for %s"
+            % (batch.batch_size, archiver.name, archiver.config.name)
+        ) in caplog.text
 
     # TODO: The following test should be splitted in two
     # the BackupManager part and the FileWalArchiver part
@@ -283,39 +305,36 @@ class TestFileWalArchiver(object):
         """
         # Build a real backup manager
         backup_manager = build_backup_manager(
-            name='TestServer',
-            global_conf={
-                'barman_home': tmpdir.strpath
-            })
+            name="TestServer", global_conf={"barman_home": tmpdir.strpath}
+        )
         b_info = build_test_backup_info(
-            backup_id='fake_backup_id',
+            backup_id="fake_backup_id",
             server=backup_manager.server,
-            begin_wal='000000010000000000000001'
+            begin_wal="000000010000000000000001",
         )
         b_info.save()
         backup_manager.server.get_backup.return_value = b_info
-        backup_manager.compression_manager.get_default_compressor \
-            .return_value = None
-        backup_manager.compression_manager.get_compressor \
-            .return_value = None
+        backup_manager.compression_manager.get_default_compressor.return_value = None
+        backup_manager.compression_manager.get_compressor.return_value = None
         # Build the basic folder structure and files
-        basedir = tmpdir.join('main')
-        incoming_dir = basedir.join('incoming')
-        archive_dir = basedir.join('wals')
-        xlog_db = archive_dir.join('xlog.db')
-        wal_name = '000000010000000000000001'
+        basedir = tmpdir.join("main")
+        incoming_dir = basedir.join("incoming")
+        archive_dir = basedir.join("wals")
+        xlog_db = archive_dir.join("xlog.db")
+        wal_name = "000000010000000000000001"
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
         xlog_db.ensure()
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = \
-            xlog_db.open(mode='a')
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
+            mode="a"
+        )
         backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
 
         backup_manager.archive_wal()
-        wal_path = os.path.join(archive_dir.strpath,
-                                barman.xlog.hash_dir(wal_name),
-                                wal_name)
+        wal_path = os.path.join(
+            archive_dir.strpath, barman.xlog.hash_dir(wal_name), wal_name
+        )
         # Check for the presence of the wal file in the wal catalog
         with xlog_db.open() as f:
             line = str(f.readline())
@@ -333,24 +352,23 @@ class TestFileWalArchiver(object):
 
         # Setup the test environment
         backup_manager = build_backup_manager(
-            name='TestServer',
-            global_conf={
-                'barman_home': tmpdir.strpath
-            })
+            name="TestServer", global_conf={"barman_home": tmpdir.strpath}
+        )
         backup_manager.compression_manager.get_compressor.return_value = None
         backup_manager.server.get_backup.return_value = None
 
-        basedir = tmpdir.join('main')
-        incoming_dir = basedir.join('incoming')
-        archive_dir = basedir.join('wals')
-        xlog_db = archive_dir.join('xlog.db')
-        wal_name = '000000010000000000000001'
+        basedir = tmpdir.join("main")
+        incoming_dir = basedir.join("incoming")
+        archive_dir = basedir.join("wals")
+        xlog_db = archive_dir.join("xlog.db")
+        wal_name = "000000010000000000000001"
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
         xlog_db.ensure()
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = (
-            xlog_db.open(mode='a'))
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
+            mode="a"
+        )
         archiver = FileWalArchiver(backup_manager)
         backup_manager.server.archivers = [archiver]
 
@@ -372,7 +390,7 @@ class TestFileWalArchiver(object):
 
         # Tests the archiver behaviour for duplicated WAL files with
         # different contents
-        wal_file.write('test')
+        wal_file.write("test")
         wal_info = WalFileInfo.from_file(wal_file.strpath)
 
         with pytest.raises(DuplicateWalFile):
@@ -381,20 +399,21 @@ class TestFileWalArchiver(object):
         # Tests the archiver behaviour for duplicate WAL files, as the
         # wal file named '000000010000000000000001' was already archived
         # in the previous test and the input file uses compression
-        compressor = PyGZipCompressor(backup_manager.config, 'pygzip')
+        compressor = PyGZipCompressor(backup_manager.config, "pygzip")
         compressor.compress(wal_file.strpath, wal_file.strpath)
         wal_info = WalFileInfo.from_file(wal_file.strpath)
         assert os.path.exists(wal_file.strpath)
-        backup_manager.compression_manager.get_compressor \
-            .return_value = compressor
+        backup_manager.compression_manager.get_compressor.return_value = compressor
 
         with pytest.raises(MatchingDuplicateWalFile):
             archiver.archive_wal(None, wal_info)
 
         # Test the archiver behaviour when the incoming file is compressed
         # and it has been already archived and compressed.
-        compressor.compress(wal_info.fullpath(backup_manager.server),
-                            wal_info.fullpath(backup_manager.server))
+        compressor.compress(
+            wal_info.fullpath(backup_manager.server),
+            wal_info.fullpath(backup_manager.server),
+        )
 
         wal_info = WalFileInfo.from_file(wal_file.strpath)
         with pytest.raises(MatchingDuplicateWalFile):
@@ -406,14 +425,12 @@ class TestFileWalArchiver(object):
         os.unlink(wal_file.strpath)
 
         # Test the archival of a WAL file using compression.
-        wal_file.write('test')
+        wal_file.write("test")
         wal_info = WalFileInfo.from_file(wal_file.strpath)
         archiver.archive_wal(compressor, wal_info)
         assert os.path.exists(wal_info.fullpath(backup_manager.server))
         assert not os.path.exists(wal_file.strpath)
-        assert 'gzip' == identify_compression(
-            wal_info.fullpath(backup_manager.server)
-        )
+        assert "gzip" == identify_compression(wal_info.fullpath(backup_manager.server))
 
     # TODO: The following test should be splitted in two
     # the BackupManager part and the FileWalArchiver part
@@ -425,27 +442,24 @@ class TestFileWalArchiver(object):
         """
         # Build a real backup manager
         backup_manager = build_backup_manager(
-            name='TestServer',
-            global_conf={
-                'barman_home': tmpdir.strpath
-            })
-        backup_manager.compression_manager.get_default_compressor \
-            .return_value = None
-        backup_manager.compression_manager.get_compressor \
-            .return_value = None
+            name="TestServer", global_conf={"barman_home": tmpdir.strpath}
+        )
+        backup_manager.compression_manager.get_default_compressor.return_value = None
+        backup_manager.compression_manager.get_compressor.return_value = None
         backup_manager.server.get_backup.return_value = None
         # Build the basic folder structure and files
-        basedir = tmpdir.join('main')
-        incoming_dir = basedir.join('incoming')
-        archive_dir = basedir.join('wals')
-        xlog_db = archive_dir.join('xlog.db')
-        wal_name = '000000010000000000000001'
+        basedir = tmpdir.join("main")
+        incoming_dir = basedir.join("incoming")
+        archive_dir = basedir.join("wals")
+        xlog_db = archive_dir.join("xlog.db")
+        wal_name = "000000010000000000000001"
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
         xlog_db.ensure()
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = \
-            xlog_db.open(mode='a')
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
+            mode="a"
+        )
         backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
 
         backup_manager.archive_wal()
@@ -454,9 +468,9 @@ class TestFileWalArchiver(object):
         with xlog_db.open() as f:
             line = str(f.readline())
             assert wal_name in line
-        wal_path = os.path.join(archive_dir.strpath,
-                                barman.xlog.hash_dir(wal_name),
-                                wal_name)
+        wal_path = os.path.join(
+            archive_dir.strpath, barman.xlog.hash_dir(wal_name), wal_name
+        )
         # Check that the wal file have been archived
         assert os.path.exists(wal_path)
         out, err = capsys.readouterr()
@@ -474,34 +488,31 @@ class TestFileWalArchiver(object):
         """
         # Build a real backup manager and a fake backup
         backup_manager = build_backup_manager(
-            name='TestServer',
-            global_conf={
-                'barman_home': tmpdir.strpath
-            })
+            name="TestServer", global_conf={"barman_home": tmpdir.strpath}
+        )
         b_info = build_test_backup_info(
-            backup_id='fake_backup_id',
+            backup_id="fake_backup_id",
             server=backup_manager.server,
-            begin_wal='000000010000000000000002'
+            begin_wal="000000010000000000000002",
         )
         b_info.save()
         # Build the basic folder structure and files
-        backup_manager.compression_manager.get_default_compressor \
-            .return_value = None
-        backup_manager.compression_manager.get_compressor \
-            .return_value = None
+        backup_manager.compression_manager.get_default_compressor.return_value = None
+        backup_manager.compression_manager.get_compressor.return_value = None
         backup_manager.server.get_backup.return_value = b_info
-        basedir = tmpdir.join('main')
-        incoming_dir = basedir.join('incoming')
-        basedir.mkdir('errors')
-        archive_dir = basedir.join('wals')
-        xlog_db = archive_dir.join('xlog.db')
-        wal_name = '000000010000000000000001'
+        basedir = tmpdir.join("main")
+        incoming_dir = basedir.join("incoming")
+        basedir.mkdir("errors")
+        archive_dir = basedir.join("wals")
+        xlog_db = archive_dir.join("xlog.db")
+        wal_name = "000000010000000000000001"
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
         xlog_db.ensure()
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = \
-            xlog_db.open(mode='a')
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
+            mode="a"
+        )
         backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
 
         backup_manager.archive_wal()
@@ -510,9 +521,9 @@ class TestFileWalArchiver(object):
         with xlog_db.open() as f:
             line = str(f.readline())
             assert wal_name in line
-        wal_path = os.path.join(archive_dir.strpath,
-                                barman.xlog.hash_dir(wal_name),
-                                wal_name)
+        wal_path = os.path.join(
+            archive_dir.strpath, barman.xlog.hash_dir(wal_name), wal_name
+        )
         # Check that the wal file have been archived
         assert os.path.exists(wal_path)
         # Check the output for the archival of the wal file
@@ -530,35 +541,32 @@ class TestFileWalArchiver(object):
         """
         # Build a real backup manager and a fake backup
         backup_manager = build_backup_manager(
-            name='TestServer',
-            global_conf={
-                'barman_home': tmpdir.strpath
-            })
+            name="TestServer", global_conf={"barman_home": tmpdir.strpath}
+        )
         b_info = build_test_backup_info(
-            backup_id='fake_backup_id',
+            backup_id="fake_backup_id",
             server=backup_manager.server,
-            begin_wal='000000020000000000000002',
-            timeline=2
+            begin_wal="000000020000000000000002",
+            timeline=2,
         )
         b_info.save()
         # Build the basic folder structure and files
-        backup_manager.compression_manager.get_default_compressor \
-            .return_value = None
-        backup_manager.compression_manager.get_compressor \
-            .return_value = None
+        backup_manager.compression_manager.get_default_compressor.return_value = None
+        backup_manager.compression_manager.get_compressor.return_value = None
         backup_manager.server.get_backup.return_value = b_info
-        basedir = tmpdir.join('main')
-        incoming_dir = basedir.join('incoming')
-        basedir.mkdir('errors')
-        archive_dir = basedir.join('wals')
-        xlog_db = archive_dir.join('xlog.db')
-        wal_name = '000000010000000000000001'
+        basedir = tmpdir.join("main")
+        incoming_dir = basedir.join("incoming")
+        basedir.mkdir("errors")
+        archive_dir = basedir.join("wals")
+        xlog_db = archive_dir.join("xlog.db")
+        wal_name = "000000010000000000000001"
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
         xlog_db.ensure()
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = \
-            xlog_db.open(mode='a')
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
+            mode="a"
+        )
         backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
 
         backup_manager.archive_wal()
@@ -567,43 +575,41 @@ class TestFileWalArchiver(object):
         with xlog_db.open() as f:
             line = str(f.readline())
             assert wal_name in line
-        wal_path = os.path.join(archive_dir.strpath,
-                                barman.xlog.hash_dir(wal_name),
-                                wal_name)
+        wal_path = os.path.join(
+            archive_dir.strpath, barman.xlog.hash_dir(wal_name), wal_name
+        )
         # Check that the wal file have been archived
         assert os.path.exists(wal_path)
         # Check the output for the archival of the wal file
         out, err = capsys.readouterr()
         assert ("\t%s\n" % wal_name) in out
 
-    @patch('barman.wal_archiver.glob')
-    @patch('os.path.isfile')
-    @patch('barman.wal_archiver.WalFileInfo.from_file')
+    @patch("barman.wal_archiver.glob")
+    @patch("os.path.isfile")
+    @patch("barman.wal_archiver.WalFileInfo.from_file")
     def test_get_next_batch(self, from_file_mock, isfile_mock, glob_mock):
         """
         Test the FileWalArchiver.get_next_batch method
         """
 
         # WAL batch no errors
-        glob_mock.return_value = ['000000010000000000000001']
+        glob_mock.return_value = ["000000010000000000000001"]
         isfile_mock.return_value = True
         # This is an hack, instead of a WalFileInfo we use a simple string to
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
-        from_file_mock.side_effect = lambda wal_name: ':%s:' % wal_name
+        from_file_mock.side_effect = lambda wal_name: ":%s:" % wal_name
 
-        backup_manager = build_backup_manager(
-            name='TestServer'
-        )
+        backup_manager = build_backup_manager(name="TestServer")
         archiver = FileWalArchiver(backup_manager)
         backup_manager.server.archivers = [archiver]
 
         batch = archiver.get_next_batch()
-        assert [':000000010000000000000001:'] == batch
+        assert [":000000010000000000000001:"] == batch
 
         # WAL batch with errors
-        wrong_file_name = 'test_wrong_wal_file.2'
-        glob_mock.return_value = ['test_wrong_wal_file.2']
+        wrong_file_name = "test_wrong_wal_file.2"
+        glob_mock.return_value = ["test_wrong_wal_file.2"]
         batch = archiver.get_next_batch()
         assert [wrong_file_name] == batch.errors
 
@@ -632,15 +638,15 @@ class TestStreamingWalArchiver(object):
             "pg_receivexlog_installed": False,
             "pg_receivexlog_path": None,
             "pg_receivexlog_compatible": None,
-            'pg_receivexlog_synchronous': None,
+            "pg_receivexlog_synchronous": None,
             "pg_receivexlog_version": None,
             "pg_receivexlog_supports_slots": None,
         }
 
         backup_manager.server.streaming.server_major_version = "9.2"
         find_command.side_effect = None
-        find_command.return_value.cmd = '/some/path/to/pg_receivexlog'
-        find_command.return_value.out = ''
+        find_command.return_value.cmd = "/some/path/to/pg_receivexlog"
+        find_command.return_value.out = ""
         archiver.reset_remote_status()
         result = archiver.get_remote_status()
 
@@ -648,7 +654,7 @@ class TestStreamingWalArchiver(object):
             "pg_receivexlog_installed": True,
             "pg_receivexlog_path": "/some/path/to/pg_receivexlog",
             "pg_receivexlog_compatible": None,
-            'pg_receivexlog_synchronous': None,
+            "pg_receivexlog_synchronous": None,
             "pg_receivexlog_version": None,
             "pg_receivexlog_supports_slots": None,
         }
@@ -664,7 +670,7 @@ class TestStreamingWalArchiver(object):
         backup_manager = build_backup_manager()
         backup_manager.server.streaming.server_major_version = "9.2"
         archiver = StreamingWalArchiver(backup_manager)
-        which_mock.return_value = '/some/path/to/pg_receivexlog'
+        which_mock.return_value = "/some/path/to/pg_receivexlog"
 
         command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.2.1"
         result = archiver.get_remote_status()
@@ -700,24 +706,20 @@ class TestStreamingWalArchiver(object):
     @patch("barman.wal_archiver.PgReceiveXlog")
     def test_receive_wal(self, receivexlog_mock, remote_mock, tmpdir):
         backup_manager = build_backup_manager(
-            main_conf={
-                'backup_directory': tmpdir
-            },
+            main_conf={"backup_directory": tmpdir},
         )
         streaming_mock = backup_manager.server.streaming
         streaming_mock.server_txt_version = "9.4.0"
         streaming_mock.get_connection_string.return_value = (
-            'host=pg01.nowhere user=postgres port=5432 '
-            'application_name=barman_receive_wal')
+            "host=pg01.nowhere user=postgres port=5432 "
+            "application_name=barman_receive_wal"
+        )
         streaming_mock.get_remote_status.return_value = {
             "streaming_supported": True,
             "timeline": 1,
         }
         postgres_mock = backup_manager.server.postgres
-        replication_slot_status = MagicMock(
-            restart_lsn="F/A12D687",
-            active=False
-        )
+        replication_slot_status = MagicMock(restart_lsn="F/A12D687", active=False)
         postgres_mock.get_remote_status.return_value = {
             "current_xlog": "000000010000000F0000000A",
             "current_lsn": "F/A12D687",
@@ -725,34 +727,34 @@ class TestStreamingWalArchiver(object):
             "xlog_segment_size": 16777216,
         }
         backup_manager.server.streaming.conn_parameters = {
-            'host': 'pg01.nowhere',
-            'user': 'postgres',
-            'port': '5432',
+            "host": "pg01.nowhere",
+            "user": "postgres",
+            "port": "5432",
         }
-        streaming_dir = tmpdir.join('streaming')
+        streaming_dir = tmpdir.join("streaming")
         streaming_dir.ensure(dir=True)
         # Test: normal run
         archiver = StreamingWalArchiver(backup_manager)
         archiver.server.streaming.server_version = 90400
         remote_mock.return_value = {
-            'pg_receivexlog_installed': True,
-            'pg_receivexlog_compatible': True,
-            'pg_receivexlog_synchronous': None,
-            'pg_receivexlog_path': 'fake/path',
-            'pg_receivexlog_supports_slots': True,
-            'pg_receivexlog_version': '9.4',
+            "pg_receivexlog_installed": True,
+            "pg_receivexlog_compatible": True,
+            "pg_receivexlog_synchronous": None,
+            "pg_receivexlog_path": "fake/path",
+            "pg_receivexlog_supports_slots": True,
+            "pg_receivexlog_version": "9.4",
         }
 
         # Test: execute a reset request
-        partial = streaming_dir.join('000000010000000100000001.partial')
+        partial = streaming_dir.join("000000010000000100000001.partial")
         partial.ensure()
         archiver.receive_wal(reset=True)
         assert not partial.check()
-        assert streaming_dir.join('000000010000000F0000000A.partial').check()
+        assert streaming_dir.join("000000010000000F0000000A.partial").check()
 
         archiver.receive_wal(reset=False)
         receivexlog_mock.assert_called_once_with(
-            app_name='barman_receive_wal',
+            app_name="barman_receive_wal",
             synchronous=None,
             connection=ANY,
             destination=streaming_dir.strpath,
@@ -760,97 +762,96 @@ class TestStreamingWalArchiver(object):
             out_handler=ANY,
             path=ANY,
             slot_name=None,
-            command='fake/path',
-            version='9.4')
+            command="fake/path",
+            version="9.4",
+        )
         receivexlog_mock.return_value.execute.assert_called_once_with()
 
         # Test: pg_receivexlog from 9.2
         receivexlog_mock.reset_mock()
         remote_mock.return_value = {
-            'pg_receivexlog_installed': True,
-            'pg_receivexlog_compatible': True,
-            'pg_receivexlog_synchronous': False,
-            'pg_receivexlog_path': 'fake/path',
-            'pg_receivexlog_supports_slots': False,
-            'pg_receivexlog_version': '9.2',
+            "pg_receivexlog_installed": True,
+            "pg_receivexlog_compatible": True,
+            "pg_receivexlog_synchronous": False,
+            "pg_receivexlog_path": "fake/path",
+            "pg_receivexlog_supports_slots": False,
+            "pg_receivexlog_version": "9.2",
         }
         archiver.receive_wal(reset=False)
         receivexlog_mock.assert_called_once_with(
-            app_name='barman_receive_wal',
+            app_name="barman_receive_wal",
             synchronous=False,
             connection=ANY,
             destination=streaming_dir.strpath,
             err_handler=ANY,
             out_handler=ANY,
             path=ANY,
-            command='fake/path',
+            command="fake/path",
             slot_name=None,
-            version='9.2'
+            version="9.2",
         )
         receivexlog_mock.return_value.execute.assert_called_once_with()
 
         # Test: incompatible pg_receivexlog
         with pytest.raises(ArchiverFailure):
             remote_mock.return_value = {
-                'pg_receivexlog_installed': True,
-                'pg_receivexlog_compatible': False,
-                'pg_receivexlog_supports_slots': False,
-                'pg_receivexlog_synchronous': False,
-                'pg_receivexlog_path': 'fake/path'
+                "pg_receivexlog_installed": True,
+                "pg_receivexlog_compatible": False,
+                "pg_receivexlog_supports_slots": False,
+                "pg_receivexlog_synchronous": False,
+                "pg_receivexlog_path": "fake/path",
             }
             archiver.receive_wal()
 
         # Test: missing pg_receivexlog
         with pytest.raises(ArchiverFailure):
             remote_mock.return_value = {
-                'pg_receivexlog_installed': False,
-                'pg_receivexlog_compatible': True,
-                'pg_receivexlog_supports_slots': False,
-                'pg_receivexlog_synchronous': False,
-                'pg_receivexlog_path': 'fake/path'
+                "pg_receivexlog_installed": False,
+                "pg_receivexlog_compatible": True,
+                "pg_receivexlog_supports_slots": False,
+                "pg_receivexlog_synchronous": False,
+                "pg_receivexlog_path": "fake/path",
             }
             archiver.receive_wal()
         # Test: impossible to connect with streaming protocol
         with pytest.raises(ArchiverFailure):
             backup_manager.server.streaming.get_remote_status.return_value = {
-                'streaming_supported': None
+                "streaming_supported": None
             }
             remote_mock.return_value = {
-                'pg_receivexlog_installed': True,
-                'pg_receivexlog_supports_slots': False,
-                'pg_receivexlog_compatible': True,
-                'pg_receivexlog_synchronous': False,
-                'pg_receivexlog_path': 'fake/path'
+                "pg_receivexlog_installed": True,
+                "pg_receivexlog_supports_slots": False,
+                "pg_receivexlog_compatible": True,
+                "pg_receivexlog_synchronous": False,
+                "pg_receivexlog_path": "fake/path",
             }
             archiver.receive_wal()
         # Test: PostgreSQL too old
         with pytest.raises(ArchiverFailure):
             backup_manager.server.streaming.get_remote_status.return_value = {
-                'streaming_supported': False
+                "streaming_supported": False
             }
             remote_mock.return_value = {
-                'pg_receivexlog_installed': True,
-                'pg_receivexlog_compatible': True,
-                'pg_receivexlog_synchronous': False,
-                'pg_receivexlog_path': 'fake/path'
+                "pg_receivexlog_installed": True,
+                "pg_receivexlog_compatible": True,
+                "pg_receivexlog_synchronous": False,
+                "pg_receivexlog_path": "fake/path",
             }
             archiver.receive_wal()
         # Test: general failure executing pg_receivexlog
         with pytest.raises(ArchiverFailure):
             remote_mock.return_value = {
-                'pg_receivexlog_installed': True,
-                'pg_receivexlog_compatible': True,
-                'pg_receivexlog_synchronous': False,
-                'pg_receivexlog_path': 'fake/path'
+                "pg_receivexlog_installed": True,
+                "pg_receivexlog_compatible": True,
+                "pg_receivexlog_synchronous": False,
+                "pg_receivexlog_path": "fake/path",
             }
-            receivexlog_mock.return_value.execute.side_effect = \
-                CommandFailedException
+            receivexlog_mock.return_value.execute.side_effect = CommandFailedException
             archiver.receive_wal()
 
     @patch("barman.utils.which")
     @patch("barman.command_wrappers.Command")
-    def test_when_streaming_connection_rejected(
-            self, command_mock, which_mock):
+    def test_when_streaming_connection_rejected(self, command_mock, which_mock):
         """
         Test the StreamingWalArchiver behaviour when the streaming
         connection is rejected by the PostgreSQL server and
@@ -862,13 +863,13 @@ class TestStreamingWalArchiver(object):
         backup_manager = build_backup_manager()
         backup_manager.server.streaming.server_major_version = None
         archiver = StreamingWalArchiver(backup_manager)
-        which_mock.return_value = '/some/path/to/pg_receivexlog'
+        which_mock.return_value = "/some/path/to/pg_receivexlog"
         command_mock.return_value.out = "pg_receivexlog (PostgreSQL) 9.2"
 
         result = archiver.get_remote_status()
         assert result["pg_receivexlog_compatible"] is None
 
-    @patch('barman.wal_archiver.StreamingWalArchiver.get_remote_status')
+    @patch("barman.wal_archiver.StreamingWalArchiver.get_remote_status")
     def test_check(self, remote_mock, capsys):
         """
         Test management of check_postgres view output
@@ -880,112 +881,118 @@ class TestStreamingWalArchiver(object):
         backup_manager = build_backup_manager()
         # Set up mock responses
         streaming = backup_manager.server.streaming
-        streaming.server_txt_version = '9.5'
+        streaming.server_txt_version = "9.5"
         # Instantiate a StreamingWalArchiver obj
         archiver = StreamingWalArchiver(backup_manager)
         # Prepare the output check strategy
         strategy = CheckOutputStrategy()
         # Case: correct configuration
         remote_mock.return_value = {
-            'pg_receivexlog_installed': True,
-            'pg_receivexlog_compatible': True,
-            'pg_receivexlog_path': 'fake/path',
-            'incoming_wals_count': 0,
+            "pg_receivexlog_installed": True,
+            "pg_receivexlog_compatible": True,
+            "pg_receivexlog_path": "fake/path",
+            "incoming_wals_count": 0,
         }
         # Expect out: all parameters: OK
         backup_manager.server.process_manager.list.return_value = []
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tpg_receivexlog: OK\n" \
-            "\tpg_receivexlog compatible: OK\n" \
-            "\treceive-wal running: FAILED " \
+        assert (
+            out == "\tpg_receivexlog: OK\n"
+            "\tpg_receivexlog compatible: OK\n"
+            "\treceive-wal running: FAILED "
             "(See the Barman log file for more details)\n"
+        )
 
         # Case: pg_receivexlog is not compatible
         remote_mock.return_value = {
-            'pg_receivexlog_installed': True,
-            'pg_receivexlog_compatible': False,
-            'pg_receivexlog_path': 'fake/path',
-            'pg_receivexlog_version': '9.2',
-            'incoming_wals_count': 0,
+            "pg_receivexlog_installed": True,
+            "pg_receivexlog_compatible": False,
+            "pg_receivexlog_path": "fake/path",
+            "pg_receivexlog_version": "9.2",
+            "incoming_wals_count": 0,
         }
         # Expect out: some parameters: FAILED
         strategy = CheckOutputStrategy()
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tpg_receivexlog: OK\n" \
-            "\tpg_receivexlog compatible: FAILED " \
-            "(PostgreSQL version: 9.5, pg_receivexlog version: 9.2)\n" \
-            "\treceive-wal running: FAILED " \
+        assert (
+            out == "\tpg_receivexlog: OK\n"
+            "\tpg_receivexlog compatible: FAILED "
+            "(PostgreSQL version: 9.5, pg_receivexlog version: 9.2)\n"
+            "\treceive-wal running: FAILED "
             "(See the Barman log file for more details)\n"
+        )
         # Case: pg_receivexlog returned error
         remote_mock.return_value = {
-            'pg_receivexlog_installed': True,
-            'pg_receivexlog_compatible': None,
-            'pg_receivexlog_path': 'fake/path',
-            'pg_receivexlog_version': None,
-            'incoming_wals_count': 0,
+            "pg_receivexlog_installed": True,
+            "pg_receivexlog_compatible": None,
+            "pg_receivexlog_path": "fake/path",
+            "pg_receivexlog_version": None,
+            "incoming_wals_count": 0,
         }
         # Expect out: all parameters: OK
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tpg_receivexlog: OK\n" \
-            "\tpg_receivexlog compatible: FAILED " \
-            "(PostgreSQL version: 9.5, pg_receivexlog version: None)\n" \
-            "\treceive-wal running: FAILED " \
+        assert (
+            out == "\tpg_receivexlog: OK\n"
+            "\tpg_receivexlog compatible: FAILED "
+            "(PostgreSQL version: 9.5, pg_receivexlog version: None)\n"
+            "\treceive-wal running: FAILED "
             "(See the Barman log file for more details)\n"
+        )
 
         # Case: receive-wal running
         backup_manager.server.process_manager.list.return_value = [
-            ProcessInfo(pid=1,
-                        server_name=backup_manager.config.name,
-                        task="receive-wal")
+            ProcessInfo(
+                pid=1, server_name=backup_manager.config.name, task="receive-wal"
+            )
         ]
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tpg_receivexlog: OK\n" \
-            "\tpg_receivexlog compatible: FAILED " \
-            "(PostgreSQL version: 9.5, pg_receivexlog version: None)\n" \
+        assert (
+            out == "\tpg_receivexlog: OK\n"
+            "\tpg_receivexlog compatible: FAILED "
+            "(PostgreSQL version: 9.5, pg_receivexlog version: None)\n"
             "\treceive-wal running: OK\n"
+        )
 
         # Case: streaming connection not configured
         backup_manager.server.streaming = None
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tpg_receivexlog: OK\n" \
-            "\tpg_receivexlog compatible: FAILED " \
-            "(PostgreSQL version: Unknown, pg_receivexlog version: None)\n" \
+        assert (
+            out == "\tpg_receivexlog: OK\n"
+            "\tpg_receivexlog compatible: FAILED "
+            "(PostgreSQL version: Unknown, pg_receivexlog version: None)\n"
             "\treceive-wal running: OK\n"
+        )
         # Case: too many wal files in the incoming queue
         archiver.config.max_incoming_wals_queue = 10
         remote_mock.return_value = {
-            'pg_receivexlog_installed': True,
-            'pg_receivexlog_compatible': None,
-            'pg_receivexlog_path': 'fake/path',
-            'pg_receivexlog_version': None,
-            'incoming_wals_count': 20,
+            "pg_receivexlog_installed": True,
+            "pg_receivexlog_compatible": None,
+            "pg_receivexlog_path": "fake/path",
+            "pg_receivexlog_version": None,
+            "incoming_wals_count": 20,
         }
         # Expect out: the wals incoming queue is too big
         archiver.check(strategy)
         (out, err) = capsys.readouterr()
-        assert out == \
-            "\tpg_receivexlog: OK\n" \
-            "\tpg_receivexlog compatible: FAILED " \
-            "(PostgreSQL version: Unknown, pg_receivexlog version: None)\n" \
-            "\treceive-wal running: OK\n" \
+        assert (
+            out == "\tpg_receivexlog: OK\n"
+            "\tpg_receivexlog compatible: FAILED "
+            "(PostgreSQL version: Unknown, pg_receivexlog version: None)\n"
+            "\treceive-wal running: OK\n"
+        )
 
-
-    @patch('barman.wal_archiver.glob')
-    @patch('os.path.exists')
-    @patch('os.path.isfile')
-    @patch('barman.wal_archiver.WalFileInfo.from_file')
-    def test_get_next_batch(self, from_file_mock, isfile_mock, exists_mock,
-                            glob_mock, caplog):
+    @patch("barman.wal_archiver.glob")
+    @patch("os.path.exists")
+    @patch("os.path.isfile")
+    @patch("barman.wal_archiver.WalFileInfo.from_file")
+    def test_get_next_batch(
+        self, from_file_mock, isfile_mock, exists_mock, glob_mock, caplog
+    ):
         """
         Test the FileWalArchiver.get_next_batch method
         """
@@ -994,64 +1001,62 @@ class TestStreamingWalArchiver(object):
 
         # WAL batch, with 000000010000000000000001 that is currently being
         # written
-        glob_mock.return_value = ['000000010000000000000001']
+        glob_mock.return_value = ["000000010000000000000001"]
         isfile_mock.return_value = True
         # This is an hack, instead of a WalFileInfo we use a simple string to
         # ease all the comparisons. The resulting string is the name enclosed
         # in colons. e.g. ":000000010000000000000001:"
-        from_file_mock.side_effect = lambda wal_name, compression: (
-            ':%s:' % wal_name)
+        from_file_mock.side_effect = lambda wal_name, compression: (":%s:" % wal_name)
 
-        backup_manager = build_backup_manager(
-            name='TestServer'
-        )
+        backup_manager = build_backup_manager(name="TestServer")
         archiver = StreamingWalArchiver(backup_manager)
         backup_manager.server.archivers = [archiver]
 
         caplog_reset(caplog)
         batch = archiver.get_next_batch()
-        assert ['000000010000000000000001'] == batch.skip
-        assert '' == caplog.text
+        assert ["000000010000000000000001"] == batch.skip
+        assert "" == caplog.text
 
         # WAL batch, with 000000010000000000000002 that is currently being
         # written and 000000010000000000000001 can be archived
         caplog_reset(caplog)
         glob_mock.return_value = [
-            '000000010000000000000001',
-            '000000010000000000000002',
+            "000000010000000000000001",
+            "000000010000000000000002",
         ]
         batch = archiver.get_next_batch()
-        assert [':000000010000000000000001:'] == batch
-        assert ['000000010000000000000002'] == batch.skip
-        assert '' == caplog.text
+        assert [":000000010000000000000001:"] == batch
+        assert ["000000010000000000000002"] == batch.skip
+        assert "" == caplog.text
 
         # WAL batch, with two partial files.
         caplog_reset(caplog)
         glob_mock.return_value = [
-            '000000010000000000000001.partial',
-            '000000010000000000000002.partial',
+            "000000010000000000000001.partial",
+            "000000010000000000000002.partial",
         ]
         batch = archiver.get_next_batch()
-        assert [':000000010000000000000001.partial:'] == batch
-        assert ['000000010000000000000002.partial'] == batch.skip
-        assert ('Archiving partial files for server %s: '
-                '000000010000000000000001.partial'
-                % archiver.config.name) in caplog.text
+        assert [":000000010000000000000001.partial:"] == batch
+        assert ["000000010000000000000002.partial"] == batch.skip
+        assert (
+            "Archiving partial files for server %s: "
+            "000000010000000000000001.partial" % archiver.config.name
+        ) in caplog.text
 
         # WAL batch, with history files.
         caplog_reset(caplog)
         glob_mock.return_value = [
-            '00000001.history',
-            '000000010000000000000002.partial',
+            "00000001.history",
+            "000000010000000000000002.partial",
         ]
         batch = archiver.get_next_batch()
-        assert [':00000001.history:'] == batch
-        assert ['000000010000000000000002.partial'] == batch.skip
-        assert '' == caplog.text
+        assert [":00000001.history:"] == batch
+        assert ["000000010000000000000002.partial"] == batch.skip
+        assert "" == caplog.text
 
         # WAL batch with errors
-        wrong_file_name = 'test_wrong_wal_file.2'
-        glob_mock.return_value = ['test_wrong_wal_file.2']
+        wrong_file_name = "test_wrong_wal_file.2"
+        glob_mock.return_value = ["test_wrong_wal_file.2"]
         batch = archiver.get_next_batch()
         assert [wrong_file_name] == batch.errors
 
@@ -1059,31 +1064,29 @@ class TestStreamingWalArchiver(object):
         caplog_reset(caplog)
         exists_mock.side_effect = [False, True]
         glob_mock.return_value = [
-            '000000010000000000000001.partial',
-            '000000010000000000000002.partial',
+            "000000010000000000000001.partial",
+            "000000010000000000000002.partial",
         ]
         batch = archiver.get_next_batch()
         assert len(batch) == 0
-        assert ['000000010000000000000002.partial'] == batch.skip
-        assert '' in caplog.text
+        assert ["000000010000000000000002.partial"] == batch.skip
+        assert "" in caplog.text
 
     def test_is_synchronous(self):
-        backup_manager = build_backup_manager(
-            name='TestServer'
-        )
+        backup_manager = build_backup_manager(name="TestServer")
         archiver = StreamingWalArchiver(backup_manager)
 
         # 'barman_receive_wal' is not in the list of synchronous standby
         # names, so we expect is_synchronous to be false
         backup_manager.server.postgres.get_remote_status.return_value = {
-            'synchronous_standby_names': ['a', 'b', 'c']
+            "synchronous_standby_names": ["a", "b", "c"]
         }
         assert not archiver._is_synchronous()
 
         # 'barman_receive_wal' is in the list of synchronous standby
         # names, so we expect is_synchronous to be true
         backup_manager.server.postgres.get_remote_status.return_value = {
-            'synchronous_standby_names': ['a', 'barman_receive_wal']
+            "synchronous_standby_names": ["a", "barman_receive_wal"]
         }
         assert archiver._is_synchronous()
 
@@ -1091,13 +1094,13 @@ class TestStreamingWalArchiver(object):
         # is_synchronous to be true even if 'barman_receive_wal' is not
         # explicitly referenced
         backup_manager.server.postgres.get_remote_status.return_value = {
-            'synchronous_standby_names': ['a', 'b', '*']
+            "synchronous_standby_names": ["a", "b", "*"]
         }
         assert archiver._is_synchronous()
 
         # There is only a '*' in the list of synchronous standby names,
         # so we expect every name to match
         backup_manager.server.postgres.get_remote_status.return_value = {
-            'synchronous_standby_names': ['*']
+            "synchronous_standby_names": ["*"]
         }
         assert archiver._is_synchronous()

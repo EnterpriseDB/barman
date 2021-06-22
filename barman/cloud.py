@@ -34,13 +34,17 @@ from functools import partial
 from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
 
-from barman.backup_executor import (ConcurrentBackupStrategy,
-                                    ExclusiveBackupStrategy)
+from barman.backup_executor import ConcurrentBackupStrategy, ExclusiveBackupStrategy
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
-from barman.utils import (BarmanEncoder, force_str, human_readable_timedelta,
-                          pretty_size, total_seconds)
+from barman.utils import (
+    BarmanEncoder,
+    force_str,
+    human_readable_timedelta,
+    pretty_size,
+    total_seconds,
+)
 
 try:
     import boto3
@@ -151,8 +155,7 @@ class TarFileIgnoringTruncate(tarfile.TarFile):
             copyfileobj_pad_truncate(fileobj, self.fileobj, tarinfo.size)
             blocks, remainder = divmod(tarinfo.size, tarfile.BLOCKSIZE)
             if remainder > 0:
-                self.fileobj.write(
-                    tarfile.NUL * (tarfile.BLOCKSIZE - remainder))
+                self.fileobj.write(tarfile.NUL * (tarfile.BLOCKSIZE - remainder))
                 blocks += 1
             self.offset += blocks * tarfile.BLOCKSIZE
 
@@ -164,11 +167,13 @@ class S3TarUploader(object):
     # This is the method we use to create new buffers
     # We use named temporary files, so we can pass them by name to
     # other processes
-    _buffer = partial(NamedTemporaryFile, delete=False,
-                      prefix='barman-upload-', suffix='.part')
+    _buffer = partial(
+        NamedTemporaryFile, delete=False, prefix="barman-upload-", suffix=".part"
+    )
 
-    def __init__(self, cloud_interface, key,
-                 compression=None, chunk_size=MIN_CHUNK_SIZE):
+    def __init__(
+        self, cloud_interface, key, compression=None, chunk_size=MIN_CHUNK_SIZE
+    ):
         """
         A tar archive that resides on S3
 
@@ -183,9 +188,8 @@ class S3TarUploader(object):
         self.chunk_size = max(chunk_size, MIN_CHUNK_SIZE)
         self.buffer = None
         self.counter = 0
-        tar_mode = 'w|%s' % (compression or '')
-        self.tar = TarFileIgnoringTruncate.open(fileobj=self,
-                                                mode=tar_mode)
+        tar_mode = "w|%s" % (compression or "")
+        self.tar = TarFileIgnoringTruncate.open(fileobj=self, mode=tar_mode)
         self.size = 0
         self.stats = None
 
@@ -204,10 +208,8 @@ class S3TarUploader(object):
         self.buffer.seek(0, os.SEEK_SET)
         self.counter += 1
         self.cloud_interface.async_upload_part(
-            mpu=self.mpu,
-            key=self.key,
-            body=self.buffer,
-            part_number=self.counter)
+            mpu=self.mpu, key=self.key, body=self.buffer, part_number=self.counter
+        )
         self.buffer.close()
         self.buffer = None
 
@@ -224,8 +226,7 @@ class S3TarUploader(object):
 
 
 class S3UploadController(object):
-    def __init__(self, cloud_interface, key_prefix, max_archive_size,
-                 compression):
+    def __init__(self, cloud_interface, key_prefix, max_archive_size, compression):
         """
         Create a new controller that upload the backup in S3
 
@@ -236,14 +237,16 @@ class S3UploadController(object):
         """
 
         self.cloud_interface = cloud_interface
-        if key_prefix and key_prefix[0] == '/':
+        if key_prefix and key_prefix[0] == "/":
             key_prefix = key_prefix[1:]
         self.key_prefix = key_prefix
         if max_archive_size < MAX_ARCHIVE_SIZE:
             self.max_archive_size = max_archive_size
         else:
-            logging.warning("max-archive-size too big. Capping it to to %s",
-                            pretty_size(MAX_ARCHIVE_SIZE))
+            logging.warning(
+                "max-archive-size too big. Capping it to to %s",
+                pretty_size(MAX_ARCHIVE_SIZE),
+            )
             self.max_archive_size = MAX_ARCHIVE_SIZE
         # We aim to a maximum of MAX_CHUNKS_PER_FILE / 2 chinks per file
         self.chunk_size = 2 * int(max_archive_size / MAX_CHUNKS_PER_FILE)
@@ -285,12 +288,14 @@ class S3UploadController(object):
         """
         if name not in self.tar_list or not self.tar_list[name]:
 
-            self.tar_list[name] = [S3TarUploader(
-                cloud_interface=self.cloud_interface,
-                key=os.path.join(self.key_prefix, self._build_dest_name(name)),
-                compression=self.compression,
-                chunk_size=self.chunk_size,
-            )]
+            self.tar_list[name] = [
+                S3TarUploader(
+                    cloud_interface=self.cloud_interface,
+                    key=os.path.join(self.key_prefix, self._build_dest_name(name)),
+                    compression=self.compression,
+                    chunk_size=self.chunk_size,
+                )
+            ]
         # If the current uploading file size is over DEFAULT_MAX_TAR_SIZE
         # Close the current file and open the next part
         uploader = self.tar_list[name][-1]
@@ -300,7 +305,8 @@ class S3UploadController(object):
                 cloud_interface=self.cloud_interface,
                 key=os.path.join(
                     self.key_prefix,
-                    self._build_dest_name(name, len(self.tar_list[name]))),
+                    self._build_dest_name(name, len(self.tar_list[name])),
+                ),
                 compression=self.compression,
                 chunk_size=self.chunk_size,
             )
@@ -308,12 +314,15 @@ class S3UploadController(object):
         return uploader.tar
 
     def upload_directory(self, label, src, dst, exclude=None, include=None):
-        logging.info("Uploading '%s' directory '%s' as '%s'",
-                     label, src, self._build_dest_name(dst))
+        logging.info(
+            "Uploading '%s' directory '%s' as '%s'",
+            label,
+            src,
+            self._build_dest_name(dst),
+        )
         for root, dirs, files in os.walk(src):
             tar_root = os.path.relpath(root, src)
-            if not path_allowed(exclude, include,
-                                tar_root, True):
+            if not path_allowed(exclude, include, tar_root, True):
                 continue
             try:
                 self._get_tar(dst).add(root, arcname=tar_root, recursive=False)
@@ -327,13 +336,11 @@ class S3UploadController(object):
 
             for item in files:
                 tar_item = os.path.join(tar_root, item)
-                if not path_allowed(exclude, include,
-                                    tar_item, False):
+                if not path_allowed(exclude, include, tar_item, False):
                     continue
                 logging.debug("Uploading %s", tar_item)
                 try:
-                    self._get_tar(dst).add(os.path.join(root, item),
-                                           arcname=tar_item)
+                    self._get_tar(dst).add(os.path.join(root, item), arcname=tar_item)
                 except EnvironmentError as e:
                     if e.errno == errno.ENOENT:
                         # If a file disappeared just skip it,
@@ -345,15 +352,23 @@ class S3UploadController(object):
     def add_file(self, label, src, dst, path, optional=False):
         if optional and not os.path.exists(src):
             return
-        logging.info("Uploading '%s' file from '%s' to '%s' with path '%s'",
-                     label, src, self._build_dest_name(dst), path)
+        logging.info(
+            "Uploading '%s' file from '%s' to '%s' with path '%s'",
+            label,
+            src,
+            self._build_dest_name(dst),
+            path,
+        )
         tar = self._get_tar(dst)
         tar.add(src, arcname=path)
 
-    def add_fileobj(self, label, fileobj, dst, path,
-                    mode=None, uid=None, gid=None):
-        logging.info("Uploading '%s' file to '%s' with path '%s'",
-                     label, self._build_dest_name(dst), path)
+    def add_fileobj(self, label, fileobj, dst, path, mode=None, uid=None, gid=None):
+        logging.info(
+            "Uploading '%s' file to '%s' with path '%s'",
+            label,
+            self._build_dest_name(dst),
+            path,
+        )
         tar = self._get_tar(dst)
         tarinfo = tar.tarinfo(path)
         fileobj.seek(0, os.SEEK_END)
@@ -374,8 +389,7 @@ class S3UploadController(object):
                 # Tho only opened file is the last one, all the others
                 # have been already closed
                 self.tar_list[name][-1].close()
-                self.upload_stats[name] = [tar.stats
-                                           for tar in self.tar_list[name]]
+                self.upload_stats[name] = [tar.stats for tar in self.tar_list[name]]
             self.tar_list[name] = None
 
         # Store the end time
@@ -395,14 +409,13 @@ class S3UploadController(object):
 
         # Initialise the result calculating the total runtime
         stat = {
-            'total_time': total_seconds(
-                self.copy_end_time - self.copy_start_time),
-            'number_of_workers': self.cloud_interface.worker_processes_count,
+            "total_time": total_seconds(self.copy_end_time - self.copy_start_time),
+            "number_of_workers": self.cloud_interface.worker_processes_count,
             # Cloud uploads have no analysis
-            'analysis_time': 0,
-            'analysis_time_per_item': {},
-            'copy_time_per_item': {},
-            'serialized_copy_time_per_item': {},
+            "analysis_time": 0,
+            "analysis_time_per_item": {},
+            "copy_time_per_item": {},
+            "serialized_copy_time_per_item": {},
         }
 
         # Calculate the time spent uploading
@@ -415,32 +428,32 @@ class S3UploadController(object):
             total_time = datetime.timedelta(0)
             for index, data in enumerate(self.upload_stats[name]):
                 logging.debug(
-                    'Calculating statistics for file %s, index %s, data: %s',
-                    name, index, json.dumps(data, indent=2, sort_keys=True,
-                                            cls=BarmanEncoder))
-                if upload_start is None or upload_start > data['start_time']:
-                    upload_start = data['start_time']
-                if upload_end is None or upload_end < data['end_time']:
-                    upload_end = data['end_time']
-                if name_start is None or name_start > data['start_time']:
-                    name_start = data['start_time']
-                if name_end is None or name_end < data['end_time']:
-                    name_end = data['end_time']
-                parts = data['parts']
+                    "Calculating statistics for file %s, index %s, data: %s",
+                    name,
+                    index,
+                    json.dumps(data, indent=2, sort_keys=True, cls=BarmanEncoder),
+                )
+                if upload_start is None or upload_start > data["start_time"]:
+                    upload_start = data["start_time"]
+                if upload_end is None or upload_end < data["end_time"]:
+                    upload_end = data["end_time"]
+                if name_start is None or name_start > data["start_time"]:
+                    name_start = data["start_time"]
+                if name_end is None or name_end < data["end_time"]:
+                    name_end = data["end_time"]
+                parts = data["parts"]
                 for num in parts:
                     part = parts[num]
-                    total_time += part['end_time'] - part['start_time']
-                stat['serialized_copy_time_per_item'][name] = total_seconds(
-                    total_time)
+                    total_time += part["end_time"] - part["start_time"]
+                stat["serialized_copy_time_per_item"][name] = total_seconds(total_time)
                 serialized_time += total_time
             # Cloud uploads have no analysis
-            stat['analysis_time_per_item'][name] = 0
-            stat['copy_time_per_item'][name] = total_seconds(
-                name_end - name_start)
+            stat["analysis_time_per_item"][name] = 0
+            stat["copy_time_per_item"][name] = total_seconds(name_end - name_start)
 
         # Store the total time spent by copying
-        stat['copy_time'] = total_seconds(upload_end - upload_start)
-        stat['serialized_copy_time'] = total_seconds(serialized_time)
+        stat["copy_time"] = total_seconds(upload_end - upload_start)
+        stat["serialized_copy_time"] = total_seconds(serialized_time)
 
         return stat
 
@@ -449,27 +462,24 @@ class FileUploadStatistics(dict):
     def __init__(self, *args, **kwargs):
         super(FileUploadStatistics, self).__init__(*args, **kwargs)
         start_time = datetime.datetime.now()
-        self.setdefault('status', 'uploading')
-        self.setdefault('start_time', start_time)
-        self.setdefault('parts', {})
+        self.setdefault("status", "uploading")
+        self.setdefault("start_time", start_time)
+        self.setdefault("parts", {})
 
     def set_part_end_time(self, part_number, end_time):
-        part = self['parts'].setdefault(part_number, {
-            'part_number': part_number
-        })
-        part['end_time'] = end_time
+        part = self["parts"].setdefault(part_number, {"part_number": part_number})
+        part["end_time"] = end_time
 
     def set_part_start_time(self, part_number, start_time):
-        part = self['parts'].setdefault(part_number, {
-            'part_number': part_number
-        })
-        part['start_time'] = start_time
+        part = self["parts"].setdefault(part_number, {"part_number": part_number})
+        part["start_time"] = start_time
 
 
 class StreamingBodyIO(RawIOBase):
     """
     Wrap a boto StreamingBody in the IOBase API.
     """
+
     def __init__(self, body):
         self.body = body
 
@@ -482,8 +492,7 @@ class StreamingBodyIO(RawIOBase):
 
 
 class CloudInterface(object):
-    def __init__(self, url, encryption, jobs=2,
-                 profile_name=None, endpoint_url=None):
+    def __init__(self, url, encryption, jobs=2, profile_name=None, endpoint_url=None):
         """
         Create a new S3 interface given the S3 destination url and the profile
         name
@@ -504,15 +513,15 @@ class CloudInterface(object):
         # Extract information from the destination URL
         parsed_url = urlparse(url)
         # If netloc is not present, the s3 url is badly formatted.
-        if parsed_url.netloc == '' or parsed_url.scheme != 's3':
-            raise ValueError('Invalid s3 URL address: %s' % url)
+        if parsed_url.netloc == "" or parsed_url.scheme != "s3":
+            raise ValueError("Invalid s3 URL address: %s" % url)
         self.bucket_name = parsed_url.netloc
         self.bucket_exists = None
-        self.path = parsed_url.path.lstrip('/')
+        self.path = parsed_url.path.lstrip("/")
 
         # Build a session, so we can extract the correct resource
         session = boto3.Session(profile_name=profile_name)
-        self.s3 = session.resource('s3', endpoint_url=endpoint_url)
+        self.s3 = session.resource("s3", endpoint_url=endpoint_url)
 
         # The worker process and the shared queue are created only when
         # needed
@@ -561,15 +570,14 @@ class CloudInterface(object):
         if self.queue:
             return
 
-        self.queue = multiprocessing.JoinableQueue(
-            maxsize=self.worker_processes_count)
+        self.queue = multiprocessing.JoinableQueue(maxsize=self.worker_processes_count)
         self.result_queue = multiprocessing.Queue()
         self.errors_queue = multiprocessing.Queue()
         self.done_queue = multiprocessing.Queue()
         for process_number in range(self.worker_processes_count):
             process = multiprocessing.Process(
-                target=self.worker_process_main,
-                args=(process_number,))
+                target=self.worker_process_main, args=(process_number,)
+            )
             process.start()
             self.worker_processes.append(process)
 
@@ -590,12 +598,12 @@ class CloudInterface(object):
 
             # Save the upload end time of the part
             stats = self.upload_stats[result["key"]]
-            stats.set_part_end_time(result["part_number"], result['end_time'])
+            stats.set_part_end_time(result["part_number"], result["end_time"])
 
         for key in touched_keys:
             self.parts_db[key] = sorted(
-                self.parts_db[key],
-                key=operator.itemgetter("PartNumber"))
+                self.parts_db[key], key=operator.itemgetter("PartNumber")
+            )
 
         # Read the results of completed uploads
         while not self.done_queue.empty():
@@ -638,7 +646,7 @@ class CloudInterface(object):
         # We create a new session instead of reusing the one
         # from the parent process to avoid any race condition
         session = boto3.Session(profile_name=self.profile_name)
-        self.s3 = session.resource('s3', endpoint_url=self.endpoint_url)
+        self.s3 = session.resource("s3", endpoint_url=self.endpoint_url)
 
         while True:
             task = self.queue.get()
@@ -649,14 +657,17 @@ class CloudInterface(object):
             try:
                 self.worker_process_execute_job(task, process_number)
             except Exception as exc:
-                logging.error('Upload error: %s (worker %s)',
-                              force_str(exc), process_number)
-                logging.debug('Exception details:', exc_info=exc)
+                logging.error(
+                    "Upload error: %s (worker %s)", force_str(exc), process_number
+                )
+                logging.debug("Exception details:", exc_info=exc)
                 self.errors_queue.put(force_str(exc))
             except KeyboardInterrupt:
                 if not self.abort_requested:
-                    logging.info('Got abort request: upload cancelled '
-                                 '(worker %s)', process_number)
+                    logging.info(
+                        "Got abort request: upload cancelled " "(worker %s)",
+                        process_number,
+                    )
                     self.abort_requested = True
             finally:
                 self.queue.task_done()
@@ -674,24 +685,20 @@ class CloudInterface(object):
         if task["job_type"] == "upload_part":
             if self.abort_requested:
                 logging.info(
-                    "Skipping '%s', part '%s' (worker %s)" % (
-                        task["key"],
-                        task["part_number"],
-                        process_number))
+                    "Skipping '%s', part '%s' (worker %s)"
+                    % (task["key"], task["part_number"], process_number)
+                )
                 os.unlink(task["body"])
                 return
             else:
                 logging.info(
-                    "Uploading '%s', part '%s' (worker %s)" % (
-                        task["key"],
-                        task["part_number"],
-                        process_number))
+                    "Uploading '%s', part '%s' (worker %s)"
+                    % (task["key"], task["part_number"], process_number)
+                )
                 with open(task["body"], "rb") as fp:
                     part = self.upload_part(
-                        task["mpu"],
-                        task["key"],
-                        fp,
-                        task["part_number"])
+                        task["mpu"], task["key"], fp, task["part_number"]
+                    )
                 os.unlink(task["body"])
                 self.result_queue.put(
                     {
@@ -699,37 +706,31 @@ class CloudInterface(object):
                         "part_number": task["part_number"],
                         "end_time": datetime.datetime.now(),
                         "part": part,
-                    })
+                    }
+                )
         elif task["job_type"] == "complete_multipart_upload":
             if self.abort_requested:
-                logging.info(
-                    "Aborting %s (worker %s)" % (
-                        task["key"],
-                        process_number))
-                self.abort_multipart_upload(
-                    task["mpu"],
-                    task["key"])
+                logging.info("Aborting %s (worker %s)" % (task["key"], process_number))
+                self.abort_multipart_upload(task["mpu"], task["key"])
                 self.done_queue.put(
                     {
                         "key": task["key"],
                         "end_time": datetime.datetime.now(),
-                        "status": "aborted"
-                    })
+                        "status": "aborted",
+                    }
+                )
             else:
                 logging.info(
-                    "Completing '%s' (worker %s)" % (
-                        task["key"],
-                        process_number))
-                self.complete_multipart_upload(
-                    task["mpu"],
-                    task["key"],
-                    task["parts"])
+                    "Completing '%s' (worker %s)" % (task["key"], process_number)
+                )
+                self.complete_multipart_upload(task["mpu"], task["key"], task["parts"])
                 self.done_queue.put(
                     {
                         "key": task["key"],
                         "end_time": datetime.datetime.now(),
-                        "status": "done"
-                    })
+                        "status": "done",
+                    }
+                )
         else:
             raise ValueError("Unknown task: %s", repr(task))
 
@@ -757,8 +758,8 @@ class CloudInterface(object):
         except ClientError as exc:
             # If a client error is thrown, then check the error code.
             # If code was 404, then the bucket does not exist
-            error_code = exc.response['Error']['Code']
-            if error_code == '404':
+            error_code = exc.response["Error"]["Code"]
+            if error_code == "404":
                 return False
             # Otherwise there is nothing else to do than re-raise the original
             # exception
@@ -778,9 +779,11 @@ class CloudInterface(object):
             region = self.s3.meta.client.meta.region_name
             logging.info(
                 "Bucket '%s' does not exist, creating it on region '%s'",
-                self.bucket_name, region)
+                self.bucket_name,
+                region,
+            )
             create_bucket_config = {
-                'ACL': 'private',
+                "ACL": "private",
             }
             # The location constraint is required during bucket creation
             # for all regions outside of us-east-1. This constraint cannot
@@ -788,14 +791,14 @@ class CloudInterface(object):
             # results in a failure, so we will only
             # add it if we are deploying outside of us-east-1.
             # See https://github.com/boto/boto3/issues/125
-            if region != 'us-east-1':
-                create_bucket_config['CreateBucketConfiguration'] = {
-                    'LocationConstraint': region,
+            if region != "us-east-1":
+                create_bucket_config["CreateBucketConfiguration"] = {
+                    "LocationConstraint": region,
                 }
             self.s3.Bucket(self.bucket_name).create(**create_bucket_config)
             self.bucket_exists = True
 
-    def list_bucket(self, prefix='', delimiter='/'):
+    def list_bucket(self, prefix="", delimiter="/"):
         """
         List bucket content in a directory manner
         :param str prefix:
@@ -806,9 +809,8 @@ class CloudInterface(object):
             prefix = prefix.lstrip(delimiter)
 
         res = self.s3.meta.client.list_objects_v2(
-            Bucket=self.bucket_name,
-            Prefix=prefix,
-            Delimiter=delimiter)
+            Bucket=self.bucket_name, Prefix=prefix, Delimiter=delimiter
+        )
 
         # List "folders"
         keys = res.get("CommonPrefixes")
@@ -832,19 +834,19 @@ class CloudInterface(object):
         """
         # Open the remote file
         obj = self.s3.Object(self.bucket_name, key)
-        remote_file = obj.get()['Body']
+        remote_file = obj.get()["Body"]
 
         # Write the dest file in binary mode
-        with open(dest_path, 'wb') as dest_file:
+        with open(dest_path, "wb") as dest_file:
             # If the file is not compressed, just copy its content
             if not decompress:
                 shutil.copyfileobj(remote_file, dest_file)
                 return
 
-            if decompress == 'gzip':
-                source_file = gzip.GzipFile(fileobj=remote_file, mode='rb')
-            elif decompress == 'bzip2':
-                source_file = bz2.BZ2File(remote_file, 'rb')
+            if decompress == "gzip":
+                source_file = gzip.GzipFile(fileobj=remote_file, mode="rb")
+            elif decompress == "bzip2":
+                source_file = bz2.BZ2File(remote_file, "rb")
             else:
                 raise ValueError("Unknown compression type: %s" % decompress)
 
@@ -859,10 +861,10 @@ class CloudInterface(object):
         """
         try:
             obj = self.s3.Object(self.bucket_name, key)
-            return StreamingBodyIO(obj.get()['Body'])
+            return StreamingBodyIO(obj.get()["Body"])
         except ClientError as exc:
-            error_code = exc.response['Error']['Code']
-            if error_code == 'NoSuchKey':
+            error_code = exc.response["Error"]["Code"]
+            if error_code == "NoSuchKey":
                 return None
             else:
                 raise
@@ -872,10 +874,10 @@ class CloudInterface(object):
         Extract a tar archive from cloud to the local directory
         """
         extension = os.path.splitext(key)[-1]
-        compression = '' if extension == '.tar' else extension[1:]
-        tar_mode = 'r|%s' % compression
+        compression = "" if extension == ".tar" else extension[1:]
+        tar_mode = "r|%s" % compression
         obj = self.s3.Object(self.bucket_name, key)
-        fileobj = obj.get()['Body']
+        fileobj = obj.get()["Body"]
         with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
             tf.extractall(path=dst)
 
@@ -885,13 +887,11 @@ class CloudInterface(object):
         """
         additional_args = {}
         if self.encryption:
-            additional_args['ServerSideEncryption'] = self.encryption
+            additional_args["ServerSideEncryption"] = self.encryption
 
         self.s3.meta.client.upload_fileobj(
-            Fileobj=fileobj,
-            Bucket=self.bucket_name,
-            Key=key,
-            ExtraArgs=additional_args)
+            Fileobj=fileobj, Bucket=self.bucket_name, Key=key, ExtraArgs=additional_args
+        )
 
     def create_multipart_upload(self, key):
         """
@@ -901,7 +901,8 @@ class CloudInterface(object):
         :return: The multipart upload handle
         """
         return self.s3.meta.client.create_multipart_upload(
-            Bucket=self.bucket_name, Key=key)
+            Bucket=self.bucket_name, Key=key
+        )
 
     def async_upload_part(self, mpu, key, body, part_number):
         """
@@ -927,8 +928,7 @@ class CloudInterface(object):
 
         # If the body is a named temporary file use it directly
         # WARNING: this imply that the file will be deleted after the upload
-        if hasattr(body, 'name') and hasattr(body, 'delete') and \
-                not body.delete:
+        if hasattr(body, "name") and hasattr(body, "delete") and not body.delete:
             fp = body
         else:
             # Write a temporary file with the part contents
@@ -936,13 +936,15 @@ class CloudInterface(object):
                 shutil.copyfileobj(body, fp, BUFSIZE)
 
         # Pass the job to the uploader process
-        self.queue.put({
-            "job_type": "upload_part",
-            "mpu": mpu,
-            "key": key,
-            "body": fp.name,
-            "part_number": part_number,
-        })
+        self.queue.put(
+            {
+                "job_type": "upload_part",
+                "mpu": mpu,
+                "key": key,
+                "body": fp.name,
+                "part_number": part_number,
+            }
+        )
 
     def upload_part(self, mpu, key, body, part_number):
         """
@@ -959,10 +961,11 @@ class CloudInterface(object):
             Bucket=self.bucket_name,
             Key=key,
             UploadId=mpu["UploadId"],
-            PartNumber=part_number)
+            PartNumber=part_number,
+        )
         return {
-            'PartNumber': part_number,
-            'ETag': part['ETag'],
+            "PartNumber": part_number,
+            "ETag": part["ETag"],
         }
 
     def async_complete_multipart_upload(self, mpu, key, parts_count):
@@ -991,12 +994,14 @@ class CloudInterface(object):
             self._retrieve_results()
 
         # Finish the job in S3 to the uploader process
-        self.queue.put({
-            "job_type": "complete_multipart_upload",
-            "mpu": mpu,
-            "key": key,
-            "parts": self.parts_db[key],
-        })
+        self.queue.put(
+            {
+                "job_type": "complete_multipart_upload",
+                "mpu": mpu,
+                "key": key,
+                "parts": self.parts_db[key],
+            }
+        )
         del self.parts_db[key]
 
     def complete_multipart_upload(self, mpu, key, parts):
@@ -1011,7 +1016,8 @@ class CloudInterface(object):
             Bucket=self.bucket_name,
             Key=key,
             UploadId=mpu["UploadId"],
-            MultipartUpload={"Parts": parts})
+            MultipartUpload={"Parts": parts},
+        )
 
     def abort_multipart_upload(self, mpu, key):
         """
@@ -1021,9 +1027,8 @@ class CloudInterface(object):
         :param str key: The key to use in the cloud service
         """
         self.s3.meta.client.abort_multipart_upload(
-            Bucket=self.bucket_name,
-            Key=key,
-            UploadId=mpu["UploadId"])
+            Bucket=self.bucket_name, Key=key, UploadId=mpu["UploadId"]
+        )
 
     def wait_for_multipart_upload(self, key):
         """
@@ -1037,7 +1042,7 @@ class CloudInterface(object):
         assert key not in self.parts_db
 
         # If status is still uploading the upload has not finished yet
-        while self.upload_stats[key]['status'] == 'uploading':
+        while self.upload_stats[key]["status"] == "uploading":
             # Wait for all the current jobs to be completed and
             # receive all available updates on worker status
             self._retrieve_results()
@@ -1050,8 +1055,9 @@ class S3BackupUploader(object):
     S3 upload client
     """
 
-    def __init__(self, server_name, postgres, cloud_interface,
-                 max_archive_size, compression=None):
+    def __init__(
+        self, server_name, postgres, cloud_interface, max_archive_size, compression=None
+    ):
         """
         Object responsible for handling interactions with S3
 
@@ -1099,9 +1105,8 @@ class S3BackupUploader(object):
                 # If the tablespace location is inside the data directory,
                 # exclude and protect it from being copied twice during
                 # the data directory copy
-                if tablespace.location.startswith(backup_info.pgdata + '/'):
-                    exclude += [
-                        tablespace.location[len(backup_info.pgdata):]]
+                if tablespace.location.startswith(backup_info.pgdata + "/"):
+                    exclude += [tablespace.location[len(backup_info.pgdata) :]]
 
                 # Exclude and protect the tablespace from being copied again
                 # during the data directory copy
@@ -1118,26 +1123,25 @@ class S3BackupUploader(object):
                 controller.upload_directory(
                     label=tablespace.name,
                     src=tablespace.location,
-                    dst='%s' % tablespace.oid,
-                    exclude=['/*'] + EXCLUDE_LIST,
-                    include=['/PG_%s_*' %
-                             self.postgres.server_major_version],
+                    dst="%s" % tablespace.oid,
+                    exclude=["/*"] + EXCLUDE_LIST,
+                    include=["/PG_%s_*" % self.postgres.server_major_version],
                 )
 
         # Copy PGDATA directory
         controller.upload_directory(
-            label='pgdata',
+            label="pgdata",
             src=backup_info.pgdata,
-            dst='data',
-            exclude=PGDATA_EXCLUDE_LIST + EXCLUDE_LIST + exclude
+            dst="data",
+            exclude=PGDATA_EXCLUDE_LIST + EXCLUDE_LIST + exclude,
         )
 
         # At last copy pg_control
         controller.add_file(
-            label='pg_control',
-            src='%s/global/pg_control' % backup_info.pgdata,
-            dst='data',
-            path='global/pg_control'
+            label="pg_control",
+            src="%s/global/pg_control" % backup_info.pgdata,
+            dst="data",
+            path="global/pg_control",
         )
 
         # Copy configuration files (if not inside PGDATA)
@@ -1145,7 +1149,7 @@ class S3BackupUploader(object):
         included_config_files = []
         for config_file in external_config_files:
             # Add included files to a list, they will be handled later
-            if config_file.file_type == 'include':
+            if config_file.file_type == "include":
                 included_config_files.append(config_file)
                 continue
 
@@ -1153,14 +1157,14 @@ class S3BackupUploader(object):
             # for PostgreSQL.
             # Barman is consistent with this behavior.
             optional = False
-            if config_file.file_type == 'ident_file':
+            if config_file.file_type == "ident_file":
                 optional = True
 
             # Create the actual copy jobs in the controller
             controller.add_file(
                 label=config_file.file_type,
                 src=config_file.path,
-                dst='data',
+                dst="data",
                 path=os.path.basename(config_file.path),
                 optional=optional,
             )
@@ -1170,28 +1174,26 @@ class S3BackupUploader(object):
         # reside outside PGDATA. These files must be manually backed up.
         # Barman will emit a warning and list those files
         if any(included_config_files):
-            msg = ("The usage of include directives is not supported "
-                   "for files that reside outside PGDATA.\n"
-                   "Please manually backup the following files:\n"
-                   "\t%s\n" %
-                   "\n\t".join(icf.path for icf in included_config_files))
+            msg = (
+                "The usage of include directives is not supported "
+                "for files that reside outside PGDATA.\n"
+                "Please manually backup the following files:\n"
+                "\t%s\n" % "\n\t".join(icf.path for icf in included_config_files)
+            )
             logging.warning(msg)
 
     def backup(self):
         """
         Upload a Backup  to S3
         """
-        server_name = 'cloud'
+        server_name = "cloud"
         backup_info = BackupInfo(
-            backup_id=datetime.datetime.now().strftime('%Y%m%dT%H%M%S'),
+            backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
             server_name=server_name,
         )
         backup_info.set_attribute("systemid", self.postgres.get_systemid())
         key_prefix = os.path.join(
-            self.cloud_interface.path,
-            self.server_name,
-            'base',
-            backup_info.backup_id
+            self.cloud_interface.path, self.server_name, "base", backup_info.backup_id
         )
         controller = S3UploadController(
             self.cloud_interface,
@@ -1199,8 +1201,7 @@ class S3BackupUploader(object):
             self.max_archive_size,
             self.compression,
         )
-        if self.postgres.server_version >= 90600 \
-                or self.postgres.has_pgespresso:
+        if self.postgres.server_version >= 90600 or self.postgres.has_pgespresso:
             strategy = ConcurrentBackupStrategy(self.postgres, server_name)
         else:
             strategy = ExclusiveBackupStrategy(self.postgres, server_name)
@@ -1212,7 +1213,7 @@ class S3BackupUploader(object):
             strategy.stop_backup(backup_info)
 
             # Create a restore point after a backup
-            target_name = 'barman_%s' % backup_info.backup_id
+            target_name = "barman_%s" % backup_info.backup_id
             self.postgres.create_restore_point(target_name)
 
             # Free the Postgres connection
@@ -1222,10 +1223,10 @@ class S3BackupUploader(object):
             if backup_info.backup_label:
                 pgdata_stat = os.stat(backup_info.pgdata)
                 controller.add_fileobj(
-                    label='backup_label',
-                    fileobj=BytesIO(backup_info.backup_label.encode('UTF-8')),
-                    dst='data',
-                    path='backup_label',
+                    label="backup_label",
+                    fileobj=BytesIO(backup_info.backup_label.encode("UTF-8")),
+                    dst="data",
+                    path="backup_label",
                     uid=pgdata_stat.st_uid,
                     gid=pgdata_stat.st_gid,
                 )
@@ -1253,24 +1254,27 @@ class S3BackupUploader(object):
                 with BytesIO() as backup_info_file:
                     backup_info.save(file_object=backup_info_file)
                     backup_info_file.seek(0, os.SEEK_SET)
-                    key = os.path.join(controller.key_prefix, 'backup.info')
+                    key = os.path.join(controller.key_prefix, "backup.info")
                     logging.info("Uploading '%s'", key)
                     self.cloud_interface.upload_fileobj(backup_info_file, key)
             except BaseException as exc:
                 # Mark the backup as failed and exit
-                self.handle_backup_errors("uploading backup.info file",
-                                          backup_info, exc)
+                self.handle_backup_errors(
+                    "uploading backup.info file", backup_info, exc
+                )
                 raise SystemExit(1)
 
-        logging.info("Backup end at LSN: %s (%s, %08X)",
-                     backup_info.end_xlog,
-                     backup_info.end_wal,
-                     backup_info.end_offset)
+        logging.info(
+            "Backup end at LSN: %s (%s, %08X)",
+            backup_info.end_xlog,
+            backup_info.end_wal,
+            backup_info.end_offset,
+        )
         logging.info(
             "Backup completed (start time: %s, elapsed time: %s)",
             self.copy_start_time,
-            human_readable_timedelta(
-                datetime.datetime.now() - self.copy_start_time))
+            human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
+        )
 
     def handle_backup_errors(self, action, backup_info, exc):
         """
@@ -1290,10 +1294,10 @@ class S3BackupUploader(object):
             # in backup_info error field
             backup_info.set_attribute("status", BackupInfo.FAILED)
             backup_info.set_attribute(
-                "error",
-                "failure %s (%s)" % (action, msg_lines[0]))
+                "error", "failure %s (%s)" % (action, msg_lines[0])
+            )
         logging.error("Backup failed %s (%s)", action, msg_lines[0])
-        logging.debug('Exception details:', exc_info=exc)
+        logging.debug("Exception details:", exc_info=exc)
 
 
 class BackupFileInfo(object):
@@ -1309,8 +1313,8 @@ class S3BackupCatalog(object):
     """
     S3 backup catalog
     """
-    def __init__(self, cloud_interface,
-                 server_name):
+
+    def __init__(self, cloud_interface, server_name):
         """
         Object responsible for retrievin backup catalog from S3
 
@@ -1321,10 +1325,7 @@ class S3BackupCatalog(object):
 
         self.cloud_interface = cloud_interface
         self.server_name = server_name
-        self.prefix = os.path.join(
-            self.cloud_interface.path,
-            self.server_name,
-            'base')
+        self.prefix = os.path.join(self.cloud_interface.path, self.server_name, "base")
         self._backup_list = None
 
     def get_backup_list(self):
@@ -1338,12 +1339,11 @@ class S3BackupCatalog(object):
             backup_list = {}
 
             # get backups metadata
-            for backup_dir in self.cloud_interface.list_bucket(
-                    self.prefix + '/'):
+            for backup_dir in self.cloud_interface.list_bucket(self.prefix + "/"):
                 # We want only the directories
-                if backup_dir[-1] != '/':
+                if backup_dir[-1] != "/":
                     continue
-                backup_id = os.path.basename(backup_dir.rstrip('/'))
+                backup_id = os.path.basename(backup_dir.rstrip("/"))
                 backup_info = self.get_backup_info(backup_id)
 
                 if backup_info:
@@ -1358,7 +1358,7 @@ class S3BackupCatalog(object):
         :param str backup_id: The backup id to load
         :rtype: BackupInfo
         """
-        backup_info_path = os.path.join(self.prefix, backup_id, 'backup.info')
+        backup_info_path = os.path.join(self.prefix, backup_id, "backup.info")
         backup_info_file = self.cloud_interface.remote_open(backup_info_path)
         if backup_info_file is None:
             return None
@@ -1376,59 +1376,63 @@ class S3BackupCatalog(object):
         # Correctly format the source path on s3
         source_dir = os.path.join(self.prefix, backup_info.backup_id)
 
-        base_path = os.path.join(source_dir, 'data')
-        backup_files = {
-            None: BackupFileInfo(None, base_path)
-        }
+        base_path = os.path.join(source_dir, "data")
+        backup_files = {None: BackupFileInfo(None, base_path)}
         if backup_info.tablespaces:
             for tblspc in backup_info.tablespaces:
-                base_path = os.path.join(source_dir, '%s' % tblspc.oid)
-                backup_files[tblspc.oid] = BackupFileInfo(tblspc.oid,
-                                                          base_path)
+                base_path = os.path.join(source_dir, "%s" % tblspc.oid)
+                backup_files[tblspc.oid] = BackupFileInfo(tblspc.oid, base_path)
 
-        for item in self.cloud_interface.list_bucket(source_dir + '/'):
+        for item in self.cloud_interface.list_bucket(source_dir + "/"):
             for backup_file in backup_files.values():
                 if item.startswith(backup_file.base):
                     # Automatically detect additional files
-                    suffix = item[len(backup_file.base):]
+                    suffix = item[len(backup_file.base) :]
                     # Avoid to match items that are prefix of other items
-                    if not suffix or suffix[0] not in ('.', '_'):
-                        logging.debug("Skipping spurious prefix match: %s|%s",
-                                      backup_file.base, suffix)
+                    if not suffix or suffix[0] not in (".", "_"):
+                        logging.debug(
+                            "Skipping spurious prefix match: %s|%s",
+                            backup_file.base,
+                            suffix,
+                        )
                         continue
                     # If this file have a suffix starting with `_`,
                     # it is an additional file and we add it to the main
                     # BackupFileInfo ...
-                    if suffix[0] == '_':
+                    if suffix[0] == "_":
                         info = BackupFileInfo(backup_file.oid, base_path)
                         backup_file.additional_files.append(info)
-                        ext = suffix.split('.', 1)[-1]
+                        ext = suffix.split(".", 1)[-1]
                     # ... otherwise this is the main file
                     else:
                         info = backup_file
                         ext = suffix[1:]
                     # Infer the compression from the file extension
-                    if ext == 'tar':
+                    if ext == "tar":
                         info.compression = None
-                    elif ext == 'tar.gz':
-                        info.compression = 'gzip'
-                    elif ext == 'tar.bz2':
-                        info.compression = 'bzip2'
+                    elif ext == "tar.gz":
+                        info.compression = "gzip"
+                    elif ext == "tar.bz2":
+                        info.compression = "bzip2"
                     else:
-                        logging.warning("Skipping unknown extension: %s",
-                                        ext)
+                        logging.warning("Skipping unknown extension: %s", ext)
                         continue
                     info.path = item
                     logging.info(
                         "Found file from backup '%s' of server '%s': %s",
-                        backup_info.backup_id, self.server_name, info.path)
+                        backup_info.backup_id,
+                        self.server_name,
+                        info.path,
+                    )
                     break
 
         for backup_file in backup_files.values():
             if backup_file.path is None:
-                logging.error("Missing file %s.* for server %s",
-                              backup_file.base,
-                              self.server_name)
+                logging.error(
+                    "Missing file %s.* for server %s",
+                    backup_file.base,
+                    self.server_name,
+                )
                 raise SystemExit(1)
 
         return backup_files

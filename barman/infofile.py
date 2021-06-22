@@ -32,10 +32,10 @@ from barman.utils import fsync_dir
 
 # Named tuple representing a Tablespace with 'name' 'oid' and 'location'
 # as property.
-Tablespace = collections.namedtuple('Tablespace', 'name oid location')
+Tablespace = collections.namedtuple("Tablespace", "name oid location")
 
 # Named tuple representing a file 'path' with an associated 'file_type'
-TypedFile = collections.namedtuple('ConfFile', 'file_type path')
+TypedFile = collections.namedtuple("ConfFile", "file_type path")
 
 _logger = logging.getLogger(__name__)
 
@@ -99,7 +99,6 @@ def load_datetime_tz(time_str):
 
 
 class Field(object):
-
     def __init__(self, name, dump=None, load=None, default=None, doc=None):
         """
         Field descriptor to be used with a FieldListFile subclass.
@@ -132,12 +131,12 @@ class Field(object):
     def __get__(self, obj, objtype=None):
         if obj is None:
             return self
-        if not hasattr(obj, '_fields'):
+        if not hasattr(obj, "_fields"):
             obj._fields = {}
         return obj._fields.setdefault(self.name, self.default)
 
     def __set__(self, obj, value):
-        if not hasattr(obj, '_fields'):
+        if not hasattr(obj, "_fields"):
             obj._fields = {}
         obj._fields[self.name] = value
 
@@ -153,7 +152,7 @@ class Field(object):
 
 class FieldListFile(object):
 
-    __slots__ = ('_fields', 'filename')
+    __slots__ = ("_fields", "filename")
 
     def __init__(self, **kwargs):
         """
@@ -178,7 +177,7 @@ class FieldListFile(object):
             if isinstance(field, Field):
                 setattr(self, name, kwargs[name])
             else:
-                raise AttributeError('unknown attribute %s' % name)
+                raise AttributeError("unknown attribute %s" % name)
 
     @classmethod
     def from_meta_file(cls, filename):
@@ -212,13 +211,14 @@ class FieldListFile(object):
         else:
             filename = filename or self.filename
             if filename:
-                info = open(filename + '.tmp', 'wb')
+                info = open(filename + ".tmp", "wb")
             else:
                 info = None
 
         if not info:
             raise ValueError(
-                'either a valid filename or a file_object must be specified')
+                "either a valid filename or a file_object must be specified"
+            )
 
         try:
             for name, field in sorted(inspect.getmembers(type(self))):
@@ -226,13 +226,13 @@ class FieldListFile(object):
                 if isinstance(field, Field):
                     if callable(field.to_str):
                         value = field.to_str(value)
-                    info.write(("%s=%s\n" % (name, value)).encode('UTF-8'))
+                    info.write(("%s=%s\n" % (name, value)).encode("UTF-8"))
         finally:
             if not file_object:
                 info.close()
 
         if not file_object:
-            os.rename(filename + '.tmp', filename)
+            os.rename(filename + ".tmp", filename)
             fsync_dir(os.path.normpath(os.path.dirname(filename)))
 
     def load(self, filename=None, file_object=None):
@@ -254,14 +254,13 @@ class FieldListFile(object):
         if file_object:
             info = file_object
         elif filename:
-            info = open(filename, 'rb')
+            info = open(filename, "rb")
         else:
-            raise ValueError(
-                'either filename or file_object must be specified')
+            raise ValueError("either filename or file_object must be specified")
 
         # detect the filename if a file_object is passed
         if not filename and file_object:
-            if hasattr(file_object, 'name'):
+            if hasattr(file_object, "name"):
                 filename = file_object.name
 
         # canonicalize filename
@@ -269,25 +268,26 @@ class FieldListFile(object):
             self.filename = os.path.abspath(filename)
         else:
             self.filename = None
-            filename = '<UNKNOWN>'  # This is only for error reporting
+            filename = "<UNKNOWN>"  # This is only for error reporting
 
         with info:
             for line in info:
-                line = line.decode('UTF-8')
+                line = line.decode("UTF-8")
                 # skip spaces and comments
-                if line.isspace() or line.rstrip().startswith('#'):
+                if line.isspace() or line.rstrip().startswith("#"):
                     continue
 
                 # parse the line of form "key = value"
                 try:
-                    name, value = [x.strip() for x in line.split('=', 1)]
+                    name, value = [x.strip() for x in line.split("=", 1)]
                 except ValueError:
-                    raise ValueError('invalid line %s in file %s' % (
-                        line.strip(), filename))
+                    raise ValueError(
+                        "invalid line %s in file %s" % (line.strip(), filename)
+                    )
 
                 # use the from_str function to parse the value
                 field = getattr(type(self), name, None)
-                if value == 'None':
+                if value == "None":
                     value = None
                 elif isinstance(field, Field) and callable(field.from_str):
                     value = field.from_str(value)
@@ -309,7 +309,8 @@ class FieldListFile(object):
     def __repr__(self):
         return "%s(%s)" % (
             self.__class__.__name__,
-            ', '.join(['%s=%r' % x for x in self.items()]))
+            ", ".join(["%s=%r" % x for x in self.items()]),
+        )
 
 
 class WalFileInfo(FieldListFile):
@@ -317,13 +318,14 @@ class WalFileInfo(FieldListFile):
     Metadata of a WAL file.
     """
 
-    __slots__ = ('orig_filename',)
+    __slots__ = ("orig_filename",)
 
-    name = Field('name', doc='base name of WAL file')
-    size = Field('size', load=int, doc='WAL file size after compression')
-    time = Field('time', load=float, doc='WAL file modification time '
-                                         '(seconds since epoch)')
-    compression = Field('compression', doc='compression type')
+    name = Field("name", doc="base name of WAL file")
+    size = Field("size", load=int, doc="WAL file size after compression")
+    time = Field(
+        "time", load=float, doc="WAL file modification time " "(seconds since epoch)"
+    )
+    compression = Field("compression", doc="compression type")
 
     @classmethod
     def from_file(cls, filename, unidentified_compression=None, **kwargs):
@@ -340,12 +342,13 @@ class WalFileInfo(FieldListFile):
         """
         identify_compression = barman.compression.identify_compression
         stat = os.stat(filename)
-        kwargs.setdefault('name', os.path.basename(filename))
-        kwargs.setdefault('size', stat.st_size)
-        kwargs.setdefault('time', stat.st_mtime)
-        if 'compression' not in kwargs:
-            kwargs['compression'] = identify_compression(filename) \
-                or unidentified_compression
+        kwargs.setdefault("name", os.path.basename(filename))
+        kwargs.setdefault("size", stat.st_size)
+        kwargs.setdefault("time", stat.st_mtime)
+        if "compression" not in kwargs:
+            kwargs["compression"] = (
+                identify_compression(filename) or unidentified_compression
+            )
         obj = cls(**kwargs)
         obj.filename = "%s.meta" % filename
         obj.orig_filename = filename
@@ -355,11 +358,7 @@ class WalFileInfo(FieldListFile):
         """
         Format the content of this object as a xlogdb line.
         """
-        return "%s\t%s\t%s\t%s\n" % (
-            self.name,
-            self.size,
-            self.time,
-            self.compression)
+        return "%s\t%s\t%s\t%s\n" % (self.name, self.size, self.time, self.compression)
 
     @classmethod
     def from_xlogdb_line(cls, line):
@@ -379,12 +378,11 @@ class WalFileInfo(FieldListFile):
             except ValueError:
                 raise ValueError("cannot parse line: %r" % (line,))
         # The to_xlogdb_line method writes None values as literal 'None'
-        if compression == 'None':
+        if compression == "None":
             compression = None
         size = int(size)
         time = float(time)
-        return cls(name=name, size=size, time=time,
-                   compression=compression)
+        return cls(name=name, size=size, time=time, compression=compression)
 
     def to_json(self):
         """
@@ -410,58 +408,59 @@ class WalFileInfo(FieldListFile):
 class BackupInfo(FieldListFile):
 
     #: Conversion to string
-    EMPTY = 'EMPTY'
-    STARTED = 'STARTED'
-    FAILED = 'FAILED'
-    WAITING_FOR_WALS = 'WAITING_FOR_WALS'
-    DONE = 'DONE'
-    SYNCING = 'SYNCING'
+    EMPTY = "EMPTY"
+    STARTED = "STARTED"
+    FAILED = "FAILED"
+    WAITING_FOR_WALS = "WAITING_FOR_WALS"
+    DONE = "DONE"
+    SYNCING = "SYNCING"
     STATUS_COPY_DONE = (WAITING_FOR_WALS, DONE)
     STATUS_ALL = (EMPTY, STARTED, WAITING_FOR_WALS, DONE, SYNCING, FAILED)
     STATUS_NOT_EMPTY = (STARTED, WAITING_FOR_WALS, DONE, SYNCING, FAILED)
     STATUS_ARCHIVING = (STARTED, WAITING_FOR_WALS, DONE, SYNCING)
 
     #: Status according to retention policies
-    OBSOLETE = 'OBSOLETE'
-    VALID = 'VALID'
-    POTENTIALLY_OBSOLETE = 'OBSOLETE*'
-    NONE = '-'
+    OBSOLETE = "OBSOLETE"
+    VALID = "VALID"
+    POTENTIALLY_OBSOLETE = "OBSOLETE*"
+    NONE = "-"
     RETENTION_STATUS = (OBSOLETE, VALID, POTENTIALLY_OBSOLETE, NONE)
 
-    version = Field('version', load=int)
-    pgdata = Field('pgdata')
+    version = Field("version", load=int)
+    pgdata = Field("pgdata")
     # Parse the tablespaces as a literal Python list of namedtuple
     # Output the tablespaces as a literal Python list of tuple
-    tablespaces = Field('tablespaces', load=load_tablespace_list,
-                        dump=output_tablespace_list)
+    tablespaces = Field(
+        "tablespaces", load=load_tablespace_list, dump=output_tablespace_list
+    )
     # Timeline is an integer
-    timeline = Field('timeline', load=int)
-    begin_time = Field('begin_time', load=load_datetime_tz)
-    begin_xlog = Field('begin_xlog')
-    begin_wal = Field('begin_wal')
-    begin_offset = Field('begin_offset', load=int)
-    size = Field('size', load=int)
-    deduplicated_size = Field('deduplicated_size', load=int)
-    end_time = Field('end_time', load=load_datetime_tz)
-    end_xlog = Field('end_xlog')
-    end_wal = Field('end_wal')
-    end_offset = Field('end_offset', load=int)
-    status = Field('status', default=EMPTY)
-    server_name = Field('server_name')
-    error = Field('error')
-    mode = Field('mode')
-    config_file = Field('config_file')
-    hba_file = Field('hba_file')
-    ident_file = Field('ident_file')
-    included_files = Field('included_files',
-                           load=ast.literal_eval, dump=null_repr)
-    backup_label = Field('backup_label', load=ast.literal_eval, dump=null_repr)
-    copy_stats = Field('copy_stats', load=ast.literal_eval, dump=null_repr)
-    xlog_segment_size = Field('xlog_segment_size', load=int,
-                              default=xlog.DEFAULT_XLOG_SEG_SIZE)
-    systemid = Field('systemid')
+    timeline = Field("timeline", load=int)
+    begin_time = Field("begin_time", load=load_datetime_tz)
+    begin_xlog = Field("begin_xlog")
+    begin_wal = Field("begin_wal")
+    begin_offset = Field("begin_offset", load=int)
+    size = Field("size", load=int)
+    deduplicated_size = Field("deduplicated_size", load=int)
+    end_time = Field("end_time", load=load_datetime_tz)
+    end_xlog = Field("end_xlog")
+    end_wal = Field("end_wal")
+    end_offset = Field("end_offset", load=int)
+    status = Field("status", default=EMPTY)
+    server_name = Field("server_name")
+    error = Field("error")
+    mode = Field("mode")
+    config_file = Field("config_file")
+    hba_file = Field("hba_file")
+    ident_file = Field("ident_file")
+    included_files = Field("included_files", load=ast.literal_eval, dump=null_repr)
+    backup_label = Field("backup_label", load=ast.literal_eval, dump=null_repr)
+    copy_stats = Field("copy_stats", load=ast.literal_eval, dump=null_repr)
+    xlog_segment_size = Field(
+        "xlog_segment_size", load=int, default=xlog.DEFAULT_XLOG_SEG_SIZE
+    )
+    systemid = Field("systemid")
 
-    __slots__ = 'backup_id', 'backup_version'
+    __slots__ = "backup_id", "backup_version"
 
     def __init__(self, backup_id, **kwargs):
         """
@@ -478,9 +477,8 @@ class BackupInfo(FieldListFile):
         Get the list of required WAL segments for the current backup
         """
         return xlog.generate_segment_names(
-            self.begin_wal, self.end_wal,
-            self.version,
-            self.xlog_segment_size)
+            self.begin_wal, self.end_wal, self.version, self.xlog_segment_size
+        )
 
     def get_external_config_files(self):
         """
@@ -492,14 +490,16 @@ class BackupInfo(FieldListFile):
         """
 
         config_files = []
-        for file_type in ('config_file', 'hba_file', 'ident_file'):
+        for file_type in ("config_file", "hba_file", "ident_file"):
             config_file = getattr(self, file_type, None)
             if config_file:
                 # Consider only those that reside outside of the original
                 # PGDATA directory
                 if config_file.startswith(self.pgdata):
-                    _logger.debug("Config file '%s' already in PGDATA",
-                                  config_file[len(self.pgdata) + 1:])
+                    _logger.debug(
+                        "Config file '%s' already in PGDATA",
+                        config_file[len(self.pgdata) + 1 :],
+                    )
                     continue
                 config_files.append(TypedFile(file_type, config_file))
         # Check for any include directives in PostgreSQL configuration
@@ -509,7 +509,7 @@ class BackupInfo(FieldListFile):
         if self.included_files:
             for included_file in self.included_files:
                 if not included_file.startswith(self.pgdata):
-                    config_files.append(TypedFile('include', included_file))
+                    config_files.append(TypedFile("include", included_file))
         return config_files
 
     def set_attribute(self, key, value):
@@ -525,10 +525,14 @@ class BackupInfo(FieldListFile):
         :return dict:
         """
         result = dict(self.items())
-        result.update(backup_id=self.backup_id, server_name=self.server_name,
-                      mode=self.mode, tablespaces=self.tablespaces,
-                      included_files=self.included_files,
-                      copy_stats=self.copy_stats)
+        result.update(
+            backup_id=self.backup_id,
+            server_name=self.server_name,
+            mode=self.mode,
+            tablespaces=self.tablespaces,
+            included_files=self.included_files,
+            copy_stats=self.copy_stats,
+        )
         return result
 
     def to_json(self):
@@ -537,13 +541,12 @@ class BackupInfo(FieldListFile):
         """
         data = self.to_dict()
         # Convert fields which need special types not supported by json
-        if data.get('tablespaces') is not None:
-            data['tablespaces'] = [list(item)
-                                   for item in data['tablespaces']]
-        if data.get('begin_time') is not None:
-            data['begin_time'] = data['begin_time'].ctime()
-        if data.get('end_time') is not None:
-            data['end_time'] = data['end_time'].ctime()
+        if data.get("tablespaces") is not None:
+            data["tablespaces"] = [list(item) for item in data["tablespaces"]]
+        if data.get("begin_time") is not None:
+            data["begin_time"] = data["begin_time"].ctime()
+        if data.get("end_time") is not None:
+            data["end_time"] = data["end_time"].ctime()
         return data
 
     @classmethod
@@ -557,19 +560,20 @@ class BackupInfo(FieldListFile):
         """
         data = dict(json_backup_info)
         # Convert fields which need special types not supported by json
-        if data.get('tablespaces') is not None:
-            data['tablespaces'] = [Tablespace._make(item)
-                                   for item in data['tablespaces']]
-        if data.get('begin_time') is not None:
-            data['begin_time'] = load_datetime_tz(data['begin_time'])
-        if data.get('end_time') is not None:
-            data['end_time'] = load_datetime_tz(data['end_time'])
+        if data.get("tablespaces") is not None:
+            data["tablespaces"] = [
+                Tablespace._make(item) for item in data["tablespaces"]
+            ]
+        if data.get("begin_time") is not None:
+            data["begin_time"] = load_datetime_tz(data["begin_time"])
+        if data.get("end_time") is not None:
+            data["end_time"] = load_datetime_tz(data["end_time"])
         # Instantiate a BackupInfo object using the converted fields
         return cls(server, **data)
 
 
 class LocalBackupInfo(BackupInfo):
-    __slots__ = 'server', 'config', 'backup_manager'
+    __slots__ = "server", "config", "backup_manager"
 
     def __init__(self, server, info_file=None, backup_id=None, **kwargs):
         """
@@ -594,7 +598,8 @@ class LocalBackupInfo(BackupInfo):
             # Cannot pass both info_file and backup_id
             if info_file:
                 raise BackupInfoBadInitialisation(
-                    'both info_file and backup_id parameters are set')
+                    "both info_file and backup_id parameters are set"
+                )
             self.backup_id = backup_id
             self.filename = self.get_filename()
             # Check if a backup info file for a given server and a given ID
@@ -602,7 +607,7 @@ class LocalBackupInfo(BackupInfo):
             if os.path.exists(self.filename):
                 self.load(filename=self.filename)
         elif info_file:
-            if hasattr(info_file, 'read'):
+            if hasattr(info_file, "read"):
                 # We have been given a file-like object
                 self.load(file_object=info_file)
             else:
@@ -611,34 +616,38 @@ class LocalBackupInfo(BackupInfo):
             self.backup_id = self.detect_backup_id()
         elif not info_file:
             raise BackupInfoBadInitialisation(
-                'backup_id and info_file parameters are both unset')
+                "backup_id and info_file parameters are both unset"
+            )
         # Manage backup version for new backup structure
         try:
             # the presence of pgdata directory is the marker of version 1
             if self.backup_id is not None and os.path.exists(
-                    os.path.join(self.get_basebackup_directory(), 'pgdata')):
+                os.path.join(self.get_basebackup_directory(), "pgdata")
+            ):
                 self.backup_version = 1
         except Exception as e:
-            _logger.warning("Error detecting backup_version, "
-                            "use default: 2. Failure reason: %s", e)
+            _logger.warning(
+                "Error detecting backup_version, " "use default: 2. Failure reason: %s",
+                e,
+            )
 
     def get_list_of_files(self, target):
         """
         Get the list of files for the current backup
         """
         # Walk down the base backup directory
-        if target in ('data', 'standalone', 'full'):
+        if target in ("data", "standalone", "full"):
             for root, _, files in os.walk(self.get_basebackup_directory()):
                 for f in files:
                     yield os.path.join(root, f)
-        if target in 'standalone':
+        if target in "standalone":
             # List all the WAL files for this backup
             for x in self.get_required_wal_segments():
                 yield self.server.get_wal_full_path(x)
-        if target in ('wal', 'full'):
+        if target in ("wal", "full"):
             for wal_info in self.server.get_wal_until_next_backup(
-                    self,
-                    include_history=True):
+                self, include_history=True
+            ):
                 yield wal_info.fullpath(self.server)
 
     def detect_backup_id(self):
@@ -655,8 +664,7 @@ class LocalBackupInfo(BackupInfo):
         Get the default filename for the backup.info file based on
         backup ID and server directory for base backups
         """
-        return os.path.join(self.config.basebackups_directory,
-                            self.backup_id)
+        return os.path.join(self.config.basebackups_directory, self.backup_id)
 
     def get_data_directory(self, tablespace_oid=None):
         """
@@ -674,7 +682,8 @@ class LocalBackupInfo(BackupInfo):
 
             invalid_oid = all(
                 str(tablespace_oid) != str(tablespace.oid)
-                for tablespace in self.tablespaces)
+                for tablespace in self.tablespaces
+            )
             if invalid_oid:
                 raise ValueError("Invalid tablespace OID %s" % tablespace_oid)
 
@@ -688,14 +697,14 @@ class LocalBackupInfo(BackupInfo):
                 path.append(str(tablespace_oid))
             else:
                 # Looking for the data dir
-                path.append('data')
+                path.append("data")
         else:
             # Backup v1, use pgdata as base
-            path.append('pgdata')
+            path.append("pgdata")
             # If a oid has been provided, we are looking for a tablespace.
             if tablespace_oid is not None:
                 # Append the path to pg_tblspc/oid folder inside pgdata
-                path.extend(('pg_tblspc', str(tablespace_oid)))
+                path.extend(("pg_tblspc", str(tablespace_oid)))
         # Return the built path
         return os.path.join(*path)
 
@@ -704,7 +713,7 @@ class LocalBackupInfo(BackupInfo):
         Get the default filename for the backup.info file based on
         backup ID and server directory for base backups
         """
-        return os.path.join(self.get_basebackup_directory(), 'backup.info')
+        return os.path.join(self.get_basebackup_directory(), "backup.info")
 
     def save(self, filename=None, file_object=None):
         if not file_object:
@@ -713,5 +722,4 @@ class LocalBackupInfo(BackupInfo):
             dir_name = os.path.dirname(filename)
             if not os.path.exists(dir_name):
                 os.makedirs(dir_name)
-        super(LocalBackupInfo, self).save(filename=filename,
-                                          file_object=file_object)
+        super(LocalBackupInfo, self).save(filename=filename, file_object=file_object)

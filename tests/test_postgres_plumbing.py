@@ -22,12 +22,12 @@ from barman.postgres_plumbing import function_name_map
 class TestFunctionNameMap(object):
     def test_null_server_version(self):
         result = function_name_map(None)
-        assert result['pg_switch_wal'] == 'pg_switch_wal'
+        assert result["pg_switch_wal"] == "pg_switch_wal"
 
     def test_postgresql_10(self):
         result = function_name_map(100100)
-        assert result['pg_switch_wal'] == 'pg_switch_wal'
+        assert result["pg_switch_wal"] == "pg_switch_wal"
 
     def test_postgresql_9(self):
         result = function_name_map(90100)
-        assert result['pg_switch_wal'] == 'pg_switch_xlog'
+        assert result["pg_switch_wal"] == "pg_switch_xlog"

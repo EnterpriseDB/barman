@@ -29,15 +29,31 @@ import logging
 import sys
 
 from barman.infofile import BackupInfo
-from barman.utils import (BarmanEncoder, force_str, human_readable_timedelta,
-                          pretty_size, redact_passwords)
+from barman.utils import (
+    BarmanEncoder,
+    force_str,
+    human_readable_timedelta,
+    pretty_size,
+    redact_passwords,
+)
 from barman.xlog import diff_lsn
 
 __all__ = [
-    'error_occurred', 'debug', 'info', 'warning', 'error', 'exception',
-    'result', 'close_and_exit', 'close', 'set_output_writer',
-    'AVAILABLE_WRITERS', 'DEFAULT_WRITER', 'ConsoleOutputWriter',
-    'NagiosOutputWriter', 'JsonOutputWriter'
+    "error_occurred",
+    "debug",
+    "info",
+    "warning",
+    "error",
+    "exception",
+    "result",
+    "close_and_exit",
+    "close",
+    "set_output_writer",
+    "AVAILABLE_WRITERS",
+    "DEFAULT_WRITER",
+    "ConsoleOutputWriter",
+    "NagiosOutputWriter",
+    "JsonOutputWriter",
 ]
 
 #: True if error or exception methods have been called
@@ -54,7 +70,7 @@ def _ansi_color(command):
     """
     Return the ansi sequence for the provided color
     """
-    return '\033[%sm' % command
+    return "\033[%sm" % command
 
 
 def _colored(message, color):
@@ -62,7 +78,7 @@ def _colored(message, color):
     Return a string formatted with the provided color.
     """
     if ansi_colors_enabled:
-        return _ansi_color(color) + message + _ansi_color('0')
+        return _ansi_color(color) + message + _ansi_color("0")
     else:
         return message
 
@@ -71,21 +87,21 @@ def _red(message):
     """
     Format a red string
     """
-    return _colored(message, '31')
+    return _colored(message, "31")
 
 
 def _green(message):
     """
     Format a green string
     """
-    return _colored(message, '32')
+    return _colored(message, "32")
 
 
 def _yellow(message):
     """
     Format a yellow string
     """
-    return _colored(message, '33')
+    return _colored(message, "33")
 
 
 def _format_message(message, args):
@@ -129,11 +145,13 @@ def _put(level, message, *args, **kwargs):
     :key bool is_error: treat this message as an error
     """
     # handle keyword-only parameters
-    log = kwargs.pop('log', True)
-    is_error = kwargs.pop('is_error', False)
+    log = kwargs.pop("log", True)
+    is_error = kwargs.pop("is_error", False)
     if len(kwargs):
-        raise TypeError('%s() got an unexpected keyword argument %r'
-                        % (inspect.stack()[1][3], kwargs.popitem()[0]))
+        raise TypeError(
+            "%s() got an unexpected keyword argument %r"
+            % (inspect.stack()[1][3], kwargs.popitem()[0])
+        )
     if is_error:
         global error_occurred
         error_occurred = True
@@ -146,14 +164,14 @@ def _put(level, message, *args, **kwargs):
     # log the message as originating from caller's caller module
     if log:
         exc_info = False
-        if level == 'exception':
-            level = 'error'
+        if level == "exception":
+            level = "error"
             exc_info = True
         frm = inspect.stack()[2]
         mod = inspect.getmodule(frm[0])
         logger = logging.getLogger(mod.__name__)
         log_level = logging.getLevelName(level.upper())
-        logger.log(log_level, message, *args, **{'exc_info': exc_info})
+        logger.log(log_level, message, *args, **{"exc_info": exc_info})
 
 
 def _dispatch(obj, prefix, name, *args, **kwargs):
@@ -174,8 +192,9 @@ def _dispatch(obj, prefix, name, *args, **kwargs):
     if callable(handler):
         return handler(*args, **kwargs)
     else:
-        raise ValueError("The object %r does not have the %r method" % (
-            obj, method_name))
+        raise ValueError(
+            "The object %r does not have the %r method" % (obj, method_name)
+        )
 
 
 def is_quiet():
@@ -202,7 +221,7 @@ def debug(message, *args, **kwargs):
 
     :key bool log: whether to log the message
     """
-    _put('debug', message, *args, **kwargs)
+    _put("debug", message, *args, **kwargs)
 
 
 def info(message, *args, **kwargs):
@@ -211,7 +230,7 @@ def info(message, *args, **kwargs):
 
     :key bool log: whether to log the message
     """
-    _put('info', message, *args, **kwargs)
+    _put("info", message, *args, **kwargs)
 
 
 def warning(message, *args, **kwargs):
@@ -220,7 +239,7 @@ def warning(message, *args, **kwargs):
 
     :key bool log: whether to log the message
     """
-    _put('warning', message, *args, **kwargs)
+    _put("warning", message, *args, **kwargs)
 
 
 def error(message, *args, **kwargs):
@@ -233,10 +252,10 @@ def error(message, *args, **kwargs):
     :key bool log: whether to log the message
     """
     # ignore is a keyword-only parameter
-    ignore = kwargs.pop('ignore', False)
+    ignore = kwargs.pop("ignore", False)
     if not ignore:
-        kwargs.setdefault('is_error', True)
-    _put('error', message, *args, **kwargs)
+        kwargs.setdefault("is_error", True)
+    _put("error", message, *args, **kwargs)
 
 
 def exception(message, *args, **kwargs):
@@ -254,12 +273,12 @@ def exception(message, *args, **kwargs):
     :key bool log: whether to log the message
     """
     # ignore and raise_exception are keyword-only parameters
-    ignore = kwargs.pop('ignore', False)
+    ignore = kwargs.pop("ignore", False)
     # noinspection PyNoneFunctionAssignment
-    raise_exception = kwargs.pop('raise_exception', None)
+    raise_exception = kwargs.pop("raise_exception", None)
     if not ignore:
-        kwargs.setdefault('is_error', True)
-    _put('exception', message, *args, **kwargs)
+        kwargs.setdefault("is_error", True)
+    _put("exception", message, *args, **kwargs)
     if raise_exception:
         if callable(raise_exception):
             # noinspection PyCallingNonCallable
@@ -281,10 +300,13 @@ def init(command, *args, **kwargs):
         to the output processor
     """
     try:
-        _dispatch(_writer, 'init', command, *args, **kwargs)
+        _dispatch(_writer, "init", command, *args, **kwargs)
     except ValueError:
-        exception('The %s writer does not support the "%s" command',
-                  _writer.__class__.__name__, command)
+        exception(
+            'The %s writer does not support the "%s" command',
+            _writer.__class__.__name__,
+            command,
+        )
         close_and_exit()
 
 
@@ -299,10 +321,13 @@ def result(command, *args, **kwargs):
         to the output processor
     """
     try:
-        _dispatch(_writer, 'result', command, *args, **kwargs)
+        _dispatch(_writer, "result", command, *args, **kwargs)
     except ValueError:
-        exception('The %s writer does not support the "%s" command',
-                  _writer.__class__.__name__, command)
+        exception(
+            'The %s writer does not support the "%s" command',
+            _writer.__class__.__name__,
+            command,
+        )
         close_and_exit()
 
 
@@ -376,12 +401,11 @@ class ConsoleOutputWriter(object):
         """
         # Make sure to add a newline at the end of the message
         if message is None:
-            message = '\n'
+            message = "\n"
         else:
-            message += '\n'
+            message += "\n"
         # Format and encode the message, redacting eventual passwords
-        encoded_msg = redact_passwords(
-            _format_message(message, args)).encode('utf-8')
+        encoded_msg = redact_passwords(_format_message(message, args)).encode("utf-8")
         try:
             # Python 3.x
             stream.buffer.write(encoded_msg)
@@ -423,7 +447,7 @@ class ConsoleOutputWriter(object):
         Emit debug.
         """
         if self._debug:
-            self._err('DEBUG: %s' % message, args)
+            self._err("DEBUG: %s" % message, args)
 
     def info(self, message, *args):
         """
@@ -436,19 +460,19 @@ class ConsoleOutputWriter(object):
         """
         Warning messages are sent to standard error
         """
-        self._err(_yellow('WARNING: %s' % message), args)
+        self._err(_yellow("WARNING: %s" % message), args)
 
     def error(self, message, *args):
         """
         Error messages are sent to standard error
         """
-        self._err(_red('ERROR: %s' % message), args)
+        self._err(_red("ERROR: %s" % message), args)
 
     def exception(self, message, *args):
         """
         Warning messages are sent to standard error
         """
-        self._err(_red('EXCEPTION: %s' % message), args)
+        self._err(_red("EXCEPTION: %s" % message), args)
 
     def error_occurred(self):
         """
@@ -476,72 +500,89 @@ class ConsoleOutputWriter(object):
         Render the result of a recovery.
 
         """
-        if len(results['changes']) > 0:
+        if len(results["changes"]) > 0:
             self.info("")
             self.info("IMPORTANT")
-            self.info("These settings have been modified to prevent "
-                      "data losses")
+            self.info("These settings have been modified to prevent " "data losses")
             self.info("")
 
-            for assertion in results['changes']:
-                self.info("%s line %s: %s = %s",
-                          assertion.filename,
-                          assertion.line,
-                          assertion.key,
-                          assertion.value)
+            for assertion in results["changes"]:
+                self.info(
+                    "%s line %s: %s = %s",
+                    assertion.filename,
+                    assertion.line,
+                    assertion.key,
+                    assertion.value,
+                )
 
-        if len(results['warnings']) > 0:
+        if len(results["warnings"]) > 0:
             self.info("")
             self.info("WARNING")
-            self.info("You are required to review the following options"
-                      " as potentially dangerous")
+            self.info(
+                "You are required to review the following options"
+                " as potentially dangerous"
+            )
             self.info("")
 
-            for assertion in results['warnings']:
-                self.info("%s line %s: %s = %s",
-                          assertion.filename,
-                          assertion.line,
-                          assertion.key,
-                          assertion.value)
+            for assertion in results["warnings"]:
+                self.info(
+                    "%s line %s: %s = %s",
+                    assertion.filename,
+                    assertion.line,
+                    assertion.key,
+                    assertion.value,
+                )
 
-        if results['missing_files']:
+        if results["missing_files"]:
             # At least one file is missing, warn the user
             self.info("")
             self.info("WARNING")
-            self.info("The following configuration files have not been "
-                      "saved during backup, hence they have not been "
-                      "restored.")
-            self.info("You need to manually restore them "
-                      "in order to start the recovered PostgreSQL instance:")
+            self.info(
+                "The following configuration files have not been "
+                "saved during backup, hence they have not been "
+                "restored."
+            )
+            self.info(
+                "You need to manually restore them "
+                "in order to start the recovered PostgreSQL instance:"
+            )
             self.info("")
-            for file_name in results['missing_files']:
+            for file_name in results["missing_files"]:
                 self.info("    %s" % file_name)
 
-        if results['delete_barman_wal']:
+        if results["delete_barman_wal"]:
             self.info("")
-            self.info("After the recovery, please remember to remove the "
-                      "\"barman_wal\" directory")
+            self.info(
+                "After the recovery, please remember to remove the "
+                '"barman_wal" directory'
+            )
             self.info("inside the PostgreSQL data directory.")
 
-        if results['get_wal']:
+        if results["get_wal"]:
             self.info("")
-            self.info("WARNING: 'get-wal' is in the specified "
-                      "'recovery_options'.")
-            self.info("Before you start up the PostgreSQL server, please "
-                      "review the %s file",
-                      results['recovery_configuration_file'])
-            self.info("inside the target directory. Make sure that "
-                      "'restore_command' can be executed by "
-                      "the PostgreSQL user.")
+            self.info("WARNING: 'get-wal' is in the specified " "'recovery_options'.")
+            self.info(
+                "Before you start up the PostgreSQL server, please "
+                "review the %s file",
+                results["recovery_configuration_file"],
+            )
+            self.info(
+                "inside the target directory. Make sure that "
+                "'restore_command' can be executed by "
+                "the PostgreSQL user."
+            )
         self.info("")
         self.info(
             "Recovery completed (start time: %s, elapsed time: %s)",
-            results['recovery_start_time'],
+            results["recovery_start_time"],
             human_readable_timedelta(
-                datetime.datetime.now() - results['recovery_start_time']))
+                datetime.datetime.now() - results["recovery_start_time"]
+            ),
+        )
         self.info("")
-        self.info("Your PostgreSQL server has been successfully "
-                  "prepared for recovery!")
+        self.info(
+            "Your PostgreSQL server has been successfully " "prepared for recovery!"
+        )
 
     def _record_check(self, server_name, check, status, hint):
         """
@@ -554,8 +595,9 @@ class ConsoleOutputWriter(object):
         :param bool status: True if succeeded
         :param str,None hint: hint to print if not None
         """
-        self.result_check_list.append(dict(
-            server_name=server_name, check=check, status=status, hint=hint))
+        self.result_check_list.append(
+            dict(server_name=server_name, check=check, status=status, hint=hint)
+        )
         if not status and self.active:
             global error_occurred
             error_occurred = True
@@ -591,12 +633,11 @@ class ConsoleOutputWriter(object):
         self._record_check(server_name, check, status, hint)
         if hint:
             self.info(
-                "\t%s: %s (%s)" %
-                (check, _green('OK') if status else _red('FAILED'), hint))
+                "\t%s: %s (%s)"
+                % (check, _green("OK") if status else _red("FAILED"), hint)
+            )
         else:
-            self.info(
-                "\t%s: %s" %
-                (check, _green('OK') if status else _red('FAILED')))
+            self.info("\t%s: %s" % (check, _green("OK") if status else _red("FAILED")))
 
     def init_list_backup(self, server_name, minimal=False):
         """
@@ -607,9 +648,7 @@ class ConsoleOutputWriter(object):
         """
         self.minimal = minimal
 
-    def result_list_backup(self, backup_info,
-                           backup_size, wal_size,
-                           retention_status):
+    def result_list_backup(self, backup_info, backup_size, wal_size, retention_status):
         """
         Output a single backup in the list-backup command
 
@@ -624,27 +663,26 @@ class ConsoleOutputWriter(object):
             self.info(backup_info.backup_id)
             return
 
-        out_list = [
-            "%s %s - " % (backup_info.server_name, backup_info.backup_id)]
+        out_list = ["%s %s - " % (backup_info.server_name, backup_info.backup_id)]
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             end_time = backup_info.end_time.ctime()
-            out_list.append('%s - Size: %s - WAL Size: %s' %
-                            (end_time,
-                             pretty_size(backup_size),
-                             pretty_size(wal_size)))
+            out_list.append(
+                "%s - Size: %s - WAL Size: %s"
+                % (end_time, pretty_size(backup_size), pretty_size(wal_size))
+            )
             if backup_info.tablespaces:
-                tablespaces = [("%s:%s" % (tablespace.name,
-                                           tablespace.location))
-                               for tablespace in backup_info.tablespaces]
-                out_list.append(' (tablespaces: %s)' %
-                                ', '.join(tablespaces))
+                tablespaces = [
+                    ("%s:%s" % (tablespace.name, tablespace.location))
+                    for tablespace in backup_info.tablespaces
+                ]
+                out_list.append(" (tablespaces: %s)" % ", ".join(tablespaces))
             if backup_info.status == BackupInfo.WAITING_FOR_WALS:
-                out_list.append(' - %s' % BackupInfo.WAITING_FOR_WALS)
+                out_list.append(" - %s" % BackupInfo.WAITING_FOR_WALS)
             if retention_status and retention_status != BackupInfo.NONE:
-                out_list.append(' - %s' % retention_status)
+                out_list.append(" - %s" % retention_status)
         else:
             out_list.append(backup_info.status)
-        self.info(''.join(out_list))
+        self.info("".join(out_list))
 
     def result_show_backup(self, backup_ext_info):
         """
@@ -657,117 +695,128 @@ class ConsoleOutputWriter(object):
             the info to display
         """
         data = dict(backup_ext_info)
-        self.info("Backup %s:", data['backup_id'])
-        self.info("  Server Name            : %s", data['server_name'])
-        if data['systemid']:
-            self.info("  System Id              : %s", data['systemid'])
-        self.info("  Status                 : %s", data['status'])
-        if data['status'] in BackupInfo.STATUS_COPY_DONE:
-            self.info("  PostgreSQL Version     : %s", data['version'])
-            self.info("  PGDATA directory       : %s", data['pgdata'])
-            if data['tablespaces']:
+        self.info("Backup %s:", data["backup_id"])
+        self.info("  Server Name            : %s", data["server_name"])
+        if data["systemid"]:
+            self.info("  System Id              : %s", data["systemid"])
+        self.info("  Status                 : %s", data["status"])
+        if data["status"] in BackupInfo.STATUS_COPY_DONE:
+            self.info("  PostgreSQL Version     : %s", data["version"])
+            self.info("  PGDATA directory       : %s", data["pgdata"])
+            if data["tablespaces"]:
                 self.info("  Tablespaces:")
-                for item in data['tablespaces']:
-                    self.info("    %s: %s (oid: %s)",
-                              item.name, item.location, item.oid)
+                for item in data["tablespaces"]:
+                    self.info(
+                        "    %s: %s (oid: %s)", item.name, item.location, item.oid
+                    )
             self.info("")
             self.info("  Base backup information:")
-            self.info("    Disk usage           : %s (%s with WALs)",
-                      pretty_size(data['size']),
-                      pretty_size(data['size'] + data[
-                          'wal_size']))
-            if data['deduplicated_size'] is not None and data['size'] > 0:
-                deduplication_ratio = (
-                    1 - (float(data['deduplicated_size']) / data['size']))
-                self.info("    Incremental size     : %s (-%s)",
-                          pretty_size(data['deduplicated_size']),
-                          '{percent:.2%}'.format(percent=deduplication_ratio)
-                          )
-            self.info("    Timeline             : %s", data['timeline'])
-            self.info("    Begin WAL            : %s",
-                      data['begin_wal'])
-            self.info("    End WAL              : %s", data['end_wal'])
-            self.info("    WAL number           : %s", data['wal_num'])
+            self.info(
+                "    Disk usage           : %s (%s with WALs)",
+                pretty_size(data["size"]),
+                pretty_size(data["size"] + data["wal_size"]),
+            )
+            if data["deduplicated_size"] is not None and data["size"] > 0:
+                deduplication_ratio = 1 - (
+                    float(data["deduplicated_size"]) / data["size"]
+                )
+                self.info(
+                    "    Incremental size     : %s (-%s)",
+                    pretty_size(data["deduplicated_size"]),
+                    "{percent:.2%}".format(percent=deduplication_ratio),
+                )
+            self.info("    Timeline             : %s", data["timeline"])
+            self.info("    Begin WAL            : %s", data["begin_wal"])
+            self.info("    End WAL              : %s", data["end_wal"])
+            self.info("    WAL number           : %s", data["wal_num"])
             # Output WAL compression ratio for basebackup WAL files
-            if data['wal_compression_ratio'] > 0:
-                self.info("    WAL compression ratio: %s",
-                          '{percent:.2%}'.format(
-                              percent=data['wal_compression_ratio']))
-            self.info("    Begin time           : %s",
-                      data['begin_time'])
-            self.info("    End time             : %s", data['end_time'])
+            if data["wal_compression_ratio"] > 0:
+                self.info(
+                    "    WAL compression ratio: %s",
+                    "{percent:.2%}".format(percent=data["wal_compression_ratio"]),
+                )
+            self.info("    Begin time           : %s", data["begin_time"])
+            self.info("    End time             : %s", data["end_time"])
             # If copy statistics are available print a summary
-            copy_stats = data.get('copy_stats')
+            copy_stats = data.get("copy_stats")
             if copy_stats:
-                copy_time = copy_stats.get('copy_time')
+                copy_time = copy_stats.get("copy_time")
                 if copy_time:
                     value = human_readable_timedelta(
-                        datetime.timedelta(seconds=copy_time))
+                        datetime.timedelta(seconds=copy_time)
+                    )
                     # Show analysis time if it is more than a second
-                    analysis_time = copy_stats.get('analysis_time')
+                    analysis_time = copy_stats.get("analysis_time")
                     if analysis_time is not None and analysis_time >= 1:
-                        value += " + %s startup" % (human_readable_timedelta(
-                            datetime.timedelta(seconds=analysis_time)))
+                        value += " + %s startup" % (
+                            human_readable_timedelta(
+                                datetime.timedelta(seconds=analysis_time)
+                            )
+                        )
                     self.info("    Copy time            : %s", value)
-                    size = data['deduplicated_size'] or data['size']
+                    size = data["deduplicated_size"] or data["size"]
                     value = "%s/s" % pretty_size(size / copy_time)
-                    number_of_workers = copy_stats.get('number_of_workers', 1)
+                    number_of_workers = copy_stats.get("number_of_workers", 1)
                     if number_of_workers > 1:
                         value += " (%s jobs)" % number_of_workers
                     self.info("    Estimated throughput : %s", value)
-            self.info("    Begin Offset         : %s",
-                      data['begin_offset'])
-            self.info("    End Offset           : %s",
-                      data['end_offset'])
-            self.info("    Begin LSN           : %s",
-                      data['begin_xlog'])
-            self.info("    End LSN             : %s", data['end_xlog'])
+            self.info("    Begin Offset         : %s", data["begin_offset"])
+            self.info("    End Offset           : %s", data["end_offset"])
+            self.info("    Begin LSN           : %s", data["begin_xlog"])
+            self.info("    End LSN             : %s", data["end_xlog"])
             self.info("")
             self.info("  WAL information:")
-            self.info("    No of files          : %s",
-                      data['wal_until_next_num'])
-            self.info("    Disk usage           : %s",
-                      pretty_size(data['wal_until_next_size']))
+            self.info("    No of files          : %s", data["wal_until_next_num"])
+            self.info(
+                "    Disk usage           : %s",
+                pretty_size(data["wal_until_next_size"]),
+            )
             # Output WAL rate
-            if data['wals_per_second'] > 0:
-                self.info("    WAL rate             : %0.2f/hour",
-                          data['wals_per_second'] * 3600)
+            if data["wals_per_second"] > 0:
+                self.info(
+                    "    WAL rate             : %0.2f/hour",
+                    data["wals_per_second"] * 3600,
+                )
             # Output WAL compression ratio for archived WAL files
-            if data['wal_until_next_compression_ratio'] > 0:
+            if data["wal_until_next_compression_ratio"] > 0:
                 self.info(
                     "    Compression ratio    : %s",
-                    '{percent:.2%}'.format(
-                        percent=data['wal_until_next_compression_ratio']))
-            self.info("    Last available       : %s", data['wal_last'])
-            if data['children_timelines']:
-                timelines = data['children_timelines']
+                    "{percent:.2%}".format(
+                        percent=data["wal_until_next_compression_ratio"]
+                    ),
+                )
+            self.info("    Last available       : %s", data["wal_last"])
+            if data["children_timelines"]:
+                timelines = data["children_timelines"]
                 self.info(
                     "    Reachable timelines  : %s",
-                    ", ".join([str(history.tli) for history in timelines]))
+                    ", ".join([str(history.tli) for history in timelines]),
+                )
             self.info("")
             self.info("  Catalog information:")
             self.info(
                 "    Retention Policy     : %s",
-                data['retention_policy_status'] or 'not enforced')
-            previous_backup_id = data.setdefault(
-                'previous_backup_id', 'not available')
+                data["retention_policy_status"] or "not enforced",
+            )
+            previous_backup_id = data.setdefault("previous_backup_id", "not available")
             self.info(
                 "    Previous Backup      : %s",
-                previous_backup_id or '- (this is the oldest base backup)')
-            next_backup_id = data.setdefault(
-                'next_backup_id', 'not available')
+                previous_backup_id or "- (this is the oldest base backup)",
+            )
+            next_backup_id = data.setdefault("next_backup_id", "not available")
             self.info(
                 "    Next Backup          : %s",
-                next_backup_id or '- (this is the latest base backup)')
-            if data['children_timelines']:
+                next_backup_id or "- (this is the latest base backup)",
+            )
+            if data["children_timelines"]:
                 self.info("")
                 self.info(
                     "WARNING: WAL information is inaccurate due to "
-                    "multiple timelines interacting with this backup")
+                    "multiple timelines interacting with this backup"
+                )
         else:
-            if data['error']:
-                self.info("  Error:            : %s",
-                          data['error'])
+            if data["error"]:
+                self.info("  Error:            : %s", data["error"])
 
     def init_status(self, server_name):
         """
@@ -799,8 +848,7 @@ class ConsoleOutputWriter(object):
         """
         self.minimal = minimal
 
-    def result_replication_status(self, server_name, target, server_lsn,
-                                  standby_info):
+    def result_replication_status(self, server_name, target, server_lsn, standby_info):
         """
         Record a result line of a server status command
 
@@ -812,31 +860,32 @@ class ConsoleOutputWriter(object):
         :param StatReplication standby_info: status info of a standby
         """
 
-        if target == 'hot-standby':
-            title = 'hot standby servers'
-        elif target == 'wal-streamer':
-            title = 'WAL streamers'
+        if target == "hot-standby":
+            title = "hot standby servers"
+        elif target == "wal-streamer":
+            title = "WAL streamers"
         else:
-            title = 'streaming clients'
+            title = "streaming clients"
 
         if self.minimal:
             # Minimal output
             if server_lsn:
                 # current lsn from the master
-                self.info("%s for master '%s' (LSN @ %s):",
-                          title.capitalize(), server_name, server_lsn)
+                self.info(
+                    "%s for master '%s' (LSN @ %s):",
+                    title.capitalize(),
+                    server_name,
+                    server_lsn,
+                )
             else:
                 # We are connected to a standby
-                self.info("%s for slave '%s':",
-                          title.capitalize(), server_name)
+                self.info("%s for slave '%s':", title.capitalize(), server_name)
         else:
             # Full output
-            self.info("Status of %s for server '%s':",
-                      title, server_name)
+            self.info("Status of %s for server '%s':", title, server_name)
             # current lsn from the master
             if server_lsn:
-                self.info("  Current LSN on master: %s",
-                          server_lsn)
+                self.info("  Current LSN on master: %s", server_lsn)
 
         if standby_info is not None and not len(standby_info):
             self.info("  No %s attached", title)
@@ -848,120 +897,126 @@ class ConsoleOutputWriter(object):
             for standby in standby_info:
                 if not standby.replay_lsn:
                     # WAL streamer
-                    self.info("  %s. W) %s@%s S:%s W:%s P:%s AN:%s",
-                              n,
-                              standby.usename,
-                              standby.client_addr or 'socket',
-                              standby.sent_lsn,
-                              standby.write_lsn,
-                              standby.sync_priority,
-                              standby.application_name)
+                    self.info(
+                        "  %s. W) %s@%s S:%s W:%s P:%s AN:%s",
+                        n,
+                        standby.usename,
+                        standby.client_addr or "socket",
+                        standby.sent_lsn,
+                        standby.write_lsn,
+                        standby.sync_priority,
+                        standby.application_name,
+                    )
                 else:
                     # Standby
-                    self.info("  %s. %s) %s@%s S:%s F:%s R:%s P:%s AN:%s",
-                              n,
-                              standby.sync_state[0].upper(),
-                              standby.usename,
-                              standby.client_addr or 'socket',
-                              standby.sent_lsn,
-                              standby.flush_lsn,
-                              standby.replay_lsn,
-                              standby.sync_priority,
-                              standby.application_name)
+                    self.info(
+                        "  %s. %s) %s@%s S:%s F:%s R:%s P:%s AN:%s",
+                        n,
+                        standby.sync_state[0].upper(),
+                        standby.usename,
+                        standby.client_addr or "socket",
+                        standby.sent_lsn,
+                        standby.flush_lsn,
+                        standby.replay_lsn,
+                        standby.sync_priority,
+                        standby.application_name,
+                    )
                 n += 1
         else:
             n = 1
-            self.info("  Number of %s: %s",
-                      title, len(standby_info))
+            self.info("  Number of %s: %s", title, len(standby_info))
             for standby in standby_info:
                 self.info("")
 
                 # Calculate differences in bytes
-                sent_diff = diff_lsn(standby.sent_lsn,
-                                     standby.current_lsn)
-                write_diff = diff_lsn(standby.write_lsn,
-                                      standby.current_lsn)
-                flush_diff = diff_lsn(standby.flush_lsn,
-                                      standby.current_lsn)
-                replay_diff = diff_lsn(standby.replay_lsn,
-                                       standby.current_lsn)
+                sent_diff = diff_lsn(standby.sent_lsn, standby.current_lsn)
+                write_diff = diff_lsn(standby.write_lsn, standby.current_lsn)
+                flush_diff = diff_lsn(standby.flush_lsn, standby.current_lsn)
+                replay_diff = diff_lsn(standby.replay_lsn, standby.current_lsn)
 
                 # Determine the sync stage of the client
                 sync_stage = None
                 if not standby.replay_lsn:
-                    client_type = 'WAL streamer'
+                    client_type = "WAL streamer"
                     max_level = 3
                 else:
-                    client_type = 'standby'
+                    client_type = "standby"
                     max_level = 5
                     # Only standby can replay WAL info
                     if replay_diff == 0:
-                        sync_stage = '5/5 Hot standby (max)'
+                        sync_stage = "5/5 Hot standby (max)"
                     elif flush_diff == 0:
-                        sync_stage = '4/5 2-safe'  # remote flush
+                        sync_stage = "4/5 2-safe"  # remote flush
 
                 # If not yet done, set the sync stage
                 if not sync_stage:
                     if write_diff == 0:
-                        sync_stage = '3/%s Remote write' % max_level
+                        sync_stage = "3/%s Remote write" % max_level
                     elif sent_diff == 0:
-                        sync_stage = '2/%s WAL Sent (min)' % max_level
+                        sync_stage = "2/%s WAL Sent (min)" % max_level
                     else:
-                        sync_stage = '1/%s 1-safe' % max_level
+                        sync_stage = "1/%s 1-safe" % max_level
 
                 # Synchronous standby
-                if getattr(standby, 'sync_priority', None) > 0:
-                    self.info("  %s. #%s %s %s",
-                              n,
-                              standby.sync_priority,
-                              standby.sync_state.capitalize(),
-                              client_type)
+                if getattr(standby, "sync_priority", None) > 0:
+                    self.info(
+                        "  %s. #%s %s %s",
+                        n,
+                        standby.sync_priority,
+                        standby.sync_state.capitalize(),
+                        client_type,
+                    )
                 # Asynchronous standby
                 else:
-                    self.info("  %s. %s %s",
-                              n,
-                              standby.sync_state.capitalize(),
-                              client_type)
-                self.info("     Application name: %s",
-                          standby.application_name)
-                self.info("     Sync stage      : %s",
-                          sync_stage)
-                if getattr(standby, 'client_addr', None):
+                    self.info(
+                        "  %s. %s %s", n, standby.sync_state.capitalize(), client_type
+                    )
+                self.info("     Application name: %s", standby.application_name)
+                self.info("     Sync stage      : %s", sync_stage)
+                if getattr(standby, "client_addr", None):
                     self.info("     Communication   : TCP/IP")
-                    self.info("     IP Address      : %s "
-                              "/ Port: %s / Host: %s",
-                              standby.client_addr,
-                              standby.client_port,
-                              standby.client_hostname or '-')
+                    self.info(
+                        "     IP Address      : %s " "/ Port: %s / Host: %s",
+                        standby.client_addr,
+                        standby.client_port,
+                        standby.client_hostname or "-",
+                    )
                 else:
                     self.info("     Communication   : Unix domain socket")
                 self.info("     User name       : %s", standby.usename)
-                self.info("     Current state   : %s (%s)",
-                          standby.state,
-                          standby.sync_state)
-                if getattr(standby, 'slot_name', None):
+                self.info(
+                    "     Current state   : %s (%s)", standby.state, standby.sync_state
+                )
+                if getattr(standby, "slot_name", None):
                     self.info("     Replication slot: %s", standby.slot_name)
                 self.info("     WAL sender PID  : %s", standby.pid)
                 self.info("     Started at      : %s", standby.backend_start)
-                if getattr(standby, 'backend_xmin', None):
-                    self.info("     Standby's xmin  : %s",
-                              standby.backend_xmin or '-')
-                if getattr(standby, 'sent_lsn', None):
-                    self.info("     Sent LSN   : %s (diff: %s)",
-                              standby.sent_lsn,
-                              pretty_size(sent_diff))
-                if getattr(standby, 'write_lsn', None):
-                    self.info("     Write LSN  : %s (diff: %s)",
-                              standby.write_lsn,
-                              pretty_size(write_diff))
-                if getattr(standby, 'flush_lsn', None):
-                    self.info("     Flush LSN  : %s (diff: %s)",
-                              standby.flush_lsn,
-                              pretty_size(flush_diff))
-                if getattr(standby, 'replay_lsn', None):
-                    self.info("     Replay LSN : %s (diff: %s)",
-                              standby.replay_lsn,
-                              pretty_size(replay_diff))
+                if getattr(standby, "backend_xmin", None):
+                    self.info("     Standby's xmin  : %s", standby.backend_xmin or "-")
+                if getattr(standby, "sent_lsn", None):
+                    self.info(
+                        "     Sent LSN   : %s (diff: %s)",
+                        standby.sent_lsn,
+                        pretty_size(sent_diff),
+                    )
+                if getattr(standby, "write_lsn", None):
+                    self.info(
+                        "     Write LSN  : %s (diff: %s)",
+                        standby.write_lsn,
+                        pretty_size(write_diff),
+                    )
+                if getattr(standby, "flush_lsn", None):
+                    self.info(
+                        "     Flush LSN  : %s (diff: %s)",
+                        standby.flush_lsn,
+                        pretty_size(flush_diff),
+                    )
+                if getattr(standby, "replay_lsn", None):
+                    self.info(
+                        "     Replay LSN : %s (diff: %s)",
+                        standby.replay_lsn,
+                        pretty_size(replay_diff),
+                    )
                 n += 1
 
     def init_list_server(self, server_name, minimal=False):
@@ -1004,7 +1059,6 @@ class ConsoleOutputWriter(object):
 
 
 class JsonOutputWriter(ConsoleOutputWriter):
-
     def __init__(self, *args, **kwargs):
         """
         Output writer that writes on standard output using JSON.
@@ -1023,10 +1077,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         :type value: str
         :rtype: str
         """
-        return value.lower() \
-            .replace(' ', '_') \
-            .replace('-', '_') \
-            .replace('.', '')
+        return value.lower().replace(" ", "_").replace("-", "_").replace(".", "")
 
     def _out_to_field(self, field, message, *args):
         """
@@ -1045,31 +1096,31 @@ class JsonOutputWriter(ConsoleOutputWriter):
         if not self._debug:
             return
 
-        self._out_to_field('_DEBUG', message, *args)
+        self._out_to_field("_DEBUG", message, *args)
 
     def info(self, message, *args):
         """
         Add normal messages in _INFO list
         """
-        self._out_to_field('_INFO', message, *args)
+        self._out_to_field("_INFO", message, *args)
 
     def warning(self, message, *args):
         """
         Add warning messages in _WARNING list
         """
-        self._out_to_field('_WARNING', message, *args)
+        self._out_to_field("_WARNING", message, *args)
 
     def error(self, message, *args):
         """
         Add error messages in _ERROR list
         """
-        self._out_to_field('_ERROR', message, *args)
+        self._out_to_field("_ERROR", message, *args)
 
     def exception(self, message, *args):
         """
         Add exception messages in _EXCEPTION list
         """
-        self._out_to_field('_EXCEPTION', message, *args)
+        self._out_to_field("_EXCEPTION", message, *args)
 
     def close(self):
         """
@@ -1077,8 +1128,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         Print JSON output
         """
         if not self._quiet:
-            json.dump(self.json_output, sys.stdout,
-                      sort_keys=True, cls=BarmanEncoder)
+            json.dump(self.json_output, sys.stdout, sort_keys=True, cls=BarmanEncoder)
         self.json_output = {}
 
     def result_backup(self, backup_info):
@@ -1091,54 +1141,68 @@ class JsonOutputWriter(ConsoleOutputWriter):
         """
         Render the result of a recovery.
         """
-        changes_count = len(results['changes'])
-        self.json_output['changes_count'] = changes_count
-        self.json_output['changes'] = results['changes']
+        changes_count = len(results["changes"])
+        self.json_output["changes_count"] = changes_count
+        self.json_output["changes"] = results["changes"]
 
         if changes_count > 0:
-            self.warning("IMPORTANT! Some settings have been modified "
-                         "to prevent data losses. See 'changes' key.")
+            self.warning(
+                "IMPORTANT! Some settings have been modified "
+                "to prevent data losses. See 'changes' key."
+            )
 
-        warnings_count = len(results['warnings'])
-        self.json_output['warnings_count'] = warnings_count
-        self.json_output['warnings'] = results['warnings']
+        warnings_count = len(results["warnings"])
+        self.json_output["warnings_count"] = warnings_count
+        self.json_output["warnings"] = results["warnings"]
 
         if warnings_count > 0:
-            self.warning("WARNING! You are required to review the options "
-                         "as potentially dangerous. See 'warnings' key.")
+            self.warning(
+                "WARNING! You are required to review the options "
+                "as potentially dangerous. See 'warnings' key."
+            )
 
-        missing_files_count = len(results['missing_files'])
-        self.json_output['missing_files'] = results['missing_files']
+        missing_files_count = len(results["missing_files"])
+        self.json_output["missing_files"] = results["missing_files"]
 
         if missing_files_count > 0:
             # At least one file is missing, warn the user
-            self.warning("WARNING! Some configuration files have not been "
-                         "saved during backup, hence they have not been "
-                         "restored. See 'missing_files' key.")
+            self.warning(
+                "WARNING! Some configuration files have not been "
+                "saved during backup, hence they have not been "
+                "restored. See 'missing_files' key."
+            )
 
-        if results['delete_barman_wal']:
-            self.warning("After the recovery, please remember to remove the "
-                         "'barman_wal' directory inside the PostgreSQL "
-                         "data directory.")
+        if results["delete_barman_wal"]:
+            self.warning(
+                "After the recovery, please remember to remove the "
+                "'barman_wal' directory inside the PostgreSQL "
+                "data directory."
+            )
 
-        if results['get_wal']:
-            self.warning("WARNING: 'get-wal' is in the specified "
-                         "'recovery_options'. Before you start up the "
-                         "PostgreSQL server, please review the recovery "
-                         "configuration inside the target directory. "
-                         "Make sure that 'restore_command' can be "
-                         "executed by the PostgreSQL user.")
+        if results["get_wal"]:
+            self.warning(
+                "WARNING: 'get-wal' is in the specified "
+                "'recovery_options'. Before you start up the "
+                "PostgreSQL server, please review the recovery "
+                "configuration inside the target directory. "
+                "Make sure that 'restore_command' can be "
+                "executed by the PostgreSQL user."
+            )
 
-        self.json_output.update({
-            'recovery_start_time':
-                results['recovery_start_time'].isoformat(' '),
-            'recovery_start_time_timestamp':
-                results['recovery_start_time'].strftime('%s'),
-            'recovery_elapsed_time': human_readable_timedelta(
-                    datetime.datetime.now() - results['recovery_start_time']),
-            'recovery_elapsed_time_seconds':
-                (datetime.datetime.now() - results['recovery_start_time'])
-                .total_seconds()})
+        self.json_output.update(
+            {
+                "recovery_start_time": results["recovery_start_time"].isoformat(" "),
+                "recovery_start_time_timestamp": results[
+                    "recovery_start_time"
+                ].strftime("%s"),
+                "recovery_elapsed_time": human_readable_timedelta(
+                    datetime.datetime.now() - results["recovery_start_time"]
+                ),
+                "recovery_elapsed_time_seconds": (
+                    datetime.datetime.now() - results["recovery_start_time"]
+                ).total_seconds(),
+            }
+        )
 
     def init_check(self, server_name, active, disabled):
         """
@@ -1165,8 +1229,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         check_key = self._mangle_key(check)
 
         self.json_output[server_name][check_key] = dict(
-            status="OK" if status else "FAILED",
-            hint=hint or ""
+            status="OK" if status else "FAILED", hint=hint or ""
         )
 
     def init_list_backup(self, server_name, minimal=False):
@@ -1179,9 +1242,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         self.minimal = minimal
         self.json_output[server_name] = []
 
-    def result_list_backup(self, backup_info,
-                           backup_size, wal_size,
-                           retention_status):
+    def result_list_backup(self, backup_info, backup_size, wal_size, retention_status):
         """
         Output a single backup in the list-backup command
 
@@ -1203,27 +1264,26 @@ class JsonOutputWriter(ConsoleOutputWriter):
         )
 
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
-            output.update(dict(
-                end_time_timestamp=backup_info.end_time.strftime('%s'),
-                end_time=backup_info.end_time.ctime(),
-                size_bytes=backup_size,
-                wal_size_bytes=wal_size,
-                size=pretty_size(backup_size),
-                wal_size=pretty_size(wal_size),
-                status=backup_info.status,
-                retention_status=retention_status or BackupInfo.NONE
-            ))
-            output['tablespaces'] = []
+            output.update(
+                dict(
+                    end_time_timestamp=backup_info.end_time.strftime("%s"),
+                    end_time=backup_info.end_time.ctime(),
+                    size_bytes=backup_size,
+                    wal_size_bytes=wal_size,
+                    size=pretty_size(backup_size),
+                    wal_size=pretty_size(wal_size),
+                    status=backup_info.status,
+                    retention_status=retention_status or BackupInfo.NONE,
+                )
+            )
+            output["tablespaces"] = []
             if backup_info.tablespaces:
                 for tablespace in backup_info.tablespaces:
-                    output['tablespaces'].append(dict(
-                        name=tablespace.name,
-                        location=tablespace.location
-                    ))
+                    output["tablespaces"].append(
+                        dict(name=tablespace.name, location=tablespace.location)
+                    )
         else:
-            output.update(dict(
-                status=backup_info.status
-            ))
+            output.update(dict(status=backup_info.status))
 
         self.json_output[server_name].append(output)
 
@@ -1238,130 +1298,146 @@ class JsonOutputWriter(ConsoleOutputWriter):
             the info to display
         """
         data = dict(backup_ext_info)
-        server_name = data['server_name']
+        server_name = data["server_name"]
 
         output = self.json_output[server_name] = dict(
-            backup_id=data['backup_id'],
-            status=data['status']
+            backup_id=data["backup_id"], status=data["status"]
         )
 
-        if data['status'] in BackupInfo.STATUS_COPY_DONE:
-            output.update(dict(
-                postgresql_version=data['version'],
-                pgdata_directory=data['pgdata'],
-                tablespaces=[]
-            ))
-            if data['tablespaces']:
-                for item in data['tablespaces']:
-                    output['tablespaces'].append(dict(
-                        name=item.name,
-                        location=item.location,
-                        oid=item.oid
-                    ))
-
-            output['base_backup_information'] = dict(
-                disk_usage=pretty_size(data['size']),
-                disk_usage_bytes=data['size'],
-                disk_usage_with_wals=pretty_size(
-                    data['size'] + data['wal_size']),
-                disk_usage_with_wals_bytes=data['size'] + data['wal_size']
+        if data["status"] in BackupInfo.STATUS_COPY_DONE:
+            output.update(
+                dict(
+                    postgresql_version=data["version"],
+                    pgdata_directory=data["pgdata"],
+                    tablespaces=[],
+                )
             )
-            if data['deduplicated_size'] is not None and data['size'] > 0:
-                deduplication_ratio = (1 - (
-                    float(data['deduplicated_size']) / data['size']))
-                output['base_backup_information'].update(dict(
-                    incremental_size=pretty_size(data['deduplicated_size']),
-                    incremental_size_bytes=data['deduplicated_size'],
-                    incremental_size_ratio='-{percent:.2%}'.format(
-                        percent=deduplication_ratio)
-                ))
-            output['base_backup_information'].update(dict(
-                timeline=data['timeline'],
-                begin_wal=data['begin_wal'],
-                end_wal=data['end_wal']
-            ))
-            if data['wal_compression_ratio'] > 0:
-                output['base_backup_information'].update(dict(
-                    wal_compression_ratio='{percent:.2%}'.format(
-                        percent=data['wal_compression_ratio'])
-                ))
-            output['base_backup_information'].update(dict(
-                begin_time_timestamp=data['begin_time'].strftime('%s'),
-                begin_time=data['begin_time'].isoformat(sep=' '),
-                end_time_timestamp=data['end_time'].strftime('%s'),
-                end_time=data['end_time'].isoformat(sep=' ')
-            ))
-            copy_stats = data.get('copy_stats')
+            if data["tablespaces"]:
+                for item in data["tablespaces"]:
+                    output["tablespaces"].append(
+                        dict(name=item.name, location=item.location, oid=item.oid)
+                    )
+
+            output["base_backup_information"] = dict(
+                disk_usage=pretty_size(data["size"]),
+                disk_usage_bytes=data["size"],
+                disk_usage_with_wals=pretty_size(data["size"] + data["wal_size"]),
+                disk_usage_with_wals_bytes=data["size"] + data["wal_size"],
+            )
+            if data["deduplicated_size"] is not None and data["size"] > 0:
+                deduplication_ratio = 1 - (
+                    float(data["deduplicated_size"]) / data["size"]
+                )
+                output["base_backup_information"].update(
+                    dict(
+                        incremental_size=pretty_size(data["deduplicated_size"]),
+                        incremental_size_bytes=data["deduplicated_size"],
+                        incremental_size_ratio="-{percent:.2%}".format(
+                            percent=deduplication_ratio
+                        ),
+                    )
+                )
+            output["base_backup_information"].update(
+                dict(
+                    timeline=data["timeline"],
+                    begin_wal=data["begin_wal"],
+                    end_wal=data["end_wal"],
+                )
+            )
+            if data["wal_compression_ratio"] > 0:
+                output["base_backup_information"].update(
+                    dict(
+                        wal_compression_ratio="{percent:.2%}".format(
+                            percent=data["wal_compression_ratio"]
+                        )
+                    )
+                )
+            output["base_backup_information"].update(
+                dict(
+                    begin_time_timestamp=data["begin_time"].strftime("%s"),
+                    begin_time=data["begin_time"].isoformat(sep=" "),
+                    end_time_timestamp=data["end_time"].strftime("%s"),
+                    end_time=data["end_time"].isoformat(sep=" "),
+                )
+            )
+            copy_stats = data.get("copy_stats")
             if copy_stats:
-                copy_time = copy_stats.get('copy_time')
-                analysis_time = copy_stats.get('analysis_time', 0)
+                copy_time = copy_stats.get("copy_time")
+                analysis_time = copy_stats.get("analysis_time", 0)
                 if copy_time:
-                    output['base_backup_information'].update(dict(
-                        copy_time=human_readable_timedelta(
-                            datetime.timedelta(seconds=copy_time)),
-                        copy_time_seconds=copy_time,
-                        analysis_time=human_readable_timedelta(
-                            datetime.timedelta(seconds=analysis_time)),
-                        analysis_time_seconds=analysis_time
-                    ))
-                    size = data['deduplicated_size'] or data['size']
-                    output['base_backup_information'].update(dict(
-                        throughput="%s/s" % pretty_size(size / copy_time),
-                        throughput_bytes=size / copy_time,
-                        number_of_workers=copy_stats.get(
-                            'number_of_workers', 1)
-                    ))
+                    output["base_backup_information"].update(
+                        dict(
+                            copy_time=human_readable_timedelta(
+                                datetime.timedelta(seconds=copy_time)
+                            ),
+                            copy_time_seconds=copy_time,
+                            analysis_time=human_readable_timedelta(
+                                datetime.timedelta(seconds=analysis_time)
+                            ),
+                            analysis_time_seconds=analysis_time,
+                        )
+                    )
+                    size = data["deduplicated_size"] or data["size"]
+                    output["base_backup_information"].update(
+                        dict(
+                            throughput="%s/s" % pretty_size(size / copy_time),
+                            throughput_bytes=size / copy_time,
+                            number_of_workers=copy_stats.get("number_of_workers", 1),
+                        )
+                    )
 
-            output['base_backup_information'].update(dict(
-                begin_offset=data['begin_offset'],
-                end_offset=data['end_offset'],
-                begin_lsn=data['begin_xlog'],
-                end_lsn=data['end_xlog']
-            ))
+            output["base_backup_information"].update(
+                dict(
+                    begin_offset=data["begin_offset"],
+                    end_offset=data["end_offset"],
+                    begin_lsn=data["begin_xlog"],
+                    end_lsn=data["end_xlog"],
+                )
+            )
 
-            wal_output = output['wal_information'] = dict(
-                no_of_files=data['wal_until_next_num'],
-                disk_usage=pretty_size(data['wal_until_next_size']),
-                disk_usage_bytes=data['wal_until_next_size'],
+            wal_output = output["wal_information"] = dict(
+                no_of_files=data["wal_until_next_num"],
+                disk_usage=pretty_size(data["wal_until_next_size"]),
+                disk_usage_bytes=data["wal_until_next_size"],
                 wal_rate=0,
                 wal_rate_per_second=0,
                 compression_ratio=0,
-                last_available=data['wal_last'],
-                timelines=[]
+                last_available=data["wal_last"],
+                timelines=[],
             )
 
             # TODO: move the following calculations in a separate function
             # or upstream (backup_ext_info?) so that they are shared with
             # console output.
-            if data['wals_per_second'] > 0:
-                wal_output['wal_rate'] = \
-                    "%0.2f/hour" % (data['wals_per_second'] * 3600)
-                wal_output['wal_rate_per_second'] = data['wals_per_second']
-            if data['wal_until_next_compression_ratio'] > 0:
-                wal_output['compression_ratio'] = '{percent:.2%}'.format(
-                    percent=data['wal_until_next_compression_ratio'])
-            if data['children_timelines']:
-                wal_output['_WARNING'] = "WAL information is inaccurate \
+            if data["wals_per_second"] > 0:
+                wal_output["wal_rate"] = "%0.2f/hour" % (data["wals_per_second"] * 3600)
+                wal_output["wal_rate_per_second"] = data["wals_per_second"]
+            if data["wal_until_next_compression_ratio"] > 0:
+                wal_output["compression_ratio"] = "{percent:.2%}".format(
+                    percent=data["wal_until_next_compression_ratio"]
+                )
+            if data["children_timelines"]:
+                wal_output[
+                    "_WARNING"
+                ] = "WAL information is inaccurate \
                     due to multiple timelines interacting with \
                     this backup"
-                for history in data['children_timelines']:
-                    wal_output['timelines'].append(str(history.tli))
+                for history in data["children_timelines"]:
+                    wal_output["timelines"].append(str(history.tli))
 
-            previous_backup_id = data.setdefault(
-                'previous_backup_id', 'not available')
-            next_backup_id = data.setdefault('next_backup_id', 'not available')
+            previous_backup_id = data.setdefault("previous_backup_id", "not available")
+            next_backup_id = data.setdefault("next_backup_id", "not available")
 
-            output['catalog_information'] = {
-                'retention_policy':
-                    data['retention_policy_status'] or 'not enforced',
-                'previous_backup':
-                    previous_backup_id or '- (this is the oldest base backup)',
-                'next_backup':
-                    next_backup_id or '- (this is the latest base backup)'}
+            output["catalog_information"] = {
+                "retention_policy": data["retention_policy_status"] or "not enforced",
+                "previous_backup": previous_backup_id
+                or "- (this is the oldest base backup)",
+                "next_backup": next_backup_id or "- (this is the latest base backup)",
+            }
 
         else:
-            if data['error']:
-                output['error'] = data['error']
+            if data["error"]:
+                output["error"] = data["error"]
 
     def init_status(self, server_name):
         """
@@ -1369,7 +1445,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
 
         :param str server_name: the server we are start listing
         """
-        if not hasattr(self, 'json_output'):
+        if not hasattr(self, "json_output"):
             self.json_output = {}
 
         self.json_output[server_name] = {}
@@ -1386,8 +1462,8 @@ class JsonOutputWriter(ConsoleOutputWriter):
         :param str,object message: status message. It will be converted to str
         """
         self.json_output[server_name][status] = dict(
-            description=description,
-            message=str(message))
+            description=description, message=str(message)
+        )
 
     def init_replication_status(self, server_name, minimal=False):
         """
@@ -1396,15 +1472,14 @@ class JsonOutputWriter(ConsoleOutputWriter):
         :param str server_name: the server we are start listing
         :param str minimal: minimal output
         """
-        if not hasattr(self, 'json_output'):
+        if not hasattr(self, "json_output"):
             self.json_output = {}
 
         self.json_output[server_name] = {}
 
         self.minimal = minimal
 
-    def result_replication_status(self, server_name, target, server_lsn,
-                                  standby_info):
+    def result_replication_status(self, server_name, target, server_lsn, standby_info):
         """
         Record a result line of a server status command
 
@@ -1416,23 +1491,21 @@ class JsonOutputWriter(ConsoleOutputWriter):
         :param StatReplication standby_info: status info of a standby
         """
 
-        if target == 'hot-standby':
-            title = 'hot standby servers'
-        elif target == 'wal-streamer':
-            title = 'WAL streamers'
+        if target == "hot-standby":
+            title = "hot standby servers"
+        elif target == "wal-streamer":
+            title = "WAL streamers"
         else:
-            title = 'streaming clients'
+            title = "streaming clients"
 
         title_key = self._mangle_key(title)
         if title_key not in self.json_output[server_name]:
             self.json_output[server_name][title_key] = []
 
-        self.json_output[server_name]['server_lsn'] = \
-            server_lsn if server_lsn else None
+        self.json_output[server_name]["server_lsn"] = server_lsn if server_lsn else None
 
         if standby_info is not None and not len(standby_info):
-            self.json_output[server_name]['standby_info'] = \
-                "No %s attached" % title
+            self.json_output[server_name]["standby_info"] = "No %s attached" % title
             return
 
         self.json_output[server_name][title_key] = []
@@ -1442,26 +1515,30 @@ class JsonOutputWriter(ConsoleOutputWriter):
             for idx, standby in enumerate(standby_info):
                 if not standby.replay_lsn:
                     # WAL streamer
-                    self.json_output[server_name][title_key].append(dict(
-                        user_name=standby.usename,
-                        client_addr=standby.client_addr or 'socket',
-                        sent_lsn=standby.sent_lsn,
-                        write_lsn=standby.write_lsn,
-                        sync_priority=standby.sync_priority,
-                        application_name=standby.application_name
-                    ))
+                    self.json_output[server_name][title_key].append(
+                        dict(
+                            user_name=standby.usename,
+                            client_addr=standby.client_addr or "socket",
+                            sent_lsn=standby.sent_lsn,
+                            write_lsn=standby.write_lsn,
+                            sync_priority=standby.sync_priority,
+                            application_name=standby.application_name,
+                        )
+                    )
                 else:
                     # Standby
-                    self.json_output[server_name][title_key].append(dict(
-                        sync_state=standby.sync_state[0].upper(),
-                        user_name=standby.usename,
-                        client_addr=standby.client_addr or 'socket',
-                        sent_lsn=standby.sent_lsn,
-                        flush_lsn=standby.flush_lsn,
-                        replay_lsn=standby.replay_lsn,
-                        sync_priority=standby.sync_priority,
-                        application_name=standby.application_name
-                    ))
+                    self.json_output[server_name][title_key].append(
+                        dict(
+                            sync_state=standby.sync_state[0].upper(),
+                            user_name=standby.usename,
+                            client_addr=standby.client_addr or "socket",
+                            sent_lsn=standby.sent_lsn,
+                            flush_lsn=standby.flush_lsn,
+                            replay_lsn=standby.replay_lsn,
+                            sync_priority=standby.sync_priority,
+                            application_name=standby.application_name,
+                        )
+                    )
         else:
             for idx, standby in enumerate(standby_info):
                 self.json_output[server_name][title_key].append({})
@@ -1472,82 +1549,92 @@ class JsonOutputWriter(ConsoleOutputWriter):
                     sent=diff_lsn(standby.sent_lsn, standby.current_lsn),
                     write=diff_lsn(standby.write_lsn, standby.current_lsn),
                     flush=diff_lsn(standby.flush_lsn, standby.current_lsn),
-                    replay=diff_lsn(standby.replay_lsn, standby.current_lsn)
+                    replay=diff_lsn(standby.replay_lsn, standby.current_lsn),
                 )
 
                 # Determine the sync stage of the client
                 sync_stage = None
                 if not standby.replay_lsn:
-                    client_type = 'WAL streamer'
+                    client_type = "WAL streamer"
                     max_level = 3
                 else:
-                    client_type = 'standby'
+                    client_type = "standby"
                     max_level = 5
                     # Only standby can replay WAL info
-                    if lsn_diff['replay'] == 0:
-                        sync_stage = '5/5 Hot standby (max)'
-                    elif lsn_diff['flush'] == 0:
-                        sync_stage = '4/5 2-safe'  # remote flush
+                    if lsn_diff["replay"] == 0:
+                        sync_stage = "5/5 Hot standby (max)"
+                    elif lsn_diff["flush"] == 0:
+                        sync_stage = "4/5 2-safe"  # remote flush
 
                 # If not yet done, set the sync stage
                 if not sync_stage:
-                    if lsn_diff['write'] == 0:
-                        sync_stage = '3/%s Remote write' % max_level
-                    elif lsn_diff['sent'] == 0:
-                        sync_stage = '2/%s WAL Sent (min)' % max_level
+                    if lsn_diff["write"] == 0:
+                        sync_stage = "3/%s Remote write" % max_level
+                    elif lsn_diff["sent"] == 0:
+                        sync_stage = "2/%s WAL Sent (min)" % max_level
                     else:
-                        sync_stage = '1/%s 1-safe' % max_level
+                        sync_stage = "1/%s 1-safe" % max_level
 
                 # Synchronous standby
-                if getattr(standby, 'sync_priority', None) > 0:
-                    json_output['name'] = "#%s %s %s" % (
+                if getattr(standby, "sync_priority", None) > 0:
+                    json_output["name"] = "#%s %s %s" % (
                         standby.sync_priority,
                         standby.sync_state.capitalize(),
-                        client_type)
+                        client_type,
+                    )
 
                 # Asynchronous standby
                 else:
-                    json_output['name'] = "%s %s" % (
+                    json_output["name"] = "%s %s" % (
                         standby.sync_state.capitalize(),
-                        client_type)
+                        client_type,
+                    )
 
-                json_output['application_name'] = standby.application_name
-                json_output['sync_stage'] = sync_stage
+                json_output["application_name"] = standby.application_name
+                json_output["sync_stage"] = sync_stage
 
-                if getattr(standby, 'client_addr', None):
-                    json_output.update(dict(
-                        communication="TCP/IP",
-                        ip_address=standby.client_addr,
-                        port=standby.client_port,
-                        host=standby.client_hostname or None
-                    ))
+                if getattr(standby, "client_addr", None):
+                    json_output.update(
+                        dict(
+                            communication="TCP/IP",
+                            ip_address=standby.client_addr,
+                            port=standby.client_port,
+                            host=standby.client_hostname or None,
+                        )
+                    )
                 else:
-                    json_output['communication'] = "Unix domain socket"
+                    json_output["communication"] = "Unix domain socket"
 
-                json_output.update(dict(
-                    user_name=standby.usename,
-                    current_state=standby.state,
-                    current_sync_state=standby.sync_state
-                ))
+                json_output.update(
+                    dict(
+                        user_name=standby.usename,
+                        current_state=standby.state,
+                        current_sync_state=standby.sync_state,
+                    )
+                )
 
-                if getattr(standby, 'slot_name', None):
-                    json_output['replication_slot'] = standby.slot_name
+                if getattr(standby, "slot_name", None):
+                    json_output["replication_slot"] = standby.slot_name
 
-                json_output.update(dict(
-                    wal_sender_pid=standby.pid,
-                    started_at=standby.backend_start.isoformat(sep=' '),
-                ))
-                if getattr(standby, 'backend_xmin', None):
-                    json_output['standbys_xmin'] = standby.backend_xmin or None
+                json_output.update(
+                    dict(
+                        wal_sender_pid=standby.pid,
+                        started_at=standby.backend_start.isoformat(sep=" "),
+                    )
+                )
+                if getattr(standby, "backend_xmin", None):
+                    json_output["standbys_xmin"] = standby.backend_xmin or None
 
                 for lsn in lsn_diff.keys():
-                    standby_key = lsn + '_lsn'
+                    standby_key = lsn + "_lsn"
                     if getattr(standby, standby_key, None):
-                        json_output.update({
-                            lsn + '_lsn': getattr(standby, standby_key),
-                            lsn + '_lsn_diff': pretty_size(lsn_diff[lsn]),
-                            lsn + '_lsn_diff_bytes': lsn_diff[lsn]
-                        })
+                        json_output.update(
+                            {
+                                lsn + "_lsn": getattr(standby, standby_key),
+                                lsn + "_lsn_diff": pretty_size(lsn_diff[lsn]),
+                                lsn + "_lsn_diff_bytes": lsn_diff[lsn],
+                            }
+                        )
 
     def init_list_server(self, server_name, minimal=False):
         """
@@ -1565,9 +1652,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         :param str server_name: the server is being checked
         :param str,None description: server description if applicable
         """
-        self.json_output[server_name] = dict(
-            description=description
-        )
+        self.json_output[server_name] = dict(description=description)
 
     def init_show_server(self, server_name):
         """
@@ -1585,8 +1670,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         :param dict server_info: a dictionary containing the info to display
         """
         for status, message in sorted(server_info.items()):
-            if not isinstance(message, (int, str, bool,
-                                        list, dict, type(None))):
+            if not isinstance(message, (int, str, bool, list, dict, type(None))):
                 message = str(message)
 
             self.json_output[server_name][status] = message
@@ -1625,11 +1709,11 @@ class NagiosOutputWriter(ConsoleOutputWriter):
         issues = []
         for item in self.result_check_list:
             # Keep track of all the checked servers
-            if item['server_name'] not in servers:
-                servers.append(item['server_name'])
+            if item["server_name"] not in servers:
+                servers.append(item["server_name"])
             # Keep track of the servers with issues
-            if not item['status'] and item['server_name'] not in issues:
-                issues.append(item['server_name'])
+            if not item["status"] and item["server_name"] not in issues:
+                issues.append(item["server_name"])
 
         # Global error (detected at configuration level)
         if len(issues) == 0 and error_occurred:
@@ -1648,11 +1732,14 @@ class NagiosOutputWriter(ConsoleOutputWriter):
                 # macro of the Nagios output
                 server_fail = "%s FAILED: %s" % (
                     server,
-                    ", ".join([
-                        item['check']
-                        for item in self.result_check_list
-                        if item['server_name'] == server and not item['status']
-                    ]))
+                    ", ".join(
+                        [
+                            item["check"]
+                            for item in self.result_check_list
+                            if item["server_name"] == server and not item["status"]
+                        ]
+                    ),
+                )
                 fail_summary.append(server_fail)
                 # Prepare an array with the detailed output for
                 # the $LONGSERVICEOUTPUT$ macro of the Nagios output
@@ -1662,21 +1749,23 @@ class NagiosOutputWriter(ConsoleOutputWriter):
                 # <servername2.<failed_check1>: FAILED
                 # .....
                 for issue in self.result_check_list:
-                    if issue['server_name'] == server and not issue['status']:
-                        fail_detail = "%s.%s: FAILED" % (server,
-                                                         issue['check'])
-                        if issue['hint']:
-                            fail_detail += " (%s)" % issue['hint']
+                    if issue["server_name"] == server and not issue["status"]:
+                        fail_detail = "%s.%s: FAILED" % (server, issue["check"])
+                        if issue["hint"]:
+                            fail_detail += " (%s)" % issue["hint"]
                         details.append(fail_detail)
             # Append the summary of failures to the first line of the output
             # using * as delimiter
             if len(servers) == 1:
-                print("BARMAN CRITICAL - server %s has issues * %s" %
-                      (servers[0], " * ".join(fail_summary)))
+                print(
+                    "BARMAN CRITICAL - server %s has issues * %s"
+                    % (servers[0], " * ".join(fail_summary))
+                )
             else:
-                print("BARMAN CRITICAL - %d server out of %d have issues * "
-                      "%s" % (len(issues), len(servers),
-                              " * ".join(fail_summary)))
+                print(
+                    "BARMAN CRITICAL - %d server out of %d have issues * "
+                    "%s" % (len(issues), len(servers), " * ".join(fail_summary))
+                )
 
             # add the detailed list to the output
             for issue in details:
@@ -1687,47 +1776,52 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             good = [item for item in servers if item not in issues]
             # Display the output message for a single server check
             if len(good) == 0:
-                print("BARMAN OK - No server configured * IGNORING: %s" %
-                      (" * IGNORING: ".join(issues)))
+                print(
+                    "BARMAN OK - No server configured * IGNORING: %s"
+                    % (" * IGNORING: ".join(issues))
+                )
             elif len(good) == 1:
-                print("BARMAN OK - Ready to serve the Espresso backup "
-                      "for %s * IGNORING: %s" %
-                      (good[0], " * IGNORING: ".join(issues)))
+                print(
+                    "BARMAN OK - Ready to serve the Espresso backup "
+                    "for %s * IGNORING: %s" % (good[0], " * IGNORING: ".join(issues))
+                )
             else:
                 # Display the output message for several servers, using
                 # '*' as delimiter
-                print("BARMAN OK - Ready to serve the Espresso backup "
-                      "for %d servers * %s * IGNORING: %s" % (
-                          len(good),
-                          " * ".join(good),
-                          " * IGNORING: ".join(issues)))
+                print(
+                    "BARMAN OK - Ready to serve the Espresso backup "
+                    "for %d servers * %s * IGNORING: %s"
+                    % (len(good), " * ".join(good), " * IGNORING: ".join(issues))
+                )
         else:
             # No issues, all good!
             # Display the output message for a single server check
             if not len(servers):
                 print("BARMAN OK - No server configured")
             elif len(servers) == 1:
-                print("BARMAN OK - Ready to serve the Espresso backup "
-                      "for %s" %
-                      (servers[0]))
+                print(
+                    "BARMAN OK - Ready to serve the Espresso backup "
+                    "for %s" % (servers[0])
+                )
             else:
                 # Display the output message for several servers, using
                 # '*' as delimiter
-                print("BARMAN OK - Ready to serve the Espresso backup "
-                      "for %d servers * %s" % (
-                          len(servers), " * ".join(servers)))
+                print(
+                    "BARMAN OK - Ready to serve the Espresso backup "
+                    "for %d servers * %s" % (len(servers), " * ".join(servers))
+                )
 
 
 #: This dictionary acts as a registry of available OutputWriters
 AVAILABLE_WRITERS = {
-    'console': ConsoleOutputWriter,
-    'json': JsonOutputWriter,
+    "console": ConsoleOutputWriter,
+    "json": JsonOutputWriter,
     # nagios is not registered as it isn't a general purpose output writer
     # 'nagios': NagiosOutputWriter,
 }
 
 #: The default OutputWriter
-DEFAULT_WRITER = 'console'
+DEFAULT_WRITER = "console"
 
 #: the current active writer. Initialized according DEFAULT_WRITER on load
 _writer = AVAILABLE_WRITERS[DEFAULT_WRITER]()

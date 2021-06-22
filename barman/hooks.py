@@ -33,8 +33,9 @@ _logger = logging.getLogger(__name__)
 
 
 class HookScriptRunner(object):
-    def __init__(self, backup_manager, name, phase=None, error=None,
-                 retry=False, **extra_env):
+    def __init__(
+        self, backup_manager, name, phase=None, error=None, retry=False, **extra_env
+    ):
         """
         Execute a hook script managing its environment
         """
@@ -58,22 +59,23 @@ class HookScriptRunner(object):
         """
         self.environment = dict(self.extra_env)
         config_file = self.backup_manager.config.config.config_file
-        self.environment.update({
-            'BARMAN_VERSION': version.__version__,
-            'BARMAN_SERVER': self.backup_manager.config.name,
-            'BARMAN_CONFIGURATION': config_file,
-            'BARMAN_HOOK': self.name,
-            'BARMAN_RETRY': str(1 if self.retry else 0),
-        })
+        self.environment.update(
+            {
+                "BARMAN_VERSION": version.__version__,
+                "BARMAN_SERVER": self.backup_manager.config.name,
+                "BARMAN_CONFIGURATION": config_file,
+                "BARMAN_HOOK": self.name,
+                "BARMAN_RETRY": str(1 if self.retry else 0),
+            }
+        )
         if self.error:
-            self.environment['BARMAN_ERROR'] = force_str(self.error)
+            self.environment["BARMAN_ERROR"] = force_str(self.error)
         if self.phase:
-            self.environment['BARMAN_PHASE'] = self.phase
+            self.environment["BARMAN_PHASE"] = self.phase
             script_config_name = "%s_%s" % (self.phase, self.name)
         else:
             script_config_name = self.name
-        self.script = getattr(self.backup_manager.config, script_config_name,
-                              None)
+        self.script = getattr(self.backup_manager.config, script_config_name, None)
         self.exit_status = None
         self.exception = None
 
@@ -85,30 +87,32 @@ class HookScriptRunner(object):
         """
         try:
             previous_backup = self.backup_manager.get_previous_backup(
-                backup_info.backup_id)
+                backup_info.backup_id
+            )
             if previous_backup:
                 previous_backup_id = previous_backup.backup_id
             else:
-                previous_backup_id = ''
+                previous_backup_id = ""
         except UnknownBackupIdException:
-            previous_backup_id = ''
+            previous_backup_id = ""
         try:
-            next_backup = self.backup_manager.get_next_backup(
-                backup_info.backup_id)
+            next_backup = self.backup_manager.get_next_backup(backup_info.backup_id)
             if next_backup:
                 next_backup_id = next_backup.backup_id
             else:
-                next_backup_id = ''
+                next_backup_id = ""
         except UnknownBackupIdException:
-            next_backup_id = ''
-        self.environment.update({
-            'BARMAN_BACKUP_DIR': backup_info.get_basebackup_directory(),
-            'BARMAN_BACKUP_ID': backup_info.backup_id,
-            'BARMAN_PREVIOUS_ID': previous_backup_id,
-            'BARMAN_NEXT_ID': next_backup_id,
-            'BARMAN_STATUS': backup_info.status,
-            'BARMAN_ERROR': backup_info.error or '',
-        })
+            next_backup_id = ""
+        self.environment.update(
+            {
+                "BARMAN_BACKUP_DIR": backup_info.get_basebackup_directory(),
+                "BARMAN_BACKUP_ID": backup_info.backup_id,
+                "BARMAN_PREVIOUS_ID": previous_backup_id,
+                "BARMAN_NEXT_ID": next_backup_id,
+                "BARMAN_STATUS": backup_info.status,
+                "BARMAN_ERROR": backup_info.error or "",
+            }
+        )
 
     def env_from_wal_info(self, wal_info, full_path=None, error=None):
         """
@@ -118,18 +122,24 @@ class HookScriptRunner(object):
         :param str full_path: override wal_info.fullpath() result
         :param str|Exception error: An error message in case of failure
         """
-        self.environment.update({
-            'BARMAN_SEGMENT': wal_info.name,
-            'BARMAN_FILE': str(full_path if full_path is not None else
-                               wal_info.fullpath(self.backup_manager.server)),
-            'BARMAN_SIZE': str(wal_info.size),
-            'BARMAN_TIMESTAMP': str(wal_info.time),
-            'BARMAN_COMPRESSION': wal_info.compression or '',
-            'BARMAN_ERROR': force_str(error or '')
-        })
+        self.environment.update(
+            {
+                "BARMAN_SEGMENT": wal_info.name,
+                "BARMAN_FILE": str(
+                    full_path
+                    if full_path is not None
+                    else wal_info.fullpath(self.backup_manager.server)
+                ),
+                "BARMAN_SIZE": str(wal_info.size),
+                "BARMAN_TIMESTAMP": str(wal_info.time),
+                "BARMAN_COMPRESSION": wal_info.compression or "",
+                "BARMAN_ERROR": force_str(error or ""),
+            }
+        )
 
-    def env_from_recover(self, backup_info, dest, tablespaces, remote_command,
-                         error=None, **kwargs):
+    def env_from_recover(
+        self, backup_info, dest, tablespaces, remote_command, error=None, **kwargs
+    ):
         """
         Prepare the environment for executing a script
 
@@ -144,24 +154,26 @@ class HookScriptRunner(object):
         self.env_from_backup_info(backup_info)
 
         # Prepare a JSON representation of tablespace map
-        tablespaces_map = ''
+        tablespaces_map = ""
         if tablespaces:
             tablespaces_map = json.dumps(tablespaces, sort_keys=True)
 
         # Prepare a JSON representation of additional recovery options
         # Skip any empty argument
         kwargs_filtered = dict([(k, v) for k, v in kwargs.items() if v])
-        recover_options = ''
+        recover_options = ""
         if kwargs_filtered:
             recover_options = json.dumps(kwargs_filtered, sort_keys=True)
 
-        self.environment.update({
-            'BARMAN_DESTINATION_DIRECTORY': str(dest),
-            'BARMAN_TABLESPACES': tablespaces_map,
-            'BARMAN_REMOTE_COMMAND': str(remote_command or ''),
-            'BARMAN_RECOVER_OPTIONS': recover_options,
-            'BARMAN_ERROR': force_str(error or '')
-        })
+        self.environment.update(
+            {
+                "BARMAN_DESTINATION_DIRECTORY": str(dest),
+                "BARMAN_TABLESPACES": tablespaces_map,
+                "BARMAN_REMOTE_COMMAND": str(remote_command or ""),
+                "BARMAN_RECOVER_OPTIONS": recover_options,
+                "BARMAN_ERROR": force_str(error or ""),
+            }
+        )
 
     def run(self):
         """
@@ -176,22 +188,23 @@ class HookScriptRunner(object):
                     self.script,
                     env_append=self.environment,
                     path=self.backup_manager.server.path,
-                    shell=True, check=False)
+                    shell=True,
+                    check=False,
+                )
                 self.exit_status = cmd()
                 if self.exit_status != 0:
-                    details = "%s returned %d\n" \
-                              "Output details:\n" \
-                              % (self.script, self.exit_status)
+                    details = "%s returned %d\n" "Output details:\n" % (
+                        self.script,
+                        self.exit_status,
+                    )
                     details += cmd.out
                     details += cmd.err
                     _logger.warning(details)
                 else:
-                    _logger.debug("%s returned %d",
-                                  self.script,
-                                  self.exit_status)
+                    _logger.debug("%s returned %d", self.script, self.exit_status)
                 return self.exit_status
         except Exception as e:
-            _logger.exception('Exception running %s', self.name)
+            _logger.exception("Exception running %s", self.name)
             self.exception = e
             return None
 
@@ -220,10 +233,10 @@ class RetryHookScriptRunner(HookScriptRunner):
     # SUCCESS exit code
     EXIT_SUCCESS = 0
 
-    def __init__(self, backup_manager, name, phase=None, error=None,
-                 **extra_env):
+    def __init__(self, backup_manager, name, phase=None, error=None, **extra_env):
         super(RetryHookScriptRunner, self).__init__(
-            backup_manager, name, phase, error, retry=True, **extra_env)
+            backup_manager, name, phase, error, retry=True, **extra_env
+        )
 
     def run(self):
         """
@@ -245,9 +258,11 @@ class RetryHookScriptRunner(HookScriptRunner):
 
                 # Run the script until it returns EXIT_ABORT_CONTINUE,
                 # or an EXIT_ABORT_STOP, or EXIT_SUCCESS
-                if self.exit_status in (self.EXIT_ABORT_CONTINUE,
-                                        self.EXIT_ABORT_STOP,
-                                        self.EXIT_SUCCESS):
+                if self.exit_status in (
+                    self.EXIT_ABORT_CONTINUE,
+                    self.EXIT_ABORT_STOP,
+                    self.EXIT_SUCCESS,
+                ):
                     break
 
                 # Check for the number of attempts
@@ -258,10 +273,12 @@ class RetryHookScriptRunner(HookScriptRunner):
                     time.sleep(self.BREAK_TIME)
                 else:
                     # Reset the attempt number and take a longer nap
-                    _logger.debug("Reached %d failures. Take a nap "
-                                  "then retry again in %d seconds",
-                                  self.ATTEMPTS_BEFORE_NAP,
-                                  self.NAP_TIME)
+                    _logger.debug(
+                        "Reached %d failures. Take a nap "
+                        "then retry again in %d seconds",
+                        self.ATTEMPTS_BEFORE_NAP,
+                        self.NAP_TIME,
+                    )
                     attempts = 1
                     time.sleep(self.NAP_TIME)
 
@@ -270,16 +287,18 @@ class RetryHookScriptRunner(HookScriptRunner):
                 # Warn the user if the script exited with EXIT_ABORT_CONTINUE
                 # Notify EXIT_ABORT_CONTINUE exit status because success and
                 # failures are already managed in the superclass run method
-                _logger.warning("%s was aborted (got exit status %d, "
-                                "Barman resumes)",
-                                self.script,
-                                self.exit_status)
+                _logger.warning(
+                    "%s was aborted (got exit status %d, " "Barman resumes)",
+                    self.script,
+                    self.exit_status,
+                )
             elif self.exit_status == self.EXIT_ABORT_STOP:
                 # Log the error and raise AbortedRetryHookScript exception
-                _logger.error("%s was aborted (got exit status %d, "
-                              "Barman requested to stop)",
-                              self.script,
-                              self.exit_status)
+                _logger.error(
+                    "%s was aborted (got exit status %d, " "Barman requested to stop)",
+                    self.script,
+                    self.exit_status,
+                )
                 raise AbortedRetryHookScript(self)
 
             return self.exit_status
