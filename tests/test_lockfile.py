@@ -24,10 +24,16 @@ import pytest
 from mock import ANY, patch
 
 from barman.exceptions import LockFileBusy, LockFilePermissionDenied
-from barman.lockfile import (GlobalCronLock, LockFile, ServerBackupLock,
-                             ServerBackupSyncLock, ServerCronLock,
-                             ServerWalReceiveLock, ServerWalSyncLock,
-                             ServerXLOGDBLock)
+from barman.lockfile import (
+    GlobalCronLock,
+    LockFile,
+    ServerBackupLock,
+    ServerBackupSyncLock,
+    ServerCronLock,
+    ServerWalReceiveLock,
+    ServerWalSyncLock,
+    ServerXLOGDBLock,
+)
 
 
 def _prepare_fnctl_mock(fcntl_mock, exception=None):
@@ -48,9 +54,8 @@ def _prepare_fnctl_mock(fcntl_mock, exception=None):
 
 
 # noinspection PyMethodMayBeStatic
-@patch('barman.lockfile.fcntl')
+@patch("barman.lockfile.fcntl")
 class TestLockFileBehavior(object):
-
     def test_raise(self, fcntl_mock, tmpdir):
         """
         Test raise_if_fail override using a call to method acquire.
@@ -60,10 +65,8 @@ class TestLockFileBehavior(object):
         lock_file_path = tmpdir.join("test_lock_file1")
 
         # set flock to raise OSError exception with errno = EAGAIN
-        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EAGAIN, '', ''))
-        lock_file = LockFile(lock_file_path.strpath,
-                             raise_if_fail=False,
-                             wait=False)
+        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EAGAIN, "", ""))
+        lock_file = LockFile(lock_file_path.strpath, raise_if_fail=False, wait=False)
         # Expect the acquire method to raise a LockFileBusy exception.
         # This is the expected behaviour if the raise_if_fail flag is set to
         # True and the OSError.errno = errno.EAGAIN
@@ -71,10 +74,11 @@ class TestLockFileBehavior(object):
             lock_file.acquire(raise_if_fail=True)
         # check for the right call at flock method
         fcntl_mock.flock.assert_called_once_with(
-            ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB)
+            ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB
+        )
 
         # set flock to raise OSError exception with errno = EWOULDBLOCK
-        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EWOULDBLOCK, '', ''))
+        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EWOULDBLOCK, "", ""))
         # Expect the acquire method to raise a LockFileBusy exception.
         # This is the expected behaviour if the raise_if_fail flag is set to
         # True and the OSError.errno = errno.EWOULDBLOCK
@@ -82,10 +86,11 @@ class TestLockFileBehavior(object):
             lock_file.acquire(raise_if_fail=True)
         # Check for the call at flock method
         fcntl_mock.flock.assert_called_once_with(
-            ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB)
+            ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB
+        )
 
         # set flock to raise OSError exception with errno = EACCES
-        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EACCES, '', ''))
+        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EACCES, "", ""))
         # Expect the acquire method to raise a LockFileBusy exception.
         # This is the expected behaviour if the raise_if_fail flag is set to
         # True and the OSError.errno = errno.EACCES
@@ -93,10 +98,11 @@ class TestLockFileBehavior(object):
             lock_file.acquire(raise_if_fail=True)
         # Check for the call at flock method
         fcntl_mock.flock.assert_called_once_with(
-            ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB)
+            ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB
+        )
 
         # set flock to raise an unexpected OSError exception (errno = EINVAL)
-        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EINVAL, '', ''))
+        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EINVAL, "", ""))
         # Expect the acquire method to pass the raised exception.
         # This is the expected behaviour if the raise_if_fail flag is set to
         # True and an unexpected exception is raised
@@ -104,10 +110,11 @@ class TestLockFileBehavior(object):
             lock_file.acquire(raise_if_fail=True)
         # Check for the call at flock method
         fcntl_mock.flock.assert_called_once_with(
-            ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB)
+            ANY, fcntl_mock.LOCK_EX | fcntl_mock.LOCK_NB
+        )
 
         # it should not raise if not raise_if_fail, but return False
-        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EWOULDBLOCK, '', ''))
+        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EWOULDBLOCK, "", ""))
         assert not lock_file.acquire(raise_if_fail=False)
 
     def test_wait(self, fcntl_mock, tmpdir):
@@ -119,9 +126,7 @@ class TestLockFileBehavior(object):
         lock_file_path = tmpdir.join("test_lock_file1")
         # set flock to not raise
         _prepare_fnctl_mock(fcntl_mock)
-        lock_file = LockFile(lock_file_path.strpath,
-                             raise_if_fail=False,
-                             wait=False)
+        lock_file = LockFile(lock_file_path.strpath, raise_if_fail=False, wait=False)
         # should succeed
         assert lock_file.acquire(wait=True)
         # if the wait flag is set to true we expect a lock_ex flag, that
@@ -136,8 +141,7 @@ class TestLockFileBehavior(object):
         assert lock_file.acquire(wait=False)
         # with the wait flag not set flock bust be called with
         # LOCK_EX and LOCK_NB flags
-        fcntl_mock.flock.assert_called_once_with(
-            ANY, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl_mock.flock.assert_called_once_with(ANY, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def test_acquire(self, fcntl_mock, tmpdir):
         """
@@ -147,14 +151,11 @@ class TestLockFileBehavior(object):
         lock_file_path = tmpdir.join("test_lock_file1")
         # set flock to not raise
         _prepare_fnctl_mock(fcntl_mock)
-        lock_file = LockFile(lock_file_path.strpath,
-                             raise_if_fail=False,
-                             wait=False)
+        lock_file = LockFile(lock_file_path.strpath, raise_if_fail=False, wait=False)
         assert lock_file.acquire()
         # with the wait flag not set flock bust be called with
         # LOCK_EX and LOCK_NB flags
-        fcntl_mock.flock.assert_called_once_with(
-            ANY, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl_mock.flock.assert_called_once_with(ANY, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
         # set flock to not raise
         _prepare_fnctl_mock(fcntl_mock)
@@ -175,9 +176,7 @@ class TestLockFileBehavior(object):
         lock_file_path = tmpdir.join("test_lock_file1")
         # set flock to not raise
         _prepare_fnctl_mock(fcntl_mock)
-        lock_file = LockFile(lock_file_path.strpath,
-                             raise_if_fail=False,
-                             wait=False)
+        lock_file = LockFile(lock_file_path.strpath, raise_if_fail=False, wait=False)
         assert lock_file.acquire()
 
         # set flock to not raise
@@ -200,13 +199,11 @@ class TestLockFileBehavior(object):
 
         # set flock to not raise
         _prepare_fnctl_mock(fcntl_mock)
-        lock_file = LockFile(lock_file_path.strpath,
-                             raise_if_fail=False,
-                             wait=False)
+        lock_file = LockFile(lock_file_path.strpath, raise_if_fail=False, wait=False)
         assert lock_file.acquire()
 
         # set flock to raise an OSError (no matter what)
-        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EBADF, '', ''))
+        _prepare_fnctl_mock(fcntl_mock, OSError(errno.EBADF, "", ""))
         # Release the lock (should not raise any error)
         lock_file.release()
         # Check that the fcntl.flock() have been called using the flag LOCK_UN
@@ -219,13 +216,17 @@ class TestLockFileBehavior(object):
         """
         lock_file_path = tmpdir.join("test_lock_file1")
         # Force te lock to return a 'busy' state
-        _prepare_fnctl_mock(fcntl_mock, [
-            # first lock attempt: success
-            None,
-            # second lock attempt: failed (already locked)
-            OSError(errno.EAGAIN, '', ''),
-            # Unlocking the first lock
-            None])
+        _prepare_fnctl_mock(
+            fcntl_mock,
+            [
+                # first lock attempt: success
+                None,
+                # second lock attempt: failed (already locked)
+                OSError(errno.EAGAIN, "", ""),
+                # Unlocking the first lock
+                None,
+            ],
+        )
         # Acquire a lock
         with LockFile(lock_file_path.strpath):
             # Create another lock and get the pid
@@ -309,14 +310,14 @@ class TestLockFile(object):
         # Use a lock file inside the testing tempdir
         lock_file_path = tmpdir.join("test_lockfile1")
         # Acquire the first lock, should succeed
-        first_lock_file = LockFile(lock_file_path.strpath,
-                                   raise_if_fail=False,
-                                   wait=False)
+        first_lock_file = LockFile(
+            lock_file_path.strpath, raise_if_fail=False, wait=False
+        )
         assert first_lock_file.acquire()
         # Try to acquire the lock using a second object, must fail
-        second_lock_file = LockFile(lock_file_path.strpath,
-                                    raise_if_fail=False,
-                                    wait=False)
+        second_lock_file = LockFile(
+            lock_file_path.strpath, raise_if_fail=False, wait=False
+        )
         assert not second_lock_file.acquire()
         # Release the lock with the first LockFile
         first_lock_file.release()
@@ -327,13 +328,12 @@ class TestLockFile(object):
 
 # noinspection PyMethodMayBeStatic
 class TestLockFileSubclasses(object):
-
     def test_global_cron_lock(self, tmpdir):
         """
         Tests for GlobalCronLock class
         """
         lock = GlobalCronLock(tmpdir.strpath)
-        assert lock.filename == tmpdir.join('.cron.lock')
+        assert lock.filename == tmpdir.join(".cron.lock")
         assert lock.raise_if_fail
         assert not lock.wait
 
@@ -341,8 +341,8 @@ class TestLockFileSubclasses(object):
         """
         Tests for ServerBackupLock class
         """
-        lock = ServerBackupLock(tmpdir.strpath, 'server_name')
-        assert lock.filename == tmpdir.join('.server_name-backup.lock')
+        lock = ServerBackupLock(tmpdir.strpath, "server_name")
+        assert lock.filename == tmpdir.join(".server_name-backup.lock")
         assert lock.raise_if_fail
         assert not lock.wait
 
@@ -350,8 +350,8 @@ class TestLockFileSubclasses(object):
         """
         Tests for ServerCronLock class
         """
-        lock = ServerCronLock(tmpdir.strpath, 'server_name')
-        assert lock.filename == tmpdir.join('.server_name-cron.lock')
+        lock = ServerCronLock(tmpdir.strpath, "server_name")
+        assert lock.filename == tmpdir.join(".server_name-cron.lock")
         assert lock.raise_if_fail
         assert not lock.wait
 
@@ -359,8 +359,8 @@ class TestLockFileSubclasses(object):
         """
         Tests for ServerCronLock class
         """
-        lock = ServerXLOGDBLock(tmpdir.strpath, 'server_name')
-        assert lock.filename == tmpdir.join('.server_name-xlogdb.lock')
+        lock = ServerXLOGDBLock(tmpdir.strpath, "server_name")
+        assert lock.filename == tmpdir.join(".server_name-xlogdb.lock")
         assert lock.raise_if_fail
         assert lock.wait
 
@@ -368,8 +368,8 @@ class TestLockFileSubclasses(object):
         """
         Tests for ServerCronLock class
         """
-        lock = ServerWalReceiveLock(tmpdir.strpath, 'server_name')
-        assert lock.filename == tmpdir.join('.server_name-receive-wal.lock')
+        lock = ServerWalReceiveLock(tmpdir.strpath, "server_name")
+        assert lock.filename == tmpdir.join(".server_name-receive-wal.lock")
         assert lock.raise_if_fail
         assert not lock.wait
 
@@ -377,9 +377,8 @@ class TestLockFileSubclasses(object):
         """
         Tests for ServerBackupSyncLock class
         """
-        lock = ServerBackupSyncLock(tmpdir.strpath, 'server_name', 'backup_id')
-        assert lock.filename == \
-            tmpdir.join('.server_name-backup_id-sync-backup.lock')
+        lock = ServerBackupSyncLock(tmpdir.strpath, "server_name", "backup_id")
+        assert lock.filename == tmpdir.join(".server_name-backup_id-sync-backup.lock")
         assert lock.raise_if_fail
         assert not lock.wait
 
@@ -387,7 +386,7 @@ class TestLockFileSubclasses(object):
         """
         Tests for ServerBackupSyncLock class
         """
-        lock = ServerWalSyncLock(tmpdir.strpath, 'server_name')
-        assert lock.filename == tmpdir.join('.server_name-sync-wal.lock')
+        lock = ServerWalSyncLock(tmpdir.strpath, "server_name")
+        assert lock.filename == tmpdir.join(".server_name-sync-wal.lock")
         assert lock.raise_if_fail
         assert lock.wait

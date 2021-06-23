@@ -51,7 +51,7 @@ This variable must be None outside a multiprocessing worker Process.
 """
 
 # Parallel copy bucket size (10GB)
-BUCKET_SIZE = (1024 * 1024 * 1024 * 10)
+BUCKET_SIZE = 1024 * 1024 * 1024 * 10
 
 
 def _init_worker(func):
@@ -71,8 +71,9 @@ def _run_worker(job):
     :param _RsyncJob job: the job to be executed
     """
     global _worker_callable
-    assert _worker_callable is not None, \
-        "Worker has not been initialized with `_init_worker`"
+    assert (
+        _worker_callable is not None
+    ), "Worker has not been initialized with `_init_worker`"
 
     # This is the entrypoint of the worker process. Since the KeyboardInterrupt
     # exceptions is handled by the main process, let's forget about Ctrl-C
@@ -87,8 +88,8 @@ class _RsyncJob(object):
     """
     A job to be executed by a worker Process
     """
-    def __init__(self, item_idx, description,
-                 id=None, file_list=None, checksum=None):
+
+    def __init__(self, item_idx, description, id=None, file_list=None, checksum=None):
         """
         :param int item_idx: The index of copy item containing this job
         :param str description: The description of the job, used for logging
@@ -108,7 +109,7 @@ class _RsyncJob(object):
         self.copy_end_time = None
 
 
-class _FileItem(collections.namedtuple('_FileItem', 'mode size date path')):
+class _FileItem(collections.namedtuple("_FileItem", "mode size date path")):
     """
     This named tuple is used to store the content each line of the output
     of a "rsync --list-only" call
@@ -121,15 +122,20 @@ class _RsyncCopyItem(object):
     that have to be copied during a RsyncCopyController run.
     """
 
-    def __init__(self, label, src, dst,
-                 exclude=None,
-                 exclude_and_protect=None,
-                 include=None,
-                 is_directory=False,
-                 bwlimit=None,
-                 reuse=None,
-                 item_class=None,
-                 optional=False):
+    def __init__(
+        self,
+        label,
+        src,
+        dst,
+        exclude=None,
+        exclude_and_protect=None,
+        include=None,
+        is_directory=False,
+        bwlimit=None,
+        reuse=None,
+        item_class=None,
+        optional=False,
+    ):
         """
         The "label" parameter is meant to be used for error messages
         and logging.
@@ -190,19 +196,19 @@ class _RsyncCopyItem(object):
         # Prepare strings for messages
         formatted_class = self.item_class
         formatted_name = self.src
-        if self.src.startswith(':'):
-            formatted_class = 'remote ' + self.item_class
+        if self.src.startswith(":"):
+            formatted_class = "remote " + self.item_class
             formatted_name = self.src[1:]
-        formatted_class += ' directory' if self.is_directory else ' file'
+        formatted_class += " directory" if self.is_directory else " file"
 
         # Log the operation that is being executed
-        if self.item_class in (RsyncCopyController.PGDATA_CLASS,
-                               RsyncCopyController.PGCONTROL_CLASS):
-            return "%s: %s" % (
-                formatted_class, formatted_name)
+        if self.item_class in (
+            RsyncCopyController.PGDATA_CLASS,
+            RsyncCopyController.PGCONTROL_CLASS,
+        ):
+            return "%s: %s" % (formatted_class, formatted_name)
         else:
-            return "%s '%s': %s" % (
-                formatted_class, self.label, formatted_name)
+            return "%s '%s': %s" % (formatted_class, self.label, formatted_name)
 
 
 class RsyncCopyController(object):
@@ -219,7 +225,8 @@ class RsyncCopyController(object):
     # This regular expression is used to parse each line of the output
     # of a "rsync --list-only" call. This regexp has been tested with any known
     # version of upstream rsync that is supported (>= 3.0.4)
-    LIST_ONLY_RE = re.compile(r"""
+    LIST_ONLY_RE = re.compile(
+        r"""
         ^ # start of the line
 
         # capture the mode (es. "-rw-------")
@@ -245,13 +252,16 @@ class RsyncCopyController(object):
         (?P<path>.+)
 
         $ # end of the line
-    """, re.VERBOSE)
+    """,
+        re.VERBOSE,
+    )
 
     # This regular expression is used to ignore error messages regarding
     # vanished files that are not really an error. It is used because
     # in some cases rsync reports it with exit code 23 which could also mean
     # a fatal error
-    VANISHED_RE = re.compile(r"""
+    VANISHED_RE = re.compile(
+        r"""
         ^ # start of the line
         (
         # files which vanished before rsync start
@@ -268,12 +278,23 @@ class RsyncCopyController(object):
             \ \[(generator|receiver)=[^\]]+\]
         )
         $ # end of the line
-    """, re.VERBOSE + re.IGNORECASE)
+    """,
+        re.VERBOSE + re.IGNORECASE,
+    )
 
-    def __init__(self, path=None, ssh_command=None, ssh_options=None,
-                 network_compression=False,
-                 reuse_backup=None, safe_horizon=None,
-                 exclude=None, retry_times=0, retry_sleep=0, workers=1):
+    def __init__(
+        self,
+        path=None,
+        ssh_command=None,
+        ssh_options=None,
+        network_compression=False,
+        reuse_backup=None,
+        safe_horizon=None,
+        exclude=None,
+        retry_times=0,
+        retry_sleep=0,
+        workers=1,
+    ):
         """
         :param str|None path: the PATH where rsync executable will be searched
         :param str|None ssh_command: the ssh executable to be used
@@ -336,11 +357,18 @@ class RsyncCopyController(object):
         self.copy_end_time = None
         """Copy end time"""
 
-    def add_directory(self, label, src, dst,
-                      exclude=None,
-                      exclude_and_protect=None,
-                      include=None,
-                      bwlimit=None, reuse=None, item_class=None):
+    def add_directory(
+        self,
+        label,
+        src,
+        dst,
+        exclude=None,
+        exclude_and_protect=None,
+        include=None,
+        bwlimit=None,
+        reuse=None,
+        item_class=None,
+    ):
         """
         Add a directory that we want to copy.
 
@@ -378,7 +406,9 @@ class RsyncCopyController(object):
                 optional=False,
                 exclude=exclude,
                 exclude_and_protect=exclude_and_protect,
-                include=include))
+                include=include,
+            )
+        )
 
     def add_file(self, label, src, dst, item_class=None, optional=False):
         """
@@ -402,7 +432,9 @@ class RsyncCopyController(object):
                 bwlimit=None,
                 reuse=None,
                 item_class=item_class,
-                optional=optional))
+                optional=optional,
+            )
+        )
 
     def _rsync_factory(self, item):
         """
@@ -429,14 +461,14 @@ class RsyncCopyController(object):
         # we get an error. The analyze code must catch that error
         # and retry after flushing the rsync cache.
         if self.rsync_has_ignore_missing_args:
-            args.append('--ignore-missing-args')
+            args.append("--ignore-missing-args")
 
         # TODO: remove debug output or use it to progress tracking
         # By adding a double '--itemize-changes' option, the rsync
         # output will contain the full list of files that have been
         # touched, even those that have not changed
-        args.append('--itemize-changes')
-        args.append('--itemize-changes')
+        args.append("--itemize-changes")
+        args.append("--itemize-changes")
 
         # Build the rsync object that will execute the copy
         rsync = RsyncPgData(
@@ -451,7 +483,7 @@ class RsyncCopyController(object):
             include=item.include,
             retry_times=self.retry_times,
             retry_sleep=self.retry_sleep,
-            retry_handler=partial(self._retry_handler, item)
+            retry_handler=partial(self._retry_handler, item),
         )
         self.rsync_cache[item] = rsync
         return rsync
@@ -461,8 +493,10 @@ class RsyncCopyController(object):
         Stop using `--ignore-missing-args` and restore rsync < 3.1
         compatibility
         """
-        _logger.info("Detected rsync version less than 3.1. "
-                     "top using '--ignore-missing-args' argument.")
+        _logger.info(
+            "Detected rsync version less than 3.1. "
+            "top using '--ignore-missing-args' argument."
+        )
         self.rsync_has_ignore_missing_args = False
         self.rsync_cache.clear()
 
@@ -474,7 +508,7 @@ class RsyncCopyController(object):
         self.copy_start_time = datetime.datetime.now()
 
         # Create a temporary directory to hold the file lists.
-        self.temp_dir = tempfile.mkdtemp(suffix='', prefix='barman-')
+        self.temp_dir = tempfile.mkdtemp(suffix="", prefix="barman-")
         # The following try block is to make sure the temporary directory
         # will be removed on exit and all the pool workers
         # have been terminated.
@@ -495,14 +529,16 @@ class RsyncCopyController(object):
                 item.analysis_start_time = datetime.datetime.now()
 
                 # Analyze the source and destination directory content
-                _logger.info(self._progress_message(
-                             "[global] analyze %s" % item))
+                _logger.info(self._progress_message("[global] analyze %s" % item))
                 self._analyze_directory(item)
 
                 # Prepare the target directories, removing any unneeded file
-                _logger.info(self._progress_message(
-                    "[global] create destination directories and delete "
-                    "unknown files for %s" % item))
+                _logger.info(
+                    self._progress_message(
+                        "[global] create destination directories and delete "
+                        "unknown files for %s" % item
+                    )
+                )
                 self._create_dir_and_purge(item)
 
                 # Store the analysis end time
@@ -517,23 +553,28 @@ class RsyncCopyController(object):
             # Each job is generated by `self._job_generator`, it is executed by
             # `_run_worker` using `self._execute_job`, which has been set
             # calling `_init_worker` function during the Pool initialization.
-            pool = Pool(processes=self.workers,
-                        initializer=_init_worker,
-                        initargs=(self._execute_job,))
-            for job in pool.imap_unordered(_run_worker, self._job_generator(
-                    exclude_classes=[self.PGCONTROL_CLASS])):
+            pool = Pool(
+                processes=self.workers,
+                initializer=_init_worker,
+                initargs=(self._execute_job,),
+            )
+            for job in pool.imap_unordered(
+                _run_worker, self._job_generator(exclude_classes=[self.PGCONTROL_CLASS])
+            ):
                 # Store the finished job for further analysis
                 self.jobs_done.append(job)
 
             # The PGCONTROL_CLASS items must always be copied last
-            for job in pool.imap_unordered(_run_worker, self._job_generator(
-                    include_classes=[self.PGCONTROL_CLASS])):
+            for job in pool.imap_unordered(
+                _run_worker, self._job_generator(include_classes=[self.PGCONTROL_CLASS])
+            ):
                 # Store the finished job for further analysis
                 self.jobs_done.append(job)
 
         except KeyboardInterrupt:
-            _logger.info("Copy interrupted by the user (safe before %s)",
-                         self.safe_horizon)
+            _logger.info(
+                "Copy interrupted by the user (safe before %s)", self.safe_horizon
+            )
             raise
         except BaseException:
             _logger.info("Copy failed (safe before %s)", self.safe_horizon)
@@ -583,34 +624,32 @@ class RsyncCopyController(object):
             if item.is_directory:
 
                 # Copy the safe files using the default rsync algorithm
-                msg = self._progress_message(
-                    "[%%s] %%s copy safe files from %s" % item)
+                msg = self._progress_message("[%%s] %%s copy safe files from %s" % item)
                 phase_skipped = True
-                for i, bucket in enumerate(
-                        self._fill_buckets(item.safe_list)):
+                for i, bucket in enumerate(self._fill_buckets(item.safe_list)):
                     phase_skipped = False
-                    yield _RsyncJob(item_idx,
-                                    id=i,
-                                    description=msg,
-                                    file_list=bucket,
-                                    checksum=False)
+                    yield _RsyncJob(
+                        item_idx,
+                        id=i,
+                        description=msg,
+                        file_list=bucket,
+                        checksum=False,
+                    )
                 if phase_skipped:
-                    _logger.info(msg, 'global', 'skipping')
+                    _logger.info(msg, "global", "skipping")
 
                 # Copy the check files forcing rsync to verify the checksum
                 msg = self._progress_message(
-                    "[%%s] %%s copy files with checksum from %s" % item)
+                    "[%%s] %%s copy files with checksum from %s" % item
+                )
                 phase_skipped = True
-                for i, bucket in enumerate(
-                        self._fill_buckets(item.check_list)):
+                for i, bucket in enumerate(self._fill_buckets(item.check_list)):
                     phase_skipped = False
-                    yield _RsyncJob(item_idx,
-                                    id=i,
-                                    description=msg,
-                                    file_list=bucket,
-                                    checksum=True)
+                    yield _RsyncJob(
+                        item_idx, id=i, description=msg, file_list=bucket, checksum=True
+                    )
                 if phase_skipped:
-                    _logger.info(msg, 'global', 'skipping')
+                    _logger.info(msg, "global", "skipping")
 
             else:
                 # Copy the file using plain rsync
@@ -668,63 +707,73 @@ class RsyncCopyController(object):
         """
         item = self.item_list[job.item_idx]
         if job.id is not None:
-            bucket = 'bucket %s' % job.id
+            bucket = "bucket %s" % job.id
         else:
-            bucket = 'global'
+            bucket = "global"
         # Build the rsync object required for the copy
         rsync = self._rsync_factory(item)
         # Store the start time
         job.copy_start_time = datetime.datetime.now()
         # Write in the log that the job is starting
         with _logger_lock:
-            _logger.info(job.description, bucket, 'starting')
+            _logger.info(job.description, bucket, "starting")
         if item.is_directory:
             # A directory item must always have checksum and file_list set
-            assert job.file_list is not None, \
-                'A directory item must not have a None `file_list` attribute'
-            assert job.checksum is not None, \
-                'A directory item must not have a None `checksum` attribute'
+            assert (
+                job.file_list is not None
+            ), "A directory item must not have a None `file_list` attribute"
+            assert (
+                job.checksum is not None
+            ), "A directory item must not have a None `checksum` attribute"
 
             # Generate a unique name for the file containing the list of files
             file_list_path = os.path.join(
-                self.temp_dir, '%s_%s_%s.list' % (
-                    item.label,
-                    'check' if job.checksum else 'safe',
-                    os.getpid()))
+                self.temp_dir,
+                "%s_%s_%s.list"
+                % (item.label, "check" if job.checksum else "safe", os.getpid()),
+            )
 
             # Write the list, one path per line
-            with open(file_list_path, 'w') as file_list:
+            with open(file_list_path, "w") as file_list:
                 for entry in job.file_list:
-                    assert isinstance(entry, _FileItem), \
+                    assert isinstance(entry, _FileItem), (
                         "expect %r to be a _FileItem" % entry
+                    )
                     file_list.write(entry.path + "\n")
 
-            self._copy(rsync,
-                       item.src,
-                       item.dst,
-                       file_list=file_list_path,
-                       checksum=job.checksum)
+            self._copy(
+                rsync,
+                item.src,
+                item.dst,
+                file_list=file_list_path,
+                checksum=job.checksum,
+            )
         else:
             # A file must never have checksum and file_list set
-            assert job.file_list is None, \
-                'A file item must have a None `file_list` attribute'
-            assert job.checksum is None, \
-                'A file item must have a None `checksum` attribute'
+            assert (
+                job.file_list is None
+            ), "A file item must have a None `file_list` attribute"
+            assert (
+                job.checksum is None
+            ), "A file item must have a None `checksum` attribute"
             rsync(item.src, item.dst, allowed_retval=(0, 23, 24))
             if rsync.ret == 23:
                 if item.optional:
-                    _logger.warning(
-                        "Ignoring error reading %s", item)
+                    _logger.warning("Ignoring error reading %s", item)
                 else:
-                    raise CommandFailedException(dict(
-                        ret=rsync.ret, out=rsync.out, err=rsync.err))
+                    raise CommandFailedException(
+                        dict(ret=rsync.ret, out=rsync.out, err=rsync.err)
+                    )
         # Store the stop time
         job.copy_end_time = datetime.datetime.now()
         # Write in the log that the job is finished
         with _logger_lock:
-            _logger.info(job.description, bucket,
-                         'finished (duration: %s)' % human_readable_timedelta(
-                             job.copy_end_time - job.copy_start_time))
+            _logger.info(
+                job.description,
+                bucket,
+                "finished (duration: %s)"
+                % human_readable_timedelta(job.copy_end_time - job.copy_start_time),
+            )
         # Return the job to the caller, for statistics purpose
         return job
 
@@ -749,8 +798,7 @@ class RsyncCopyController(object):
         :return srt: message to log
         """
         self.current_step += 1
-        return "Copy step %s of %s: %s" % (
-            self.current_step, self.total_steps, msg)
+        return "Copy step %s of %s: %s" % (self.current_step, self.total_steps, msg)
 
     def _reuse_args(self, reuse_directory):
         """
@@ -760,9 +808,8 @@ class RsyncCopyController(object):
         :param str reuse_directory: the local path with data to be reused
         :rtype: list[str]
         """
-        if self.reuse_backup in ('copy', 'link') and \
-                reuse_directory is not None:
-            return ['--%s-dest=%s' % (self.reuse_backup, reuse_directory)]
+        if self.reuse_backup in ("copy", "link") and reuse_directory is not None:
+            return ["--%s-dest=%s" % (self.reuse_backup, reuse_directory)]
         else:
             return []
 
@@ -777,8 +824,7 @@ class RsyncCopyController(object):
         :param CommandFailedException exc: the exception which caused the
             failure
         """
-        _logger.warn("Failure executing rsync on %s (attempt %s)",
-                     item, attempt)
+        _logger.warn("Failure executing rsync on %s (attempt %s)", item, attempt)
         _logger.warn("Retrying in %s seconds", self.retry_sleep)
 
     def _analyze_directory(self, item):
@@ -817,16 +863,19 @@ class RsyncCopyController(object):
 
         # Make sure the ref path ends with a '/' or rsync will add the
         # last path component to all the returned items during listing
-        if ref[-1] != '/':
-            ref += '/'
+        if ref[-1] != "/":
+            ref += "/"
 
         # Build a hash containing all files present on reference directory.
         # Directories are not included
         try:
-            ref_hash = dict((
-                (item.path, item)
-                for item in self._list_files(item, ref)
-                if item.mode[0] != 'd'))
+            ref_hash = dict(
+                (
+                    (item.path, item)
+                    for item in self._list_files(item, ref)
+                    if item.mode[0] != "d"
+                )
+            )
         except (CommandFailedException, RsyncListFilesFailure) as e:
             # Here we set ref_hash to None, thus disable the code that marks as
             # "safe matching" those destination files with different time or
@@ -836,19 +885,20 @@ class RsyncCopyController(object):
             _logger.error(
                 "Unable to retrieve reference directory file list. "
                 "Using only source file information to decide which files"
-                " need to be copied with checksums enabled: %s" % e)
+                " need to be copied with checksums enabled: %s" % e
+            )
 
         # The 'dir.list' file will contain every directory in the
         # source tree
-        item.dir_file = os.path.join(self.temp_dir, '%s_dir.list' % item.label)
-        dir_list = open(item.dir_file, 'w+')
+        item.dir_file = os.path.join(self.temp_dir, "%s_dir.list" % item.label)
+        dir_list = open(item.dir_file, "w+")
         # The 'protect.list' file will contain a filter rule to protect
         # each file present in the source tree. It will be used during
         # the first phase to delete all the extra files on destination.
         item.exclude_and_protect_file = os.path.join(
-            self.temp_dir, '%s_exclude_and_protect.filter' % item.label)
-        exclude_and_protect_filter = open(item.exclude_and_protect_file,
-                                          'w+')
+            self.temp_dir, "%s_exclude_and_protect.filter" % item.label
+        )
+        exclude_and_protect_filter = open(item.exclude_and_protect_file, "w+")
         # The `safe_list` will contain all items older than
         # safe_horizon, as well as files that we know rsync will
         # check anyway due to a difference in mtime or size
@@ -858,14 +908,14 @@ class RsyncCopyController(object):
         item.check_list = []
         for entry in self._list_files(item, item.src):
             # If item is a directory, we only need to save it in 'dir.list'
-            if entry.mode[0] == 'd':
-                dir_list.write(entry.path + '\n')
+            if entry.mode[0] == "d":
+                dir_list.write(entry.path + "\n")
                 continue
 
             # Add every file in the source path to the list of files
             # to be protected from deletion ('exclude_and_protect.filter')
-            exclude_and_protect_filter.write('P /' + entry.path + '\n')
-            exclude_and_protect_filter.write('- /' + entry.path + '\n')
+            exclude_and_protect_filter.write("P /" + entry.path + "\n")
+            exclude_and_protect_filter.write("- /" + entry.path + "\n")
 
             # If source item is older than safe_horizon,
             # add it to 'safe.list'
@@ -914,12 +964,15 @@ class RsyncCopyController(object):
         # Create directories and delete any unknown file
         self._rsync_ignore_vanished_files(
             rsync,
-            '--recursive',
-            '--delete',
-            '--files-from=%s' % item.dir_file,
-            '--filter', 'merge %s' % item.exclude_and_protect_file,
-            item.src, item.dst,
-            check=True)
+            "--recursive",
+            "--delete",
+            "--files-from=%s" % item.dir_file,
+            "--filter",
+            "merge %s" % item.exclude_and_protect_file,
+            item.src,
+            item.dst,
+            check=True,
+        )
 
     def _copy(self, rsync, src, dst, file_list, checksum=False):
         """
@@ -936,10 +989,10 @@ class RsyncCopyController(object):
         :param bool checksum: if checksum argument for rsync is required
         """
         # Build the rsync call args
-        args = ['--files-from=%s' % file_list]
+        args = ["--files-from=%s" % file_list]
         if checksum:
             # Add checksum option if needed
-            args.append('--checksum')
+            args.append("--checksum")
         self._rsync_ignore_vanished_files(rsync, src, dst, *args, check=True)
 
     def _list_files(self, item, path):
@@ -961,14 +1014,16 @@ class RsyncCopyController(object):
             # Use the --no-human-readable option to avoid digit groupings
             # in "size" field with rsync >= 3.1.0.
             # Ref: http://ftp.samba.org/pub/rsync/src/rsync-3.1.0-NEWS
-            rsync.get_output('--no-human-readable', '--list-only',
-                             '-r', path, check=True)
+            rsync.get_output(
+                "--no-human-readable", "--list-only", "-r", path, check=True
+            )
         except CommandFailedException:
             # This could fail due to the local or the remote rsync
             # older than 3.1. IF so, fallback to pre 3.1 mode
             if self.rsync_has_ignore_missing_args and rsync.ret in (
-                    12,  # Error in rsync protocol data stream (remote)
-                    1):  # Syntax or usage error (local)
+                12,  # Error in rsync protocol data stream (remote)
+                1,
+            ):  # Syntax or usage error (local)
                 self._rsync_set_pre_31_mode()
                 # Recursive call, uses the compatibility mode
                 for item in self._list_files(item, path):
@@ -983,36 +1038,37 @@ class RsyncCopyController(object):
             line = line.rstrip()
             match = self.LIST_ONLY_RE.match(line)
             if match:
-                mode = match.group('mode')
+                mode = match.group("mode")
                 # no exceptions here: the regexp forces 'size' to be an integer
-                size = int(match.group('size'))
+                size = int(match.group("size"))
                 try:
-                    date_str = match.group('date')
+                    date_str = match.group("date")
                     # The date format has been validated by LIST_ONLY_RE.
                     # Use "2014/06/05 18:00:00" format if the sending rsync
                     # is compiled with HAVE_STRFTIME, otherwise use
                     # "Thu Jun  5 18:00:00 2014" format
                     if date_str[0].isdigit():
-                        date = datetime.datetime.strptime(
-                            date_str, "%Y/%m/%d %H:%M:%S")
+                        date = datetime.datetime.strptime(date_str, "%Y/%m/%d %H:%M:%S")
                     else:
                         date = datetime.datetime.strptime(
-                            date_str, "%a %b %d %H:%M:%S %Y")
+                            date_str, "%a %b %d %H:%M:%S %Y"
+                        )
                     date = date.replace(tzinfo=tzinfo)
                 except (TypeError, ValueError):
                     # This should not happen, due to the regexp
-                    msg = ("Unable to parse rsync --list-only output line "
-                           "(date): '%s'" % line)
+                    msg = (
+                        "Unable to parse rsync --list-only output line "
+                        "(date): '%s'" % line
+                    )
                     _logger.exception(msg)
                     raise RsyncListFilesFailure(msg)
-                path = match.group('path')
+                path = match.group("path")
                 yield _FileItem(mode, size, date, path)
             else:
                 # This is a hard error, as we are unable to parse the output
                 # of rsync. It can only happen with a modified or unknown
                 # rsync version (perhaps newer than 3.1?)
-                msg = ("Unable to parse rsync --list-only output line: "
-                       "'%s'" % line)
+                msg = "Unable to parse rsync --list-only output line: " "'%s'" % line
                 _logger.error(msg)
                 raise RsyncListFilesFailure(msg)
 
@@ -1025,7 +1081,7 @@ class RsyncCopyController(object):
 
         :param Rsync rsync: the Rsync object used to execute the copy
         """
-        kwargs['allowed_retval'] = (0, 23, 24)
+        kwargs["allowed_retval"] = (0, 23, 24)
         rsync.get_output(*args, **kwargs)
         # If return code is 23 and there is any error which doesn't match
         # the VANISHED_RE regexp raise an error
@@ -1036,8 +1092,9 @@ class RsyncCopyController(object):
                     continue
                 else:
                     _logger.error("First rsync error line: %s", line)
-                    raise CommandFailedException(dict(
-                        ret=rsync.ret, out=rsync.out, err=rsync.err))
+                    raise CommandFailedException(
+                        dict(ret=rsync.ret, out=rsync.out, err=rsync.err)
+                    )
         return rsync.out, rsync.err
 
     def statistics(self):
@@ -1053,12 +1110,11 @@ class RsyncCopyController(object):
 
         # Initialise the result calculating the total runtime
         stat = {
-            'total_time': total_seconds(
-                self.copy_end_time - self.copy_start_time),
-            'number_of_workers': self.workers,
-            'analysis_time_per_item': {},
-            'copy_time_per_item': {},
-            'serialized_copy_time_per_item': {},
+            "total_time": total_seconds(self.copy_end_time - self.copy_start_time),
+            "number_of_workers": self.workers,
+            "analysis_time_per_item": {},
+            "copy_time_per_item": {},
+            "serialized_copy_time_per_item": {},
         }
 
         # Calculate the time spent during the analysis of the items
@@ -1080,9 +1136,10 @@ class RsyncCopyController(object):
             elif analysis_end < item.analysis_end_time:
                 analysis_end = item.analysis_end_time
 
-            stat['analysis_time_per_item'][ident] = total_seconds(
-                item.analysis_end_time - item.analysis_start_time)
-        stat['analysis_time'] = total_seconds(analysis_end - analysis_start)
+            stat["analysis_time_per_item"][ident] = total_seconds(
+                item.analysis_end_time - item.analysis_start_time
+            )
+        stat["analysis_time"] = total_seconds(analysis_end - analysis_start)
 
         # Calculate the time spent per job
         # WARNING: this code assumes that every item is copied separately,
@@ -1098,17 +1155,17 @@ class RsyncCopyController(object):
             # values from the job
             if ident not in item_data:
                 item_data[ident] = {
-                    'start': job.copy_start_time,
-                    'end': job.copy_end_time,
-                    'total_time': job.copy_end_time - job.copy_start_time
+                    "start": job.copy_start_time,
+                    "end": job.copy_end_time,
+                    "total_time": job.copy_end_time - job.copy_start_time,
                 }
             else:
                 data = item_data[ident]
-                if data['start'] > job.copy_start_time:
-                    data['start'] = job.copy_start_time
-                if data['end'] < job.copy_end_time:
-                    data['end'] = job.copy_end_time
-                data['total_time'] += job.copy_end_time - job.copy_start_time
+                if data["start"] > job.copy_start_time:
+                    data["start"] = job.copy_start_time
+                if data["end"] < job.copy_end_time:
+                    data["end"] = job.copy_end_time
+                data["total_time"] += job.copy_end_time - job.copy_start_time
 
         # Calculate the time spent copying
         copy_start = None
@@ -1116,17 +1173,19 @@ class RsyncCopyController(object):
         serialized_time = datetime.timedelta(0)
         for ident in item_data:
             data = item_data[ident]
-            if copy_start is None or copy_start > data['start']:
-                copy_start = data['start']
-            if copy_end is None or copy_end < data['end']:
-                copy_end = data['end']
-            stat['copy_time_per_item'][ident] = total_seconds(
-                data['end'] - data['start'])
-            stat['serialized_copy_time_per_item'][ident] = total_seconds(
-                data['total_time'])
-            serialized_time += data['total_time']
+            if copy_start is None or copy_start > data["start"]:
+                copy_start = data["start"]
+            if copy_end is None or copy_end < data["end"]:
+                copy_end = data["end"]
+            stat["copy_time_per_item"][ident] = total_seconds(
+                data["end"] - data["start"]
+            )
+            stat["serialized_copy_time_per_item"][ident] = total_seconds(
+                data["total_time"]
+            )
+            serialized_time += data["total_time"]
         # Store the total time spent by copying
-        stat['copy_time'] = total_seconds(copy_end - copy_start)
-        stat['serialized_copy_time'] = total_seconds(serialized_time)
+        stat["copy_time"] = total_seconds(copy_end - copy_start)
+        stat["serialized_copy_time"] = total_seconds(serialized_time)
 
         return stat

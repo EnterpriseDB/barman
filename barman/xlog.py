@@ -29,7 +29,8 @@ from tempfile import NamedTemporaryFile
 from barman.exceptions import BadHistoryFileContents, BadXlogSegmentName
 
 # xlog file segment name parser (regular expression)
-_xlog_re = re.compile(r'''
+_xlog_re = re.compile(
+    r"""
     ^
     ([\dA-Fa-f]{8})                    # everything has a timeline
     (?:
@@ -43,10 +44,12 @@ _xlog_re = re.compile(r'''
         \.history                      # or only .history, if a history file
     )
     $
-    ''', re.VERBOSE)
+    """,
+    re.VERBOSE,
+)
 
 # xlog location parser for concurrent backup (regular expression)
-_location_re = re.compile(r'^([\dA-F]+)/([\dA-F]+)$')
+_location_re = re.compile(r"^([\dA-F]+)/([\dA-F]+)$")
 
 # Taken from xlog_internal.h from PostgreSQL sources
 
@@ -58,8 +61,8 @@ DEFAULT_XLOG_SEG_SIZE = 1 << 24
 #: This namedtuple is a container for the information
 #: contained inside history files
 HistoryFileData = collections.namedtuple(
-    'HistoryFileData',
-    'tli parent_tli switchpoint reason')
+    "HistoryFileData", "tli parent_tli switchpoint reason"
+)
 
 
 def is_any_xlog_file(path):
@@ -88,7 +91,7 @@ def is_history_file(path):
     :rtype: bool
     """
     match = _xlog_re.search(os.path.basename(path))
-    if match and match.group(0).endswith('.history'):
+    if match and match.group(0).endswith(".history"):
         return True
     return False
 
@@ -103,7 +106,7 @@ def is_backup_file(path):
     :rtype: bool
     """
     match = _xlog_re.search(os.path.basename(path))
-    if match and match.group(0).endswith('.backup'):
+    if match and match.group(0).endswith(".backup"):
         return True
     return False
 
@@ -118,7 +121,7 @@ def is_partial_file(path):
     :rtype: bool
     """
     match = _xlog_re.search(os.path.basename(path))
-    if match and match.group(0).endswith('.partial'):
+    if match and match.group(0).endswith(".partial"):
         return True
     return False
 
@@ -137,9 +140,9 @@ def is_wal_file(path):
     if not match:
         return False
 
-    ends_with_backup = match.group(0).endswith('.backup')
-    ends_with_history = match.group(0).endswith('.history')
-    ends_with_partial = match.group(0).endswith('.partial')
+    ends_with_backup = match.group(0).endswith(".backup")
+    ends_with_history = match.group(0).endswith(".history")
+    ends_with_partial = match.group(0).endswith(".partial")
 
     if ends_with_backup:
         return False
@@ -205,7 +208,7 @@ def xlog_segments_per_file(xlog_segment_size):
     :param int xlog_segment_size: The XLOG segment size in bytes
     :return int: The number of segments in an XLOG file
     """
-    return 0xffffffff // xlog_segment_size
+    return 0xFFFFFFFF // xlog_segment_size
 
 
 def xlog_segment_mask(xlog_segment_size):
@@ -224,8 +227,7 @@ def xlog_segment_mask(xlog_segment_size):
     return xlog_segment_size * xlog_segments_per_file(xlog_segment_size)
 
 
-def generate_segment_names(begin, end=None, version=None,
-                           xlog_segment_size=None):
+def generate_segment_names(begin, end=None, version=None, xlog_segment_size=None):
     """
     Generate a sequence of XLOG segments starting from ``begin``
     If an ``end`` segment is provided the sequence will terminate after
@@ -255,7 +257,8 @@ def generate_segment_names(begin, end=None, version=None,
         # this method doesn't support timeline changes
         assert begin_tli == end_tli, (
             "Begin segment (%s) and end segment (%s) "
-            "must have the same timeline part" % (begin, end))
+            "must have the same timeline part" % (begin, end)
+        )
 
     # If version is less than 9.3 the last segment must be skipped
     skip_last_segment = version is not None and version < 90300
@@ -271,19 +274,20 @@ def generate_segment_names(begin, end=None, version=None,
     else:
         # The generator is operating only in precise mode: generating every
         # possible XLOG file name.
-        xlog_seg_per_file = 0x7ffff
+        xlog_seg_per_file = 0x7FFFF
 
     # Start from the first xlog and generate the segments sequentially
     # If ``end`` has been provided, the while condition ensure the termination
     # otherwise this generator will never stop
     cur_log, cur_seg = begin_log, begin_seg
-    while end is None or \
-            cur_log < end_log or \
-            (cur_log == end_log and cur_seg <= end_seg):
+    while (
+        end is None or cur_log < end_log or (cur_log == end_log and cur_seg <= end_seg)
+    ):
         yield encode_segment_name(begin_tli, cur_log, cur_seg)
         cur_seg += 1
         if cur_seg > xlog_seg_per_file or (
-                skip_last_segment and cur_seg == xlog_seg_per_file):
+            skip_last_segment and cur_seg == xlog_seg_per_file
+        ):
             cur_seg = 0
             cur_log += 1
 
@@ -302,7 +306,7 @@ def hash_dir(path):
     if log is not None:
         return "%08X%08X" % (tli, log)
     else:
-        return ''
+        return ""
 
 
 def parse_lsn(lsn_string):
@@ -313,9 +317,9 @@ def parse_lsn(lsn_string):
     :param str lsn_string: the string XLOG location, i.e. '2/82000168'
     :rtype: int
     """
-    lsn_list = lsn_string.split('/')
+    lsn_list = lsn_string.split("/")
     if len(lsn_list) != 2:
-        raise ValueError('Invalid LSN: %s', lsn_string)
+        raise ValueError("Invalid LSN: %s", lsn_string)
 
     return (int(lsn_list[0], 16) << 32) + int(lsn_list[1], 16)
 
@@ -371,13 +375,12 @@ def location_to_xlogfile_name_offset(location, timeline, xlog_segment_size):
     seg = (lsn & xlog_segment_mask(xlog_segment_size)) // xlog_segment_size
     offset = lsn & (xlog_segment_size - 1)
     return {
-        'file_name': encode_segment_name(timeline, log, seg),
-        'file_offset': offset,
+        "file_name": encode_segment_name(timeline, log, seg),
+        "file_offset": offset,
     }
 
 
-def location_from_xlogfile_name_offset(file_name, file_offset,
-                                       xlog_segment_size):
+def location_from_xlogfile_name_offset(file_name, file_offset, xlog_segment_size):
     """
     Convert file_name and file_offset to a transaction log location.
 
@@ -390,8 +393,8 @@ def location_from_xlogfile_name_offset(file_name, file_offset,
     :rtype: str
     """
     decoded_segment = decode_segment_name(file_name)
-    location = (decoded_segment[1] << 32)
-    location += (decoded_segment[2] * xlog_segment_size)
+    location = decoded_segment[1] << 32
+    location += decoded_segment[2] * xlog_segment_size
     location += file_offset
     return format_lsn(location)
 
@@ -424,11 +427,13 @@ def decode_history_file(wal_info, comp_manager):
         # Use a NamedTemporaryFile to avoid explicit cleanup
         uncompressed_file = NamedTemporaryFile(
             dir=os.path.dirname(path),
-            prefix='.%s.' % wal_info.name,
-            suffix='.uncompressed')
+            prefix=".%s." % wal_info.name,
+            suffix=".uncompressed",
+        )
         path = uncompressed_file.name
         comp_manager.get_compressor(wal_info.compression).decompress(
-            wal_info.orig_filename, path)
+            wal_info.orig_filename, path
+        )
 
     # Extract the timeline from history file name
     tli, _, _ = decode_segment_name(wal_info.name)
@@ -444,7 +449,7 @@ def decode_history_file(wal_info, comp_manager):
             if len(line) == 0:
                 continue
             # Use tab as separator
-            contents = line.split('\t')
+            contents = line.split("\t")
             if len(contents) != 3:
                 # Invalid content of the line
                 raise BadHistoryFileContents(path)
@@ -453,7 +458,8 @@ def decode_history_file(wal_info, comp_manager):
                 tli=tli,
                 parent_tli=int(contents[0]),
                 switchpoint=parse_lsn(contents[1]),
-                reason=contents[2])
+                reason=contents[2],
+            )
             lines.append(history)
 
     # Empty history file or containing invalid content

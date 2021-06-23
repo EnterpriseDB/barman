@@ -57,7 +57,7 @@ class StreamLineProcessor(object):
         """
         self._file = fobject
         self._handler = handler
-        self._buf = ''
+        self._buf = ""
 
     def fileno(self):
         """
@@ -81,12 +81,12 @@ class StreamLineProcessor(object):
             # Handle the last line (always incomplete, maybe empty)
             self._handler(self._buf)
             return True
-        self._buf += data.decode('utf-8', 'replace')
+        self._buf += data.decode("utf-8", "replace")
         # If no '\n' is present, we just read a part of a very long line.
         # Nothing to do at the moment.
-        if '\n' not in self._buf:
+        if "\n" not in self._buf:
             return False
-        tmp = self._buf.split('\n')
+        tmp = self._buf.split("\n")
         # Leave the remainder in self._buf
         self._buf = tmp[-1]
         # Call the handler for each complete line.
@@ -101,10 +101,22 @@ class Command(object):
     Wrapper for a system command
     """
 
-    def __init__(self, cmd, args=None, env_append=None, path=None, shell=False,
-                 check=False, allowed_retval=(0,),
-                 close_fds=True, out_handler=None, err_handler=None,
-                 retry_times=0, retry_sleep=0, retry_handler=None):
+    def __init__(
+        self,
+        cmd,
+        args=None,
+        env_append=None,
+        path=None,
+        shell=False,
+        check=False,
+        allowed_retval=(0,),
+        close_fds=True,
+        out_handler=None,
+        err_handler=None,
+        retry_times=0,
+        retry_sleep=0,
+        retry_handler=None,
+    ):
         """
         If the `args` argument is specified the arguments will be always added
         to the ones eventually passed with the actual invocation.
@@ -187,13 +199,12 @@ class Command(object):
         env_append = env_append or {}
         # If path has been provided, replace it in the environment
         if path:
-            env_append['PATH'] = path
+            env_append["PATH"] = path
         # Find the absolute path to the command to execute
         if not self.shell:
             full_path = barman.utils.which(self.cmd, self.path)
             if not full_path:
-                raise CommandFailedException(
-                    '%s not in PATH' % self.cmd)
+                raise CommandFailedException("%s not in PATH" % self.cmd)
             self.cmd = full_path
         # If env_append contains anything, build an env dict to be used during
         # subprocess call, otherwise set it to None and let the subprocesses
@@ -330,12 +341,13 @@ class Command(object):
         out = []
         err = []
         # If check is true, it must be handled here
-        check = kwargs.pop('check', self.check)
-        allowed_retval = kwargs.pop('allowed_retval', self.allowed_retval)
-        self.execute(out_handler=out.append, err_handler=err.append,
-                     check=False, *args, **kwargs)
-        self.out = '\n'.join(out)
-        self.err = '\n'.join(err)
+        check = kwargs.pop("check", self.check)
+        allowed_retval = kwargs.pop("allowed_retval", self.allowed_retval)
+        self.execute(
+            out_handler=out.append, err_handler=err.append, check=False, *args, **kwargs
+        )
+        self.out = "\n".join(out)
+        self.err = "\n".join(err)
 
         _logger.debug("Command stdout: %s", self.out)
         _logger.debug("Command stderr: %s", self.err)
@@ -355,8 +367,7 @@ class Command(object):
         :raises: CommandFailedException
         """
         if self.ret not in allowed_retval:
-            raise CommandFailedException(dict(
-                ret=self.ret, out=self.out, err=self.err))
+            raise CommandFailedException(dict(ret=self.ret, out=self.out, err=self.err))
 
     def execute(self, *args, **kwargs):
         """
@@ -386,15 +397,17 @@ class Command(object):
         :raise: CommandFailedException
         """
         # Check keyword arguments
-        stdin = kwargs.pop('stdin', None)
-        check = kwargs.pop('check', self.check)
-        allowed_retval = kwargs.pop('allowed_retval', self.allowed_retval)
-        close_fds = kwargs.pop('close_fds', self.close_fds)
-        out_handler = kwargs.pop('out_handler', self.out_handler)
-        err_handler = kwargs.pop('err_handler', self.err_handler)
+        stdin = kwargs.pop("stdin", None)
+        check = kwargs.pop("check", self.check)
+        allowed_retval = kwargs.pop("allowed_retval", self.allowed_retval)
+        close_fds = kwargs.pop("close_fds", self.close_fds)
+        out_handler = kwargs.pop("out_handler", self.out_handler)
+        err_handler = kwargs.pop("err_handler", self.err_handler)
         if len(kwargs):
-            raise TypeError('%s() got an unexpected keyword argument %r' %
-                            (inspect.stack()[1][3], kwargs.popitem()[0]))
+            raise TypeError(
+                "%s() got an unexpected keyword argument %r"
+                % (inspect.stack()[1][3], kwargs.popitem()[0])
+            )
 
         # Reset status
         self.ret = None
@@ -412,10 +425,9 @@ class Command(object):
         pipe.stdin.close()
         # Prepare the list of processors
         processors = [
-            StreamLineProcessor(
-                pipe.stdout, out_handler),
-            StreamLineProcessor(
-                pipe.stderr, err_handler)]
+            StreamLineProcessor(pipe.stdout, out_handler),
+            StreamLineProcessor(pipe.stderr, err_handler),
+        ]
 
         # Read the streams until the subprocess exits
         self.pipe_processor_loop(processors)
@@ -455,12 +467,16 @@ class Command(object):
 
         # Log the command we are about to execute
         _logger.debug("Command: %r", cmd)
-        return subprocess.Popen(cmd, shell=self.shell, env=self.env,
-                                stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                preexec_fn=self._restore_sigpipe,
-                                close_fds=close_fds)
+        return subprocess.Popen(
+            cmd,
+            shell=self.shell,
+            env=self.env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            preexec_fn=self._restore_sigpipe,
+            close_fds=close_fds,
+        )
 
     @staticmethod
     def pipe_processor_loop(processors):
@@ -510,6 +526,7 @@ class Command(object):
                     class_logger.log(level, "%s%s", prefix, line)
                 else:
                     class_logger.log(level, "%s", line)
+
         return handler
 
     @staticmethod
@@ -571,9 +588,20 @@ class Rsync(Command):
     which is used vastly by barman
     """
 
-    def __init__(self, rsync='rsync', args=None, ssh=None, ssh_options=None,
-                 bwlimit=None, exclude=None, exclude_and_protect=None,
-                 include=None, network_compression=None, path=None, **kwargs):
+    def __init__(
+        self,
+        rsync="rsync",
+        args=None,
+        ssh=None,
+        ssh_options=None,
+        bwlimit=None,
+        exclude=None,
+        exclude_and_protect=None,
+        include=None,
+        network_compression=None,
+        path=None,
+        **kwargs
+    ):
         """
         :param str rsync: rsync executable name
         :param list[str]|None args: List of additional argument to always
@@ -597,9 +625,9 @@ class Rsync(Command):
         """
         options = []
         if ssh:
-            options += ['-e', full_command_quote(ssh, ssh_options)]
+            options += ["-e", full_command_quote(ssh, ssh_options)]
         if network_compression:
-            options += ['-z']
+            options += ["-z"]
         # Include patterns must be before the exclude ones, because the exclude
         # patterns actually short-circuit the directory traversal stage
         # when rsync finds the files to send.
@@ -611,18 +639,17 @@ class Rsync(Command):
                 options += ["--exclude=%s" % (pattern,)]
         if exclude_and_protect:
             for pattern in exclude_and_protect:
-                options += ["--exclude=%s" % (pattern,),
-                            "--filter=P_%s" % (pattern,)]
+                options += ["--exclude=%s" % (pattern,), "--filter=P_%s" % (pattern,)]
         if args:
             options += self._args_for_suse(args)
         if bwlimit is not None and bwlimit > 0:
             options += ["--bwlimit=%s" % bwlimit]
 
         # By default check is on and the allowed exit code are 0 and 24
-        if 'check' not in kwargs:
-            kwargs['check'] = True
-        if 'allowed_retval' not in kwargs:
-            kwargs['allowed_retval'] = (0, 24)
+        if "check" not in kwargs:
+            kwargs["check"] = True
+        if "allowed_retval" not in kwargs:
+            kwargs["allowed_retval"] = (0, 24)
         Command.__init__(self, rsync, args=options, path=path, **kwargs)
 
     def _args_for_suse(self, args):
@@ -633,7 +660,7 @@ class Rsync(Command):
         """
         # Prepend any argument starting with ':' with a space
         # Workaround for SUSE rsync issue
-        return [' ' + a if a.startswith(':') else a for a in args]
+        return [" " + a if a.startswith(":") else a for a in args]
 
     def get_output(self, *args, **kwargs):
         """
@@ -650,13 +677,14 @@ class Rsync(Command):
 
         Returns the return code of the rsync command
         """
-        if 'stdin' in kwargs:
-            raise TypeError("from_file_list() doesn't support 'stdin' "
-                            "keyword argument")
-        input_string = ('\n'.join(filelist)).encode('UTF-8')
+        if "stdin" in kwargs:
+            raise TypeError(
+                "from_file_list() doesn't support 'stdin' " "keyword argument"
+            )
+        input_string = ("\n".join(filelist)).encode("UTF-8")
         _logger.debug("from_file_list: %r", filelist)
-        kwargs['stdin'] = input_string
-        self.get_output('--files-from=-', src, dst, *args, **kwargs)
+        kwargs["stdin"] = input_string
+        self.get_output("--files-from=-", src, dst, *args, **kwargs)
         return self.ret
 
 
@@ -666,13 +694,13 @@ class RsyncPgData(Rsync):
     Postgres data directory
     """
 
-    def __init__(self, rsync='rsync', args=None, **kwargs):
+    def __init__(self, rsync="rsync", args=None, **kwargs):
         """
         Constructor
 
         :param str rsync: command to run
         """
-        options = ['-rLKpts', '--delete-excluded', '--inplace']
+        options = ["-rLKpts", "--delete-excluded", "--inplace"]
         if args:
             options += args
         Rsync.__init__(self, rsync, args=options, **kwargs)
@@ -694,13 +722,9 @@ class PostgreSQLClient(Command):
     This is a list of command names to be used to find the installed command.
     """
 
-    def __init__(self,
-                 connection,
-                 command,
-                 version=None,
-                 app_name=None,
-                 path=None,
-                 **kwargs):
+    def __init__(
+        self, connection, command, version=None, app_name=None, path=None, **kwargs
+    ):
         """
         Constructor
 
@@ -724,9 +748,9 @@ class PostgreSQLClient(Command):
             # connection strings so the 'split' version of the conninfo
             # option is used instead.
             conn_params = connection.conn_parameters
-            self.args.append("--host=%s" % conn_params.get('host', None))
-            self.args.append("--port=%s" % conn_params.get('port', None))
-            self.args.append("--username=%s" % conn_params.get('user', None))
+            self.args.append("--host=%s" % conn_params.get("host", None))
+            self.args.append("--port=%s" % conn_params.get("port", None))
+            self.args.append("--username=%s" % conn_params.get("user", None))
 
         self.enable_signal_forwarding(signal.SIGINT)
         self.enable_signal_forwarding(signal.SIGTERM)
@@ -768,10 +792,10 @@ class PostgreSQLClient(Command):
 
         # Get the system path if needed
         if path is None:
-            path = os.getenv('PATH')
+            path = os.getenv("PATH")
         # If the path is None at this point we have nothing to search
         if path is None:
-            path = ''
+            path = ""
 
         # Search the requested executable in every directory present
         # in path and return a Command object first occurrence that exists,
@@ -796,8 +820,8 @@ class PostgreSQLClient(Command):
 
         # We don't have such a command
         raise CommandFailedException(
-            'command not in PATH, tried: %s' %
-            ' '.join(cls.COMMAND_ALTERNATIVES))
+            "command not in PATH, tried: %s" % " ".join(cls.COMMAND_ALTERNATIVES)
+        )
 
     @classmethod
     def get_version_info(cls, path=None):
@@ -809,11 +833,12 @@ class PostgreSQLClient(Command):
         """
         if cls.COMMAND_ALTERNATIVES is None:
             raise NotImplementedError(
-                "get_version_info cannot be invoked on %s" % cls.__name__)
+                "get_version_info cannot be invoked on %s" % cls.__name__
+            )
 
         version_info = dict.fromkeys(
-            ('full_path', 'full_version', 'major_version'),
-            None)
+            ("full_path", "full_version", "major_version"), None
+        )
 
         # Get the version string
         try:
@@ -822,28 +847,27 @@ class PostgreSQLClient(Command):
             _logger.debug("Error invoking %s: %s", cls.__name__, e)
             return version_info
 
-        version_info['full_path'] = command.cmd
+        version_info["full_path"] = command.cmd
         # Parse the full text version
         try:
             full_version = command.out.strip()
             # Remove values inside parenthesis, they
             # carries additional information we do not need.
-            full_version = re.sub(r'\s*\([^)]*\)', '', full_version)
+            full_version = re.sub(r"\s*\([^)]*\)", "", full_version)
             full_version = full_version.split()[1]
         except IndexError:
-            _logger.debug("Error parsing %s version output",
-                          version_info['full_path'])
+            _logger.debug("Error parsing %s version output", version_info["full_path"])
             return version_info
 
-        if not re.match(r'(\d+)(\.(\d+)|devel|beta|alpha|rc).*', full_version):
-            _logger.debug("Error parsing %s version output",
-                          version_info['full_path'])
+        if not re.match(r"(\d+)(\.(\d+)|devel|beta|alpha|rc).*", full_version):
+            _logger.debug("Error parsing %s version output", version_info["full_path"])
             return version_info
 
         # Extract the major version
-        version_info['full_version'] = Version(full_version)
-        version_info['major_version'] = Version(barman.utils.simplify_version(
-            full_version))
+        version_info["full_version"] = Version(full_version)
+        version_info["major_version"] = Version(
+            barman.utils.simplify_version(full_version)
+        )
 
         return version_info
 
@@ -853,20 +877,22 @@ class PgBaseBackup(PostgreSQLClient):
     Wrapper class for the pg_basebackup system command
     """
 
-    COMMAND_ALTERNATIVES = ['pg_basebackup']
+    COMMAND_ALTERNATIVES = ["pg_basebackup"]
 
-    def __init__(self,
-                 connection,
-                 destination,
-                 command,
-                 version=None,
-                 app_name=None,
-                 bwlimit=None,
-                 tbs_mapping=None,
-                 immediate=False,
-                 check=True,
-                 args=None,
-                 **kwargs):
+    def __init__(
+        self,
+        connection,
+        destination,
+        command,
+        version=None,
+        app_name=None,
+        bwlimit=None,
+        tbs_mapping=None,
+        immediate=False,
+        check=True,
+        args=None,
+        **kwargs
+    ):
         """
         Constructor
 
@@ -885,27 +911,32 @@ class PgBaseBackup(PostgreSQLClient):
         """
         PostgreSQLClient.__init__(
             self,
-            connection=connection, command=command,
-            version=version, app_name=app_name,
-            check=check, **kwargs)
+            connection=connection,
+            command=command,
+            version=version,
+            app_name=app_name,
+            check=check,
+            **kwargs
+        )
 
         # Set the backup destination
-        self.args += ['-v', '--no-password', '--pgdata=%s' % destination]
+        self.args += ["-v", "--no-password", "--pgdata=%s" % destination]
 
         if version and version >= Version("10"):
             # If version of the client is >= 10 it would use
             # a temporary replication slot by default to keep WALs.
             # We don't need it because Barman already stores the full
             # WAL stream, so we disable this feature to avoid wasting one slot.
-            self.args += ['--no-slot']
+            self.args += ["--no-slot"]
             # We also need to specify that we do not want to fetch any WAL file
-            self.args += ['--wal-method=none']
+            self.args += ["--wal-method=none"]
 
         # The tablespace mapping option is repeated once for each tablespace
         if tbs_mapping:
             for (tbs_source, tbs_destination) in tbs_mapping.items():
-                self.args.append('--tablespace-mapping=%s=%s' %
-                                 (tbs_source, tbs_destination))
+                self.args.append(
+                    "--tablespace-mapping=%s=%s" % (tbs_source, tbs_destination)
+                )
 
         # Only global bandwidth limit is supported
         if bwlimit is not None and bwlimit > 0:
@@ -927,17 +958,19 @@ class PgReceiveXlog(PostgreSQLClient):
 
     COMMAND_ALTERNATIVES = ["pg_receivewal", "pg_receivexlog"]
 
-    def __init__(self,
-                 connection,
-                 destination,
-                 command,
-                 version=None,
-                 app_name=None,
-                 synchronous=False,
-                 check=True,
-                 slot_name=None,
-                 args=None,
-                 **kwargs):
+    def __init__(
+        self,
+        connection,
+        destination,
+        command,
+        version=None,
+        app_name=None,
+        synchronous=False,
+        check=True,
+        slot_name=None,
+        args=None,
+        **kwargs
+    ):
         """
         Constructor
 
@@ -956,22 +989,27 @@ class PgReceiveXlog(PostgreSQLClient):
         """
         PostgreSQLClient.__init__(
             self,
-            connection=connection, command=command,
-            version=version, app_name=app_name,
-            check=check, **kwargs)
+            connection=connection,
+            command=command,
+            version=version,
+            app_name=app_name,
+            check=check,
+            **kwargs
+        )
 
         self.args += [
             "--verbose",
             "--no-loop",
             "--no-password",
-            "--directory=%s" % destination]
+            "--directory=%s" % destination,
+        ]
 
         # Add the replication slot name if set in the configuration.
         if slot_name is not None:
-            self.args.append('--slot=%s' % slot_name)
+            self.args.append("--slot=%s" % slot_name)
         # Request synchronous mode
         if synchronous:
-            self.args.append('--synchronous')
+            self.args.append("--synchronous")
 
         # Manage additional args
         if args:
@@ -983,8 +1021,14 @@ class BarmanSubProcess(object):
     Wrapper class for barman sub instances
     """
 
-    def __init__(self, command=sys.argv[0], subcommand=None,
-                 config=None, args=None, keep_descriptors=False):
+    def __init__(
+        self,
+        command=sys.argv[0],
+        subcommand=None,
+        config=None,
+        args=None,
+        keep_descriptors=False,
+    ):
         """
         Build a specific wrapper for all the barman sub-commands,
         providing an unified interface.
@@ -1005,13 +1049,13 @@ class BarmanSubProcess(object):
         # even in case of the default one.
         if not config:
             raise CommandFailedException(
-                "No configuration file passed to barman subprocess")
+                "No configuration file passed to barman subprocess"
+            )
         # Build the sub-command:
         # * be sure to run it with the right python interpreter
         # * pass the current configuration file with -c
         # * set it quiet with -q
-        self.command = [sys.executable, command,
-                        '-c', config, '-q', subcommand]
+        self.command = [sys.executable, command, "-c", config, "-q", subcommand]
         self.keep_descriptors = keep_descriptors
         # Handle args for the sub-command (like the server name)
         if args:
@@ -1023,21 +1067,20 @@ class BarmanSubProcess(object):
         """
         _logger.debug("BarmanSubProcess: %r", self.command)
         # Redirect all descriptors to /dev/null
-        devnull = open(os.devnull, 'a+')
+        devnull = open(os.devnull, "a+")
 
         additional_arguments = {}
         if not self.keep_descriptors:
-            additional_arguments = {
-                'stdout': devnull,
-                'stderr': devnull
-            }
+            additional_arguments = {"stdout": devnull, "stderr": devnull}
 
         proc = subprocess.Popen(
             self.command,
-            preexec_fn=os.setsid, close_fds=True,
-            stdin=devnull, **additional_arguments)
-        _logger.debug("BarmanSubProcess: subprocess started. pid: %s",
-                      proc.pid)
+            preexec_fn=os.setsid,
+            close_fds=True,
+            stdin=devnull,
+            **additional_arguments
+        )
+        _logger.debug("BarmanSubProcess: subprocess started. pid: %s", proc.pid)
 
 
 def shell_quote(arg):
@@ -1082,7 +1125,6 @@ def full_command_quote(command, args=None):
     :rtype: str
     """
     if args is not None and len(args) > 0:
-        return "%s %s" % (
-            command, ' '.join([shell_quote(arg) for arg in args]))
+        return "%s %s" % (command, " ".join([shell_quote(arg) for arg in args]))
     else:
         return command

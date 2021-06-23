@@ -39,15 +39,15 @@ try:
 except ImportError:
     raise SystemExit("Missing required python module: argparse")
 
-DEFAULT_USER = 'barman'
-DEFAULT_SPOOL_DIR = '/var/tmp/walrestore'
+DEFAULT_USER = "barman"
+DEFAULT_SPOOL_DIR = "/var/tmp/walrestore"
 
 # The string_types list is used to identify strings
 # in a consistent way between python 2 and 3
 if sys.version_info[0] == 3:
-    string_types = str,
+    string_types = (str,)
 else:
-    string_types = basestring,  # noqa
+    string_types = (basestring,)  # noqa
 
 
 def main(args=None):
@@ -63,15 +63,15 @@ def main(args=None):
 
     # Check WAL destination is not a directory
     if os.path.isdir(config.wal_dest):
-        exit_with_error("WAL_DEST cannot be a directory: %s" %
-                        config.wal_dest)
+        exit_with_error("WAL_DEST cannot be a directory: %s" % config.wal_dest)
 
     # Open the destination file
     try:
-        dest_file = open(config.wal_dest, 'wb')
+        dest_file = open(config.wal_dest, "wb")
     except EnvironmentError as e:
-        exit_with_error("Cannot open '%s' (WAL_DEST) for writing: %s" %
-                        (config.wal_dest, e))
+        exit_with_error(
+            "Cannot open '%s' (WAL_DEST) for writing: %s" % (config.wal_dest, e)
+        )
         return  # never reached
 
     # If the file is present in SPOOL_DIR use it and terminate
@@ -88,8 +88,7 @@ def main(args=None):
         return  # never reached
 
     # Spawn a process for every additional file
-    parallel_ssh_processes = spawn_additional_process(
-        config, additional_files)
+    parallel_ssh_processes = spawn_additional_process(config, additional_files)
 
     # Wait for termination of every subprocess. If CTRL+C is pressed,
     # terminate all of them
@@ -109,8 +108,11 @@ def main(args=None):
     if ssh_process.returncode == 255:
         exit_with_error("Connection problem with ssh", 3, sleep=config.sleep)
     else:
-        exit_with_error("Remote 'barman get-wal' command has failed!",
-                        ssh_process.returncode, sleep=config.sleep)
+        exit_with_error(
+            "Remote 'barman get-wal' command has failed!",
+            ssh_process.returncode,
+            sleep=config.sleep,
+        )
 
 
 def spawn_additional_process(config, additional_files):
@@ -155,16 +157,14 @@ def peek_additional_files(config):
         if not os.path.exists(config.spool_dir):
             os.mkdir(config.spool_dir)
     except EnvironmentError as e:
-        exit_with_error("Cannot create '%s' directory: %s" %
-                        (config.spool_dir, e))
+        exit_with_error("Cannot create '%s' directory: %s" % (config.spool_dir, e))
 
     # Retrieve the list of files from remote
     additional_files = execute_peek(config)
 
     # Sanity check
     if len(additional_files) == 0 or additional_files[0] != config.wal_name:
-        exit_with_error("The required file is not available: %s" %
-                        config.wal_name)
+        exit_with_error("The required file is not available: %s" % config.wal_name)
 
     # Remove the first element, as now we know is identical to config.wal_name
     del additional_files[0]
@@ -182,9 +182,9 @@ def build_ssh_command(config, wal_name, peek=0):
     :return list[str]: the ssh command as list of string
     """
     ssh_command = [
-        'ssh',
-        '-q',  # quiet mode - suppress warnings
-        '-T',  # disable pseudo-terminal allocation
+        "ssh",
+        "-q",  # quiet mode - suppress warnings
+        "-T",  # disable pseudo-terminal allocation
         "%s@%s" % (config.user, config.barman_host),
         "barman",
     ]
@@ -205,10 +205,12 @@ def build_ssh_command(config, wal_name, peek=0):
 
     if options:
         get_wal_command = "get-wal %s '%s' '%s'" % (
-            ' '.join(options), config.server_name, wal_name)
+            " ".join(options),
+            config.server_name,
+            wal_name,
+        )
     else:
-        get_wal_command = "get-wal '%s' '%s'" % (
-            config.server_name, wal_name)
+        get_wal_command = "get-wal '%s' '%s'" % (config.server_name, wal_name)
 
     ssh_command.append(get_wal_command)
     return ssh_command
@@ -225,8 +227,7 @@ def execute_peek(config):
     ssh_command = build_ssh_command(config, config.wal_name, config.parallel)
     # Issue the command
     try:
-        output = subprocess.Popen(ssh_command,
-                                  stdout=subprocess.PIPE).communicate()
+        output = subprocess.Popen(ssh_command, stdout=subprocess.PIPE).communicate()
         return list(output[0].decode().splitlines())
     except subprocess.CalledProcessError as e:
         exit_with_error("Impossible to invoke remote get-wal --peek: %s" % e)
@@ -248,12 +249,13 @@ def try_deliver_from_spool(config, dest_file):
         return
 
     try:
-        shutil.copyfileobj(open(spool_file, 'rb'), dest_file)
+        shutil.copyfileobj(open(spool_file, "rb"), dest_file)
         os.unlink(spool_file)
         sys.exit(0)
     except IOError as e:
-        exit_with_error("Failure copying %s to %s: %s" %
-                        (spool_file, dest_file.name, e))
+        exit_with_error(
+            "Failure copying %s to %s: %s" % (spool_file, dest_file.name, e)
+        )
 
 
 def exit_with_error(message, status=2, sleep=0):
@@ -279,12 +281,12 @@ def connectivity_test(config):
     :param argparse.Namespace config: the configuration from command line
     """
     # Build the peek command
-    ssh_command = build_ssh_command(config, 'dummy_wal_name')
+    ssh_command = build_ssh_command(config, "dummy_wal_name")
     # Issue the command
     try:
-        pipe = subprocess.Popen(ssh_command,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
+        pipe = subprocess.Popen(
+            ssh_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
         output = pipe.communicate()
         print(force_str(output[0]))
         sys.exit(pipe.returncode)
@@ -302,65 +304,83 @@ def parse_arguments(args=None):
     """
     parser = argparse.ArgumentParser(
         description="This script will be used as a 'restore_command' "
-                    "based on the get-wal feature of Barman. "
-                    "A ssh connection will be opened to the Barman host.",
+        "based on the get-wal feature of Barman. "
+        "A ssh connection will be opened to the Barman host.",
     )
     parser.add_argument(
-        '-V', '--version',
-        action='version', version='%%(prog)s %s' % barman.__version__)
+        "-V", "--version", action="version", version="%%(prog)s %s" % barman.__version__
+    )
     parser.add_argument(
-        "-U", "--user", default=DEFAULT_USER,
+        "-U",
+        "--user",
+        default=DEFAULT_USER,
         help="The user used for the ssh connection to the Barman server. "
-             "Defaults to '%(default)s'.",
+        "Defaults to '%(default)s'.",
     )
     parser.add_argument(
-        "-s", "--sleep", default=0,
+        "-s",
+        "--sleep",
+        default=0,
         type=int,
         metavar="SECONDS",
         help="Sleep for SECONDS after a failure of get-wal request. "
-             "Defaults to 0 (nowait).",
+        "Defaults to 0 (nowait).",
     )
     parser.add_argument(
-        "-p", "--parallel", default=0,
+        "-p",
+        "--parallel",
+        default=0,
         type=int,
         metavar="JOBS",
         help="Specifies the number of files to peek and transfer "
-             "in parallel. "
-             "Defaults to 0 (disabled).",
+        "in parallel. "
+        "Defaults to 0 (disabled).",
     )
     parser.add_argument(
-        "--spool-dir", default=DEFAULT_SPOOL_DIR,
+        "--spool-dir",
+        default=DEFAULT_SPOOL_DIR,
         metavar="SPOOL_DIR",
         help="Specifies spool directory for WAL files. Defaults to "
-             "'{0}'.".format(DEFAULT_SPOOL_DIR)
+        "'{0}'.".format(DEFAULT_SPOOL_DIR),
     )
     parser.add_argument(
-        '-P', '--partial',
-        help='retrieve also partial WAL files (.partial)',
-        action='store_true', dest='partial', default=False,
+        "-P",
+        "--partial",
+        help="retrieve also partial WAL files (.partial)",
+        action="store_true",
+        dest="partial",
+        default=False,
     )
     parser.add_argument(
-        '-z', '--gzip',
-        help='Transfer the WAL files compressed with gzip',
-        action='store_const', const='gzip', dest='compression',
+        "-z",
+        "--gzip",
+        help="Transfer the WAL files compressed with gzip",
+        action="store_const",
+        const="gzip",
+        dest="compression",
     )
     parser.add_argument(
-        '-j', '--bzip2',
-        help='Transfer the WAL files compressed with bzip2',
-        action='store_const', const='bzip2', dest='compression',
+        "-j",
+        "--bzip2",
+        help="Transfer the WAL files compressed with bzip2",
+        action="store_const",
+        const="bzip2",
+        dest="compression",
     )
     parser.add_argument(
-        '-c', '--config',
+        "-c",
+        "--config",
         metavar="CONFIG",
-        help='configuration file on the Barman server',
+        help="configuration file on the Barman server",
     )
     parser.add_argument(
-        '-t', '--test',
-        action='store_true',
+        "-t",
+        "--test",
+        action="store_true",
         help="test both the connection and the configuration of the "
-             "requested PostgreSQL server in Barman to make sure it is "
-             "ready to receive WAL files. With this option, "
-             "the 'wal_name' and 'wal_dest' mandatory arguments are ignored.",
+        "requested PostgreSQL server in Barman to make sure it is "
+        "ready to receive WAL files. With this option, "
+        "the 'wal_name' and 'wal_dest' mandatory arguments are ignored.",
     )
     parser.add_argument(
         "barman_host",
@@ -370,20 +390,17 @@ def parse_arguments(args=None):
     parser.add_argument(
         "server_name",
         metavar="SERVER_NAME",
-        help="The server name configured in Barman "
-             "from which WALs are taken.",
+        help="The server name configured in Barman " "from which WALs are taken.",
     )
     parser.add_argument(
         "wal_name",
         metavar="WAL_NAME",
-        help="The value of the '%%f' keyword "
-             "(according to 'restore_command').",
+        help="The value of the '%%f' keyword " "(according to 'restore_command').",
     )
     parser.add_argument(
         "wal_dest",
         metavar="WAL_DEST",
-        help="The value of the '%%p' keyword "
-             "(according to 'restore_command').",
+        help="The value of the '%%p' keyword " "(according to 'restore_command').",
     )
     return parser.parse_args(args=args)
 
@@ -414,20 +431,20 @@ class RemoteGetWal(object):
         # We convert it in a writable binary file object
         if isinstance(dest_file, string_types):
             self.dest_file = dest_file
-            dest_file = open(dest_file, 'wb')
+            dest_file = open(dest_file, "wb")
 
         with dest_file:
             # If compression has been required, we need to spawn two processes
             if config.compression:
                 # Spawn a remote get-wal process
                 self.ssh_process = subprocess.Popen(
-                    build_ssh_command(config, wal_name),
-                    stdout=subprocess.PIPE)
+                    build_ssh_command(config, wal_name), stdout=subprocess.PIPE
+                )
                 # Spawn the local decompressor
                 self.decompressor = subprocess.Popen(
-                    [config.compression, '-d'],
+                    [config.compression, "-d"],
                     stdin=self.ssh_process.stdout,
-                    stdout=dest_file
+                    stdout=dest_file,
                 )
                 # Close the pipe descriptor, letting the decompressor process
                 # to receive the SIGPIPE
@@ -436,8 +453,8 @@ class RemoteGetWal(object):
                 # With no compression only the remote get-wal process
                 # is required
                 self.ssh_process = subprocess.Popen(
-                    build_ssh_command(config, wal_name),
-                    stdout=dest_file)
+                    build_ssh_command(config, wal_name), stdout=dest_file
+                )
 
         # Register the spawned processes in the class registry
         self.processes.add(self.ssh_process)
@@ -460,7 +477,7 @@ class RemoteGetWal(object):
             # terminate
             for process in cls.processes:
                 process.kill()
-            exit_with_error('SIGINT received! Terminating.')
+            exit_with_error("SIGINT received! Terminating.")
 
     @property
     def returncode(self):
@@ -480,5 +497,5 @@ class RemoteGetWal(object):
         return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

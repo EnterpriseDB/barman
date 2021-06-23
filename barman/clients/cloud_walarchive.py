@@ -48,7 +48,7 @@ def main(args=None):
 
     # Validate the WAL file name before uploading it
     if not is_any_xlog_file(config.wal_path):
-        logging.error('%s is an invalid name for a WAL file' % config.wal_path)
+        logging.error("%s is an invalid name for a WAL file" % config.wal_path)
         raise SystemExit(1)
 
     try:
@@ -56,13 +56,15 @@ def main(args=None):
             url=config.destination_url,
             encryption=config.encryption,
             profile_name=config.profile,
-            endpoint_url=config.endpoint_url)
+            endpoint_url=config.endpoint_url,
+        )
 
         with closing(cloud_interface):
             uploader = S3WalUploader(
                 cloud_interface=cloud_interface,
                 server_name=config.server_name,
-                compression=config.compression)
+                compression=config.compression,
+            )
 
             if not cloud_interface.test_connectivity():
                 raise SystemExit(1)
@@ -75,9 +77,8 @@ def main(args=None):
 
             uploader.upload_wal(config.wal_path)
     except Exception as exc:
-        logging.error("Barman cloud WAL archiver exception: %s",
-                      force_str(exc))
-        logging.debug('Exception details:', exc_info=exc)
+        logging.error("Barman cloud WAL archiver exception: %s", force_str(exc))
+        logging.debug("Exception details:", exc_info=exc)
         raise SystemExit(1)
 
 
@@ -89,75 +90,78 @@ def parse_arguments(args=None):
     """
 
     parser = argparse.ArgumentParser(
-        description='This script can be used in the `archive_command` '
-                    'of a PostgreSQL server to ship WAL files to the Cloud. '
-                    'Currently only AWS S3 is supported.',
-        add_help=False
+        description="This script can be used in the `archive_command` "
+        "of a PostgreSQL server to ship WAL files to the Cloud. "
+        "Currently only AWS S3 is supported.",
+        add_help=False,
     )
     parser.add_argument(
-        'destination_url',
-        help='URL of the cloud destination, such as a bucket in AWS S3.'
-             ' For example: `s3://bucket/path/to/folder`.'
+        "destination_url",
+        help="URL of the cloud destination, such as a bucket in AWS S3."
+        " For example: `s3://bucket/path/to/folder`.",
     )
     parser.add_argument(
-        'server_name',
-        help='the name of the server as configured in Barman.'
+        "server_name", help="the name of the server as configured in Barman."
     )
     parser.add_argument(
-        'wal_path',
-        help="the value of the '%%p' keyword"
-             " (according to 'archive_command')."
+        "wal_path",
+        help="the value of the '%%p' keyword" " (according to 'archive_command').",
     )
     parser.add_argument(
-        '-V', '--version',
-        action='version', version='%%(prog)s %s' % barman.__version__
+        "-V", "--version", action="version", version="%%(prog)s %s" % barman.__version__
     )
-    parser.add_argument(
-        '--help',
-        action='help',
-        help='show this help message and exit')
+    parser.add_argument("--help", action="help", help="show this help message and exit")
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument(
-        '-v', '--verbose',
-        action='count',
+        "-v",
+        "--verbose",
+        action="count",
         default=0,
-        help='increase output verbosity (e.g., -vv is more than -v)')
+        help="increase output verbosity (e.g., -vv is more than -v)",
+    )
     verbosity.add_argument(
-        '-q', '--quiet',
-        action='count',
+        "-q",
+        "--quiet",
+        action="count",
         default=0,
-        help='decrease output verbosity (e.g., -qq is less than -q)')
+        help="decrease output verbosity (e.g., -qq is less than -q)",
+    )
     parser.add_argument(
-        '-P', '--profile',
-        help='profile name (e.g. INI section in AWS credentials file)',
+        "-P",
+        "--profile",
+        help="profile name (e.g. INI section in AWS credentials file)",
     )
     compression = parser.add_mutually_exclusive_group()
     compression.add_argument(
-        "-z", "--gzip",
+        "-z",
+        "--gzip",
         help="gzip-compress the WAL while uploading to the cloud",
-        action='store_const',
-        const='gzip',
-        dest='compression',
+        action="store_const",
+        const="gzip",
+        dest="compression",
     )
     compression.add_argument(
-        "-j", "--bzip2",
+        "-j",
+        "--bzip2",
         help="bzip2-compress the WAL while uploading to the cloud",
-        action='store_const',
-        const='bzip2',
-        dest='compression',
+        action="store_const",
+        const="bzip2",
+        dest="compression",
     )
     parser.add_argument(
-        "-e", "--encryption",
+        "-e",
+        "--encryption",
         help="Enable server-side encryption for the transfer. "
-             "Allowed values: 'AES256', 'aws:kms'",
-        choices=['AES256', 'aws:kms'],
+        "Allowed values: 'AES256', 'aws:kms'",
+        choices=["AES256", "aws:kms"],
         metavar="ENCRYPTION",
     )
     parser.add_argument(
-        "-t", "--test",
+        "-t",
+        "--test",
         help="Test cloud connectivity and exit",
         action="store_true",
-        default=False
+        default=False,
     )
     parser.add_argument(
         "--endpoint-url",
@@ -170,8 +174,8 @@ class S3WalUploader(object):
     """
     S3 upload client
     """
-    def __init__(self, cloud_interface,
-                 server_name, compression=None):
+
+    def __init__(self, cloud_interface, server_name, compression=None):
         """
         Object responsible for handling interactions with S3
 
@@ -199,16 +203,14 @@ class S3WalUploader(object):
         destination = os.path.join(
             self.cloud_interface.path,
             self.server_name,
-            'wals',
+            "wals",
             hash_dir(wal_path),
-            wal_name
+            wal_name,
         )
 
         # Put the file in the correct bucket.
         # The put method will handle automatically multipart upload
-        self.cloud_interface.upload_fileobj(
-            fileobj=file_object,
-            key=destination)
+        self.cloud_interface.upload_fileobj(fileobj=file_object, key=destination)
 
     def retrieve_file_obj(self, wal_path):
         """
@@ -230,22 +232,22 @@ class S3WalUploader(object):
         :return File: simple or compressed file object
         """
         # Read the wal_file in binary mode
-        wal_file = open(wal_path, 'rb')
+        wal_file = open(wal_path, "rb")
         # return the opened file if is uncompressed
         if not self.compression:
             return wal_file
 
-        if self.compression == 'gzip':
+        if self.compression == "gzip":
             # Create a BytesIO for in memory compression
             in_mem_gzip = BytesIO()
             # TODO: closing is redundant with python >= 2.7
-            with closing(gzip.GzipFile(fileobj=in_mem_gzip, mode='wb')) as gz:
+            with closing(gzip.GzipFile(fileobj=in_mem_gzip, mode="wb")) as gz:
                 # copy the gzipped data in memory
                 shutil.copyfileobj(wal_file, gz)
             in_mem_gzip.seek(0)
             return in_mem_gzip
 
-        elif self.compression == 'bzip2':
+        elif self.compression == "bzip2":
             # Create a BytesIO for in memory compression
             in_mem_bz2 = BytesIO(bz2.compress(wal_file.read()))
             in_mem_bz2.seek(0)
@@ -271,16 +273,16 @@ class S3WalUploader(object):
         if not self.compression:
             return wal_name
 
-        if self.compression == 'gzip':
+        if self.compression == "gzip":
             # add gz extension
             return "%s.gz" % wal_name
 
-        elif self.compression == 'bzip2':
+        elif self.compression == "bzip2":
             # add bz2 extension
             return "%s.bz2" % wal_name
         else:
             raise ValueError("Unknown compression type: %s" % self.compression)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

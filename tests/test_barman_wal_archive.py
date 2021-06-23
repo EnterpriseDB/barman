@@ -54,12 +54,11 @@ def pipe_helper():
 
 # noinspection PyMethodMayBeStatic
 class TestMain(object):
-
-    @mock.patch('barman.clients.walarchive.subprocess.Popen')
+    @mock.patch("barman.clients.walarchive.subprocess.Popen")
     def test_ok(self, popen_mock, tmpdir):
         # Prepare some content
-        source = tmpdir.join('wal_dir/000000080000ABFF000000C1')
-        source.write('something', ensure=True)
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something", ensure=True)
         source_hash = source.computehash()
 
         # Prepare the fake Pipe
@@ -67,176 +66,200 @@ class TestMain(object):
         popen_mock.return_value.stdin = input_mock
         popen_mock.return_value.returncode = 0
 
-        walarchive.main(['-c', '/etc/bwa.conf', '-U', 'user', 'a.host',
-                         'a-server', source.strpath])
+        walarchive.main(
+            ["-c", "/etc/bwa.conf", "-U", "user", "a.host", "a-server", source.strpath]
+        )
 
         popen_mock.assert_called_once_with(
-            ['ssh', '-q', '-T', 'user@a.host',
-             'barman', "--config='/etc/bwa.conf'", 'put-wal', 'a-server'],
-            stdin=subprocess.PIPE)
+            [
+                "ssh",
+                "-q",
+                "-T",
+                "user@a.host",
+                "barman",
+                "--config='/etc/bwa.conf'",
+                "put-wal",
+                "a-server",
+            ],
+            stdin=subprocess.PIPE,
+        )
 
         # Verify the tar content
-        tar = tarfile.open(mode='r|', fileobj=output_mock)
+        tar = tarfile.open(mode="r|", fileobj=output_mock)
         first = tar.next()
         with closing(tar.extractfile(first)) as fp:
             first_content = fp.read().decode()
-        assert first.name == '000000080000ABFF000000C1'
-        assert first_content == 'something'
+        assert first.name == "000000080000ABFF000000C1"
+        assert first_content == "something"
         second = tar.next()
         with closing(tar.extractfile(second)) as fp:
             second_content = fp.read().decode()
-        assert second.name == 'MD5SUMS'
-        assert second_content == \
-            '%s *000000080000ABFF000000C1\n' % source_hash
+        assert second.name == "MD5SUMS"
+        assert second_content == "%s *000000080000ABFF000000C1\n" % source_hash
         assert tar.next() is None
 
-    @mock.patch('barman.clients.walarchive.RemotePutWal')
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
     def test_error_dir(self, rpw_mock, tmpdir, capsys):
 
         with pytest.raises(SystemExit) as exc:
-            walarchive.main(['a.host', 'a-server', tmpdir.strpath])
+            walarchive.main(["a.host", "a-server", tmpdir.strpath])
 
         assert exc.value.code == 2
         assert not rpw_mock.called
         out, err = capsys.readouterr()
         assert not out
-        assert 'WAL_PATH cannot be a directory' in err
+        assert "WAL_PATH cannot be a directory" in err
 
-    @mock.patch('barman.clients.walarchive.RemotePutWal')
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
     def test_error_io(self, rpw_mock, tmpdir, capsys):
         # Prepare some content
-        source = tmpdir.join('wal_dir/000000080000ABFF000000C1')
-        source.write('something', ensure=True)
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something", ensure=True)
 
         rpw_mock.side_effect = EnvironmentError
 
         with pytest.raises(SystemExit) as exc:
-            walarchive.main(['a.host', 'a-server', source.strpath])
+            walarchive.main(["a.host", "a-server", source.strpath])
 
         assert exc.value.code == 2
         out, err = capsys.readouterr()
         assert not out
-        assert 'Error executing ssh' in err
+        assert "Error executing ssh" in err
 
-    @mock.patch('barman.clients.walarchive.RemotePutWal')
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
     def test_error_ssh(self, rpw_mock, tmpdir, capsys):
         # Prepare some content
-        source = tmpdir.join('wal_dir/000000080000ABFF000000C1')
-        source.write('something', ensure=True)
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something", ensure=True)
 
         rpw_mock.return_value.returncode = 255
 
         with pytest.raises(SystemExit) as exc:
-            walarchive.main(['a.host', 'a-server', source.strpath])
+            walarchive.main(["a.host", "a-server", source.strpath])
 
         assert exc.value.code == 3
         out, err = capsys.readouterr()
         assert not out
-        assert 'Connection problem with ssh' in err
+        assert "Connection problem with ssh" in err
 
-    @mock.patch('barman.clients.walarchive.RemotePutWal')
+    @mock.patch("barman.clients.walarchive.RemotePutWal")
     def test_error_barman(self, rpw_mock, tmpdir, capsys):
         # Prepare some content
-        source = tmpdir.join('wal_dir/000000080000ABFF000000C1')
-        source.write('something', ensure=True)
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something", ensure=True)
 
         rpw_mock.return_value.returncode = 1
 
         with pytest.raises(SystemExit) as exc:
-            walarchive.main(['a.host', 'a-server', source.strpath])
+            walarchive.main(["a.host", "a-server", source.strpath])
 
         assert exc.value.code == 1
         out, err = capsys.readouterr()
         assert not out
         assert "Remote 'barman put-wal' command has failed" in err
 
-    @mock.patch('barman.clients.walarchive.subprocess.Popen')
+    @mock.patch("barman.clients.walarchive.subprocess.Popen")
     def test_connectivity_test_ok(self, popen_mock, capsys):
 
-        popen_mock.return_value.communicate.return_value = ('Good test!', '')
+        popen_mock.return_value.communicate.return_value = ("Good test!", "")
 
         with pytest.raises(SystemExit) as exc:
-            walarchive.main(['a.host', 'a-server', '--test', 'dummy_wal'])
+            walarchive.main(["a.host", "a-server", "--test", "dummy_wal"])
 
         assert exc.value.code == 0
         out, err = capsys.readouterr()
         assert "Good test!" in out
         assert not err
 
-    @mock.patch('barman.clients.walarchive.subprocess.Popen')
+    @mock.patch("barman.clients.walarchive.subprocess.Popen")
     def test_connectivity_test_error(self, popen_mock, capsys):
 
-        popen_mock.return_value.communicate.side_effect = subprocess.\
-            CalledProcessError(255, "remote barman")
+        popen_mock.return_value.communicate.side_effect = subprocess.CalledProcessError(
+            255, "remote barman"
+        )
 
         with pytest.raises(SystemExit) as exc:
-            walarchive.main(['a.host', 'a-server', '--test', 'dummy_wal'])
+            walarchive.main(["a.host", "a-server", "--test", "dummy_wal"])
 
         assert exc.value.code == 2
         out, err = capsys.readouterr()
         assert not out
-        assert ("ERROR: Impossible to invoke remote put-wal: "
-                "Command 'remote barman' returned non-zero "
-                "exit status 255") in err
+        assert (
+            "ERROR: Impossible to invoke remote put-wal: "
+            "Command 'remote barman' returned non-zero "
+            "exit status 255"
+        ) in err
 
 
 # noinspection PyMethodMayBeStatic
 class TestRemotePutWal(object):
-
-    @mock.patch('barman.clients.walarchive.subprocess.Popen')
+    @mock.patch("barman.clients.walarchive.subprocess.Popen")
     def test_str_source_file(self, popen_mock, tmpdir):
         input_mock, output_mock = pipe_helper()
 
         popen_mock.return_value.stdin = input_mock
         popen_mock.return_value.returncode = 0
         config = mock.Mock(
-            user='barman',
-            barman_host='remote.barman.host',
+            user="barman",
+            barman_host="remote.barman.host",
             config=None,
-            server_name='this-server',
-            test=False)
-        source_file = tmpdir.join('test-source/000000010000000000000001')
+            server_name="this-server",
+            test=False,
+        )
+        source_file = tmpdir.join("test-source/000000010000000000000001")
         source_file.write("test-content", ensure=True)
         source_path = source_file.strpath
 
         # In python2 the source_path can be an unicode object
-        if hasattr(source_path, 'decode'):
+        if hasattr(source_path, "decode"):
             source_path = source_path.decode()
 
         rpw = walarchive.RemotePutWal(config, source_path)
 
         popen_mock.assert_called_once_with(
-            ['ssh', '-q', '-T', 'barman@remote.barman.host',
-             'barman', 'put-wal', 'this-server'], stdin=subprocess.PIPE)
+            [
+                "ssh",
+                "-q",
+                "-T",
+                "barman@remote.barman.host",
+                "barman",
+                "put-wal",
+                "this-server",
+            ],
+            stdin=subprocess.PIPE,
+        )
 
         assert rpw.returncode == 0
 
-        tar = tarfile.open(mode='r|', fileobj=output_mock)
+        tar = tarfile.open(mode="r|", fileobj=output_mock)
         first = tar.next()
         with closing(tar.extractfile(first)) as fp:
             first_content = fp.read().decode()
-        assert first.name == '000000010000000000000001'
-        assert first_content == 'test-content'
+        assert first.name == "000000010000000000000001"
+        assert first_content == "test-content"
         second = tar.next()
         with closing(tar.extractfile(second)) as fp:
             second_content = fp.read().decode()
-        assert second.name == 'MD5SUMS'
-        assert second_content == \
-            '%s *000000010000000000000001\n' % source_file.computehash('md5')
+        assert second.name == "MD5SUMS"
+        assert (
+            second_content
+            == "%s *000000010000000000000001\n" % source_file.computehash("md5")
+        )
         assert tar.next() is None
 
-    @mock.patch('barman.clients.walarchive.subprocess.Popen')
+    @mock.patch("barman.clients.walarchive.subprocess.Popen")
     def test_error(self, popen_mock, tmpdir):
         input_mock = BytesIO()
 
         popen_mock.return_value.stdin = input_mock
         config = mock.Mock(
-            user='barman',
-            barman_host='remote.barman.host',
+            user="barman",
+            barman_host="remote.barman.host",
             config=None,
-            server_name='this-server',
-            test=False)
-        source_file = tmpdir.join('test-source/000000010000000000000001')
+            server_name="this-server",
+            test=False,
+        )
+        source_file = tmpdir.join("test-source/000000010000000000000001")
         source_file.write("test-content", ensure=True)
         source_path = source_file.strpath
 
@@ -244,32 +267,41 @@ class TestRemotePutWal(object):
         popen_mock.return_value.returncode = 5
 
         # In python2 the source_path can be an unicode object
-        if hasattr(source_path, 'decode'):
+        if hasattr(source_path, "decode"):
             source_path = source_path.decode()
 
         rwa = walarchive.RemotePutWal(config, source_path)
 
         popen_mock.assert_called_once_with(
-            ['ssh', '-q', '-T', 'barman@remote.barman.host',
-             'barman', 'put-wal', 'this-server'], stdin=subprocess.PIPE)
+            [
+                "ssh",
+                "-q",
+                "-T",
+                "barman@remote.barman.host",
+                "barman",
+                "put-wal",
+                "this-server",
+            ],
+            stdin=subprocess.PIPE,
+        )
 
         assert rwa.returncode == 5
 
 
 # noinspection PyMethodMayBeStatic
 class TestChecksumTarFile(object):
-
     def test_tar(self, tmpdir):
         # Prepare some content
-        source = tmpdir.join('source.file')
-        source.write('something', ensure=True)
+        source = tmpdir.join("source.file")
+        source.write("something", ensure=True)
         source.setmtime(source.mtime() - 100)  # Set mtime to 100 seconds ago
         source_hash = source.computehash()
 
         # Write the content in a tar file
-        storage = tmpdir.join('storage.tar')
-        with closing(walarchive.ChecksumTarFile.open(
-                storage.strpath, mode='w:')) as tar:
+        storage = tmpdir.join("storage.tar")
+        with closing(
+            walarchive.ChecksumTarFile.open(storage.strpath, mode="w:")
+        ) as tar:
             tar.add(source.strpath, source.basename)
             checksum = tar.members[0].data_checksum
             assert checksum == source_hash
@@ -277,16 +309,16 @@ class TestChecksumTarFile(object):
         # Double close should not give any issue
         tar.close()
 
-        lab = tmpdir.join('lab').ensure(dir=True)
-        tar = tarfile.open(storage.strpath, mode='r:')
+        lab = tmpdir.join("lab").ensure(dir=True)
+        tar = tarfile.open(storage.strpath, mode="r:")
         tar.extractall(lab.strpath)
         tar.close()
 
         dest_file = lab.join(source.basename)
-        sum_file = lab.join('MD5SUMS')
+        sum_file = lab.join("MD5SUMS")
         sums = {}
         for line in sum_file.readlines():
-            checksum, name = re.split(r' [* ]', line.rstrip(), 1)
+            checksum, name = re.split(r" [* ]", line.rstrip(), 1)
             sums[name] = checksum
 
         assert list(sums.keys()) == [source.basename]
@@ -297,7 +329,7 @@ class TestChecksumTarFile(object):
         assert round(dest_file.mtime(), 2) == round(source.mtime(), 2)
 
     @pytest.mark.parametrize(
-        ['size', 'mode'],
+        ["size", "mode"],
         [
             [0, 0],
             [10, None],
@@ -308,7 +340,8 @@ class TestChecksumTarFile(object):
             [32 * 1024 - 1, -1],
             [32 * 1024 - 1, 0],
             [32 * 1024 - 1, 1],
-        ])
+        ],
+    )
     def test_md5copyfileobj(self, size, mode):
         """
         Test md5copyfileobj different size.
@@ -339,7 +372,7 @@ class TestChecksumTarFile(object):
             else:
                 # Copy only a portion of the file
                 md5 = walarchive.md5copyfileobj(src, dst, size + mode)
-                src_string = src_string[0:size + mode]
+                src_string = src_string[0 : size + mode]
 
             # Validate the content and the checksum
             assert dst.getvalue() == src_string

@@ -29,8 +29,7 @@ from contextlib import closing
 
 import barman.infofile
 from barman.command_wrappers import Command
-from barman.exceptions import (CommandFailedException,
-                               CompressionIncompatibility)
+from barman.exceptions import CommandFailedException, CompressionIncompatibility
 from barman.utils import force_str, with_metaclass
 
 _logger = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ class CompressionManager(object):
 
         # If Barman is set to use the custom compression, it assumes that
         # every unidentified file is custom compressed
-        if self.config.compression == 'custom':
+        if self.config.compression == "custom":
             self.unidentified_compression = self.config.compression
 
     def check(self, compression=None):
@@ -76,7 +75,8 @@ class CompressionManager(object):
         # Check if the requested compression mechanism is allowed
         if compression and self.check(compression):
             return compression_registry[compression](
-                config=self.config, compression=compression, path=self.path)
+                config=self.config, compression=compression, path=self.path
+            )
         return None
 
     def get_wal_file_info(self, filename):
@@ -91,8 +91,8 @@ class CompressionManager(object):
         :rtype: barman.infofile.WalFileInfo
         """
         return barman.infofile.WalFileInfo.from_file(
-            filename,
-            self.unidentified_compression)
+            filename, self.unidentified_compression
+        )
 
 
 def identify_compression(filename):
@@ -105,7 +105,7 @@ def identify_compression(filename):
     # TODO: manage multiple decompression methods for the same
     # compression algorithm (e.g. what to do when gzip is detected?
     # should we use gzip or pigz?)
-    with open(filename, 'rb') as f:
+    with open(filename, "rb") as f:
         file_start = f.read(MAGIC_MAX_LENGTH)
     for file_type, cls in sorted(compression_registry.items()):
         if cls.validate(file_start):
@@ -162,8 +162,7 @@ class CommandCompressor(Compressor):
     """
 
     def __init__(self, config, compression, path=None):
-        super(CommandCompressor, self).__init__(
-            config, compression, path)
+        super(CommandCompressor, self).__init__(config, compression, path)
 
         self._compress = None
         self._decompress = None
@@ -193,10 +192,10 @@ class CommandCompressor(Compressor):
         :param pipe_command: the command used to compress/decompress
         :rtype: Command
         """
-        command = 'barman_command(){ '
+        command = "barman_command(){ "
         command += pipe_command
         command += ' > "$2" < "$1"'
-        command += ';}; barman_command'
+        command += ";}; barman_command"
         return Command(command, shell=True, check=True, path=self.path)
 
 
@@ -213,13 +212,12 @@ class InternalCompressor(Compressor):
         :param dst: destination of the decompression
         """
         try:
-            with open(src, 'rb') as istream:
+            with open(src, "rb") as istream:
                 with closing(self._compressor(dst)) as ostream:
                     shutil.copyfileobj(istream, ostream)
         except Exception as e:
             # you won't get more information from the compressors anyway
-            raise CommandFailedException(dict(
-                ret=None, err=force_str(e), out=None))
+            raise CommandFailedException(dict(ret=None, err=force_str(e), out=None))
         return 0
 
     def decompress(self, src, dst):
@@ -231,12 +229,11 @@ class InternalCompressor(Compressor):
         """
         try:
             with closing(self._decompressor(src)) as istream:
-                with open(dst, 'wb') as ostream:
+                with open(dst, "wb") as ostream:
                     shutil.copyfileobj(istream, ostream)
         except Exception as e:
             # you won't get more information from the compressors anyway
-            raise CommandFailedException(dict(
-                ret=None, err=force_str(e), out=None))
+            raise CommandFailedException(dict(ret=None, err=force_str(e), out=None))
         return 0
 
     @abstractmethod
@@ -263,13 +260,12 @@ class GZipCompressor(CommandCompressor):
     Predefined compressor with GZip
     """
 
-    MAGIC = b'\x1f\x8b\x08'
+    MAGIC = b"\x1f\x8b\x08"
 
     def __init__(self, config, compression, path=None):
-        super(GZipCompressor, self).__init__(
-            config, compression, path)
-        self._compress = self._build_command('gzip -c')
-        self._decompress = self._build_command('gzip -c -d')
+        super(GZipCompressor, self).__init__(config, compression, path)
+        self._compress = self._build_command("gzip -c")
+        self._decompress = self._build_command("gzip -c -d")
 
 
 class PyGZipCompressor(InternalCompressor):
@@ -277,20 +273,19 @@ class PyGZipCompressor(InternalCompressor):
     Predefined compressor that uses GZip Python libraries
     """
 
-    MAGIC = b'\x1f\x8b\x08'
+    MAGIC = b"\x1f\x8b\x08"
 
     def __init__(self, config, compression, path=None):
-        super(PyGZipCompressor, self).__init__(
-            config, compression, path)
+        super(PyGZipCompressor, self).__init__(config, compression, path)
 
         # Default compression level used in system gzip utility
         self._level = -1  # Z_DEFAULT_COMPRESSION constant of zlib
 
     def _compressor(self, name):
-        return gzip.GzipFile(name, mode='wb', compresslevel=self._level)
+        return gzip.GzipFile(name, mode="wb", compresslevel=self._level)
 
     def _decompressor(self, name):
-        return gzip.GzipFile(name, mode='rb')
+        return gzip.GzipFile(name, mode="rb")
 
 
 class PigzCompressor(CommandCompressor):
@@ -301,13 +296,12 @@ class PigzCompressor(CommandCompressor):
     class is the same
     """
 
-    MAGIC = b'\x1f\x8b\x08'
+    MAGIC = b"\x1f\x8b\x08"
 
     def __init__(self, config, compression, path=None):
-        super(PigzCompressor, self).__init__(
-            config, compression, path)
-        self._compress = self._build_command('pigz -c')
-        self._decompress = self._build_command('pigz -c -d')
+        super(PigzCompressor, self).__init__(config, compression, path)
+        self._compress = self._build_command("pigz -c")
+        self._decompress = self._build_command("pigz -c -d")
 
 
 class BZip2Compressor(CommandCompressor):
@@ -315,13 +309,12 @@ class BZip2Compressor(CommandCompressor):
     Predefined compressor with BZip2
     """
 
-    MAGIC = b'\x42\x5a\x68'
+    MAGIC = b"\x42\x5a\x68"
 
     def __init__(self, config, compression, path=None):
-        super(BZip2Compressor, self).__init__(
-            config, compression, path)
-        self._compress = self._build_command('bzip2 -c')
-        self._decompress = self._build_command('bzip2 -c -d')
+        super(BZip2Compressor, self).__init__(config, compression, path)
+        self._compress = self._build_command("bzip2 -c")
+        self._decompress = self._build_command("bzip2 -c -d")
 
 
 class PyBZip2Compressor(InternalCompressor):
@@ -329,20 +322,19 @@ class PyBZip2Compressor(InternalCompressor):
     Predefined compressor with BZip2 Python libraries
     """
 
-    MAGIC = b'\x42\x5a\x68'
+    MAGIC = b"\x42\x5a\x68"
 
     def __init__(self, config, compression, path=None):
-        super(PyBZip2Compressor, self).__init__(
-            config, compression, path)
+        super(PyBZip2Compressor, self).__init__(config, compression, path)
 
         # Default compression level used in system gzip utility
         self._level = 9
 
     def _compressor(self, name):
-        return bz2.BZ2File(name, mode='wb', compresslevel=self._level)
+        return bz2.BZ2File(name, mode="wb", compresslevel=self._level)
 
     def _decompressor(self, name):
-        return bz2.BZ2File(name, mode='rb')
+        return bz2.BZ2File(name, mode="rb")
 
 
 class CustomCompressor(CommandCompressor):
@@ -356,12 +348,9 @@ class CustomCompressor(CommandCompressor):
         if not config.custom_decompression_filter:
             raise CompressionIncompatibility("custom_decompression_filter")
 
-        super(CustomCompressor, self).__init__(
-            config, compression, path)
-        self._compress = self._build_command(
-            config.custom_compression_filter)
-        self._decompress = self._build_command(
-            config.custom_decompression_filter)
+        super(CustomCompressor, self).__init__(config, compression, path)
+        self._compress = self._build_command(config.custom_compression_filter)
+        self._decompress = self._build_command(config.custom_decompression_filter)
 
 
 # a dictionary mapping all supported compression schema
@@ -369,14 +358,13 @@ class CustomCompressor(CommandCompressor):
 # WARNING: items in this dictionary are extracted using alphabetical order
 # It's important that gzip and bzip2 are positioned before their variants
 compression_registry = {
-    'gzip': GZipCompressor,
-    'pigz': PigzCompressor,
-    'bzip2': BZip2Compressor,
-    'pygzip': PyGZipCompressor,
-    'pybzip2': PyBZip2Compressor,
-    'custom': CustomCompressor,
+    "gzip": GZipCompressor,
+    "pigz": PigzCompressor,
+    "bzip2": BZip2Compressor,
+    "pygzip": PyGZipCompressor,
+    "pybzip2": PyBZip2Compressor,
+    "custom": CustomCompressor,
 }
 
 #: The longest string needed to identify a compression schema
-MAGIC_MAX_LENGTH = max(len(x.MAGIC or '')
-                       for x in compression_registry.values())
+MAGIC_MAX_LENGTH = max(len(x.MAGIC or "") for x in compression_registry.values())

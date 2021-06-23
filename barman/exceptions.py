@@ -59,12 +59,12 @@ class WALFileException(BarmanException):
     """
     Base exception for all the errors related to WAL files.
     """
+
     def __str__(self):
         """
         Human readable string representation
         """
-        return "%s:%s" % (self.__class__.__name__,
-                          self.args[0] if self.args else None)
+        return "%s:%s" % (self.__class__.__name__, self.args[0] if self.args else None)
 
 
 class HookScriptException(BarmanException):
@@ -172,12 +172,13 @@ class DataTransferFailure(CommandException):
         try:
             details = msg
             details += "\n%s error:\n" % cmd
-            details += e.args[0]['out']
-            details += e.args[0]['err']
+            details += e.args[0]["out"]
+            details += e.args[0]["err"]
             return cls(details)
         except (TypeError, NameError):
             # If it is not a dictionary just convert it to a string
             from barman.utils import force_str
+
             return cls(force_str(e.args))
 
 
@@ -221,13 +222,15 @@ class PostgresConnectionError(PostgresException):
     """
     Error connecting to the PostgreSQL server
     """
+
     def __str__(self):
         # Returns the first line
         if self.args and self.args[0]:
             from barman.utils import force_str
+
             return force_str(self.args[0]).splitlines()[0].strip()
         else:
-            return ''
+            return ""
 
 
 class PostgresAppNameError(PostgresConnectionError):
@@ -317,6 +320,7 @@ class AbortedRetryHookScript(HookScriptException):
     """
     Exception for handling abort of retry hook scripts
     """
+
     def __init__(self, hook):
         """
         Initialise the exception with hook script info
@@ -327,9 +331,12 @@ class AbortedRetryHookScript(HookScriptException):
         """
         String representation
         """
-        return ("Abort '%s_%s' retry hook script (%s, exit code: %d)" % (
-                self.hook.phase, self.hook.name,
-                self.hook.script, self.hook.exit_status))
+        return "Abort '%s_%s' retry hook script (%s, exit code: %d)" % (
+            self.hook.phase,
+            self.hook.name,
+            self.hook.script,
+            self.hook.exit_status,
+        )
 
 
 class RecoveryException(BarmanException):

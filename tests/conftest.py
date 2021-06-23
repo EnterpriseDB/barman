@@ -31,7 +31,7 @@ def default_session_fixture(request):
     :return:
     """
     logging.info("Patching barman.postgres.psycopg2.connect")
-    connect_patch = mock.patch('barman.postgres.psycopg2.connect')
+    connect_patch = mock.patch("barman.postgres.psycopg2.connect")
     connect_mock = connect_patch.__enter__()
     connect_mock.side_effect = psycopg2.DatabaseError
 

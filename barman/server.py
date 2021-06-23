@@ -39,43 +39,65 @@ from barman import output, xlog
 from barman.backup import BackupManager
 from barman.command_wrappers import BarmanSubProcess, Command, Rsync
 from barman.copy_controller import RsyncCopyController
-from barman.exceptions import (ArchiverFailure, BadXlogSegmentName,
-                               CommandFailedException, ConninfoException,
-                               LockFileBusy, LockFileException,
-                               LockFilePermissionDenied,
-                               PostgresDuplicateReplicationSlot,
-                               PostgresException,
-                               PostgresInvalidReplicationSlot,
-                               PostgresIsInRecovery,
-                               PostgresReplicationSlotInUse,
-                               PostgresReplicationSlotsFull,
-                               PostgresSuperuserRequired,
-                               PostgresUnsupportedFeature, SyncError,
-                               SyncNothingToDo, SyncToBeDeleted, TimeoutError,
-                               UnknownBackupIdException)
+from barman.exceptions import (
+    ArchiverFailure,
+    BadXlogSegmentName,
+    CommandFailedException,
+    ConninfoException,
+    LockFileBusy,
+    LockFileException,
+    LockFilePermissionDenied,
+    PostgresDuplicateReplicationSlot,
+    PostgresException,
+    PostgresInvalidReplicationSlot,
+    PostgresIsInRecovery,
+    PostgresReplicationSlotInUse,
+    PostgresReplicationSlotsFull,
+    PostgresSuperuserRequired,
+    PostgresUnsupportedFeature,
+    SyncError,
+    SyncNothingToDo,
+    SyncToBeDeleted,
+    TimeoutError,
+    UnknownBackupIdException,
+)
 from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
-from barman.lockfile import (ServerBackupIdLock, ServerBackupLock,
-                             ServerBackupSyncLock, ServerCronLock,
-                             ServerWalArchiveLock, ServerWalReceiveLock,
-                             ServerWalSyncLock, ServerXLOGDBLock)
+from barman.lockfile import (
+    ServerBackupIdLock,
+    ServerBackupLock,
+    ServerBackupSyncLock,
+    ServerCronLock,
+    ServerWalArchiveLock,
+    ServerWalReceiveLock,
+    ServerWalSyncLock,
+    ServerXLOGDBLock,
+)
 from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory
-from barman.utils import (BarmanEncoder, file_md5, force_str, fsync_dir,
-                          fsync_file, human_readable_timedelta,
-                          is_power_of_two, mkpath, pretty_size, timeout)
-from barman.wal_archiver import (FileWalArchiver, StreamingWalArchiver,
-                                 WalArchiver)
+from barman.utils import (
+    BarmanEncoder,
+    file_md5,
+    force_str,
+    fsync_dir,
+    fsync_file,
+    human_readable_timedelta,
+    is_power_of_two,
+    mkpath,
+    pretty_size,
+    timeout,
+)
+from barman.wal_archiver import FileWalArchiver, StreamingWalArchiver, WalArchiver
 
-PARTIAL_EXTENSION = '.partial'
-PRIMARY_INFO_FILE = 'primary.info'
-SYNC_WALS_INFO_FILE = 'sync-wals.info'
+PARTIAL_EXTENSION = ".partial"
+PRIMARY_INFO_FILE = "primary.info"
+SYNC_WALS_INFO_FILE = "sync-wals.info"
 
 _logger = logging.getLogger(__name__)
 
 # NamedTuple for a better readability of SyncWalInfo
-SyncWalInfo = namedtuple('SyncWalInfo', 'last_wal last_position')
+SyncWalInfo = namedtuple("SyncWalInfo", "last_wal last_position")
 
 
 class CheckStrategy(object):
@@ -88,18 +110,19 @@ class CheckStrategy(object):
     """
 
     # create a namedtuple object called CheckResult to manage check results
-    CheckResult = namedtuple('CheckResult', 'server_name check status')
+    CheckResult = namedtuple("CheckResult", "server_name check status")
 
     # Default list used as a filter to identify non-critical checks
-    NON_CRITICAL_CHECKS = ['minimum redundancy requirements',
-                           'backup maximum age',
-                           'failed backups',
-                           'archiver errors',
-                           'empty incoming directory',
-                           'empty streaming directory',
-                           'incoming WALs directory',
-                           'streaming WALs directory',
-                           ]
+    NON_CRITICAL_CHECKS = [
+        "minimum redundancy requirements",
+        "backup maximum age",
+        "failed backups",
+        "archiver errors",
+        "empty incoming directory",
+        "empty streaming directory",
+        "incoming WALs directory",
+        "streaming WALs directory",
+    ]
 
     def __init__(self, ignore_checks=NON_CRITICAL_CHECKS):
         """
@@ -145,17 +168,15 @@ class CheckStrategy(object):
             if check not in self.ignore_list:
                 self.has_error = True
                 _logger.error(
-                    "Check '%s' failed for server '%s'" %
-                    (check, server_name))
+                    "Check '%s' failed for server '%s'" % (check, server_name)
+                )
             else:
                 # otherwise simply log the error (as info)
                 _logger.info(
-                    "Ignoring failed check '%s' for server '%s'" %
-                    (check, server_name))
+                    "Ignoring failed check '%s' for server '%s'" % (check, server_name)
+                )
         else:
-            _logger.debug(
-                "Check '%s' succeeded for server '%s'" %
-                (check, server_name))
+            _logger.debug("Check '%s' succeeded for server '%s'" % (check, server_name))
 
         # Store the result and does not output anything
         result = self.CheckResult(server_name, check, status)
@@ -189,10 +210,9 @@ class CheckOutputStrategy(CheckStrategy):
         :param str,None hint: hint to print if not None:
         """
         check = self._check_name(check)
-        super(CheckOutputStrategy, self).result(
-            server_name, status, hint, check)
+        super(CheckOutputStrategy, self).result(server_name, status, hint, check)
         # Send result to output
-        output.result('check', server_name, check, status, hint)
+        output.result("check", server_name, check, status, hint)
 
 
 class Server(RemoteStatusMixin):
@@ -232,34 +252,34 @@ class Server(RemoteStatusMixin):
                 # Check that 'conninfo' option is properly set
                 if config.conninfo is None:
                     raise ConninfoException(
-                        "Missing 'conninfo' parameter for server '%s'" %
-                        config.name)
+                        "Missing 'conninfo' parameter for server '%s'" % config.name
+                    )
                 self.postgres = PostgreSQLConnection(
-                    config.conninfo,
-                    config.immediate_checkpoint,
-                    config.slot_name)
+                    config.conninfo, config.immediate_checkpoint, config.slot_name
+                )
             # If the PostgreSQLConnection creation fails, disable the Server
             except ConninfoException as e:
                 self.config.disabled = True
                 self.config.msg_list.append(
-                    "PostgreSQL connection: " + force_str(e).strip())
+                    "PostgreSQL connection: " + force_str(e).strip()
+                )
 
             # Initialize the streaming PostgreSQL connection only when
             # backup_method is postgres or the streaming_archiver is in use
-            if config.backup_method == 'postgres' or config.streaming_archiver:
+            if config.backup_method == "postgres" or config.streaming_archiver:
                 try:
                     if config.streaming_conninfo is None:
                         raise ConninfoException(
                             "Missing 'streaming_conninfo' parameter for "
-                            "server '%s'"
-                            % config.name)
-                    self.streaming = StreamingConnection(
-                        config.streaming_conninfo)
+                            "server '%s'" % config.name
+                        )
+                    self.streaming = StreamingConnection(config.streaming_conninfo)
                 # If the StreamingConnection creation fails, disable the server
                 except ConninfoException as e:
                     self.config.disabled = True
                     self.config.msg_list.append(
-                        "Streaming connection: " + force_str(e).strip())
+                        "Streaming connection: " + force_str(e).strip()
+                    )
 
         # Initialize the backup manager
         self.backup_manager = BackupManager(self)
@@ -270,15 +290,15 @@ class Server(RemoteStatusMixin):
             # The files will be archived in that order.
             if self.config.streaming_archiver:
                 try:
-                    self.archivers.append(StreamingWalArchiver(
-                        self.backup_manager))
+                    self.archivers.append(StreamingWalArchiver(self.backup_manager))
                 # If the StreamingWalArchiver creation fails,
                 # disable the server
                 except AttributeError as e:
                     _logger.debug(e)
                     self.config.disabled = True
-                    self.config.msg_list.append('Unable to initialise the '
-                                                'streaming archiver')
+                    self.config.msg_list.append(
+                        "Unable to initialise the " "streaming archiver"
+                    )
 
             # IMPORTANT: The following lines of code have been
             # temporarily commented in order to make the code
@@ -299,13 +319,16 @@ class Server(RemoteStatusMixin):
             # Sanity check: if file based archiver is disabled, and only
             # WAL streaming is enabled, a replication slot name must be
             # configured.
-            if not self.config.archiver and \
-                    self.config.streaming_archiver and \
-                    self.config.slot_name is None:
+            if (
+                not self.config.archiver
+                and self.config.streaming_archiver
+                and self.config.slot_name is None
+            ):
                 self.config.disabled = True
                 self.config.msg_list.append(
                     "Streaming-only archiver requires 'streaming_conninfo' "
-                    "and 'slot_name' options to be properly configured")
+                    "and 'slot_name' options to be properly configured"
+                )
 
             # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
             # IMPORTANT: This is a back-compatibility feature that has
@@ -320,12 +343,16 @@ class Server(RemoteStatusMixin):
             # this block completely and reinstate the block of code you find
             # a few lines below (search for ARCHIVER_OFF_BACKCOMPATIBILITY
             # throughout the code).
-            if self.config.archiver is False and \
-                    self.config.streaming_archiver is False:
-                output.warning("No archiver enabled for server '%s'. "
-                               "Please turn on 'archiver', "
-                               "'streaming_archiver' or both",
-                               self.config.name)
+            if (
+                self.config.archiver is False
+                and self.config.streaming_archiver is False
+            ):
+                output.warning(
+                    "No archiver enabled for server '%s'. "
+                    "Please turn on 'archiver', "
+                    "'streaming_archiver' or both",
+                    self.config.name,
+                )
                 output.warning("Forcing 'archiver = on'")
                 self.config.archiver = True
             # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
@@ -339,18 +366,20 @@ class Server(RemoteStatusMixin):
                 except AttributeError as e:
                     _logger.debug(e)
                     self.config.disabled = True
-                    self.config.msg_list.append('Unable to initialise the '
-                                                'file based archiver')
+                    self.config.msg_list.append(
+                        "Unable to initialise the " "file based archiver"
+                    )
 
         # Set bandwidth_limit
         if self.config.bandwidth_limit:
             try:
                 self.config.bandwidth_limit = int(self.config.bandwidth_limit)
             except ValueError:
-                _logger.warning('Invalid bandwidth_limit "%s" for server "%s" '
-                                '(fallback to "0")' % (
-                                    self.config.bandwidth_limit,
-                                    self.config.name))
+                _logger.warning(
+                    'Invalid bandwidth_limit "%s" for server "%s" '
+                    '(fallback to "0")'
+                    % (self.config.bandwidth_limit, self.config.name)
+                )
                 self.config.bandwidth_limit = None
 
         # set tablespace_bandwidth_limit
@@ -358,13 +387,14 @@ class Server(RemoteStatusMixin):
             rules = {}
             for rule in self.config.tablespace_bandwidth_limit.split():
                 try:
-                    key, value = rule.split(':', 1)
+                    key, value = rule.split(":", 1)
                     value = int(value)
                     if value != self.config.bandwidth_limit:
                         rules[key] = value
                 except ValueError:
                     _logger.warning(
-                        "Invalid tablespace_bandwidth_limit rule '%s'" % rule)
+                        "Invalid tablespace_bandwidth_limit rule '%s'" % rule
+                    )
             if len(rules) > 0:
                 self.config.tablespace_bandwidth_limit = rules
             else:
@@ -372,19 +402,19 @@ class Server(RemoteStatusMixin):
 
         # Set minimum redundancy (default 0)
         if self.config.minimum_redundancy.isdigit():
-            self.config.minimum_redundancy = int(
-                self.config.minimum_redundancy)
+            self.config.minimum_redundancy = int(self.config.minimum_redundancy)
             if self.config.minimum_redundancy < 0:
-                _logger.warning('Negative value of minimum_redundancy "%s" '
-                                'for server "%s" (fallback to "0")' % (
-                                    self.config.minimum_redundancy,
-                                    self.config.name))
+                _logger.warning(
+                    'Negative value of minimum_redundancy "%s" '
+                    'for server "%s" (fallback to "0")'
+                    % (self.config.minimum_redundancy, self.config.name)
+                )
                 self.config.minimum_redundancy = 0
         else:
-            _logger.warning('Invalid minimum_redundancy "%s" for server "%s" '
-                            '(fallback to "0")' % (
-                                self.config.minimum_redundancy,
-                                self.config.name))
+            _logger.warning(
+                'Invalid minimum_redundancy "%s" for server "%s" '
+                '(fallback to "0")' % (self.config.minimum_redundancy, self.config.name)
+            )
             self.config.minimum_redundancy = 0
 
         # Initialise retention policies
@@ -393,57 +423,64 @@ class Server(RemoteStatusMixin):
     def _init_retention_policies(self):
 
         # Set retention policy mode
-        if self.config.retention_policy_mode != 'auto':
+        if self.config.retention_policy_mode != "auto":
             _logger.warning(
                 'Unsupported retention_policy_mode "%s" for server "%s" '
-                '(fallback to "auto")' % (
-                    self.config.retention_policy_mode, self.config.name))
-            self.config.retention_policy_mode = 'auto'
+                '(fallback to "auto")'
+                % (self.config.retention_policy_mode, self.config.name)
+            )
+            self.config.retention_policy_mode = "auto"
 
         # If retention_policy is present, enforce them
         if self.config.retention_policy:
             # Check wal_retention_policy
-            if self.config.wal_retention_policy != 'main':
+            if self.config.wal_retention_policy != "main":
                 _logger.warning(
                     'Unsupported wal_retention_policy value "%s" '
-                    'for server "%s" (fallback to "main")' % (
-                        self.config.wal_retention_policy, self.config.name))
-                self.config.wal_retention_policy = 'main'
+                    'for server "%s" (fallback to "main")'
+                    % (self.config.wal_retention_policy, self.config.name)
+                )
+                self.config.wal_retention_policy = "main"
             # Create retention policy objects
             try:
                 rp = RetentionPolicyFactory.create(
-                    self, 'retention_policy', self.config.retention_policy)
+                    self, "retention_policy", self.config.retention_policy
+                )
                 # Reassign the configuration value (we keep it in one place)
                 self.config.retention_policy = rp
-                _logger.debug('Retention policy for server %s: %s' % (
-                    self.config.name, self.config.retention_policy))
+                _logger.debug(
+                    "Retention policy for server %s: %s"
+                    % (self.config.name, self.config.retention_policy)
+                )
                 try:
                     rp = RetentionPolicyFactory.create(
-                        self, 'wal_retention_policy',
-                        self.config.wal_retention_policy)
+                        self, "wal_retention_policy", self.config.wal_retention_policy
+                    )
                     # Reassign the configuration value
                     # (we keep it in one place)
                     self.config.wal_retention_policy = rp
                     _logger.debug(
-                        'WAL retention policy for server %s: %s' % (
-                            self.config.name,
-                            self.config.wal_retention_policy))
+                        "WAL retention policy for server %s: %s"
+                        % (self.config.name, self.config.wal_retention_policy)
+                    )
                 except ValueError:
                     _logger.exception(
                         'Invalid wal_retention_policy setting "%s" '
-                        'for server "%s" (fallback to "main")' % (
-                            self.config.wal_retention_policy,
-                            self.config.name))
+                        'for server "%s" (fallback to "main")'
+                        % (self.config.wal_retention_policy, self.config.name)
+                    )
                     rp = RetentionPolicyFactory.create(
-                        self, 'wal_retention_policy', 'main')
+                        self, "wal_retention_policy", "main"
+                    )
                     self.config.wal_retention_policy = rp
 
                 self.enforce_retention_policies = True
 
             except ValueError:
                 _logger.exception(
-                    'Invalid retention_policy setting "%s" for server "%s"' % (
-                        self.config.retention_policy, self.config.name))
+                    'Invalid retention_policy setting "%s" for server "%s"'
+                    % (self.config.retention_policy, self.config.name)
+                )
 
     def get_identity_file_path(self):
         """
@@ -451,9 +488,7 @@ class Server(RemoteStatusMixin):
         of the cluster
         :rtype: str
         """
-        return os.path.join(
-            self.config.backup_directory,
-            'identity.json')
+        return os.path.join(self.config.backup_directory, "identity.json")
 
     def write_identity_file(self):
         """
@@ -472,16 +507,17 @@ class Server(RemoteStatusMixin):
                     json.dump(
                         {
                             "systemid": systemid,
-                            "version": self.postgres.server_major_version
+                            "version": self.postgres.server_major_version,
                         },
                         fp,
                         indent=4,
-                        sort_keys=True)
+                        sort_keys=True,
+                    )
                     fp.write("\n")
             except IOError:
                 _logger.exception(
-                    'Cannot write system Id file for server "%s"' % (
-                        self.config.name))
+                    'Cannot write system Id file for server "%s"' % (self.config.name)
+                )
 
     def read_identity_file(self):
         """
@@ -494,8 +530,8 @@ class Server(RemoteStatusMixin):
                 return json.load(fp)
         except IOError:
             _logger.exception(
-                'Cannot read system Id file for server "%s"' % (
-                    self.config.name))
+                'Cannot read system Id file for server "%s"' % (self.config.name)
+            )
             return {}
 
     def close(self):
@@ -550,11 +586,16 @@ class Server(RemoteStatusMixin):
         except TimeoutError:
             # The check timed out.
             # Add a failed entry to the check strategy for this.
-            _logger.debug("Check command timed out executing '%s' check"
-                          % check_strategy.running_check)
-            check_strategy.result(self.config.name, False,
-                                  hint='barman check command timed out',
-                                  check='check timeout')
+            _logger.debug(
+                "Check command timed out executing '%s' check"
+                % check_strategy.running_check
+            )
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint="barman check command timed out",
+                check="check timeout",
+            )
 
     def check_archive(self, check_strategy):
         """
@@ -581,18 +622,16 @@ class Server(RemoteStatusMixin):
             backup_id = self.get_last_backup_id([BackupInfo.WAITING_FOR_WALS])
             if not backup_id:
                 check_strategy.result(
-                    self.config.name, False,
-                    hint='please make sure WAL shipping is setup')
+                    self.config.name,
+                    False,
+                    hint="please make sure WAL shipping is setup",
+                )
 
         # Check the number of wals in the incoming directory
-        self._check_wal_queue(check_strategy,
-                              'incoming',
-                              'archiver')
+        self._check_wal_queue(check_strategy, "incoming", "archiver")
 
         # Check the number of wals in the streaming directory
-        self._check_wal_queue(check_strategy,
-                              'streaming',
-                              'streaming_archiver')
+        self._check_wal_queue(check_strategy, "streaming", "streaming_archiver")
 
     def _check_wal_queue(self, check_strategy, dir_name, archiver_name):
         """
@@ -610,16 +649,16 @@ class Server(RemoteStatusMixin):
 
         # Inspect the wal queue directory
         file_count = 0
-        for file_item in glob(os.path.join(incoming_dir, '*')):
+        for file_item in glob(os.path.join(incoming_dir, "*")):
             # Ignore temporary files
-            if file_item.endswith('.tmp'):
+            if file_item.endswith(".tmp"):
                 continue
             file_count += 1
         max_incoming_wal = self.config.max_incoming_wals_queue
 
         # Subtract one from the count because of .partial file inside the
         # streaming directory
-        if dir_name == 'streaming':
+        if dir_name == "streaming":
             file_count -= 1
 
         # If this archiver is disabled, check the number of files in the
@@ -630,9 +669,11 @@ class Server(RemoteStatusMixin):
         if not enabled:
             if file_count > 0:
                 check_strategy.result(
-                    self.config.name, False,
+                    self.config.name,
+                    False,
                     hint="'%s' must be empty when %s=off"
-                         % (incoming_dir, archiver_name))
+                    % (incoming_dir, archiver_name),
+                )
             # No more checks are required if the archiver
             # is not enabled
             return
@@ -643,8 +684,10 @@ class Server(RemoteStatusMixin):
             return
         check_strategy.init_check("%s WALs directory" % dir_name)
         if file_count > max_incoming_wal:
-            msg = 'there are too many WALs in queue: ' \
-                  '%s, max %s' % (file_count, max_incoming_wal)
+            msg = "there are too many WALs in queue: " "%s, max %s" % (
+                file_count,
+                max_incoming_wal,
+            )
             check_strategy.result(self.config.name, False, hint=msg)
 
     def check_postgres(self, check_strategy):
@@ -654,10 +697,10 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        check_strategy.init_check('PostgreSQL')
+        check_strategy.init_check("PostgreSQL")
         # Take the status of the remote server
         remote_status = self.get_remote_status()
-        if remote_status.get('server_txt_version'):
+        if remote_status.get("server_txt_version"):
             check_strategy.result(self.config.name, True)
         else:
             check_strategy.result(self.config.name, False)
@@ -665,88 +708,93 @@ class Server(RemoteStatusMixin):
 
         # Check for superuser privileges or
         # privileges needed to perform backups
-        if remote_status.get('has_backup_privileges') is not None:
+        if remote_status.get("has_backup_privileges") is not None:
             check_strategy.init_check(
-                'superuser or standard user with backup privileges')
-            if remote_status.get('has_backup_privileges'):
-                check_strategy.result(
-                    self.config.name, True)
+                "superuser or standard user with backup privileges"
+            )
+            if remote_status.get("has_backup_privileges"):
+                check_strategy.result(self.config.name, True)
             else:
                 check_strategy.result(
-                    self.config.name, False,
-                    hint='privileges for PostgreSQL backup functions are '
-                         'required (see documentation)',
-                    check='no access to backup functions'
+                    self.config.name,
+                    False,
+                    hint="privileges for PostgreSQL backup functions are "
+                    "required (see documentation)",
+                    check="no access to backup functions",
                 )
 
-        if 'streaming_supported' in remote_status:
+        if "streaming_supported" in remote_status:
             check_strategy.init_check("PostgreSQL streaming")
             hint = None
 
             # If a streaming connection is available,
             # add its status to the output of the check
-            if remote_status['streaming_supported'] is None:
-                hint = remote_status['connection_error']
-            elif not remote_status['streaming_supported']:
-                hint = ('Streaming connection not supported'
-                        ' for PostgreSQL < 9.2')
-            check_strategy.result(self.config.name,
-                                  remote_status.get('streaming'), hint=hint)
+            if remote_status["streaming_supported"] is None:
+                hint = remote_status["connection_error"]
+            elif not remote_status["streaming_supported"]:
+                hint = "Streaming connection not supported" " for PostgreSQL < 9.2"
+            check_strategy.result(
+                self.config.name, remote_status.get("streaming"), hint=hint
+            )
         # Check wal_level parameter: must be different from 'minimal'
         # the parameter has been introduced in postgres >= 9.0
-        if 'wal_level' in remote_status:
+        if "wal_level" in remote_status:
             check_strategy.init_check("wal_level")
-            if remote_status['wal_level'] != 'minimal':
-                check_strategy.result(
-                    self.config.name, True)
+            if remote_status["wal_level"] != "minimal":
+                check_strategy.result(self.config.name, True)
             else:
                 check_strategy.result(
-                    self.config.name, False,
-                    hint="please set it to a higher level than 'minimal'")
+                    self.config.name,
+                    False,
+                    hint="please set it to a higher level than 'minimal'",
+                )
 
         # Check the presence and the status of the configured replication slot
         # This check will be skipped if `slot_name` is undefined
         if self.config.slot_name:
             check_strategy.init_check("replication slot")
-            slot = remote_status['replication_slot']
+            slot = remote_status["replication_slot"]
             # The streaming_archiver is enabled
             if self.config.streaming_archiver is True:
                 # Error if PostgreSQL is too old
-                if not remote_status['replication_slot_support']:
+                if not remote_status["replication_slot_support"]:
                     check_strategy.result(
                         self.config.name,
                         False,
                         hint="slot_name parameter set but PostgreSQL server "
-                             "is too old (%s < 9.4)" %
-                             remote_status['server_txt_version'])
+                        "is too old (%s < 9.4)" % remote_status["server_txt_version"],
+                    )
                 # Replication slots are supported
                 else:
                     # The slot is not present
                     if slot is None:
                         check_strategy.result(
-                            self.config.name, False,
+                            self.config.name,
+                            False,
                             hint="replication slot '%s' doesn't exist. "
-                                 "Please execute 'barman receive-wal "
-                                 "--create-slot %s'" % (self.config.slot_name,
-                                                        self.config.name))
+                            "Please execute 'barman receive-wal "
+                            "--create-slot %s'"
+                            % (self.config.slot_name, self.config.name),
+                        )
                     else:
                         # The slot is present but not initialised
                         if slot.restart_lsn is None:
                             check_strategy.result(
-                                self.config.name, False,
+                                self.config.name,
+                                False,
                                 hint="slot '%s' not initialised: is "
-                                     "'receive-wal' running?" %
-                                     self.config.slot_name)
+                                "'receive-wal' running?" % self.config.slot_name,
+                            )
                         # The slot is present but not active
                         elif slot.active is False:
                             check_strategy.result(
-                                self.config.name, False,
+                                self.config.name,
+                                False,
                                 hint="slot '%s' not active: is "
-                                     "'receive-wal' running?" %
-                                     self.config.slot_name)
+                                "'receive-wal' running?" % self.config.slot_name,
+                            )
                         else:
-                            check_strategy.result(self.config.name,
-                                                  True)
+                            check_strategy.result(self.config.name, True)
             else:
                 # If the streaming_archiver is disabled and the slot_name
                 # option is present in the configuration, we check that
@@ -754,28 +802,28 @@ class Server(RemoteStatusMixin):
                 # and NOT active.
                 # NOTE: This is not a failure, just a warning.
                 if slot is not None:
-                    if slot.restart_lsn \
-                            is not None:
-                        slot_status = 'initialised'
+                    if slot.restart_lsn is not None:
+                        slot_status = "initialised"
 
                         # Check if the slot is also active
                         if slot.active:
-                            slot_status = 'active'
+                            slot_status = "active"
 
                         # Warn the user
                         check_strategy.result(
                             self.config.name,
                             True,
                             hint="WARNING: slot '%s' is %s but not required "
-                                 "by the current config" % (
-                                     self.config.slot_name, slot_status))
+                            "by the current config"
+                            % (self.config.slot_name, slot_status),
+                        )
 
     def _make_directories(self):
         """
         Make backup directories in case they do not exist
         """
         for key in self.config.KEYS:
-            if key.endswith('_directory') and hasattr(self.config, key):
+            if key.endswith("_directory") and hasattr(self.config, key):
                 val = getattr(self.config, key)
                 if val is not None and not os.path.isdir(val):
                     # noinspection PyTypeChecker
@@ -793,8 +841,9 @@ class Server(RemoteStatusMixin):
             try:
                 self._make_directories()
             except OSError as e:
-                check_strategy.result(self.config.name, False,
-                                      "%s: %s" % (e.filename, e.strerror))
+                check_strategy.result(
+                    self.config.name, False, "%s: %s" % (e.filename, e.strerror)
+                )
             else:
                 check_strategy.result(self.config.name, True)
 
@@ -806,7 +855,7 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        check_strategy.init_check('configuration')
+        check_strategy.init_check("configuration")
         if len(self.config.msg_list):
             check_strategy.result(self.config.name, False)
             for conflict_paths in self.config.msg_list:
@@ -822,7 +871,7 @@ class Server(RemoteStatusMixin):
         check_strategy.init_check("retention policy settings")
         config = self.config
         if config.retention_policy and not self.enforce_retention_policies:
-            check_strategy.result(self.config.name, False, hint='see log')
+            check_strategy.result(self.config.name, False, hint="see log")
         else:
             check_strategy.result(self.config.name, True)
 
@@ -833,25 +882,29 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        check_strategy.init_check('backup maximum age')
+        check_strategy.init_check("backup maximum age")
         # first check: check backup maximum age
         if self.config.last_backup_maximum_age is not None:
             # get maximum age information
             backup_age = self.backup_manager.validate_last_backup_maximum_age(
-                self.config.last_backup_maximum_age)
+                self.config.last_backup_maximum_age
+            )
 
             # format the output
             check_strategy.result(
-                self.config.name, backup_age[0],
-                hint="interval provided: %s, latest backup age: %s" % (
-                    human_readable_timedelta(
-                        self.config.last_backup_maximum_age), backup_age[1]))
+                self.config.name,
+                backup_age[0],
+                hint="interval provided: %s, latest backup age: %s"
+                % (
+                    human_readable_timedelta(self.config.last_backup_maximum_age),
+                    backup_age[1],
+                ),
+            )
         else:
             # last_backup_maximum_age provided by the user
             check_strategy.result(
-                self.config.name,
-                True,
-                hint="no last_backup_maximum_age provided")
+                self.config.name, True, hint="no last_backup_maximum_age provided"
+            )
 
     def check_archiver_errors(self, check_strategy):
         """
@@ -860,7 +913,7 @@ class Server(RemoteStatusMixin):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the check
         """
-        check_strategy.init_check('archiver errors')
+        check_strategy.init_check("archiver errors")
         if os.path.isdir(self.config.errors_directory):
             errors = os.listdir(self.config.errors_directory)
         else:
@@ -869,7 +922,7 @@ class Server(RemoteStatusMixin):
         check_strategy.result(
             self.config.name,
             len(errors) == 0,
-            hint=WalArchiver.summarise_error_files(errors)
+            hint=WalArchiver.summarise_error_files(errors),
         )
 
     def check_identity(self, check_strategy):
@@ -886,8 +939,8 @@ class Server(RemoteStatusMixin):
         remote_status = self.get_remote_status()
 
         # Get system identifier from streaming and standard connections
-        systemid_from_streaming = remote_status.get('streaming_systemid')
-        systemid_from_postgres = remote_status.get('postgres_systemid')
+        systemid_from_streaming = remote_status.get("streaming_systemid")
+        systemid_from_postgres = remote_status.get("postgres_systemid")
         # If both available, makes sure they are coherent with each other
         if systemid_from_streaming and systemid_from_postgres:
             if systemid_from_streaming != systemid_from_postgres:
@@ -895,15 +948,14 @@ class Server(RemoteStatusMixin):
                     self.config.name,
                     systemid_from_streaming == systemid_from_postgres,
                     hint="is the streaming DSN targeting the same server "
-                         "of the PostgreSQL connection string?")
+                    "of the PostgreSQL connection string?",
+                )
                 return
 
-        systemid_from_server = (
-            systemid_from_streaming or systemid_from_postgres)
+        systemid_from_server = systemid_from_streaming or systemid_from_postgres
         if not systemid_from_server:
             # Can't check without system Id information
-            check_strategy.result(self.config.name, True,
-                                  hint="no system Id available")
+            check_strategy.result(self.config.name, True, hint="no system Id available")
             return
 
         # Retrieves the content on disk and matches it with the live ID
@@ -911,17 +963,19 @@ class Server(RemoteStatusMixin):
         if not os.path.exists(file_path):
             # We still don't have the systemid cached on disk,
             # so let's wait until we store it
-            check_strategy.result(self.config.name, True,
-                                  hint="no system Id stored on disk")
+            check_strategy.result(
+                self.config.name, True, hint="no system Id stored on disk"
+            )
             return
 
         identity_from_file = self.read_identity_file()
-        if systemid_from_server != identity_from_file.get('systemid'):
+        if systemid_from_server != identity_from_file.get("systemid"):
             check_strategy.result(
                 self.config.name,
                 False,
-                hint='the system Id of the connected PostgreSQL server '
-                     'changed, stored in "%s"' % file_path)
+                hint="the system Id of the connected PostgreSQL server "
+                'changed, stored in "%s"' % file_path,
+            )
         else:
             check_strategy.result(self.config.name, True)
 
@@ -930,45 +984,80 @@ class Server(RemoteStatusMixin):
         Status of PostgreSQL server
         """
         remote_status = self.get_remote_status()
-        if remote_status['server_txt_version']:
-            output.result('status', self.config.name,
-                          "pg_version",
-                          "PostgreSQL version",
-                          remote_status['server_txt_version'])
+        if remote_status["server_txt_version"]:
+            output.result(
+                "status",
+                self.config.name,
+                "pg_version",
+                "PostgreSQL version",
+                remote_status["server_txt_version"],
+            )
         else:
-            output.result('status', self.config.name,
-                          "pg_version",
-                          "PostgreSQL version",
-                          "FAILED trying to get PostgreSQL version")
+            output.result(
+                "status",
+                self.config.name,
+                "pg_version",
+                "PostgreSQL version",
+                "FAILED trying to get PostgreSQL version",
+            )
             return
         # Define the cluster state as pg_controldata do.
-        if remote_status['is_in_recovery']:
-            output.result('status', self.config.name, 'is_in_recovery',
-                          'Cluster state', "in archive recovery")
+        if remote_status["is_in_recovery"]:
+            output.result(
+                "status",
+                self.config.name,
+                "is_in_recovery",
+                "Cluster state",
+                "in archive recovery",
+            )
         else:
-            output.result('status', self.config.name, 'is_in_recovery',
-                          'Cluster state', "in production")
-        if remote_status['pgespresso_installed']:
-            output.result('status', self.config.name, 'pgespresso',
-                          'pgespresso extension', "Available")
+            output.result(
+                "status",
+                self.config.name,
+                "is_in_recovery",
+                "Cluster state",
+                "in production",
+            )
+        if remote_status["pgespresso_installed"]:
+            output.result(
+                "status",
+                self.config.name,
+                "pgespresso",
+                "pgespresso extension",
+                "Available",
+            )
         else:
-            output.result('status', self.config.name, 'pgespresso',
-                          'pgespresso extension', "Not available")
-        if remote_status.get('current_size') is not None:
-            output.result('status', self.config.name,
-                          'current_size',
-                          'Current data size',
-                          pretty_size(remote_status['current_size']))
-        if remote_status['data_directory']:
-            output.result('status', self.config.name,
-                          "data_directory",
-                          "PostgreSQL Data directory",
-                          remote_status['data_directory'])
-        if remote_status['current_xlog']:
-            output.result('status', self.config.name,
-                          "current_xlog",
-                          "Current WAL segment",
-                          remote_status['current_xlog'])
+            output.result(
+                "status",
+                self.config.name,
+                "pgespresso",
+                "pgespresso extension",
+                "Not available",
+            )
+        if remote_status.get("current_size") is not None:
+            output.result(
+                "status",
+                self.config.name,
+                "current_size",
+                "Current data size",
+                pretty_size(remote_status["current_size"]),
+            )
+        if remote_status["data_directory"]:
+            output.result(
+                "status",
+                self.config.name,
+                "data_directory",
+                "PostgreSQL Data directory",
+                remote_status["data_directory"],
+            )
+        if remote_status["current_xlog"]:
+            output.result(
+                "status",
+                self.config.name,
+                "current_xlog",
+                "Current WAL segment",
+                remote_status["current_xlog"],
+            )
 
     def status_wal_archiver(self):
         """
@@ -982,44 +1071,59 @@ class Server(RemoteStatusMixin):
         Status of retention policies enforcement
         """
         if self.enforce_retention_policies:
-            output.result('status', self.config.name,
-                          "retention_policies",
-                          "Retention policies",
-                          "enforced "
-                          "(mode: %s, retention: %s, WAL retention: %s)" % (
-                              self.config.retention_policy_mode,
-                              self.config.retention_policy,
-                              self.config.wal_retention_policy))
+            output.result(
+                "status",
+                self.config.name,
+                "retention_policies",
+                "Retention policies",
+                "enforced "
+                "(mode: %s, retention: %s, WAL retention: %s)"
+                % (
+                    self.config.retention_policy_mode,
+                    self.config.retention_policy,
+                    self.config.wal_retention_policy,
+                ),
+            )
         else:
-            output.result('status', self.config.name,
-                          "retention_policies",
-                          "Retention policies",
-                          "not enforced")
+            output.result(
+                "status",
+                self.config.name,
+                "retention_policies",
+                "Retention policies",
+                "not enforced",
+            )
 
     def status(self):
         """
         Implements the 'server-status' command.
         """
         if self.config.description:
-            output.result('status', self.config.name,
-                          "description",
-                          "Description", self.config.description)
-        output.result('status', self.config.name,
-                      "active",
-                      "Active", self.config.active)
-        output.result('status', self.config.name,
-                      "disabled",
-                      "Disabled", self.config.disabled)
+            output.result(
+                "status",
+                self.config.name,
+                "description",
+                "Description",
+                self.config.description,
+            )
+        output.result(
+            "status", self.config.name, "active", "Active", self.config.active
+        )
+        output.result(
+            "status", self.config.name, "disabled", "Disabled", self.config.disabled
+        )
 
         # Postgres status is available only if node is not passive
         if not self.passive_node:
             self.status_postgres()
             self.status_wal_archiver()
 
-        output.result('status', self.config.name,
-                      "passive_node",
-                      "Passive node",
-                      self.passive_node)
+        output.result(
+            "status",
+            self.config.name,
+            "passive_node",
+            "Passive node",
+            self.passive_node,
+        )
 
         self.status_retention_policies()
         # Executes the backup manager status info method
@@ -1055,7 +1159,7 @@ class Server(RemoteStatusMixin):
         # Populate result map with all the required keys
         result = self.config.to_json()
         # Is the server a passive node?
-        result['passive_node'] = self.passive_node
+        result["passive_node"] = self.passive_node
         # Skip remote status if the server is passive
         if not self.passive_node:
             remote_status = self.get_remote_status()
@@ -1063,27 +1167,28 @@ class Server(RemoteStatusMixin):
         # Backup maximum age section
         if self.config.last_backup_maximum_age is not None:
             age = self.backup_manager.validate_last_backup_maximum_age(
-                self.config.last_backup_maximum_age)
+                self.config.last_backup_maximum_age
+            )
             # If latest backup is between the limits of the
             # last_backup_maximum_age configuration, display how old is
             # the latest backup.
             if age[0]:
-                msg = "%s (latest backup: %s )" % \
-                    (human_readable_timedelta(
-                        self.config.last_backup_maximum_age),
-                     age[1])
+                msg = "%s (latest backup: %s )" % (
+                    human_readable_timedelta(self.config.last_backup_maximum_age),
+                    age[1],
+                )
             else:
                 # If latest backup is outside the limits of the
                 # last_backup_maximum_age configuration (or the configuration
                 # value is none), warn the user.
-                msg = "%s (WARNING! latest backup is %s old)" % \
-                    (human_readable_timedelta(
-                        self.config.last_backup_maximum_age),
-                     age[1])
-            result['last_backup_maximum_age'] = msg
+                msg = "%s (WARNING! latest backup is %s old)" % (
+                    human_readable_timedelta(self.config.last_backup_maximum_age),
+                    age[1],
+                )
+            result["last_backup_maximum_age"] = msg
         else:
-            result['last_backup_maximum_age'] = "None"
-        output.result('show_server', self.config.name, result)
+            result["last_backup_maximum_age"] = "None"
+        output.result("show_server", self.config.name, result)
 
     def delete_backup(self, backup):
         """Deletes a backup
@@ -1096,10 +1201,11 @@ class Server(RemoteStatusMixin):
             # so there is no need to check the backup status.
             # Simply proceed with the normal delete process.
             server_backup_lock = ServerBackupLock(
-                self.config.barman_lock_directory,
-                self.config.name)
-            server_backup_lock.acquire(server_backup_lock.raise_if_fail,
-                                       server_backup_lock.wait)
+                self.config.barman_lock_directory, self.config.name
+            )
+            server_backup_lock.acquire(
+                server_backup_lock.raise_if_fail, server_backup_lock.wait
+            )
             server_backup_lock.release()
 
         except LockFileBusy:
@@ -1111,11 +1217,14 @@ class Server(RemoteStatusMixin):
             # remove a running backup. This operation must be forbidden.
             # Otherwise, normally delete the backup.
             first_backup_id = self.get_first_backup_id(BackupInfo.STATUS_ALL)
-            if backup.backup_id == first_backup_id \
-                    and backup.status in (BackupInfo.STARTED,
-                                          BackupInfo.EMPTY):
-                output.error("Cannot delete a running backup (%s %s)"
-                             % (self.config.name, backup.backup_id))
+            if backup.backup_id == first_backup_id and backup.status in (
+                BackupInfo.STARTED,
+                BackupInfo.EMPTY,
+            ):
+                output.error(
+                    "Cannot delete a running backup (%s %s)"
+                    % (self.config.name, backup.backup_id)
+                )
                 return
 
         except LockFilePermissionDenied as e:
@@ -1127,9 +1236,9 @@ class Server(RemoteStatusMixin):
         try:
             # Take care of the backup lock.
             # Only one process can modify a backup at a time
-            lock = ServerBackupIdLock(self.config.barman_lock_directory,
-                                      self.config.name,
-                                      backup.backup_id)
+            lock = ServerBackupIdLock(
+                self.config.barman_lock_directory, self.config.name, backup.backup_id
+            )
             with lock:
                 deleted = self.backup_manager.delete_backup(backup)
 
@@ -1147,8 +1256,8 @@ class Server(RemoteStatusMixin):
             # warn the user and terminate
             output.error(
                 "Another process is holding the lock for "
-                "backup %s of server %s." % (
-                    backup.backup_id, self.config.name))
+                "backup %s of server %s." % (backup.backup_id, self.config.name)
+            )
             return
 
         except LockFilePermissionDenied as e:
@@ -1175,15 +1284,15 @@ class Server(RemoteStatusMixin):
             strategy = CheckStrategy()
             self.check(strategy)
             if strategy.has_error:
-                output.error("Impossible to start the backup. Check the log "
-                             "for more details, or run 'barman check %s'"
-                             % self.config.name)
+                output.error(
+                    "Impossible to start the backup. Check the log "
+                    "for more details, or run 'barman check %s'" % self.config.name
+                )
                 return
             # check required backup directories exist
             self._make_directories()
         except OSError as e:
-            output.error('failed to create %s directory: %s',
-                         e.filename, e.strerror)
+            output.error("failed to create %s directory: %s", e.filename, e.strerror)
             return
 
         # Save the database identity
@@ -1196,10 +1305,10 @@ class Server(RemoteStatusMixin):
 
         try:
             # lock acquisition and backup execution
-            with ServerBackupLock(self.config.barman_lock_directory,
-                                  self.config.name):
+            with ServerBackupLock(self.config.barman_lock_directory, self.config.name):
                 backup_info = self.backup_manager.backup(
-                    wait=wait, wait_timeout=wait_timeout)
+                    wait=wait, wait_timeout=wait_timeout
+                )
 
             # Archive incoming WALs and update WAL catalogue
             self.archive_wal(verbose=False)
@@ -1224,15 +1333,15 @@ class Server(RemoteStatusMixin):
                     "scenarios, and Barman automatically set the backup as "
                     "DONE once all the required WAL files have been "
                     "archived.\n"
-                    "Hint: execute the backup command with '--wait'")
+                    "Hint: execute the backup command with '--wait'"
+                )
         except LockFileBusy:
             output.error("Another backup process is running")
 
         except LockFilePermissionDenied as e:
             output.error("Permission denied, unable to access '%s'" % e)
 
-    def get_available_backups(
-            self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+    def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
         Get a list of available backups
 
@@ -1241,8 +1350,7 @@ class Server(RemoteStatusMixin):
         """
         return self.backup_manager.get_available_backups(status_filter)
 
-    def get_last_backup_id(
-            self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+    def get_last_backup_id(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
         Get the id of the latest/last backup in the catalog (if exists)
 
@@ -1252,8 +1360,7 @@ class Server(RemoteStatusMixin):
         """
         return self.backup_manager.get_last_backup_id(status_filter)
 
-    def get_first_backup_id(
-            self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
+    def get_first_backup_id(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
         Get the id of the oldest/first backup in the catalog (if exists)
 
@@ -1278,19 +1385,22 @@ class Server(RemoteStatusMixin):
             if backup.status in BackupInfo.STATUS_COPY_DONE:
                 try:
                     wal_info = self.get_wal_info(backup)
-                    backup_size += wal_info['wal_size']
-                    wal_size = wal_info['wal_until_next_size']
+                    backup_size += wal_info["wal_size"]
+                    wal_size = wal_info["wal_until_next_size"]
                 except BadXlogSegmentName as e:
                     output.error(
                         "invalid WAL segment name %r\n"
-                        "HINT: Please run \"barman rebuild-xlogdb %s\" "
+                        'HINT: Please run "barman rebuild-xlogdb %s" '
                         "to solve this issue",
-                        force_str(e), self.config.name)
-                if self.enforce_retention_policies and \
-                        retention_status[backup.backup_id] != BackupInfo.VALID:
+                        force_str(e),
+                        self.config.name,
+                    )
+                if (
+                    self.enforce_retention_policies
+                    and retention_status[backup.backup_id] != BackupInfo.VALID
+                ):
                     rstatus = retention_status[backup.backup_id]
-            output.result('list_backup', backup, backup_size, wal_size,
-                          rstatus)
+            output.result("list_backup", backup, backup_size, wal_size, rstatus)
 
     def get_backup(self, backup_id):
         """
@@ -1320,8 +1430,9 @@ class Server(RemoteStatusMixin):
         """
         return self.backup_manager.get_next_backup(backup_id)
 
-    def get_required_xlog_files(self, backup, target_tli=None,
-                                target_time=None, target_xid=None):
+    def get_required_xlog_files(
+        self, backup, target_tli=None, target_time=None, target_xid=None
+    ):
         """
         Get the xlog files required for a recovery
         """
@@ -1399,8 +1510,7 @@ class Server(RemoteStatusMixin):
         :param wal_name: WAL file name
         """
         # Build the path which contains the file
-        hash_dir = os.path.join(self.config.wals_directory,
-                                xlog.hash_dir(wal_name))
+        hash_dir = os.path.join(self.config.wals_directory, xlog.hash_dir(wal_name))
         # Build the WAL file full path
         full_path = os.path.join(hash_dir, wal_name)
         return full_path
@@ -1415,19 +1525,16 @@ class Server(RemoteStatusMixin):
         paths = list()
 
         # Path in the archive
-        hash_dir = os.path.join(self.config.wals_directory,
-                                xlog.hash_dir(wal_name))
+        hash_dir = os.path.join(self.config.wals_directory, xlog.hash_dir(wal_name))
         full_path = os.path.join(hash_dir, wal_name)
         paths.append(full_path)
 
         # Path in incoming directory
-        incoming_path = os.path.join(self.config.incoming_wals_directory,
-                                     wal_name)
+        incoming_path = os.path.join(self.config.incoming_wals_directory, wal_name)
         paths.append(incoming_path)
 
         # Path in streaming directory
-        streaming_path = os.path.join(self.config.streaming_wals_directory,
-                                      wal_name)
+        streaming_path = os.path.join(self.config.streaming_wals_directory, wal_name)
         paths.append(streaming_path)
 
         # If partial files are required check also the '.partial' path
@@ -1457,77 +1564,89 @@ class Server(RemoteStatusMixin):
 
         # counters
         wal_info = dict.fromkeys(
-            ('wal_num', 'wal_size',
-             'wal_until_next_num', 'wal_until_next_size',
-             'wal_until_next_compression_ratio',
-             'wal_compression_ratio'), 0)
+            (
+                "wal_num",
+                "wal_size",
+                "wal_until_next_num",
+                "wal_until_next_size",
+                "wal_until_next_compression_ratio",
+                "wal_compression_ratio",
+            ),
+            0,
+        )
         # First WAL (always equal to begin_wal) and Last WAL names and ts
-        wal_info['wal_first'] = None
-        wal_info['wal_first_timestamp'] = None
-        wal_info['wal_last'] = None
-        wal_info['wal_last_timestamp'] = None
+        wal_info["wal_first"] = None
+        wal_info["wal_first_timestamp"] = None
+        wal_info["wal_last"] = None
+        wal_info["wal_last_timestamp"] = None
         # WAL rate (default 0.0 per second)
-        wal_info['wals_per_second'] = 0.0
+        wal_info["wals_per_second"] = 0.0
 
         for item in self.get_wal_until_next_backup(backup_info):
             if item.name == begin:
-                wal_info['wal_first'] = item.name
-                wal_info['wal_first_timestamp'] = item.time
+                wal_info["wal_first"] = item.name
+                wal_info["wal_first_timestamp"] = item.time
             if item.name <= end:
-                wal_info['wal_num'] += 1
-                wal_info['wal_size'] += item.size
+                wal_info["wal_num"] += 1
+                wal_info["wal_size"] += item.size
             else:
-                wal_info['wal_until_next_num'] += 1
-                wal_info['wal_until_next_size'] += item.size
-            wal_info['wal_last'] = item.name
-            wal_info['wal_last_timestamp'] = item.time
+                wal_info["wal_until_next_num"] += 1
+                wal_info["wal_until_next_size"] += item.size
+            wal_info["wal_last"] = item.name
+            wal_info["wal_last_timestamp"] = item.time
 
         # Calculate statistics only for complete backups
         # If the cron is not running for any reason, the required
         # WAL files could be missing
-        if wal_info['wal_first'] and wal_info['wal_last']:
+        if wal_info["wal_first"] and wal_info["wal_last"]:
             # Estimate WAL ratio
             # Calculate the difference between the timestamps of
             # the first WAL (begin of backup) and the last WAL
             # associated to the current backup
-            wal_last_timestamp = wal_info['wal_last_timestamp']
-            wal_first_timestamp = wal_info['wal_first_timestamp']
-            wal_info['wal_total_seconds'] = (
-                wal_last_timestamp - wal_first_timestamp)
-            if wal_info['wal_total_seconds'] > 0:
-                wal_num = wal_info['wal_num']
-                wal_until_next_num = wal_info['wal_until_next_num']
-                wal_total_seconds = wal_info['wal_total_seconds']
-                wal_info['wals_per_second'] = (
-                    float(wal_num + wal_until_next_num) / wal_total_seconds)
+            wal_last_timestamp = wal_info["wal_last_timestamp"]
+            wal_first_timestamp = wal_info["wal_first_timestamp"]
+            wal_info["wal_total_seconds"] = wal_last_timestamp - wal_first_timestamp
+            if wal_info["wal_total_seconds"] > 0:
+                wal_num = wal_info["wal_num"]
+                wal_until_next_num = wal_info["wal_until_next_num"]
+                wal_total_seconds = wal_info["wal_total_seconds"]
+                wal_info["wals_per_second"] = (
+                    float(wal_num + wal_until_next_num) / wal_total_seconds
+                )
 
             # evaluation of compression ratio for basebackup WAL files
-            wal_info['wal_theoretical_size'] = \
-                wal_info['wal_num'] * float(backup_info.xlog_segment_size)
+            wal_info["wal_theoretical_size"] = wal_info["wal_num"] * float(
+                backup_info.xlog_segment_size
+            )
             try:
-                wal_size = wal_info['wal_size']
-                wal_info['wal_compression_ratio'] = (
-                    1 - (wal_size / wal_info['wal_theoretical_size']))
+                wal_size = wal_info["wal_size"]
+                wal_info["wal_compression_ratio"] = 1 - (
+                    wal_size / wal_info["wal_theoretical_size"]
+                )
             except ZeroDivisionError:
-                wal_info['wal_compression_ratio'] = 0.0
+                wal_info["wal_compression_ratio"] = 0.0
 
             # evaluation of compression ratio of WAL files
-            wal_until_next_num = wal_info['wal_until_next_num']
-            wal_info['wal_until_next_theoretical_size'] = (
-                wal_until_next_num * float(backup_info.xlog_segment_size))
+            wal_until_next_num = wal_info["wal_until_next_num"]
+            wal_info["wal_until_next_theoretical_size"] = wal_until_next_num * float(
+                backup_info.xlog_segment_size
+            )
             try:
-                wal_until_next_size = wal_info['wal_until_next_size']
-                until_next_theoretical_size = (
-                    wal_info['wal_until_next_theoretical_size'])
-                wal_info['wal_until_next_compression_ratio'] = (
-                    1 - (wal_until_next_size / until_next_theoretical_size))
+                wal_until_next_size = wal_info["wal_until_next_size"]
+                until_next_theoretical_size = wal_info[
+                    "wal_until_next_theoretical_size"
+                ]
+                wal_info["wal_until_next_compression_ratio"] = 1 - (
+                    wal_until_next_size / until_next_theoretical_size
+                )
             except ZeroDivisionError:
-                wal_info['wal_until_next_compression_ratio'] = 0.0
+                wal_info["wal_until_next_compression_ratio"] = 0.0
 
         return wal_info
 
-    def recover(self, backup_info, dest, tablespaces=None, remote_command=None,
-                **kwargs):
+    def recover(
+        self, backup_info, dest, tablespaces=None, remote_command=None, **kwargs
+    ):
         """
         Performs a recovery of a backup
 
@@ -1551,10 +1670,17 @@ class Server(RemoteStatusMixin):
         :kwparam bool|None standby_mode: the standby mode
         """
         return self.backup_manager.recover(
-            backup_info, dest, tablespaces, remote_command, **kwargs)
+            backup_info, dest, tablespaces, remote_command, **kwargs
+        )
 
-    def get_wal(self, wal_name, compression=None, output_directory=None,
-                peek=None, partial=False):
+    def get_wal(
+        self,
+        wal_name,
+        compression=None,
+        output_directory=None,
+        peek=None,
+        partial=False,
+    ):
         """
         Retrieve a WAL file from the archive
 
@@ -1567,18 +1693,17 @@ class Server(RemoteStatusMixin):
         """
 
         # If used through SSH identify the client to add it to logs
-        source_suffix = ''
-        ssh_connection = os.environ.get('SSH_CONNECTION')
+        source_suffix = ""
+        ssh_connection = os.environ.get("SSH_CONNECTION")
         if ssh_connection:
             # The client IP is the first value contained in `SSH_CONNECTION`
             # which contains four space-separated values: client IP address,
             # client port number, server IP address, and server port number.
-            source_suffix = ' (SSH host: %s)' % (ssh_connection.split()[0],)
+            source_suffix = " (SSH host: %s)" % (ssh_connection.split()[0],)
 
         # Sanity check
         if not xlog.is_any_xlog_file(wal_name):
-            output.error("'%s' is not a valid wal file name%s",
-                         wal_name, source_suffix)
+            output.error("'%s' is not a valid wal file name%s", wal_name, source_suffix)
             return
 
         # If peek is requested we only output a list of files
@@ -1608,8 +1733,9 @@ class Server(RemoteStatusMixin):
 
                 # Get list of possible location. We do not prefetch
                 # partial files
-                wal_peek_paths = self.get_wal_possible_paths(wal_peek_name,
-                                                             partial=False)
+                wal_peek_paths = self.get_wal_possible_paths(
+                    wal_peek_name, partial=False
+                )
 
                 # If the next WAL file is found, output the name
                 # and continue to the next one
@@ -1649,13 +1775,14 @@ class Server(RemoteStatusMixin):
             # Use the standard output for messages
             logger = output
             try:
-                destination = open(destination_path, 'wb')
+                destination = open(destination_path, "wb")
             except IOError as e:
-                output.error("Unable to open '%s' file%s: %s",
-                             destination_path, source_suffix, e)
+                output.error(
+                    "Unable to open '%s' file%s: %s", destination_path, source_suffix, e
+                )
                 return
         else:
-            destination_description = 'to standard output'
+            destination_description = "to standard output"
             # Do not use the standard output for messages, otherwise we would
             # taint the output stream
             logger = _logger
@@ -1677,8 +1804,11 @@ class Server(RemoteStatusMixin):
 
             logger.info(
                 "Sending WAL '%s' for server '%s' %s%s",
-                os.path.basename(wal_file), self.config.name,
-                destination_description, source_suffix)
+                os.path.basename(wal_file),
+                self.config.name,
+                destination_description,
+                source_suffix,
+            )
 
             try:
                 # Try returning the wal_file to the client
@@ -1705,11 +1835,14 @@ class Server(RemoteStatusMixin):
                 else:
                     raise
 
-            logger.info("Skipping vanished WAL file '%s'%s",
-                        wal_file, source_suffix)
+            logger.info("Skipping vanished WAL file '%s'%s", wal_file, source_suffix)
 
-        output.error("WAL file '%s' not found in server '%s'%s",
-                     wal_name, self.config.name, source_suffix)
+        output.error(
+            "WAL file '%s' not found in server '%s'%s",
+            wal_name,
+            self.config.name,
+            source_suffix,
+        )
 
     def get_wal_sendfile(self, wal_file, compression, destination):
         """
@@ -1720,16 +1853,17 @@ class Server(RemoteStatusMixin):
         :param destination: file stream to use to write the data
         """
         # Identify the wal file
-        wal_info = self.backup_manager.compression_manager \
-            .get_wal_file_info(wal_file)
+        wal_info = self.backup_manager.compression_manager.get_wal_file_info(wal_file)
 
         # Get a decompressor for the file (None if not compressed)
-        wal_compressor = self.backup_manager.compression_manager \
-            .get_compressor(wal_info.compression)
+        wal_compressor = self.backup_manager.compression_manager.get_compressor(
+            wal_info.compression
+        )
 
         # Get a compressor for the output (None if not compressed)
-        out_compressor = self.backup_manager.compression_manager \
-            .get_compressor(compression)
+        out_compressor = self.backup_manager.compression_manager.get_compressor(
+            compression
+        )
 
         # Initially our source is the stored WAL file and we do not have
         # any temporary file
@@ -1740,14 +1874,16 @@ class Server(RemoteStatusMixin):
         # If the required compression is different from the source we
         # decompress/compress it into the required format (getattr is
         # used here to gracefully handle None objects)
-        if getattr(wal_compressor, 'compression', None) != \
-                getattr(out_compressor, 'compression', None):
+        if getattr(wal_compressor, "compression", None) != getattr(
+            out_compressor, "compression", None
+        ):
             # If source is compressed, decompress it into a temporary file
             if wal_compressor is not None:
                 uncompressed_file = NamedTemporaryFile(
                     dir=self.config.wals_directory,
-                    prefix='.%s.' % os.path.basename(wal_file),
-                    suffix='.uncompressed')
+                    prefix=".%s." % os.path.basename(wal_file),
+                    suffix=".uncompressed",
+                )
                 # decompress wal file
                 wal_compressor.decompress(source_file, uncompressed_file.name)
                 source_file = uncompressed_file.name
@@ -1757,13 +1893,14 @@ class Server(RemoteStatusMixin):
             if out_compressor is not None:
                 compressed_file = NamedTemporaryFile(
                     dir=self.config.wals_directory,
-                    prefix='.%s.' % os.path.basename(wal_file),
-                    suffix='.compressed')
+                    prefix=".%s." % os.path.basename(wal_file),
+                    suffix=".compressed",
+                )
                 out_compressor.compress(source_file, compressed_file.name)
                 source_file = compressed_file.name
 
         # Copy the prepared source file to destination
-        with open(source_file, 'rb') as input_file:
+        with open(source_file, "rb") as input_file:
             shutil.copyfileobj(input_file, destination)
 
         # Remove temp files
@@ -1781,13 +1918,13 @@ class Server(RemoteStatusMixin):
         """
 
         # If used through SSH identify the client to add it to logs
-        source_suffix = ''
-        ssh_connection = os.environ.get('SSH_CONNECTION')
+        source_suffix = ""
+        ssh_connection = os.environ.get("SSH_CONNECTION")
         if ssh_connection:
             # The client IP is the first value contained in `SSH_CONNECTION`
             # which contains four space-separated values: client IP address,
             # client port number, server IP address, and server port number.
-            source_suffix = ' (SSH host: %s)' % (ssh_connection.split()[0],)
+            source_suffix = " (SSH host: %s)" % (ssh_connection.split()[0],)
 
         # Incoming directory is where the files will be extracted
         dest_dir = self.config.incoming_wals_directory
@@ -1795,12 +1932,15 @@ class Server(RemoteStatusMixin):
         # Ensure the presence of the destination directory
         mkpath(dest_dir)
 
-        incoming_file = namedtuple('incoming_file', [
-            'name',
-            'tmp_path',
-            'path',
-            'checksum',
-        ])
+        incoming_file = namedtuple(
+            "incoming_file",
+            [
+                "name",
+                "tmp_path",
+                "path",
+                "checksum",
+            ],
+        )
 
         # Stream read tar from stdin, store content in incoming directory
         # The closing wrapper is needed only for Python 2.6
@@ -1808,56 +1948,66 @@ class Server(RemoteStatusMixin):
         validated_files = {}
         md5sums = {}
         try:
-            with closing(tarfile.open(mode='r|', fileobj=fileobj)) as tar:
+            with closing(tarfile.open(mode="r|", fileobj=fileobj)) as tar:
                 for item in tar:
                     name = item.name
                     # Strip leading './' - tar has been manually created
-                    if name.startswith('./'):
+                    if name.startswith("./"):
                         name = name[2:]
                     # Requires a regular file as tar item
                     if not item.isreg():
                         output.error(
                             "Unsupported file type '%s' for file '%s' "
                             "in put-wal for server '%s'%s",
-                            item.type, name, self.config.name, source_suffix)
+                            item.type,
+                            name,
+                            self.config.name,
+                            source_suffix,
+                        )
                         return
                     # Subdirectories are not supported
-                    if '/' in name:
+                    if "/" in name:
                         output.error(
-                            "Unsupported filename '%s' "
-                            "in put-wal for server '%s'%s",
-                            name, self.config.name, source_suffix)
+                            "Unsupported filename '%s' " "in put-wal for server '%s'%s",
+                            name,
+                            self.config.name,
+                            source_suffix,
+                        )
                         return
                     # Checksum file
-                    if name == 'MD5SUMS':
+                    if name == "MD5SUMS":
                         # Parse content and store it in md5sums dictionary
                         for line in tar.extractfile(item).readlines():
                             line = line.decode().rstrip()
                             try:
                                 # Split checksums and path info
-                                checksum, path = re.split(
-                                    r' [* ]', line, 1)
+                                checksum, path = re.split(r" [* ]", line, 1)
                             except ValueError:
                                 output.warning(
                                     "Bad checksum line '%s' found "
                                     "in put-wal for server '%s'%s",
-                                    line, self.config.name, source_suffix)
+                                    line,
+                                    self.config.name,
+                                    source_suffix,
+                                )
                                 continue
                             # Strip leading './' from path in the checksum file
-                            if path.startswith('./'):
+                            if path.startswith("./"):
                                 path = path[2:]
                             md5sums[path] = checksum
                     else:
                         # Extract using a temp name (with PID)
-                        tmp_path = os.path.join(dest_dir, '.%s-%s' % (
-                            os.getpid(), name))
+                        tmp_path = os.path.join(
+                            dest_dir, ".%s-%s" % (os.getpid(), name)
+                        )
                         path = os.path.join(dest_dir, name)
                         tar.makefile(item, tmp_path)
                         # Set the original timestamp
                         tar.utime(item, tmp_path)
                         # Add the tuple to the dictionary of extracted files
                         extracted_files[name] = incoming_file(
-                            name, tmp_path, path, file_md5(tmp_path))
+                            name, tmp_path, path, file_md5(tmp_path)
+                        )
                         validated_files[name] = False
 
             # For each received checksum verify the corresponding file
@@ -1867,7 +2017,10 @@ class Server(RemoteStatusMixin):
                     output.error(
                         "Checksum without corresponding file '%s' "
                         "in put-wal for server '%s'%s",
-                        name, self.config.name, source_suffix)
+                        name,
+                        self.config.name,
+                        source_suffix,
+                    )
                     return
                 # Verify the checksum of the file
                 if extracted_files[name].checksum != md5sums[name]:
@@ -1875,14 +2028,21 @@ class Server(RemoteStatusMixin):
                         "Bad file checksum '%s' (should be %s) "
                         "for file '%s' "
                         "in put-wal for server '%s'%s",
-                        extracted_files[name].checksum, md5sums[name],
-                        name, self.config.name, source_suffix)
+                        extracted_files[name].checksum,
+                        md5sums[name],
+                        name,
+                        self.config.name,
+                        source_suffix,
+                    )
                     return
                 _logger.info(
                     "Received file '%s' with checksum '%s' "
                     "by put-wal for server '%s'%s",
-                    name, md5sums[name], self.config.name,
-                    source_suffix)
+                    name,
+                    md5sums[name],
+                    self.config.name,
+                    source_suffix,
+                )
                 validated_files[name] = True
 
             # Put the files in the final place, atomically and fsync all
@@ -1892,7 +2052,10 @@ class Server(RemoteStatusMixin):
                     output.error(
                         "Missing checksum for file '%s' "
                         "in put-wal for server '%s'%s",
-                        item.name, self.config.name, source_suffix)
+                        item.name,
+                        self.config.name,
+                        source_suffix,
+                    )
                     return
                 # If a file with the same name exists, returns an error.
                 # PostgreSQL archive command will retry again later and,
@@ -1902,7 +2065,10 @@ class Server(RemoteStatusMixin):
                     output.error(
                         "Impossible to write already existing file '%s' "
                         "in put-wal for server '%s'%s",
-                        item.name, self.config.name, source_suffix)
+                        item.name,
+                        self.config.name,
+                        source_suffix,
+                    )
                     return
                 os.rename(item.tmp_path, item.path)
                 fsync_file(item.path)
@@ -1925,8 +2091,7 @@ class Server(RemoteStatusMixin):
         try:
             # Actually this is the highest level of locking in the cron,
             # this stops the execution of multiple cron on the same server
-            with ServerCronLock(self.config.barman_lock_directory,
-                                self.config.name):
+            with ServerCronLock(self.config.barman_lock_directory, self.config.name):
                 # When passive call sync.cron() and never run
                 # local WAL archival
                 if self.passive_node:
@@ -1940,7 +2105,7 @@ class Server(RemoteStatusMixin):
                         self.cron_receive_wal(keep_descriptors)
                     else:
                         # Terminate the receive-wal sub-process if present
-                        self.kill('receive-wal', fail_if_not_present=False)
+                        self.kill("receive-wal", fail_if_not_present=False)
 
                 # Verify backup
                 self.cron_check_backup(keep_descriptors)
@@ -1951,7 +2116,8 @@ class Server(RemoteStatusMixin):
         except LockFileBusy:
             output.info(
                 "Another cron process is already running on server %s. "
-                "Skipping to the next server" % self.config.name)
+                "Skipping to the next server" % self.config.name
+            )
         except LockFilePermissionDenied as e:
             output.error("Permission denied, unable to access '%s'" % e)
         except (OSError, IOError) as e:
@@ -1975,18 +2141,20 @@ class Server(RemoteStatusMixin):
             # in one of the two commands failing on lock acquisition,
             # with no other consequence.
             with ServerWalArchiveLock(
-                    self.config.barman_lock_directory,
-                    self.config.name):
+                self.config.barman_lock_directory, self.config.name
+            ):
                 # Output and release the lock immediately
-                output.info("Starting WAL archiving for server %s",
-                            self.config.name, log=False)
+                output.info(
+                    "Starting WAL archiving for server %s", self.config.name, log=False
+                )
 
             # Init a Barman sub-process object
             archive_process = BarmanSubProcess(
-                subcommand='archive-wal',
+                subcommand="archive-wal",
                 config=barman.__config__.config_file,
                 args=[self.config.name],
-                keep_descriptors=keep_descriptors)
+                keep_descriptors=keep_descriptors,
+            )
             # Launch the sub-process
             archive_process.execute()
 
@@ -1995,8 +2163,8 @@ class Server(RemoteStatusMixin):
             # warn the user and skip to the next one.
             output.info(
                 "Another archive-wal process is already running "
-                "on server %s. Skipping to the next server"
-                % self.config.name)
+                "on server %s. Skipping to the next server" % self.config.name
+            )
 
     def cron_receive_wal(self, keep_descriptors):
         """
@@ -2016,27 +2184,32 @@ class Server(RemoteStatusMixin):
             # in one of the two commands failing on lock acquisition,
             # with no other consequence.
             with ServerWalReceiveLock(
-                    self.config.barman_lock_directory,
-                    self.config.name):
+                self.config.barman_lock_directory, self.config.name
+            ):
                 # Output and release the lock immediately
-                output.info("Starting streaming archiver "
-                            "for server %s",
-                            self.config.name, log=False)
+                output.info(
+                    "Starting streaming archiver " "for server %s",
+                    self.config.name,
+                    log=False,
+                )
 
             # Start a new receive-wal process
             receive_process = BarmanSubProcess(
-                subcommand='receive-wal',
+                subcommand="receive-wal",
                 config=barman.__config__.config_file,
                 args=[self.config.name],
-                keep_descriptors=keep_descriptors)
+                keep_descriptors=keep_descriptors,
+            )
             # Launch the sub-process
             receive_process.execute()
 
         except LockFileBusy:
             # Another receive-wal process is running for the server
             # exit without message
-            _logger.debug("Another STREAMING ARCHIVER process is running for "
-                          "server %s" % self.config.name)
+            _logger.debug(
+                "Another STREAMING ARCHIVER process is running for "
+                "server %s" % self.config.name
+            )
 
     def cron_check_backup(self, keep_descriptors):
         """
@@ -2061,25 +2234,31 @@ class Server(RemoteStatusMixin):
             # in one of the two commands failing on lock acquisition,
             # with no other consequence.
             with ServerBackupIdLock(
-                    self.config.barman_lock_directory,
-                    self.config.name,
-                    backup_id):
+                self.config.barman_lock_directory, self.config.name, backup_id
+            ):
                 # Output and release the lock immediately
-                output.info("Starting check-backup for backup %s of server %s",
-                            backup_id, self.config.name, log=False)
+                output.info(
+                    "Starting check-backup for backup %s of server %s",
+                    backup_id,
+                    self.config.name,
+                    log=False,
+                )
 
             # Start a check-backup process
             check_process = BarmanSubProcess(
-                subcommand='check-backup',
+                subcommand="check-backup",
                 config=barman.__config__.config_file,
                 args=[self.config.name, backup_id],
-                keep_descriptors=keep_descriptors)
+                keep_descriptors=keep_descriptors,
+            )
             check_process.execute()
 
         except LockFileBusy:
             # Another process is holding the backup lock
-            _logger.debug("Another process is holding the backup lock for %s "
-                          "of server %s" % (backup_id, self.config.name))
+            _logger.debug(
+                "Another process is holding the backup lock for %s "
+                "of server %s" % (backup_id, self.config.name)
+            )
 
     def archive_wal(self, verbose=True):
         """
@@ -2095,32 +2274,37 @@ class Server(RemoteStatusMixin):
         try:
             # Take care of the archive lock.
             # Only one archive job per server is admitted
-            with ServerWalArchiveLock(self.config.barman_lock_directory,
-                                      self.config.name):
+            with ServerWalArchiveLock(
+                self.config.barman_lock_directory, self.config.name
+            ):
                 self.backup_manager.archive_wal(verbose)
         except LockFileBusy:
             # If another process is running for this server,
             # warn the user and skip to the next server
-            output.info("Another archive-wal process is already running "
-                        "on server %s. Skipping to the next server"
-                        % self.config.name)
+            output.info(
+                "Another archive-wal process is already running "
+                "on server %s. Skipping to the next server" % self.config.name
+            )
 
     def create_physical_repslot(self):
         """
         Create a physical replication slot using the streaming connection
         """
         if not self.streaming:
-            output.error("Unable to create a physical replication slot: "
-                         "streaming connection not configured")
+            output.error(
+                "Unable to create a physical replication slot: "
+                "streaming connection not configured"
+            )
             return
 
         # Replication slots are not supported by PostgreSQL < 9.4
         try:
             if self.streaming.server_version < 90400:
-                output.error("Unable to create a physical replication slot: "
-                             "not supported by '%s' "
-                             "(9.4 or higher is required)" %
-                             self.streaming.server_major_version)
+                output.error(
+                    "Unable to create a physical replication slot: "
+                    "not supported by '%s' "
+                    "(9.4 or higher is required)" % self.streaming.server_major_version
+                )
                 return
         except PostgresException as exc:
             msg = "Cannot connect to server '%s'" % self.config.name
@@ -2129,49 +2313,57 @@ class Server(RemoteStatusMixin):
             return
 
         if not self.config.slot_name:
-            output.error("Unable to create a physical replication slot: "
-                         "slot_name configuration option required")
+            output.error(
+                "Unable to create a physical replication slot: "
+                "slot_name configuration option required"
+            )
             return
 
         output.info(
             "Creating physical replication slot '%s' on server '%s'",
             self.config.slot_name,
-            self.config.name)
+            self.config.name,
+        )
 
         try:
             self.streaming.create_physical_repslot(self.config.slot_name)
             output.info("Replication slot '%s' created", self.config.slot_name)
         except PostgresDuplicateReplicationSlot:
-            output.error("Replication slot '%s' already exists",
-                         self.config.slot_name)
+            output.error("Replication slot '%s' already exists", self.config.slot_name)
         except PostgresReplicationSlotsFull:
-            output.error("All replication slots for server '%s' are in use\n"
-                         "Free one or increase the max_replication_slots "
-                         "value on your PostgreSQL server.",
-                         self.config.name)
+            output.error(
+                "All replication slots for server '%s' are in use\n"
+                "Free one or increase the max_replication_slots "
+                "value on your PostgreSQL server.",
+                self.config.name,
+            )
         except PostgresException as exc:
             output.error(
                 "Cannot create replication slot '%s' on server '%s': %s",
                 self.config.slot_name,
                 self.config.name,
-                force_str(exc).strip())
+                force_str(exc).strip(),
+            )
 
     def drop_repslot(self):
         """
         Drop a replication slot using the streaming connection
         """
         if not self.streaming:
-            output.error("Unable to drop a physical replication slot: "
-                         "streaming connection not configured")
+            output.error(
+                "Unable to drop a physical replication slot: "
+                "streaming connection not configured"
+            )
             return
 
         # Replication slots are not supported by PostgreSQL < 9.4
         try:
             if self.streaming.server_version < 90400:
-                output.error("Unable to drop a physical replication slot: "
-                             "not supported by '%s' (9.4 or higher is "
-                             "required)" %
-                             self.streaming.server_major_version)
+                output.error(
+                    "Unable to drop a physical replication slot: "
+                    "not supported by '%s' (9.4 or higher is "
+                    "required)" % self.streaming.server_major_version
+                )
                 return
         except PostgresException as exc:
             msg = "Cannot connect to server '%s'" % self.config.name
@@ -2180,33 +2372,37 @@ class Server(RemoteStatusMixin):
             return
 
         if not self.config.slot_name:
-            output.error("Unable to drop a physical replication slot: "
-                         "slot_name configuration option required")
+            output.error(
+                "Unable to drop a physical replication slot: "
+                "slot_name configuration option required"
+            )
             return
 
         output.info(
             "Dropping physical replication slot '%s' on server '%s'",
             self.config.slot_name,
-            self.config.name)
+            self.config.name,
+        )
 
         try:
             self.streaming.drop_repslot(self.config.slot_name)
             output.info("Replication slot '%s' dropped", self.config.slot_name)
         except PostgresInvalidReplicationSlot:
-            output.error("Replication slot '%s' does not exist",
-                         self.config.slot_name)
+            output.error("Replication slot '%s' does not exist", self.config.slot_name)
         except PostgresReplicationSlotInUse:
             output.error(
                 "Cannot drop replication slot '%s' on server '%s' "
                 "because it is in use.",
                 self.config.slot_name,
-                self.config.name)
+                self.config.name,
+            )
         except PostgresException as exc:
             output.error(
                 "Cannot drop replication slot '%s' on server '%s': %s",
                 self.config.slot_name,
                 self.config.name,
-                force_str(exc).strip())
+                force_str(exc).strip(),
+            )
 
     def receive_wal(self, reset=False):
         """
@@ -2221,9 +2417,11 @@ class Server(RemoteStatusMixin):
         # Execute the receive-wal command only if streaming_archiver
         # is enabled
         if not self.config.streaming_archiver:
-            output.error("Unable to start receive-wal process: "
-                         "streaming_archiver option set to 'off' in "
-                         "barman configuration file")
+            output.error(
+                "Unable to start receive-wal process: "
+                "streaming_archiver option set to 'off' in "
+                "barman configuration file"
+            )
             return
 
         if not reset:
@@ -2232,8 +2430,9 @@ class Server(RemoteStatusMixin):
         try:
             # Take care of the receive-wal lock.
             # Only one receiving process per server is permitted
-            with ServerWalReceiveLock(self.config.barman_lock_directory,
-                                      self.config.name):
+            with ServerWalReceiveLock(
+                self.config.barman_lock_directory, self.config.name
+            ):
                 try:
                     # Only the StreamingWalArchiver implementation
                     # does something.
@@ -2247,12 +2446,15 @@ class Server(RemoteStatusMixin):
         except LockFileBusy:
             # If another process is running for this server,
             if reset:
-                output.info("Unable to reset the status of receive-wal "
-                            "for server %s. Process is still running"
-                            % self.config.name)
+                output.info(
+                    "Unable to reset the status of receive-wal "
+                    "for server %s. Process is still running" % self.config.name
+                )
             else:
-                output.info("Another receive-wal process is already running "
-                            "for server %s." % self.config.name)
+                output.info(
+                    "Another receive-wal process is already running "
+                    "for server %s." % self.config.name
+                )
 
     @property
     def systemid(self):
@@ -2262,10 +2464,10 @@ class Server(RemoteStatusMixin):
         """
         status = self.get_remote_status()
         # Main PostgreSQL connection has higher priority
-        if status.get('postgres_systemid'):
-            return status.get('postgres_systemid')
+        if status.get("postgres_systemid"):
+            return status.get("postgres_systemid")
         # Fallback: streaming connection
-        return status.get('streaming_systemid')
+        return status.get("streaming_systemid")
 
     @property
     def xlogdb_file_name(self):
@@ -2276,7 +2478,7 @@ class Server(RemoteStatusMixin):
         return os.path.join(self.config.wals_directory, self.XLOG_DB)
 
     @contextmanager
-    def xlogdb(self, mode='r'):
+    def xlogdb(self, mode="r"):
         """
         Context manager to access the xlogdb file.
 
@@ -2296,12 +2498,11 @@ class Server(RemoteStatusMixin):
             os.makedirs(self.config.wals_directory)
         xlogdb = self.xlogdb_file_name
 
-        with ServerXLOGDBLock(self.config.barman_lock_directory,
-                              self.config.name):
+        with ServerXLOGDBLock(self.config.barman_lock_directory, self.config.name):
             # If the file doesn't exist and it is required to read it,
             # we open it in a+ mode, to be sure it will be created
-            if not os.path.exists(xlogdb) and mode.startswith('r'):
-                if '+' not in mode:
+            if not os.path.exists(xlogdb) and mode.startswith("r"):
+                if "+" not in mode:
                     mode = "a%s+" % mode[1:]
                 else:
                     mode = "a%s" % mode[1:]
@@ -2317,7 +2518,7 @@ class Server(RemoteStatusMixin):
                     # if file is writable (mode contains w, a or +)
                     # make sure the data is written to disk
                     # http://docs.python.org/2/library/os.html#os.fsync
-                    if any((c in 'wa+') for c in f.mode):
+                    if any((c in "wa+") for c in f.mode):
                         f.flush()
                         os.fsync(f.fileno())
 
@@ -2351,18 +2552,19 @@ class Server(RemoteStatusMixin):
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             try:
                 previous_backup = self.backup_manager.get_previous_backup(
-                    backup_ext_info['backup_id'])
+                    backup_ext_info["backup_id"]
+                )
                 next_backup = self.backup_manager.get_next_backup(
-                    backup_ext_info['backup_id'])
+                    backup_ext_info["backup_id"]
+                )
                 if previous_backup:
-                    backup_ext_info[
-                        'previous_backup_id'] = previous_backup.backup_id
+                    backup_ext_info["previous_backup_id"] = previous_backup.backup_id
                 else:
-                    backup_ext_info['previous_backup_id'] = None
+                    backup_ext_info["previous_backup_id"] = None
                 if next_backup:
-                    backup_ext_info['next_backup_id'] = next_backup.backup_id
+                    backup_ext_info["next_backup_id"] = next_backup.backup_id
                 else:
-                    backup_ext_info['next_backup_id'] = None
+                    backup_ext_info["next_backup_id"] = None
             except UnknownBackupIdException:
                 # no next_backup_id and previous_backup_id items
                 # means "Not available"
@@ -2370,18 +2572,18 @@ class Server(RemoteStatusMixin):
             backup_ext_info.update(self.get_wal_info(backup_info))
             if self.enforce_retention_policies:
                 policy = self.config.retention_policy
-                backup_ext_info['retention_policy_status'] = \
-                    policy.backup_status(backup_info.backup_id)
+                backup_ext_info["retention_policy_status"] = policy.backup_status(
+                    backup_info.backup_id
+                )
             else:
-                backup_ext_info['retention_policy_status'] = None
+                backup_ext_info["retention_policy_status"] = None
 
             # Check any child timeline exists
             children_timelines = self.get_children_timelines(
-                backup_ext_info['timeline'],
-                forked_after=backup_info.end_xlog)
+                backup_ext_info["timeline"], forked_after=backup_info.end_xlog
+            )
 
-            backup_ext_info['children_timelines'] = \
-                children_timelines
+            backup_ext_info["children_timelines"] = children_timelines
 
         return backup_ext_info
 
@@ -2393,13 +2595,15 @@ class Server(RemoteStatusMixin):
         """
         try:
             backup_ext_info = self.get_backup_ext_info(backup_info)
-            output.result('show_backup', backup_ext_info)
+            output.result("show_backup", backup_ext_info)
         except BadXlogSegmentName as e:
             output.error(
                 "invalid xlog segment name %r\n"
-                "HINT: Please run \"barman rebuild-xlogdb %s\" "
+                'HINT: Please run "barman rebuild-xlogdb %s" '
                 "to solve this issue",
-                force_str(e), self.config.name)
+                force_str(e),
+                self.config.name,
+            )
             output.close_and_exit()
 
     @staticmethod
@@ -2415,7 +2619,7 @@ class Server(RemoteStatusMixin):
         """
         if not path_prefix:
             return None
-        sys_path = os.environ.get('PATH')
+        sys_path = os.environ.get("PATH")
         return "%s%s%s" % (path_prefix, os.pathsep, sys_path)
 
     def kill(self, task, fail_if_not_present=True):
@@ -2430,17 +2634,19 @@ class Server(RemoteStatusMixin):
         process_list = self.process_manager.list(task)
         for process in process_list:
             if self.process_manager.kill(process):
-                output.info('Stopped process %s(%s)',
-                            process.task, process.pid)
+                output.info("Stopped process %s(%s)", process.task, process.pid)
                 return
             else:
-                output.error('Cannot terminate process %s(%s)',
-                             process.task, process.pid)
+                output.error(
+                    "Cannot terminate process %s(%s)", process.task, process.pid
+                )
                 return
         if fail_if_not_present:
-            output.error('Termination of %s failed: '
-                         'no such process for server %s',
-                         task, self.config.name)
+            output.error(
+                "Termination of %s failed: " "no such process for server %s",
+                task,
+                self.config.name,
+            )
 
     def switch_wal(self, force=False, archive=None, archive_timeout=None):
         """
@@ -2451,7 +2657,7 @@ class Server(RemoteStatusMixin):
             if force:
                 # If called with force, execute a checkpoint before the
                 # switch_wal command
-                _logger.info('Force a CHECKPOINT before pg_switch_wal()')
+                _logger.info("Force a CHECKPOINT before pg_switch_wal()")
                 self.postgres.checkpoint()
 
             # Perform the switch_wal. expect a WAL name only if the switch
@@ -2460,22 +2666,26 @@ class Server(RemoteStatusMixin):
             if closed_wal is None:
                 # Something went wrong during the execution of the
                 # pg_switch_wal command
-                output.error("Unable to perform pg_switch_wal "
-                             "for server '%s'." % self.config.name)
+                output.error(
+                    "Unable to perform pg_switch_wal "
+                    "for server '%s'." % self.config.name
+                )
                 return
 
             if closed_wal:
                 # The switch_wal command have been executed successfully
                 output.info(
-                    "The WAL file %s has been closed on server '%s'" %
-                    (closed_wal, self.config.name))
+                    "The WAL file %s has been closed on server '%s'"
+                    % (closed_wal, self.config.name)
+                )
             else:
                 # Is not necessary to perform a switch_wal
-                output.info("No switch required for server '%s'" %
-                            self.config.name)
+                output.info("No switch required for server '%s'" % self.config.name)
         except PostgresIsInRecovery:
-            output.info("No switch performed because server '%s' "
-                        "is a standby." % self.config.name)
+            output.info(
+                "No switch performed because server '%s' "
+                "is a standby." % self.config.name
+            )
         except PostgresSuperuserRequired:
             # Superuser rights are required to perform the switch_wal
             output.error("Barman switch-wal requires superuser rights")
@@ -2507,11 +2717,16 @@ class Server(RemoteStatusMixin):
         if wal_file:
             output.info(
                 "Waiting for the WAL file %s from server '%s'%s",
-                wal_file, self.config.name, max_msg)
+                wal_file,
+                self.config.name,
+                max_msg,
+            )
         else:
             output.info(
                 "Waiting for a WAL file from server '%s' to be archived%s",
-                self.config.name, max_msg)
+                self.config.name,
+                max_msg,
+            )
 
         # Wait for a new file until end_time or forever if no archive_timeout
         end_time = None
@@ -2533,36 +2748,41 @@ class Server(RemoteStatusMixin):
                     break
 
             # sleep a bit before retrying
-            time.sleep(.1)
+            time.sleep(0.1)
         else:
             if wal_file:
-                output.error("The WAL file %s has not been received "
-                             "in %s seconds",
-                             wal_file, archive_timeout)
+                output.error(
+                    "The WAL file %s has not been received " "in %s seconds",
+                    wal_file,
+                    archive_timeout,
+                )
             else:
                 output.info(
-                    "A WAL file has not been received in %s seconds",
-                    archive_timeout)
+                    "A WAL file has not been received in %s seconds", archive_timeout
+                )
 
-    def replication_status(self, target='all'):
+    def replication_status(self, target="all"):
         """
         Implements the 'replication-status' command.
         """
-        if target == 'hot-standby':
+        if target == "hot-standby":
             client_type = PostgreSQLConnection.STANDBY
-        elif target == 'wal-streamer':
+        elif target == "wal-streamer":
             client_type = PostgreSQLConnection.WALSTREAMER
         else:
             client_type = PostgreSQLConnection.ANY_STREAMING_CLIENT
         try:
             standby_info = self.postgres.get_replication_stats(client_type)
             if standby_info is None:
-                output.error('Unable to connect to server %s' %
-                             self.config.name)
+                output.error("Unable to connect to server %s" % self.config.name)
             else:
-                output.result('replication_status', self.config.name,
-                              target, self.postgres.current_xlog_location,
-                              standby_info)
+                output.result(
+                    "replication_status",
+                    self.config.name,
+                    target,
+                    self.postgres.current_xlog_location,
+                    standby_info,
+                )
         except PostgresUnsupportedFeature as e:
             output.info("  Requires PostgreSQL %s or higher", e)
         except PostgresSuperuserRequired:
@@ -2588,8 +2808,9 @@ class Server(RemoteStatusMixin):
         children_tli = tli
         while True:
             children_tli += 1
-            history_path = os.path.join(self.config.wals_directory,
-                                        "%08X.history" % children_tli)
+            history_path = os.path.join(
+                self.config.wals_directory, "%08X.history" % children_tli
+            )
             # If the file doesn't exists, stop searching
             if not os.path.exists(history_path):
                 break
@@ -2599,8 +2820,8 @@ class Server(RemoteStatusMixin):
             # Get content of the file. We need to pass a compressor manager
             # here to handle an eventual compression of the history file
             history_info = xlog.decode_history_file(
-                wal_info,
-                self.backup_manager.compression_manager)
+                wal_info, self.backup_manager.compression_manager
+            )
 
             # Save the history only if is reachable from this timeline.
             for tinfo in history_info:
@@ -2626,22 +2847,24 @@ class Server(RemoteStatusMixin):
 
         :param backup_info: the target backup
         """
-        output.debug("Checking backup %s of server %s",
-                     backup_info.backup_id, self.config.name)
+        output.debug(
+            "Checking backup %s of server %s", backup_info.backup_id, self.config.name
+        )
         try:
             # No need to check a backup which is not waiting for WALs.
             # Doing that we could also mark as DONE backups which
             # were previously FAILED due to copy errors
             if backup_info.status == BackupInfo.FAILED:
-                output.error(
-                    "The validity of a failed backup cannot be checked")
+                output.error("The validity of a failed backup cannot be checked")
                 return
 
             # Take care of the backup lock.
             # Only one process can modify a backup a a time
-            with ServerBackupIdLock(self.config.barman_lock_directory,
-                                    self.config.name,
-                                    backup_info.backup_id):
+            with ServerBackupIdLock(
+                self.config.barman_lock_directory,
+                self.config.name,
+                backup_info.backup_id,
+            ):
                 orig_status = backup_info.status
                 self.backup_manager.check_backup(backup_info)
                 if orig_status == backup_info.status:
@@ -2650,7 +2873,8 @@ class Server(RemoteStatusMixin):
                         "remains %s",
                         backup_info.backup_id,
                         self.config.name,
-                        backup_info.status)
+                        backup_info.status,
+                    )
                 else:
                     output.debug(
                         "Check finished: the status of backup %s of server %s "
@@ -2658,7 +2882,8 @@ class Server(RemoteStatusMixin):
                         backup_info.backup_id,
                         self.config.name,
                         orig_status,
-                        backup_info.status)
+                        backup_info.status,
+                    )
         except LockFileBusy:
             # If another process is holding the backup lock,
             # notify the user and terminate.
@@ -2666,8 +2891,8 @@ class Server(RemoteStatusMixin):
             # another process is validating the backup.
             output.info(
                 "Another process is holding the lock for "
-                "backup %s of server %s." % (
-                    backup_info.backup_id, self.config.name))
+                "backup %s of server %s." % (backup_info.backup_id, self.config.name)
+            )
             return
 
         except LockFilePermissionDenied as e:
@@ -2710,9 +2935,9 @@ class Server(RemoteStatusMixin):
             first_useful_wal = backups[sorted(backups.keys())[0]].begin_wal
         # Read xlogdb file.
         with self.xlogdb() as fxlogdb:
-            starting_point = self.set_sync_starting_point(fxlogdb,
-                                                          last_wal,
-                                                          last_position)
+            starting_point = self.set_sync_starting_point(
+                fxlogdb, last_wal, last_position
+            )
             check_first_wal = starting_point == 0 and last_wal is not None
             # The wal_info and line variables are used after the loop.
             # We initialize them here to avoid errors with an empty xlogdb.
@@ -2728,7 +2953,8 @@ class Server(RemoteStatusMixin):
                     if last_wal < wal_info.name:
                         raise SyncError(
                             "last_wal '%s' is older than the first"
-                            " available wal '%s'" % (last_wal, wal_info.name))
+                            " available wal '%s'" % (last_wal, wal_info.name)
+                        )
                     else:
                         check_first_wal = False
                 # If last_wal is provided, discard any line older than last_wal
@@ -2744,20 +2970,21 @@ class Server(RemoteStatusMixin):
                 if last_wal is not None and last_wal > wal_info.name:
                     raise SyncError(
                         "last_wal '%s' is newer than the last available wal "
-                        " '%s'" % (last_wal, wal_info.name))
+                        " '%s'" % (last_wal, wal_info.name)
+                    )
                 # Set last_position with the current position - len(last_line)
                 # (returning the beginning of the last line)
-                sync_status['last_position'] = fxlogdb.tell() - len(line)
+                sync_status["last_position"] = fxlogdb.tell() - len(line)
                 # Set the name of the last wal of the file
-                sync_status['last_name'] = wal_info.name
+                sync_status["last_name"] = wal_info.name
             else:
                 # we started over
-                sync_status['last_position'] = 0
-                sync_status['last_name'] = ''
-            sync_status['backups'] = backups
-            sync_status['wals'] = wals
-            sync_status['version'] = barman.__version__
-            sync_status['config'] = self.config
+                sync_status["last_position"] = 0
+                sync_status["last_name"] = ""
+            sync_status["backups"] = backups
+            sync_status["wals"] = wals
+            sync_status["version"] = barman.__version__
+            sync_status["config"] = self.config
         json.dump(sync_status, sys.stdout, cls=BarmanEncoder, indent=4)
 
     def sync_cron(self, keep_descriptors):
@@ -2775,27 +3002,31 @@ class Server(RemoteStatusMixin):
         # Use last_wal and last_position for the remote call to the
         # master server
         try:
-            remote_info = self.primary_node_info(sync_wal_info.last_wal,
-                                                 sync_wal_info.last_position)
+            remote_info = self.primary_node_info(
+                sync_wal_info.last_wal, sync_wal_info.last_position
+            )
         except SyncError as exc:
-            output.error("Failed to retrieve the primary node status: %s"
-                         % force_str(exc))
+            output.error(
+                "Failed to retrieve the primary node status: %s" % force_str(exc)
+            )
             return
 
         # Perform backup synchronisation
-        if remote_info['backups']:
+        if remote_info["backups"]:
             # Get the list of backups that need to be synced
             # with the local server
             local_backup_list = self.get_available_backups()
             # Subtract the list of the already
             # synchronised backups from the remote backup lists,
             # obtaining the list of backups still requiring synchronisation
-            sync_backup_list = set(remote_info['backups']) - set(
-                local_backup_list)
+            sync_backup_list = set(remote_info["backups"]) - set(local_backup_list)
         else:
             # No backup to synchronisation required
-            output.info("No backup synchronisation required for server %s",
-                        self.config.name, log=False)
+            output.info(
+                "No backup synchronisation required for server %s",
+                self.config.name,
+                log=False,
+            )
             sync_backup_list = []
         for backup_id in sorted(sync_backup_list):
             # Check if this backup_id needs to be synchronized by spawning a
@@ -2805,9 +3036,7 @@ class Server(RemoteStatusMixin):
             # to spawn unnecessary processes.
             try:
                 local_backup_info = self.get_backup(backup_id)
-                self.check_sync_required(backup_id,
-                                         remote_info,
-                                         local_backup_info)
+                self.check_sync_required(backup_id, remote_info, local_backup_info)
             except SyncError as e:
                 # It means that neither the local backup
                 # nor the remote one exist.
@@ -2831,23 +3060,32 @@ class Server(RemoteStatusMixin):
             # If cannot acquire the lock, another synchronisation process
             # is running, so we give up.
             try:
-                with ServerBackupSyncLock(self.config.barman_lock_directory,
-                                          self.config.name, backup_id):
-                    output.info("Starting copy of backup %s for server %s",
-                                backup_id, self.config.name)
+                with ServerBackupSyncLock(
+                    self.config.barman_lock_directory, self.config.name, backup_id
+                ):
+                    output.info(
+                        "Starting copy of backup %s for server %s",
+                        backup_id,
+                        self.config.name,
+                    )
             except LockFileBusy:
-                output.info("A synchronisation process for backup %s"
-                            " on server %s is already in progress",
-                            backup_id, self.config.name, log=False)
+                output.info(
+                    "A synchronisation process for backup %s"
+                    " on server %s is already in progress",
+                    backup_id,
+                    self.config.name,
+                    log=False,
+                )
                 # Stop processing this server
                 break
 
             # Init a Barman sub-process object
             sub_process = BarmanSubProcess(
-                subcommand='sync-backup',
+                subcommand="sync-backup",
                 config=barman.__config__.config_file,
                 args=[self.config.name, backup_id],
-                keep_descriptors=keep_descriptors)
+                keep_descriptors=keep_descriptors,
+            )
             # Launch the sub-process
             sub_process.execute()
 
@@ -2855,38 +3093,45 @@ class Server(RemoteStatusMixin):
             break
 
         # Perform WAL synchronisation
-        if remote_info['wals']:
+        if remote_info["wals"]:
             # We need to acquire a sync-wal lock, to be sure that
             # there aren't other processes synchronising the WAL files.
             # If cannot acquire the lock, another synchronisation process
             # is running, so we give up.
             try:
-                with ServerWalSyncLock(self.config.barman_lock_directory,
-                                       self.config.name,):
-                    output.info("Started copy of WAL files for server %s",
-                                self.config.name)
+                with ServerWalSyncLock(
+                    self.config.barman_lock_directory,
+                    self.config.name,
+                ):
+                    output.info(
+                        "Started copy of WAL files for server %s", self.config.name
+                    )
             except LockFileBusy:
-                output.info("WAL synchronisation already running"
-                            " for server %s", self.config.name, log=False)
+                output.info(
+                    "WAL synchronisation already running" " for server %s",
+                    self.config.name,
+                    log=False,
+                )
                 return
 
             # Init a Barman sub-process object
             sub_process = BarmanSubProcess(
-                subcommand='sync-wals',
+                subcommand="sync-wals",
                 config=barman.__config__.config_file,
                 args=[self.config.name],
-                keep_descriptors=keep_descriptors)
+                keep_descriptors=keep_descriptors,
+            )
             # Launch the sub-process
             sub_process.execute()
         else:
             # no WAL synchronisation is required
-            output.info("No WAL synchronisation required for server %s",
-                        self.config.name, log=False)
+            output.info(
+                "No WAL synchronisation required for server %s",
+                self.config.name,
+                log=False,
+            )
 
-    def check_sync_required(self,
-                            backup_name,
-                            primary_info,
-                            local_backup_info):
+    def check_sync_required(self, backup_name, primary_info, local_backup_info):
         """
         Check if it is necessary to sync a backup.
 
@@ -2917,56 +3162,66 @@ class Server(RemoteStatusMixin):
         :raise SyncNothingToDo: Nothing to do for this request
         :raise SyncToBeDeleted: Backup is not recoverable and must be deleted
         """
-        backups = primary_info['backups']
+        backups = primary_info["backups"]
         # Backup not present on Primary node, and not present
         # locally. Raise exception.
-        if backup_name not in backups \
-                and local_backup_info is None:
-            raise SyncError("Backup %s is absent on %s server" %
-                            (backup_name, self.config.name))
+        if backup_name not in backups and local_backup_info is None:
+            raise SyncError(
+                "Backup %s is absent on %s server" % (backup_name, self.config.name)
+            )
         # Backup not present on Primary node, but is
         # present locally with status FAILED: backup incomplete.
         # Remove the backup and warn the user
-        if backup_name not in backups \
-                and local_backup_info is not None \
-                and local_backup_info.status == BackupInfo.FAILED:
+        if (
+            backup_name not in backups
+            and local_backup_info is not None
+            and local_backup_info.status == BackupInfo.FAILED
+        ):
             raise SyncToBeDeleted(
-                "Backup %s is absent on %s server and is incomplete locally" %
-                (backup_name, self.config.name))
+                "Backup %s is absent on %s server and is incomplete locally"
+                % (backup_name, self.config.name)
+            )
 
         # Backup not present on Primary node, but is
         # present locally with status DONE. Sync complete, local only.
-        if backup_name not in backups \
-                and local_backup_info is not None \
-                and local_backup_info.status == BackupInfo.DONE:
+        if (
+            backup_name not in backups
+            and local_backup_info is not None
+            and local_backup_info.status == BackupInfo.DONE
+        ):
             raise SyncNothingToDo(
                 "Backup %s is absent on %s server, but present locally "
-                "(local copy only)" % (backup_name, self.config.name))
+                "(local copy only)" % (backup_name, self.config.name)
+            )
 
         # Backup present on Primary node, and present locally
         # with status DONE. Sync complete.
-        if backup_name in backups \
-                and local_backup_info is not None \
-                and local_backup_info.status == BackupInfo.DONE:
-            raise SyncNothingToDo("Backup %s is already synced with"
-                                  " %s server" % (backup_name,
-                                                  self.config.name))
+        if (
+            backup_name in backups
+            and local_backup_info is not None
+            and local_backup_info.status == BackupInfo.DONE
+        ):
+            raise SyncNothingToDo(
+                "Backup %s is already synced with"
+                " %s server" % (backup_name, self.config.name)
+            )
 
         # Retention Policy: if the local server has a Retention policy,
         # check that the remote backup is not obsolete.
         enforce_retention_policies = self.enforce_retention_policies
         retention_policy_mode = self.config.retention_policy_mode
-        if enforce_retention_policies and retention_policy_mode == 'auto':
+        if enforce_retention_policies and retention_policy_mode == "auto":
             # All the checks regarding retention policies are in
             # this boolean method.
             if self.is_backup_locally_obsolete(backup_name, backups):
                 # The remote backup is obsolete according to
                 # local retention policies.
                 # Nothing to do.
-                raise SyncNothingToDo("Remote backup %s/%s is obsolete for "
-                                      "local retention policies." %
-                                      (primary_info['config']['name'],
-                                       backup_name))
+                raise SyncNothingToDo(
+                    "Remote backup %s/%s is obsolete for "
+                    "local retention policies."
+                    % (primary_info["config"]["name"], backup_name)
+                )
 
     def load_sync_wals_info(self):
         """
@@ -2974,16 +3229,19 @@ class Server(RemoteStatusMixin):
 
         :return collections.namedtuple: last read wal and position information
         """
-        sync_wals_info_file = os.path.join(self.config.wals_directory,
-                                           SYNC_WALS_INFO_FILE)
+        sync_wals_info_file = os.path.join(
+            self.config.wals_directory, SYNC_WALS_INFO_FILE
+        )
         if not os.path.exists(sync_wals_info_file):
             return SyncWalInfo(None, None)
         try:
             with open(sync_wals_info_file) as f:
-                return SyncWalInfo._make(f.readline().split('\t'))
+                return SyncWalInfo._make(f.readline().split("\t"))
         except (OSError, IOError) as e:
-            raise SyncError("Cannot open %s file for server %s: %s" % (
-                SYNC_WALS_INFO_FILE, self.config.name, e))
+            raise SyncError(
+                "Cannot open %s file for server %s: %s"
+                % (SYNC_WALS_INFO_FILE, self.config.name, e)
+            )
 
     def primary_node_info(self, last_wal=None, last_position=None):
         """
@@ -2998,17 +3256,17 @@ class Server(RemoteStatusMixin):
         :raise SyncError: if the ssh command fails
         """
         # First we need to check if the server is in passive mode
-        _logger.debug("primary sync-info(%s, %s, %s)",
-                      self.config.name,
-                      last_wal,
-                      last_position)
+        _logger.debug(
+            "primary sync-info(%s, %s, %s)", self.config.name, last_wal, last_position
+        )
         if not self.passive_node:
             raise SyncError("server %s is not passive" % self.config.name)
         # Issue a call to 'barman sync-info' to the primary node,
         # using primary_ssh_command option to establish an
         # SSH connection.
-        remote_command = Command(cmd=self.config.primary_ssh_command,
-                                 shell=True, check=True, path=self.path)
+        remote_command = Command(
+            cmd=self.config.primary_ssh_command, shell=True, check=True, path=self.path
+        )
         # We run it in a loop to retry when the master issues error.
         while True:
             try:
@@ -3029,24 +3287,28 @@ class Server(RemoteStatusMixin):
                 # we try again requesting the full current status, but only if
                 # exit code is 1. A different exit code means that
                 # the error is not from Barman (i.e. ssh failure)
-                if exc.args[0]['ret'] == 1 and last_wal is not None:
+                if exc.args[0]["ret"] == 1 and last_wal is not None:
                     last_wal = None
                     last_position = None
                     output.warning(
                         "sync-info is out of sync. "
                         "Self-recovery procedure started: "
                         "requesting full synchronisation from "
-                        "primary server %s" % self.config.name)
+                        "primary server %s" % self.config.name
+                    )
                     continue
                 # Wrap the CommandFailed exception with a SyncError
                 # for custom message and logging.
-                raise SyncError("sync-info execution on remote "
-                                "primary server %s failed: %s" %
-                                (self.config.name, exc.args[0]['err']))
+                raise SyncError(
+                    "sync-info execution on remote "
+                    "primary server %s failed: %s"
+                    % (self.config.name, exc.args[0]["err"])
+                )
 
         # Save the result on disk
-        primary_info_file = os.path.join(self.config.backup_directory,
-                                         PRIMARY_INFO_FILE)
+        primary_info_file = os.path.join(
+            self.config.backup_directory, PRIMARY_INFO_FILE
+        )
 
         # parse the json output
         remote_info = json.loads(remote_command.out)
@@ -3061,15 +3323,16 @@ class Server(RemoteStatusMixin):
             # replacing the old one.
             # It works while the renaming is an atomic operation
             # (this is a POSIX requirement)
-            primary_info_file_tmp = primary_info_file + '.tmp'
-            with open(primary_info_file_tmp, 'w') as info_file:
+            primary_info_file_tmp = primary_info_file + ".tmp"
+            with open(primary_info_file_tmp, "w") as info_file:
                 info_file.write(remote_command.out)
             os.rename(primary_info_file_tmp, primary_info_file)
         except (OSError, IOError) as e:
             # Wrap file access exceptions using SyncError
-            raise SyncError("Cannot open %s file for server %s: %s" % (
-                PRIMARY_INFO_FILE,
-                self.config.name, e))
+            raise SyncError(
+                "Cannot open %s file for server %s: %s"
+                % (PRIMARY_INFO_FILE, self.config.name, e)
+            )
 
         return remote_info
 
@@ -3118,11 +3381,13 @@ class Server(RemoteStatusMixin):
         # Step 1. Parse data from Primary server.
         _logger.info(
             "Synchronising with server %s backup %s: step 1/3: "
-            "parse server information", self.config.name, backup_name)
+            "parse server information",
+            self.config.name,
+            backup_name,
+        )
         try:
             primary_info = self.load_primary_info()
-            self.check_sync_required(backup_name,
-                                     primary_info, local_backup_info)
+            self.check_sync_required(backup_name, primary_info, local_backup_info)
         except SyncError as e:
             # Invocation error: exit with return code 1
             output.error("%s", e)
@@ -3141,23 +3406,23 @@ class Server(RemoteStatusMixin):
         # If the backup is present on Primary node, and is not present at all
         # locally or is present with FAILED status, execute sync.
         # Retrieve info about the backup from PRIMARY_INFO_FILE
-        remote_backup_info = primary_info['backups'][backup_name]
-        remote_backup_dir = primary_info['config']['basebackups_directory']
+        remote_backup_info = primary_info["backups"][backup_name]
+        remote_backup_dir = primary_info["config"]["basebackups_directory"]
 
         # Try to acquire the backup lock, if the lock is not available abort
         # the copy.
         try:
-            with ServerBackupSyncLock(self.config.barman_lock_directory,
-                                      self.config.name, backup_name):
+            with ServerBackupSyncLock(
+                self.config.barman_lock_directory, self.config.name, backup_name
+            ):
                 try:
                     backup_manager = self.backup_manager
 
                     # Build a BackupInfo object
                     local_backup_info = LocalBackupInfo.from_json(
-                        self,
-                        remote_backup_info)
-                    local_backup_info.set_attribute('status',
-                                                    BackupInfo.SYNCING)
+                        self, remote_backup_info
+                    )
+                    local_backup_info.set_attribute("status", BackupInfo.SYNCING)
                     local_backup_info.save()
                     backup_manager.backup_cache_add(local_backup_info)
 
@@ -3170,10 +3435,8 @@ class Server(RemoteStatusMixin):
                     safe_horizon = None
                     reuse_dir = None
                     if reuse_mode:
-                        prev_backup = backup_manager.get_previous_backup(
-                            backup_name)
-                        next_backup = backup_manager.get_next_backup(
-                            backup_name)
+                        prev_backup = backup_manager.get_previous_backup(backup_name)
+                        next_backup = backup_manager.get_next_backup(backup_name)
                         # If a newer backup is present, using it is preferable
                         # because that backup will remain valid longer
                         if next_backup:
@@ -3195,35 +3458,45 @@ class Server(RemoteStatusMixin):
                         safe_horizon=safe_horizon,
                         retry_times=self.config.basebackup_retry_times,
                         retry_sleep=self.config.basebackup_retry_sleep,
-                        workers=self.config.parallel_jobs)
+                        workers=self.config.parallel_jobs,
+                    )
                     copy_controller.add_directory(
-                        'basebackup',
+                        "basebackup",
                         ":%s/%s/" % (remote_backup_dir, backup_name),
                         local_backup_info.get_basebackup_directory(),
-                        exclude_and_protect=['/backup.info', '/.backup.lock'],
+                        exclude_and_protect=["/backup.info", "/.backup.lock"],
                         bwlimit=self.config.bandwidth_limit,
                         reuse=reuse_dir,
-                        item_class=RsyncCopyController.PGDATA_CLASS)
+                        item_class=RsyncCopyController.PGDATA_CLASS,
+                    )
                     _logger.info(
                         "Synchronising with server %s backup %s: step 2/3: "
-                        "file copy", self.config.name, backup_name)
+                        "file copy",
+                        self.config.name,
+                        backup_name,
+                    )
                     copy_controller.copy()
 
                     # Save the backup state and exit
-                    _logger.info("Synchronising with server %s backup %s: "
-                                 "step 3/3: finalise sync",
-                                 self.config.name, backup_name)
-                    local_backup_info.set_attribute('status', BackupInfo.DONE)
+                    _logger.info(
+                        "Synchronising with server %s backup %s: "
+                        "step 3/3: finalise sync",
+                        self.config.name,
+                        backup_name,
+                    )
+                    local_backup_info.set_attribute("status", BackupInfo.DONE)
                     local_backup_info.save()
                 except CommandFailedException as e:
                     # Report rsync errors
-                    msg = 'failure syncing server %s backup %s: %s' % (
-                        self.config.name, backup_name, e)
+                    msg = "failure syncing server %s backup %s: %s" % (
+                        self.config.name,
+                        backup_name,
+                        e,
+                    )
                     output.error(msg)
                     # Set the BackupInfo status to FAILED
-                    local_backup_info.set_attribute('status',
-                                                    BackupInfo.FAILED)
-                    local_backup_info.set_attribute('error', msg)
+                    local_backup_info.set_attribute("status", BackupInfo.FAILED)
+                    local_backup_info.set_attribute("error", msg)
                     local_backup_info.save()
                     return
                 # Catch KeyboardInterrupt (Ctrl+c) and all the exceptions
@@ -3232,24 +3505,30 @@ class Server(RemoteStatusMixin):
                     if local_backup_info:
                         # Use only the first line of exception message
                         # in local_backup_info error field
-                        local_backup_info.set_attribute("status",
-                                                        BackupInfo.FAILED)
+                        local_backup_info.set_attribute("status", BackupInfo.FAILED)
                         # If the exception has no attached message
                         # use the raw type name
                         if not msg_lines:
                             msg_lines = [type(e).__name__]
                         local_backup_info.set_attribute(
                             "error",
-                            "failure syncing server %s backup %s: %s" % (
-                                self.config.name, backup_name, msg_lines[0]))
+                            "failure syncing server %s backup %s: %s"
+                            % (self.config.name, backup_name, msg_lines[0]),
+                        )
                         local_backup_info.save()
-                    output.error("Backup failed syncing with %s: %s\n%s",
-                                 self.config.name, msg_lines[0],
-                                 '\n'.join(msg_lines[1:]))
+                    output.error(
+                        "Backup failed syncing with %s: %s\n%s",
+                        self.config.name,
+                        msg_lines[0],
+                        "\n".join(msg_lines[1:]),
+                    )
         except LockFileException:
-            output.error("Another synchronisation process for backup %s "
-                         "of server %s is already running.",
-                         backup_name, self.config.name)
+            output.error(
+                "Another synchronisation process for backup %s "
+                "of server %s is already running.",
+                backup_name,
+                self.config.name,
+            )
 
     def sync_wals(self):
         """
@@ -3281,8 +3560,10 @@ class Server(RemoteStatusMixin):
         # Try to acquire the sync-wal lock if the lock is not available,
         # abort the sync-wal operation
         try:
-            with ServerWalSyncLock(self.config.barman_lock_directory,
-                                   self.config.name, ):
+            with ServerWalSyncLock(
+                self.config.barman_lock_directory,
+                self.config.name,
+            ):
                 try:
                     # Need to load data from status files: primary.info
                     # and sync-wals.info
@@ -3290,14 +3571,17 @@ class Server(RemoteStatusMixin):
                     primary_info = self.load_primary_info()
                     # We want to exit if the compression on master is different
                     # from the one on the local server
-                    if primary_info['config']['compression'] \
-                            != self.config.compression:
-                        raise SyncError("Compression method on server %s "
-                                        "(%s) does not match local "
-                                        "compression method (%s) " %
-                                        (self.config.name,
-                                         primary_info['config']['compression'],
-                                         self.config.compression))
+                    if primary_info["config"]["compression"] != self.config.compression:
+                        raise SyncError(
+                            "Compression method on server %s "
+                            "(%s) does not match local "
+                            "compression method (%s) "
+                            % (
+                                self.config.name,
+                                primary_info["config"]["compression"],
+                                self.config.compression,
+                            )
+                        )
                     # If the first WAL that needs to be copied is older
                     # than the begin WAL of the first locally available backup,
                     # synchronisation is skipped. This means that we need
@@ -3317,35 +3601,40 @@ class Server(RemoteStatusMixin):
                     # Search for the first WAL file (skip history,
                     # backup and partial files)
                     first_remote_wal = None
-                    for wal in primary_info['wals']:
-                        if xlog.is_wal_file(wal['name']):
-                            first_remote_wal = wal['name']
+                    for wal in primary_info["wals"]:
+                        if xlog.is_wal_file(wal["name"]):
+                            first_remote_wal = wal["name"]
                             break
 
                     first_backup_id = self.get_first_backup_id()
-                    first_backup = self.get_backup(first_backup_id) \
-                        if first_backup_id else None
+                    first_backup = (
+                        self.get_backup(first_backup_id) if first_backup_id else None
+                    )
                     # Also if there are not any backups on the local server
                     # no wal synchronisation is required
                     if not first_backup:
-                        output.warning("No base backup for server %s"
-                                       % self.config.name)
+                        output.warning(
+                            "No base backup for server %s" % self.config.name
+                        )
                         return
 
                     if first_backup.begin_wal > first_remote_wal:
-                        output.warning("Skipping WAL synchronisation for "
-                                       "server %s: no available local backup "
-                                       "for %s" % (self.config.name,
-                                                   first_remote_wal))
+                        output.warning(
+                            "Skipping WAL synchronisation for "
+                            "server %s: no available local backup "
+                            "for %s" % (self.config.name, first_remote_wal)
+                        )
                         return
 
                     local_wals = []
                     wal_file_paths = []
-                    for wal in primary_info['wals']:
+                    for wal in primary_info["wals"]:
                         # filter all the WALs that are smaller
                         # or equal to the name of the latest synchronised WAL
-                        if sync_wals_info.last_wal and \
-                                wal['name'] <= sync_wals_info.last_wal:
+                        if (
+                            sync_wals_info.last_wal
+                            and wal["name"] <= sync_wals_info.last_wal
+                        ):
                             continue
                         # Generate WalFileInfo Objects using remote WAL metas.
                         # This list will be used for the update of the xlog.db
@@ -3363,16 +3652,22 @@ class Server(RemoteStatusMixin):
                     # inplace: for inplace file substitution
                     #   and update of files
                     rsync = Rsync(
-                        args=['--recursive', '--perms', '--times',
-                              '--protect-args', '--inplace'],
+                        args=[
+                            "--recursive",
+                            "--perms",
+                            "--times",
+                            "--protect-args",
+                            "--inplace",
+                        ],
                         ssh=self.config.primary_ssh_command,
                         bwlimit=self.config.bandwidth_limit,
                         allowed_retval=(0,),
                         network_compression=self.config.network_compression,
-                        path=self.path)
+                        path=self.path,
+                    )
                     # Source and destination of the rsync operations
-                    src = ':%s/' % primary_info['config']['wals_directory']
-                    dest = '%s/' % self.config.wals_directory
+                    src = ":%s/" % primary_info["config"]["wals_directory"]
+                    dest = "%s/" % self.config.wals_directory
 
                     # Perform the rsync copy using the list of relative paths
                     # obtained from the primary.info file
@@ -3380,7 +3675,7 @@ class Server(RemoteStatusMixin):
 
                     # If everything is synced without errors,
                     # update xlog.db using the list of WalFileInfo object
-                    with self.xlogdb('a') as fxlogdb:
+                    with self.xlogdb("a") as fxlogdb:
                         for wal_info in local_wals:
                             fxlogdb.write(wal_info.to_xlogdb_line())
                     # We need to update the sync-wals.info file with the latest
@@ -3388,8 +3683,10 @@ class Server(RemoteStatusMixin):
                     self.write_sync_wals_info_file(primary_info)
 
                 except CommandFailedException as e:
-                    msg = "WAL synchronisation for server %s " \
-                          "failed: %s" % (self.config.name, e)
+                    msg = "WAL synchronisation for server %s " "failed: %s" % (
+                        self.config.name,
+                        e,
+                    )
                     output.error(msg)
                     return
                 except BaseException as e:
@@ -3399,13 +3696,17 @@ class Server(RemoteStatusMixin):
                     # use the raw type name
                     if not msg_lines:
                         msg_lines = [type(e).__name__]
-                    output.error("WAL synchronisation for server %s "
-                                 "failed with: %s\n%s",
-                                 self.config.name, msg_lines[0],
-                                 '\n'.join(msg_lines[1:]))
+                    output.error(
+                        "WAL synchronisation for server %s " "failed with: %s\n%s",
+                        self.config.name,
+                        msg_lines[0],
+                        "\n".join(msg_lines[1:]),
+                    )
         except LockFileException:
-            output.error("Another sync-wal operation is running "
-                         "for server %s ", self.config.name)
+            output.error(
+                "Another sync-wal operation is running " "for server %s ",
+                self.config.name,
+            )
 
     @staticmethod
     def set_sync_starting_point(xlogdb_file, last_wal, last_position):
@@ -3440,14 +3741,19 @@ class Server(RemoteStatusMixin):
         :param dict primary_info:
         """
         try:
-            with open(os.path.join(self.config.wals_directory,
-                                   SYNC_WALS_INFO_FILE), 'w') as syncfile:
-                syncfile.write("%s\t%s" % (primary_info['last_name'],
-                                           primary_info['last_position']))
+            with open(
+                os.path.join(self.config.wals_directory, SYNC_WALS_INFO_FILE), "w"
+            ) as syncfile:
+                syncfile.write(
+                    "%s\t%s"
+                    % (primary_info["last_name"], primary_info["last_position"])
+                )
         except (OSError, IOError):
             # Wrap file access exceptions using SyncError
-            raise SyncError("Unable to write %s file for server %s" %
-                            (SYNC_WALS_INFO_FILE, self.config.name))
+            raise SyncError(
+                "Unable to write %s file for server %s"
+                % (SYNC_WALS_INFO_FILE, self.config.name)
+            )
 
     def load_primary_info(self):
         """
@@ -3455,12 +3761,15 @@ class Server(RemoteStatusMixin):
 
         :return dict: primary server information
         """
-        primary_info_file = os.path.join(self.config.backup_directory,
-                                         PRIMARY_INFO_FILE)
+        primary_info_file = os.path.join(
+            self.config.backup_directory, PRIMARY_INFO_FILE
+        )
         try:
             with open(primary_info_file) as f:
                 return json.load(f)
         except (OSError, IOError) as e:
             # Wrap file access exceptions using SyncError
-            raise SyncError("Cannot open %s file for server %s: %s" % (
-                PRIMARY_INFO_FILE, self.config.name, e))
+            raise SyncError(
+                "Cannot open %s file for server %s: %s"
+                % (PRIMARY_INFO_FILE, self.config.name, e)
+            )

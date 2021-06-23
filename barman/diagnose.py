@@ -44,18 +44,18 @@ def exec_diagnose(servers, errors_list):
     :param list errors_list: list of global errors
     """
     # global section. info about barman server
-    diagnosis = {'global': {}, 'servers': {}}
+    diagnosis = {"global": {}, "servers": {}}
     # barman global config
-    diagnosis['global']['config'] = dict(barman.__config__._global_config)
-    diagnosis['global']['config']['errors_list'] = errors_list
+    diagnosis["global"]["config"] = dict(barman.__config__._global_config)
+    diagnosis["global"]["config"]["errors_list"] = errors_list
     try:
         command = fs.UnixLocalCommand()
         # basic system info
-        diagnosis['global']['system_info'] = command.get_system_info()
+        diagnosis["global"]["system_info"] = command.get_system_info()
     except CommandFailedException as e:
-        diagnosis['global']['system_info'] = {'error': repr(e)}
-    diagnosis['global']['system_info']['barman_ver'] = barman.__version__
-    diagnosis['global']['system_info']['timestamp'] = datetime.datetime.now()
+        diagnosis["global"]["system_info"] = {"error": repr(e)}
+    diagnosis["global"]["system_info"]["barman_ver"] = barman.__version__
+    diagnosis["global"]["system_info"]["timestamp"] = datetime.datetime.now()
     # per server section
     for name in sorted(servers):
         server = servers[name]
@@ -63,31 +63,27 @@ def exec_diagnose(servers, errors_list):
             output.error("Unknown server '%s'" % name)
             continue
         # server configuration
-        diagnosis['servers'][name] = {}
-        diagnosis['servers'][name]['config'] = vars(server.config)
-        del diagnosis['servers'][name]['config']['config']
+        diagnosis["servers"][name] = {}
+        diagnosis["servers"][name]["config"] = vars(server.config)
+        del diagnosis["servers"][name]["config"]["config"]
         # server system info
         if server.config.ssh_command:
             try:
                 command = fs.UnixRemoteCommand(
-                    ssh_command=server.config.ssh_command,
-                    path=server.path
+                    ssh_command=server.config.ssh_command, path=server.path
                 )
-                diagnosis['servers'][name]['system_info'] = (
-                    command.get_system_info())
+                diagnosis["servers"][name]["system_info"] = command.get_system_info()
             except FsOperationFailed:
                 pass
         # barman status information for the server
-        diagnosis['servers'][name]['status'] = server.get_remote_status()
+        diagnosis["servers"][name]["status"] = server.get_remote_status()
         # backup list
         backups = server.get_available_backups(BackupInfo.STATUS_ALL)
-        diagnosis['servers'][name]['backups'] = backups
+        diagnosis["servers"][name]["backups"] = backups
         # wal status
-        diagnosis['servers'][name]['wals'] = {
-            'last_archived_wal_per_timeline':
-                server.backup_manager.get_latest_archived_wals_info(),
+        diagnosis["servers"][name]["wals"] = {
+            "last_archived_wal_per_timeline": server.backup_manager.get_latest_archived_wals_info(),
         }
         # Release any PostgreSQL resource
         server.close()
-    output.info(json.dumps(diagnosis, cls=BarmanEncoder, indent=4,
-                           sort_keys=True))
+    output.info(json.dumps(diagnosis, cls=BarmanEncoder, indent=4, sort_keys=True))
