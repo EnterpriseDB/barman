@@ -312,6 +312,7 @@ class TestCli(object):
         args.tablespace = None
         args.target_name = None
         args.target_tli = 3
+        args.target_lsn = None
         args.target_immediate = True
         args.target_time = None
         args.target_xid = None
@@ -357,11 +358,13 @@ class TestCli(object):
         args.target_immediate = True
         args.target_time = None
         args.target_xid = None
+        args.target_lsn = None
         args.target_action = None
 
-        _, err = capsys.readouterr()
         with pytest.raises(SystemExit):
             recover(args)
+
+        _, err = capsys.readouterr()
         assert "" == err
 
     @patch("barman.cli.parse_backup_id")
@@ -396,11 +399,13 @@ class TestCli(object):
         args.target_immediate = None
         args.target_time = None
         args.target_xid = None
+        args.target_lsn = None
         args.target_action = None
 
-        _, err = capsys.readouterr()
         with pytest.raises(SystemExit):
             recover(args)
+
+        _, err = capsys.readouterr()
         assert "" == err
 
     def test_check_target_action(self):
