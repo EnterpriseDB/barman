@@ -591,7 +591,6 @@ def recover(args):
     #   recovery-target-settings.html
 
     target_options = [
-        "target_tli",
         "target_time",
         "target_xid",
         "target_lsn",
