@@ -311,10 +311,10 @@ class TestCli(object):
         args.destination_directory = "recovery_dir"
         args.tablespace = None
         args.target_name = None
-        args.target_tli = 3
+        args.target_tli = None
         args.target_lsn = None
         args.target_immediate = True
-        args.target_time = None
+        args.target_time = "2021-01-001 00:00:00.000"
         args.target_xid = None
 
         with pytest.raises(SystemExit):
