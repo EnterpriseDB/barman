@@ -24,7 +24,7 @@ import pytest
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-from barman.cloud import CloudInterface, CloudUploadingError, FileUploadStatistics
+from barman.cloud import S3CloudInterface, CloudUploadingError, FileUploadStatistics
 
 try:
     from queue import Queue
@@ -38,7 +38,9 @@ class TestCloudInterface(object):
         """
         Minimal build of the CloudInterface class
         """
-        cloud_interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface(
+            url="s3://bucket/path/to/dir", encryption=None
+        )
         assert cloud_interface.bucket_name == "bucket"
         assert cloud_interface.path == "path/to/dir"
         boto_mock.Session.assert_called_once_with(profile_name=None)
@@ -57,7 +59,7 @@ class TestCloudInterface(object):
     @mock.patch("barman.cloud.multiprocessing")
     def test_ensure_async(self, mp):
         jobs_count = 30
-        interface = CloudInterface(
+        interface = S3CloudInterface(
             url="s3://bucket/path/to/dir", encryption=None, jobs=jobs_count
         )
 
@@ -81,7 +83,7 @@ class TestCloudInterface(object):
         assert not mp.Process.called
 
     def test_retrieve_results(self):
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = Queue()
         interface.done_queue = Queue()
         interface.result_queue = Queue()
@@ -176,7 +178,7 @@ class TestCloudInterface(object):
             },
         }
 
-    @mock.patch("barman.cloud.CloudInterface.worker_process_execute_job")
+    @mock.patch("barman.cloud.CloudInterface._worker_process_execute_job")
     def test_worker_process_main(self, worker_process_execute_job_mock):
         job_collection = [
             {"job_id": 1, "job_type": "upload_part"},
@@ -185,11 +187,11 @@ class TestCloudInterface(object):
             None,
         ]
 
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = mock.MagicMock()
         interface.errors_queue = Queue()
         interface.queue.get.side_effect = job_collection
-        interface.worker_process_main(0)
+        interface._worker_process_main(0)
 
         # Jobs are been grabbed from queue, and the queue itself has been
         # notified of tasks being done
@@ -210,7 +212,7 @@ class TestCloudInterface(object):
         worker_process_execute_job_mock.reset_mock()
         worker_process_execute_job_mock.side_effect = execute_mock
         interface.queue.get.side_effect = job_collection
-        interface.worker_process_main(0)
+        interface._worker_process_main(0)
         assert interface.queue.get.call_count == 4
         # worker_process_execute_job is executed only 3 times, because it's
         # not called for the process stop marker
@@ -221,8 +223,8 @@ class TestCloudInterface(object):
 
     @mock.patch("barman.cloud.os.unlink")
     @mock.patch("barman.cloud.open")
-    @mock.patch("barman.cloud.CloudInterface.complete_multipart_upload")
-    @mock.patch("barman.cloud.CloudInterface.upload_part")
+    @mock.patch("barman.cloud.S3CloudInterface._complete_multipart_upload")
+    @mock.patch("barman.cloud.S3CloudInterface._upload_part")
     @mock.patch("datetime.datetime")
     def test_worker_process_execute_job(
         self,
@@ -234,11 +236,11 @@ class TestCloudInterface(object):
     ):
         # Unknown job type, no boto functions are being called and
         # an exception is being raised
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.result_queue = Queue()
         interface.done_queue = Queue()
         with pytest.raises(ValueError):
-            interface.worker_process_execute_job({"job_type": "error"}, 1)
+            interface._worker_process_execute_job({"job_type": "error"}, 1)
         assert upload_part_mock.call_count == 0
         assert complete_multipart_upload_mock.call_count == 0
         assert interface.result_queue.empty()
@@ -247,7 +249,7 @@ class TestCloudInterface(object):
         # and them deleted
         part_result = {"ETag": "89d4f0341d9091aa21ddf67d3b32c34a", "PartNumber": "10"}
         upload_part_mock.return_value = part_result
-        interface.worker_process_execute_job(
+        interface._worker_process_execute_job(
             {
                 "job_type": "upload_part",
                 "mpu": "mpu",
@@ -271,7 +273,7 @@ class TestCloudInterface(object):
 
         # complete_multipart_upload, an S3 call to create a key in the bucket
         # with the right parts is called
-        interface.worker_process_execute_job(
+        interface._worker_process_execute_job(
             {
                 "job_type": "complete_multipart_upload",
                 "mpu": "mpu",
@@ -293,7 +295,7 @@ class TestCloudInterface(object):
     def test_handle_async_errors(self):
         # If we the upload process has already raised an error, we immediately
         # exit without doing anything
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.error = "test"
         interface.errors_queue = None  # If get called raises AttributeError
         interface._handle_async_errors()
@@ -320,7 +322,7 @@ class TestCloudInterface(object):
         temp_stream = temp_file_mock.return_value.__enter__.return_value
         temp_stream.name = temp_name
 
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = Queue()
         interface.async_upload_part("mpu", "test/key", BytesIO(b"test"), 1)
         ensure_async_mock.assert_called_once_with()
@@ -340,7 +342,7 @@ class TestCloudInterface(object):
     def test_async_complete_multipart_upload(
         self, ensure_async_mock, handle_async_errors_mock, retrieve_results_mock
     ):
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = mock.MagicMock()
         interface.parts_db = {"key": ["part", "list"]}
 
@@ -371,7 +373,7 @@ class TestCloudInterface(object):
         # Check that the creation of the cloud interface class fails in case of
         # wrongly formatted/invalid s3 uri
         with pytest.raises(ValueError) as excinfo:
-            CloudInterface("/bucket/path/to/dir", encryption=None)
+            S3CloudInterface("/bucket/path/to/dir", encryption=None)
         assert str(excinfo.value) == "Invalid s3 URL address: /bucket/path/to/dir"
 
     @mock.patch("barman.cloud.boto3")
@@ -379,7 +381,7 @@ class TestCloudInterface(object):
         """
         test the  test_connectivity method
         """
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
         assert cloud_interface.test_connectivity() is True
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
@@ -391,7 +393,7 @@ class TestCloudInterface(object):
         """
         test the test_connectivity method in case of failure
         """
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         client_mock = s3_mock.meta.client
@@ -406,7 +408,7 @@ class TestCloudInterface(object):
         """
         Test if a bucket already exists
         """
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
         cloud_interface.setup_bucket()
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
@@ -421,7 +423,7 @@ class TestCloudInterface(object):
         """
         Test auto-creation of a bucket if it not exists
         """
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         s3_client = s3_mock.meta.client

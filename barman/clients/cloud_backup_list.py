@@ -21,7 +21,7 @@ import logging
 from contextlib import closing
 
 import barman
-from barman.cloud import CloudInterface, S3BackupCatalog, configure_logging
+from barman.cloud import S3CloudInterface, S3BackupCatalog, configure_logging
 from barman.infofile import BackupInfo
 from barman.utils import force_str
 
@@ -42,7 +42,7 @@ def main(args=None):
     configure_logging(config)
 
     try:
-        cloud_interface = CloudInterface(
+        cloud_interface = S3CloudInterface(
             url=config.source_url,
             encryption=config.encryption,
             profile_name=config.profile,

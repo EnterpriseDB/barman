@@ -26,7 +26,7 @@ import pytest
 
 from barman.clients import cloud_walarchive
 from barman.clients.cloud_walarchive import S3WalUploader
-from barman.cloud import CloudInterface
+from barman.cloud import S3CloudInterface
 from barman.xlog import hash_dir
 
 
@@ -36,7 +36,7 @@ class TestMain(object):
     """
 
     @mock.patch("barman.clients.cloud_walarchive.S3WalUploader")
-    @mock.patch("barman.clients.cloud_walarchive.CloudInterface")
+    @mock.patch("barman.clients.cloud_walarchive.S3CloudInterface")
     def test_ok(self, cloud_interface_mock, uploader_mock):
         uploader_object_mock = uploader_mock.return_value
         cloud_object_interface_mock = cloud_interface_mock.return_value
@@ -176,7 +176,7 @@ class TestWalUploader(object):
         Test the upload of a WAL
         """
         # Create a simple S3WalUploader obj
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
         uploader = S3WalUploader(cloud_interface, "test-server")
         source = "/wal_dir/000000080000ABFF000000C1"
         # Simulate the file object returned by the retrieve_file_obj method
@@ -206,7 +206,9 @@ class TestWalUploader(object):
         Test the upload of a WAL
         """
         # Create a simple S3WalUploader obj
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption="AES256")
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/path/to/dir", encryption="AES256"
+        )
         uploader = S3WalUploader(cloud_interface, "test-server")
         source = "/wal_dir/000000080000ABFF000000C1"
         # Simulate the file object returned by the retrieve_file_obj method

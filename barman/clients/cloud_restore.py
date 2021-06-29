@@ -20,7 +20,7 @@ import os
 from contextlib import closing
 
 import barman
-from barman.cloud import CloudInterface, S3BackupCatalog, configure_logging
+from barman.cloud import S3CloudInterface, S3BackupCatalog, configure_logging
 from barman.utils import force_str
 
 try:
@@ -47,7 +47,7 @@ def main(args=None):
         raise SystemExit(1)
 
     try:
-        cloud_interface = CloudInterface(
+        cloud_interface = S3CloudInterface(
             url=config.source_url,
             encryption=config.encryption,
             profile_name=config.profile,

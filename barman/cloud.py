@@ -30,6 +30,7 @@ import os
 import shutil
 import signal
 import tarfile
+from abc import ABCMeta, abstractmethod
 from functools import partial
 from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
@@ -44,6 +45,7 @@ from barman.utils import (
     human_readable_timedelta,
     pretty_size,
     total_seconds,
+    with_metaclass,
 )
 
 try:
@@ -491,37 +493,37 @@ class StreamingBodyIO(RawIOBase):
         return self.body.read(n)
 
 
-class CloudInterface(object):
-    def __init__(self, url, encryption, jobs=2, profile_name=None, endpoint_url=None):
-        """
-        Create a new S3 interface given the S3 destination url and the profile
-        name
+class CloudInterface(with_metaclass(ABCMeta)):
+    """
+    Abstract base class which provides the interface between barman and cloud
+    storage providers.
 
-        :param str url: Full URL of the cloud destination/source
-        :param str|None encryption: Encryption type string
+    Support for individual cloud providers should be implemented by inheriting
+    from this class and providing implementations for the abstract methods.
+
+    This class provides generic boilerplate for the asynchronous and parallel
+    upload of objects to cloud providers which support multipart uploads.
+    These uploads are carried out by worker processes which are spawned by
+    _ensure_async and consume upload jobs from a queue. The public
+    async_upload_part and async_complete_multipart_upload methods add jobs
+    to this queue. When the worker processes consume the jobs they execute
+    the synchronous counterparts to the async_* methods (_upload_part and
+    _complete_multipart_upload) which must be implemented in CloudInterface
+    sub-classes.
+
+    Additional boilerplate for creating buckets and streaming objects as tar
+    files is also provided.
+    """
+
+    def __init__(self, url, jobs=2):
+        """
+        Base constructor
+
+        :param str url: url for the cloud storage resource
         :param int jobs: How many sub-processes to use for asynchronous
           uploading, defaults to 2.
-        :param str profile_name: Amazon auth profile identifier
-        :param str endpoint_url: override default endpoint detection strategy
-          with this one
         """
         self.url = url
-        self.profile_name = profile_name
-        self.encryption = encryption
-        self.endpoint_url = endpoint_url
-
-        # Extract information from the destination URL
-        parsed_url = urlparse(url)
-        # If netloc is not present, the s3 url is badly formatted.
-        if parsed_url.netloc == "" or parsed_url.scheme != "s3":
-            raise ValueError("Invalid s3 URL address: %s" % url)
-        self.bucket_name = parsed_url.netloc
-        self.bucket_exists = None
-        self.path = parsed_url.path.lstrip("/")
-
-        # Build a session, so we can extract the correct resource
-        session = boto3.Session(profile_name=profile_name)
-        self.s3 = session.resource("s3", endpoint_url=endpoint_url)
 
         # The worker process and the shared queue are created only when
         # needed
@@ -553,7 +555,7 @@ class CloudInterface(object):
             for process in self.worker_processes:
                 process.join()
 
-    def abort(self):
+    def _abort(self):
         """
         Abort all the operations
         """
@@ -576,7 +578,7 @@ class CloudInterface(object):
         self.done_queue = multiprocessing.Queue()
         for process_number in range(self.worker_processes_count):
             process = multiprocessing.Process(
-                target=self.worker_process_main, args=(process_number,)
+                target=self._worker_process_main, args=(process_number,)
             )
             process.start()
             self.worker_processes.append(process)
@@ -617,6 +619,7 @@ class CloudInterface(object):
         """
         If an upload error has been discovered, stop the upload
         process, stop all the workers and raise an exception
+
         :return:
         """
 
@@ -630,10 +633,10 @@ class CloudInterface(object):
             return
 
         logging.error("Error received from upload worker: %s", self.error)
-        self.abort()
+        self._abort()
         raise CloudUploadingError(self.error)
 
-    def worker_process_main(self, process_number):
+    def _worker_process_main(self, process_number):
         """
         Repeatedly grab a task from the queue and execute it, until a task
         containing "None" is grabbed, indicating that the process must stop.
@@ -645,8 +648,7 @@ class CloudInterface(object):
 
         # We create a new session instead of reusing the one
         # from the parent process to avoid any race condition
-        session = boto3.Session(profile_name=self.profile_name)
-        self.s3 = session.resource("s3", endpoint_url=self.endpoint_url)
+        self._reinit_session()
 
         while True:
             task = self.queue.get()
@@ -655,7 +657,7 @@ class CloudInterface(object):
                 break
 
             try:
-                self.worker_process_execute_job(task, process_number)
+                self._worker_process_execute_job(task, process_number)
             except Exception as exc:
                 logging.error(
                     "Upload error: %s (worker %s)", force_str(exc), process_number
@@ -674,9 +676,10 @@ class CloudInterface(object):
 
         logging.info("Upload process stopped (worker %s)", process_number)
 
-    def worker_process_execute_job(self, task, process_number):
+    def _worker_process_execute_job(self, task, process_number):
         """
         Exec a single task
+
         :param Dict task: task to execute
         :param int process_number: the process number, used in the logging
         output
@@ -696,7 +699,7 @@ class CloudInterface(object):
                     % (task["key"], task["part_number"], process_number)
                 )
                 with open(task["body"], "rb") as fp:
-                    part = self.upload_part(
+                    part = self._upload_part(
                         task["mpu"], task["key"], fp, task["part_number"]
                     )
                 os.unlink(task["body"])
@@ -711,7 +714,7 @@ class CloudInterface(object):
         elif task["job_type"] == "complete_multipart_upload":
             if self.abort_requested:
                 logging.info("Aborting %s (worker %s)" % (task["key"], process_number))
-                self.abort_multipart_upload(task["mpu"], task["key"])
+                self._abort_multipart_upload(task["mpu"], task["key"])
                 self.done_queue.put(
                     {
                         "key": task["key"],
@@ -723,7 +726,7 @@ class CloudInterface(object):
                 logging.info(
                     "Completing '%s' (worker %s)" % (task["key"], process_number)
                 )
-                self.complete_multipart_upload(task["mpu"], task["key"], task["parts"])
+                self._complete_multipart_upload(task["mpu"], task["key"], task["parts"])
                 self.done_queue.put(
                     {
                         "key": task["key"],
@@ -734,26 +737,314 @@ class CloudInterface(object):
         else:
             raise ValueError("Unknown task: %s", repr(task))
 
+    @abstractmethod
     def test_connectivity(self):
         """
-        Test the S3 connectivity trying to access a bucket
+        Test that the cloud provider is reachable
+
+        :return: True if the cloud provider is reachable, False otherwise
+        :rtype: bool
+        """
+
+    @abstractmethod
+    def _check_bucket_existence(self):
+        """
+        Check cloud storage for the target bucket
+
+        :return: True if the bucket exists, False otherwise
+        :rtype: bool
+        """
+
+    @abstractmethod
+    def _create_bucket(self):
+        """
+        Create the bucket in cloud storage
+        """
+
+    def setup_bucket(self):
+        """
+        Search for the target bucket. Create it if not exists
+        """
+        if self.bucket_exists is None:
+            self.bucket_exists = self._check_bucket_existence()
+
+        # Create the bucket if it doesn't exist
+        if not self.bucket_exists:
+            self._create_bucket()
+            self.bucket_exists = True
+
+    @abstractmethod
+    def list_bucket(self, prefix="", delimiter="/"):
+        """
+        List bucket content in a directory manner
+
+        :param str prefix:
+        :param str delimiter:
+        :return: List of objects and dirs right under the prefix
+        :rtype: List[str]
+        """
+
+    @abstractmethod
+    def download_file(self, key, dest_path, decompress):
+        """
+        Download a file from cloud storage
+
+        :param str key: The key identifying the file to download
+        :param str dest_path: Where to put the destination file
+        :param bool decompress: Whenever to decompress this file or not
+        """
+
+    @abstractmethod
+    def remote_open(self, key):
+        """
+        Open a remote object in cloud storage and returns a readable stream
+
+        :param str key: The key identifying the object to open
+        :return: A file-like object from which the stream can be read or None if
+          the key does not exist
+        """
+
+    def extract_tar(self, key, dst):
+        """
+        Extract a tar archive from cloud to the local directory
+
+        :param str key: The key identifying the tar archive
+        :param str dst: Path of the directory into which the tar archive should
+          be extracted
+        """
+        extension = os.path.splitext(key)[-1]
+        compression = "" if extension == ".tar" else extension[1:]
+        tar_mode = "r|%s" % compression
+        fileobj = self.remote_open(key)
+        with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
+            tf.extractall(path=dst)
+
+    @abstractmethod
+    def upload_fileobj(self, fileobj, key):
+        """
+        Synchronously upload the content of a file-like object to a cloud key
+
+        :param fileobj IOBase: File-like object to upload
+        :param str key: The key to identify the uploaded object
+        """
+
+    @abstractmethod
+    def create_multipart_upload(self, key):
+        """
+        Create a new multipart upload and return an identifier for that upload.
+
+        Some cloud services do not require multipart uploads to be explicitly
+        created. In such cases it will be necessary to provide a no-op
+        implementation which returns None for the upload handle.
+
+        :param key: The key to use in the cloud service
+        :return: The multipart upload handle
+        :rtype: dict[str, str]
+        """
+
+    def async_upload_part(self, mpu, key, body, part_number):
+        """
+        Asynchronously upload a part into a multipart upload
+
+        :param mpu: The multipart upload handle
+        :param str key: The key to use in the cloud service
+        :param any body: A stream-like object to upload
+        :param int part_number: Part number, starting from 1
+        :return: The part handle
+        """
+
+        # If an error has already been reported, do nothing
+        if self.error:
+            return
+
+        self._ensure_async()
+        self._handle_async_errors()
+
+        # Save the upload start time of the part
+        stats = self.upload_stats[key]
+        stats.set_part_start_time(part_number, datetime.datetime.now())
+
+        # If the body is a named temporary file use it directly
+        # WARNING: this imply that the file will be deleted after the upload
+        if hasattr(body, "name") and hasattr(body, "delete") and not body.delete:
+            fp = body
+        else:
+            # Write a temporary file with the part contents
+            with NamedTemporaryFile(delete=False) as fp:
+                shutil.copyfileobj(body, fp, BUFSIZE)
+
+        # Pass the job to the uploader process
+        self.queue.put(
+            {
+                "job_type": "upload_part",
+                "mpu": mpu,
+                "key": key,
+                "body": fp.name,
+                "part_number": part_number,
+            }
+        )
+
+    @abstractmethod
+    def _upload_part(self, mpu, key, body, part_number):
+        """
+        Upload a part into this multipart upload
+
+        :param mpu: The multipart upload handle
+        :param str key: The key to use in the cloud service
+        :param object body: A stream-like object to upload
+        :param int part_number: Part number, starting from 1
+        :return: The part handle
+        :rtype: dict[str, None|str]
+        """
+
+    def async_complete_multipart_upload(self, mpu, key, parts_count):
+        """
+        Asynchronously finish a certain multipart upload. This method grant
+        that the final call to the cloud storage will happen after all the
+        already scheduled parts have been uploaded.
+
+        :param mpu:  The multipart upload handle
+        :param str key: The key to use in the cloud service
+        :param int parts_count: Number of parts
+        """
+
+        # If an error has already been reported, do nothing
+        if self.error:
+            return
+
+        self._ensure_async()
+        self._handle_async_errors()
+
+        # If parts_db has less then expected parts for this upload,
+        # wait for the workers to send the missing metadata
+        while len(self.parts_db[key]) < parts_count:
+            # Wait for all the current jobs to be completed and
+            # receive all available updates on worker status
+            self._retrieve_results()
+
+        # Finish the job in the uploader process
+        self.queue.put(
+            {
+                "job_type": "complete_multipart_upload",
+                "mpu": mpu,
+                "key": key,
+                "parts": self.parts_db[key],
+            }
+        )
+        del self.parts_db[key]
+
+    @abstractmethod
+    def _complete_multipart_upload(self, mpu, key, parts):
+        """
+        Finish a certain multipart upload
+
+        :param mpu:  The multipart upload handle
+        :param str key: The key to use in the cloud service
+        :param parts: The list of parts composing the multipart upload
+        """
+
+    @abstractmethod
+    def _abort_multipart_upload(self, mpu, key):
+        """
+        Abort a certain multipart upload
+
+        :param mpu:  The multipart upload handle
+        :param str key: The key to use in the cloud service
+        """
+
+    def wait_for_multipart_upload(self, key):
+        """
+        Wait for a multipart upload to be completed and return the result
+
+        :param str key: The key to use in the cloud service
+        """
+        # The upload must exist
+        assert key in self.upload_stats
+        # async_complete_multipart_upload must have been called
+        assert key not in self.parts_db
+
+        # If status is still uploading the upload has not finished yet
+        while self.upload_stats[key]["status"] == "uploading":
+            # Wait for all the current jobs to be completed and
+            # receive all available updates on worker status
+            self._retrieve_results()
+
+        return self.upload_stats[key]
+
+    @abstractmethod
+    def _reinit_session(self):
+        """
+        Reinitialises any resources used to maintain a session with a cloud
+        provider. This is called by child processes in order to avoid any
+        potential race conditions around re-using the same session as the
+        parent process.
+        """
+
+
+class S3CloudInterface(CloudInterface):
+    def __init__(self, url, encryption, jobs=2, profile_name=None, endpoint_url=None):
+        """
+        Create a new S3 interface given the S3 destination url and the profile
+        name
+
+        :param str url: Full URL of the cloud destination/source
+        :param str|None encryption: Encryption type string
+        :param int jobs: How many sub-processes to use for asynchronous
+          uploading, defaults to 2.
+        :param str profile_name: Amazon auth profile identifier
+        :param str endpoint_url: override default endpoint detection strategy
+          with this one
+        """
+        super(S3CloudInterface, self).__init__(
+            url=url,
+            jobs=jobs,
+        )
+        self.profile_name = profile_name
+        self.encryption = encryption
+        self.endpoint_url = endpoint_url
+
+        # Extract information from the destination URL
+        parsed_url = urlparse(url)
+        # If netloc is not present, the s3 url is badly formatted.
+        if parsed_url.netloc == "" or parsed_url.scheme != "s3":
+            raise ValueError("Invalid s3 URL address: %s" % url)
+        self.bucket_name = parsed_url.netloc
+        self.bucket_exists = None
+        self.path = parsed_url.path.lstrip("/")
+
+        # Build a session, so we can extract the correct resource
+        self._reinit_session()
+
+    def _reinit_session(self):
+        """
+        Create a new session
+        """
+        session = boto3.Session(profile_name=self.profile_name)
+        self.s3 = session.resource("s3", endpoint_url=self.endpoint_url)
+
+    def test_connectivity(self):
+        """
+        Test AWS connectivity by trying to access a bucket
         """
         try:
             # We are not even interested in the existence of the bucket,
             # we just want to try if aws is reachable
-            self.bucket_exists = self.check_bucket_existence(self.bucket_name)
+            self.bucket_exists = self._check_bucket_existence()
             return True
         except EndpointConnectionError as exc:
-            logging.error("Can't connect to Amazon AWS/S3: %s", exc)
+            logging.error("Can't connect to cloud provider: %s", exc)
             return False
 
-    def check_bucket_existence(self, bucket_name):
+    def _check_bucket_existence(self):
         """
-        Search for the target bucket
+        Check cloud storage for the target bucket
+
+        :return: True if the bucket exists, False otherwise
+        :rtype: bool
         """
         try:
             # Search the bucket on s3
-            self.s3.meta.client.head_bucket(Bucket=bucket_name)
+            self.s3.meta.client.head_bucket(Bucket=self.bucket_name)
             return True
         except ClientError as exc:
             # If a client error is thrown, then check the error code.
@@ -765,45 +1056,41 @@ class CloudInterface(object):
             # exception
             raise
 
-    def setup_bucket(self):
+    def _create_bucket(self):
         """
-        Search for the target bucket. Create it if not exists
+        Create the bucket in cloud storage
         """
-        if self.bucket_exists is None:
-            self.bucket_exists = self.check_bucket_existence(self.bucket_name)
-
-        # Create the bucket if it doesn't exist
-        if not self.bucket_exists:
-            # Get the current region from client.
-            # Do not use session.region_name here because it may be None
-            region = self.s3.meta.client.meta.region_name
-            logging.info(
-                "Bucket '%s' does not exist, creating it on region '%s'",
-                self.bucket_name,
-                region,
-            )
-            create_bucket_config = {
-                "ACL": "private",
+        # Get the current region from client.
+        # Do not use session.region_name here because it may be None
+        region = self.s3.meta.client.meta.region_name
+        logging.info(
+            "Bucket '%s' does not exist, creating it on region '%s'",
+            self.bucket_name,
+            region,
+        )
+        create_bucket_config = {
+            "ACL": "private",
+        }
+        # The location constraint is required during bucket creation
+        # for all regions outside of us-east-1. This constraint cannot
+        # be specified in us-east-1; specifying it in this region
+        # results in a failure, so we will only
+        # add it if we are deploying outside of us-east-1.
+        # See https://github.com/boto/boto3/issues/125
+        if region != "us-east-1":
+            create_bucket_config["CreateBucketConfiguration"] = {
+                "LocationConstraint": region,
             }
-            # The location constraint is required during bucket creation
-            # for all regions outside of us-east-1. This constraint cannot
-            # be specified in us-east-1; specifying it in this region
-            # results in a failure, so we will only
-            # add it if we are deploying outside of us-east-1.
-            # See https://github.com/boto/boto3/issues/125
-            if region != "us-east-1":
-                create_bucket_config["CreateBucketConfiguration"] = {
-                    "LocationConstraint": region,
-                }
-            self.s3.Bucket(self.bucket_name).create(**create_bucket_config)
-            self.bucket_exists = True
+        self.s3.Bucket(self.bucket_name).create(**create_bucket_config)
 
     def list_bucket(self, prefix="", delimiter="/"):
         """
         List bucket content in a directory manner
+
         :param str prefix:
         :param str delimiter:
         :return: List of objects and dirs right under the prefix
+        :rtype: List[str]
         """
         if prefix.startswith(delimiter):
             prefix = prefix.lstrip(delimiter)
@@ -857,7 +1144,9 @@ class CloudInterface(object):
         """
         Open a remote S3 object and returns a readable stream
 
-        Returns None is the the Key does not exist
+        :param str key: The key identifying the object to open
+        :return: A file-like object from which the stream can be read or None if
+          the key does not exist
         """
         try:
             obj = self.s3.Object(self.bucket_name, key)
@@ -869,21 +1158,11 @@ class CloudInterface(object):
             else:
                 raise
 
-    def extract_tar(self, key, dst):
-        """
-        Extract a tar archive from cloud to the local directory
-        """
-        extension = os.path.splitext(key)[-1]
-        compression = "" if extension == ".tar" else extension[1:]
-        tar_mode = "r|%s" % compression
-        obj = self.s3.Object(self.bucket_name, key)
-        fileobj = obj.get()["Body"]
-        with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
-            tf.extractall(path=dst)
-
     def upload_fileobj(self, fileobj, key):
         """
         Synchronously upload the content of a file-like object to a cloud key
+        :param fileobj IOBase: File-like object to upload
+        :param str key: The key to identify the uploaded object
         """
         additional_args = {}
         if self.encryption:
@@ -899,54 +1178,13 @@ class CloudInterface(object):
 
         :param key: The key to use in the cloud service
         :return: The multipart upload handle
+        :rtype: dict[str, str
         """
         return self.s3.meta.client.create_multipart_upload(
             Bucket=self.bucket_name, Key=key
         )
 
-    def async_upload_part(self, mpu, key, body, part_number):
-        """
-        Asynchronously upload a part into a multipart upload
-
-        :param mpu: The multipart upload handle
-        :param str key: The key to use in the cloud service
-        :param any body: A stream-like object to upload
-        :param int part_number: Part number, starting from 1
-        :return: The part handle
-        """
-
-        # If an error has already been reported, do nothing
-        if self.error:
-            return
-
-        self._ensure_async()
-        self._handle_async_errors()
-
-        # Save the upload start time of the part
-        stats = self.upload_stats[key]
-        stats.set_part_start_time(part_number, datetime.datetime.now())
-
-        # If the body is a named temporary file use it directly
-        # WARNING: this imply that the file will be deleted after the upload
-        if hasattr(body, "name") and hasattr(body, "delete") and not body.delete:
-            fp = body
-        else:
-            # Write a temporary file with the part contents
-            with NamedTemporaryFile(delete=False) as fp:
-                shutil.copyfileobj(body, fp, BUFSIZE)
-
-        # Pass the job to the uploader process
-        self.queue.put(
-            {
-                "job_type": "upload_part",
-                "mpu": mpu,
-                "key": key,
-                "body": fp.name,
-                "part_number": part_number,
-            }
-        )
-
-    def upload_part(self, mpu, key, body, part_number):
+    def _upload_part(self, mpu, key, body, part_number):
         """
         Upload a part into this multipart upload
 
@@ -955,6 +1193,7 @@ class CloudInterface(object):
         :param object body: A stream-like object to upload
         :param int part_number: Part number, starting from 1
         :return: The part handle
+        :rtype: dict[str, None|str]
         """
         part = self.s3.meta.client.upload_part(
             Body=body,
@@ -968,43 +1207,7 @@ class CloudInterface(object):
             "ETag": part["ETag"],
         }
 
-    def async_complete_multipart_upload(self, mpu, key, parts_count):
-        """
-        Asynchronously finish a certain multipart upload. This method grant
-        that the final S3 call will happen after all the already scheduled
-        parts have been uploaded.
-
-        :param mpu:  The multipart upload handle
-        :param str key: The key to use in the cloud service
-        :param int parts_count: Number of parts
-        """
-
-        # If an error has already been reported, do nothing
-        if self.error:
-            return
-
-        self._ensure_async()
-        self._handle_async_errors()
-
-        # If parts_db has less then expected parts for this upload,
-        # wait for the workers to send the missing metadata
-        while len(self.parts_db[key]) < parts_count:
-            # Wait for all the current jobs to be completed and
-            # receive all available updates on worker status
-            self._retrieve_results()
-
-        # Finish the job in S3 to the uploader process
-        self.queue.put(
-            {
-                "job_type": "complete_multipart_upload",
-                "mpu": mpu,
-                "key": key,
-                "parts": self.parts_db[key],
-            }
-        )
-        del self.parts_db[key]
-
-    def complete_multipart_upload(self, mpu, key, parts):
+    def _complete_multipart_upload(self, mpu, key, parts):
         """
         Finish a certain multipart upload
 
@@ -1019,7 +1222,7 @@ class CloudInterface(object):
             MultipartUpload={"Parts": parts},
         )
 
-    def abort_multipart_upload(self, mpu, key):
+    def _abort_multipart_upload(self, mpu, key):
         """
         Abort a certain multipart upload
 
@@ -1029,25 +1232,6 @@ class CloudInterface(object):
         self.s3.meta.client.abort_multipart_upload(
             Bucket=self.bucket_name, Key=key, UploadId=mpu["UploadId"]
         )
-
-    def wait_for_multipart_upload(self, key):
-        """
-        Wait for a multipart upload to be completed and return the result
-
-        :param str key: The key to use in the cloud service
-        """
-        # The upload must exist
-        assert key in self.upload_stats
-        # async_complete_multipart_upload must have been called
-        assert key not in self.parts_db
-
-        # If status is still uploading the upload has not finished yet
-        while self.upload_stats[key]["status"] == "uploading":
-            # Wait for all the current jobs to be completed and
-            # receive all available updates on worker status
-            self._retrieve_results()
-
-        return self.upload_stats[key]
 
 
 class S3BackupUploader(object):

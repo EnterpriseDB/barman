@@ -23,7 +23,7 @@ from contextlib import closing
 from shutil import rmtree
 
 import barman
-from barman.cloud import CloudInterface, S3BackupUploader, configure_logging
+from barman.cloud import S3CloudInterface, S3BackupUploader, configure_logging
 from barman.exceptions import PostgresConnectionError
 from barman.postgres import PostgreSQLConnection
 from barman.utils import check_positive, check_size, force_str
@@ -92,7 +92,7 @@ def main(args=None):
             raise SystemExit(1)
 
         with closing(postgres):
-            cloud_interface = CloudInterface(
+            cloud_interface = S3CloudInterface(
                 url=config.destination_url,
                 encryption=config.encryption,
                 jobs=config.jobs,
