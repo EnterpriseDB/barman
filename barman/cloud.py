@@ -30,7 +30,7 @@ import os
 import shutil
 import signal
 import tarfile
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta, abstractmethod, abstractproperty
 from functools import partial
 from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
@@ -68,17 +68,6 @@ except ImportError:
     # Python 2.x
     from Queue import Empty as EmptyQueue
 
-
-# S3 multipart upload limitations
-# http://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadUploadPart.html
-MAX_CHUNKS_PER_FILE = 10000
-MIN_CHUNK_SIZE = 5 << 20
-
-# S3 permit a maximum of 5TB per file
-# https://docs.aws.amazon.com/AmazonS3/latest/dev/UploadingObjects.html
-# This is a hard limit, while our upload procedure can go over the specified
-# MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
-MAX_ARCHIVE_SIZE = 1 << 40
 
 BUFSIZE = 16 * 1024
 LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
@@ -173,9 +162,7 @@ class S3TarUploader(object):
         NamedTemporaryFile, delete=False, prefix="barman-upload-", suffix=".part"
     )
 
-    def __init__(
-        self, cloud_interface, key, compression=None, chunk_size=MIN_CHUNK_SIZE
-    ):
+    def __init__(self, cloud_interface, key, compression=None, chunk_size=None):
         """
         A tar archive that resides on S3
 
@@ -187,7 +174,10 @@ class S3TarUploader(object):
         self.cloud_interface = cloud_interface
         self.key = key
         self.mpu = None
-        self.chunk_size = max(chunk_size, MIN_CHUNK_SIZE)
+        if chunk_size is None:
+            self.chunk_size = cloud_interface.MIN_CHUNK_SIZE
+        else:
+            self.chunk_size = max(chunk_size, cloud_interface.MIN_CHUNK_SIZE)
         self.buffer = None
         self.counter = 0
         tar_mode = "w|%s" % (compression or "")
@@ -242,16 +232,18 @@ class S3UploadController(object):
         if key_prefix and key_prefix[0] == "/":
             key_prefix = key_prefix[1:]
         self.key_prefix = key_prefix
-        if max_archive_size < MAX_ARCHIVE_SIZE:
+        if max_archive_size < self.cloud_interface.MAX_ARCHIVE_SIZE:
             self.max_archive_size = max_archive_size
         else:
             logging.warning(
                 "max-archive-size too big. Capping it to to %s",
-                pretty_size(MAX_ARCHIVE_SIZE),
+                pretty_size(self.cloud_interface.MAX_ARCHIVE_SIZE),
             )
-            self.max_archive_size = MAX_ARCHIVE_SIZE
+            self.max_archive_size = self.cloud_interface.MAX_ARCHIVE_SIZE
         # We aim to a maximum of MAX_CHUNKS_PER_FILE / 2 chinks per file
-        self.chunk_size = 2 * int(max_archive_size / MAX_CHUNKS_PER_FILE)
+        self.chunk_size = 2 * int(
+            max_archive_size / self.cloud_interface.MAX_CHUNKS_PER_FILE
+        )
         self.compression = compression
         self.tar_list = {}
 
@@ -514,6 +506,36 @@ class CloudInterface(with_metaclass(ABCMeta)):
     Additional boilerplate for creating buckets and streaming objects as tar
     files is also provided.
     """
+
+    @abstractproperty
+    def MAX_CHUNKS_PER_FILE(self):
+        """
+        Maximum number of chunks allowed in a single file in cloud storage.
+        The exact definition of chunk depends on the cloud provider, for example
+        in AWS S3 a chunk would be one part in a multipart upload. In Azure a
+        chunk would be a single block of a block blob.
+
+        :type: int
+        """
+        pass
+
+    @abstractproperty
+    def MIN_CHUNK_SIZE(self):
+        """
+        Minimum size in bytes of a single chunk.
+
+        :type: int
+        """
+        pass
+
+    @abstractproperty
+    def MAX_ARCHIVE_SIZE(self):
+        """
+        Maximum size in bytes of a single file in cloud storage.
+
+        :type: int
+        """
+        pass
 
     def __init__(self, url, jobs=2):
         """
@@ -982,6 +1004,17 @@ class CloudInterface(with_metaclass(ABCMeta)):
 
 
 class S3CloudInterface(CloudInterface):
+    # S3 multipart upload limitations
+    # http://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadUploadPart.html
+    MAX_CHUNKS_PER_FILE = 10000
+    MIN_CHUNK_SIZE = 5 << 20
+
+    # S3 permit a maximum of 5TB per file
+    # https://docs.aws.amazon.com/AmazonS3/latest/dev/UploadingObjects.html
+    # This is a hard limit, while our upload procedure can go over the specified
+    # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
+    MAX_ARCHIVE_SIZE = 1 << 40
+
     def __init__(self, url, encryption, jobs=2, profile_name=None, endpoint_url=None):
         """
         Create a new S3 interface given the S3 destination url and the profile
