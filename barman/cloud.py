@@ -737,111 +737,6 @@ class CloudInterface(with_metaclass(ABCMeta)):
         else:
             raise ValueError("Unknown task: %s", repr(task))
 
-    @abstractmethod
-    def test_connectivity(self):
-        """
-        Test that the cloud provider is reachable
-
-        :return: True if the cloud provider is reachable, False otherwise
-        :rtype: bool
-        """
-
-    @abstractmethod
-    def _check_bucket_existence(self):
-        """
-        Check cloud storage for the target bucket
-
-        :return: True if the bucket exists, False otherwise
-        :rtype: bool
-        """
-
-    @abstractmethod
-    def _create_bucket(self):
-        """
-        Create the bucket in cloud storage
-        """
-
-    def setup_bucket(self):
-        """
-        Search for the target bucket. Create it if not exists
-        """
-        if self.bucket_exists is None:
-            self.bucket_exists = self._check_bucket_existence()
-
-        # Create the bucket if it doesn't exist
-        if not self.bucket_exists:
-            self._create_bucket()
-            self.bucket_exists = True
-
-    @abstractmethod
-    def list_bucket(self, prefix="", delimiter="/"):
-        """
-        List bucket content in a directory manner
-
-        :param str prefix:
-        :param str delimiter:
-        :return: List of objects and dirs right under the prefix
-        :rtype: List[str]
-        """
-
-    @abstractmethod
-    def download_file(self, key, dest_path, decompress):
-        """
-        Download a file from cloud storage
-
-        :param str key: The key identifying the file to download
-        :param str dest_path: Where to put the destination file
-        :param bool decompress: Whenever to decompress this file or not
-        """
-
-    @abstractmethod
-    def remote_open(self, key):
-        """
-        Open a remote object in cloud storage and returns a readable stream
-
-        :param str key: The key identifying the object to open
-        :return: A file-like object from which the stream can be read or None if
-          the key does not exist
-        """
-
-    def extract_tar(self, key, dst):
-        """
-        Extract a tar archive from cloud to the local directory
-
-        :param str key: The key identifying the tar archive
-        :param str dst: Path of the directory into which the tar archive should
-          be extracted
-        """
-        extension = os.path.splitext(key)[-1]
-        compression = "" if extension == ".tar" else extension[1:]
-        tar_mode = "r|%s" % compression
-        fileobj = self.remote_open(key)
-        with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
-            tf.extractall(path=dst)
-
-    @abstractmethod
-    def upload_fileobj(self, fileobj, key):
-        """
-        Synchronously upload the content of a file-like object to a cloud key
-
-        :param fileobj IOBase: File-like object to upload
-        :param str key: The key to identify the uploaded object
-        """
-
-    @abstractmethod
-    def create_multipart_upload(self, key):
-        """
-        Create a new multipart upload and return an identifier for that upload.
-
-        Some cloud services do not require multipart uploads to be explicitly
-        created. In such cases it will be necessary to provide a no-op
-        implementation which returns None for the upload handle.
-
-        :param key: The key to use in the cloud service
-        :return: The multipart upload handle
-        :rtype: dict[str, str]
-        """
-
     def async_upload_part(self, mpu, key, body, part_number):
         """
         Asynchronously upload a part into a multipart upload
@@ -884,19 +779,6 @@ class CloudInterface(with_metaclass(ABCMeta)):
             }
         )
 
-    @abstractmethod
-    def _upload_part(self, mpu, key, body, part_number):
-        """
-        Upload a part into this multipart upload
-
-        :param mpu: The multipart upload handle
-        :param str key: The key to use in the cloud service
-        :param object body: A stream-like object to upload
-        :param int part_number: Part number, starting from 1
-        :return: The part handle
-        :rtype: dict[str, None|str]
-        """
-
     def async_complete_multipart_upload(self, mpu, key, parts_count):
         """
         Asynchronously finish a certain multipart upload. This method grant
@@ -933,25 +815,6 @@ class CloudInterface(with_metaclass(ABCMeta)):
         )
         del self.parts_db[key]
 
-    @abstractmethod
-    def _complete_multipart_upload(self, mpu, key, parts):
-        """
-        Finish a certain multipart upload
-
-        :param mpu:  The multipart upload handle
-        :param str key: The key to use in the cloud service
-        :param parts: The list of parts composing the multipart upload
-        """
-
-    @abstractmethod
-    def _abort_multipart_upload(self, mpu, key):
-        """
-        Abort a certain multipart upload
-
-        :param mpu:  The multipart upload handle
-        :param str key: The key to use in the cloud service
-        """
-
     def wait_for_multipart_upload(self, key):
         """
         Wait for a multipart upload to be completed and return the result
@@ -971,6 +834,33 @@ class CloudInterface(with_metaclass(ABCMeta)):
 
         return self.upload_stats[key]
 
+    def setup_bucket(self):
+        """
+        Search for the target bucket. Create it if not exists
+        """
+        if self.bucket_exists is None:
+            self.bucket_exists = self._check_bucket_existence()
+
+        # Create the bucket if it doesn't exist
+        if not self.bucket_exists:
+            self._create_bucket()
+            self.bucket_exists = True
+
+    def extract_tar(self, key, dst):
+        """
+        Extract a tar archive from cloud to the local directory
+
+        :param str key: The key identifying the tar archive
+        :param str dst: Path of the directory into which the tar archive should
+          be extracted
+        """
+        extension = os.path.splitext(key)[-1]
+        compression = "" if extension == ".tar" else extension[1:]
+        tar_mode = "r|%s" % compression
+        fileobj = self.remote_open(key)
+        with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
+            tf.extractall(path=dst)
+
     @abstractmethod
     def _reinit_session(self):
         """
@@ -978,6 +868,116 @@ class CloudInterface(with_metaclass(ABCMeta)):
         provider. This is called by child processes in order to avoid any
         potential race conditions around re-using the same session as the
         parent process.
+        """
+
+    @abstractmethod
+    def test_connectivity(self):
+        """
+        Test that the cloud provider is reachable
+
+        :return: True if the cloud provider is reachable, False otherwise
+        :rtype: bool
+        """
+
+    @abstractmethod
+    def _check_bucket_existence(self):
+        """
+        Check cloud storage for the target bucket
+
+        :return: True if the bucket exists, False otherwise
+        :rtype: bool
+        """
+
+    @abstractmethod
+    def _create_bucket(self):
+        """
+        Create the bucket in cloud storage
+        """
+
+    @abstractmethod
+    def list_bucket(self, prefix="", delimiter="/"):
+        """
+        List bucket content in a directory manner
+
+        :param str prefix:
+        :param str delimiter:
+        :return: List of objects and dirs right under the prefix
+        :rtype: List[str]
+        """
+
+    @abstractmethod
+    def download_file(self, key, dest_path, decompress):
+        """
+        Download a file from cloud storage
+
+        :param str key: The key identifying the file to download
+        :param str dest_path: Where to put the destination file
+        :param bool decompress: Whenever to decompress this file or not
+        """
+
+    @abstractmethod
+    def remote_open(self, key):
+        """
+        Open a remote object in cloud storage and returns a readable stream
+
+        :param str key: The key identifying the object to open
+        :return: A file-like object from which the stream can be read or None if
+          the key does not exist
+        """
+
+    @abstractmethod
+    def upload_fileobj(self, fileobj, key):
+        """
+        Synchronously upload the content of a file-like object to a cloud key
+
+        :param fileobj IOBase: File-like object to upload
+        :param str key: The key to identify the uploaded object
+        """
+
+    @abstractmethod
+    def create_multipart_upload(self, key):
+        """
+        Create a new multipart upload and return an identifier for that upload.
+
+        Some cloud services do not require multipart uploads to be explicitly
+        created. In such cases it will be necessary to provide a no-op
+        implementation which returns None for the upload handle.
+
+        :param key: The key to use in the cloud service
+        :return: The multipart upload handle
+        :rtype: dict[str, str]
+        """
+
+    @abstractmethod
+    def _upload_part(self, mpu, key, body, part_number):
+        """
+        Upload a part into this multipart upload
+
+        :param mpu: The multipart upload handle
+        :param str key: The key to use in the cloud service
+        :param object body: A stream-like object to upload
+        :param int part_number: Part number, starting from 1
+        :return: The part handle
+        :rtype: dict[str, None|str]
+        """
+
+    @abstractmethod
+    def _complete_multipart_upload(self, mpu, key, parts):
+        """
+        Finish a certain multipart upload
+
+        :param mpu:  The multipart upload handle
+        :param str key: The key to use in the cloud service
+        :param parts: The list of parts composing the multipart upload
+        """
+
+    @abstractmethod
+    def _abort_multipart_upload(self, mpu, key):
+        """
+        Abort a certain multipart upload
+
+        :param mpu:  The multipart upload handle
+        :param str key: The key to use in the cloud service
         """
 
 
