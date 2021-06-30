@@ -1,3 +1,125 @@
+2021-06-30  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Update the ChangeLog file
+
+	Version set to 2.12.1
+
+	Release notes for 2.12.1
+
+	Fix set-version.sh script
+	Restores the comment to the copyright statement
+
+	Update flake8 for black formatting (#341)
+	Fixes the build which was failing due to flake8 not being
+	configured to accept the formatting applied by black.
+	
+	https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html
+
+2021-06-28  Iain Hammond  <ich199@users.noreply.github.com>
+
+	allow specifying target-tli with other target-* recovery options (#337)
+
+2021-06-22  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Reformat source code with black
+	"How to Stop Worrying and Embrace Auto-Formatting", as Black
+	(https://black.readthedocs.io/en/stable/) puts it.
+
+2021-05-26  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Fix incorrect NAME in barman-cloud-backup-list manpage
+	Reported by Euler.
+
+2021-05-14  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Fix tox 'minimal' environment
+	1. Replace python2.6 with python2.7
+
+	2. Replace psycopg2==2.4.2 with psycopg2-binary (without any version
+	   constraint) because installing the former fails:
+
+	   Error: could not determine PostgreSQL version from '13.3'
+
+	   I don't know why 2.4.2, in particular, is considered "minimal", but
+	   without that constraint, the test succeeds. (Maybe the right thing to
+	   do would be to use the earliest version that can correctly parse 13.3
+	   as a version number, but I'm not sure what "minimal" is for, so…)
+
+	Add .python-version to .gitignore
+
+	Update copyright notices
+
+	Add venv/ to .gitignore
+
+	Remove py26 and py34 from tox.ini
+	They're ancient, not easily built because of the dependance on obsolete
+	versions of openssl and other build problems, and not testable due to
+	pip and other complaints.
+
+2021-03-04  Landry MINOZA  <landry.minoza@gmail.com>
+
+	Don't raise an error if SIGALRM is ignored
+	Previously, running a command like `parallel -j 4 -a <(barman list-server --minimal) barman -q backup` would fail with `barman.cli ERROR: Another timeout is already defined`.
+	
+	We ignore SIG_DFL anyway; we don't need to complain about SIG_IGN either.
+	
+	Fixes #272
+	
+	Co-authored-by: Landry MINOZA <landry.minoza@numen.fr>
+
+2021-03-03  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Hack around mysterious test failure
+	tox failed on python3.7 with the following errors:
+
+	```
+	    def unpatch():
+	>       connect_patch.__exit__()
+
+	tests/conftest.py:38:
+	_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+	.tox/py37/lib/python3.7/site-packages/mock/mock.py:1545: in __exit__
+	    return exit_stack.__exit__(*exc_info)
+	_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+	self = <contextlib.ExitStack object at 0x14c43240db70>, exc_details = ()
+
+	    def __exit__(self, *exc_details):
+	>       received_exc = exc_details[0] is not None
+	E       IndexError: tuple index out of range
+
+	/usr/lib/python3.7/contextlib.py:469: IndexError
+	```
+
+	I have no idea what any of this means (yet), but we can work around the
+	problem temporarily by passing in [None] for exc_details. This happens
+	at the test teardown stage, after all the actual tests have passed, so
+	we're not losing out on much anyway.
+
+2021-01-25  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Exclude log/* alongside pg_log/*
+	The default `log_directory` was changed from pg_log to log in Postgres
+	v10. We can exclude both from the basebackup.
+
+2021-01-20  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Fetch wal_keep_size, not wal_keep_segments, from Postgres 13
+	The `wal_keep_segments` parameter introduced in v9.0 was replaced with
+	`wal_keep_size` in v13. Running Barman against Postgres 13 resulted in
+	errors like the following being logged:
+
+	    barman ERROR:  unrecognized configuration parameter "wal_keep_segments"
+	    barman STATEMENT:  SHOW "wal_keep_segments"
+
+	Here we change fetch_remote_status() to ask for wal_keep_size if the
+	server version is >= 13. We didn't use this value anywhere, so we don't
+	need any further changes to adapt to the different return value.
+
+2020-11-11  Gianni Ciolli  <gianni.ciolli@enterprisedb.com>
+
+	Fix instalaltion documentation to excludie also python{2,3,}-barman packages
+
 2020-11-03  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
