@@ -1,6 +1,6 @@
-% BARMAN-WAL-ARCHIVE(1) Barman User manuals | Version 2.12
+% BARMAN-WAL-ARCHIVE(1) Barman User manuals | Version 2.12.1
 % 2ndQuadrant <http://www.2ndQuadrant.com>
-% November 5, 2020
+% June 30, 2021
 
 # NAME
 
