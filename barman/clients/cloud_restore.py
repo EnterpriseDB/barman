@@ -20,7 +20,7 @@ import os
 from contextlib import closing
 
 import barman
-from barman.cloud import S3CloudInterface, S3BackupCatalog, configure_logging
+from barman.cloud import S3CloudInterface, CloudBackupCatalog, configure_logging
 from barman.utils import force_str
 
 try:
@@ -55,7 +55,7 @@ def main(args=None):
         )
 
         with closing(cloud_interface):
-            downloader = S3BackupDownloader(
+            downloader = CloudBackupDownloader(
                 cloud_interface=cloud_interface, server_name=config.server_name
             )
 
@@ -152,14 +152,14 @@ def parse_arguments(args=None):
     return parser.parse_args(args=args)
 
 
-class S3BackupDownloader(object):
+class CloudBackupDownloader(object):
     """
-    S3 download client
+    Cloud storage download client
     """
 
     def __init__(self, cloud_interface, server_name):
         """
-        Object responsible for handling interactions with S3
+        Object responsible for handling interactions with cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
@@ -168,11 +168,11 @@ class S3BackupDownloader(object):
 
         self.cloud_interface = cloud_interface
         self.server_name = server_name
-        self.catalog = S3BackupCatalog(cloud_interface, server_name)
+        self.catalog = CloudBackupCatalog(cloud_interface, server_name)
 
     def download_backup(self, backup_id, destination_dir):
         """
-        Download a backup from S3
+        Download a backup from cloud storage
 
         :param str wal_name: Name of the WAL file
         :param str wal_dest: Full path of the destination WAL file

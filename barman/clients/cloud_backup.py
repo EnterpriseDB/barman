@@ -23,7 +23,7 @@ from contextlib import closing
 from shutil import rmtree
 
 import barman
-from barman.cloud import S3CloudInterface, S3BackupUploader, configure_logging
+from barman.cloud import S3CloudInterface, CloudBackupUploader, configure_logging
 from barman.exceptions import PostgresConnectionError
 from barman.postgres import PostgreSQLConnection
 from barman.utils import check_positive, check_size, force_str
@@ -111,7 +111,7 @@ def main(args=None):
                 # TODO: Should the setup be optional?
                 cloud_interface.setup_bucket()
 
-                uploader = S3BackupUploader(
+                uploader = CloudBackupUploader(
                     server_name=config.server_name,
                     compression=config.compression,
                     postgres=postgres,

@@ -153,7 +153,7 @@ class TarFileIgnoringTruncate(tarfile.TarFile):
         self.members.append(tarinfo)
 
 
-class S3TarUploader(object):
+class CloudTarUploader(object):
 
     # This is the method we use to create new buffers
     # We use named temporary files, so we can pass them by name to
@@ -164,7 +164,7 @@ class S3TarUploader(object):
 
     def __init__(self, cloud_interface, key, compression=None, chunk_size=None):
         """
-        A tar archive that resides on S3
+        A tar archive that resides on cloud storage
 
         :param CloudInterface cloud_interface: cloud interface instance
         :param str key: path inside the bucket
@@ -217,10 +217,10 @@ class S3TarUploader(object):
         self.stats = self.cloud_interface.wait_for_multipart_upload(self.key)
 
 
-class S3UploadController(object):
+class CloudUploadController(object):
     def __init__(self, cloud_interface, key_prefix, max_archive_size, compression):
         """
-        Create a new controller that upload the backup in S3
+        Create a new controller that upload the backup in cloud storage
 
         :param CloudInterface cloud_interface: cloud interface instance
         :param str|None key_prefix: path inside the bucket
@@ -275,7 +275,7 @@ class S3UploadController(object):
 
     def _get_tar(self, name):
         """
-        Get a named S3 tar file.
+        Get a named tar file from cloud storage.
         Subsequent call with the same name return the same name
         :param str name: tar name
         :rtype: tarfile.TarFile
@@ -283,7 +283,7 @@ class S3UploadController(object):
         if name not in self.tar_list or not self.tar_list[name]:
 
             self.tar_list[name] = [
-                S3TarUploader(
+                CloudTarUploader(
                     cloud_interface=self.cloud_interface,
                     key=os.path.join(self.key_prefix, self._build_dest_name(name)),
                     compression=self.compression,
@@ -295,7 +295,7 @@ class S3UploadController(object):
         uploader = self.tar_list[name][-1]
         if uploader.size > self.max_archive_size:
             uploader.close()
-            uploader = S3TarUploader(
+            uploader = CloudTarUploader(
                 cloud_interface=self.cloud_interface,
                 key=os.path.join(
                     self.key_prefix,
@@ -391,7 +391,7 @@ class S3UploadController(object):
 
     def statistics(self):
         """
-        Return statistics about the S3UploadController object.
+        Return statistics about the CloudUploadController object.
 
         :rtype: dict
         """
@@ -1267,16 +1267,16 @@ class S3CloudInterface(CloudInterface):
         )
 
 
-class S3BackupUploader(object):
+class CloudBackupUploader(object):
     """
-    S3 upload client
+    Cloud storage upload client
     """
 
     def __init__(
         self, server_name, postgres, cloud_interface, max_archive_size, compression=None
     ):
         """
-        Object responsible for handling interactions with S3
+        Object responsible for handling interactions with cloud storage
 
         :param str server_name: The name of the server as configured in Barman
         :param PostgreSQLConnection postgres: The PostgreSQL connection info
@@ -1298,7 +1298,7 @@ class S3BackupUploader(object):
 
     def backup_copy(self, controller, backup_info):
         """
-        Perform the actual copy of the backup uploading it to S3.
+        Perform the actual copy of the backup uploading it to cloud storage.
 
         First, it copies one tablespace at a time, then the PGDATA directory,
         and finally configuration files (if outside PGDATA).
@@ -1306,7 +1306,7 @@ class S3BackupUploader(object):
         the process.
         This method is the core of base backup copy using Rsync+Ssh.
 
-        :param barman.cloud.S3UploadController controller: upload controller
+        :param barman.cloud.CloudUploadController controller: upload controller
         :param barman.infofile.BackupInfo backup_info: backup information
         """
 
@@ -1401,7 +1401,7 @@ class S3BackupUploader(object):
 
     def backup(self):
         """
-        Upload a Backup  to S3
+        Upload a Backup to cloud storage
         """
         server_name = "cloud"
         backup_info = BackupInfo(
@@ -1412,7 +1412,7 @@ class S3BackupUploader(object):
         key_prefix = os.path.join(
             self.cloud_interface.path, self.server_name, "base", backup_info.backup_id
         )
-        controller = S3UploadController(
+        controller = CloudUploadController(
             self.cloud_interface,
             key_prefix,
             self.max_archive_size,
@@ -1526,14 +1526,14 @@ class BackupFileInfo(object):
         self.additional_files = []
 
 
-class S3BackupCatalog(object):
+class CloudBackupCatalog(object):
     """
-    S3 backup catalog
+    Cloud storage backup catalog
     """
 
     def __init__(self, cloud_interface, server_name):
         """
-        Object responsible for retrievin backup catalog from S3
+        Object responsible for retrievin backup catalog from cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
@@ -1547,7 +1547,7 @@ class S3BackupCatalog(object):
 
     def get_backup_list(self):
         """
-        Retrieve the list of available backup from S3
+        Retrieve the list of available backup from cloud storage
 
         :rtype: Dict[str,BackupInfo]
         """
@@ -1570,7 +1570,7 @@ class S3BackupCatalog(object):
 
     def get_backup_info(self, backup_id):
         """
-        Load a BackupInfo from S3
+        Load a BackupInfo from cloud storage
 
         :param str backup_id: The backup id to load
         :rtype: BackupInfo
@@ -1590,7 +1590,7 @@ class S3BackupCatalog(object):
         :param BackupInfo backup_info: the backup information
         :rtype: dict[int, BackupFileInfo]
         """
-        # Correctly format the source path on s3
+        # Correctly format the source path
         source_dir = os.path.join(self.prefix, backup_info.backup_id)
 
         base_path = os.path.join(source_dir, "data")

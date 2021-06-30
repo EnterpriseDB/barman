@@ -60,7 +60,7 @@ def main(args=None):
         )
 
         with closing(cloud_interface):
-            uploader = S3WalUploader(
+            uploader = CloudWalUploader(
                 cloud_interface=cloud_interface,
                 server_name=config.server_name,
                 compression=config.compression,
@@ -170,14 +170,14 @@ def parse_arguments(args=None):
     return parser.parse_args(args=args)
 
 
-class S3WalUploader(object):
+class CloudWalUploader(object):
     """
-    S3 upload client
+    Cloud storage upload client
     """
 
     def __init__(self, cloud_interface, server_name, compression=None):
         """
-        Object responsible for handling interactions with S3
+        Object responsible for handling interactions with cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
@@ -191,7 +191,7 @@ class S3WalUploader(object):
 
     def upload_wal(self, wal_path):
         """
-        Upload a WAL file from postgres to S3
+        Upload a WAL file from postgres to cloud storage
 
         :param str wal_path: Full path of the WAL file
         """
@@ -199,7 +199,7 @@ class S3WalUploader(object):
         wal_name = self.retrieve_wal_name(wal_path)
         # Use the correct file object for the upload (simple|gzip|bz2)
         file_object = self.retrieve_file_obj(wal_path)
-        # Correctly format the destination path on s3
+        # Correctly format the destination path
         destination = os.path.join(
             self.cloud_interface.path,
             self.server_name,

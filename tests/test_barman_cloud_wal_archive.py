@@ -25,7 +25,7 @@ import mock
 import pytest
 
 from barman.clients import cloud_walarchive
-from barman.clients.cloud_walarchive import S3WalUploader
+from barman.clients.cloud_walarchive import CloudWalUploader
 from barman.cloud import S3CloudInterface
 from barman.xlog import hash_dir
 
@@ -35,7 +35,7 @@ class TestMain(object):
     Test the main method
     """
 
-    @mock.patch("barman.clients.cloud_walarchive.S3WalUploader")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
     @mock.patch("barman.clients.cloud_walarchive.S3CloudInterface")
     def test_ok(self, cloud_interface_mock, uploader_mock):
         uploader_object_mock = uploader_mock.return_value
@@ -140,7 +140,7 @@ class TestMain(object):
         )
         cloud_object_interface_mock.test_connectivity.assert_called_once_with()
 
-    @mock.patch("barman.clients.cloud_walarchive.S3WalUploader")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
     def test_ko(self, uploader_mock, caplog):
         """
         Run with exception thrown
@@ -166,18 +166,18 @@ class TestMain(object):
 # noinspection PyProtectedMember
 class TestWalUploader(object):
     """
-    Test the S3WalUploader class
+    Test the CloudWalUploader class
     """
 
     @mock.patch("barman.cloud.boto3")
-    @mock.patch("barman.clients.cloud_walarchive.S3WalUploader." "retrieve_file_obj")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
     def test_upload_wal(self, rfo_mock, boto_mock):
         """
         Test the upload of a WAL
         """
         # Create a simple S3WalUploader obj
         cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
-        uploader = S3WalUploader(cloud_interface, "test-server")
+        uploader = CloudWalUploader(cloud_interface, "test-server")
         source = "/wal_dir/000000080000ABFF000000C1"
         # Simulate the file object returned by the retrieve_file_obj method
         rfo_mock.return_value.name = source
@@ -200,16 +200,16 @@ class TestWalUploader(object):
         )
 
     @mock.patch("barman.cloud.boto3")
-    @mock.patch("barman.clients.cloud_walarchive.S3WalUploader." "retrieve_file_obj")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
     def test_encrypted_upload_wal(self, rfo_mock, boto_mock):
         """
         Test the upload of a WAL
         """
-        # Create a simple S3WalUploader obj
+        # Create a simple CloudWalUploader obj
         cloud_interface = S3CloudInterface(
             "s3://bucket/path/to/dir", encryption="AES256"
         )
-        uploader = S3WalUploader(cloud_interface, "test-server")
+        uploader = CloudWalUploader(cloud_interface, "test-server")
         source = "/wal_dir/000000080000ABFF000000C1"
         # Simulate the file object returned by the retrieve_file_obj method
         rfo_mock.return_value.name = source
@@ -238,8 +238,8 @@ class TestWalUploader(object):
         # Setup the WAL file
         source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
         source.write("something".encode("utf-8"), ensure=True)
-        # Create a simple S3WalUploader obj
-        uploader = S3WalUploader(mock.MagicMock(), "test-server")
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server")
         open_file = uploader.retrieve_file_obj(source.strpath)
         # Check the file received
         assert open_file
@@ -254,8 +254,8 @@ class TestWalUploader(object):
         # Setup the WAL
         source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
         source.write("something".encode("utf-8"), ensure=True)
-        # Create a simple S3WalUploader obj
-        uploader = S3WalUploader(mock.MagicMock(), "test-server", compression="gzip")
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="gzip")
         open_file = uploader.retrieve_file_obj(source.strpath)
         # Check the in memory file received
         assert open_file
@@ -270,8 +270,10 @@ class TestWalUploader(object):
         # Setup the WAL
         source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
         source.write("something".encode("utf-8"), ensure=True)
-        # Create a simple S3WalUploader obj
-        uploader = S3WalUploader(mock.MagicMock(), "test-server", compression="bzip2")
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(
+            mock.MagicMock(), "test-server", compression="bzip2"
+        )
         open_file = uploader.retrieve_file_obj(source.strpath)
         # Check the in memory file received
         assert open_file
@@ -284,7 +286,7 @@ class TestWalUploader(object):
         """
         # Create a fake source name
         source = "wal_dir/000000080000ABFF000000C1"
-        uploader = S3WalUploader(mock.MagicMock(), "test-server")
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server")
         wal_final_name = uploader.retrieve_wal_name(source)
         # Check the file name received
         assert wal_final_name
@@ -296,7 +298,7 @@ class TestWalUploader(object):
         """
         # Create a fake source name
         source = "wal_dir/000000080000ABFF000000C1"
-        uploader = S3WalUploader(mock.MagicMock(), "test-server", compression="gzip")
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="gzip")
         wal_final_name = uploader.retrieve_wal_name(source)
         # Check the file name received
         assert wal_final_name
@@ -308,7 +310,9 @@ class TestWalUploader(object):
         """
         # Create a fake source name
         source = "wal_dir/000000080000ABFF000000C1"
-        uploader = S3WalUploader(mock.MagicMock(), "test-server", compression="bzip2")
+        uploader = CloudWalUploader(
+            mock.MagicMock(), "test-server", compression="bzip2"
+        )
         wal_final_name = uploader.retrieve_wal_name(source)
         # Check the file name received
         assert wal_final_name
