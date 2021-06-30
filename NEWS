@@ -1,5 +1,14 @@
 Barman News - History of user-visible changes
 
+Version 2.12.1 - 30 June 2021
+
+-   Bug fixes:
+
+    -   Allow specifying target-tli with other target-* recovery options
+    -   Fix incorrect NAME in barman-cloud-backup-list manpage
+    -   Don't raise an error if SIGALRM is ignored
+    -   Fetch wal_keep_size, not wal_keep_segments, from Postgres 13
+
 Version 2.12 - 5 Nov 2020
 
 -   Introduce a new backup_method option called local-rsync which
