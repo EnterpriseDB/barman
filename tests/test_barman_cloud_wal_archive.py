@@ -26,7 +26,7 @@ import pytest
 
 from barman.clients import cloud_walarchive
 from barman.clients.cloud_walarchive import CloudWalUploader
-from barman.cloud_providers import S3CloudInterface
+from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.xlog import hash_dir
 
 
@@ -36,7 +36,7 @@ class TestMain(object):
     """
 
     @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
-    @mock.patch("barman.clients.cloud_walarchive.S3CloudInterface")
+    @mock.patch("barman.clients.cloud_walarchive.get_cloud_interface")
     def test_ok(self, cloud_interface_mock, uploader_mock):
         uploader_object_mock = uploader_mock.return_value
         cloud_object_interface_mock = cloud_interface_mock.return_value

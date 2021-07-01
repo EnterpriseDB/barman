@@ -22,7 +22,7 @@ from contextlib import closing
 
 import barman
 from barman.cloud import configure_logging
-from barman.cloud_providers import S3CloudInterface
+from barman.cloud_providers import get_cloud_interface
 from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_backup_file
 
@@ -48,11 +48,12 @@ def main(args=None):
         raise SystemExit(1)
 
     try:
-        cloud_interface = S3CloudInterface(
+        cloud_interface = get_cloud_interface(
             url=config.source_url,
             encryption=config.encryption,
             profile_name=config.profile,
             endpoint_url=config.endpoint_url,
+            cloud_provider=config.cloud_provider,
         )
 
         with closing(cloud_interface):
@@ -151,6 +152,12 @@ def parse_arguments(args=None):
     parser.add_argument(
         "--endpoint-url",
         help="Override default S3 endpoint URL with the given one",
+    )
+    parser.add_argument(
+        "--cloud-provider",
+        help="The cloud provider to use as a storage backend",
+        choices=["aws-s3"],
+        default="aws-s3",
     )
     return parser.parse_args(args=args)
 

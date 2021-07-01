@@ -25,7 +25,7 @@ from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
 from barman.cloud import CloudUploadingError, FileUploadStatistics
-from barman.cloud_providers import S3CloudInterface
+from barman.cloud_providers.aws_s3 import S3CloudInterface
 
 try:
     from queue import Queue
@@ -224,8 +224,10 @@ class TestCloudInterface(object):
 
     @mock.patch("barman.cloud.os.unlink")
     @mock.patch("barman.cloud.open")
-    @mock.patch("barman.cloud_providers.S3CloudInterface._complete_multipart_upload")
-    @mock.patch("barman.cloud_providers.S3CloudInterface._upload_part")
+    @mock.patch(
+        "barman.cloud_providers.aws_s3.S3CloudInterface._complete_multipart_upload"
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface._upload_part")
     @mock.patch("datetime.datetime")
     def test_worker_process_execute_job(
         self,

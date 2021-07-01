@@ -24,7 +24,7 @@ from shutil import rmtree
 
 import barman
 from barman.cloud import CloudBackupUploader, configure_logging
-from barman.cloud_providers import S3CloudInterface
+from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import PostgresConnectionError
 from barman.postgres import PostgreSQLConnection
 from barman.utils import check_positive, check_size, force_str
@@ -93,12 +93,13 @@ def main(args=None):
             raise SystemExit(1)
 
         with closing(postgres):
-            cloud_interface = S3CloudInterface(
+            cloud_interface = get_cloud_interface(
                 url=config.destination_url,
                 encryption=config.encryption,
                 jobs=config.jobs,
                 profile_name=config.profile,
                 endpoint_url=config.endpoint_url,
+                cloud_provider=config.cloud_provider,
             )
 
             if not cloud_interface.test_connectivity():
@@ -250,6 +251,12 @@ def parse_arguments(args=None):
     parser.add_argument(
         "--endpoint-url",
         help="Override default S3 endpoint URL with the given one",
+    )
+    parser.add_argument(
+        "--cloud-provider",
+        help="The cloud provider to use as a storage backend",
+        choices=["aws-s3"],
+        default="aws-s3",
     )
     return parser.parse_args(args=args)
 
