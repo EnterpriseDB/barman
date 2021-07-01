@@ -147,7 +147,7 @@ def parse_arguments(args=None):
         description="This script can be used to perform a backup "
         "of a local PostgreSQL instance and ship "
         "the resulting tarball(s) to the Cloud. "
-        "Currently only AWS S3 is supported.",
+        "Currently AWS S3 and Azure Blob Storage are supported.",
         add_help=False,
     )
     parser.add_argument(
@@ -177,11 +177,6 @@ def parse_arguments(args=None):
         default=0,
         help="decrease output verbosity (e.g., -qq is less than -q)",
     )
-    parser.add_argument(
-        "-P",
-        "--profile",
-        help="profile name (e.g. INI section in AWS credentials file)",
-    )
     compression = parser.add_mutually_exclusive_group()
     compression.add_argument(
         "-z",
@@ -198,13 +193,6 @@ def parse_arguments(args=None):
         action="store_const",
         const="bz2",
         dest="compression",
-    )
-    parser.add_argument(
-        "-e",
-        "--encryption",
-        help="Enable server-side encryption for the transfer. "
-        "Allowed values: 'AES256'|'aws:kms'.",
-        choices=["AES256", "aws:kms"],
     )
     parser.add_argument(
         "-t",
@@ -238,25 +226,41 @@ def parse_arguments(args=None):
         "-J",
         "--jobs",
         type=check_positive,
-        help="number of subprocesses to upload data to S3 " "(default: 2)",
+        help="number of subprocesses to upload data to cloud storage " "(default: 2)",
         default=2,
     )
     parser.add_argument(
         "-S",
         "--max-archive-size",
         type=check_size,
-        help="maximum size of an archive when uploading to S3 " "(default: 100GB)",
+        help="maximum size of an archive when uploading to cloud storage "
+        "(default: 100GB)",
         default="100GB",
-    )
-    parser.add_argument(
-        "--endpoint-url",
-        help="Override default S3 endpoint URL with the given one",
     )
     parser.add_argument(
         "--cloud-provider",
         help="The cloud provider to use as a storage backend",
-        choices=["aws-s3"],
+        choices=["aws-s3", "azure-blob-storage"],
         default="aws-s3",
+    )
+    s3_arguments = parser.add_argument_group(
+        "Extra options for the aws-s3 cloud provider"
+    )
+    s3_arguments.add_argument(
+        "--endpoint-url",
+        help="Override default S3 endpoint URL with the given one",
+    )
+    s3_arguments.add_argument(
+        "-P",
+        "--profile",
+        help="profile name (e.g. INI section in AWS credentials file)",
+    )
+    s3_arguments.add_argument(
+        "-e",
+        "--encryption",
+        help="Enable server-side encryption for the transfer. "
+        "Allowed values: 'AES256'|'aws:kms'.",
+        choices=["AES256", "aws:kms"],
     )
     return parser.parse_args(args=args)
 

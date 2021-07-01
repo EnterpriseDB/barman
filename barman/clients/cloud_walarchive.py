@@ -94,7 +94,7 @@ def parse_arguments(args=None):
     parser = argparse.ArgumentParser(
         description="This script can be used in the `archive_command` "
         "of a PostgreSQL server to ship WAL files to the Cloud. "
-        "Currently only AWS S3 is supported.",
+        "Currently AWS S3 and Azure Blob Storage are supported.",
         add_help=False,
     )
     parser.add_argument(
@@ -128,11 +128,6 @@ def parse_arguments(args=None):
         default=0,
         help="decrease output verbosity (e.g., -qq is less than -q)",
     )
-    parser.add_argument(
-        "-P",
-        "--profile",
-        help="profile name (e.g. INI section in AWS credentials file)",
-    )
     compression = parser.add_mutually_exclusive_group()
     compression.add_argument(
         "-z",
@@ -151,14 +146,6 @@ def parse_arguments(args=None):
         dest="compression",
     )
     parser.add_argument(
-        "-e",
-        "--encryption",
-        help="Enable server-side encryption for the transfer. "
-        "Allowed values: 'AES256', 'aws:kms'",
-        choices=["AES256", "aws:kms"],
-        metavar="ENCRYPTION",
-    )
-    parser.add_argument(
         "-t",
         "--test",
         help="Test cloud connectivity and exit",
@@ -166,14 +153,30 @@ def parse_arguments(args=None):
         default=False,
     )
     parser.add_argument(
+        "--cloud-provider",
+        help="The cloud provider to use as a storage backend",
+        choices=["aws-s3", "azure-blob-storage"],
+        default="aws-s3",
+    )
+    s3_arguments = parser.add_argument_group(
+        "Extra options for the aws-s3 cloud provider"
+    )
+    s3_arguments.add_argument(
         "--endpoint-url",
         help="Override default S3 endpoint URL with the given one",
     )
-    parser.add_argument(
-        "--cloud-provider",
-        help="The cloud provider to use as a storage backend",
-        choices=["aws-s3"],
-        default="aws-s3",
+    s3_arguments.add_argument(
+        "-P",
+        "--profile",
+        help="profile name (e.g. INI section in AWS credentials file)",
+    )
+    s3_arguments.add_argument(
+        "-e",
+        "--encryption",
+        help="Enable server-side encryption for the transfer. "
+        "Allowed values: 'AES256', 'aws:kms'",
+        choices=["AES256", "aws:kms"],
+        metavar="ENCRYPTION",
     )
     return parser.parse_args(args=args)
 

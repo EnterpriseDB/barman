@@ -28,3 +28,7 @@ def get_cloud_interface(cloud_provider, url, **kwargs):
         from barman.cloud_providers.aws_s3 import S3CloudInterface
 
         return S3CloudInterface(url, **kwargs)
+    elif cloud_provider == "azure-blob-storage":
+        from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
+
+        return AzureCloudInterface(url, **kwargs)
