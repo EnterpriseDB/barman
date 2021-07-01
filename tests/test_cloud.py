@@ -24,7 +24,8 @@ import pytest
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-from barman.cloud import S3CloudInterface, CloudUploadingError, FileUploadStatistics
+from barman.cloud import CloudUploadingError, FileUploadStatistics
+from barman.cloud_providers import S3CloudInterface
 
 try:
     from queue import Queue
@@ -33,7 +34,7 @@ except ImportError:
 
 
 class TestCloudInterface(object):
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_uploader_minimal(self, boto_mock):
         """
         Minimal build of the CloudInterface class
@@ -223,8 +224,8 @@ class TestCloudInterface(object):
 
     @mock.patch("barman.cloud.os.unlink")
     @mock.patch("barman.cloud.open")
-    @mock.patch("barman.cloud.S3CloudInterface._complete_multipart_upload")
-    @mock.patch("barman.cloud.S3CloudInterface._upload_part")
+    @mock.patch("barman.cloud_providers.S3CloudInterface._complete_multipart_upload")
+    @mock.patch("barman.cloud_providers.S3CloudInterface._upload_part")
     @mock.patch("datetime.datetime")
     def test_worker_process_execute_job(
         self,
@@ -365,7 +366,7 @@ class TestCloudInterface(object):
             }
         )
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_invalid_uploader_minimal(self, boto_mock):
         """
         Minimal build of the CloudInterface class
@@ -376,7 +377,7 @@ class TestCloudInterface(object):
             S3CloudInterface("/bucket/path/to/dir", encryption=None)
         assert str(excinfo.value) == "Invalid s3 URL address: /bucket/path/to/dir"
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_connectivity(self, boto_mock):
         """
         test the  test_connectivity method
@@ -388,7 +389,7 @@ class TestCloudInterface(object):
         client_mock = s3_mock.meta.client
         client_mock.head_bucket.assert_called_once_with(Bucket="bucket")
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_connectivity_failure(self, boto_mock):
         """
         test the test_connectivity method in case of failure
@@ -403,7 +404,7 @@ class TestCloudInterface(object):
         )
         assert cloud_interface.test_connectivity() is False
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_setup_bucket(self, boto_mock):
         """
         Test if a bucket already exists
@@ -418,7 +419,7 @@ class TestCloudInterface(object):
             Bucket=cloud_interface.bucket_name
         )
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_setup_bucket_create(self, boto_mock):
         """
         Test auto-creation of a bucket if it not exists

@@ -23,7 +23,8 @@ from contextlib import closing
 from shutil import rmtree
 
 import barman
-from barman.cloud import S3CloudInterface, CloudBackupUploader, configure_logging
+from barman.cloud import CloudBackupUploader, configure_logging
+from barman.cloud_providers import S3CloudInterface
 from barman.exceptions import PostgresConnectionError
 from barman.postgres import PostgreSQLConnection
 from barman.utils import check_positive, check_size, force_str

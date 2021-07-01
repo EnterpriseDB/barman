@@ -21,7 +21,8 @@ import os
 from contextlib import closing
 
 import barman
-from barman.cloud import S3CloudInterface, configure_logging
+from barman.cloud import configure_logging
+from barman.cloud_providers import S3CloudInterface
 from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_backup_file
 

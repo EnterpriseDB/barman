@@ -20,7 +20,8 @@ import os
 from contextlib import closing
 
 import barman
-from barman.cloud import S3CloudInterface, CloudBackupCatalog, configure_logging
+from barman.cloud import CloudBackupCatalog, configure_logging
+from barman.cloud_providers import S3CloudInterface
 from barman.utils import force_str
 
 try:

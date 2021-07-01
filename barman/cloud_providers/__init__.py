@@ -1,0 +1,1 @@
+from barman.cloud_providers.aws_s3 import S3CloudInterface

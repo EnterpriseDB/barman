@@ -26,7 +26,7 @@ import pytest
 
 from barman.clients import cloud_walarchive
 from barman.clients.cloud_walarchive import CloudWalUploader
-from barman.cloud import S3CloudInterface
+from barman.cloud_providers import S3CloudInterface
 from barman.xlog import hash_dir
 
 
@@ -169,7 +169,7 @@ class TestWalUploader(object):
     Test the CloudWalUploader class
     """
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
     def test_upload_wal(self, rfo_mock, boto_mock):
         """
@@ -199,7 +199,7 @@ class TestWalUploader(object):
             ExtraArgs={},
         )
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
     def test_encrypted_upload_wal(self, rfo_mock, boto_mock):
         """
@@ -230,7 +230,7 @@ class TestWalUploader(object):
             ExtraArgs={"ServerSideEncryption": "AES256"},
         )
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_retrieve_normal_file_obj(self, boto_mock, tmpdir):
         """
         Test the retrieve_file_obj method with an uncompressed file
@@ -246,7 +246,7 @@ class TestWalUploader(object):
         # Check content
         assert open_file.read() == "something".encode("utf-8")
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_retrieve_gzip_file_obj(self, boto_mock, tmpdir):
         """
         Test the retrieve_file_obj method with a gzip file
@@ -262,7 +262,7 @@ class TestWalUploader(object):
         # Decompress on the fly to check content
         assert gzip.GzipFile(fileobj=open_file).read() == "something".encode("utf-8")
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_retrieve_bz2_file_obj(self, boto_mock, tmpdir):
         """
         Test the retrieve_file_obj method with a bz2 file
