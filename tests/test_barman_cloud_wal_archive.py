@@ -32,7 +32,7 @@ from barman.xlog import hash_dir
 
 class TestMain(object):
     """
-    Test the main method
+    Test the main method and its interactions with CloudInterface
     """
 
     @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
@@ -169,6 +169,96 @@ class TestWalUploader(object):
     Test the CloudWalUploader class
     """
 
+    def test_retrieve_normal_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with an uncompressed file
+        """
+        # Setup the WAL file
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server")
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the file received
+        assert open_file
+        # Check content
+        assert open_file.read() == "something".encode("utf-8")
+
+    def test_retrieve_gzip_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with a gzip file
+        """
+        # Setup the WAL
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="gzip")
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the in memory file received
+        assert open_file
+        # Decompress on the fly to check content
+        assert gzip.GzipFile(fileobj=open_file).read() == "something".encode("utf-8")
+
+    def test_retrieve_bz2_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with a bz2 file
+        """
+        # Setup the WAL
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(
+            mock.MagicMock(), "test-server", compression="bzip2"
+        )
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the in memory file received
+        assert open_file
+        # Decompress on the fly to check content
+        assert bz2.decompress(open_file.read()) == "something".encode("utf-8")
+
+    def test_retrieve_normal_file_name(self):
+        """
+        Test the retrieve_wal_name method with an uncompressed file
+        """
+        # Create a fake source name
+        source = "wal_dir/000000080000ABFF000000C1"
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server")
+        wal_final_name = uploader.retrieve_wal_name(source)
+        # Check the file name received
+        assert wal_final_name
+        assert wal_final_name == "000000080000ABFF000000C1"
+
+    def test_retrieve_gzip_file_name(self):
+        """
+        Test the retrieve_wal_name method with gzip compression
+        """
+        # Create a fake source name
+        source = "wal_dir/000000080000ABFF000000C1"
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="gzip")
+        wal_final_name = uploader.retrieve_wal_name(source)
+        # Check the file name received
+        assert wal_final_name
+        assert wal_final_name == "000000080000ABFF000000C1.gz"
+
+    def test_retrieve_bz2_file_name(self):
+        """
+        Test the retrieve_wal_name method with bz2 compression
+        """
+        # Create a fake source name
+        source = "wal_dir/000000080000ABFF000000C1"
+        uploader = CloudWalUploader(
+            mock.MagicMock(), "test-server", compression="bzip2"
+        )
+        wal_final_name = uploader.retrieve_wal_name(source)
+        # Check the file name received
+        assert wal_final_name
+        assert wal_final_name == "000000080000ABFF000000C1.bz2"
+
+class TestWalUploaderS3(object):
+    """
+    Test the CloudWalUploader class with S3CloudInterface
+    """
+
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
     def test_upload_wal(self, rfo_mock, boto_mock):
@@ -229,91 +319,3 @@ class TestWalUploader(object):
             ),
             ExtraArgs={"ServerSideEncryption": "AES256"},
         )
-
-    @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    def test_retrieve_normal_file_obj(self, boto_mock, tmpdir):
-        """
-        Test the retrieve_file_obj method with an uncompressed file
-        """
-        # Setup the WAL file
-        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
-        source.write("something".encode("utf-8"), ensure=True)
-        # Create a simple CloudWalUploader obj
-        uploader = CloudWalUploader(mock.MagicMock(), "test-server")
-        open_file = uploader.retrieve_file_obj(source.strpath)
-        # Check the file received
-        assert open_file
-        # Check content
-        assert open_file.read() == "something".encode("utf-8")
-
-    @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    def test_retrieve_gzip_file_obj(self, boto_mock, tmpdir):
-        """
-        Test the retrieve_file_obj method with a gzip file
-        """
-        # Setup the WAL
-        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
-        source.write("something".encode("utf-8"), ensure=True)
-        # Create a simple CloudWalUploader obj
-        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="gzip")
-        open_file = uploader.retrieve_file_obj(source.strpath)
-        # Check the in memory file received
-        assert open_file
-        # Decompress on the fly to check content
-        assert gzip.GzipFile(fileobj=open_file).read() == "something".encode("utf-8")
-
-    @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    def test_retrieve_bz2_file_obj(self, boto_mock, tmpdir):
-        """
-        Test the retrieve_file_obj method with a bz2 file
-        """
-        # Setup the WAL
-        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
-        source.write("something".encode("utf-8"), ensure=True)
-        # Create a simple CloudWalUploader obj
-        uploader = CloudWalUploader(
-            mock.MagicMock(), "test-server", compression="bzip2"
-        )
-        open_file = uploader.retrieve_file_obj(source.strpath)
-        # Check the in memory file received
-        assert open_file
-        # Decompress on the fly to check content
-        assert bz2.decompress(open_file.read()) == "something".encode("utf-8")
-
-    def test_retrieve_normal_file_name(self):
-        """
-        Test the retrieve_wal_name method with an uncompressed file
-        """
-        # Create a fake source name
-        source = "wal_dir/000000080000ABFF000000C1"
-        uploader = CloudWalUploader(mock.MagicMock(), "test-server")
-        wal_final_name = uploader.retrieve_wal_name(source)
-        # Check the file name received
-        assert wal_final_name
-        assert wal_final_name == "000000080000ABFF000000C1"
-
-    def test_retrieve_gzip_file_name(self):
-        """
-        Test the retrieve_wal_name method with gzip compression
-        """
-        # Create a fake source name
-        source = "wal_dir/000000080000ABFF000000C1"
-        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="gzip")
-        wal_final_name = uploader.retrieve_wal_name(source)
-        # Check the file name received
-        assert wal_final_name
-        assert wal_final_name == "000000080000ABFF000000C1.gz"
-
-    def test_retrieve_bz2_file_name(self):
-        """
-        Test the retrieve_wal_name method with bz2 compression
-        """
-        # Create a fake source name
-        source = "wal_dir/000000080000ABFF000000C1"
-        uploader = CloudWalUploader(
-            mock.MagicMock(), "test-server", compression="bzip2"
-        )
-        wal_final_name = uploader.retrieve_wal_name(source)
-        # Check the file name received
-        assert wal_final_name
-        assert wal_final_name == "000000080000ABFF000000C1.bz2"

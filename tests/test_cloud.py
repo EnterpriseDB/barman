@@ -34,6 +34,13 @@ except ImportError:
 
 
 class TestCloudInterface(object):
+    """
+    Tests of the asychronous upload infrastructure in CloudInterface.
+    S3CloudInterface is used as we cannot instantiate a CloudInterface directly
+    however we do not verify any backend specific functionality of S3CloudInterface,
+    only the asynchronous infrastructure is tested.
+    """
+
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_uploader_minimal(self, boto_mock):
         """
@@ -42,12 +49,6 @@ class TestCloudInterface(object):
         cloud_interface = S3CloudInterface(
             url="s3://bucket/path/to/dir", encryption=None
         )
-        assert cloud_interface.bucket_name == "bucket"
-        assert cloud_interface.path == "path/to/dir"
-        boto_mock.Session.assert_called_once_with(profile_name=None)
-        session_mock = boto_mock.Session.return_value
-        session_mock.resource.assert_called_once_with("s3", endpoint_url=None)
-        assert cloud_interface.s3 == session_mock.resource.return_value
 
         # Asynchronous uploading infrastructure is not initialized when
         # a new instance is created
@@ -367,6 +368,25 @@ class TestCloudInterface(object):
                 "parts": ["part", "list", "complete"],
             }
         )
+
+
+class TestS3CloudInterface(object):
+    """
+    Tests which verify backend-specific behaviour of S3CloudInterface.
+    """
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_uploader_minimal(self, boto_mock):
+        cloud_interface = S3CloudInterface(
+            url="s3://bucket/path/to/dir", encryption=None
+        )
+
+        assert cloud_interface.bucket_name == "bucket"
+        assert cloud_interface.path == "path/to/dir"
+        boto_mock.Session.assert_called_once_with(profile_name=None)
+        session_mock = boto_mock.Session.return_value
+        session_mock.resource.assert_called_once_with("s3", endpoint_url=None)
+        assert cloud_interface.s3 == session_mock.resource.return_value
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_invalid_uploader_minimal(self, boto_mock):
