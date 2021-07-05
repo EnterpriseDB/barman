@@ -27,6 +27,7 @@ import pytest
 from barman.clients import cloud_walarchive
 from barman.clients.cloud_walarchive import CloudWalUploader
 from barman.cloud_providers.aws_s3 import S3CloudInterface
+from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 from barman.xlog import hash_dir
 
 
@@ -254,6 +255,7 @@ class TestWalUploader(object):
         assert wal_final_name
         assert wal_final_name == "000000080000ABFF000000C1.bz2"
 
+
 class TestWalUploaderS3(object):
     """
     Test the CloudWalUploader class with S3CloudInterface
@@ -318,4 +320,57 @@ class TestWalUploaderS3(object):
                 os.path.basename(source),
             ),
             ExtraArgs={"ServerSideEncryption": "AES256"},
+        )
+
+
+class TestWalUploaderAzure(object):
+    """
+    Test the CloudWalUploader class with AzureCloudInterface
+    """
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
+    def test_upload_wal(self, rfo_mock, blob_service_mock):
+        """
+        Test the upload of a WAL
+        """
+        # Create a simple S3WalUploader obj
+        container_name = "container"
+        cloud_interface = AzureCloudInterface(
+            url="https://account.blob.core.windows.net/container/path/to/dir"
+        )
+        uploader = CloudWalUploader(cloud_interface, "test-server")
+        source = "/wal_dir/000000080000ABFF000000C1"
+        # Simulate the file object returned by the retrieve_file_obj method
+        rfo_mock.return_value.name = source
+        uploader.upload_wal(source)
+
+        blob_service_mock.from_connection_string.assert_called_once_with(
+            conn_str=os.environ["AZURE_STORAGE_CONNECTION_STRING"],
+            container_name=container_name,
+        )
+        blob_service_client_mock = (
+            blob_service_mock.from_connection_string.return_value
+        )
+        blob_service_client_mock.get_container_client.assert_called_once_with(
+            container_name
+        )
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+
+        # Check the call for the creation of the destination key
+        container_client_mock.upload_blob.assert_called_once_with(
+            data=rfo_mock.return_value,
+            name=os.path.join(
+                cloud_interface.path,
+                uploader.server_name,
+                "wals",
+                hash_dir(source),
+                os.path.basename(source),
+            ),
+            overwrite=True,
         )
