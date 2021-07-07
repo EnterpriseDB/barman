@@ -28,7 +28,11 @@ from barman.clients import cloud_walarchive
 from barman.clients.cloud_walarchive import CloudWalUploader
 from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
+from barman.exceptions import BarmanException
 from barman.xlog import hash_dir
+
+
+EXAMPLE_WAL_PATH = "wal_dir/000000080000ABFF000000C1"
 
 
 class TestMain(object):
@@ -352,9 +356,7 @@ class TestWalUploaderAzure(object):
             conn_str=os.environ["AZURE_STORAGE_CONNECTION_STRING"],
             container_name=container_name,
         )
-        blob_service_client_mock = (
-            blob_service_mock.from_connection_string.return_value
-        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
         blob_service_client_mock.get_container_client.assert_called_once_with(
             container_name
         )
@@ -374,3 +376,123 @@ class TestWalUploaderAzure(object):
             ),
             overwrite=True,
         )
+
+
+class TestWalUploaderHookScript(object):
+    """
+    Test that we get the intended behaviour when called as a hook script
+    """
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.clients.cloud_walarchive.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    def test_uses_wal_path_argument_when_not_running_as_hook(
+        self, uploader_mock, cloud_interface_mock
+    ):
+        uploader = uploader_mock.return_value
+        cloud_walarchive.main(["cloud_storage_url", "test_server", EXAMPLE_WAL_PATH])
+        cloud_interface_mock.assert_called_once()
+        uploader.upload_wal.assert_called_once_with(EXAMPLE_WAL_PATH)
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
+            "BARMAN_HOOK": "archive_script",
+            "BARMAN_PHASE": "post",
+            "BARMAN_FILE": EXAMPLE_WAL_PATH,
+        },
+    )
+    @mock.patch("barman.clients.cloud_walarchive.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    def test_uses_barman_file_env_when_running_as_hook(
+        self, uploader_mock, cloud_interface_mock
+    ):
+        uploader = uploader_mock.return_value
+        cloud_walarchive.main(["cloud_storage_url", "test_server"])
+        cloud_interface_mock.assert_called_once()
+        uploader.upload_wal.assert_called_once_with(EXAMPLE_WAL_PATH)
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
+            "BARMAN_HOOK": "archive_retry_script",
+            "BARMAN_PHASE": "post",
+            "BARMAN_FILE": EXAMPLE_WAL_PATH,
+        },
+    )
+    @mock.patch("barman.clients.cloud_walarchive.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    def test_uses_barman_file_env_when_running_as_retry_hook(
+        self, uploader_mock, cloud_interface_mock
+    ):
+        uploader = uploader_mock.return_value
+        cloud_walarchive.main(["cloud_storage_url", "test_server"])
+        cloud_interface_mock.assert_called_once()
+        uploader.upload_wal.assert_called_once_with(EXAMPLE_WAL_PATH)
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
+            "BARMAN_HOOK": "archive_retry_script",
+            "BARMAN_PHASE": "post",
+        },
+    )
+    @mock.patch("barman.clients.cloud_walarchive.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    def test_error_if_barman_file_not_provided(
+        self, uploader_mock, cloud_interface_mock
+    ):
+        with pytest.raises(BarmanException) as exc:
+            cloud_walarchive.main(["cloud_storage_url", "test_server"])
+        assert "Expected environment variable BARMAN_FILE not set" in str(exc.value)
+        uploader_mock.assert_not_called()
+        cloud_interface_mock.assert_not_called()
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
+            "BARMAN_HOOK": "archive_retry_script",
+            "BARMAN_PHASE": "pre",
+            "BARMAN_FILE": EXAMPLE_WAL_PATH,
+        },
+    )
+    @mock.patch("barman.clients.cloud_walarchive.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    def test_error_if_running_as_unsupported_phase(
+        self, uploader_mock, cloud_interface_mock
+    ):
+        with pytest.raises(BarmanException) as exc:
+            cloud_walarchive.main(["cloud_storage_url", "test_server"])
+        assert "barman-cloud-wal-archive called as unsupported hook script" in str(
+            exc.value
+        )
+        uploader_mock.assert_not_called()
+        cloud_interface_mock.assert_not_called()
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
+            "BARMAN_HOOK": "backup_script",
+            "BARMAN_PHASE": "post",
+            "BARMAN_FILE": EXAMPLE_WAL_PATH,
+        },
+    )
+    @mock.patch("barman.clients.cloud_walarchive.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    def test_error_if_running_as_unsupported_hook(
+        self, uploader_mock, cloud_interface_mock
+    ):
+        with pytest.raises(BarmanException) as exc:
+            cloud_walarchive.main(["cloud_storage_url", "test_server"])
+        assert "barman-cloud-wal-archive called as unsupported hook script" in str(
+            exc.value
+        )
+        uploader_mock.assert_not_called()
+        cloud_interface_mock.assert_not_called()
