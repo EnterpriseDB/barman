@@ -159,6 +159,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         if not self._check_connection():
             try:
                 self._conn = psycopg2.connect(self.conninfo)
+                self._conn.autocommit = True
             # If psycopg2 fails to connect to the host,
             # raise the appropriate exception
             except psycopg2.DatabaseError as e:
@@ -308,9 +309,8 @@ class StreamingConnection(PostgreSQL):
         if self._check_connection():
             return self._conn
 
-        # Build a connection and set autocommit
+        # Build a connection
         self._conn = super(StreamingConnection, self).connect()
-        self._conn.autocommit = True
         return self._conn
 
     def fetch_remote_status(self):
