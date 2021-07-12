@@ -269,11 +269,11 @@ class S3CloudInterface(CloudInterface):
             Bucket=self.bucket_name, Key=key
         )
 
-    def _upload_part(self, mpu, key, body, part_number):
+    def _upload_part(self, upload_metadata, key, body, part_number):
         """
         Upload a part into this multipart upload
 
-        :param mpu: The multipart upload handle
+        :param dict upload_metadata: The multipart upload handle
         :param str key: The key to use in the cloud service
         :param object body: A stream-like object to upload
         :param int part_number: Part number, starting from 1
@@ -284,7 +284,7 @@ class S3CloudInterface(CloudInterface):
             Body=body,
             Bucket=self.bucket_name,
             Key=key,
-            UploadId=mpu["UploadId"],
+            UploadId=upload_metadata["UploadId"],
             PartNumber=part_number,
         )
         return {
@@ -292,28 +292,28 @@ class S3CloudInterface(CloudInterface):
             "ETag": part["ETag"],
         }
 
-    def _complete_multipart_upload(self, mpu, key, parts):
+    def _complete_multipart_upload(self, upload_metadata, key, parts):
         """
         Finish a certain multipart upload
 
-        :param mpu:  The multipart upload handle
+        :param dict upload_metadata:  The multipart upload handle
         :param str key: The key to use in the cloud service
         :param parts: The list of parts composing the multipart upload
         """
         self.s3.meta.client.complete_multipart_upload(
             Bucket=self.bucket_name,
             Key=key,
-            UploadId=mpu["UploadId"],
+            UploadId=upload_metadata["UploadId"],
             MultipartUpload={"Parts": parts},
         )
 
-    def _abort_multipart_upload(self, mpu, key):
+    def _abort_multipart_upload(self, upload_metadata, key):
         """
         Abort a certain multipart upload
 
-        :param mpu:  The multipart upload handle
+        :param dict upload_metadata:  The multipart upload handle
         :param str key: The key to use in the cloud service
         """
         self.s3.meta.client.abort_multipart_upload(
-            Bucket=self.bucket_name, Key=key, UploadId=mpu["UploadId"]
+            Bucket=self.bucket_name, Key=key, UploadId=upload_metadata["UploadId"]
         )

@@ -158,7 +158,7 @@ class CloudTarUploader(object):
         """
         self.cloud_interface = cloud_interface
         self.key = key
-        self.mpu = None
+        self.upload_metadata = None
         if chunk_size is None:
             self.chunk_size = cloud_interface.MIN_CHUNK_SIZE
         else:
@@ -179,13 +179,19 @@ class CloudTarUploader(object):
         self.size += len(buf)
 
     def flush(self):
-        if not self.mpu:
-            self.mpu = self.cloud_interface.create_multipart_upload(self.key)
+        if not self.upload_metadata:
+            self.upload_metadata = self.cloud_interface.create_multipart_upload(
+                self.key
+            )
+
         self.buffer.flush()
         self.buffer.seek(0, os.SEEK_SET)
         self.counter += 1
         self.cloud_interface.async_upload_part(
-            mpu=self.mpu, key=self.key, body=self.buffer, part_number=self.counter
+            upload_metadata=self.upload_metadata,
+            key=self.key,
+            body=self.buffer,
+            part_number=self.counter,
         )
         self.buffer.close()
         self.buffer = None
@@ -195,7 +201,7 @@ class CloudTarUploader(object):
             self.tar.close()
         self.flush()
         self.cloud_interface.async_complete_multipart_upload(
-            mpu=self.mpu,
+            upload_metadata=self.upload_metadata,
             key=self.key,
             parts_count=self.counter,
         )
@@ -691,7 +697,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
                 )
                 with open(task["body"], "rb") as fp:
                     part = self._upload_part(
-                        task["mpu"], task["key"], fp, task["part_number"]
+                        task["upload_metadata"], task["key"], fp, task["part_number"]
                     )
                 os.unlink(task["body"])
                 self.result_queue.put(
@@ -705,7 +711,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
         elif task["job_type"] == "complete_multipart_upload":
             if self.abort_requested:
                 logging.info("Aborting %s (worker %s)" % (task["key"], process_number))
-                self._abort_multipart_upload(task["mpu"], task["key"])
+                self._abort_multipart_upload(task["upload_metadata"], task["key"])
                 self.done_queue.put(
                     {
                         "key": task["key"],
@@ -717,7 +723,9 @@ class CloudInterface(with_metaclass(ABCMeta)):
                 logging.info(
                     "Completing '%s' (worker %s)" % (task["key"], process_number)
                 )
-                self._complete_multipart_upload(task["mpu"], task["key"], task["parts"])
+                self._complete_multipart_upload(
+                    task["upload_metadata"], task["key"], task["parts_metadata"]
+                )
                 self.done_queue.put(
                     {
                         "key": task["key"],
@@ -728,15 +736,15 @@ class CloudInterface(with_metaclass(ABCMeta)):
         else:
             raise ValueError("Unknown task: %s", repr(task))
 
-    def async_upload_part(self, mpu, key, body, part_number):
+    def async_upload_part(self, upload_metadata, key, body, part_number):
         """
         Asynchronously upload a part into a multipart upload
 
-        :param mpu: The multipart upload handle
+        :param dict upload_metadata: Provider-specific metadata for this upload
+          e.g. the multipart upload handle in AWS S3
         :param str key: The key to use in the cloud service
         :param any body: A stream-like object to upload
         :param int part_number: Part number, starting from 1
-        :return: The part handle
         """
 
         # If an error has already been reported, do nothing
@@ -763,20 +771,21 @@ class CloudInterface(with_metaclass(ABCMeta)):
         self.queue.put(
             {
                 "job_type": "upload_part",
-                "mpu": mpu,
+                "upload_metadata": upload_metadata,
                 "key": key,
                 "body": fp.name,
                 "part_number": part_number,
             }
         )
 
-    def async_complete_multipart_upload(self, mpu, key, parts_count):
+    def async_complete_multipart_upload(self, upload_metadata, key, parts_count):
         """
         Asynchronously finish a certain multipart upload. This method grant
         that the final call to the cloud storage will happen after all the
         already scheduled parts have been uploaded.
 
-        :param mpu:  The multipart upload handle
+        :param dict upload_metadata: Provider-specific metadata for this upload
+          e.g. the multipart upload handle in AWS S3
         :param str key: The key to use in the cloud service
         :param int parts_count: Number of parts
         """
@@ -799,9 +808,9 @@ class CloudInterface(with_metaclass(ABCMeta)):
         self.queue.put(
             {
                 "job_type": "complete_multipart_upload",
-                "mpu": mpu,
+                "upload_metadata": upload_metadata,
                 "key": key,
-                "parts": self.parts_db[key],
+                "parts_metadata": self.parts_db[key],
             }
         )
         del self.parts_db[key]
@@ -928,46 +937,69 @@ class CloudInterface(with_metaclass(ABCMeta)):
     @abstractmethod
     def create_multipart_upload(self, key):
         """
-        Create a new multipart upload and return an identifier for that upload.
+        Create a new multipart upload and return any metadata returned by the
+        cloud provider.
+
+        This metadata is treated as an opaque blob by CloudInterface and will
+        be passed into the _upload_part, _complete_multipart_upload and
+        _abort_multipart_upload methods.
+
+        The implementations of these methods will need to handle this metadata in
+        the way expected by the cloud provider.
 
         Some cloud services do not require multipart uploads to be explicitly
-        created. In such cases it will be necessary to provide a no-op
-        implementation which returns None for the upload handle.
+        created. In such cases the implementation can be a no-op which just
+        returns None.
 
         :param key: The key to use in the cloud service
-        :return: The multipart upload handle
-        :rtype: dict[str, str]
+        :return: The multipart upload metadata
+        :rtype: dict[str, str]|None
         """
 
     @abstractmethod
-    def _upload_part(self, mpu, key, body, part_number):
+    def _upload_part(self, upload_metadata, key, body, part_number):
         """
-        Upload a part into this multipart upload
+        Upload a part into this multipart upload and return a dict of part
+        metadata. The part metadata must contain the key "PartNumber" and can
+        optionally contain any other metadata available (for example the ETag
+        returned by S3).
 
-        :param mpu: The multipart upload handle
+        The part metadata will included in a list of metadata for all parts of
+        the upload which is passed to the _complete_multipart_upload method.
+
+        :param dict upload_metadata: Provider-specific metadata for this upload
+          e.g. the multipart upload handle in AWS S3
         :param str key: The key to use in the cloud service
         :param object body: A stream-like object to upload
         :param int part_number: Part number, starting from 1
-        :return: The part handle
+        :return: The part metadata
         :rtype: dict[str, None|str]
         """
 
     @abstractmethod
-    def _complete_multipart_upload(self, mpu, key, parts):
+    def _complete_multipart_upload(self, upload_metadata, key, parts_metadata):
         """
         Finish a certain multipart upload
 
-        :param mpu:  The multipart upload handle
+        :param dict upload_metadata: Provider-specific metadata for this upload
+          e.g. the multipart upload handle in AWS S3
         :param str key: The key to use in the cloud service
-        :param parts: The list of parts composing the multipart upload
+        :param List[dict] parts_metadata: The list of metadata for the parts
+          composing the multipart upload. Each part is guaranteed to provide a
+          PartNumber and may optionally contain additional metadata returned by
+          the cloud provider such as ETags.
         """
 
     @abstractmethod
-    def _abort_multipart_upload(self, mpu, key):
+    def _abort_multipart_upload(self, upload_metadata, key):
         """
         Abort a certain multipart upload
 
-        :param mpu:  The multipart upload handle
+        The implementation of this method should clean up any dangling resources
+        left by the incomplete upload.
+
+        :param dict upload_metadata: Provider-specific metadata for this upload
+          e.g. the multipart upload handle in AWS S3
         :param str key: The key to use in the cloud service
         """
 

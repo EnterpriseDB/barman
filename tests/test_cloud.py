@@ -259,7 +259,7 @@ class TestCloudInterface(object):
         interface._worker_process_execute_job(
             {
                 "job_type": "upload_part",
-                "mpu": "mpu",
+                "upload_metadata": {"UploadId": "upload_id"},
                 "part_number": 10,
                 "key": "this/key",
                 "body": "body",
@@ -267,7 +267,10 @@ class TestCloudInterface(object):
             0,
         )
         upload_part_mock.assert_called_once_with(
-            "mpu", "this/key", open_mock.return_value.__enter__.return_value, 10
+            {"UploadId": "upload_id"},
+            "this/key",
+            open_mock.return_value.__enter__.return_value,
+            10,
         )
         assert not interface.result_queue.empty()
         assert interface.result_queue.get() == {
@@ -283,14 +286,14 @@ class TestCloudInterface(object):
         interface._worker_process_execute_job(
             {
                 "job_type": "complete_multipart_upload",
-                "mpu": "mpu",
+                "upload_metadata": {"UploadId": "upload_id"},
                 "key": "this/key",
-                "parts": ["parts", "list"],
+                "parts_metadata": ["parts", "list"],
             },
             0,
         )
         complete_multipart_upload_mock.assert_called_once_with(
-            "mpu", "this/key", ["parts", "list"]
+            {"UploadId": "upload_id"}, "this/key", ["parts", "list"]
         )
         assert not interface.done_queue.empty()
         assert interface.done_queue.get() == {
@@ -331,13 +334,15 @@ class TestCloudInterface(object):
 
         interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = Queue()
-        interface.async_upload_part("mpu", "test/key", BytesIO(b"test"), 1)
+        interface.async_upload_part(
+            {"UploadId": "upload_id"}, "test/key", BytesIO(b"test"), 1
+        )
         ensure_async_mock.assert_called_once_with()
         handle_async_errors_mock.assert_called_once_with()
         assert not interface.queue.empty()
         assert interface.queue.get() == {
             "job_type": "upload_part",
-            "mpu": "mpu",
+            "upload_metadata": {"UploadId": "upload_id"},
             "key": "test/key",
             "body": temp_name,
             "part_number": 1,
@@ -358,7 +363,7 @@ class TestCloudInterface(object):
 
         retrieve_results_mock.side_effect = retrieve_results_effect
 
-        interface.async_complete_multipart_upload("mpu", "key", 3)
+        interface.async_complete_multipart_upload({"UploadId": "upload_id"}, "key", 3)
         ensure_async_mock.assert_called_once_with()
         handle_async_errors_mock.assert_called_once_with()
         retrieve_results_mock.assert_called_once_with()
@@ -366,9 +371,9 @@ class TestCloudInterface(object):
         interface.queue.put.assert_called_once_with(
             {
                 "job_type": "complete_multipart_upload",
-                "mpu": "mpu",
+                "upload_metadata": {"UploadId": "upload_id"},
                 "key": "key",
-                "parts": ["part", "list", "complete"],
+                "parts_metadata": ["part", "list", "complete"],
             }
         )
 

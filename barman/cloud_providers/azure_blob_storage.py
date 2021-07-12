@@ -298,15 +298,19 @@ class AzureCloudInterface(CloudInterface):
         """
         pass
 
-    def _upload_part(self, mpu, key, body, part_number):
+    def _upload_part(self, upload_metadata, key, body, part_number):
         """
         Upload a single block of this block blob.
 
-        :param mpu: The multipart upload handle (not used with Azure).
+        Uses the supplied part number to generate the block ID and returns it
+        as the "PartNumber" in the part metadata.
+
+        :param dict upload_metadata: Provider-specific metadata about the upload
+          (not used in Azure)
         :param str key: The key to use in the cloud service
         :param object body: A stream-like object to upload
         :param int part_number: Part number, starting from 1
-        :return: The part handle
+        :return: The part metadata
         :rtype: dict[str, None|str]
         """
         # Block IDs must be the same length for all bocks in the blob
@@ -318,11 +322,12 @@ class AzureCloudInterface(CloudInterface):
         blob_client.stage_block(block_id, body)
         return {"PartNumber": block_id}
 
-    def _complete_multipart_upload(self, mpu, key, parts):
+    def _complete_multipart_upload(self, upload_metadata, key, parts):
         """
         Finish a "multipart upload" by committing all blocks in the blob.
 
-        :param mpu:  The multipart upload handle (not used)
+        :param dict upload_metadata: Provider-specific metadata about the upload
+          (not used in Azure)
         :param str key: The key to use in the cloud service
         :param parts: The list of block IDs for the blocks which compose this blob
         """
@@ -330,14 +335,15 @@ class AzureCloudInterface(CloudInterface):
         block_list = [part["PartNumber"] for part in parts]
         blob_client.commit_block_list(block_list)
 
-    def _abort_multipart_upload(self, mpu, key):
+    def _abort_multipart_upload(self, upload_metadata, key):
         """
         Abort the upload of a block blob
 
         The objective of this method is to clean up any dangling resources - in
         this case those resources are uncommitted blocks.
 
-        :param mpu:  The multipart upload handle
+        :param dict upload_metadata: Provider-specific metadata about the upload
+          (not used in Azure)
         :param str key: The key to use in the cloud service
         """
         # Ideally we would clean up uncommitted blocks at this point
