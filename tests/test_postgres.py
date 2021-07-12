@@ -161,7 +161,7 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
 
         # Connection error
         conn_mock.side_effect = PostgresConnectionError
@@ -195,7 +195,7 @@ class TestPostgres(object):
 
         server = build_real_server()
         # Test 1: Postgres 9.0 expect None as result
-        conn_mock.return_value.__enter__.return_value.server_version = 90000
+        conn_mock.return_value.server_version = 90000
 
         restore_point = server.postgres.create_restore_point("Test_20151026T092241")
         assert restore_point is None
@@ -204,7 +204,7 @@ class TestPostgres(object):
         is_in_recovery_mock.return_value = True
 
         # Test 2: Postgres 9.1 in recovery (standby) expect None as result
-        conn_mock.return_value.__enter__.return_value.server_version = 90100
+        conn_mock.return_value.server_version = 90100
 
         restore_point = server.postgres.create_restore_point("Test_20151026T092241")
         assert restore_point is None
@@ -214,7 +214,7 @@ class TestPostgres(object):
 
         assert server.postgres.create_restore_point("Test_20151026T092241")
 
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.execute.assert_called_with(
             "SELECT pg_create_restore_point(%s)", ["Test_20151026T092241"]
         )
@@ -235,7 +235,7 @@ class TestPostgres(object):
         server = build_real_server()
 
         # Test call on master, PostgreSQL older than 10
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         # Expect no errors on normal call
         assert server.postgres.stop_exclusive_backup()
         # check the correct invocation of the execute method
@@ -249,7 +249,7 @@ class TestPostgres(object):
 
         # Test call on master, PostgreSQL 10
         conn_mock.reset_mock()
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         # Expect no errors on normal call
         assert server.postgres.stop_exclusive_backup()
         # check the correct invocation of the execute method
@@ -340,7 +340,7 @@ class TestPostgres(object):
         backup_label = "test label"
 
         # Expect no errors
-        conn.return_value.__enter__.return_value.server_version = 90300
+        conn.return_value.server_version = 90300
         assert server.postgres.start_exclusive_backup(backup_label)
 
         # check for the correct call on the execute method
@@ -357,7 +357,7 @@ class TestPostgres(object):
         conn.reset_mock()
 
         # 8.3 test
-        conn.return_value.__enter__.return_value.server_version = 80300
+        conn.return_value.server_version = 80300
         assert server.postgres.start_exclusive_backup(backup_label)
         # check for the correct call on the execute method
         cursor_mock.execute.assert_called_once_with(
@@ -372,7 +372,7 @@ class TestPostgres(object):
         conn.reset_mock()
 
         # 10 test
-        conn.return_value.__enter__.return_value.server_version = 100000
+        conn.return_value.server_version = 100000
         assert server.postgres.start_exclusive_backup(backup_label)
         # check for the correct call on the execute method
         cursor_mock.execute.assert_called_once_with(
@@ -466,7 +466,7 @@ class TestPostgres(object):
 
         # expect no errors
         server.postgres.get_setting("test_setting")
-        cursor_mock = conn.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
             'SHOW "%s"' % "test_setting".replace('"', '""')
         )
@@ -486,11 +486,11 @@ class TestPostgres(object):
         """
         # Build and configure a server
         server = build_real_server()
-        conn.return_value.__enter__.return_value.server_version = 90600
+        conn.return_value.server_version = 90600
 
         # expect no errors
         server.postgres.get_systemid()
-        cursor_mock = conn.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
             "SELECT system_identifier::text FROM pg_control_system()"
         )
@@ -507,7 +507,7 @@ class TestPostgres(object):
 
         # Test 3: setup the mock to return a PostgreSQL version that
         # don't support pg_control_system()
-        conn.return_value.__enter__.return_value.server_version = 90500
+        conn.return_value.server_version = 90500
         assert server.postgres.get_systemid() is None
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
@@ -517,10 +517,10 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        cursor_mock = conn.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.fetchall.return_value = [("tbs1", "1234", "/tmp")]
         # Expect no errors
-        conn.return_value.__enter__.return_value.server_version = 90400
+        conn.return_value.server_version = 90400
         tbs = server.postgres.get_tablespaces()
         # check for the correct call on the execute method
         cursor_mock.execute.assert_called_once_with(
@@ -533,7 +533,7 @@ class TestPostgres(object):
         conn.reset_mock()
 
         # 8.3 test
-        conn.return_value.__enter__.return_value.server_version = 80300
+        conn.return_value.server_version = 80300
         cursor_mock.fetchall.return_value = [("tbs2", "5234", "/tmp1")]
         tbs = server.postgres.get_tablespaces()
         # check for the correct call on the execute method
@@ -555,14 +555,14 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        cursor_mock = conn.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn.return_value.cursor.return_value
         # expect None as result for server version <9.4
-        conn.return_value.__enter__.return_value.server_version = 80300
+        conn.return_value.server_version = 80300
         assert server.postgres.get_archiver_stats() is None
 
         # expect no errors with version >= 9.4
         conn.reset_mock()
-        conn.return_value.__enter__.return_value.server_version = 90400
+        conn.return_value.server_version = 90400
         cursor_mock.fetchone.return_value = {"a": "b"}
         assert server.postgres.get_archiver_stats() == {"a": "b"}
         # check for the correct call on the execute method
@@ -593,8 +593,8 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        conn_mock.return_value.__enter__.return_value.server_version = 80400
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        conn_mock.return_value.server_version = 80400
+        cursor_mock = conn_mock.return_value.cursor.return_value
         test_conf_files = [
             ("config_file", "/tmp/postgresql.conf"),
             ("hba_file", "/tmp/pg_hba.conf"),
@@ -645,14 +645,14 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
 
         # Too old
-        conn_mock.return_value.__enter__.return_value.server_version = 90000
+        conn_mock.return_value.server_version = 90000
         assert not server.postgres.has_pgespresso
 
         # Extension present
-        conn_mock.return_value.__enter__.return_value.server_version = 90100
+        conn_mock.return_value.server_version = 90100
         cursor_mock.fetchone.return_value = [1]
         assert server.postgres.has_pgespresso
         cursor_mock.execute.assert_called_once_with(
@@ -680,14 +680,14 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
 
         # Too old
-        conn_mock.return_value.__enter__.return_value.server_version = 80400
+        conn_mock.return_value.server_version = 80400
         assert not server.postgres.is_in_recovery
 
         # In recovery
-        conn_mock.return_value.__enter__.return_value.server_version = 90100
+        conn_mock.return_value.server_version = 90100
         cursor_mock.fetchone.return_value = [True]
         assert server.postgres.is_in_recovery
         cursor_mock.execute.assert_called_once_with("SELECT pg_is_in_recovery()")
@@ -716,7 +716,7 @@ class TestPostgres(object):
         """
         # Build and configure a server using a mock
         server = build_real_server()
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
         timestamp = datetime.datetime(2016, 3, 30, 17, 4, 20, 271376)
         current_xlog_info = dict(
             location="0/35000528",
@@ -727,7 +727,7 @@ class TestPostgres(object):
         cursor_mock.fetchone.return_value = current_xlog_info
 
         # Test call on master, PostgreSQL older than 10
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         is_in_recovery_mock.return_value = False
         remote_loc = server.postgres.current_xlog_info
         assert remote_loc == current_xlog_info
@@ -739,7 +739,7 @@ class TestPostgres(object):
 
         # Check call on standby, PostgreSQL older than 10
         conn_mock.reset_mock()
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         is_in_recovery_mock.return_value = True
         current_xlog_info["file_name"] = None
         current_xlog_info["file_offset"] = None
@@ -753,7 +753,7 @@ class TestPostgres(object):
 
         # Test call on master, PostgreSQL 10
         conn_mock.reset_mock()
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         is_in_recovery_mock.return_value = False
         remote_loc = server.postgres.current_xlog_info
         assert remote_loc == current_xlog_info
@@ -765,7 +765,7 @@ class TestPostgres(object):
 
         # Check call on standby, PostgreSQL 10
         conn_mock.reset_mock()
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         is_in_recovery_mock.return_value = True
         current_xlog_info["file_name"] = None
         current_xlog_info["file_offset"] = None
@@ -797,8 +797,8 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        conn_mock.return_value.server_version = 90300
+        cursor_mock = conn_mock.return_value.cursor.return_value
 
         timestamp = datetime.datetime(2016, 3, 30, 17, 4, 20, 271376)
         cursor_mock.fetchone.return_value = dict(
@@ -900,15 +900,11 @@ class TestPostgres(object):
         is_superuser_mock.return_value = True
         get_configuration_files_mock.return_value = {"a": "b"}
         get_synchronous_standby_names_mock.return_value = []
+        conn_mock.return_value.server_version = 90500
         archive_timeout_mock.return_value = 300
         checkpoint_timeout_mock.return_value = 600
         xlog_segment_size.return_value = 2 << 22
         get_systemid_mock.return_value = 6721602258895701769
-
-        # The connection is used both with and without the context manager so
-        # mock both cases
-        conn_mock.return_value.server_version = 90500
-        conn_mock.return_value.__enter__.return_value.server_version = 90500
 
         settings = {
             "data_directory": "a directory",
@@ -954,7 +950,7 @@ class TestPostgres(object):
         }
 
         # Test PostgreSQL 9.6
-        conn_mock.return_value.__enter__.return_value.server_version = 90600
+        conn_mock.return_value.server_version = 90600
         result = server.postgres.fetch_remote_status()
         assert result == {
             "a": "b",
@@ -984,7 +980,7 @@ class TestPostgres(object):
         }
 
         # Test PostgreSQL 13
-        conn_mock.return_value.__enter__.return_value.server_version = 130000
+        conn_mock.return_value.server_version = 130000
         result = server.postgres.fetch_remote_status()
         assert result == {
             "a": "b",
@@ -1056,7 +1052,7 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
         is_in_recovery_mock.return_value = False
         is_superuser_mock.return_value = True
         # Execute the checkpoint method
@@ -1088,12 +1084,12 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
         is_in_recovery_mock.return_value = False
         has_backup_privileges_mock.return_value = True
 
         # Test for the response of a correct switch for PostgreSQL < 10
-        conn_mock.return_value.__enter__.return_value.server_version = 90100
+        conn_mock.return_value.server_version = 90100
         cursor_mock.fetchone.side_effect = [
             ("000000010000000000000001",),
             ("000000010000000000000002",),
@@ -1111,7 +1107,7 @@ class TestPostgres(object):
         )
 
         # Test for the response of a correct switch for PostgreSQL 10
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         cursor_mock.reset_mock()
         cursor_mock.fetchone.side_effect = [
             ("000000010000000000000001",),
@@ -1173,7 +1169,7 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
         has_backup_privileges_mock.return_value = True
 
         # 10 ALL
@@ -1539,7 +1535,7 @@ class TestPostgres(object):
         # Build a server
         server = build_real_server()
         server.config.slot_name = "test"
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        cursor_mock = conn_mock.return_value.cursor.return_value
         is_superuser_mock.return_value = True
 
         # Supported version 9.4
@@ -1571,13 +1567,13 @@ class TestPostgres(object):
         server = build_real_server()
 
         # Unsupported version: 9.0
-        conn_mock.return_value.__enter__.return_value.server_version = 90000
+        conn_mock.return_value.server_version = 90000
 
         with pytest.raises(PostgresUnsupportedFeature):
             server.postgres.get_synchronous_standby_names()
 
         # Supported version: 9.1
-        conn_mock.return_value.__enter__.return_value.server_version = 90100
+        conn_mock.return_value.server_version = 90100
 
         setting_mock.return_value = "a, bc, def"
         names = server.postgres.get_synchronous_standby_names()
@@ -1642,8 +1638,8 @@ class TestPostgres(object):
 
         # Build a server
         server = build_real_server()
-        conn_mock.return_value.__enter__.return_value.server_version = 110000
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        conn_mock.return_value.server_version = 110000
+        cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.fetchone.side_effect = [[str(default_wal_file_size)]]
 
         result = server.postgres.xlog_segment_size
@@ -1666,8 +1662,8 @@ class TestPostgres(object):
 
         # Build a server
         server = build_real_server()
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        conn_mock.return_value.server_version = 100000
+        cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.fetchone.side_effect = [
             [str(default_wal_segments_number)],
             [str(default_wal_block_size)],
@@ -1692,8 +1688,8 @@ class TestPostgres(object):
 
         # Build a server
         server = build_real_server()
-        conn_mock.return_value.__enter__.return_value.server_version = 80300
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        conn_mock.return_value.server_version = 80300
+        cursor_mock = conn_mock.return_value.cursor.return_value
 
         result = server.postgres.xlog_segment_size
         assert result == DEFAULT_XLOG_SEG_SIZE
@@ -1708,11 +1704,11 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         map_10 = server.postgres.name_map
         assert map_10
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         map_93 = server.postgres.name_map
         assert map_93
 
@@ -1728,10 +1724,10 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         assert server.postgres.name_map["pg_switch_wal"] == "pg_switch_xlog"
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         assert server.postgres.name_map["pg_switch_wal"] == "pg_switch_wal"
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
@@ -1742,10 +1738,10 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         assert server.postgres.name_map["pg_walfile_name"] == "pg_xlogfile_name"
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         assert server.postgres.name_map["pg_walfile_name"] == "pg_walfile_name"
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
@@ -1756,13 +1752,13 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         assert (
             server.postgres.name_map["pg_walfile_name_offset"]
             == "pg_xlogfile_name_offset"
         )
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         assert (
             server.postgres.name_map["pg_walfile_name_offset"]
             == "pg_walfile_name_offset"
@@ -1776,10 +1772,10 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         assert server.postgres.name_map["pg_wal"] == "pg_xlog"
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         assert server.postgres.name_map["pg_wal"] == "pg_wal"
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
@@ -1790,13 +1786,13 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         assert (
             server.postgres.name_map["pg_last_wal_replay_lsn"]
             == "pg_last_xlog_replay_location"
         )
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         assert (
             server.postgres.name_map["pg_last_wal_replay_lsn"]
             == "pg_last_wal_replay_lsn"
@@ -1810,12 +1806,12 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         assert (
             server.postgres.name_map["pg_current_wal_lsn"] == "pg_current_xlog_location"
         )
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         assert server.postgres.name_map["pg_current_wal_lsn"] == "pg_current_wal_lsn"
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
@@ -1826,13 +1822,13 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         assert (
             server.postgres.name_map["pg_current_wal_insert_lsn"]
             == "pg_current_xlog_insert_location"
         )
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         assert (
             server.postgres.name_map["pg_current_wal_insert_lsn"]
             == "pg_current_wal_insert_lsn"
@@ -1846,13 +1842,13 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90300
         assert (
             server.postgres.name_map["pg_last_wal_receive_lsn"]
             == "pg_last_xlog_receive_location"
         )
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100000
+        conn_mock.return_value.server_version = 100000
         assert (
             server.postgres.name_map["pg_last_wal_receive_lsn"]
             == "pg_last_wal_receive_lsn"
@@ -1904,14 +1900,14 @@ class TestStreamingConnection(object):
         )
 
         # Too old PostgreSQL
-        conn_mock.return_value.__enter__.return_value.server_version = 90100
+        conn_mock.return_value.server_version = 90100
         result = server.streaming.fetch_remote_status()
         assert result["streaming_supported"] is False
         assert result["streaming"] is None
 
         # Working streaming connection
-        conn_mock.return_value.__enter__.return_value.server_version = 90300
-        cursor_mock = conn_mock.return_value.__enter__.return_value.cursor.return_value
+        conn_mock.return_value.server_version = 90300
+        cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.fetchone.return_value = ("12345", 1, "DE/ADBEEF")
         result = server.streaming.fetch_remote_status()
         cursor_mock.execute.assert_called_with("IDENTIFY_SYSTEM")
@@ -1951,22 +1947,22 @@ class TestStreamingConnection(object):
         # Good connection
         conn_mock.side_effect = None
 
-        conn_mock.return_value.__enter__.return_value.server_version = 80300
+        conn_mock.return_value.server_version = 80300
         assert server.streaming.server_txt_version == "8.3.0"
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90000
+        conn_mock.return_value.server_version = 90000
         assert server.streaming.server_txt_version == "9.0.0"
 
-        conn_mock.return_value.__enter__.return_value.server_version = 90005
+        conn_mock.return_value.server_version = 90005
         assert server.streaming.server_txt_version == "9.0.5"
 
-        conn_mock.return_value.__enter__.return_value.server_version = 100001
+        conn_mock.return_value.server_version = 100001
         assert server.streaming.server_txt_version == "10.1"
 
-        conn_mock.return_value.__enter__.return_value.server_version = 110011
+        conn_mock.return_value.server_version = 110011
         assert server.streaming.server_txt_version == "11.11"
 
-        conn_mock.return_value.__enter__.return_value.server_version = 0
+        conn_mock.return_value.server_version = 0
         assert server.streaming.server_txt_version == "0.0.0"
 
     @patch("barman.postgres.psycopg2.connect")
@@ -1977,18 +1973,14 @@ class TestStreamingConnection(object):
         )
 
         # Test replication slot creation
-        cursor_mock = (
-            connect_mock.return_value.__enter__.return_value.cursor.return_value
-        )
+        cursor_mock = connect_mock.return_value.cursor.return_value
         server.streaming.create_physical_repslot("test_repslot")
         cursor_mock.execute.assert_called_once_with(
             "CREATE_REPLICATION_SLOT test_repslot PHYSICAL"
         )
 
         # Test replication slot already existent
-        cursor_mock = (
-            connect_mock.return_value.__enter__.return_value.cursor.return_value
-        )
+        cursor_mock = connect_mock.return_value.cursor.return_value
         cursor_mock.execute.side_effect = MockProgrammingError(DUPLICATE_OBJECT)
 
         with pytest.raises(PostgresDuplicateReplicationSlot):
@@ -2005,18 +1997,14 @@ class TestStreamingConnection(object):
         )
 
         # Test replication slot creation
-        cursor_mock = (
-            connect_mock.return_value.__enter__.return_value.cursor.return_value
-        )
+        cursor_mock = connect_mock.return_value.cursor.return_value
         server.streaming.drop_repslot("test_repslot")
         cursor_mock.execute.assert_called_once_with(
             "DROP_REPLICATION_SLOT test_repslot"
         )
 
         # Test replication slot already existent
-        cursor_mock = (
-            connect_mock.return_value.__enter__.return_value.cursor.return_value
-        )
+        cursor_mock = connect_mock.return_value.cursor.return_value
         cursor_mock.execute.side_effect = MockProgrammingError(UNDEFINED_OBJECT)
 
         with pytest.raises(PostgresInvalidReplicationSlot):
