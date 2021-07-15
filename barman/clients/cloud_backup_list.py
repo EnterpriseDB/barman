@@ -21,7 +21,8 @@ import logging
 from contextlib import closing
 
 import barman
-from barman.cloud import CloudInterface, S3BackupCatalog, configure_logging
+from barman.cloud import CloudBackupCatalog, configure_logging
+from barman.cloud_providers import get_cloud_interface
 from barman.infofile import BackupInfo
 from barman.utils import force_str
 
@@ -42,15 +43,16 @@ def main(args=None):
     configure_logging(config)
 
     try:
-        cloud_interface = CloudInterface(
+        cloud_interface = get_cloud_interface(
             url=config.source_url,
             encryption=config.encryption,
             profile_name=config.profile,
             endpoint_url=config.endpoint_url,
+            cloud_provider=config.cloud_provider,
         )
 
         with closing(cloud_interface):
-            catalog = S3BackupCatalog(
+            catalog = CloudBackupCatalog(
                 cloud_interface=cloud_interface, server_name=config.server_name
             )
 
@@ -108,7 +110,7 @@ def parse_arguments(args=None):
     parser = argparse.ArgumentParser(
         description="This script can be used to list backups "
         "made with barman-cloud-backup command. "
-        "Currently only AWS S3 is supported.",
+        "Currently AWS S3 and Azure Blob Storage are supported.",
         add_help=False,
     )
 
@@ -140,19 +142,6 @@ def parse_arguments(args=None):
         help="decrease output verbosity (e.g., -qq is less than -q)",
     )
     parser.add_argument(
-        "-P",
-        "--profile",
-        help="profile name (e.g. INI section in AWS credentials file)",
-    )
-    parser.add_argument(
-        "-e",
-        "--encryption",
-        help="Enable server-side encryption for the transfer. "
-        "Allowed values: 'AES256', 'aws:kms'",
-        choices=["AES256", "aws:kms"],
-        metavar="ENCRYPTION",
-    )
-    parser.add_argument(
         "-t",
         "--test",
         help="Test cloud connectivity and exit",
@@ -165,8 +154,30 @@ def parse_arguments(args=None):
         help="Output format (console or json). Default console.",
     )
     parser.add_argument(
+        "--cloud-provider",
+        help="The cloud provider to use as a storage backend",
+        choices=["aws-s3", "azure-blob-storage"],
+        default="aws-s3",
+    )
+    s3_arguments = parser.add_argument_group(
+        "Extra options for the aws-s3 cloud provider"
+    )
+    s3_arguments.add_argument(
         "--endpoint-url",
         help="Override default S3 endpoint URL with the given one",
+    )
+    s3_arguments.add_argument(
+        "-P",
+        "--profile",
+        help="profile name (e.g. INI section in AWS credentials file)",
+    )
+    s3_arguments.add_argument(
+        "-e",
+        "--encryption",
+        help="Enable server-side encryption for the transfer. "
+        "Allowed values: 'AES256', 'aws:kms'",
+        choices=["AES256", "aws:kms"],
+        metavar="ENCRYPTION",
     )
     return parser.parse_args(args=args)
 

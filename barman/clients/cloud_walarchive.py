@@ -26,7 +26,8 @@ from contextlib import closing
 from io import BytesIO
 
 import barman
-from barman.cloud import CloudInterface, configure_logging
+from barman.cloud import configure_logging
+from barman.cloud_providers import get_cloud_interface
 from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file
 
@@ -52,15 +53,16 @@ def main(args=None):
         raise SystemExit(1)
 
     try:
-        cloud_interface = CloudInterface(
+        cloud_interface = get_cloud_interface(
             url=config.destination_url,
             encryption=config.encryption,
             profile_name=config.profile,
             endpoint_url=config.endpoint_url,
+            cloud_provider=config.cloud_provider,
         )
 
         with closing(cloud_interface):
-            uploader = S3WalUploader(
+            uploader = CloudWalUploader(
                 cloud_interface=cloud_interface,
                 server_name=config.server_name,
                 compression=config.compression,
@@ -92,7 +94,7 @@ def parse_arguments(args=None):
     parser = argparse.ArgumentParser(
         description="This script can be used in the `archive_command` "
         "of a PostgreSQL server to ship WAL files to the Cloud. "
-        "Currently only AWS S3 is supported.",
+        "Currently AWS S3 and Azure Blob Storage are supported.",
         add_help=False,
     )
     parser.add_argument(
@@ -126,11 +128,6 @@ def parse_arguments(args=None):
         default=0,
         help="decrease output verbosity (e.g., -qq is less than -q)",
     )
-    parser.add_argument(
-        "-P",
-        "--profile",
-        help="profile name (e.g. INI section in AWS credentials file)",
-    )
     compression = parser.add_mutually_exclusive_group()
     compression.add_argument(
         "-z",
@@ -149,14 +146,6 @@ def parse_arguments(args=None):
         dest="compression",
     )
     parser.add_argument(
-        "-e",
-        "--encryption",
-        help="Enable server-side encryption for the transfer. "
-        "Allowed values: 'AES256', 'aws:kms'",
-        choices=["AES256", "aws:kms"],
-        metavar="ENCRYPTION",
-    )
-    parser.add_argument(
         "-t",
         "--test",
         help="Test cloud connectivity and exit",
@@ -164,20 +153,42 @@ def parse_arguments(args=None):
         default=False,
     )
     parser.add_argument(
+        "--cloud-provider",
+        help="The cloud provider to use as a storage backend",
+        choices=["aws-s3", "azure-blob-storage"],
+        default="aws-s3",
+    )
+    s3_arguments = parser.add_argument_group(
+        "Extra options for the aws-s3 cloud provider"
+    )
+    s3_arguments.add_argument(
         "--endpoint-url",
         help="Override default S3 endpoint URL with the given one",
+    )
+    s3_arguments.add_argument(
+        "-P",
+        "--profile",
+        help="profile name (e.g. INI section in AWS credentials file)",
+    )
+    s3_arguments.add_argument(
+        "-e",
+        "--encryption",
+        help="Enable server-side encryption for the transfer. "
+        "Allowed values: 'AES256', 'aws:kms'",
+        choices=["AES256", "aws:kms"],
+        metavar="ENCRYPTION",
     )
     return parser.parse_args(args=args)
 
 
-class S3WalUploader(object):
+class CloudWalUploader(object):
     """
-    S3 upload client
+    Cloud storage upload client
     """
 
     def __init__(self, cloud_interface, server_name, compression=None):
         """
-        Object responsible for handling interactions with S3
+        Object responsible for handling interactions with cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
@@ -191,7 +202,7 @@ class S3WalUploader(object):
 
     def upload_wal(self, wal_path):
         """
-        Upload a WAL file from postgres to S3
+        Upload a WAL file from postgres to cloud storage
 
         :param str wal_path: Full path of the WAL file
         """
@@ -199,7 +210,7 @@ class S3WalUploader(object):
         wal_name = self.retrieve_wal_name(wal_path)
         # Use the correct file object for the upload (simple|gzip|bz2)
         file_object = self.retrieve_file_obj(wal_path)
-        # Correctly format the destination path on s3
+        # Correctly format the destination path
         destination = os.path.join(
             self.cloud_interface.path,
             self.server_name,

@@ -25,18 +25,19 @@ import mock
 import pytest
 
 from barman.clients import cloud_walarchive
-from barman.clients.cloud_walarchive import S3WalUploader
-from barman.cloud import CloudInterface
+from barman.clients.cloud_walarchive import CloudWalUploader
+from barman.cloud_providers.aws_s3 import S3CloudInterface
+from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 from barman.xlog import hash_dir
 
 
 class TestMain(object):
     """
-    Test the main method
+    Test the main method and its interactions with CloudInterface
     """
 
-    @mock.patch("barman.clients.cloud_walarchive.S3WalUploader")
-    @mock.patch("barman.clients.cloud_walarchive.CloudInterface")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    @mock.patch("barman.clients.cloud_walarchive.get_cloud_interface")
     def test_ok(self, cloud_interface_mock, uploader_mock):
         uploader_object_mock = uploader_mock.return_value
         cloud_object_interface_mock = cloud_interface_mock.return_value
@@ -140,7 +141,7 @@ class TestMain(object):
         )
         cloud_object_interface_mock.test_connectivity.assert_called_once_with()
 
-    @mock.patch("barman.clients.cloud_walarchive.S3WalUploader")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
     def test_ko(self, uploader_mock, caplog):
         """
         Run with exception thrown
@@ -166,18 +167,109 @@ class TestMain(object):
 # noinspection PyProtectedMember
 class TestWalUploader(object):
     """
-    Test the S3WalUploader class
+    Test the CloudWalUploader class
     """
 
-    @mock.patch("barman.cloud.boto3")
-    @mock.patch("barman.clients.cloud_walarchive.S3WalUploader." "retrieve_file_obj")
+    def test_retrieve_normal_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with an uncompressed file
+        """
+        # Setup the WAL file
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server")
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the file received
+        assert open_file
+        # Check content
+        assert open_file.read() == "something".encode("utf-8")
+
+    def test_retrieve_gzip_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with a gzip file
+        """
+        # Setup the WAL
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="gzip")
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the in memory file received
+        assert open_file
+        # Decompress on the fly to check content
+        assert gzip.GzipFile(fileobj=open_file).read() == "something".encode("utf-8")
+
+    def test_retrieve_bz2_file_obj(self, tmpdir):
+        """
+        Test the retrieve_file_obj method with a bz2 file
+        """
+        # Setup the WAL
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something".encode("utf-8"), ensure=True)
+        # Create a simple CloudWalUploader obj
+        uploader = CloudWalUploader(
+            mock.MagicMock(), "test-server", compression="bzip2"
+        )
+        open_file = uploader.retrieve_file_obj(source.strpath)
+        # Check the in memory file received
+        assert open_file
+        # Decompress on the fly to check content
+        assert bz2.decompress(open_file.read()) == "something".encode("utf-8")
+
+    def test_retrieve_normal_file_name(self):
+        """
+        Test the retrieve_wal_name method with an uncompressed file
+        """
+        # Create a fake source name
+        source = "wal_dir/000000080000ABFF000000C1"
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server")
+        wal_final_name = uploader.retrieve_wal_name(source)
+        # Check the file name received
+        assert wal_final_name
+        assert wal_final_name == "000000080000ABFF000000C1"
+
+    def test_retrieve_gzip_file_name(self):
+        """
+        Test the retrieve_wal_name method with gzip compression
+        """
+        # Create a fake source name
+        source = "wal_dir/000000080000ABFF000000C1"
+        uploader = CloudWalUploader(mock.MagicMock(), "test-server", compression="gzip")
+        wal_final_name = uploader.retrieve_wal_name(source)
+        # Check the file name received
+        assert wal_final_name
+        assert wal_final_name == "000000080000ABFF000000C1.gz"
+
+    def test_retrieve_bz2_file_name(self):
+        """
+        Test the retrieve_wal_name method with bz2 compression
+        """
+        # Create a fake source name
+        source = "wal_dir/000000080000ABFF000000C1"
+        uploader = CloudWalUploader(
+            mock.MagicMock(), "test-server", compression="bzip2"
+        )
+        wal_final_name = uploader.retrieve_wal_name(source)
+        # Check the file name received
+        assert wal_final_name
+        assert wal_final_name == "000000080000ABFF000000C1.bz2"
+
+
+class TestWalUploaderS3(object):
+    """
+    Test the CloudWalUploader class with S3CloudInterface
+    """
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
     def test_upload_wal(self, rfo_mock, boto_mock):
         """
         Test the upload of a WAL
         """
         # Create a simple S3WalUploader obj
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
-        uploader = S3WalUploader(cloud_interface, "test-server")
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        uploader = CloudWalUploader(cloud_interface, "test-server")
         source = "/wal_dir/000000080000ABFF000000C1"
         # Simulate the file object returned by the retrieve_file_obj method
         rfo_mock.return_value.name = source
@@ -199,15 +291,17 @@ class TestWalUploader(object):
             ExtraArgs={},
         )
 
-    @mock.patch("barman.cloud.boto3")
-    @mock.patch("barman.clients.cloud_walarchive.S3WalUploader." "retrieve_file_obj")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
     def test_encrypted_upload_wal(self, rfo_mock, boto_mock):
         """
         Test the upload of a WAL
         """
-        # Create a simple S3WalUploader obj
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption="AES256")
-        uploader = S3WalUploader(cloud_interface, "test-server")
+        # Create a simple CloudWalUploader obj
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/path/to/dir", encryption="AES256"
+        )
+        uploader = CloudWalUploader(cloud_interface, "test-server")
         source = "/wal_dir/000000080000ABFF000000C1"
         # Simulate the file object returned by the retrieve_file_obj method
         rfo_mock.return_value.name = source
@@ -228,86 +322,55 @@ class TestWalUploader(object):
             ExtraArgs={"ServerSideEncryption": "AES256"},
         )
 
-    @mock.patch("barman.cloud.boto3")
-    def test_retrieve_normal_file_obj(self, boto_mock, tmpdir):
+
+class TestWalUploaderAzure(object):
+    """
+    Test the CloudWalUploader class with AzureCloudInterface
+    """
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
+    def test_upload_wal(self, rfo_mock, blob_service_mock):
         """
-        Test the retrieve_file_obj method with an uncompressed file
+        Test the upload of a WAL
         """
-        # Setup the WAL file
-        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
-        source.write("something".encode("utf-8"), ensure=True)
         # Create a simple S3WalUploader obj
-        uploader = S3WalUploader(mock.MagicMock(), "test-server")
-        open_file = uploader.retrieve_file_obj(source.strpath)
-        # Check the file received
-        assert open_file
-        # Check content
-        assert open_file.read() == "something".encode("utf-8")
+        container_name = "container"
+        cloud_interface = AzureCloudInterface(
+            url="https://account.blob.core.windows.net/container/path/to/dir"
+        )
+        uploader = CloudWalUploader(cloud_interface, "test-server")
+        source = "/wal_dir/000000080000ABFF000000C1"
+        # Simulate the file object returned by the retrieve_file_obj method
+        rfo_mock.return_value.name = source
+        uploader.upload_wal(source)
 
-    @mock.patch("barman.cloud.boto3")
-    def test_retrieve_gzip_file_obj(self, boto_mock, tmpdir):
-        """
-        Test the retrieve_file_obj method with a gzip file
-        """
-        # Setup the WAL
-        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
-        source.write("something".encode("utf-8"), ensure=True)
-        # Create a simple S3WalUploader obj
-        uploader = S3WalUploader(mock.MagicMock(), "test-server", compression="gzip")
-        open_file = uploader.retrieve_file_obj(source.strpath)
-        # Check the in memory file received
-        assert open_file
-        # Decompress on the fly to check content
-        assert gzip.GzipFile(fileobj=open_file).read() == "something".encode("utf-8")
+        blob_service_mock.from_connection_string.assert_called_once_with(
+            conn_str=os.environ["AZURE_STORAGE_CONNECTION_STRING"],
+            container_name=container_name,
+        )
+        blob_service_client_mock = (
+            blob_service_mock.from_connection_string.return_value
+        )
+        blob_service_client_mock.get_container_client.assert_called_once_with(
+            container_name
+        )
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
 
-    @mock.patch("barman.cloud.boto3")
-    def test_retrieve_bz2_file_obj(self, boto_mock, tmpdir):
-        """
-        Test the retrieve_file_obj method with a bz2 file
-        """
-        # Setup the WAL
-        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
-        source.write("something".encode("utf-8"), ensure=True)
-        # Create a simple S3WalUploader obj
-        uploader = S3WalUploader(mock.MagicMock(), "test-server", compression="bzip2")
-        open_file = uploader.retrieve_file_obj(source.strpath)
-        # Check the in memory file received
-        assert open_file
-        # Decompress on the fly to check content
-        assert bz2.decompress(open_file.read()) == "something".encode("utf-8")
-
-    def test_retrieve_normal_file_name(self):
-        """
-        Test the retrieve_wal_name method with an uncompressed file
-        """
-        # Create a fake source name
-        source = "wal_dir/000000080000ABFF000000C1"
-        uploader = S3WalUploader(mock.MagicMock(), "test-server")
-        wal_final_name = uploader.retrieve_wal_name(source)
-        # Check the file name received
-        assert wal_final_name
-        assert wal_final_name == "000000080000ABFF000000C1"
-
-    def test_retrieve_gzip_file_name(self):
-        """
-        Test the retrieve_wal_name method with gzip compression
-        """
-        # Create a fake source name
-        source = "wal_dir/000000080000ABFF000000C1"
-        uploader = S3WalUploader(mock.MagicMock(), "test-server", compression="gzip")
-        wal_final_name = uploader.retrieve_wal_name(source)
-        # Check the file name received
-        assert wal_final_name
-        assert wal_final_name == "000000080000ABFF000000C1.gz"
-
-    def test_retrieve_bz2_file_name(self):
-        """
-        Test the retrieve_wal_name method with bz2 compression
-        """
-        # Create a fake source name
-        source = "wal_dir/000000080000ABFF000000C1"
-        uploader = S3WalUploader(mock.MagicMock(), "test-server", compression="bzip2")
-        wal_final_name = uploader.retrieve_wal_name(source)
-        # Check the file name received
-        assert wal_final_name
-        assert wal_final_name == "000000080000ABFF000000C1.bz2"
+        # Check the call for the creation of the destination key
+        container_client_mock.upload_blob.assert_called_once_with(
+            data=rfo_mock.return_value,
+            name=os.path.join(
+                cloud_interface.path,
+                uploader.server_name,
+                "wals",
+                hash_dir(source),
+                os.path.basename(source),
+            ),
+            overwrite=True,
+        )

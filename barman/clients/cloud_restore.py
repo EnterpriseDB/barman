@@ -20,7 +20,8 @@ import os
 from contextlib import closing
 
 import barman
-from barman.cloud import CloudInterface, S3BackupCatalog, configure_logging
+from barman.cloud import CloudBackupCatalog, configure_logging
+from barman.cloud_providers import get_cloud_interface
 from barman.utils import force_str
 
 try:
@@ -47,15 +48,16 @@ def main(args=None):
         raise SystemExit(1)
 
     try:
-        cloud_interface = CloudInterface(
+        cloud_interface = get_cloud_interface(
             url=config.source_url,
             encryption=config.encryption,
             profile_name=config.profile,
             endpoint_url=config.endpoint_url,
+            cloud_provider=config.cloud_provider,
         )
 
         with closing(cloud_interface):
-            downloader = S3BackupDownloader(
+            downloader = CloudBackupDownloader(
                 cloud_interface=cloud_interface, server_name=config.server_name
             )
 
@@ -91,7 +93,7 @@ def parse_arguments(args=None):
     parser = argparse.ArgumentParser(
         description="This script can be used to download a backup "
         "previously made with barman-cloud-backup command."
-        "Currently only AWS S3 is supported.",
+        "Currently AWS S3 and Azure Blob Storage are supported.",
         add_help=False,
     )
 
@@ -125,19 +127,6 @@ def parse_arguments(args=None):
         help="decrease output verbosity (e.g., -qq is less than -q)",
     )
     parser.add_argument(
-        "-P",
-        "--profile",
-        help="profile name (e.g. INI section in AWS credentials file)",
-    )
-    parser.add_argument(
-        "-e",
-        "--encryption",
-        help="Enable server-side encryption for the transfer. "
-        "Allowed values: 'AES256', 'aws:kms'",
-        choices=["AES256", "aws:kms"],
-        metavar="ENCRYPTION",
-    )
-    parser.add_argument(
         "-t",
         "--test",
         help="Test cloud connectivity and exit",
@@ -145,21 +134,42 @@ def parse_arguments(args=None):
         default=False,
     )
     parser.add_argument(
+        "--cloud-provider",
+        help="The cloud provider to use as a storage backend",
+        choices=["aws-s3", "azure-blob-storage"],
+        default="aws-s3",
+    )
+    s3_arguments = parser.add_argument_group(
+        "Extra options for the aws-s3 cloud provider"
+    )
+    s3_arguments.add_argument(
         "--endpoint-url",
         help="Override default S3 endpoint URL with the given one",
     )
-
+    s3_arguments.add_argument(
+        "-P",
+        "--profile",
+        help="profile name (e.g. INI section in AWS credentials file)",
+    )
+    s3_arguments.add_argument(
+        "-e",
+        "--encryption",
+        help="Enable server-side encryption for the transfer. "
+        "Allowed values: 'AES256', 'aws:kms'",
+        choices=["AES256", "aws:kms"],
+        metavar="ENCRYPTION",
+    )
     return parser.parse_args(args=args)
 
 
-class S3BackupDownloader(object):
+class CloudBackupDownloader(object):
     """
-    S3 download client
+    Cloud storage download client
     """
 
     def __init__(self, cloud_interface, server_name):
         """
-        Object responsible for handling interactions with S3
+        Object responsible for handling interactions with cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
@@ -168,11 +178,11 @@ class S3BackupDownloader(object):
 
         self.cloud_interface = cloud_interface
         self.server_name = server_name
-        self.catalog = S3BackupCatalog(cloud_interface, server_name)
+        self.catalog = CloudBackupCatalog(cloud_interface, server_name)
 
     def download_backup(self, backup_id, destination_dir):
         """
-        Download a backup from S3
+        Download a backup from cloud storage
 
         :param str wal_name: Name of the WAL file
         :param str wal_dest: Full path of the destination WAL file

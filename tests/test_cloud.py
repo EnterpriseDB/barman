@@ -17,14 +17,18 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+import os
 from io import BytesIO
+from azure.core.exceptions import ServiceRequestError
 
 import mock
 import pytest
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-from barman.cloud import CloudInterface, CloudUploadingError, FileUploadStatistics
+from barman.cloud import CloudUploadingError, FileUploadStatistics
+from barman.cloud_providers.aws_s3 import S3CloudInterface
+from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 
 try:
     from queue import Queue
@@ -33,18 +37,21 @@ except ImportError:
 
 
 class TestCloudInterface(object):
-    @mock.patch("barman.cloud.boto3")
+    """
+    Tests of the asychronous upload infrastructure in CloudInterface.
+    S3CloudInterface is used as we cannot instantiate a CloudInterface directly
+    however we do not verify any backend specific functionality of S3CloudInterface,
+    only the asynchronous infrastructure is tested.
+    """
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_uploader_minimal(self, boto_mock):
         """
         Minimal build of the CloudInterface class
         """
-        cloud_interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
-        assert cloud_interface.bucket_name == "bucket"
-        assert cloud_interface.path == "path/to/dir"
-        boto_mock.Session.assert_called_once_with(profile_name=None)
-        session_mock = boto_mock.Session.return_value
-        session_mock.resource.assert_called_once_with("s3", endpoint_url=None)
-        assert cloud_interface.s3 == session_mock.resource.return_value
+        cloud_interface = S3CloudInterface(
+            url="s3://bucket/path/to/dir", encryption=None
+        )
 
         # Asynchronous uploading infrastructure is not initialized when
         # a new instance is created
@@ -57,7 +64,7 @@ class TestCloudInterface(object):
     @mock.patch("barman.cloud.multiprocessing")
     def test_ensure_async(self, mp):
         jobs_count = 30
-        interface = CloudInterface(
+        interface = S3CloudInterface(
             url="s3://bucket/path/to/dir", encryption=None, jobs=jobs_count
         )
 
@@ -81,7 +88,7 @@ class TestCloudInterface(object):
         assert not mp.Process.called
 
     def test_retrieve_results(self):
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = Queue()
         interface.done_queue = Queue()
         interface.result_queue = Queue()
@@ -176,7 +183,7 @@ class TestCloudInterface(object):
             },
         }
 
-    @mock.patch("barman.cloud.CloudInterface.worker_process_execute_job")
+    @mock.patch("barman.cloud.CloudInterface._worker_process_execute_job")
     def test_worker_process_main(self, worker_process_execute_job_mock):
         job_collection = [
             {"job_id": 1, "job_type": "upload_part"},
@@ -185,11 +192,11 @@ class TestCloudInterface(object):
             None,
         ]
 
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = mock.MagicMock()
         interface.errors_queue = Queue()
         interface.queue.get.side_effect = job_collection
-        interface.worker_process_main(0)
+        interface._worker_process_main(0)
 
         # Jobs are been grabbed from queue, and the queue itself has been
         # notified of tasks being done
@@ -210,7 +217,7 @@ class TestCloudInterface(object):
         worker_process_execute_job_mock.reset_mock()
         worker_process_execute_job_mock.side_effect = execute_mock
         interface.queue.get.side_effect = job_collection
-        interface.worker_process_main(0)
+        interface._worker_process_main(0)
         assert interface.queue.get.call_count == 4
         # worker_process_execute_job is executed only 3 times, because it's
         # not called for the process stop marker
@@ -221,8 +228,10 @@ class TestCloudInterface(object):
 
     @mock.patch("barman.cloud.os.unlink")
     @mock.patch("barman.cloud.open")
-    @mock.patch("barman.cloud.CloudInterface.complete_multipart_upload")
-    @mock.patch("barman.cloud.CloudInterface.upload_part")
+    @mock.patch(
+        "barman.cloud_providers.aws_s3.S3CloudInterface._complete_multipart_upload"
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface._upload_part")
     @mock.patch("datetime.datetime")
     def test_worker_process_execute_job(
         self,
@@ -234,11 +243,11 @@ class TestCloudInterface(object):
     ):
         # Unknown job type, no boto functions are being called and
         # an exception is being raised
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.result_queue = Queue()
         interface.done_queue = Queue()
         with pytest.raises(ValueError):
-            interface.worker_process_execute_job({"job_type": "error"}, 1)
+            interface._worker_process_execute_job({"job_type": "error"}, 1)
         assert upload_part_mock.call_count == 0
         assert complete_multipart_upload_mock.call_count == 0
         assert interface.result_queue.empty()
@@ -247,10 +256,10 @@ class TestCloudInterface(object):
         # and them deleted
         part_result = {"ETag": "89d4f0341d9091aa21ddf67d3b32c34a", "PartNumber": "10"}
         upload_part_mock.return_value = part_result
-        interface.worker_process_execute_job(
+        interface._worker_process_execute_job(
             {
                 "job_type": "upload_part",
-                "mpu": "mpu",
+                "upload_metadata": {"UploadId": "upload_id"},
                 "part_number": 10,
                 "key": "this/key",
                 "body": "body",
@@ -258,7 +267,10 @@ class TestCloudInterface(object):
             0,
         )
         upload_part_mock.assert_called_once_with(
-            "mpu", "this/key", open_mock.return_value.__enter__.return_value, 10
+            {"UploadId": "upload_id"},
+            "this/key",
+            open_mock.return_value.__enter__.return_value,
+            10,
         )
         assert not interface.result_queue.empty()
         assert interface.result_queue.get() == {
@@ -271,17 +283,17 @@ class TestCloudInterface(object):
 
         # complete_multipart_upload, an S3 call to create a key in the bucket
         # with the right parts is called
-        interface.worker_process_execute_job(
+        interface._worker_process_execute_job(
             {
                 "job_type": "complete_multipart_upload",
-                "mpu": "mpu",
+                "upload_metadata": {"UploadId": "upload_id"},
                 "key": "this/key",
-                "parts": ["parts", "list"],
+                "parts_metadata": ["parts", "list"],
             },
             0,
         )
         complete_multipart_upload_mock.assert_called_once_with(
-            "mpu", "this/key", ["parts", "list"]
+            {"UploadId": "upload_id"}, "this/key", ["parts", "list"]
         )
         assert not interface.done_queue.empty()
         assert interface.done_queue.get() == {
@@ -293,7 +305,7 @@ class TestCloudInterface(object):
     def test_handle_async_errors(self):
         # If we the upload process has already raised an error, we immediately
         # exit without doing anything
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.error = "test"
         interface.errors_queue = None  # If get called raises AttributeError
         interface._handle_async_errors()
@@ -320,15 +332,17 @@ class TestCloudInterface(object):
         temp_stream = temp_file_mock.return_value.__enter__.return_value
         temp_stream.name = temp_name
 
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = Queue()
-        interface.async_upload_part("mpu", "test/key", BytesIO(b"test"), 1)
+        interface.async_upload_part(
+            {"UploadId": "upload_id"}, "test/key", BytesIO(b"test"), 1
+        )
         ensure_async_mock.assert_called_once_with()
         handle_async_errors_mock.assert_called_once_with()
         assert not interface.queue.empty()
         assert interface.queue.get() == {
             "job_type": "upload_part",
-            "mpu": "mpu",
+            "upload_metadata": {"UploadId": "upload_id"},
             "key": "test/key",
             "body": temp_name,
             "part_number": 1,
@@ -340,7 +354,7 @@ class TestCloudInterface(object):
     def test_async_complete_multipart_upload(
         self, ensure_async_mock, handle_async_errors_mock, retrieve_results_mock
     ):
-        interface = CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
+        interface = S3CloudInterface(url="s3://bucket/path/to/dir", encryption=None)
         interface.queue = mock.MagicMock()
         interface.parts_db = {"key": ["part", "list"]}
 
@@ -349,7 +363,7 @@ class TestCloudInterface(object):
 
         retrieve_results_mock.side_effect = retrieve_results_effect
 
-        interface.async_complete_multipart_upload("mpu", "key", 3)
+        interface.async_complete_multipart_upload({"UploadId": "upload_id"}, "key", 3)
         ensure_async_mock.assert_called_once_with()
         handle_async_errors_mock.assert_called_once_with()
         retrieve_results_mock.assert_called_once_with()
@@ -357,13 +371,32 @@ class TestCloudInterface(object):
         interface.queue.put.assert_called_once_with(
             {
                 "job_type": "complete_multipart_upload",
-                "mpu": "mpu",
+                "upload_metadata": {"UploadId": "upload_id"},
                 "key": "key",
-                "parts": ["part", "list", "complete"],
+                "parts_metadata": ["part", "list", "complete"],
             }
         )
 
-    @mock.patch("barman.cloud.boto3")
+
+class TestS3CloudInterface(object):
+    """
+    Tests which verify backend-specific behaviour of S3CloudInterface.
+    """
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_uploader_minimal(self, boto_mock):
+        cloud_interface = S3CloudInterface(
+            url="s3://bucket/path/to/dir", encryption=None
+        )
+
+        assert cloud_interface.bucket_name == "bucket"
+        assert cloud_interface.path == "path/to/dir"
+        boto_mock.Session.assert_called_once_with(profile_name=None)
+        session_mock = boto_mock.Session.return_value
+        session_mock.resource.assert_called_once_with("s3", endpoint_url=None)
+        assert cloud_interface.s3 == session_mock.resource.return_value
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_invalid_uploader_minimal(self, boto_mock):
         """
         Minimal build of the CloudInterface class
@@ -371,27 +404,27 @@ class TestCloudInterface(object):
         # Check that the creation of the cloud interface class fails in case of
         # wrongly formatted/invalid s3 uri
         with pytest.raises(ValueError) as excinfo:
-            CloudInterface("/bucket/path/to/dir", encryption=None)
+            S3CloudInterface("/bucket/path/to/dir", encryption=None)
         assert str(excinfo.value) == "Invalid s3 URL address: /bucket/path/to/dir"
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_connectivity(self, boto_mock):
         """
         test the  test_connectivity method
         """
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
         assert cloud_interface.test_connectivity() is True
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         client_mock = s3_mock.meta.client
         client_mock.head_bucket.assert_called_once_with(Bucket="bucket")
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_connectivity_failure(self, boto_mock):
         """
         test the test_connectivity method in case of failure
         """
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         client_mock = s3_mock.meta.client
@@ -401,12 +434,12 @@ class TestCloudInterface(object):
         )
         assert cloud_interface.test_connectivity() is False
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_setup_bucket(self, boto_mock):
         """
         Test if a bucket already exists
         """
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
         cloud_interface.setup_bucket()
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
@@ -416,12 +449,12 @@ class TestCloudInterface(object):
             Bucket=cloud_interface.bucket_name
         )
 
-    @mock.patch("barman.cloud.boto3")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_setup_bucket_create(self, boto_mock):
         """
         Test auto-creation of a bucket if it not exists
         """
-        cloud_interface = CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         s3_client = s3_mock.meta.client
@@ -435,3 +468,238 @@ class TestCloudInterface(object):
         bucket_mock.assert_called_once_with(cloud_interface.bucket_name)
         # Expect the create() metod of the bucket object to be called
         bucket_mock.return_value.create.assert_called_once()
+
+
+class TestAzureCloudInterface(object):
+    """
+    Tests which verify backend-specific behaviour of AzureCloudInterface.
+    """
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
+            "AZURE_STORAGE_SAS_TOKEN": "sas_token",
+            "AZURE_STORAGE_KEY": "storage_key",
+        },
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_uploader_minimal(self, blob_service_mock):
+        """Connection string auth takes precedence over SAS token or shared token"""
+        container_name = "container"
+        account_url = "https://storageaccount.blob.core.windows.net"
+        cloud_interface = AzureCloudInterface(
+            url="%s/%s/path/to/dir" % (account_url, container_name)
+        )
+
+        assert cloud_interface.bucket_name == "container"
+        assert cloud_interface.path == "path/to/dir"
+        blob_service_mock.from_connection_string.assert_called_once_with(
+            conn_str=os.environ["AZURE_STORAGE_CONNECTION_STRING"],
+            container_name=container_name,
+        )
+        get_container_client_mock = (
+            blob_service_mock.from_connection_string.return_value.get_container_client
+        )
+        get_container_client_mock.assert_called_once_with(container_name)
+        assert (
+            cloud_interface.container_client == get_container_client_mock.return_value
+        )
+
+    @mock.patch.dict(
+        os.environ,
+        {"AZURE_STORAGE_SAS_TOKEN": "sas_token", "AZURE_STORAGE_KEY": "storage_key"},
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_uploader_sas_token_auth(self, blob_service_mock):
+        """SAS token takes precedence over shared token"""
+        container_name = "container"
+        account_url = "storageaccount.blob.core.windows.net"
+        cloud_interface = AzureCloudInterface(
+            url="https://%s/%s/path/to/dir" % (account_url, container_name)
+        )
+
+        assert cloud_interface.bucket_name == "container"
+        assert cloud_interface.path == "path/to/dir"
+        blob_service_mock.assert_called_once_with(
+            account_url=account_url,
+            credential=os.environ["AZURE_STORAGE_SAS_TOKEN"],
+            container_name=container_name,
+        )
+
+    @mock.patch.dict(
+        os.environ,
+        {"AZURE_STORAGE_KEY": "storage_key"},
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_uploader_shared_token_auth(self, blob_service_mock):
+        """Shared token is used if SAS token and connection string aren't set"""
+        container_name = "container"
+        account_url = "storageaccount.blob.core.windows.net"
+        cloud_interface = AzureCloudInterface(
+            url="https://%s/%s/path/to/dir" % (account_url, container_name)
+        )
+
+        assert cloud_interface.bucket_name == "container"
+        assert cloud_interface.path == "path/to/dir"
+        blob_service_mock.assert_called_once_with(
+            account_url=account_url,
+            credential=os.environ["AZURE_STORAGE_KEY"],
+            container_name=container_name,
+        )
+
+    @mock.patch("azure.identity.DefaultAzureCredential")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_uploader_default_credential_auth(
+        self, blob_service_mock, default_azure_credential
+    ):
+        """Uses DefaultAzureCredential if no other auth provided"""
+        container_name = "container"
+        account_url = "storageaccount.blob.core.windows.net"
+        cloud_interface = AzureCloudInterface(
+            url="https://%s/%s/path/to/dir" % (account_url, container_name)
+        )
+
+        assert cloud_interface.bucket_name == "container"
+        assert cloud_interface.path == "path/to/dir"
+        blob_service_mock.assert_called_once_with(
+            account_url=account_url,
+            credential=default_azure_credential.return_value,
+            container_name=container_name,
+        )
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
+        },
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_emulated_storage(self, blob_service_mock):
+        """Connection string auth and emulated storage URL are valid"""
+        container_name = "container"
+        account_url = "https://127.0.0.1/devstoreaccount1"
+        cloud_interface = AzureCloudInterface(
+            url="%s/%s/path/to/dir" % (account_url, container_name)
+        )
+
+        assert cloud_interface.bucket_name == "container"
+        assert cloud_interface.path == "path/to/dir"
+        blob_service_mock.from_connection_string.assert_called_once_with(
+            conn_str=os.environ["AZURE_STORAGE_CONNECTION_STRING"],
+            container_name=container_name,
+        )
+
+    # Test emulated storage fails if no URL
+    @mock.patch.dict(
+        os.environ,
+        {"AZURE_STORAGE_SAS_TOKEN": "sas_token", "AZURE_STORAGE_KEY": "storage_key"},
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_emulated_storage_no_connection_string(self, blob_service_mock):
+        """Emulated storage URL with no connection string fails"""
+        container_name = "container"
+        account_url = "https://127.0.0.1/devstoreaccount1"
+        with pytest.raises(ValueError) as exc:
+            AzureCloudInterface(url="%s/%s/path/to/dir" % (account_url, container_name))
+        assert (
+            str(exc.value)
+            == "A connection string must be povided when using emulated storage"
+        )
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_uploader_malformed_urls(self, blob_service_mock):
+        url = "https://not.the.azure.domain/container"
+        with pytest.raises(ValueError) as exc:
+            AzureCloudInterface(url=url)
+        assert str(exc.value) == "emulated storage URL %s is malformed" % url
+
+        url = "https://storageaccount.blob.core.windows.net"
+        with pytest.raises(ValueError) as exc:
+            AzureCloudInterface(url=url)
+        assert str(exc.value) == "azure blob storage URL %s is malformed" % url
+
+    # test_connectivity
+
+    # test_connectivity_failure
+
+    # test_setup_bucket
+
+    # test_setup_bucket_create
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_connectivity(self, blob_service_mock):
+        """
+        Test the test_connectivity method
+        """
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        assert cloud_interface.test_connectivity() is True
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+        container_client_mock.exists.assert_called_once_with()
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_connectivity_failure(self, blob_service_mock):
+        """
+        Test the test_connectivity method in case of failure
+        """
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+        container_client_mock.exists.side_effect = ServiceRequestError("error")
+        assert cloud_interface.test_connectivity() is False
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_setup_bucket(self, blob_service_mock):
+        """
+        Test if a bucket already exists
+        """
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        cloud_interface.setup_bucket()
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+        container_client_mock.exists.assert_called_once_with()
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_setup_bucket_create(self, blob_service_mock):
+        """
+        Test auto-creation of a bucket if it not exists
+        """
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+        container_client_mock.exists.return_value = False
+        cloud_interface.setup_bucket()
+        container_client_mock.exists.assert_called_once_with()
+        container_client_mock.create_container.assert_called_once_with()

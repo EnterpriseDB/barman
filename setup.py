@@ -100,6 +100,7 @@ setup(
     extras_require={
         'cloud': ['boto3'],
         'completion': ['argcomplete'],
+        'azure': ['azure-identity', 'azure-storage-blob']
     },
     platforms=['Linux', 'Mac OS X'],
     classifiers=[
