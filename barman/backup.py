@@ -24,6 +24,7 @@ import datetime
 import logging
 import os
 import shutil
+import tempfile
 from contextlib import closing
 from glob import glob
 
@@ -871,8 +872,8 @@ class BackupManager(RemoteStatusMixin):
         wal_count = label_count = history_count = 0
         # lock the xlogdb as we are about replacing it completely
         with self.server.xlogdb("w") as fxlogdb:
-            xlogdb_new = fxlogdb.name + ".new"
-            with open(xlogdb_new, "w") as fxlogdb_new:
+            xlogdb_dir = os.path.dirname(fxlogdb.name)
+            with tempfile.TemporaryFile(mode="w+", dir=xlogdb_dir) as fxlogdb_new:
                 for name in sorted(os.listdir(root)):
                     # ignore the xlogdb and its lockfile
                     if name.startswith(self.server.XLOG_DB):
@@ -921,9 +922,11 @@ class BackupManager(RemoteStatusMixin):
                                 "unexpected file " "rebuilding the wal database: %s",
                                 fullname,
                             )
-                os.fsync(fxlogdb_new.fileno())
-        shutil.move(xlogdb_new, fxlogdb.name)
-        fsync_dir(os.path.dirname(fxlogdb.name))
+                fxlogdb_new.flush()
+                fxlogdb_new.seek(0)
+                fxlogdb.seek(0)
+                shutil.copyfileobj(fxlogdb_new, fxlogdb)
+                fxlogdb.truncate()
         output.info(
             "Done rebuilding xlogdb for server %s "
             "(history: %s, backup_labels: %s, wal_file: %s)",
@@ -997,9 +1000,9 @@ class BackupManager(RemoteStatusMixin):
         :return list: a list of removed WAL files
         """
         removed = []
-        with self.server.xlogdb() as fxlogdb:
-            xlogdb_new = fxlogdb.name + ".new"
-            with open(xlogdb_new, "w") as fxlogdb_new:
+        with self.server.xlogdb("r+") as fxlogdb:
+            xlogdb_dir = os.path.dirname(fxlogdb.name)
+            with tempfile.TemporaryFile(mode="w+", dir=xlogdb_dir) as fxlogdb_new:
                 for line in fxlogdb:
                     wal_info = WalFileInfo.from_xlogdb_line(line)
                     if not xlog.is_any_xlog_file(wal_info.name):
@@ -1034,9 +1037,10 @@ class BackupManager(RemoteStatusMixin):
                         self.delete_wal(wal_info)
                         removed.append(wal_info.name)
                 fxlogdb_new.flush()
-                os.fsync(fxlogdb_new.fileno())
-        shutil.move(xlogdb_new, fxlogdb.name)
-        fsync_dir(os.path.dirname(fxlogdb.name))
+                fxlogdb_new.seek(0)
+                fxlogdb.seek(0)
+                shutil.copyfileobj(fxlogdb_new, fxlogdb)
+                fxlogdb.truncate()
         return removed
 
     def validate_last_backup_maximum_age(self, last_backup_maximum_age):
