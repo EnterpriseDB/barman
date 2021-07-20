@@ -26,7 +26,7 @@ It allows your organisation to perform remote backups of multiple
 servers in business critical environments to reduce risk and help DBAs
 during the recovery phase.
 
-Barman is distributed under GNU GPL 3 and maintained by 2ndQuadrant.
+Barman is distributed under GNU GPL 3 and maintained by EnterpriseDB.
 """
 
 import sys
@@ -66,7 +66,7 @@ with open('barman/version.py', 'r') as fversion:
 setup(
     name='barman',
     version=barman['__version__'],
-    author='2ndQuadrant Limited',
+    author='EnterpriseDB',
     author_email='info@2ndquadrant.com',
     url='http://www.pgbarman.org/',
     packages=find_packages(exclude=["tests"]),
