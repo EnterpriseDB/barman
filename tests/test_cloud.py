@@ -622,14 +622,6 @@ class TestAzureCloudInterface(object):
             AzureCloudInterface(url=url)
         assert str(exc.value) == "azure blob storage URL %s is malformed" % url
 
-    # test_connectivity
-
-    # test_connectivity_failure
-
-    # test_setup_bucket
-
-    # test_setup_bucket_create
-
     @mock.patch.dict(
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
