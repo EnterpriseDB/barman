@@ -56,12 +56,19 @@ def build_conninfo(config):
     Build a DSN to connect to postgres using command-line arguments
     """
     conn_parts = []
+    if config.dbname:
+        if "=" in config.dbname:
+            # By convention, postgres also accepts full conninfo strings here. ex: -d "host=xyz port=6432 dbname=asdf"
+            return config.dbname
+        conn_parts.append("dbname=%s" % quote_conninfo(config.dbname))
+
     if config.host:
         conn_parts.append("host=%s" % quote_conninfo(config.host))
     if config.port:
         conn_parts.append("port=%s" % quote_conninfo(config.port))
     if config.user:
         conn_parts.append("user=%s" % quote_conninfo(config.user))
+
     return " ".join(conn_parts)
 
 
@@ -261,6 +268,12 @@ def parse_arguments(args=None):
         help="Enable server-side encryption for the transfer. "
         "Allowed values: 'AES256'|'aws:kms'.",
         choices=["AES256", "aws:kms"],
+    )
+    parser.add_argument(
+        "-d",
+        "--dbname",
+        help="Database name for PostgresSQL connection (default: postgres).",
+        default="postgres",
     )
     return parser.parse_args(args=args)
 
