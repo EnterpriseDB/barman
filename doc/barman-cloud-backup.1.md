@@ -70,6 +70,9 @@ SERVER_NAME
 :    enable server-side encryption for the transfer.
      Allowed values: 'AES256'|'aws:kms'.
 
+-d, --dbname
+:    database name or conninfo string for Postgres connection (default: postgres)
+
 -h, --host
 :    host or Unix socket for PostgreSQL connection (default: libpq settings)
 
