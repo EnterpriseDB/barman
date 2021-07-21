@@ -114,15 +114,7 @@ def main(args=None):
         # Create any temporary file in the `tempdir` subdirectory
         tempfile.tempdir = tempdir
 
-        cloud_interface = get_cloud_interface(
-            url=config.destination_url,
-            encryption=config.encryption,
-            jobs=config.jobs,
-            profile_name=config.profile,
-            endpoint_url=config.endpoint_url,
-            cloud_provider=config.cloud_provider,
-            encryption_scope=config.encryption_scope,
-        )
+        cloud_interface = get_cloud_interface(config)
 
         if not cloud_interface.test_connectivity():
             raise SystemExit(1)

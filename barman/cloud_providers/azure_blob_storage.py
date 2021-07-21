@@ -98,7 +98,7 @@ class AzureCloudInterface(CloudInterface):
     # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
     MAX_ARCHIVE_SIZE = 1 << 40
 
-    def __init__(self, url, jobs=2, encryption_scope=None, **kwargs):
+    def __init__(self, url, jobs=2, encryption_scope=None):
         """
         Create a new Azure Blob Storage interface given the supplied acccount url
 
