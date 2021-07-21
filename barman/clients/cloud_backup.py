@@ -273,7 +273,7 @@ def parse_arguments(args=None):
     parser.add_argument(
         "-d",
         "--dbname",
-        help="Database name for PostgresSQL connection (default: postgres).",
+        help="Database name or conninfo string for Postgres connection (default: postgres).",
         default="postgres",
     )
     return parser.parse_args(args=args)
