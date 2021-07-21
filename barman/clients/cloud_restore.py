@@ -170,8 +170,8 @@ class CloudBackupDownloader(object):
         """
         Download a backup from cloud storage
 
-        :param str wal_name: Name of the WAL file
-        :param str wal_dest: Full path of the destination WAL file
+        :param str backup_id: The backup id to restore
+        :param str destination_dir: Path to the destination directory
         """
 
         backup_info = self.catalog.get_backup_info(backup_id)
@@ -226,6 +226,14 @@ class CloudBackupDownloader(object):
                 else "no compression",
             )
             self.cloud_interface.extract_tar(file_info.path, target_dir)
+
+        # If we did not restore the pg_wal directory from one of the uploaded
+        # backup files, we must recreate it here. (If pg_wal was originally a
+        # symlink, it would not have been uploaded.)
+
+        wal_path = os.path.join(destination_dir, backup_info.wal_directory())
+        if not os.path.exists(wal_path):
+            os.mkdir(wal_path)
 
 
 if __name__ == "__main__":
