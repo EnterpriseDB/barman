@@ -121,6 +121,7 @@ def main(args=None):
             profile_name=config.profile,
             endpoint_url=config.endpoint_url,
             cloud_provider=config.cloud_provider,
+            encryption_scope=config.encryption_scope,
         )
 
         if not cloud_interface.test_connectivity():
@@ -329,6 +330,14 @@ def parse_arguments(args=None):
         "--dbname",
         help="Database name or conninfo string for Postgres connection (default: postgres)",
         default="postgres",
+    )
+    azure_arguments = parser.add_argument_group(
+        "Extra options for the azure-blob-storage cloud provider"
+    )
+    azure_arguments.add_argument(
+        "--encryption-scope",
+        help="The name of an encryption scope defined in the Azure Blob Storage "
+        "service which is to be used to encrypt the data in Azure",
     )
     return parser.parse_args(args=args)
 
