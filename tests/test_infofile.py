@@ -594,6 +594,8 @@ class TestBackupInfo(object):
         b_info = LocalBackupInfo(server, info_file=infofile.strpath)
         # BASE_BACKUP_INFO has version 90400 so expect 9.4
         assert b_info.pg_major_version() == "9.4"
+        assert b_info.wal_directory() == "pg_xlog"
         # Set backup_info.version to 100600 so expect 10
         b_info.version = 100600
         assert b_info.pg_major_version() == "10"
+        assert b_info.wal_directory() == "pg_wal"

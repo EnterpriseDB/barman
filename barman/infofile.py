@@ -584,6 +584,13 @@ class BackupInfo(FieldListFile):
         else:
             return str(major)
 
+    def wal_directory(self):
+        """
+        Returns "pg_wal" (v10 and above) or "pg_xlog" (v9.6 and below) based on
+        the Postgres version represented by this backup
+        """
+        return "pg_wal" if self.version >= 100000 else "pg_xlog"
+
 
 class LocalBackupInfo(BackupInfo):
     __slots__ = "server", "config", "backup_manager"
