@@ -56,11 +56,10 @@ def build_conninfo(config):
     Build a DSN to connect to postgres using command-line arguments
     """
     conn_parts = []
-    if config.dbname:
-        if "=" in config.dbname:
-            # By convention, postgres also accepts full conninfo strings here. ex: -d "host=xyz port=6432 dbname=asdf"
+    # if -d specified a conninfo string, just return it
+    if config.dbname is not None:
+        if config.dbname == "" or "=" in config.dbname:
             return config.dbname
-        conn_parts.append("dbname=%s" % quote_conninfo(config.dbname))
 
     if config.host:
         conn_parts.append("host=%s" % quote_conninfo(config.host))
@@ -68,6 +67,8 @@ def build_conninfo(config):
         conn_parts.append("port=%s" % quote_conninfo(config.port))
     if config.user:
         conn_parts.append("user=%s" % quote_conninfo(config.user))
+    if config.dbname:
+        conn_parts.append("dbname=%s" % quote_conninfo(config.dbname))
 
     return " ".join(conn_parts)
 

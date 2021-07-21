@@ -71,8 +71,7 @@ SERVER_NAME
      Allowed values: 'AES256'|'aws:kms'.
 
 -d, --dbname
-:    database name for PostgresSQL connection (default: postgres).
-     If it contains an = sign, it will be treated as a `conninfo` string.
+:    database name or conninfo string for Postgres connection (default: postgres).
 
 -h, --host
 :    host or Unix socket for PostgreSQL connection (default: libpq settings)
