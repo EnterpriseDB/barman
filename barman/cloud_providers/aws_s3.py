@@ -106,6 +106,19 @@ class S3CloudInterface(CloudInterface):
         session = boto3.Session(profile_name=self.profile_name)
         self.s3 = session.resource("s3", endpoint_url=self.endpoint_url)
 
+    @property
+    def _extra_upload_args(self):
+        """
+        Return a dict containing ExtraArgs to be passed to certain boto3 calls
+
+        Because some boto3 calls accept `ExtraArgs: {}` and others do not, we
+        return a nexted dict which can be expanded with `**` in the boto3 call.
+        """
+        additional_args = {}
+        if self.encryption:
+            additional_args["ServerSideEncryption"] = self.encryption
+        return additional_args
+
     def test_connectivity(self):
         """
         Test AWS connectivity by trying to access a bucket
@@ -249,12 +262,11 @@ class S3CloudInterface(CloudInterface):
         :param fileobj IOBase: File-like object to upload
         :param str key: The key to identify the uploaded object
         """
-        additional_args = {}
-        if self.encryption:
-            additional_args["ServerSideEncryption"] = self.encryption
-
         self.s3.meta.client.upload_fileobj(
-            Fileobj=fileobj, Bucket=self.bucket_name, Key=key, ExtraArgs=additional_args
+            Fileobj=fileobj,
+            Bucket=self.bucket_name,
+            Key=key,
+            ExtraArgs=self._extra_upload_args,
         )
 
     def create_multipart_upload(self, key):
@@ -266,7 +278,7 @@ class S3CloudInterface(CloudInterface):
         :rtype: dict[str, str]
         """
         return self.s3.meta.client.create_multipart_upload(
-            Bucket=self.bucket_name, Key=key
+            Bucket=self.bucket_name, Key=key, **self._extra_upload_args
         )
 
     def _upload_part(self, upload_metadata, key, body, part_number):

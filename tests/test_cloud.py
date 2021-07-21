@@ -469,6 +469,151 @@ class TestS3CloudInterface(object):
         # Expect the create() metod of the bucket object to be called
         bucket_mock.return_value.create.assert_called_once()
 
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_upload_fileobj(self, boto_mock):
+        """
+        Tests synchronous file upload with boto3
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_fileobj = mock.MagicMock()
+        mock_key = "path/to/dir"
+        cloud_interface.upload_fileobj(mock_fileobj, mock_key)
+
+        s3_client.upload_fileobj.assert_called_once_with(
+            Fileobj=mock_fileobj, Bucket="bucket", Key=mock_key, ExtraArgs={}
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_upload_fileobj_with_encryption(self, boto_mock):
+        """
+        Tests the ServerSideEncryption argument is provided to boto3 when uploading
+        a file if encryption is set on the S3CloudInterface.
+        """
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/path/to/dir", encryption="aws:kms"
+        )
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_fileobj = mock.MagicMock()
+        mock_key = "path/to/dir"
+        cloud_interface.upload_fileobj(mock_fileobj, mock_key)
+
+        s3_client.upload_fileobj.assert_called_once_with(
+            Fileobj=mock_fileobj,
+            Bucket="bucket",
+            Key=mock_key,
+            ExtraArgs={"ServerSideEncryption": "aws:kms"},
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_create_multipart_upload(self, boto_mock):
+        """
+        Tests creation of a multipart upload with boto3
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_key = "path/to/dir"
+        cloud_interface.create_multipart_upload(mock_key)
+
+        s3_client.create_multipart_upload.assert_called_once_with(
+            Bucket="bucket",
+            Key=mock_key,
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_create_multipart_upload_with_encryption(self, boto_mock):
+        """
+        Tests the ServerSideEncryption argument is provided to boto3 when creating
+        a multipart upload if encryption is set on the S3CloudInterface
+        """
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/path/to/dir", encryption="aws:kms"
+        )
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_key = "path/to/dir"
+        cloud_interface.create_multipart_upload(mock_key)
+
+        s3_client.create_multipart_upload.assert_called_once_with(
+            Bucket="bucket", Key=mock_key, ServerSideEncryption="aws:kms"
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_upload_part(self, boto_mock):
+        """
+        Tests upload of a single part of a boto3 multipart request
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_body = mock.MagicMock()
+        mock_key = "path/to/dir"
+        mock_metadata = {"UploadId": "asdf"}
+        cloud_interface._upload_part(mock_metadata, mock_key, mock_body, 1)
+
+        s3_client.upload_part.assert_called_once_with(
+            Body=mock_body,
+            Bucket="bucket",
+            Key=mock_key,
+            UploadId=mock_metadata["UploadId"],
+            PartNumber=1,
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_complete_multipart_upload(self, boto_mock):
+        """
+        Tests completion of a boto3 multipart request
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_parts = [{"PartNumber": 1}]
+        mock_key = "path/to/dir"
+        mock_metadata = {"UploadId": "asdf"}
+        cloud_interface._complete_multipart_upload(mock_metadata, mock_key, mock_parts)
+
+        s3_client.complete_multipart_upload.assert_called_once_with(
+            Bucket="bucket",
+            Key=mock_key,
+            UploadId=mock_metadata["UploadId"],
+            MultipartUpload={"Parts": [{"PartNumber": 1}]},
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_abort_multipart_upload(self, boto_mock):
+        """
+        Tests upload of a single part of a boto3 multipart request
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_key = "path/to/dir"
+        mock_metadata = {"UploadId": "asdf"}
+        cloud_interface._abort_multipart_upload(mock_metadata, mock_key)
+
+        s3_client.abort_multipart_upload.assert_called_once_with(
+            Bucket="bucket",
+            Key=mock_key,
+            UploadId=mock_metadata["UploadId"],
+        )
+
 
 class TestAzureCloudInterface(object):
     """
