@@ -196,8 +196,8 @@ def parse_arguments(args=None):
     s3_arguments.add_argument(
         "-e",
         "--encryption",
-        help="Enable server-side encryption for the transfer. "
-        "Allowed values: 'AES256', 'aws:kms'",
+        help="The encryption algorithm used when storing the uploaded data in S3. "
+        "Allowed values: 'AES256'|'aws:kms'.",
         choices=["AES256", "aws:kms"],
         metavar="ENCRYPTION",
     )

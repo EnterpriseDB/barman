@@ -145,14 +145,6 @@ def parse_arguments(args=None):
         "--profile",
         help="profile name (e.g. INI section in AWS credentials file)",
     )
-    s3_arguments.add_argument(
-        "-e",
-        "--encryption",
-        help="Enable server-side encryption for the transfer. "
-        "Allowed values: 'AES256', 'aws:kms'",
-        choices=["AES256", "aws:kms"],
-        metavar="ENCRYPTION",
-    )
     return parser.parse_args(args=args)
 
 

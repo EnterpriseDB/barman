@@ -55,8 +55,8 @@ WAL_PATH
 -j, --bzip2
 : bzip2-compress the WAL while uploading to the cloud
 
--e ENCRYPT, --encrypt ENCRYPT
-: enable server-side encryption with the given method for the transfer.
+-e ENCRYPT, --encryption ENCRYPT
+: The encryption algorithm used when storing the uploaded data in S3.
   Allowed methods: `AES256` and `aws:kms`.
 
 --endpoint-url
