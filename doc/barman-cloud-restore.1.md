@@ -49,6 +49,10 @@ RECOVERY_DIR
 -t, --test
 : test connectivity to the cloud destination and exit
 
+--tablespace NAME:LOCATION
+: extract the named tablespace to the given directory instead of its
+original location (you may repeat the option for multiple tablespaces)
+
 -P, --profile
 : profile name (e.g. INI section in AWS credentials file)
 
