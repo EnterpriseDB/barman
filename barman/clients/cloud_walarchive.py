@@ -28,6 +28,7 @@ from io import BytesIO
 import barman
 from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
+from barman.exceptions import BarmanException
 from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file
 
@@ -35,6 +36,23 @@ try:
     import argparse
 except ImportError:
     raise SystemExit("Missing required python module: argparse")
+
+
+def __is_hook_script():
+    """Check the environment and determine if we are running as a hook script"""
+    if "BARMAN_HOOK" in os.environ and "BARMAN_PHASE" in os.environ:
+        if (
+            os.getenv("BARMAN_HOOK") in ("archive_script", "archive_retry_script")
+            and os.getenv("BARMAN_PHASE") == "post"
+        ):
+            return True
+        else:
+            raise BarmanException(
+                "barman-cloud-wal-archive called as unsupported hook script: %s_%s"
+                % (os.getenv("BARMAN_PHASE"), os.getenv("BARMAN_HOOK"))
+            )
+    else:
+        return False
 
 
 def main(args=None):
@@ -46,6 +64,15 @@ def main(args=None):
     """
     config = parse_arguments(args)
     configure_logging(config)
+
+    # Read wal_path from environment if we're a hook script
+    if __is_hook_script():
+        if "BARMAN_FILE" not in os.environ:
+            raise BarmanException("Expected environment variable BARMAN_FILE not set")
+        config.wal_path = os.getenv("BARMAN_FILE")
+    else:
+        if config.wal_path is None:
+            raise BarmanException('the following arguments are required: wal_path')
 
     # Validate the WAL file name before uploading it
     if not is_any_xlog_file(config.wal_path):
@@ -107,7 +134,9 @@ def parse_arguments(args=None):
     )
     parser.add_argument(
         "wal_path",
+        nargs="?",
         help="the value of the '%%p' keyword" " (according to 'archive_command').",
+        default=None,
     )
     parser.add_argument(
         "-V", "--version", action="version", version="%%(prog)s %s" % barman.__version__

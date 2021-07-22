@@ -361,3 +361,9 @@ class RecoveryInvalidTargetException(RecoveryException):
     """
     Exception for a wrong recovery target
     """
+
+
+class UnrecoverableHookScriptError(BarmanException):
+    """
+    Exception for hook script errors which mean the script should not be retried.
+    """
