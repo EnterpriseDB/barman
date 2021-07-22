@@ -224,7 +224,7 @@ class TestCloudBackupHookScript(object):
     )
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
     @mock.patch("barman.clients.cloud_backup.CloudBackupUploaderBarman")
-    def test_error_if_running_as_unsupported_phase(
+    def test_error_if_running_as_unsupported_hook(
         self,
         uploader_mock,
         cloud_interface_mock,
