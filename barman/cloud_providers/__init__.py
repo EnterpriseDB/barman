@@ -35,11 +35,12 @@ def get_cloud_interface(config):
 
         cloud_interface_kwargs.update(
             {
-                "encryption": config.encryption,
                 "profile_name": config.profile,
                 "endpoint_url": config.endpoint_url,
             }
         )
+        if "encryption" in config:
+            cloud_interface_kwargs["encryption"] = config.encryption
         return S3CloudInterface(**cloud_interface_kwargs)
 
     elif config.cloud_provider == "azure-blob-storage":
