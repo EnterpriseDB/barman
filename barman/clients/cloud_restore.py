@@ -65,7 +65,11 @@ def main(args=None):
                 logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise SystemExit(1)
 
-            downloader.download_backup(config.backup_id, config.recovery_dir)
+            downloader.download_backup(
+                config.backup_id,
+                config.recovery_dir,
+                tablespace_map(config.tablespace),
+            )
 
     except KeyboardInterrupt as exc:
         logging.error("Barman cloud restore was interrupted by the user")
@@ -128,6 +132,13 @@ def parse_arguments(args=None):
         default=False,
     )
     parser.add_argument(
+        "--tablespace",
+        help="tablespace relocation rule",
+        metavar="NAME:LOCATION",
+        action="append",
+        default=[],
+    )
+    parser.add_argument(
         "--cloud-provider",
         help="The cloud provider to use as a storage backend",
         choices=["aws-s3", "azure-blob-storage"],
@@ -148,6 +159,26 @@ def parse_arguments(args=None):
     return parser.parse_args(args=args)
 
 
+def tablespace_map(rules):
+    """
+    Return a mapping from tablespace names to locations built from any
+    `--tablespace name:/loc/ation` rules specified.
+    """
+    tablespaces = {}
+    for rule in rules:
+        try:
+            tablespaces.update([rule.split(":", 1)])
+        except ValueError:
+            logging.error(
+                "Invalid tablespace relocation rule '%s'\n"
+                "HINT: The valid syntax for a relocation rule is "
+                "NAME:LOCATION",
+                rule,
+            )
+            raise SystemExit(1)
+    return tablespaces
+
+
 class CloudBackupDownloader(object):
     """
     Cloud storage download client
@@ -166,7 +197,7 @@ class CloudBackupDownloader(object):
         self.server_name = server_name
         self.catalog = CloudBackupCatalog(cloud_interface, server_name)
 
-    def download_backup(self, backup_id, destination_dir):
+    def download_backup(self, backup_id, destination_dir, tablespaces):
         """
         Download a backup from cloud storage
 
@@ -184,19 +215,36 @@ class CloudBackupDownloader(object):
 
         backup_files = self.catalog.get_backup_files(backup_info)
 
-        # Check that everything is ok
+        # We must download and restore a bunch of .tar files that contain PGDATA
+        # and each tablespace. First, we determine a target directory to extract
+        # each tar file into and record these in copy_jobs. For each tablespace,
+        # the location may be overriden by `--tablespace name:/new/location` on
+        # the command-line; and we must also add an entry to link_jobs to create
+        # a symlink from $PGDATA/pg_tblspc/oid to the correct location after the
+        # downloads.
+
         copy_jobs = []
+        link_jobs = []
         for oid in backup_files:
             file_info = backup_files[oid]
             # PGDATA is restored where requested (destination_dir)
             if oid is None:
                 target_dir = destination_dir
             else:
-                # Tablespaces are restored in the original location
-                # TODO: implement tablespace remapping
                 for tblspc in backup_info.tablespaces:
                     if oid == tblspc.oid:
                         target_dir = tblspc.location
+                        if tblspc.name in tablespaces:
+                            target_dir = os.path.realpath(tablespaces[tblspc.name])
+                        logging.debug(
+                            "Tablespace %s (oid=%s) will be located at %s",
+                            tblspc.name,
+                            oid,
+                            target_dir,
+                        )
+                        link_jobs.append(
+                            ["%s/pg_tblspc/%s" % (destination_dir, oid), target_dir]
+                        )
                         break
                 else:
                     raise AssertionError(
@@ -226,6 +274,9 @@ class CloudBackupDownloader(object):
                 else "no compression",
             )
             self.cloud_interface.extract_tar(file_info.path, target_dir)
+
+        for link, target in link_jobs:
+            os.symlink(target, link)
 
         # If we did not restore the pg_wal directory from one of the uploaded
         # backup files, we must recreate it here. (If pg_wal was originally a
