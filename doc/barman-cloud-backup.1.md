@@ -66,8 +66,8 @@ SERVER_NAME
 -j, --bzip2
 :    bzip2-compress the tar files when uploading to the cloud
 
--e, --encrypt
-:    enable server-side encryption for the transfer.
+-e, --encryption
+:    The encryption algorithm used when storing the uploaded data in S3.
      Allowed values: 'AES256'|'aws:kms'.
 
 -d, --dbname
