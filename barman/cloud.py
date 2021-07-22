@@ -1214,7 +1214,7 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
                 controller,
                 backup_info,
                 os.path.join(self.backup_dir, "data"),
-                int(backup_info.version / 10000),
+                backup_info.pg_major_version(),
             )
 
             # Closing the controller will finalize all the running uploads

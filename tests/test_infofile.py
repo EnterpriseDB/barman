@@ -583,3 +583,17 @@ class TestBackupInfo(object):
         # The following constructor will raise a RuntimeError if we are
         # needing a PostgreSQL connection
         LocalBackupInfo(server, backup_id="fake_backup_id")
+
+    def test_pg_version(self, tmpdir):
+        """
+        Test handling of postgres version in BackupInfo object
+        """
+        infofile = tmpdir.join("backup.info")
+        infofile.write(BASE_BACKUP_INFO)
+        server = build_mocked_server()
+        b_info = LocalBackupInfo(server, info_file=infofile.strpath)
+        # BASE_BACKUP_INFO has version 90400 so expect 9.4
+        assert b_info.pg_major_version() == "9.4"
+        # Set backup_info.version to 100600 so expect 10
+        b_info.version = 100600
+        assert b_info.pg_major_version() == "10"
