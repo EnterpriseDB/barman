@@ -66,7 +66,9 @@ class S3CloudInterface(CloudInterface):
     # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
     MAX_ARCHIVE_SIZE = 1 << 40
 
-    def __init__(self, url, encryption, jobs=2, profile_name=None, endpoint_url=None):
+    def __init__(
+        self, url, encryption=None, jobs=2, profile_name=None, endpoint_url=None
+    ):
         """
         Create a new S3 interface given the S3 destination url and the profile
         name
