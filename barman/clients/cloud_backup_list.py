@@ -43,13 +43,7 @@ def main(args=None):
     configure_logging(config)
 
     try:
-        cloud_interface = get_cloud_interface(
-            url=config.source_url,
-            encryption=config.encryption,
-            profile_name=config.profile,
-            endpoint_url=config.endpoint_url,
-            cloud_provider=config.cloud_provider,
-        )
+        cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
             catalog = CloudBackupCatalog(

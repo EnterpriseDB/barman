@@ -17,18 +17,34 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
 
-def get_cloud_interface(cloud_provider, url, **kwargs):
+def get_cloud_interface(config):
     """
     Create a CloudInterface for the specified cloud_provider
 
     :returns: A CloudInterface for the specified cloud_provider
     :rtype: CloudInterface
     """
-    if cloud_provider == "aws-s3":
+    cloud_interface_kwargs = {
+        "url": config.source_url if "source_url" in config else config.destination_url
+    }
+    if "jobs" in config:
+        cloud_interface_kwargs["jobs"] = config.jobs
+
+    if config.cloud_provider == "aws-s3":
         from barman.cloud_providers.aws_s3 import S3CloudInterface
 
-        return S3CloudInterface(url, **kwargs)
-    elif cloud_provider == "azure-blob-storage":
+        cloud_interface_kwargs.update(
+            {
+                "encryption": config.encryption,
+                "profile_name": config.profile,
+                "endpoint_url": config.endpoint_url,
+            }
+        )
+        return S3CloudInterface(**cloud_interface_kwargs)
+
+    elif config.cloud_provider == "azure-blob-storage":
         from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 
-        return AzureCloudInterface(url, **kwargs)
+        if "encryption_scope" in config:
+            cloud_interface_kwargs["encryption_scope"] = config.encryption_scope
+        return AzureCloudInterface(**cloud_interface_kwargs)

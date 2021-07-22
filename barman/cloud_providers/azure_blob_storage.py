@@ -98,7 +98,7 @@ class AzureCloudInterface(CloudInterface):
     # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
     MAX_ARCHIVE_SIZE = 1 << 40
 
-    def __init__(self, url, jobs=2, **kwargs):
+    def __init__(self, url, jobs=2, encryption_scope=None):
         """
         Create a new Azure Blob Storage interface given the supplied acccount url
 
@@ -110,6 +110,7 @@ class AzureCloudInterface(CloudInterface):
             url=url,
             jobs=jobs,
         )
+        self.encryption_scope = encryption_scope
 
         parsed_url = urlparse(url)
         if parsed_url.netloc.endswith(AZURE_BLOB_STORAGE_DOMAIN):
@@ -175,6 +176,13 @@ class AzureCloudInterface(CloudInterface):
                 container_name=self.bucket_name,
             )
         self.container_client = client.get_container_client(self.bucket_name)
+
+    @property
+    def _extra_upload_args(self):
+        optional_args = {}
+        if self.encryption_scope:
+            optional_args["encryption_scope"] = self.encryption_scope
+        return optional_args
 
     def test_connectivity(self):
         """
@@ -284,9 +292,7 @@ class AzureCloudInterface(CloudInterface):
         :param str key: The key to identify the uploaded object
         """
         self.container_client.upload_blob(
-            name=key,
-            data=fileobj,
-            overwrite=True,
+            name=key, data=fileobj, overwrite=True, **self._extra_upload_args
         )
 
     def create_multipart_upload(self, key):
@@ -319,7 +325,7 @@ class AzureCloudInterface(CloudInterface):
         # places.
         block_id = str(part_number).zfill(5)
         blob_client = self.container_client.get_blob_client(key)
-        blob_client.stage_block(block_id, body)
+        blob_client.stage_block(block_id, body, **self._extra_upload_args)
         return {"PartNumber": block_id}
 
     def _complete_multipart_upload(self, upload_metadata, key, parts):
@@ -333,7 +339,7 @@ class AzureCloudInterface(CloudInterface):
         """
         blob_client = self.container_client.get_blob_client(key)
         block_list = [part["PartNumber"] for part in parts]
-        blob_client.commit_block_list(block_list)
+        blob_client.commit_block_list(block_list, **self._extra_upload_args)
 
     def _abort_multipart_upload(self, upload_metadata, key):
         """
@@ -353,5 +359,5 @@ class AzureCloudInterface(CloudInterface):
         # We therefore create an empty blob (thereby discarding all uploaded
         # blocks for that blob) and then delete it.
         blob_client = self.container_client.get_blob_client(key)
-        blob_client.commit_block_list([])
+        blob_client.commit_block_list([], **self._extra_upload_args)
         blob_client.delete_blob()

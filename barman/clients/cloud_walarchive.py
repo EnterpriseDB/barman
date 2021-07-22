@@ -80,13 +80,7 @@ def main(args=None):
         raise SystemExit(1)
 
     try:
-        cloud_interface = get_cloud_interface(
-            url=config.destination_url,
-            encryption=config.encryption,
-            profile_name=config.profile,
-            endpoint_url=config.endpoint_url,
-            cloud_provider=config.cloud_provider,
-        )
+        cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
             uploader = CloudWalUploader(
@@ -206,6 +200,14 @@ def parse_arguments(args=None):
         "Allowed values: 'AES256', 'aws:kms'",
         choices=["AES256", "aws:kms"],
         metavar="ENCRYPTION",
+    )
+    azure_arguments = parser.add_argument_group(
+        "Extra options for the azure-blob-storage cloud provider"
+    )
+    azure_arguments.add_argument(
+        "--encryption-scope",
+        help="The name of an encryption scope defined in the Azure Blob Storage "
+        "service which is to be used to encrypt the data in Azure",
     )
     return parser.parse_args(args=args)
 
