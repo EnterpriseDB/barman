@@ -211,8 +211,8 @@ class TestBackup(object):
             "00000003.history\t42\t43\tNone\n"
             "00000004.history\t42\t43\tNone\n"
         )
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = (
-            xlog_db.open(mode="r+")
+        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
+            mode="r+"
         )
         backup_manager.server.config.basebackups_directory = base_dir.strpath
         backup_manager.server.config.wals_directory = wal_dir.strpath

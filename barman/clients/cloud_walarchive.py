@@ -72,7 +72,7 @@ def main(args=None):
         config.wal_path = os.getenv("BARMAN_FILE")
     else:
         if config.wal_path is None:
-            raise BarmanException('the following arguments are required: wal_path')
+            raise BarmanException("the following arguments are required: wal_path")
 
     # Validate the WAL file name before uploading it
     if not is_any_xlog_file(config.wal_path):

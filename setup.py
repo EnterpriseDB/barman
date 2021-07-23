@@ -34,97 +34,101 @@ import sys
 from setuptools import find_packages, setup
 
 if sys.version_info < (2, 6):
-    raise SystemExit('ERROR: Barman needs at least python 2.6 to work')
+    raise SystemExit("ERROR: Barman needs at least python 2.6 to work")
 
 # Depend on pytest_runner only when the tests are actually invoked
-needs_pytest = set(['pytest', 'test']).intersection(sys.argv)
-pytest_runner = ['pytest_runner'] if needs_pytest else []
+needs_pytest = set(["pytest", "test"]).intersection(sys.argv)
+pytest_runner = ["pytest_runner"] if needs_pytest else []
 
 setup_requires = pytest_runner
 
 install_requires = [
-    'psycopg2 >= 2.4.2',
-    'argh >= 0.21.2',
-    'python-dateutil',
+    "psycopg2 >= 2.4.2",
+    "argh >= 0.21.2",
+    "python-dateutil",
 ]
 
 if sys.version_info < (2, 7):
     install_requires += [
-        'argparse',
+        "argparse",
     ]
     # If we are going to execute tests, we need to enforce wheel
     # version before installing mock, or it will fail
     if needs_pytest:
         setup_requires += [
-            'wheel<0.30.0',  # wheel has dropped 2.6 support in 0.30.0
+            "wheel<0.30.0",  # wheel has dropped 2.6 support in 0.30.0
         ]
 
 barman = {}
-with open('barman/version.py', 'r') as fversion:
+with open("barman/version.py", "r") as fversion:
     exec(fversion.read(), barman)
 
 setup(
-    name='barman',
-    version=barman['__version__'],
-    author='EnterpriseDB',
-    author_email='info@2ndquadrant.com',
-    url='http://www.pgbarman.org/',
+    name="barman",
+    version=barman["__version__"],
+    author="EnterpriseDB",
+    author_email="info@2ndquadrant.com",
+    url="http://www.pgbarman.org/",
     packages=find_packages(exclude=["tests"]),
     data_files=[
-        ('share/man/man1', ['doc/barman.1',
-                            'doc/barman-cloud-backup.1',
-                            'doc/barman-cloud-backup-list.1',
-                            'doc/barman-cloud-restore.1',
-                            'doc/barman-cloud-wal-archive.1',
-                            'doc/barman-cloud-wal-restore.1',
-                            'doc/barman-wal-archive.1',
-                            'doc/barman-wal-restore.1']),
-        ('share/man/man5', ['doc/barman.5']),
+        (
+            "share/man/man1",
+            [
+                "doc/barman.1",
+                "doc/barman-cloud-backup.1",
+                "doc/barman-cloud-backup-list.1",
+                "doc/barman-cloud-restore.1",
+                "doc/barman-cloud-wal-archive.1",
+                "doc/barman-cloud-wal-restore.1",
+                "doc/barman-wal-archive.1",
+                "doc/barman-wal-restore.1",
+            ],
+        ),
+        ("share/man/man5", ["doc/barman.5"]),
     ],
     entry_points={
-        'console_scripts': [
-            'barman=barman.cli:main',
-            'barman-cloud-backup=barman.clients.cloud_backup:main',
-            'barman-cloud-wal-archive=barman.clients.cloud_walarchive:main',
-            'barman-cloud-restore=barman.clients.cloud_restore:main',
-            'barman-cloud-wal-restore=barman.clients.cloud_walrestore:main',
-            'barman-cloud-backup-list=barman.clients.cloud_backup_list:main',
-            'barman-wal-archive=barman.clients.walarchive:main',
-            'barman-wal-restore=barman.clients.walrestore:main',
+        "console_scripts": [
+            "barman=barman.cli:main",
+            "barman-cloud-backup=barman.clients.cloud_backup:main",
+            "barman-cloud-wal-archive=barman.clients.cloud_walarchive:main",
+            "barman-cloud-restore=barman.clients.cloud_restore:main",
+            "barman-cloud-wal-restore=barman.clients.cloud_walrestore:main",
+            "barman-cloud-backup-list=barman.clients.cloud_backup_list:main",
+            "barman-wal-archive=barman.clients.walarchive:main",
+            "barman-wal-restore=barman.clients.walrestore:main",
         ],
     },
-    license='GPL-3.0',
+    license="GPL-3.0",
     description=__doc__.split("\n")[0],
     long_description="\n".join(__doc__.split("\n")[2:]),
     install_requires=install_requires,
     extras_require={
-        'cloud': ['boto3'],
-        'completion': ['argcomplete'],
-        'azure': ['azure-identity', 'azure-storage-blob']
+        "cloud": ["boto3"],
+        "completion": ["argcomplete"],
+        "azure": ["azure-identity", "azure-storage-blob"],
     },
-    platforms=['Linux', 'Mac OS X'],
+    platforms=["Linux", "Mac OS X"],
     classifiers=[
-        'Environment :: Console',
-        'Development Status :: 5 - Production/Stable',
-        'Topic :: System :: Archiving :: Backup',
-        'Topic :: Database',
-        'Topic :: System :: Recovery Tools',
-        'Intended Audience :: System Administrators',
-        'License :: OSI Approved :: GNU General Public License v3 or later '
-        '(GPLv3+)',
-        'Programming Language :: Python',
-        'Programming Language :: Python :: 2.6',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
+        "Environment :: Console",
+        "Development Status :: 5 - Production/Stable",
+        "Topic :: System :: Archiving :: Backup",
+        "Topic :: Database",
+        "Topic :: System :: Recovery Tools",
+        "Intended Audience :: System Administrators",
+        "License :: OSI Approved :: GNU General Public License v3 or later " "(GPLv3+)",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 2.6",
+        "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
     ],
     setup_requires=setup_requires,
     tests_require=[
-        'mock',
-        'pytest-timeout',
-        'pytest',
+        "mock",
+        "pytest-timeout",
+        "pytest",
     ],
 )
