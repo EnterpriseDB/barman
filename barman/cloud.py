@@ -1128,7 +1128,11 @@ class CloudBackupUploader(with_metaclass(ABCMeta)):
                     include=["/PG_%s_*" % server_major_version],
                 )
 
-        # Copy PGDATA directory
+        # Copy PGDATA directory (or if that is itself a symlink, just follow it
+        # and copy whatever it points to; we won't store the symlink in the tar
+        # file)
+        if os.path.islink(pgdata_dir):
+            pgdata_dir = os.path.realpath(pgdata_dir)
         controller.upload_directory(
             label="pgdata",
             src=pgdata_dir,
