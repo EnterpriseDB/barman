@@ -571,6 +571,19 @@ class BackupInfo(FieldListFile):
         # Instantiate a BackupInfo object using the converted fields
         return cls(server, **data)
 
+    def pg_major_version(self):
+        """
+        Returns the major version of the PostgreSQL instance from which the
+        backup was made taking into account the change in versioning scheme
+        between PostgreSQL < 10.0 and PostgreSQL >= 10.0.
+        """
+        major = int(self.version / 10000)
+        if major < 10:
+            minor = int(self.version / 100 % 100)
+            return "%d.%d" % (major, minor)
+        else:
+            return str(major)
+
 
 class LocalBackupInfo(BackupInfo):
     __slots__ = "server", "config", "backup_manager"
