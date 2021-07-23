@@ -573,12 +573,17 @@ class CloudInterface(with_metaclass(ABCMeta)):
         self.result_queue = multiprocessing.Queue()
         self.errors_queue = multiprocessing.Queue()
         self.done_queue = multiprocessing.Queue()
+        # Delay assigning the worker_processes list to the object until we have
+        # finished spawning the workers so they do not get pickled by multiprocessing
+        # (pickling the worker process references will fail in Python >= 3.8)
+        worker_processes = []
         for process_number in range(self.worker_processes_count):
             process = multiprocessing.Process(
                 target=self._worker_process_main, args=(process_number,)
             )
             process.start()
-            self.worker_processes.append(process)
+            worker_processes.append(process)
+        self.worker_processes = worker_processes
 
     def _retrieve_results(self):
         """

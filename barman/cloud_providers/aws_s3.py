@@ -66,6 +66,19 @@ class S3CloudInterface(CloudInterface):
     # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
     MAX_ARCHIVE_SIZE = 1 << 40
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove boto3 client reference from the state as it cannot be pickled
+        # in Python >= 3.8 and multiprocessing will pickle the object when the
+        # worker processes are created.
+        # The worker processes create their own boto3 sessions so do not need
+        # the boto3 session from the parent process.
+        del state["s3"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     def __init__(
         self, url, encryption=None, jobs=2, profile_name=None, endpoint_url=None
     ):
