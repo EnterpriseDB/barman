@@ -1,19 +1,24 @@
 # AUTHORS
 
-In alphabetical order:
+Barman maintainers (in alphabetical order):
 
-* Gabriele Bartolini <gabriele.bartolini@2ndquadrant.it> (architect)
-* Jonathan Battiato <jonathan.battiato@2ndquadrant.it> (QA/testing)
-* Giulio Calacoci <giulio.calacoci@2ndquadrant.it> (developer)
-* Francesco Canovai <francesco.canovai@2ndquadrant.it> (QA/testing)
-* Leonardo Cecchi <leonardo.cecchi@2ndquadrant.it> (developer)
-* Gianni Ciolli <gianni.ciolli@2ndquadrant.it> (QA/testing)
-* Britt Cole <britt.cole@2ndquadrant.com> (documentation)
-* Marco Nenciarini <marco.nenciarini@2ndquadrant.it> (project leader)
-* Rubens Souza <rubens.souza@2ndquadrant.it> (QA/testing)
+* Abhijit Menon-Sen
+* Jane Threefoot
+* Michael Wallace
 
-Past contributors:
+Past contributors (in alphabetical order):
 
-* Carlo Ascani
-* Stefano Bianucci
-* Giuseppe Broccolo
+* Anna Bellandi (QA/testing)
+* Britt Cole (documentation reviewer)
+* Carlo Ascani (developer)
+* Francesco Canovai (QA/testing)
+* Gabriele Bartolini (architect)
+* Gianni Ciolli (QA/testing)
+* Giulio Calacoci (developer)
+* Giuseppe Broccolo (developer)
+* Jonathan Battiato (QA/testing)
+* Leonardo Cecchi (developer)
+* Marco Nenciarini (project leader)
+* Niccolò Fei (QA/testing)
+* Rubens Souza (QA/testing)
+* Stefano Bianucci (developer)
