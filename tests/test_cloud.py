@@ -22,11 +22,12 @@ from io import BytesIO
 from azure.core.exceptions import ServiceRequestError
 
 import mock
+from mock.mock import MagicMock
 import pytest
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-from barman.cloud import CloudUploadingError, FileUploadStatistics
+from barman.cloud import CloudBackupCatalog, CloudUploadingError, FileUploadStatistics
 from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 
@@ -1057,3 +1058,63 @@ class TestAzureCloudInterface(object):
             [], encryption_scope=encryption_scope
         )
         blob_client_mock.delete_blob.assert_called_once_with()
+
+
+class TestCloudBackupCatalog(object):
+    """
+    Tests which verify we can list backups stored in a cloud provider
+    """
+
+    def get_backup_info_file_object(self):
+        """Minimal backup info"""
+        return BytesIO(
+            b"""
+backup_label=None
+end_time=2014-12-22 09:25:27.410470+01:00
+"""
+        )
+
+    def raise_exception(self):
+        raise Exception("something went wrong reading backup.info")
+
+    def mock_remote_open(self, _):
+        """
+        Helper function which alternates between successful and unsuccessful
+        remote_open responses.
+        """
+        try:
+            if self.remote_open_should_succeed:
+                return self.get_backup_info_file_object()
+            else:
+                raise Exception("something went wrong reading backup.info")
+        finally:
+            self.remote_open_should_succeed = not self.remote_open_should_succeed
+
+    def test_can_list_single_backup(self):
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/base/20210723T133818/",
+        ]
+        mock_cloud_interface.remote_open.return_value = (
+            self.get_backup_info_file_object()
+        )
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        backups = catalog.get_backup_list()
+        assert len(backups) == 1
+        assert "20210723T133818" in backups
+
+    def test_backups_can_be_listed_if_one_is_unreadable(self):
+        self.remote_open_should_succeed = True
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/base/20210723T133818/",
+            "mt-backups/test-server/base/20210723T154445/",
+            "mt-backups/test-server/base/20210723T154554/",
+        ]
+        mock_cloud_interface.remote_open.side_effect = self.mock_remote_open
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        backups = catalog.get_backup_list()
+        assert len(backups) == 2
+        assert "20210723T133818" in backups
+        assert "20210723T154445" not in backups
+        assert "20210723T154554" in backups

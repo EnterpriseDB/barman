@@ -1496,7 +1496,13 @@ class CloudBackupCatalog(object):
                 if backup_dir[-1] != "/":
                     continue
                 backup_id = os.path.basename(backup_dir.rstrip("/"))
-                backup_info = self.get_backup_info(backup_id)
+                try:
+                    backup_info = self.get_backup_info(backup_id)
+                except Exception as exc:
+                    logging.warning(
+                        "Unable to open backup.info file for %s: %s" % (backup_id, exc)
+                    )
+                    continue
 
                 if backup_info:
                     backup_list[backup_id] = backup_info
