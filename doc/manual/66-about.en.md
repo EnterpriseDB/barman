@@ -96,5 +96,5 @@ Contributions to Barman are welcome, and will be listed in the
 provide a copyright assignment and a disclaimer of any work-for-hire
 ownership claims from the employer of the developer. This lets us make
 sure that all of the Barman distribution remains free code. Please
-contact info@2ndQuadrant.com for a copy of the relevant Copyright
+contact barman@enterprisedb.com for a copy of the relevant Copyright
 Assignment Form.

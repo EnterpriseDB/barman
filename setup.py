@@ -67,7 +67,7 @@ setup(
     name="barman",
     version=barman["__version__"],
     author="EnterpriseDB",
-    author_email="info@2ndquadrant.com",
+    author_email="barman@enterprisedb.com",
     url="http://www.pgbarman.org/",
     packages=find_packages(exclude=["tests"]),
     data_files=[
