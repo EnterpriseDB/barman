@@ -750,7 +750,7 @@ class TestAzureCloudInterface(object):
             AzureCloudInterface(url="%s/%s/path/to/dir" % (account_url, container_name))
         assert (
             str(exc.value)
-            == "A connection string must be povided when using emulated storage"
+            == "A connection string must be provided when using emulated storage"
         )
 
     @mock.patch.dict(

@@ -131,7 +131,7 @@ class AzureCloudInterface(CloudInterface):
             logging.warn("Using emulated storage URL: %s " % url)
             if "AZURE_STORAGE_CONNECTION_STRING" not in os.environ:
                 raise ValueError(
-                    "A connection string must be povided when using emulated storage"
+                    "A connection string must be provided when using emulated storage"
                 )
             try:
                 self.bucket_name = parsed_url.path.split("/")[2]
