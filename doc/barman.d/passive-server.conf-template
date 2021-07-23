@@ -1,5 +1,5 @@
 ; Barman, Backup and Recovery Manager for PostgreSQL
-; http://www.pgbarman.org/ - http://www.2ndQuadrant.com/
+; http://www.pgbarman.org/ - http://www.enterprisedb.com/
 ;
 ; Template configuration file for a server using
 ; SSH connections and rsync for copy.

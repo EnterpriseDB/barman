@@ -69,7 +69,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Barman'
-copyright = u'2011-2020 2ndQuadrant Limited]'
+copyright = u'2011-2021 EnterpriseDB UK Limited]'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -227,7 +227,7 @@ latex_elements = {
 # (source start file, target name, title, author,
 #  documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'Barman.tex', u'Barman Documentation', u'2ndQuadrant Limited',
+    ('index', 'Barman.tex', u'Barman Documentation', u'EnterpriseDB UK Limited',
      'manual'),
 ]
 
@@ -258,7 +258,7 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index', 'barman', u'Barman Documentation',
-     [u'2ndQuadrant Limited'], 1)
+     [u'EnterpriseDB UK Limited'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -272,7 +272,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     ('index', 'Barman', u'Barman Documentation',
-     u'2ndQuadrant Limited', 'Barman',
+     u'EnterpriseDB UK Limited', 'Barman',
      'Barman, Backup and Recovery Manager for PostgreSQL',
      'Miscellaneous'),
 ]
@@ -291,9 +291,9 @@ texinfo_documents = [
 
 # Bibliographic Dublin Core info.
 epub_title = u'Barman'
-epub_author = u'2ndQuadrant Limited'
-epub_publisher = u'2ndQuadrant Limited'
-epub_copyright = u'2011-2016, 2ndQuadrant Limited'
+epub_author = u'EnterpriseDB UK Limited'
+epub_publisher = u'EnterpriseDB UK Limited'
+epub_copyright = u'2011-2021, EnterpriseDB UK Limited'
 
 # The language of the text. It defaults to the language option
 # or en if the language is not set.

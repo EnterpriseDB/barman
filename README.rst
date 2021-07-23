@@ -7,7 +7,7 @@ allows your organisation to perform remote backups of multiple servers
 in business critical environments to reduce risk and help DBAs during
 the recovery phase.
 
-Barman is distributed under GNU GPL 3 and maintained by 2ndQuadrant.
+Barman is distributed under GNU GPL 3 and maintained by EnterpriseDB.
 
 For further information, look at the "Web resources" section below.
 
@@ -36,7 +36,7 @@ Web resources
 -  Man page, section 1 : http://docs.pgbarman.org/barman.1.html
 -  Man page, section 5 : http://docs.pgbarman.org/barman.5.html
 -  Community support : http://www.pgbarman.org/support/
--  Professional support : https://www.2ndquadrant.com/
+-  Professional support : https://www.enterprisedb.com/
 -  pgespresso extension : https://github.com/2ndquadrant-it/pgespresso
 
 Licence

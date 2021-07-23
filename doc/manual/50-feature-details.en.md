@@ -236,7 +236,7 @@ issuing `barman backup` with any of these two options:
 > **DISCLAIMER:** This feature is not recommended for production usage,
 > as Barman and PostgreSQL reside on the same server and are part of
 > the same single point of failure.
-> Some of 2ndQuadrant customers have requested to add support for
+> Some EnterpriseDB customers have requested to add support for
 > local backup to Barman to be used under specific circumstances
 > and, most importantly, under the 24/7 production service delivered
 > by the company. Using this feature currently requires installation
@@ -249,9 +249,9 @@ on a separate volume from PGDATA and, where applicable, tablespaces.
 Usually, these volumes reside on network storage appliances, with
 filesystems like NFS.
 
-This architecture is not endorsed by 2ndQuadrant.
+This architecture is not endorsed by EnterpriseDB.
 For an enhanced business continuity experience of PostgreSQL, with better
-results in terms of RPO and RTO, 2ndQuadrant still recommends the
+results in terms of RPO and RTO, EnterpriseDB still recommends the
 shared nothing architecture with a remote installation of Barman, capable
 of acting like a witness server for replication and monitoring purposes.
 

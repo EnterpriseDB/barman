@@ -33,9 +33,9 @@ or the IRC channel on freenode:
 irc://irc.freenode.net/barman
 
 In the event you discover a bug, you can open a ticket using Github:
-https://github.com/2ndquadrant-it/barman/issues
+https://github.com/EnterpriseDB/barman/issues
 
-2ndQuadrant provides professional support for Barman, including 24/7 service.
+EnterpriseDB provides professional support for Barman, including 24/7 service.
 
 ### Submitting a bug
 

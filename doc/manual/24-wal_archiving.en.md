@@ -24,7 +24,7 @@ See sections below for more details.
 From Barman 2.6, the **recommended way** to safely and reliably archive WAL
 files to Barman via `archive_command` is to use the `barman-wal-archive`
 command contained in the `barman-cli` package,
-distributed via 2ndQuadrant public repositories and available under
+distributed via EnterpriseDB public repositories and available under
 GNU GPL 3 licence. `barman-cli` must be installed on each PostgreSQL
 server that is part of the Barman cluster.
 

@@ -36,7 +36,7 @@
   [9]: https://github.com/2ndquadrant-it/pgespresso
   [11]: http://www.pgbarman.org/
   [12]: http://www.pgbarman.org/support/
-  [13]: https://www.2ndquadrant.com/
+  [13]: https://www.enterprisedb.com/
   [14]: http://www.pgbarman.org/faq/
   [15]: http://blog.2ndquadrant.com/tag/barman/
   [16]: https://github.com/hamann/check-barman

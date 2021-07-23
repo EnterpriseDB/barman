@@ -1493,12 +1493,12 @@ def main():
     """
     The main method of Barman
     """
-    p = ArghParser(epilog="Barman by 2ndQuadrant (www.2ndQuadrant.com)")
+    p = ArghParser(epilog="Barman by EnterpriseDB (www.enterprisedb.com)")
     p.add_argument(
         "-v",
         "--version",
         action="version",
-        version="%s\n\nBarman by 2ndQuadrant (www.2ndQuadrant.com)"
+        version="%s\n\nBarman by EnterpriseDB (www.enterprisedb.com)"
         % barman.__version__,
     )
     p.add_argument(

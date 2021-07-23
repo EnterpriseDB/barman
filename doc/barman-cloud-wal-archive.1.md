@@ -1,5 +1,5 @@
 % BARMAN-CLOUD-WAL-ARCHIVE(1) Barman User manuals | Version 2.12.1
-% 2ndQuadrant <http://www.2ndQuadrant.com>
+% EnterpriseDB <http://www.enterprisedb.com>
 % June 30, 2021
 
 # NAME
@@ -18,7 +18,7 @@ This script can be used in the `archive_command` of a PostgreSQL
 server to ship WAL files to the Cloud. Currently only AWS S3 is supported.
 
 This script and Barman are administration tools for disaster recovery
-of PostgreSQL servers written in Python and maintained by 2ndQuadrant.
+of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 
 
 # POSITIONAL ARGUMENTS
@@ -107,12 +107,12 @@ Any bug can be reported via the Github issue tracker.
 
 * Homepage: <http://www.pgbarman.org/>
 * Documentation: <http://docs.pgbarman.org/>
-* Professional support: <http://www.2ndQuadrant.com/>
+* Professional support: <http://www.enterprisedb.com/>
 
 
 # COPYING
 
-Barman is the property of 2ndQuadrant Limited
+Barman is the property of EnterpriseDB UK Limited
 and its code is distributed under GNU General Public License v3.
 
 © Copyright EnterpriseDB UK Limited 2011-2021

@@ -2,4 +2,4 @@
 
 * Homepage: <http://www.pgbarman.org/>
 * Documentation: <http://docs.pgbarman.org/>
-* Professional support: <https://www.2ndQuadrant.com/>
+* Professional support: <https://www.enterprisedb.com/>

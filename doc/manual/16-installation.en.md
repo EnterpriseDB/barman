@@ -13,8 +13,8 @@ RPM packages. It is required to install the Extra Packages Enterprise
 Linux (EPEL) repository and the
 [PostgreSQL Global Development Group RPM repository][yumpgdg] beforehand.
 
-Official RPM packages for Barman are distributed by 2ndQuadrant
-via Yum through [2ndQuadrant Public RPM repository][2ndqrpmrepo],
+Official RPM packages for Barman are distributed by EnterpriseDB
+via Yum through the [public RPM repository][2ndqrpmrepo],
 by following the instructions you find on that website.
 
 Then, as `root` simply type:
@@ -32,9 +32,9 @@ yum install barman
    exclude=barman* python*-barman
    ```
 > By doing this, you solely rely on
-> 2ndQuadrant repositories for package management of Barman software.
+> EnterpriseDB repositories for package management of Barman software.
 
-For historical reasons, 2ndQuadrant keeps maintaining package distribution of
+For historical reasons, EnterpriseDB keeps maintaining package distribution of
 Barman through [Sourceforge.net][3].
 
 ## Installation on Debian/Ubuntu using packages
@@ -45,7 +45,7 @@ packages.
 It is directly available in the official repository for Debian and Ubuntu, however, these repositories might not contain the latest available version.
 If you want to have the latest version of Barman, the recommended method is to install both these repositories:
 
-* [2ndQuadrant Public APT repository][2ndqdebrepo], directly maintained by
+* [Public APT repository][2ndqdebrepo], directly maintained by
   Barman developers
 * the [PostgreSQL Community APT repository][aptpgdg], by following instructions in the [APT section of the PostgreSQL Wiki][aptpgdgwiki]
 

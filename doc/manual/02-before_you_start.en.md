@@ -19,4 +19,4 @@ Below you can find a non exhaustive list of resources that we recommend for you 
 Professional training on these topics is another effective way of
 learning these concepts. At any time of the year you can find many
 courses available all over the world, delivered by PostgreSQL
-companies such as 2ndQuadrant.
+companies such as EnterpriseDB.

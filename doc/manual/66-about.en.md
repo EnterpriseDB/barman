@@ -4,9 +4,9 @@
 
 ## Support and sponsor opportunities
 
-Barman is free software, written and maintained by 2ndQuadrant. If you
+Barman is free software, written and maintained by EnterpriseDB. If you
 require support on using Barman, or if you need new features, please
-get in touch with 2ndQuadrant. You can sponsor the development of new
+get in touch with EnterpriseDB. You can sponsor the development of new
 features of Barman and PostgreSQL which will be made publicly
 available as open source.
 
@@ -14,13 +14,13 @@ For further information, please visit:
 
 - [Barman website][11]
 - [Support section][12]
-- [2ndQuadrant website][13]
+- [EnterpriseDB website][13]
 - [Barman FAQs][14]
 - [2ndQuadrant blog: Barman][15]
 
 ## Contributing to Barman
 
-2ndQuadrant has a team of software engineers, architects, database
+EnterpriseDB has a team of software engineers, architects, database
 administrators, system administrators, QA engineers, developers and
 managers that dedicate their time and expertise to improve Barman's code.
 We adopt lean and agile methodologies for software development, and
@@ -39,7 +39,7 @@ accept patches from external developers, as long as:
 - source code is rebased on the current master branch.
 - commits and pull requests are limited to a single feature (multi-feature
 patches are hard to test and review).
-- changes to the user interface are discussed beforehand with 2ndQuadrant.
+- changes to the user interface are discussed beforehand with EnterpriseDB.
 
 We also require that any contributions provide a copyright assignment
 and a disclaimer of any work-for-hire ownership claims from the employer
@@ -51,21 +51,26 @@ You can use Github's pull requests system for this purpose.
 
 In alphabetical order:
 
-- Gabriele Bartolini, <gabriele.bartolini@2ndquadrant.it> (architect)
-- Jonathan Battiato, <jonathan.battiato@2ndquadrant.it> (QA/testing)
-- Giulio Calacoci, <giulio.calacoci@2ndquadrant.it> (developer)
-- Francesco Canovai, <francesco.canovai@2ndquadrant.it> (QA/testing)
-- Leonardo Cecchi, <leonardo.cecchi@2ndquadrant.it> (developer)
-- Gianni Ciolli, <gianni.ciolli@2ndquadrant.it> (QA/testing)
-- Britt Cole, <britt.cole@2ndquadrant.com> (documentation)
-- Marco Nenciarini, <marco.nenciarini@2ndquadrant.it> (project leader)
-- Rubens Souza, <rubens.souza@2ndquadrant.it> (QA/testing)
+* Abhijit Menon-Sen
+* Jane Threefoot
+* Michael Wallace
 
-Past contributors:
+Past contributors (in alphabetical order):
 
-- Carlo Ascani
-- Stefano Bianucci
-- Giuseppe Broccolo
+* Anna Bellandi (QA/testing)
+* Britt Cole (documentation reviewer)
+* Carlo Ascani (developer)
+* Francesco Canovai (QA/testing)
+* Gabriele Bartolini (architect)
+* Gianni Ciolli (QA/testing)
+* Giulio Calacoci (developer)
+* Giuseppe Broccolo (developer)
+* Jonathan Battiato (QA/testing)
+* Leonardo Cecchi (developer)
+* Marco Nenciarini (project leader)
+* Niccolò Fei (QA/testing)
+* Rubens Souza (QA/testing)
+* Stefano Bianucci (developer)
 
 ## Links
 
@@ -77,7 +82,7 @@ Past contributors:
 
 ## License and Contributions
 
-Barman is the property of 2ndQuadrant Limited and its code is
+Barman is the property of EnterpriseDB UK Limited and its code is
 distributed under GNU General Public License 3.
 
 © Copyright EnterpriseDB UK Limited 2011-2021
@@ -87,7 +92,7 @@ project funded by the European Commission's Seventh Framework
 programme.
 
 Contributions to Barman are welcome, and will be listed in the
-`AUTHORS` file. 2ndQuadrant Limited requires that any contributions
+`AUTHORS` file. EnterpriseDB UK Limited requires that any contributions
 provide a copyright assignment and a disclaimer of any work-for-hire
 ownership claims from the employer of the developer. This lets us make
 sure that all of the Barman distribution remains free code. Please
