@@ -43,7 +43,7 @@ def __is_hook_script():
     if "BARMAN_HOOK" in os.environ and "BARMAN_PHASE" in os.environ:
         if (
             os.getenv("BARMAN_HOOK") in ("archive_script", "archive_retry_script")
-            and os.getenv("BARMAN_PHASE") == "post"
+            and os.getenv("BARMAN_PHASE") == "pre"
         ):
             return True
         else:
