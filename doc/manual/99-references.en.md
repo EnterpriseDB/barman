@@ -29,6 +29,8 @@
   [2ndqdebrepo]: https://apt.2ndquadrant.com/
   [boto3]: https://github.com/boto/boto3
   [boto3creds]: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
+  [azure-identity]: https://docs.microsoft.com/en-us/python/api/azure-identity/?view=azure-python
+  [azure-storage-blob]: https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python
 
 
   [3]: https://sourceforge.net/projects/pgbarman/files/
