@@ -41,8 +41,12 @@ apt-get install barman-cli
 
 Barman client utilities have been extended to support object storage
 integration and enhance disaster recovery capabilities of your PostgreSQL
-databases by relaying WAL files and backups to an S3 compatible object
-store.
+databases by relaying WAL files and backups to a supported cloud provider.
+
+Supported cloud providers are:
+
+* AWS S3 (or any S3 compatible object store)
+* Azure Blob Storage
 
 These utilities are distributed in the `barman-cli-cloud` RPM/Debian package,
 and can be installed alongside the PostgreSQL server:
@@ -54,8 +58,9 @@ and can be installed alongside the PostgreSQL server:
   to fetch WAL files from an S3 object store, bypassing the Barman server, and
   store them directly in the PostgreSQL standby;
 - `barman-cloud-backup`: backup script to be used to take a local backup
-  directly on the PostgreSQL server and to ship it to an S3 object store,
-  bypassing the Barman server;
+  directly on the PostgreSQL server and to ship it to a supported cloud provider,
+  bypassing the Barman server; alternatively, as a hook script for copying barman
+  backups to the cloud (`post_backup_retry_script)`
 - `barman-cloud-list-backup`: script to be used to list the content of
   Barman backups taken with `barman-cloud-backup` from an S3 object store;
 - `barman-cloud-restore`: script to be used to restore a backup directly
@@ -64,17 +69,19 @@ and can be installed alongside the PostgreSQL server:
 For information on how to setup credentials for the Cloud utilities,
 please refer to the ["Credentials" section in Boto 3 documentation][boto3creds].
 
-> **WARNING:** Cloud utilities require the [boto3 library][boto3] installed
-> on your system.
+> **WARNING:** Cloud utilities require the appropriate library for the cloud
+> provider you wish to use - either: [boto3][boto3] or
+> [azure-storage-blob][azure-storage-blob] and (optionally)
+> [azure-identity][azure-identity]
 
 ## Installation
 
 Barman client utilities for the Cloud need to be installed on those PostgreSQL
-servers that you want to direcly backup on an S3 compatible object store,
-bypassing Barman.
+servers that you want to direcly backup to a cloud provider, bypassing Barman.
 
-In case you want to use `barman-cloud-wal-archive` as a hook script, you can
-install the `barman-cli-cloud` package on the Barman server also.
+In case you want to use `barman-cloud-backup` and/or `barman-cloud-wal-archive`
+as hook scripts, you can install the `barman-cli-cloud` package on the Barman
+server also.
 
 Please refer to the main "Installation" section to install the repositories.
 
@@ -90,3 +97,34 @@ On Debian/Ubuntu, as `root` user type:
 apt-get install barman-cli-cloud
 ```
 
+## barman-cloud hook scripts
+
+Install the `barman-cli-cloud` package on the Barman server as described above.
+
+Configure `barman-cloud-backup` as a post backup script by adding the following
+to the Barman configuration for a PostgreSQL server:
+
+```
+post_backup_retry_script = 'barman-cloud-backup [*OPTIONS*] *DESTINATION_URL* ${BARMAN_SERVER}
+```
+
+> **WARNING:** When running as a hook script barman-cloud-backup requires that
+> the status of the backup is DONE and it will fail if the backup has any other
+> status. For this reason it is recommended backups are run with the
+> `-w / --wait` option so that the hook script is not executed while a
+> backup has status `WAITING_FOR_WALS`.
+
+Configure `barman-cloud-wal-archive` as a pre WAL archive script by adding the
+following to the Barman configuration for a PostgreSQL server:
+
+```
+pre_archive_retry_script = 'barman-cloud-wal-archive [*OPTIONS*] *DESTINATION_URL* ${BARMAN_SERVER}'
+```
+
+## Selecting a cloud provider
+
+Use the `--cloud-provider` option to choose the cloud provider for your backups
+and WALs. This can be set to one of the following:
+
+* `aws-s3` [DEFAULT]: AWS S3 or S3-compatible object store.
+* `azure-blob-storage`: Azure Blob Storage service.

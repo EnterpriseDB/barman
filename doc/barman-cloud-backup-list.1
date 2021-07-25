@@ -13,7 +13,7 @@ barman\-cloud\-backup\-list [\f[I]OPTIONS\f[]] \f[I]SOURCE_URL\f[]
 .PP
 This script can be used to list backups previously made with
 \f[C]barman\-cloud\-backup\f[] command.
-Currently only AWS S3 is supported.
+Currently AWS S3 and Azure Blob Storage are supported.
 .PP
 This script and Barman are administration tools for disaster recovery of
 PostgreSQL servers written in Python and maintained by EnterpriseDB.
@@ -42,8 +42,28 @@ show program's version number and exit
 .RS
 .RE
 .TP
+.B \-v, \[en]verbose
+increase output verbosity (e.g., \-vv is more than \-v)
+.RS
+.RE
+.TP
+.B \-q, \[en]quiet
+decrease output verbosity (e.g., \-qq is less than \-q)
+.RS
+.RE
+.TP
 .B \-t, \[en]test
 test connectivity to the cloud destination and exit
+.RS
+.RE
+.TP
+.B \[en]format {json,console}
+output format (default: `console')
+.RS
+.RE
+.TP
+.B \[en]cloud\-provider {aws\-s3,azure\-blob\-storage}
+the cloud provider to which the backup should be uploaded
 .RS
 .RE
 .TP
@@ -68,9 +88,23 @@ For AWS:
 http://docs.aws.amazon.com/cli/latest/userguide/cli\-chap\-getting\-set\-up.html
 .IP \[bu] 2
 http://docs.aws.amazon.com/cli/latest/userguide/cli\-chap\-getting\-started.html.
+.PP
+For Azure Blob Storage:
+.IP \[bu] 2
+https://docs.microsoft.com/en\-us/azure/storage/blobs/authorize\-data\-operations\-cli#set\-environment\-variables\-for\-authorization\-parameters
+.IP \[bu] 2
+https://docs.microsoft.com/en\-us/python/api/azure\-storage\-blob/?view=azure\-python
 .SH DEPENDENCIES
+.PP
+If using \f[C]\-\-cloud\-provider=aws\-s3\f[]:
 .IP \[bu] 2
 boto3
+.PP
+If using \f[C]\-\-cloud\-provider=azure\-blob\-storage\f[]:
+.IP \[bu] 2
+azure\-storage\-blob
+.IP \[bu] 2
+azure\-identity (optional, if you wish to use DefaultAzureCredential)
 .SH EXIT STATUS
 .TP
 .B 0

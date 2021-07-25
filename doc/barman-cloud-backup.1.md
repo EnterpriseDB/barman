@@ -15,9 +15,12 @@ barman-cloud-backup [*OPTIONS*] *DESTINATION_URL* *SERVER_NAME*
 # DESCRIPTION
 
 This script can be used to perform a backup of a local PostgreSQL instance
-and ship the resulting tarball(s) to the Cloud. It requires read access
-to PGDATA and tablespaces (normally run as `postgres` user).
-Currently only AWS S3 is supported.
+and ship the resulting tarball(s) to the Cloud. Currently AWS S3 and Azure
+Blob Storage are supported.
+
+It requires read access to PGDATA and tablespaces (normally run as `postgres`
+user). It can also be used as a hook script on a barman server, in which
+case it requires read access to the directory where barman backups are stored.
 
 This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
@@ -53,22 +56,15 @@ SERVER_NAME
 
 -q, --quiet
 :    decrease output verbosity (e.g., -qq is less than -q)
- 
+
 -t, --test
 :    test connectivity to the cloud destination and exit
-
--P, --profile
-:    profile name (e.g. INI section in AWS credentials file)
 
 -z, --gzip
 :    gzip-compress the tar files when uploading to the cloud
 
 -j, --bzip2
 :    bzip2-compress the tar files when uploading to the cloud
-
--e, --encryption
-:    The encryption algorithm used when storing the uploaded data in S3.
-     Allowed values: 'AES256'|'aws:kms'.
 
 -d, --dbname
 :    database name or conninfo string for Postgres connection (default: postgres)
@@ -86,13 +82,27 @@ SERVER_NAME
 :    forces the initial checkpoint to be done as quickly as possible
 
 -J JOBS, --jobs JOBS
-:    number of subprocesses to upload data to S3 (default: 2)
+:    number of subprocesses to upload data to cloud storage (default: 2)
 
 -S MAX_ARCHIVE_SIZE, --max-archive-size MAX_ARCHIVE_SIZE
-:    maximum size of an archive when uploading to S3 (default: 100GB)
+:    maximum size of an archive when uploading to cloud storage (default: 100GB)
+
+--cloud-provider {aws-s3,azure-blob-storage}
+:    the cloud provider to which the backup should be uploaded
+
+-P, --profile
+:    profile name (e.g. INI section in AWS credentials file)
 
 --endpoint-url
-: override the default S3 URL construction mechanism by specifying an endpoint.
+:    override the default S3 URL construction mechanism by specifying an endpoint
+
+-e, --encryption
+:    the encryption algorithm used when storing the uploaded data in S3
+     Allowed values: 'AES256'|'aws:kms'
+
+--encryption-scope
+:    the name of an encryption scope defined in the Azure Blob Storage
+     service which is to be used to encrypt the data in Azure
 
 # REFERENCES
 
@@ -105,13 +115,25 @@ For AWS:
 * http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html
 * http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html.
 
+For Azure Blob Storage:
+
+* https://docs.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters
+* https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python
+
 For libpq settings information:
 
 * https://www.postgresql.org/docs/current/libpq-envars.html
 
 # DEPENDENCIES
 
+If using `--cloud-provider=aws-s3`:
+
 * boto3
+
+If using `--cloud-provider=azure-blob-storage`:
+
+* azure-storage-blob
+* azure-identity (optional, if you wish to use DefaultAzureCredential)
 
 # EXIT STATUS
 
@@ -120,6 +142,20 @@ For libpq settings information:
 
 Not zero
 :   Failure
+
+
+# SEE ALSO
+
+This script can be used in conjunction with `post_backup_script` or
+`post_backup_retry_script` to relay barman backups to cloud storage as follows:
+
+```
+post_backup_retry_script = 'barman-cloud-backup [*OPTIONS*] *DESTINATION_URL* ${BARMAN_SERVER}'
+```
+
+When running as a hook script, barman-cloud-backup will read the location of
+the backup directory and the backup ID from BACKUP_DIR and BACKUP_ID environment
+variables set by barman.
 
 
 # BUGS

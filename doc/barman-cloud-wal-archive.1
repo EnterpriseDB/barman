@@ -14,7 +14,7 @@ barman\-cloud\-wal\-archive [\f[I]OPTIONS\f[]] \f[I]DESTINATION_URL\f[]
 .PP
 This script can be used in the \f[C]archive_command\f[] of a PostgreSQL
 server to ship WAL files to the Cloud.
-Currently only AWS S3 is supported.
+Currently AWS S3 and Azure Blob Storage are supported.
 .PP
 This script and Barman are administration tools for disaster recovery of
 PostgreSQL servers written in Python and maintained by EnterpriseDB.
@@ -48,13 +48,18 @@ show program's version number and exit
 .RS
 .RE
 .TP
-.B \-t, \[en]test
-test connectivity to the cloud destination and exit
+.B \-v, \[en]verbose
+increase output verbosity (e.g., \-vv is more than \-v)
 .RS
 .RE
 .TP
-.B \-P, \[en]profile
-profile name (e.g.\ INI section in AWS credentials file)
+.B \-q, \[en]quiet
+decrease output verbosity (e.g., \-qq is less than \-q)
+.RS
+.RE
+.TP
+.B \-t, \[en]test
+test connectivity to the cloud destination and exit
 .RS
 .RE
 .TP
@@ -68,15 +73,31 @@ bzip2\-compress the WAL while uploading to the cloud
 .RS
 .RE
 .TP
-.B \-e ENCRYPT, \[en]encryption ENCRYPT
-The encryption algorithm used when storing the uploaded data in S3.
-Allowed methods: \f[C]AES256\f[] and \f[C]aws:kms\f[].
+.B \[en]cloud\-provider {aws\-s3,azure\-blob\-storage}
+the cloud provider to which the backup should be uploaded
+.RS
+.RE
+.TP
+.B \-P, \[en]profile
+profile name (e.g.\ INI section in AWS credentials file)
 .RS
 .RE
 .TP
 .B \[en]endpoint\-url
 override the default S3 URL construction mechanism by specifying an
 endpoint.
+.RS
+.RE
+.TP
+.B \-e, \[en]encryption
+the encryption algorithm used when storing the uploaded data in S3
+Allowed values: `AES256'|`aws:kms'
+.RS
+.RE
+.TP
+.B \[en]encryption\-scope
+the name of an encryption scope defined in the Azure Blob Storage
+service which is to be used to encrypt the data in Azure
 .RS
 .RE
 .SH REFERENCES
@@ -90,9 +111,23 @@ For AWS:
 http://docs.aws.amazon.com/cli/latest/userguide/cli\-chap\-getting\-set\-up.html
 .IP \[bu] 2
 http://docs.aws.amazon.com/cli/latest/userguide/cli\-chap\-getting\-started.html.
+.PP
+For Azure Blob Storage:
+.IP \[bu] 2
+https://docs.microsoft.com/en\-us/azure/storage/blobs/authorize\-data\-operations\-cli#set\-environment\-variables\-for\-authorization\-parameters
+.IP \[bu] 2
+https://docs.microsoft.com/en\-us/python/api/azure\-storage\-blob/?view=azure\-python
 .SH DEPENDENCIES
+.PP
+If using \f[C]\-\-cloud\-provider=aws\-s3\f[]:
 .IP \[bu] 2
 boto3
+.PP
+If using \f[C]\-\-cloud\-provider=azure\-blob\-storage\f[]:
+.IP \[bu] 2
+azure\-storage\-blob
+.IP \[bu] 2
+azure\-identity (optional, if you wish to use DefaultAzureCredential)
 .SH EXIT STATUS
 .TP
 .B 0
@@ -111,7 +146,7 @@ This script can be used in conjunction with
 .IP
 .nf
 \f[C]
-pre_archive_retry_script\ =\ \[aq]barman\-cloud\-wal\-archive\ [*OPTIONS*]\ *DESTINATION_URL*\ ${BARMAN_SERVER}\ ${BARMAN_FILE}\[aq]
+pre_archive_retry_script\ =\ \[aq]barman\-cloud\-wal\-archive\ [*OPTIONS*]\ *DESTINATION_URL*\ ${BARMAN_SERVER}\[aq]
 \f[]
 .fi
 .SH BUGS
