@@ -1,5 +1,53 @@
 Barman News - History of user-visible changes
 
+Version 2.13 - 26 July 2021
+
+- Add Azure blob storage support to barman-cloud
+
+- Support tablespace remapping in barman-cloud-restore via
+  `--tablespace name:location`
+
+- Allow barman-cloud-backup and barman-cloud-wal-archive to run as
+  Barman hook scripts, to allow data to be relayed to cloud storage
+  from the Barman server
+
+- Bug fixes:
+
+    - Stop backups failing due to idle_in_transaction_session_timeout
+      (https://github.com/EnterpriseDB/barman/issues/333)
+
+    - Fix a race condition between backup and archive-wal in updating
+      xlog.db entries (#328)
+
+    - Handle PGDATA being a symlink in barman-cloud-backup, which led to
+      "seeking backwards is not allowed" errors on restore (#351)
+
+    - Recreate pg_wal on restore if the original was a symlink (#327)
+
+    - Recreate pg_tblspc symlinks for tablespaces on restore (#343)
+
+    - Make barman-cloud-backup-list skip backups it cannot read, e.g.,
+      because they are in Glacier storage (#332)
+
+    - Add `-d database` option to barman-cloud-backup to specify which
+      database to connect to initially (#307)
+
+    - Fix "Backup failed uploading data" errors from barman-cloud-backup
+      on Python 3.8 and above, caused by attempting to pickle the boto3
+      client (#361)
+
+    - Correctly enable server-side encryption in S3 for buckets that do
+      not have encryption enabled by default.
+
+      In Barman 2.12, barman-cloud-backup's `--encryption` option did
+      not correctly enable encryption for the contents of the backup if
+      the backup was stored in an S3 bucket that did not have encryption
+      enabled. If this is the case for you, please consider deleting
+      your old backups and taking new backups with Barman 2.13.
+
+      If your S3 buckets already have encryption enabled by default
+      (which we recommend), this does not affect you.
+
 Version 2.12.1 - 30 June 2021
 
 -   Bug fixes:
