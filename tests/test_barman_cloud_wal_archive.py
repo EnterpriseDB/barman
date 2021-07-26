@@ -401,7 +401,7 @@ class TestWalUploaderHookScript(object):
         {
             "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
             "BARMAN_HOOK": "archive_script",
-            "BARMAN_PHASE": "post",
+            "BARMAN_PHASE": "pre",
             "BARMAN_FILE": EXAMPLE_WAL_PATH,
         },
     )
@@ -420,7 +420,7 @@ class TestWalUploaderHookScript(object):
         {
             "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
             "BARMAN_HOOK": "archive_retry_script",
-            "BARMAN_PHASE": "post",
+            "BARMAN_PHASE": "pre",
             "BARMAN_FILE": EXAMPLE_WAL_PATH,
         },
     )
@@ -439,7 +439,7 @@ class TestWalUploaderHookScript(object):
         {
             "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
             "BARMAN_HOOK": "archive_retry_script",
-            "BARMAN_PHASE": "post",
+            "BARMAN_PHASE": "pre",
         },
     )
     @mock.patch("barman.clients.cloud_walarchive.get_cloud_interface")
@@ -458,7 +458,7 @@ class TestWalUploaderHookScript(object):
         {
             "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
             "BARMAN_HOOK": "archive_retry_script",
-            "BARMAN_PHASE": "pre",
+            "BARMAN_PHASE": "post",
             "BARMAN_FILE": EXAMPLE_WAL_PATH,
         },
     )
@@ -480,7 +480,7 @@ class TestWalUploaderHookScript(object):
         {
             "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
             "BARMAN_HOOK": "backup_script",
-            "BARMAN_PHASE": "post",
+            "BARMAN_PHASE": "pre",
             "BARMAN_FILE": EXAMPLE_WAL_PATH,
         },
     )
