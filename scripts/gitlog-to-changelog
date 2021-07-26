@@ -103,7 +103,7 @@ sub quoted_cmd(@)
   @ARGV
     and (warn "$ME: too many arguments\n"), usage 1;
 
-  my @cmd = (qw (git log --log-size), "--since=$since_date",
+  my @cmd = (qw (git log --no-merges --log-size), "--since=$since_date",
              '--pretty=format:%at  %an  <%ae>%n%n%s%n%b%n');
   open PIPE, '-|', @cmd
     or die "$ME: failed to run `". quoted_cmd (@cmd) ."': $!\n";
