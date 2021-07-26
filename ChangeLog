@@ -1,3 +1,743 @@
+2021-07-26  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Update the ChangeLog file
+
+	Update NEWS file for 2.13 release
+
+	Version set to 2.13
+
+2021-07-26  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Update barman docs for barman-cloud
+	Updates the barman manual with the addition of Azure support for
+	barman-cloud and additional information about running barman-cloud
+	as a hook script. Also updates the barman-cloud* manual pages.
+
+	barman-cloud-wal-archive runs as pre archive hook (#366)
+	Updates barman-cloud-wal-archive in hook script mode such that it
+	supports running as a pre archive hook, not post archive.
+	
+	This matches what we describe in the documentation and removes a
+	possible source of errors on restore due to compressing archived
+	WALs which have already been compressed by Barman. Such
+	double-compression is no longer possible as the pre archive script
+	runs before Barman has carried out any compression on the WAL.
+
+2021-07-24  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Don't try to store a top-level PGDATA symlink in data.tar
+	It's perfectly valid to have PGDATA, say /var/lib/postgresql/13/main, be
+	a symlink to /mnt/somedir. But there were two significant problems with
+	how barman-cloud-backup handled this case.
+
+	1. If you run `barman-cloud-restore … /some/dir`, you would expect that
+	   directory to BE your data directory, not a symlink to somewhere else.
+	   Even if you were OK with the symlink, there would be no way to allow
+	   you to specify a different directory, the way it is now possible to
+	   do for tablespaces.
+
+	2. As reported in #351, there are Python-version-dependent problems with
+	   extracting from a tarfile that contains symlinks.
+
+	   Using Python 3.8.10 or newer may fix the problem or some part of it,
+	   but barman-cloud-restore can still trigger the "seeking backwards is
+	   not allowed" error under 3.8.10 with a backup from a server where
+	   PGDATA is a symlink.
+
+	The existing behaviour being unreasonable and problematic—and clearly
+	not anticipated by the code—we change _backup_copy to check if PGDATA
+	is a symlink, and if so, just backup whatever it points to.
+
+	Closes #351
+
+2021-07-22  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Implement tablespace remapping for barman-cloud-restore
+	Each tablespace has a name, an oid, and a location (directory), and
+	there is a symbolic link from $PGDATA/pg_tblspc/$oid to the location.
+	barman-cloud-backup uploads a $oid.tar file for each tablespace, and
+	records the properties of each tablespace in backup_info.tablespaces.
+
+	Until now, barman-cloud-restore knew only how to download $oid.tar and
+	extract its contents to the original location. Here we add a couple of
+	new features:
+
+	1. You may optionally specify `--tablespace name:/new/location` to
+	   extract a given tablespace to a different location (you can repeat
+	   this option multiple times)
+
+	2. After downloading and extracting $oid.tar to the desired location, we
+	   now recreate the symbolic link from $PGDATA/pg_tblspc/$oid to that
+	   directory.
+
+	Closes #343
+	Closes #330
+
+	Recreate pg_wal if required in barman-cloud-restore
+	If you run barman-cloud-backup on a data directory where pg_wal is a
+	symlink, it doesn't include pg_wal in the uploaded tar files, and the
+	pg_wal directory will not be created if you restore the backup.
+
+	We fix this by creating pg_wal (or pg_xlog, depending on the version) in
+	the destination directory if it does not exist at the end of the backup.
+
+	Closes #327
+
+2021-07-24  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Change info@2ndQuadrant.com to barman@enterprisedb.com
+
+2021-07-23  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Stop backup.info errors from breaking barman-cloud-backup-list (#363)
+	Catches exceptions encountered when reading backup.info files
+	during backup list operations. A warning is logged and we continue
+	iterating through backup files.
+	
+	This fixes a problem where a single unreadable backup.info file
+	would break barman-cloud-backup-list entirely, preventing users
+	from finding any backups in cloud storage. The specific example
+	reported was when a backup.info file has the AWS S3 Glacier
+	storage class however there are other reasons why a backup.info
+	file might not be readable. In these scenarios we would still
+	want to list the backup.info files that were readable, so we
+	therefore catch `Exception`s rather than anything more specific.
+	
+	Closes #332
+
+	Avoid pickling boto3 client in S3CloudInterface (#361)
+	Excludes the boto3 client from the S3CloudInterface state so that
+	it is not pickled by multiprocessing.
+	
+	This fixes barman-cloud-backup with Python >= 3.8. Previously this
+	would fail with the following error:
+	
+	    ERROR: Backup failed uploading data (Can't pickle <class 'boto3.resources.factory.s3.ServiceResource'>: attribute lookup s3.ServiceResource on boto3.resources.factory failed)
+	
+	This is because boto3 cannot be pickled using the default pickle
+	protocol in Python >= 3.8. See the following boto3 issue:
+	
+	    https://github.com/boto/boto3/issues/678
+	
+	The workaround of forcing pickle to use an older version of the
+	pickle protocol is not available because it is multiprocessing
+	which invokes pickle and it does not allow us to specify the
+	protocol version.
+	
+	We therefore exclude the boto3 client from the pickle operation by
+	implementing custom `__getstate__` and `__setstate__` methods as
+	documented here:
+	
+	    https://docs.python.org/3/library/pickle.html#handling-stateful-objects
+	
+	This works because the worker processes create their own boto3
+	session anyway due to race conditions around re-using the boto3
+	session from the parent process.
+	
+	It is also necessary to defer the assignment of the
+	`worker_processes` list until after all worker processes have been
+	spawned as the references to those worker processes also cannot
+	be pickled with the default pickle protocol in Python >= 3.8. As
+	with the boto3 client, the `worker_processes` list was not being
+	used by the worker processes anyway.
+
+2021-07-23  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Synchronise two more author lists
+
+	Reformat a few source files missed earlier
+
+	Change various 2ndQuadrant references to EnterpriseDB as appropriate
+	- Also rebuild manual pages from Markdown accordingly.
+	- Synchronise author/maintainer lists
+
+2021-07-23  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Fix pg major version in barman-cloud-backup hook script (#360)
+	Adds a method named pg_major_version to BackupInfo which returns
+	the major version of the PostgreSQL instance from which a backup
+	was taken.
+	
+	We deliberately avoid using a property here because we do not
+	want pg_major_version to be included in the backup.info fields.
+	It is just a convenience function.
+	
+	This replaces the in-line use of `int(self.version / 10000)` in
+	CloudBackupUploaderBarman which only produced the correct major
+	version for PostgreSQL >= 10.0.
+	
+	This fixes an issue where barman-cloud-backup would not copy
+	tablespaces when running as a hook script against backups of
+	PostgreSQL < 10.0..
+
+2021-07-22  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Treat encryption as optional config parameter (#359)
+	Tests for the encryption parameter before passing it to
+	S3CloudInterface and makes it optional in the S3CloudInterface
+	constructor.
+	
+	This is necessary because of the removal of the encryption
+	parameter from barman-cloud-restore, barman-cloud-wal-restore
+	and barman-cloud-backup-list in commit:
+	
+	    6f47759382063e7c452350d46f8ae4e8cf938495
+
+	Clean up the --encryption option in barman-cloud
+	Removes the `--encryption` option from the following commands
+	because it was unused:
+
+	* barman-cloud-backup-list
+	* barman-cloud-restore
+	* barman-cloud-wal-restore
+
+	We also update the help string for the same option in the
+	barman-cloud-backup and barman-cloud-wal-archive commands to be
+	clear that the selected encryption is applied at storage time, not
+	transfer time.
+
+	The docs are updated to reflect the changes.
+
+2021-07-21  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Encrypt content of barman-cloud backups on s3
+	Passes the value of the `--encryption` argument to the call to
+	create_multipart_upload as the `ServerSideEncryption` parameter
+	so that the content of barman-cloud backup is encrypted using
+	the same algorithm as used for the `backup.info` file.
+
+	There is a difference in the way the `ServerSideEncryption` is
+	passed to `create_multipart_upload` and to `upload_fileobj`
+	because `upload_fileobj` expects it to be in the `ExtraArgs` dict
+	and `create_multipart_upload` expects it as a keyword argument.
+
+	Refactor get_cloud_interface
+	Refactors get_cloud_interface to accept the config object instead
+	of the individual CloudInterface arguments. The details of
+	creating the right arguments for the cloud interface are now
+	handled within get_cloud_interface rather than the barman-cloud
+	commands.
+
+	Support Azure Blob Service encryption scopes
+	Adds the `--encryption-scope` argument to barman-cloud-backup and
+	barman-cloud-wal-archive. If supplied it is passed on to
+	AzureCloudInterface which will include it in write operations to
+	azure blob storage.
+
+	The value of `--encryption-scope` should be the name of an
+	existing encryption scope in Azure Blob Storage. When an
+	encryption scope is specified the key associated with that scope
+	is used to encrypt the data at rest in Azure Blob Storage. When
+	data is read from Azure Blob Storage the encryption scope is
+	automatically inferred and used to decrypt the data.
+
+	If the encryption scope is disabled then attempts to read data
+	in that scope will fail, as will attempts to write data using the
+	encryption scope.
+
+	Note that enabling and disabling encryption scopes within Azure
+	is an asynchronous operation - it will take some time (anecdotally,
+	several minutes) for the changes to affect the reading and writing
+	of data using those scopes.
+
+2021-07-22  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Fix duplicate test name (#356)
+	Fixes a mis-named test which was causing the build to fail at the
+	flake8 step.
+
+2021-07-21  Jane Threefoot  <jane.threefoot@enterprisedb.com>
+
+	Add -d option to specify database name for barman-cloud-backup
+	barman-cloud-backup needs to connect to Postgres to start/stop the
+	backup, but it doesn't matter which database it connects to. If it runs
+	as the postgres user, it will connect to dbname=postgres by default, and
+	all will be well. But if it runs as another user and cannot connect to a
+	database of the same name, it will fail.
+
+	To handle this case, we are adding the -d option to allow users to
+	specify a database name explicitly.
+
+	Closes #307
+
+2021-07-20  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Tidy up stray comments
+
+2021-07-08  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Allow barman-cloud-wal-archive to run as a post-archive hook script
+	Checks the environment in barman-cloud-wal-archive for hook script
+	variables and if they are present reads the wal path from
+	BARMAN_FILE instead of the command line.
+
+	This allows barman-cloud-wal-archive to be run as a post-archive
+	hook script on the barman server, for cases where users wish to
+	archive WALs to the barman server and from there upload them to
+	cloud storage.
+
+	It is necessary to be careful with the configuration of compression
+	options between barman and barman-cloud as compression can be
+	applied in both places. If this happens then the WALs uploaded to
+	cloud storage will be compressed twice which means
+	barman-cloud-wal-restore will not be able to restore them directly
+	from cloud storage.
+
+2021-07-07  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Allow barman-cloud-backup to run as a hook script
+	Adds a new CloudBackupUploaderBarman class which uploads a
+	pre-existing backup taken by barman. The environment is checked
+	for hook script variables and if they are present the new
+	CloudBackupUploaderBarman class is used instead of the original
+	class which uploads a live backup from a Postgres server (now
+	renamed to CloudBackupUploaderPostgres).
+
+	This allows barman-cloud-backup to be run as a post-backup
+	hook script on the barman server, for cases where users wish to
+	take a backup with barman and then upload it to cloud storage
+	after the fact.
+
+	barman-cloud-backup requires that the backup has status DONE and
+	will error with an ABORT_STOP (exit code 63) if the backup has
+	any other status. This implicitly requires that backups which
+	trigger the barman-cloud-backup hook script are run with the
+	`-w / --wait` flag so that the status is not WAITING_FOR_WALS
+	when the hook script runs.
+
+2021-07-20  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Replace mention of 2Q with EDB in pypi metadata
+
+2021-07-19  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Hold the xlogdb lock while replacing the contents of xlog.db
+	BackupManager.rebuild_xlogdb() would open the server.xlogdb() as fxlogdb
+	and then loop over the files on disk, writing an entry for each one into
+	fxlogdb_new. At the end, it would replace xlog.db with xlog.db.new using
+	shutil.move.
+
+	The problem is that it replaced the old xlog.db after the `with …` block
+	that held ServerXLOGDBLock, which led to the problem reported in #328:
+
+	    The archive-wal process (PID:4011354) was running. (forked from
+	    barman cron)
+
+	    The backup process (PID:4015392) started deleting WAL segments.
+	    (forked from barman backup)
+
+	    This process opened xlog.db (inode: 1613568054) and xlog.db.new
+	    (inode: 7058292408)
+
+	    Then the archive-wal process (PID:4011354) opened xlog.db (inode:
+	    1613568054) and wrote the line of 000000020002E59C000000BF to (old)
+	    xlog.db file.
+
+	Because we replaced xlog.db with xlog.db.new after releasing the lock,
+	the sequence of events above could lose valid new entries in xlog.db.
+
+	The reporter proposed to solve this problem in PR #329 by just calling
+	shutil.move() while holding the lock. The logic is sound, but I did not
+	feel comfortable mixing shutil.move with server.xlogdb's flush/fsync
+	operations on the original fxlogdb fd at the end of the context.
+
+	We don't write to fxlogdb during this loop, only fxlogdb_new, so there
+	should not be a problem in practice with using shutil.move, but I chose
+	to use a slightly different fix, which I found easier to follow:
+
+	1. Convert fxlogdb_new into an unnamed TemporaryFile in the same
+	   directory (which we don't need to worry about removing, nor
+	   about fsync'ing the parent directory afterwards)
+
+	2. Accumulate new entries in fxlogdb_new as before (we don't want to do
+	   this in memory because xlog.db could be large)
+
+	3. At the end of the loop, copy the contents of fxlogdb_new into fxlogdb
+	   directly using shutil.copyfileobj instead of shutil.move; this is the
+	   same function that .move would call, but only after reopening both
+	   source and destination files. (In other words, what we did before
+	   using shutil.move wasn't a rename-based atomic rewrite anyway.)
+
+	The same considerations apply to BackupManager.remove_wal_before_backup,
+	with the added wrinkle that this function used to open xlog.db readonly
+	and read its contents. We change that to r+ and toss in an extra seek
+	at the end before rewriting. We may remove lines from the file, so we
+	must be especially careful to truncate fxlogdb after copying data.
+
+	With this arrangement of the code, it doesn't matter that server.xlogdb
+	would flush/fsync the "old" (== only) fd when exiting the context. The
+	rewrite happens while holding the lock, so it fixes the original bug.
+
+	With thanks to KUWAZAWA Takuya for the report and original analysis.
+
+	Closes #328
+
+2021-07-15  Abhijit Menon-Sen  <ams@2ndQuadrant.com>
+
+	Update the AUTHORS file
+	1. Move the former barman core team members to the "Past contributors"
+	   section and remove their email addresses (we don't want anyone to
+	   write to them about Barman), but retain the role annotations.
+
+	2. Add current maintainers.
+
+	With sincere thanks to all former maintainers and contributors.
+
+	Add py39 to tox list
+
+	Add azure dependencies to tox.ini too
+
+2021-06-28  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Update multiple recovery target options unit test
+	Updates test_recover_multiple_targets so that target_time is used
+	as the extra argument rather than target_tli. This is needed
+	because target_tli is no longer a mutually exclusive option (since
+	fixing #185) therefore cannot trigger the error on specifying
+	multiple recovery targets.
+
+	Fix recovery target option unit tests
+	Fixes the tests for recovery target options by:
+
+	1. Explicitly setting args.target_lsn to None so that it does not
+	   return a MagicMock and cause the code under test to think there
+	   is an extra argument.
+	2. Reading stderr after recover has been called so that the command
+	   output is available in the assert at the end of the tests.
+
+	This resolves some cases where the tests were passing but for the
+	wrong reasons, specifically:
+
+	1. test_recover_multiple_targets was passing even though the test
+	   does not explicitly specify more than one exclusive recovery
+	   target option (target_tli is no longer exclusive).
+	2. test_recover_one_target was passing even though the code under
+	   test was failing due to target_lsn being truthy while
+	   target_immediate was explicitly set.
+	3. test_recover_default_target was passing however because
+	   target_lsn was truthy it was not actually testing the default
+	   behaviour.
+
+2021-07-12  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Be more explicit about multipart upload details
+	Attempts to be clearer about the handling of metadata relating to
+	multipart uploads which can differ between cloud providers.
+
+	The problem is that AWS S3 and Azure Blob Storage have very
+	different interfaces for multipart uploads. AWS S3 requres a new
+	multipart upload session to be created for a particular key. This
+	session is identified by an UploadId returned in a blob of JSON.
+	CloudInterface and CloudTarUploader treat this as an opaque blob,
+	eventually passing it to the methods _upload_part,
+	_complete_multipart_upload and _abort_multipart upload.
+
+	Azure Blob Storage has no such notion of a multipart upload
+	session. Instead blocks are uploaded with a blockid value and then
+	are committed by providing a list of those blockid values. This
+	means there is no need to track any metadata associated with the
+	upload other than the blockid values and the blob key.
+
+	This commit doesn't attempt to fix the underlying problem. Instead
+	it renames `mpu` to `upload_metadata` and updates the docstrings
+	so that it is clear that this is provider-specific metadata which
+	is treated as an opaque blob by CloudInterface.
+
+	References to the part handle are also updated in the docstrings for
+	similar reasons.
+
+2021-07-05  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Add unit tests for barman-cloud azure backend
+	Adds unit tests for the barman-cloud azure backend, following the
+	same pattern used in the S3 cloud interface tests: We do something
+	with the interface and then verify the expected calls were made to
+	the azure SDK.
+
+	Move S3-specific tests to separate classes
+	Moves S3-specific tests (those which are verifying that specific
+	boto3 calls get made in response to certain method calls) into
+	their own classes.
+
+	This means TestCloudInterface is now only verifying the generic
+	code which provides the asynchronous uploading infrastructure, and
+	the newly created class, TestS3CloudInterface, verifies the
+	backend-specific code.
+
+	Similarly, TestWalUploader is now only verifying the generic code
+	which handles reading files from disk and the newly created class,
+	TestWalUploaderS3, verifies the expected backend calls are made.
+
+	This is groundwork for adding azure-specific tests to
+	test_cloud.py and test_barman_cloud_wal_archiver.py.
+
+2021-07-01  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Add Azure Blob Storage support to barman-cloud
+	Adds a new cloud provider, azure_blob_storage, which allows
+	barman-cloud to be used with the Azure blob storage service.
+
+	We aim for parity with the aws_s3 cloud provider, however there are
+	a number of key differences between S3 and Azure blob storage which
+	need to be accounted for:
+
+	1. The Azure equivalent to the S3 multipart upload API works
+	differently. In S3 we create a multipart upload, upload individual
+	parts which each reference the handle for that multipart upload,
+	then finalize the upload by passing a list of all the part IDs
+	along with the multipart upload handle. In Azure the equivalent
+	operation is to upload individual blocks with assigned block ID
+	values. These only need to be associated with the blob key. The
+	upload is finalized by committing a list of all uploaded block IDs.
+	This leads to some oddities in the implementations of the
+	_create_multipart_upload, _upload_part, _complete_multipart_upload
+	and _abort_multipart_upload  abstract methods. Specifically,
+	_create_multipart_upload is a no-op, and the other three methods
+	all accept a multipart upload handle which they ignore entirely.
+
+	2. The equivalent of the boto3 StreamingBody is
+	azure.storage.blob.StorageStreamDownloader. Like StreamingBody this
+	allows us to download large objects as chunks however unlike
+	StreamingBody it does not act like a Python file-like object. We
+	therefore have to fetch chunks ourselves in our own implementation
+	of read() until we have read the requested number of bytes.
+
+	3. Because there is no concept of a multipart upload handle, there
+	is no straightforward way to clean up uploaded blocks when aborting
+	an upload. It is also not possible to delete individual blocks. The
+	only way blocks can be deleted is if they are not committed after
+	7 days (in which case they are automatically deleter), or if the
+	blob is committed and the blck is not included in the block list.
+	We can therefore do some basic clean up in the
+	_abort_multipart_upload implementation by committing an empty
+	block list (to discard all the staged blocks) and then deleting the
+	empty blob.
+
+	4. Azure blob service URIs are ambiguous because of the concept
+	of a root container for a storage account. This means it is not
+	possible to tell when parsing the URI whether the first element of
+	the path is referencing the name of a container or the name of a
+	blob in the root container. We therefore choose not to support
+	implicit root containers and always assume the first item in the
+	URI path is the container name.
+
+	Refactor barman-cloud (6/6): Allow cloud provider to be specified
+	This is commit 6 of 6 where barman-cloud is refactored so that
+	support can be added for additional cloud providers.
+
+	Adds a new argument, --cloud-provider, which determines which
+	subclass of CloudInterface is created. Creation itself is now
+	handled in a factory method which imports the specified
+	CloudInterface on-demand and instantiates it.
+
+	The argument defaults to aws-s3 which is currently the only
+	supported cloud provider.
+
+	Refactor barman-cloud (5/6): Move S3CloudInterface to cloud_providers module
+	This is commit 5 of 6 where barman-cloud is refactored so that
+	support can be added for additional cloud providers.
+
+	Moves S3CloudInterface and associated boto3 code out of
+	barman.cloud and into a new cloud_providers module. This is so
+	that we can conditionally import the dependencies for a
+	specified cloud provider, rather than importing all the
+	dependencies for all supported cloud providers.
+
+2021-06-30  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Refactor barman-cloud (4/6): Make cloud functions generic
+	This is commit 4 of 6 where barman-cloud is refactored so that
+	support can be added for additional cloud providers.
+
+	Replaces S3* functions with cloud-neutral Cloud* alternatives.
+	These are largely the same aside from the names and some
+	documentation because the cloud-specific details were moved to
+	S3CloudInterface in the previous two commits.
+
+	Refactor barman-cloud (3/6): Make constants class properties
+	This is commit 3 of 6 where barman-cloud is refactored so that
+	support can be added for additional cloud providers.
+
+	Moves the constants which define limits around archive size and
+	chunk size into CloudInterface as class properties. This removes
+	the last cloud provider details from the classes which use
+	CloudInterface.
+
+	CloudInterface subclasses must now define their own values for
+	MAX_CHUNKS_PER_FILS, MIN_CHUNK_SIZE and MAX_ARCHIVE_SIZE. These
+	should be based on recommendations in the relevant documentation
+	for the cloud storage provider.
+
+2021-06-29  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Refactor barman-cloud (2/6): Reorder CloudInterface methods
+	This is commit 2 of 6 where barman-cloud is refactored so that
+	support can be added for additional cloud providers.
+
+	Reorders methods in CloudInterface with the intention of making it
+	easier to read for maintainers adding support for additional cloud
+	providers.
+
+	The new order is as follows:
+
+	1. Methods relating to the asynchronous concurrent upload of object
+	   parts are first.
+	2. Boilerplate methods for interacting with buckets and exposing
+	   objects as a tarfile follow.
+	3. Finally, the abstract methods which must be implemented by
+	   sub-classes.
+
+	The implementation of the abstract methods in S3CloudInterface
+	follows the same order as in CloudInterface.
+
+	Refactor barman-cloud (1/6): Generalise CloudInterface
+	This is commit 1 of 6 where barman-cloud is refactored so that
+	support can be added for additional cloud providers.
+
+	Generalises CloudInterface into an abstract base class which
+	provides the logic for asynchronously uploading large objects
+	concurrently as well as some boilerplate for interacting with
+	cloud storage.
+
+	The methods which interact directly with the cloud privider are
+	replaced with @abstractmethod stubs which must be implemented by
+	each provider-specific subclass.
+
+	The only current provider-specific subclass is S3CloudInterface
+	which now contains all the S3-specific logic previously found in
+	CloudInterface.
+
+	For the most part this commit simply moves chunks of code around
+	however the following changes were necessary to get a clean
+	separation between CloudInterface and the S3 implementation
+	details:
+
+	1. A new abstractmethod, _create_bucket, provides a home for the
+	   provider-specific bucket creation logic. This allows us to
+	   keep the "check bucket exists, create if it doesn't exist,
+	   set the bucket_exists flag" boilerplate in setup_bucket.
+	2. The extract_tar method now uses remote_open instead of
+	   calling S3 directly so that it can remain in CloudInterface
+	   and be re-used. This means we're now passing StreamingBodyIO
+	   (the wrapper around the boto3 StreamingBody) into tarfile
+	   however I don't see any downsides to doing so.
+	3. A new abstractmethod, reinit_session, provides a generic means
+	   for worker_process_main to reinitialise any session related
+	   resources it gets from its parent process.
+
+	We also make the following CloudInterfaces methods protected
+	(previously they were public but nothing is calling them
+	outside of CloudInterface):
+
+	* abort
+	* worker_process_main
+	* worker_process_execute_job
+	* check_bucket_existence
+	* upload_part
+	* complete_multipart_upload
+	* abort_multipart_upload
+
+2021-07-12  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Enable autocommit for all postgres connections
+	Sets `autocommit = True` for PostgreSQLConnection.
+
+	This prevents the following situation from arising:
+
+	1. Barman starts a backup by SELECTing from pg_start_backup and
+	   immediately rolls back the transaction.
+	2. Barman starts a new transaction to retrieve the server
+	   version.
+	3. The transaction is left open putting the session into an
+	   idle-in-transaction state.
+	4. The backup lasts longer than the value of
+	   idle_in_transaction_session_timeout and fails because the
+	   session is terminated.
+
+	We used to do explicit transaction management without actually needing
+	transactions for anything. The only meaningful use of conn.rollback()
+	was to ensure that we did not leave a long-running idle transaction
+	after issuing pg_start_backup(), because we need to keep the session
+	around to issue pg_stop_backup() later.
+
+	We did not ever make changes and commit a transaction, nor did we make
+	changes and roll them back—in fact, other than issuing the CHECKPOINT
+	command or calling pg_{start,stop}_backup(), we never made any changes.
+	So the various calls to rollback() were an elaborate attempt to avoid
+	leaving idle transactions, which nevertheless did not quite succeed (in
+	the situation described above).
+
+	Using the context manager to avoid leaking transactions worked, but had
+	its own drawbacks because of changes in psycopg2 2.9, as described in
+	an earlier commit message. It's simpler to set autocommit=True and let
+	each statement be its own implicit transaction: this guarantees that we
+	don't leave any "idle in transaction" sessions.
+
+	We already set autocommit=True in StreamingConnection, because those
+	don't support transaction management anyway.
+
+	(We ought to be able to get rid of a lot of rollback handling on the
+	basis of this change, but this commit does not do so.)
+
+	Revert "Stop backups failing due to idle transactions (#340)"
+	This reverts commit c9655da43bded9524596656460709d37af32c8da.
+
+	Reverting because the commit introduced the following behaviour:
+
+	1. Recursive entering of context managers (e.g., the call to
+	   has_backup_privileges in switch_wal)
+	2. Using autocommit=True (for StreamingConnection) inside a
+	   connection context manager
+
+	These both resulted in undefined behaviour with psycopg2 < 2.9
+	however since the following commit they now cause exceptions:
+
+	   https://github.com/psycopg/psycopg2/commit/e5ad0ab2d91310ac8e3fff534311a135502fff61
+
+	Our commit is therefore reverted to prevent barman from breaking
+	with psycopg2 >=2.9 and we will resolve issue #333 another way.
+
+2021-07-09  Michael Wallace  <michael.wallace@enterprisedb.com>
+
+	Stop backups failing due to idle transactions (#340)
+	Uses the psycopg2 connection context manager so that transactions
+	are committed when barman uses the connection to interact with
+	postgres for reasons other than starting or stopping the backup.
+	
+	This prevents the following situation from arising:
+	
+	1. Barman starts a backup by SELECTing from pg_start_backup and
+	   immediately rolls back the transaction.
+	2. Barman starts a new transaction to retrieve the server
+	   version.
+	2. The transaction is left open putting the session into an
+	   idle-in-transaction state.
+	3. The backup lasts longer than the value of
+	   idle_in_transaction_session_timeout and fails because the
+	   session is terminated.
+	
+	Because this patch ensures such transactions are committed,
+	via the psycopg2 connection context manager, such transactions
+	are no longer held open during the backup.
+	
+	Note that in cases where we do not call `self.connect()` directly,
+	a new context manager is added around the `_cursor` property in
+	barman.postgres.PostgreSQL which uses with-statement to enter the
+	connection context manager and then yields the cursor context
+	manager. When the cursor context manager exits, the connection
+	context manager will also exit. It is not sufficient to just use
+	the cursor context manager as this does not commit transactions.
+	
+	See https://www.psycopg.org/docs/usage.html#with-statement for
+	more details.
+	
+	The context manager is deliberately avoided for the functions
+	which call either `pg_{start,stop}_backup` or
+	`pgespresso_{start,stop}_backup` as these manage transactions
+	themselves by explicitly calling `rollback`.
+	
+	Closes #333
+
 2021-06-30  Michael Wallace  <michael.wallace@enterprisedb.com>
 
 	Update the ChangeLog file
@@ -126,11 +866,11 @@
 
 	Version set to 2.12
 
-2020-10-30  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2020-10-31  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Release notes for 2.12
 
-2020-10-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2020-10-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Avoid corrupting boto connection in worker processes
 
@@ -256,7 +996,7 @@
 	Fix bug in XLOG/WAL arithmetic with custom segment size
 	Fixes GH-287
 
-2020-05-28  Mark Wong  <mark@2ndQuadrant.com>
+2020-05-29  Mark Wong  <mark@2ndQuadrant.com>
 
 	Add text about immediate checkpoints
 	There previously was a section "Immediate Checkpoint" but not
@@ -276,7 +1016,7 @@
 
 	Closes GH-271 and GH-213
 
-2020-05-17  Andrew Dunstan  <andrew.dunstan@2ndquadrant.com>
+2020-05-18  Andrew Dunstan  <andrew.dunstan@2ndquadrant.com>
 
 	Ensure each postgres connection has an empty search_path
 	This is the only safe option when we have no information about how
@@ -320,7 +1060,7 @@
 	Improved the way we check which files to restore from S3 for
 	`barman-cloud-wal-archive`
 
-2020-01-27  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2020-01-28  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Fix rsync compatibility error with recent rsync
 	Using `--ignore-missing-args` could fail in case
@@ -353,7 +1093,7 @@
 
 	Strip leading '/' from CloudInterface.path
 
-2020-01-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2020-01-03  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Rename CloudInterface.destination_url to a more generic `url`
 
@@ -421,7 +1161,7 @@
 
 	Fix WAL file name validation in barman-cloud-walarchive
 
-2019-11-27  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2019-11-28  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Fix issue with list-server and empty description
 	Fixes GH-242
@@ -467,15 +1207,13 @@
 
 	The patch includes `--wait-timeout` option (default 0, no timeout)
 
-2019-11-12  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2019-11-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Automated creation of replication slots
 	Introduce the `create_slot` option with two possible values:
 	`auto` and `manual` (default, for back-compatibility).
 	When set to `auto`, Barman automatically attemps to create the
 	replication slot defined by the `slot_name` option.
-
-2019-11-13  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Setup the bucket in the region specified in the AWS profile
 
@@ -655,7 +1393,7 @@
 	* Improve Python 3 support
 	* Do not close a fileobj passed to save()
 
-2019-10-21  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2019-10-22  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Mention `wal_level = logical` in documentation
 
@@ -993,7 +1731,7 @@
 
 	Support psycopg2 2.8 in unit tests
 
-2019-04-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2019-04-03  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Collect more PostgreSQL settings during get_remote_status()
 	Added settings are:
@@ -1094,11 +1832,11 @@
 
 	Prepare release 2.6
 
-2019-01-30  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+2019-01-31  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
 
 	Fix flake8 errors
 
-2019-01-29  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2019-01-30  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Improved documentation on geo-redundancy
 	Contains also minor fixes and typos fixes
@@ -1123,7 +1861,7 @@
 	Geo-redundancy is asynchronous and based on SSH connections between
 	Barman servers. Cascading backup is supported.
 
-2019-01-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2019-01-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Implement put-wal command
 
@@ -1146,7 +1884,7 @@
 
 	Fix typo: consistencty → consistency
 
-2018-11-23  Martín Marqués  <martin.marques@2ndquadrant.com>
+2018-11-24  Martín Marqués  <martin.marques@2ndquadrant.com>
 
 	Typo in NEWS file refering to xlogdb
 
@@ -1266,7 +2004,7 @@
 
 	Pin py<1.6.0 to keep 2.6 support
 
-2018-08-02  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2018-08-03  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Fix decoding errors reading external commands output
 	Completed the fix started in commit f14e405e9b36de912899d0735563eed76f479164
@@ -1278,7 +2016,7 @@
 
 	Pin pytest-timeout<1.2.1 to continue supporting Python 2.6
 
-2018-05-23  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2018-05-24  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
 
@@ -1388,7 +2126,7 @@
 	make 'barman recover' generate the recovery.conf file even if the
 	get-wal and PITR are not active.
 
-2018-01-12  Todd Seidelmann  <seidelma@wharton.upenn.edu>
+2018-01-13  Todd Seidelmann  <seidelma@wharton.upenn.edu>
 
 	Add hook script for recovery
 	The list of new hook scripts is:
@@ -1501,13 +2239,15 @@
 
 	Fix missing documentation in MANIFEST.in
 
-2017-12-19  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2017-12-20  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Improve documentation for pg_receivewal/pg_receivexlog
 
-2018-02-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2018-02-07  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Pin wheel package on python 2.6 to avoid build failures
+
+2018-02-06  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Fix error reported by latest version of flake8-isort
 
@@ -1552,7 +2292,7 @@
 	Add '--wal-method=none' when pg_basebackup >= 10
 	Fixes #133
 
-2017-10-03  Flavio Curella  <flavio.curella@gmail.com>
+2017-10-04  Flavio Curella  <flavio.curella@gmail.com>
 
 	fix typo in hooks docs
 
@@ -1576,7 +2316,7 @@
 
 	Fix some stylistic issues raised by flake8
 
-2017-10-18  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2017-10-19  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Add Postgres 10 to feature matrix (docs)
 
@@ -1616,6 +2356,8 @@
 	In commands output, the `xlog` word has been changed to `WAL` and
 	`location` has been changed to `LSN` when appropriate.
 
+2017-08-31  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+
 	Improve documentation about recovery target
 
 2017-08-29  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
@@ -1654,7 +2396,7 @@
 
 	Fix exception during exclusive backup with PostgreSQL 10
 
-2017-08-01  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2017-08-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Add `--network-compression` option to remote recovery
 	Enable/disable network compression at run-time to remote recovery
@@ -1704,12 +2446,16 @@
 
 	Improve travis integration
 
+2017-07-22  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+
 	Fix unit test for FileWalArchiver to work with Python 3.6
 	Python 3.6 is stricter about what the `os.path.join` function can
 	receive as input. This change has highlighted missing prerequisite
 	setting in the FileWalArchiver.archive test.
 
 	Set version 2.3a1
+
+2017-07-21  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Fix exception in `barman get-wal --peek` requiring history files
 
@@ -1751,7 +2497,7 @@
 	system when integrated in an alerting/monitoring infrastructure,
 	by warning users in case Barman is not archiving fast enough.
 
-2017-07-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2017-07-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Fix missing mock in test_pg_stat_archiver_status
 
@@ -1879,7 +2625,7 @@
 
 	Fix .gitignore syntax under sphinx directory
 
-2017-05-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2017-05-13  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Update TODO
 
@@ -1982,7 +2728,7 @@
 
 	Improve log messages when a backup fails
 
-2017-02-27  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2017-02-28  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Improve log message for streaming connections
 	Add the server name in log messages when opening
@@ -1996,7 +2742,7 @@
 	When a Postgres cursor is required, issue a 'SELECT 1'
 	query to check that connection is properly working.
 
-2017-02-01  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2017-02-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Cosmetic change in documentation
 
@@ -2211,7 +2957,7 @@
 
 	Update sphinx index page
 
-2016-09-26  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2016-09-27  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Set version 2.1a1
 
@@ -2261,7 +3007,7 @@
 	Add a Windows server section in the "Setup a new server in Barman"
 	chapter.
 
-2016-09-21  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
+2016-09-22  Leonardo Cecchi  <leonardo.cecchi@2ndquadrant.it>
 
 	Fix wrongly named max_replication_slots configuration parameter
 
@@ -2269,7 +3015,7 @@
 
 	Update the ChangeLog file
 
-2016-09-19  csawyerYumaed  <csawyer@yumaed.org>
+2016-09-20  csawyerYumaed  <csawyer@yumaed.org>
 
 	Improve barman(5) manual page, adding conninfo
 	Add additional information to documentation around conninfo.
@@ -2510,9 +3256,11 @@
 	This enables barman-wal-restore.py to be used if the Barman
 	server uses a non-default configuration file.
 
-2016-09-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2016-09-03  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Add slot name to `replication-status` (PostgreSQL 9.5+)
+
+2016-09-02  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Handle PostgresConnectionError exception differently
 	Changed the way PostgresConnectionError works, in order
@@ -2540,7 +3288,7 @@
 	This patch introduces the use of the RsyncCopyController
 	inside the recovery_executor.py module.
 
-2016-08-31  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2016-09-01  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Add Config.get_bwlimit() public method
 	Move the private method _bwlimit() from RsyncBackupExecutor
@@ -3064,7 +3812,7 @@
 
 	Fix traceback for switch-xlog with unknown server
 
-2016-05-09  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2016-05-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Avoid logging tracebacks during WAL files deletion
 	During WAL files deletion, if the target file doesn't exists,
@@ -3185,7 +3933,7 @@
 	During backup command, the PostgreSQL connections are closed as soon as
 	they are no longer needed.
 
-2016-03-15  Leonardo Cecchi  <leonardo.cecchi@gmail.com>
+2016-03-16  Leonardo Cecchi  <leonardo.cecchi@gmail.com>
 
 	Make Barman unit tests remove temporary folders
 	During the recovery executor unit tests, Barman was leaving a few
@@ -3203,7 +3951,7 @@
 
 	Fix warning notices during sphinx execution
 
-2016-03-12  Christoph Moench-Tegeder  <christoph@2ndquadrant.de>
+2016-03-13  Christoph Moench-Tegeder  <christoph@2ndquadrant.de>
 
 	Mark "failed backups" check as non-fatal
 	Allow taking a new backup in case of presence of failed backups.
@@ -3228,7 +3976,7 @@
 
 	Small comment fix in scripts/barman-wal-restore
 
-2016-03-04  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2016-03-05  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Set version to 1.6.1a1
 
@@ -3296,7 +4044,7 @@
 	All the incompatible constructs were rewritten to support both Python 2.x
 	and 3.x. Previously we were running 2to3 during the setup execution.
 
-2016-02-16  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2016-02-17  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Add Leonardo Cecchi to authors
 
@@ -3318,7 +4066,7 @@
 	Enhance test coverage for the wal_archiver module
 	Remove the unused 'is_wal_relevant' method as well.
 
-2016-02-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2016-02-13  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Add section about contributing for Barman
 
@@ -3455,7 +4203,7 @@
 	The implementation is based on the new class ProcessManager that will be
 	used in the future to manage all barman's sub-processes.
 
-2016-01-24  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2016-01-25  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Add current data size of the server in 'barman status'
 
@@ -3488,7 +4236,7 @@
 
 	Add include sorting check in tox flake8 environment
 
-2015-12-05  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+2015-12-06  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
 
 	Implement pygzip and pybzip2 compressors
 	The new pygzip and pybzip2 compressors are implemented using Python's
@@ -3759,7 +4507,7 @@
 	create an implicit restore point using the pg_create_restore_point()
 	function.
 
-2015-11-11  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2015-11-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Set version to 1.6.0a1
 
@@ -3780,7 +4528,7 @@
 
 	Converted sphinx directory README to Markdown
 
-2015-11-10  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2015-11-11  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Pin (temporarily) pytest-catchlog to version 1.1
 	The pytest-catchlog release 1.2.0 broke Python 2.6 compatibility, so pin
@@ -3862,7 +4610,7 @@
 	Additionally, skip any missing tablespace directory during the deletion
 	of a backup (like we already do with missing pgdata directory)
 
-2015-10-20  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2015-10-21  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Fix more incorrect mock assert calls in unit tests
 	Add flake8-mock plugin in flake8 tox environment to make sure it will
@@ -3986,7 +4734,7 @@
 
 	Manage options without '=' in PostgreSQL configuration files
 
-2015-08-18  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2015-08-19  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Allow 'pre' retry hook scripts to stop the command
 	Add EXIT_ABORT_STOP (63) and EXIT_ABORT_CONTINUE (62) exit codes
@@ -4902,7 +5650,7 @@
 
 	Use a Tablespace object to carry tablespace information
 
-2014-03-26  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
+2014-03-27  Giulio Calacoci  <giulio.calacoci@2ndquadrant.it>
 
 	Protect during recovery tablespaces inside PGDATA
 	* When performing a recovery operation, tablespaces that will be recovered
@@ -5147,7 +5895,7 @@
 
 	Added /etc/barman/barman.conf as default location
 
-2013-03-13  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2013-03-14  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Removed duplicate message for previous backup in show command
 
@@ -5269,9 +6017,11 @@
 
 	Started version 1.2.0
 
-2012-12-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
+2012-12-05  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Fix unit config tests
+
+2012-12-04  Marco Nenciarini  <marco.nenciarini@2ndquadrant.it>
 
 	Update the ChangeLog file
 
@@ -5359,7 +6109,7 @@
 
 	Remove unused imports from cli.py
 
-2012-10-11  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2012-10-12  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Updated version to 1.1.0
 
@@ -5375,7 +6125,7 @@
 
 	Make current_action an attribute of BackupManager class
 
-2012-10-08  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
+2012-10-09  Gabriele Bartolini  <gabriele.bartolini@2ndQuadrant.it>
 
 	Added ticket #10 to NEWS
 
