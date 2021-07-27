@@ -31,7 +31,7 @@ Web resources
 -------------
 
 -  Website : http://www.pgbarman.org/
--  Download : http://sourceforge.net/projects/pgbarman/files/
+-  Download : http://github.com/EnterpriseDB/barman
 -  Documentation : http://www.pgbarman.org/documentation/
 -  Man page, section 1 : http://docs.pgbarman.org/barman.1.html
 -  Man page, section 5 : http://docs.pgbarman.org/barman.5.html

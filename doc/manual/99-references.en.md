@@ -33,7 +33,7 @@
   [azure-storage-blob]: https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python
 
 
-  [3]: https://sourceforge.net/projects/pgbarman/files/
+  [3]: http://github.com/EnterpriseDB/barman
   [8]: http://en.wikipedia.org/wiki/Hard_link
   [9]: https://github.com/2ndquadrant-it/pgespresso
   [11]: http://www.pgbarman.org/
