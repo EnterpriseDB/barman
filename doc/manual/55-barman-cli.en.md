@@ -66,8 +66,13 @@ and can be installed alongside the PostgreSQL server:
 - `barman-cloud-restore`: script to be used to restore a backup directly
   taken with `barman-cloud-backup` from an S3 object store;
 
-For information on how to setup credentials for the Cloud utilities,
+For information on how to setup credentials for the aws-s3 cloud provider
 please refer to the ["Credentials" section in Boto 3 documentation][boto3creds].
+
+For credentials for the azure-blob-storage cloud provider see the
+["Environment variables for authorization parameters" section in the Azure documentation][azure-storage-auth].
+The following environment variables are supported: `AZURE_STORAGE_CONNECTION_STRING`,
+`AZURE_STORAGE_KEY` and `AZURE_STORAGE_SAS_TOKEN`.
 
 > **WARNING:** Cloud utilities require the appropriate library for the cloud
 > provider you wish to use - either: [boto3][boto3] or

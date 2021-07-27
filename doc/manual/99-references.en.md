@@ -31,6 +31,7 @@
   [boto3creds]: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
   [azure-identity]: https://docs.microsoft.com/en-us/python/api/azure-identity/?view=azure-python
   [azure-storage-blob]: https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python
+  [azure-storage-auth]: https://docs.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters
 
 
   [3]: http://github.com/EnterpriseDB/barman
