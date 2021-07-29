@@ -20,8 +20,9 @@ need to use `postgres` as your backup method:
 backup_method = postgres
 ```
 
-> **IMPORTANT:** keep in mind that if the WAL archiving is not
-> currently configured, you will not be able to start a backup.
+> **IMPORTANT:** You will not be able to start a backup if WAL is not
+> being correctly archived to Barman, either through the `archiver` or
+> the `streaming_archiver`
 
 To check if the server configuration is valid you can use the `barman
 check` command:
