@@ -80,9 +80,10 @@ It is possible to limit the usage of I/O bandwidth through the
 maximum number of kilobytes per second. By default it is set to 0,
 meaning no limit.
 
-> **IMPORTANT:** the `bandwidth_limit` and the
-> `tablespace_bandwidth_limit` options are not supported with the
-> `postgres` backup method
+> **IMPORTANT:** the `bandwidth_limit` option is supported with the
+> `postgres` backup method for Postgres 9.4 and above, but the
+> `tablespace_bandwidth_limit` option is available only if you use
+> `rsync`
 
 In case you have several tablespaces and you prefer to limit the I/O
 workload of your backup procedures on one or more tablespaces, you can
