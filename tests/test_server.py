@@ -397,7 +397,7 @@ class TestServer(object):
         server = build_real_server()
         server.check_postgres(strategy)
         (out, err) = capsys.readouterr()
-        assert out == "\tPostgreSQL: OK\n" "\twal_level: OK\n"
+        assert out == "\tPostgreSQL: OK\n\twal_level: OK\n"
 
         # Postgres version < 9.0 - avoid wal_level check
         del postgres_mock.return_value["wal_level"]
@@ -1677,7 +1677,7 @@ class TestServer(object):
         strategy = CheckOutputStrategy()
         server.check_identity(strategy)
         (out, err) = capsys.readouterr()
-        assert out == "\tsystemid coherence: OK " "(no system Id available)\n"
+        assert out == "\tsystemid coherence: OK (no system Id available)\n"
         assert not os.path.exists(server.get_identity_file_path())
 
         # Second case: we have the systemid from the PostgreSQL connection,
@@ -1689,7 +1689,7 @@ class TestServer(object):
         strategy = CheckOutputStrategy()
         server.check_identity(strategy)
         (out, err) = capsys.readouterr()
-        assert out == "\tsystemid coherence: OK " "(no system Id stored on disk)\n"
+        assert out == "\tsystemid coherence: OK (no system Id stored on disk)\n"
         assert not os.path.exists(server.get_identity_file_path())
 
         # Third case: we don't have the systemid from the PostgreSQL
@@ -1702,7 +1702,7 @@ class TestServer(object):
         strategy = CheckOutputStrategy()
         server.check_identity(strategy)
         (out, err) = capsys.readouterr()
-        assert out == "\tsystemid coherence: OK " "(no system Id stored on disk)\n"
+        assert out == "\tsystemid coherence: OK (no system Id stored on disk)\n"
         assert not os.path.exists(server.get_identity_file_path())
 
         # Forth case: we have the streaming and the normal connection, and
@@ -1714,7 +1714,7 @@ class TestServer(object):
         strategy = CheckOutputStrategy()
         server.check_identity(strategy)
         (out, err) = capsys.readouterr()
-        assert out == "\tsystemid coherence: OK " "(no system Id stored on disk)\n"
+        assert out == "\tsystemid coherence: OK (no system Id stored on disk)\n"
         assert not os.path.exists(server.get_identity_file_path())
 
         # Fifth case: the systemid from the streaming connection and the

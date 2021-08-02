@@ -506,7 +506,7 @@ class TestRsyncBackupExecutor(object):
         backup_manager.executor.backup_copy(backup_info)
         out, err = capsys.readouterr()
         # check for the presence of the warning in the stderr
-        assert ("WARNING: The usage of include directives " "is not supported") in err
+        assert ("WARNING: The usage of include directives is not supported") in err
         # check that the additional configuration file is present in the output
         assert backup_info.included_files[0] in err
 
@@ -539,9 +539,7 @@ class TestRsyncBackupExecutor(object):
         backup_manager.executor.backup_copy(backup_info)
         out, err = capsys.readouterr()
         # check for the presence of the warning in the stderr
-        assert (
-            "WARNING: The usage of include directives " "is not supported"
-        ) not in err
+        assert ("WARNING: The usage of include directives is not supported") not in err
 
 
 # noinspection PyMethodMayBeStatic
@@ -736,9 +734,7 @@ class TestStrategy(object):
         assert backup_info.end_offset == 10231544
         assert backup_info.end_time == stop_time
 
-    @patch(
-        "barman.backup_executor.LocalConcurrentBackupStrategy." "_write_backup_label"
-    )
+    @patch("barman.backup_executor.LocalConcurrentBackupStrategy._write_backup_label")
     def test_pgespresso_stop_backup(self, tbs_map_mock):
         """
         Basic test for the pgespresso_stop_backup method
@@ -765,9 +761,7 @@ class TestStrategy(object):
         assert backup_info.end_offset == 0xFFFFFF
         assert backup_info.end_time == stop_time
 
-    @patch(
-        "barman.backup_executor.LocalConcurrentBackupStrategy." "_write_backup_label"
-    )
+    @patch("barman.backup_executor.LocalConcurrentBackupStrategy._write_backup_label")
     def test_concurrent_stop_backup(self, tbs_map_mock):
         """
         Basic test for the stop_backup method for 9.6 concurrent api

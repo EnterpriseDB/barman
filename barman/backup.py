@@ -919,7 +919,7 @@ class BackupManager(RemoteStatusMixin):
                             fxlogdb_new.write(wal_info.to_xlogdb_line())
                         else:
                             _logger.warning(
-                                "unexpected file " "rebuilding the wal database: %s",
+                                "unexpected file rebuilding the wal database: %s",
                                 fullname,
                             )
                 fxlogdb_new.flush()

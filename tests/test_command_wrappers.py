@@ -1514,7 +1514,7 @@ class TestBarmanSubProcess(object):
         assert (
             "barman.command_wrappers",
             DEBUG,
-            "BarmanSubProcess: subprocess started. " "pid: 12345",
+            "BarmanSubProcess: subprocess started. pid: 12345",
         ) in caplog.record_tuples
 
 

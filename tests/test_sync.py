@@ -395,12 +395,12 @@ class TestSync(object):
             backup_name,
         )
         logger_mock.info.assert_any_call(
-            "Synchronising with server %s backup %s: step 2/3: " "file copy",
+            "Synchronising with server %s backup %s: step 2/3: file copy",
             server_name,
             backup_name,
         )
         logger_mock.info.assert_any_call(
-            "Synchronising with server %s backup %s: step 3/3: " "finalise sync",
+            "Synchronising with server %s backup %s: step 3/3: finalise sync",
             server_name,
             backup_name,
         )
@@ -445,9 +445,7 @@ class TestSync(object):
         # Check the stderr using capsys. we need only the first line
         # from stderr
         e = err.split("\n")
-        assert (
-            "ERROR: failure syncing server main " "backup 1234567890: TestFailure" in e
-        )
+        assert "ERROR: failure syncing server main backup 1234567890: TestFailure" in e
 
         # Test 5: Backup already synced
         # Check for the warning message on the stout using capsys
@@ -462,7 +460,7 @@ class TestSync(object):
         server.sync_backup(backup_name)
         assert not rsync_mock.called
         (out, err) = capsys.readouterr()
-        assert out.strip() == "Backup 1234567890 is already" " synced with main server"
+        assert out.strip() == "Backup 1234567890 is already synced with main server"
 
     @mock.patch("barman.server.Rsync")
     def test_sync_wals(self, rsync_mock, tmpdir, capsys):
@@ -524,7 +522,7 @@ class TestSync(object):
         server.sync_wals()
         (out, err) = capsys.readouterr()
 
-        assert "WARNING: No base backup for " "server %s" % server.config.name in err
+        assert "WARNING: No base backup for server %s" % server.config.name in err
 
         # Test 4: No wal synchronisation required, expect a warning
 

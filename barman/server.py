@@ -297,7 +297,7 @@ class Server(RemoteStatusMixin):
                     _logger.debug(e)
                     self.config.disabled = True
                     self.config.msg_list.append(
-                        "Unable to initialise the " "streaming archiver"
+                        "Unable to initialise the streaming archiver"
                     )
 
             # IMPORTANT: The following lines of code have been
@@ -367,7 +367,7 @@ class Server(RemoteStatusMixin):
                     _logger.debug(e)
                     self.config.disabled = True
                     self.config.msg_list.append(
-                        "Unable to initialise the " "file based archiver"
+                        "Unable to initialise the file based archiver"
                     )
 
         # Set bandwidth_limit
@@ -684,7 +684,7 @@ class Server(RemoteStatusMixin):
             return
         check_strategy.init_check("%s WALs directory" % dir_name)
         if file_count > max_incoming_wal:
-            msg = "there are too many WALs in queue: " "%s, max %s" % (
+            msg = "there are too many WALs in queue: %s, max %s" % (
                 file_count,
                 max_incoming_wal,
             )
@@ -732,7 +732,7 @@ class Server(RemoteStatusMixin):
             if remote_status["streaming_supported"] is None:
                 hint = remote_status["connection_error"]
             elif not remote_status["streaming_supported"]:
-                hint = "Streaming connection not supported" " for PostgreSQL < 9.2"
+                hint = "Streaming connection not supported for PostgreSQL < 9.2"
             check_strategy.result(
                 self.config.name, remote_status.get("streaming"), hint=hint
             )
@@ -1968,7 +1968,7 @@ class Server(RemoteStatusMixin):
                     # Subdirectories are not supported
                     if "/" in name:
                         output.error(
-                            "Unsupported filename '%s' " "in put-wal for server '%s'%s",
+                            "Unsupported filename '%s' in put-wal for server '%s'%s",
                             name,
                             self.config.name,
                             source_suffix,
@@ -2188,7 +2188,7 @@ class Server(RemoteStatusMixin):
             ):
                 # Output and release the lock immediately
                 output.info(
-                    "Starting streaming archiver " "for server %s",
+                    "Starting streaming archiver for server %s",
                     self.config.name,
                     log=False,
                 )
@@ -2643,7 +2643,7 @@ class Server(RemoteStatusMixin):
                 return
         if fail_if_not_present:
             output.error(
-                "Termination of %s failed: " "no such process for server %s",
+                "Termination of %s failed: no such process for server %s",
                 task,
                 self.config.name,
             )
@@ -2752,7 +2752,7 @@ class Server(RemoteStatusMixin):
         else:
             if wal_file:
                 output.error(
-                    "The WAL file %s has not been received " "in %s seconds",
+                    "The WAL file %s has not been received in %s seconds",
                     wal_file,
                     archive_timeout,
                 )
@@ -3108,7 +3108,7 @@ class Server(RemoteStatusMixin):
                     )
             except LockFileBusy:
                 output.info(
-                    "WAL synchronisation already running" " for server %s",
+                    "WAL synchronisation already running for server %s",
                     self.config.name,
                     log=False,
                 )
@@ -3683,7 +3683,7 @@ class Server(RemoteStatusMixin):
                     self.write_sync_wals_info_file(primary_info)
 
                 except CommandFailedException as e:
-                    msg = "WAL synchronisation for server %s " "failed: %s" % (
+                    msg = "WAL synchronisation for server %s failed: %s" % (
                         self.config.name,
                         e,
                     )
@@ -3697,14 +3697,14 @@ class Server(RemoteStatusMixin):
                     if not msg_lines:
                         msg_lines = [type(e).__name__]
                     output.error(
-                        "WAL synchronisation for server %s " "failed with: %s\n%s",
+                        "WAL synchronisation for server %s failed with: %s\n%s",
                         self.config.name,
                         msg_lines[0],
                         "\n".join(msg_lines[1:]),
                     )
         except LockFileException:
             output.error(
-                "Another sync-wal operation is running " "for server %s ",
+                "Another sync-wal operation is running for server %s ",
                 self.config.name,
             )
 

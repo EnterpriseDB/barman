@@ -295,7 +295,7 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
                         report[bid] = BackupInfo.OBSOLETE
                 else:
                     _logger.debug(
-                        "Reporting backup %s for server %s as VALID " "(newer than %s)",
+                        "Reporting backup %s for server %s as VALID (newer than %s)",
                         bid,
                         self.server.config.name,
                         self._point_of_recoverability(),

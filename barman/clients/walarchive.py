@@ -184,12 +184,12 @@ def parse_arguments(args=None):
     parser.add_argument(
         "server_name",
         metavar="SERVER_NAME",
-        help="The server name configured in Barman " "from which WALs are taken.",
+        help="The server name configured in Barman from which WALs are taken.",
     )
     parser.add_argument(
         "wal_path",
         metavar="WAL_PATH",
-        help="The value of the '%%p' keyword " "(according to 'archive_command').",
+        help="The value of the '%%p' keyword (according to 'archive_command').",
     )
     return parser.parse_args(args=args)
 

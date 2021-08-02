@@ -201,9 +201,7 @@ class RecoveryExecutor(object):
         try:
             recovery_info["cmd"].create_dir_if_not_exists(dest)
         except FsOperationFailed as e:
-            output.error(
-                "unable to initialise destination directory " "'%s': %s", dest, e
-            )
+            output.error("unable to initialise destination directory '%s': %s", dest, e)
             output.close_and_exit()
 
         # Initialize tablespace directories
@@ -324,7 +322,7 @@ class RecoveryExecutor(object):
             recovery_info["cmd"].create_dir_if_not_exists(archive_status_dir)
         except FsOperationFailed as e:
             output.error(
-                "unable to create the archive_status directory " "'%s': %s",
+                "unable to create the archive_status directory '%s': %s",
                 archive_status_dir,
                 e,
             )
@@ -417,7 +415,7 @@ class RecoveryExecutor(object):
                 )
             except FsOperationFailed:
                 output.error(
-                    "Unable to connect to the target host using the command " "'%s'",
+                    "Unable to connect to the target host using the command '%s'",
                     remote_command,
                 )
                 output.close_and_exit()
@@ -565,7 +563,7 @@ class RecoveryExecutor(object):
 
             if target_action:
                 raise RecoveryTargetActionException(
-                    "Can't enable recovery target action when PITR " "is not required"
+                    "Can't enable recovery target action when PITR is not required"
                 )
 
         recovery_info["target_epoch"] = target_epoch
@@ -612,14 +610,14 @@ class RecoveryExecutor(object):
             # on destination directory
             safe_horizon = None
             _logger.warning(
-                "Unable to retrieve safe horizon time " "for smart rsync copy: %s", e
+                "Unable to retrieve safe horizon time for smart rsync copy: %s", e
             )
         except Exception as e:
             # Same as above, but something failed decoding .barman-recover.info
             # or comparing times, so log the full traceback
             safe_horizon = None
             _logger.exception(
-                "Error retrieving safe horizon time " "for smart rsync copy: %s", e
+                "Error retrieving safe horizon time for smart rsync copy: %s", e
             )
 
         recovery_info["safe_horizon"] = safe_horizon
@@ -643,7 +641,7 @@ class RecoveryExecutor(object):
             cmd.create_dir_if_not_exists(tblspc_dir)
         except FsOperationFailed as e:
             output.error(
-                "unable to initialise tablespace directory " "'%s': %s", tblspc_dir, e
+                "unable to initialise tablespace directory '%s': %s", tblspc_dir, e
             )
             output.close_and_exit()
         for item in backup_info.tablespaces:
@@ -672,7 +670,7 @@ class RecoveryExecutor(object):
                 cmd.create_symbolic_link(location, pg_tblspc_file)
             except FsOperationFailed as e:
                 output.error(
-                    "unable to prepare '%s' tablespace " "(destination '%s'): %s",
+                    "unable to prepare '%s' tablespace (destination '%s'): %s",
                     item.name,
                     location,
                     e,
@@ -945,7 +943,7 @@ class RecoveryExecutor(object):
                     ":%s" % os.path.join(recovery_info["wal_dest"], "archive_status"),
                 )
             except CommandFailedException as e:
-                output.error("unable to populate archive_status " "directory: %s", e)
+                output.error("unable to populate archive_status directory: %s", e)
                 output.close_and_exit()
 
     def _generate_recovery_conf(

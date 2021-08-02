@@ -189,7 +189,7 @@ class WalArchiver(with_metaclass(ABCMeta, RemoteStatusMixin)):
             # Exit when archive batch size is reached
             if processed >= batch.run_size:
                 _logger.debug(
-                    "Batch size reached (%s) - " "Exit %s process for %s",
+                    "Batch size reached (%s) - Exit %s process for %s",
                     batch.batch_size,
                     self.name,
                     self.config.name,
@@ -599,7 +599,7 @@ class FileWalArchiver(WalArchiver):
             "archive_command",
             "PostgreSQL 'archive_command' setting",
             remote_status["archive_command"]
-            or "FAILED " "(please set it accordingly to documentation)",
+            or "FAILED (please set it accordingly to documentation)",
         )
         last_wal = remote_status.get("last_archived_wal")
         # If PostgreSQL is >= 9.4 we have the last_archived_time
@@ -1046,7 +1046,7 @@ class StreamingWalArchiver(WalArchiver):
         postgres_status = postgres.get_remote_status()
         syncnames = postgres_status["synchronous_standby_names"]
         _logger.debug(
-            "Look for '%s' in " "'synchronous_standby_names': %s",
+            "Look for '%s' in 'synchronous_standby_names': %s",
             self.config.streaming_archiver_name,
             syncnames,
         )

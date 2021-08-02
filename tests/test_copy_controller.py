@@ -786,7 +786,7 @@ class TestRsyncCopyController(object):
         # 1) The list of directories should be there and should contain all
         # the directories
         assert item.dir_file
-        assert open(item.dir_file).read() == (".\n" "tmp\n")
+        assert open(item.dir_file).read() == (".\ntmp\n")
         # The exclude_and_protect file should be populated correctly with all
         # the files in the source
         assert item.exclude_and_protect_file
@@ -814,7 +814,7 @@ class TestRsyncCopyController(object):
         assert item.safe_list[3].path == "tmp/new"
 
     @patch("barman.copy_controller.RsyncCopyController._rsync_factory")
-    @patch("barman.copy_controller.RsyncCopyController." "_rsync_ignore_vanished_files")
+    @patch("barman.copy_controller.RsyncCopyController._rsync_ignore_vanished_files")
     def test_create_dir_and_purge(self, rsync_ignore_mock, rsync_factory_mock, tmpdir):
         """
         Unit test for RsyncCopyController._create_dir_and_purge's code
@@ -892,7 +892,7 @@ class TestRsyncCopyController(object):
             ),
         ]
 
-    @patch("barman.copy_controller.RsyncCopyController." "_rsync_ignore_vanished_files")
+    @patch("barman.copy_controller.RsyncCopyController._rsync_ignore_vanished_files")
     def test_copy(self, rsync_ignore_mock, tmpdir):
         """
         Unit test for RsyncCopyController._copy's code

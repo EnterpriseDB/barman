@@ -323,7 +323,7 @@ class WalFileInfo(FieldListFile):
     name = Field("name", doc="base name of WAL file")
     size = Field("size", load=int, doc="WAL file size after compression")
     time = Field(
-        "time", load=float, doc="WAL file modification time " "(seconds since epoch)"
+        "time", load=float, doc="WAL file modification time (seconds since epoch)"
     )
     compression = Field("compression", doc="compression type")
 
@@ -647,7 +647,7 @@ class LocalBackupInfo(BackupInfo):
                 self.backup_version = 1
         except Exception as e:
             _logger.warning(
-                "Error detecting backup_version, " "use default: 2. Failure reason: %s",
+                "Error detecting backup_version, use default: 2. Failure reason: %s",
                 e,
             )
 

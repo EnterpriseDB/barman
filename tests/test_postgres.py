@@ -656,7 +656,7 @@ class TestPostgres(object):
         cursor_mock.fetchone.return_value = [1]
         assert server.postgres.has_pgespresso
         cursor_mock.execute.assert_called_once_with(
-            "SELECT count(*) FROM pg_extension " "WHERE extname = 'pgespresso'"
+            "SELECT count(*) FROM pg_extension WHERE extname = 'pgespresso'"
         )
 
         # Extension not present
@@ -861,7 +861,7 @@ class TestPostgres(object):
     )
     @patch("barman.postgres.PostgreSQLConnection.get_configuration_files")
     @patch("barman.postgres.PostgreSQLConnection.get_setting")
-    @patch("barman.postgres." "PostgreSQLConnection.get_synchronous_standby_names")
+    @patch("barman.postgres.PostgreSQLConnection.get_synchronous_standby_names")
     @patch("barman.postgres.PostgreSQLConnection.get_systemid")
     def test_get_remote_status(
         self,
@@ -1646,7 +1646,7 @@ class TestPostgres(object):
         assert result == default_wal_file_size
 
         execute_calls = [
-            call("SELECT setting FROM pg_settings " "WHERE name='wal_segment_size'"),
+            call("SELECT setting FROM pg_settings WHERE name='wal_segment_size'"),
         ]
         cursor_mock.execute.assert_has_calls(execute_calls)
 
@@ -1673,8 +1673,8 @@ class TestPostgres(object):
         assert result == default_wal_file_size
 
         execute_calls = [
-            call("SELECT setting FROM pg_settings " "WHERE name='wal_segment_size'"),
-            call("SELECT setting FROM pg_settings " "WHERE name='wal_block_size'"),
+            call("SELECT setting FROM pg_settings WHERE name='wal_segment_size'"),
+            call("SELECT setting FROM pg_settings WHERE name='wal_block_size'"),
         ]
         cursor_mock.execute.assert_has_calls(execute_calls)
 

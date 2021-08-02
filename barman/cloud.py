@@ -669,7 +669,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
             except KeyboardInterrupt:
                 if not self.abort_requested:
                     logging.info(
-                        "Got abort request: upload cancelled " "(worker %s)",
+                        "Got abort request: upload cancelled (worker %s)",
                         process_number,
                     )
                     self.abort_requested = True

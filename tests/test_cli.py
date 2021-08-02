@@ -199,8 +199,8 @@ class TestCli(object):
             "Conflicting path: "
             "incoming_wals_directory=/some/barman/home/main/incoming" in err
         )
-        assert "Conflicting path: " "wals_directory=/some/barman/home/main/wals" in err
-        assert "Conflicting path: " "backup_directory=/some/barman/home/main" in err
+        assert "Conflicting path: wals_directory=/some/barman/home/main/wals" in err
+        assert "Conflicting path: backup_directory=/some/barman/home/main" in err
 
     def test_get_server_list(self, monkeypatch, capsys):
         """
@@ -250,8 +250,8 @@ class TestCli(object):
             "Conflicting path: "
             "incoming_wals_directory=/some/barman/home/main/incoming" in err
         )
-        assert "Conflicting path: " "wals_directory=/some/barman/home/main/wals" in err
-        assert "Conflicting path: " "backup_directory=/some/barman/home/main" in err
+        assert "Conflicting path: wals_directory=/some/barman/home/main/wals" in err
+        assert "Conflicting path: backup_directory=/some/barman/home/main" in err
 
     def test_get_server_list_global_error_continue(self, monkeypatch):
         """

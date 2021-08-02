@@ -99,7 +99,7 @@ def list_server(minimal=False):
 
 @arg(
     "--keep-descriptors",
-    help="Keep the stdout and the stderr streams attached " "to Barman subprocesses.",
+    help="Keep the stdout and the stderr streams attached to Barman subprocesses.",
 )
 def cron(keep_descriptors=False):
     """
@@ -505,7 +505,7 @@ def rebuild_xlogdb(args):
     dest="standby_mode",
     action="store_true",
     default=SUPPRESS,
-    help="Enable standby mode when starting " "the recovered PostgreSQL instance",
+    help="Enable standby mode when starting the recovered PostgreSQL instance",
 )
 @expects_obj
 def recover(args):
@@ -963,7 +963,7 @@ def delete(args):
 @arg(
     "--output-directory",
     "-o",
-    help="put the retrieved WAL file in this directory " "with the original name",
+    help="put the retrieved WAL file in this directory with the original name",
     default=SUPPRESS,
 )
 @arg(
@@ -1110,7 +1110,7 @@ def archive_wal(args):
 )
 @arg(
     "--reset",
-    help="reset the status of receive-wal removing " "any status files",
+    help="reset the status of receive-wal removing any status files",
     action="store_true",
 )
 @arg(

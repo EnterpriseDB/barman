@@ -390,17 +390,17 @@ def parse_arguments(args=None):
     parser.add_argument(
         "server_name",
         metavar="SERVER_NAME",
-        help="The server name configured in Barman " "from which WALs are taken.",
+        help="The server name configured in Barman from which WALs are taken.",
     )
     parser.add_argument(
         "wal_name",
         metavar="WAL_NAME",
-        help="The value of the '%%f' keyword " "(according to 'restore_command').",
+        help="The value of the '%%f' keyword (according to 'restore_command').",
     )
     parser.add_argument(
         "wal_dest",
         metavar="WAL_DEST",
-        help="The value of the '%%p' keyword " "(according to 'restore_command').",
+        help="The value of the '%%p' keyword (according to 'restore_command').",
     )
     return parser.parse_args(args=args)
 

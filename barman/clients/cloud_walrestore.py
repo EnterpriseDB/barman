@@ -98,11 +98,11 @@ def parse_arguments(args=None):
     )
     parser.add_argument(
         "wal_name",
-        help="The value of the '%%f' keyword " "(according to 'restore_command').",
+        help="The value of the '%%f' keyword (according to 'restore_command').",
     )
     parser.add_argument(
         "wal_dest",
-        help="The value of the '%%p' keyword " "(according to 'restore_command').",
+        help="The value of the '%%p' keyword (according to 'restore_command').",
     )
     parser.add_argument(
         "-V", "--version", action="version", version="%%(prog)s %s" % barman.__version__

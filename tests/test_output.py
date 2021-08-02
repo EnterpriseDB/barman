@@ -2040,7 +2040,7 @@ class TestNagiosWriter(object):
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == "BARMAN OK - Ready to serve the Espresso backup " "for a\n"
+        assert out == "BARMAN OK - Ready to serve the Espresso backup for a\n"
         assert err == ""
         assert not output.error_occurred
 

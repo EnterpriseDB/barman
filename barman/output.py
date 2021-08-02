@@ -503,7 +503,7 @@ class ConsoleOutputWriter(object):
         if len(results["changes"]) > 0:
             self.info("")
             self.info("IMPORTANT")
-            self.info("These settings have been modified to prevent " "data losses")
+            self.info("These settings have been modified to prevent data losses")
             self.info("")
 
             for assertion in results["changes"]:
@@ -560,7 +560,7 @@ class ConsoleOutputWriter(object):
 
         if results["get_wal"]:
             self.info("")
-            self.info("WARNING: 'get-wal' is in the specified " "'recovery_options'.")
+            self.info("WARNING: 'get-wal' is in the specified 'recovery_options'.")
             self.info(
                 "Before you start up the PostgreSQL server, please "
                 "review the %s file",
@@ -580,9 +580,7 @@ class ConsoleOutputWriter(object):
             ),
         )
         self.info("")
-        self.info(
-            "Your PostgreSQL server has been successfully " "prepared for recovery!"
-        )
+        self.info("Your PostgreSQL server has been successfully prepared for recovery!")
 
     def _record_check(self, server_name, check, status, hint):
         """
@@ -976,7 +974,7 @@ class ConsoleOutputWriter(object):
                 if getattr(standby, "client_addr", None):
                     self.info("     Communication   : TCP/IP")
                     self.info(
-                        "     IP Address      : %s " "/ Port: %s / Host: %s",
+                        "     IP Address      : %s / Port: %s / Host: %s",
                         standby.client_addr,
                         standby.client_port,
                         standby.client_hostname or "-",

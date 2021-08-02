@@ -193,7 +193,7 @@ class HookScriptRunner(object):
                 )
                 self.exit_status = cmd()
                 if self.exit_status != 0:
-                    details = "%s returned %d\n" "Output details:\n" % (
+                    details = "%s returned %d\nOutput details:\n" % (
                         self.script,
                         self.exit_status,
                     )
@@ -288,14 +288,14 @@ class RetryHookScriptRunner(HookScriptRunner):
                 # Notify EXIT_ABORT_CONTINUE exit status because success and
                 # failures are already managed in the superclass run method
                 _logger.warning(
-                    "%s was aborted (got exit status %d, " "Barman resumes)",
+                    "%s was aborted (got exit status %d, Barman resumes)",
                     self.script,
                     self.exit_status,
                 )
             elif self.exit_status == self.EXIT_ABORT_STOP:
                 # Log the error and raise AbortedRetryHookScript exception
                 _logger.error(
-                    "%s was aborted (got exit status %d, " "Barman requested to stop)",
+                    "%s was aborted (got exit status %d, Barman requested to stop)",
                     self.script,
                     self.exit_status,
                 )

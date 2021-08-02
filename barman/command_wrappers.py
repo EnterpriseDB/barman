@@ -678,9 +678,7 @@ class Rsync(Command):
         Returns the return code of the rsync command
         """
         if "stdin" in kwargs:
-            raise TypeError(
-                "from_file_list() doesn't support 'stdin' " "keyword argument"
-            )
+            raise TypeError("from_file_list() doesn't support 'stdin' keyword argument")
         input_string = ("\n".join(filelist)).encode("UTF-8")
         _logger.debug("from_file_list: %r", filelist)
         kwargs["stdin"] = input_string

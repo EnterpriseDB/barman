@@ -1068,7 +1068,7 @@ class RsyncCopyController(object):
                 # This is a hard error, as we are unable to parse the output
                 # of rsync. It can only happen with a modified or unknown
                 # rsync version (perhaps newer than 3.1?)
-                msg = "Unable to parse rsync --list-only output line: " "'%s'" % line
+                msg = "Unable to parse rsync --list-only output line: '%s'" % line
                 _logger.error(msg)
                 raise RsyncListFilesFailure(msg)
 

@@ -266,7 +266,7 @@ class TestWalUploaderS3(object):
     """
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader.retrieve_file_obj")
     def test_upload_wal(self, rfo_mock, boto_mock):
         """
         Test the upload of a WAL
@@ -296,7 +296,7 @@ class TestWalUploaderS3(object):
         )
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader.retrieve_file_obj")
     def test_encrypted_upload_wal(self, rfo_mock, boto_mock):
         """
         Test the upload of a WAL
@@ -336,7 +336,7 @@ class TestWalUploaderAzure(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
-    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader." "retrieve_file_obj")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader.retrieve_file_obj")
     def test_upload_wal(self, rfo_mock, blob_service_mock):
         """
         Test the upload of a WAL

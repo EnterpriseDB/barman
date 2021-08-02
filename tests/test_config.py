@@ -461,8 +461,8 @@ class TestCsvParsing(object):
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
         out_mock.warning.assert_called_with(
-            "Ignoring invalid configuration " "value '%s' for key %s in %s: %s",
-            "exclusive_backup, " "concurrent_backup",
+            "Ignoring invalid configuration value '%s' for key %s in %s: %s",
+            "exclusive_backup, concurrent_backup",
             "backup_options",
             "[barman] section",
             mock.ANY,
@@ -502,7 +502,7 @@ class TestCsvParsing(object):
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
         out_mock.warning.assert_called_with(
-            "Ignoring invalid configuration " "value '%s' for key %s in %s: %s",
+            "Ignoring invalid configuration value '%s' for key %s in %s: %s",
             "none_of_your_business",
             "backup_options",
             "[main] section",
@@ -547,8 +547,8 @@ class TestCsvParsing(object):
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
         out_mock.warning.assert_called_with(
-            "Ignoring invalid configuration " "value '%s' " "for key %s in %s: %s",
-            "exclusive_backup, " "none_of_your_business",
+            "Ignoring invalid configuration value '%s' for key %s in %s: %s",
+            "exclusive_backup, none_of_your_business",
             "backup_options",
             "[main] section",
             mock.ANY,

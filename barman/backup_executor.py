@@ -165,12 +165,12 @@ class BackupExecutor(with_metaclass(ABCMeta, RemoteStatusMixin)):
             if removed:
                 # report the list of the removed WAL files
                 output.info(
-                    "WAL segments preceding the current backup " "have been found:",
+                    "WAL segments preceding the current backup have been found:",
                     log=False,
                 )
                 for wal_name in removed:
                     output.info(
-                        "\t%s from server %s " "has been removed",
+                        "\t%s from server %s has been removed",
                         wal_name,
                         self.config.name,
                     )
@@ -276,7 +276,7 @@ class PostgresBackupExecutor(BackupExecutor):
             self.server.config.disabled = True
             # Report the error in the configuration errors message list
             self.server.config.msg_list.append(
-                "reuse_backup option is not supported by " "postgres backup_method"
+                "reuse_backup option is not supported by postgres backup_method"
             )
 
         # Forbid network_compression option.
@@ -418,9 +418,7 @@ class PostgresBackupExecutor(BackupExecutor):
                     "and PostgreSQL older than 9.3"
                 )
             else:
-                hint = (
-                    "pg_basebackup 9.4 or higher is required for " "tablespaces support"
-                )
+                hint = "pg_basebackup 9.4 or higher is required for tablespaces support"
 
         # Even if pg_basebackup doesn't support the tablespace-mapping
         # option, this location can be correctly backed up as doesn't
@@ -433,9 +431,7 @@ class PostgresBackupExecutor(BackupExecutor):
                     "support is not required"
                 )
             else:
-                hint = (
-                    "pg_basebackup 9.4 or higher is required for " "tablespaces support"
-                )
+                hint = "pg_basebackup 9.4 or higher is required for tablespaces support"
 
         check_strategy.result(self.config.name, check_result, hint=hint)
 
@@ -628,7 +624,7 @@ class PostgresBackupExecutor(BackupExecutor):
             failure
         """
         output.warning(
-            "Failure executing a backup using pg_basebackup " "(attempt %s)", attempt
+            "Failure executing a backup using pg_basebackup (attempt %s)", attempt
         )
         output.warning(
             "The files copied so far will be removed and "

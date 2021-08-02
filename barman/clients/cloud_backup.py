@@ -281,7 +281,7 @@ def parse_arguments(args=None):
         "-J",
         "--jobs",
         type=check_positive,
-        help="number of subprocesses to upload data to cloud storage " "(default: 2)",
+        help="number of subprocesses to upload data to cloud storage (default: 2)",
         default=2,
     )
     parser.add_argument(

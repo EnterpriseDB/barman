@@ -129,7 +129,7 @@ def parse_arguments(args=None):
     parser.add_argument(
         "wal_path",
         nargs="?",
-        help="the value of the '%%p' keyword" " (according to 'archive_command').",
+        help="the value of the '%%p' keyword (according to 'archive_command').",
         default=None,
     )
     parser.add_argument(
