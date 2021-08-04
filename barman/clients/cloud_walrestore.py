@@ -18,11 +18,13 @@
 
 import logging
 import os
+import sys
 from contextlib import closing
 
 import barman
 from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
+from barman.exceptions import BarmanException
 from barman.utils import force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_backup_file
 
@@ -231,6 +233,12 @@ class CloudWalDownloader(object):
                 "WAL file %s for server %s does not exists", wal_name, self.server_name
             )
             raise SystemExit(1)
+
+        if compression and sys.version_info < (3, 0, 0):
+            raise BarmanException(
+                "Compressed WALs cannot be restored with Python 2.x - "
+                "please upgrade to a supported version of Python 3"
+            )
 
         # Download the file
         logging.debug(
