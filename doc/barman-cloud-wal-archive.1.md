@@ -18,6 +18,11 @@ This script can be used in the `archive_command` of a PostgreSQL
 server to ship WAL files to the Cloud. Currently AWS S3 and Azure Blob
 Storage are supported.
 
+Note: If you are running python 2 or older unsupported versions of
+python 3 then avoid the compression options `--gzip` or `--bzip2` as
+barman-cloud-wal-restore is unable to restore gzip-compressed WALs
+on python < 3.2 or bzip2-compressed WALs on python < 3.3.
+
 This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 
@@ -55,9 +60,11 @@ WAL_PATH
 
 -z, --gzip
 :    gzip-compress the WAL while uploading to the cloud
+     (should not be used with python < 3.2)
 
 -j, --bzip2
 :    bzip2-compress the WAL while uploading to the cloud
+     (should not be used with python < 3.3)
 
 --cloud-provider {aws-s3,azure-blob-storage}
 :    the cloud provider to which the backup should be uploaded
