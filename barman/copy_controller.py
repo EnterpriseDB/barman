@@ -41,7 +41,6 @@ from barman.exceptions import CommandFailedException, RsyncListFilesFailure
 from barman.utils import human_readable_timedelta, total_seconds
 
 _logger = logging.getLogger(__name__)
-_logger_lock = Lock()
 
 _worker_callable = None
 """
@@ -325,6 +324,8 @@ class RsyncCopyController(object):
         self.retry_times = retry_times
         self.retry_sleep = retry_sleep
         self.workers = workers
+
+        self._logger_lock = Lock()
 
         # Assume we are running with a recent rsync (>= 3.1)
         self.rsync_has_ignore_missing_args = True
@@ -715,7 +716,7 @@ class RsyncCopyController(object):
         # Store the start time
         job.copy_start_time = datetime.datetime.now()
         # Write in the log that the job is starting
-        with _logger_lock:
+        with self._logger_lock:
             _logger.info(job.description, bucket, "starting")
         if item.is_directory:
             # A directory item must always have checksum and file_list set
@@ -767,7 +768,7 @@ class RsyncCopyController(object):
         # Store the stop time
         job.copy_end_time = datetime.datetime.now()
         # Write in the log that the job is finished
-        with _logger_lock:
+        with self._logger_lock:
             _logger.info(
                 job.description,
                 bucket,
