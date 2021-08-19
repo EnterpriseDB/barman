@@ -340,7 +340,7 @@ def status(args):
     default="all",
     help="""
          Possible values are: 'hot-standby' (only hot standby servers),
-         'wal-streamer' (only WAL streaming clients, such as pg_receivexlog),
+         'wal-streamer' (only WAL streaming clients, such as pg_receivewal),
          'all' (any of them). Defaults to %(default)s""",
 )
 @expects_obj
