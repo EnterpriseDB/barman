@@ -575,6 +575,68 @@ class TestRsyncCopyController(object):
                 # The bucket cannot be empty
                 assert len(bucket), "Bucket %s (%s) is empty" % (i, workers)
 
+    def _run_analyze_directory(self, list_files_mock, tmpdir, ref_list, src_list):
+        # Apply it to _list_files calls
+        list_files_mock.side_effect = [ref_list, src_list]
+
+        # Build the prerequisites
+        server = build_real_server(
+            global_conf={"barman_home": tmpdir.mkdir("home").strpath}
+        )
+        config = server.config
+        executor = server.backup_manager.executor
+
+        # Create the RsyncCopyController putting the safe_horizon between
+        # the tmp/safe and tmp2/check timestamps
+        rcc = RsyncCopyController(
+            path=server.path,
+            ssh_command=executor.ssh_command,
+            ssh_options=executor.ssh_options,
+            network_compression=config.network_compression,
+            reuse_backup=None,
+            safe_horizon=datetime(
+                year=2015,
+                month=2,
+                day=20,
+                hour=19,
+                minute=0,
+                second=0,
+                tzinfo=dateutil.tz.tzlocal(),
+            ),
+        )
+
+        backup_info = build_test_backup_info(
+            server=server,
+            pgdata="/pg/data",
+            config_file="/etc/postgresql.conf",
+            hba_file="/pg/data/pg_hba.conf",
+            ident_file="/pg/data/pg_ident.conf",
+            begin_xlog="0/2000028",
+            begin_wal="000000010000000000000002",
+            begin_offset=28,
+        )
+        backup_info.save()
+        # This is to check that all the preparation is done correctly
+        assert os.path.exists(backup_info.filename)
+
+        # Add a temp dir (usually created by copy method
+        rcc.temp_dir = tmpdir.mkdir("tmp").strpath
+
+        # Create an item to inspect
+        item = _RsyncCopyItem(
+            label="pgdata",
+            src=":/pg/data/",
+            dst=backup_info.get_data_directory(),
+            is_directory=True,
+            item_class=rcc.PGDATA_CLASS,
+            optional=False,
+        )
+
+        # Then run the _analyze_directory method
+        rcc._analyze_directory(item)
+
+        return item, backup_info
+
     @patch("barman.copy_controller.RsyncCopyController._list_files")
     def test_analyze_directory(self, list_files_mock, tmpdir):
         """
@@ -717,64 +779,7 @@ class TestRsyncCopyController(object):
             "tmp/diff_size",
         )
 
-        # Apply it to _list_files calls
-        list_files_mock.side_effect = [ref_list, src_list]
-
-        # Build the prerequisites
-        server = build_real_server(
-            global_conf={"barman_home": tmpdir.mkdir("home").strpath}
-        )
-        config = server.config
-        executor = server.backup_manager.executor
-
-        # Create the RsyncCopyController putting the safe_horizon between
-        # the tmp/safe and tmp2/check timestamps
-        rcc = RsyncCopyController(
-            path=server.path,
-            ssh_command=executor.ssh_command,
-            ssh_options=executor.ssh_options,
-            network_compression=config.network_compression,
-            reuse_backup=None,
-            safe_horizon=datetime(
-                year=2015,
-                month=2,
-                day=20,
-                hour=19,
-                minute=0,
-                second=0,
-                tzinfo=dateutil.tz.tzlocal(),
-            ),
-        )
-
-        backup_info = build_test_backup_info(
-            server=server,
-            pgdata="/pg/data",
-            config_file="/etc/postgresql.conf",
-            hba_file="/pg/data/pg_hba.conf",
-            ident_file="/pg/data/pg_ident.conf",
-            begin_xlog="0/2000028",
-            begin_wal="000000010000000000000002",
-            begin_offset=28,
-        )
-        backup_info.save()
-        # This is to check that all the preparation is done correctly
-        assert os.path.exists(backup_info.filename)
-
-        # Add a temp dir (usually created by copy method
-        rcc.temp_dir = tmpdir.mkdir("tmp").strpath
-
-        # Create an item to inspect
-        item = _RsyncCopyItem(
-            label="pgdata",
-            src=":/pg/data/",
-            dst=backup_info.get_data_directory(),
-            is_directory=True,
-            item_class=rcc.PGDATA_CLASS,
-            optional=False,
-        )
-
-        # Then run the _analyze_directory method
-        rcc._analyze_directory(item)
+        item, backup_info = self._run_analyze_directory(list_files_mock, tmpdir, ref_list, src_list)
 
         # Verify that _list_files has been called correctly
         assert list_files_mock.mock_calls == [
@@ -812,6 +817,70 @@ class TestRsyncCopyController(object):
         assert item.safe_list[1].path == "tmp/diff_time"
         assert item.safe_list[2].path == "tmp/diff_size"
         assert item.safe_list[3].path == "tmp/new"
+
+    @patch("barman.copy_controller.RsyncCopyController._list_files")
+    def test_analyze_directory_empty_dst(self, list_files_mock, tmpdir):
+        """
+        Verify that RsyncCopyController._analyze_directory produces an empty
+        exclude_and_protect_file when the destination directory is empty.
+        """
+
+        # Only the current directory is in file list
+        ref_list = [
+            _FileItem(
+                "drwxrwxrwt",
+                69632,
+                datetime(
+                    year=2015,
+                    month=2,
+                    day=9,
+                    hour=15,
+                    minute=1,
+                    second=0,
+                    tzinfo=dateutil.tz.tzlocal(),
+                ),
+                ".",
+            ),
+        ]
+
+        # Minimal src_list so that there is something to copy
+        src_list = ref_list + [
+            _FileItem(
+                "drwxrwxrwt",
+                69612,
+                datetime(
+                    year=2015,
+                    month=2,
+                    day=19,
+                    hour=15,
+                    minute=1,
+                    second=22,
+                    tzinfo=dateutil.tz.tzlocal(),
+                ),
+                "tmp",
+            ),
+        ]
+
+        # Set up prerequisites and run the analyze directory function
+        item, backup_info = self._run_analyze_directory(
+            list_files_mock, tmpdir, ref_list, src_list
+        )
+
+        # Verify that _list_files has been called correctly
+        assert list_files_mock.mock_calls == [
+            mock.call(item, backup_info.get_data_directory() + "/"),
+            mock.call(item, ":/pg/data/"),
+        ]
+
+        # Check the result
+        # 1) The list of directories should be there and should contain all
+        # the directories
+        assert item.dir_file
+        assert open(item.dir_file).read() == (".\ntmp\n")
+        # The exclude_and_protect file should be empty because the destination
+        # was empty
+        assert item.exclude_and_protect_file
+        assert open(item.exclude_and_protect_file).read() == ""
 
     @patch("barman.copy_controller.RsyncCopyController._rsync_factory")
     @patch("barman.copy_controller.RsyncCopyController._rsync_ignore_vanished_files")
