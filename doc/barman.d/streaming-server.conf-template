@@ -17,7 +17,7 @@ conninfo = host=pg user=barman dbname=postgres
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; PostgreSQL streaming connection string
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; To be used by pg_basebackup for backup and pg_receivexlog for WAL streaming
+; To be used by pg_basebackup for backup and pg_receivewal for WAL streaming
 ; NOTE: streaming_barman is a regular user with REPLICATION privilege
 streaming_conninfo = host=pg user=streaming_barman
 
@@ -28,7 +28,7 @@ backup_method = postgres
 ;streaming_backup_name = barman_streaming_backup
 
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; WAL streaming settings (via pg_receivexlog)
+; WAL streaming settings (via pg_receivewal)
 ; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 streaming_archiver = on
 slot_name = barman
