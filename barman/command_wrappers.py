@@ -715,7 +715,7 @@ class PostgreSQLClient(Command):
     evolution. I.e. that happened with pg_receivexlog, that has been renamed
     to pg_receivewal. In that case, we should try using pg_receivewal (the
     newer auternative) and, if that command doesn't exist, we should try
-    using `pg_receivewal`.
+    using `pg_receivexlog`.
 
     This is a list of command names to be used to find the installed command.
     """
