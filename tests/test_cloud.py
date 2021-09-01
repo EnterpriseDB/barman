@@ -1357,3 +1357,70 @@ end_time=2014-12-22 09:25:27.410470+01:00
         catalog.get_backup_list()
         assert len(catalog.unreadable_backups) == 1
         assert "20210723T133818" in catalog.unreadable_backups
+
+    def _verify_wal_is_in_catalog(self, wal_name, wal_path):
+        """Create a catalog from the specified wal_path and verify it is listed"""
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [wal_path]
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        wals = catalog.get_wal_paths()
+        assert len(wals) == 1
+        assert wal_name in wals
+        assert wals[wal_name] == wal_path
+
+    def test_can_list_single_wal(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075",
+        )
+
+    def test_can_list_compressed_wal(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.gz",
+        )
+
+    def test_ignores_unsupported_compression(self):
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.something",
+        ]
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        wals = catalog.get_wal_paths()
+        assert len(wals) == 0
+
+    def test_can_list_backup_labels(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075.00000028.backup",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup",
+        )
+
+    def test_can_list_compressed_backup_labels(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075.00000028.backup",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup.gz",
+        )
+
+    def test_can_list_partial_wals(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075.partial",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial",
+        )
+
+    def test_can_list_compressed_partial_wals(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075.partial",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial.gz",
+        )
+
+    def test_can_list_history_wals(self):
+        self._verify_wal_is_in_catalog(
+            "00000001.history",
+            "mt-backups/test-server/wals/0000000100000000/00000001.history",
+        )
+
+    def test_can_list_compressed_history_wals(self):
+        self._verify_wal_is_in_catalog(
+            "00000001.history",
+            "mt-backups/test-server/wals/0000000100000000/00000001.history.gz",
+        )
