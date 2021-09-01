@@ -1344,3 +1344,16 @@ end_time=2014-12-22 09:25:27.410470+01:00
         assert "20210723T133818" in backups
         assert "20210723T154445" not in backups
         assert "20210723T154554" in backups
+
+    def test_unreadable_backup_ids_are_stored(self):
+        """Test we can retrieve IDs of backups which could not be read"""
+        self.remote_open_should_succeed = False
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/base/20210723T133818/",
+        ]
+        mock_cloud_interface.remote_open.side_effect = self.mock_remote_open
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        catalog.get_backup_list()
+        assert len(catalog.unreadable_backups) == 1
+        assert "20210723T133818" in catalog.unreadable_backups
