@@ -444,7 +444,7 @@ class Server(RemoteStatusMixin):
             # Create retention policy objects
             try:
                 rp = RetentionPolicyFactory.create(
-                    self, "retention_policy", self.config.retention_policy
+                    "retention_policy", self.config.retention_policy, server=self
                 )
                 # Reassign the configuration value (we keep it in one place)
                 self.config.retention_policy = rp
@@ -454,7 +454,9 @@ class Server(RemoteStatusMixin):
                 )
                 try:
                     rp = RetentionPolicyFactory.create(
-                        self, "wal_retention_policy", self.config.wal_retention_policy
+                        "wal_retention_policy",
+                        self.config.wal_retention_policy,
+                        server=self,
                     )
                     # Reassign the configuration value
                     # (we keep it in one place)
@@ -470,7 +472,7 @@ class Server(RemoteStatusMixin):
                         % (self.config.wal_retention_policy, self.config.name)
                     )
                     rp = RetentionPolicyFactory.create(
-                        self, "wal_retention_policy", "main"
+                        "wal_retention_policy", "main", server=self
                     )
                     self.config.wal_retention_policy = rp
 

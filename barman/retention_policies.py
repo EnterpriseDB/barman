@@ -59,7 +59,7 @@ class RetentionPolicy(with_metaclass(ABCMeta, object)):
             context = self.context
         # Overrides the list of available backups
         if source is None:
-            source = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
+            source = self.server.available_backups
         if context == "BASE":
             return self._backup_report(source)
         elif context == "WAL":
@@ -69,7 +69,7 @@ class RetentionPolicy(with_metaclass(ABCMeta, object)):
 
     def backup_status(self, backup_id):
         """Report the status of a backup according to the retention policy"""
-        source = self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
+        source = self.server.available_backups
         if self.context == "BASE":
             return self._backup_report(source)[backup_id]
         else:
@@ -152,15 +152,15 @@ class RedundancyRetentionPolicy(RetentionPolicy):
         backups = source
         # Normalise the redundancy value (according to minimum redundancy)
         redundancy = self.value
-        if redundancy < self.server.config.minimum_redundancy:
+        if redundancy < self.server.minimum_redundancy:
             _logger.warning(
                 "Retention policy redundancy (%s) is lower than "
                 "the required minimum redundancy (%s). Enforce %s.",
                 redundancy,
-                self.server.config.minimum_redundancy,
-                self.server.config.minimum_redundancy,
+                self.server.minimum_redundancy,
+                self.server.minimum_redundancy,
             )
-            redundancy = self.server.config.minimum_redundancy
+            redundancy = self.server.minimum_redundancy
 
         # Map the latest 'redundancy' DONE backups as VALID
         # The remaining DONE backups are classified as OBSOLETE
@@ -267,15 +267,15 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
             if backups[bid].status == BackupInfo.DONE:
                 if found:
                     # Check minimum redundancy requirements
-                    if valid < self.server.config.minimum_redundancy:
+                    if valid < self.server.minimum_redundancy:
                         _logger.warning(
                             "Keeping obsolete backup %s for server %s "
                             "(older than %s) "
                             "due to minimum redundancy requirements (%s)",
                             bid,
-                            self.server.config.name,
+                            self.server.name,
                             self._point_of_recoverability(),
-                            self.server.config.minimum_redundancy,
+                            self.server.minimum_redundancy,
                         )
                         # We mark the backup as potentially obsolete
                         # as we must respect minimum redundancy requirements
@@ -289,7 +289,7 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
                             "Reporting backup %s for server %s as OBSOLETE "
                             "(older than %s)",
                             bid,
-                            self.server.config.name,
+                            self.server.name,
                             self._point_of_recoverability(),
                         )
                         report[bid] = BackupInfo.OBSOLETE
@@ -297,7 +297,7 @@ class RecoveryWindowRetentionPolicy(RetentionPolicy):
                     _logger.debug(
                         "Reporting backup %s for server %s as VALID (newer than %s)",
                         bid,
-                        self.server.config.name,
+                        self.server.name,
                         self._point_of_recoverability(),
                     )
                     # Backup within the recovery window
@@ -364,7 +364,54 @@ class SimpleWALRetentionPolicy(RetentionPolicy):
         match = cls._re.match(optval)
         if not match:
             return None
-        return cls(context, server.config.retention_policy, server)
+        return cls(context, server.retention_policy, server)
+
+
+class ServerMetadata(object):
+    """
+    Static retention metadata for a barman-managed server
+
+    This will return the same values regardless of any changes in the state of
+    the barman-managed server and associated backups.
+    """
+
+    def __init__(self, server_name, backup_info_list):
+        self.name = server_name
+        self.minimum_redundancy = 0
+        self.retention_policy = None
+        self.backup_info_list = backup_info_list
+
+    @property
+    def available_backups(self):
+        return self.backup_info_list
+
+
+class ServerMetadataLive(ServerMetadata):
+    """
+    Live retention metadata for a barman-managed server
+
+    This will always return the current values for the barman.Server passed in
+    at construction time.
+    """
+
+    def __init__(self, server):
+        self.server = server
+
+    @property
+    def name(self):
+        return self.server.config.name
+
+    @property
+    def minimum_redundancy(self):
+        return self.server.config.minimum_redundancy
+
+    @property
+    def retention_policy(self):
+        return self.server.config.retention_policy
+
+    @property
+    def available_backups(self):
+        return self.server.get_available_backups(BackupInfo.STATUS_NOT_EMPTY)
 
 
 class RetentionPolicyFactory(object):
@@ -378,11 +425,20 @@ class RetentionPolicyFactory(object):
     ]
 
     @classmethod
-    def create(cls, server, option, value):
+    def create(
+        cls, option, value, server=None, server_name=None, backup_info_list=None
+    ):
         """
         Based on the given option and value from the configuration
         file, creates the appropriate retention policy object
         for the given server
+
+        Either server *or* server_name and backup_info_list must be provided.
+        If server (a `barman.Server`) is provided then the returned
+        RetentionPolicy will update as the state of the `barman.Server` changes.
+        If server_name and backup_info_list are provided then the RetentionPolicy
+        will be a snapshot based on the backup_info_list passed at construction
+        time.
         """
         if option == "wal_retention_policy":
             context = "WAL"
@@ -391,9 +447,13 @@ class RetentionPolicyFactory(object):
         else:
             raise ValueError("Unknown option for retention policy: %s" % option)
 
+        if server:
+            server_metadata = ServerMetadataLive(server)
+        else:
+            server_metadata = ServerMetadata(server_name, backup_info_list)
         # Look for the matching rule
         for policy_class in cls.policy_classes:
-            policy = policy_class.create(server, context, value)
+            policy = policy_class.create(server_metadata, context, value)
             if policy:
                 return policy
 
