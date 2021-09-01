@@ -1463,3 +1463,147 @@ end_time=2014-12-22 09:25:27.410470+01:00
         assert len(wals) == 1
         assert "000000010000000000000075" not in wals
         assert "000000010000000000000076" in wals
+
+    def _get_backup_files(
+        self, backup_id, list_bucket_response=[], tablespaces=[], allow_missing=False
+    ):
+        """
+        Helper which creates the necessary mocks for get_backup_files and calls it,
+        returning the result.
+
+        This allows tests to pass in a mock response for CloudInterface.list_bucket
+        along with any additional tablespaces. Missing file scenarios can be created
+        by including tablespaces but not including files for the tablespace in
+        list_bucket_response.
+        """
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = list_bucket_response
+        mock_cloud_interface.path = "mt-backups"
+        # Create mock backup info which includes tablespaces
+        mock_backup_info = mock.MagicMock(name="backup_info")
+        mock_backup_info.backup_id = backup_id
+        mock_backup_info.status = "DONE"
+        mock_tablespaces = []
+        for tablespace in tablespaces:
+            mock_tablespace = mock.MagicMock(name="tablespace_%s" % tablespace)
+            mock_tablespace.oid = tablespace
+            mock_tablespaces.append(mock_tablespace)
+        mock_backup_info.tablespaces = mock_tablespaces
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        return catalog.get_backup_files(mock_backup_info, allow_missing=allow_missing)
+
+    def test_can_get_backup_files(self):
+        """Test we can get backup file metadata successfully."""
+        # GIVEN a backup with one tablespace
+        backup_files = self._get_backup_files(
+            "20210723T133818",
+            # AND the cloud provider returns data.tar with one additional file and
+            # the tablespace archive
+            list_bucket_response=[
+                "mt-backups/test-server/base/20210723T133818/",
+                "mt-backups/test-server/base/20210723T133818/data.tar",
+                "mt-backups/test-server/base/20210723T133818/data_0000.tar",
+                "mt-backups/test-server/base/20210723T133818/16388.tar",
+            ],
+            tablespaces=[16388],
+        )
+        # THEN a BackupFileInfo is returned with a path to the data.tar file
+        assert (
+            backup_files[None].path
+            == "mt-backups/test-server/base/20210723T133818/data.tar"
+        )
+        # AND it has one additional file
+        assert len(backup_files[None].additional_files) == 1
+        # AND the additional file has a path to data_0000.tar
+        assert (
+            backup_files[None].additional_files[0].path
+            == "mt-backups/test-server/base/20210723T133818/data_0000.tar"
+        )
+        # AND a BackupFileInfo is returned with a path to the tablespace archive
+        assert (
+            backup_files[16388].path
+            == "mt-backups/test-server/base/20210723T133818/16388.tar"
+        )
+        # AND it has no additional files
+        assert len(backup_files[16388].additional_files) == 0
+
+    def test_get_backup_files_fails_if_missing(self):
+        """Test we fail if any backup files are missing."""
+        with pytest.raises(SystemExit) as exc:
+            # GIVEN a backup with one tablespace
+            self._get_backup_files(
+                "20210723T133818",
+                # AND the cloud provider returns data.tar with one additional file but
+                # omits the tablespace archive
+                list_bucket_response=[
+                    "mt-backups/test-server/base/20210723T133818/",
+                    "mt-backups/test-server/base/20210723T133818/data.tar",
+                    "mt-backups/test-server/base/20210723T133818/data_0000.tar",
+                ],
+                tablespaces=[16388],
+            )
+
+        # THEN attempting to get files for the backup fails with a SystemExit
+        assert exc.value.code == 1
+
+    def test_get_backup_succeeds_with_allow_missing(self):
+        """
+        Test we can get backup file metadata successfully even if backup files are
+        missing if allow_missing=True is used.
+        """
+        # GIVEN a backup with one tablespace
+        backup_files = self._get_backup_files(
+            "20210723T133818",
+            # AND the cloud provider returns data.tar with one additional file but
+            # omits the tablespace archive
+            list_bucket_response=[
+                "mt-backups/test-server/base/20210723T133818/",
+                "mt-backups/test-server/base/20210723T133818/data.tar",
+                "mt-backups/test-server/base/20210723T133818/data_0000.tar",
+            ],
+            tablespaces=[16388],
+            # AND allow_missing=True is passed to CloudBackupCatalog
+            allow_missing=True,
+        )
+        # THEN a BackupFileInfo is returned with a path to the data.tar file
+        assert (
+            backup_files[None].path
+            == "mt-backups/test-server/base/20210723T133818/data.tar"
+        )
+        # AND it has one additional file
+        assert len(backup_files[None].additional_files) == 1
+        # AND the additional file has a path to data_0000.tar
+        assert (
+            backup_files[None].additional_files[0].path
+            == "mt-backups/test-server/base/20210723T133818/data_0000.tar"
+        )
+        # AND a BackupFileInfo is returned for the tablespace which has a path of None
+        assert backup_files[16388].path is None
+        # AND it has no additional files
+        assert len(backup_files[16388].additional_files) == 0
+
+    def test_get_backup_succeeds_with_missing_main_file(self):
+        """
+        Test that additional files are still returned even if the main file is missing
+        when allow_missing=True is used.
+        """
+        # GIVEN a backup with one tablespace
+        backup_files = self._get_backup_files(
+            "20210723T133818",
+            # AND the cloud provider returns data_0000.tar but not the main data.tar
+            list_bucket_response=[
+                "mt-backups/test-server/base/20210723T133818/",
+                "mt-backups/test-server/base/20210723T133818/data_0000.tar",
+            ],
+            # AND allow_missing=True is passed to CloudBackupCatalog
+            allow_missing=True,
+        )
+        # THEN a BackupFileInfo is returned for data.tar with an empty path
+        assert backup_files[None].path is None
+        # AND it has one additional file
+        assert len(backup_files[None].additional_files) == 1
+        # AND the additional file has a path to data_0000.tar
+        assert (
+            backup_files[None].additional_files[0].path
+            == "mt-backups/test-server/base/20210723T133818/data_0000.tar"
+        )
