@@ -1539,6 +1539,15 @@ class CloudBackupCatalog(object):
             self._backup_list = backup_list
         return self._backup_list
 
+    def remove_backup_from_cache(self, backup_id):
+        """
+        Remove backup with backup_id from the cached list. This is intended for
+        cases where we want to update the state without firing lots of requests
+        at the bucket.
+        """
+        if self._backup_list:
+            self._backup_list.pop(backup_id)
+
     def get_wal_paths(self):
         """
         Retrieve a dict of WAL paths keyed by the WAL name from cloud storage
@@ -1565,6 +1574,14 @@ class CloudBackupCatalog(object):
 
             self._wal_paths = wal_paths
         return self._wal_paths
+
+    def remove_wal_from_cache(self, wal_name):
+        """
+        Remove named wal from the cached list. This is intended for cases where
+        we want to update the state without firing lots of requests at the bucket.
+        """
+        if self._wal_paths:
+            self._wal_paths.pop(wal_name)
 
     def get_backup_info(self, backup_id):
         """
