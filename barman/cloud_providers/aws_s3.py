@@ -22,7 +22,7 @@ import logging
 import shutil
 from io import RawIOBase
 
-from barman.cloud import CloudInterface
+from barman.cloud import CloudInterface, CloudProviderError
 
 try:
     # Python 3.x
@@ -344,3 +344,44 @@ class S3CloudInterface(CloudInterface):
         self.s3.meta.client.abort_multipart_upload(
             Bucket=self.bucket_name, Key=key, UploadId=upload_metadata["UploadId"]
         )
+
+    def delete_objects(self, paths):
+        """
+        Delete the objects at the specified paths
+
+        :param List[str] paths:
+        """
+        # Explicitly check if we are being asked to delete nothing at all and if
+        # so return without error.
+        if len(paths) == 0:
+            return
+
+        # S3 bulk deletion is limited to batches of 1000 keys
+        batch_size = 1000
+        try:
+            # If xrange exists then we are on python 2 so we need to use it
+            range_fun = xrange
+        except NameError:
+            # Otherwise just use range
+            range_fun = range
+        errors = False
+        for i in range_fun(0, len(paths), batch_size):
+            resp = self.s3.meta.client.delete_objects(
+                Bucket=self.bucket_name,
+                Delete={
+                    "Objects": [{"Key": path} for path in paths[i : i + batch_size]],
+                    "Quiet": True,
+                },
+            )
+            if "Errors" in resp:
+                errors = True
+                for error_dict in resp["Errors"]:
+                    logging.error(
+                        'Deletion of object %s failed with error code: "%s", message: "%s"'
+                        % (error_dict["Key"], error_dict["Code"], error_dict["Message"])
+                    )
+        if errors:
+            raise CloudProviderError(
+                "Error from cloud provider while deleting objects - "
+                "please check the Barman logs"
+            )

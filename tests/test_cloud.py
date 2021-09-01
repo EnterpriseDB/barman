@@ -20,6 +20,7 @@ import datetime
 import os
 from io import BytesIO
 from azure.core.exceptions import ServiceRequestError
+from azure.storage.blob import PartialBatchErrorException
 
 import mock
 from mock.mock import MagicMock
@@ -30,6 +31,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from barman.cloud import CloudBackupCatalog, CloudUploadingError, FileUploadStatistics
 from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
+from barman.cloud import CloudProviderError
 
 try:
     from queue import Queue
@@ -615,6 +617,108 @@ class TestS3CloudInterface(object):
             UploadId=mock_metadata["UploadId"],
         )
 
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects(self, boto_mock):
+        """
+        Tests the successful deletion of a list of objects
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+        cloud_interface.delete_objects(mock_keys)
+
+        s3_client.delete_objects.assert_called_once_with(
+            Bucket="bucket",
+            Delete={
+                "Quiet": True,
+                "Objects": [
+                    {"Key": "path/to/object/1"},
+                    {"Key": "path/to/object/2"},
+                ],
+            },
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_with_empty_list(self, boto_mock):
+        """
+        Tests the successful deletion of an empty list of objects
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = []
+        cloud_interface.delete_objects(mock_keys)
+
+        # boto3 does not accept an empty list of Objects in its delete_objects
+        # method so we verify it was not called
+        s3_client.delete_objects.assert_not_called()
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_multiple_batches(self, boto_mock):
+        """
+        Tests that deletions of more than 1000 objects are split into multiple requests
+        (necessary due to s3/boto3 limitations)
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = ["path/to/object/%s" % i for i in range(1001)]
+        cloud_interface.delete_objects(mock_keys)
+
+        assert s3_client.delete_objects.call_args_list[0] == mock.call(
+            Bucket="bucket",
+            Delete={
+                "Quiet": True,
+                "Objects": [{"Key": key} for key in mock_keys[:1000]],
+            },
+        )
+        assert s3_client.delete_objects.call_args_list[1] == mock.call(
+            Bucket="bucket",
+            Delete={"Quiet": True, "Objects": [{"Key": mock_keys[1000]}]},
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_partial_failure(self, boto_mock, caplog):
+        """
+        Tests that an exception is raised if there are any failures in the response
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        s3_client.delete_objects.return_value = {
+            "Errors": [
+                {
+                    "Key": "path/to/object/1",
+                    "Code": "AccessDenied",
+                    "Message": "Access Denied",
+                }
+            ]
+        }
+
+        with pytest.raises(CloudProviderError) as exc:
+            cloud_interface.delete_objects(mock_keys)
+
+        assert str(exc.value) == (
+            "Error from cloud provider while deleting objects - please "
+            "check the Barman logs"
+        )
+
+        assert (
+            "Deletion of object path/to/object/1 failed with error code: "
+            '"AccessDenied", message: "Access Denied"'
+        ) in caplog.text
+
 
 class TestAzureCloudInterface(object):
     """
@@ -1058,6 +1162,128 @@ class TestAzureCloudInterface(object):
             [], encryption_scope=encryption_scope
         )
         blob_client_mock.delete_blob.assert_called_once_with()
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_delete_objects(self, blob_service_mock):
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+        cloud_interface.delete_objects(mock_keys)
+
+        container_client_mock.delete_blobs.assert_called_once_with(*mock_keys)
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_delete_objects_with_empty_list(self, blob_service_mock):
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+
+        mock_keys = []
+        cloud_interface.delete_objects(mock_keys)
+
+        # The Azure SDK is happy to accept an empty list here so verify that we
+        # simply passed it on
+        container_client_mock.delete_blobs.assert_called_once_with()
+
+    def _create_mock_HttpResponse(self, status_code, url):
+        """Helper function for partial failure tests."""
+        htr = mock.Mock()
+        htr.status_code = status_code
+        htr.request.url = url
+        return htr
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_delete_objects_partial_failure(self, blob_service_mock, caplog):
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        container_client_mock.delete_blobs.return_value = iter(
+            [
+                self._create_mock_HttpResponse(403, "path/to/object/1"),
+                self._create_mock_HttpResponse(202, "path/to/object/2"),
+            ]
+        )
+
+        with pytest.raises(CloudProviderError) as exc:
+            cloud_interface.delete_objects(mock_keys)
+
+        assert str(exc.value) == (
+            "Error from cloud provider while deleting objects - please "
+            "check the Barman logs"
+        )
+
+        assert (
+            'Deletion of object path/to/object/1 failed with error code: "403"'
+        ) in caplog.text
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_delete_objects_partial_failure_exception(self, blob_service_mock, caplog):
+        """
+        Test that partial failures raised via PartialBatchErrorException are handled.
+        This isn't explicitly described in the Azure documentation but is something
+        which happens in practice so we must deal with it.
+        """
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        parts = iter(
+            [
+                self._create_mock_HttpResponse(403, "path/to/object/1"),
+                self._create_mock_HttpResponse(202, "path/to/object/2"),
+            ]
+        )
+        partial_batch_error_exception = PartialBatchErrorException(
+            "something went wrong", None, parts
+        )
+        container_client_mock.delete_blobs.side_effect = partial_batch_error_exception
+
+        with pytest.raises(CloudProviderError) as exc:
+            cloud_interface.delete_objects(mock_keys)
+
+        assert str(exc.value) == (
+            "Error from cloud provider while deleting objects - please "
+            "check the Barman logs"
+        )
+
+        assert (
+            'Deletion of object path/to/object/1 failed with error code: "403"'
+        ) in caplog.text
 
 
 class TestCloudBackupCatalog(object):

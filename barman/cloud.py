@@ -34,6 +34,7 @@ from io import BytesIO
 from tempfile import NamedTemporaryFile
 
 from barman.backup_executor import ConcurrentBackupStrategy, ExclusiveBackupStrategy
+from barman.exceptions import BarmanException
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
@@ -101,7 +102,14 @@ def copyfileobj_pad_truncate(src, dst, length=None):
             dst.write(tarfile.NUL * (remainder - len(buf)))
 
 
-class CloudUploadingError(Exception):
+class CloudProviderError(BarmanException):
+    """
+    This exception is raised when we get an error in the response from the
+    cloud provider
+    """
+
+
+class CloudUploadingError(BarmanException):
     """
     This exception is raised when there are upload errors
     """
@@ -1009,6 +1017,14 @@ class CloudInterface(with_metaclass(ABCMeta)):
         :param dict upload_metadata: Provider-specific metadata for this upload
           e.g. the multipart upload handle in AWS S3
         :param str key: The key to use in the cloud service
+        """
+
+    @abstractmethod
+    def delete_objects(self, paths):
+        """
+        Delete the objects at the specified paths
+
+        :param List[str] paths:
         """
 
 

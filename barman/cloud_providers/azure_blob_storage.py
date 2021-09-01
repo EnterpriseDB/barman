@@ -23,7 +23,7 @@ import os
 import shutil
 from io import BytesIO, RawIOBase
 
-from barman.cloud import CloudInterface
+from barman.cloud import CloudInterface, CloudProviderError
 
 try:
     # Python 3.x
@@ -33,7 +33,11 @@ except ImportError:
     from urlparse import urlparse
 
 try:
-    from azure.storage.blob import BlobPrefix, BlobServiceClient
+    from azure.storage.blob import (
+        BlobPrefix,
+        BlobServiceClient,
+        PartialBatchErrorException,
+    )
     from azure.core.exceptions import (
         HttpResponseError,
         ResourceNotFoundError,
@@ -361,3 +365,42 @@ class AzureCloudInterface(CloudInterface):
         blob_client = self.container_client.get_blob_client(key)
         blob_client.commit_block_list([], **self._extra_upload_args)
         blob_client.delete_blob()
+
+    def delete_objects(self, paths):
+        """
+        Delete the objects at the specified paths
+
+        :param List[str] paths:
+        """
+        try:
+            # If paths is empty because the files have already been deleted then
+            # delete_blobs will return successfully so we just call it with whatever
+            # we were given
+            responses = self.container_client.delete_blobs(*paths)
+        except PartialBatchErrorException as exc:
+            # Although the docs imply any errors will be returned in the response
+            # object, in practice a PartialBatchErrorException is raised which contains
+            # the response objects in its `parts` attribute.
+            # We therefore set responses to reference the response in the exception and
+            # treat it the same way we would a regular response.
+            logging.warning(
+                "PartialBatchErrorException received from Azure: %s" % exc.message
+            )
+            responses = exc.parts
+
+        # resp is an iterator of HttpResponse objects so we check the status codes
+        # which should all be 202 if successful
+        errors = False
+        for resp in responses:
+            if resp.status_code != 202:
+                errors = True
+                logging.error(
+                    'Deletion of object %s failed with error code: "%s"'
+                    % (resp.request.url, resp.status_code)
+                )
+
+        if errors:
+            raise CloudProviderError(
+                "Error from cloud provider while deleting objects - "
+                "please check the Barman logs"
+            )
