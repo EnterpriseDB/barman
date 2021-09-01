@@ -46,6 +46,7 @@ from barman.utils import (
     total_seconds,
     with_metaclass,
 )
+from barman import xlog
 
 try:
     # Python 3.x
@@ -1501,7 +1502,11 @@ class CloudBackupCatalog(object):
         self.cloud_interface = cloud_interface
         self.server_name = server_name
         self.prefix = os.path.join(self.cloud_interface.path, self.server_name, "base")
+        self.wal_prefix = os.path.join(
+            self.cloud_interface.path, self.server_name, "wals"
+        )
         self._backup_list = None
+        self._wal_paths = None
         self.unreadable_backups = []
 
     def get_backup_list(self):
@@ -1533,6 +1538,33 @@ class CloudBackupCatalog(object):
                     backup_list[backup_id] = backup_info
             self._backup_list = backup_list
         return self._backup_list
+
+    def get_wal_paths(self):
+        """
+        Retrieve a dict of WAL paths keyed by the WAL name from cloud storage
+        """
+        if self._wal_paths is None:
+            wal_paths = {}
+            for wal in self.cloud_interface.list_bucket(
+                self.wal_prefix + "/", delimiter=""
+            ):
+                wal_basename = os.path.basename(wal)
+                if xlog.is_any_xlog_file(wal_basename):
+                    # We have an uncompressed xlog of some kind
+                    wal_paths[wal_basename] = wal
+                else:
+                    # Allow one suffix for compression and try again
+                    wal_name, suffix = os.path.splitext(wal_basename)
+                    if suffix in ALLOWED_COMPRESSIONS and xlog.is_any_xlog_file(
+                        wal_name
+                    ):
+                        wal_paths[wal_name] = wal
+                    else:
+                        # If it still doesn't look like an xlog file, ignore
+                        continue
+
+            self._wal_paths = wal_paths
+        return self._wal_paths
 
     def get_backup_info(self, backup_id):
         """
