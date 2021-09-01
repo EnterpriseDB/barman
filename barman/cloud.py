@@ -57,6 +57,9 @@ except ImportError:
 BUFSIZE = 16 * 1024
 LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
 
+# Allowed compression algorithms
+ALLOWED_COMPRESSIONS = {".gz": "gzip", ".bz2": "bzip2"}
+
 
 def configure_logging(config):
     """
