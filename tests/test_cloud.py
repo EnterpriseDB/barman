@@ -1358,6 +1358,27 @@ end_time=2014-12-22 09:25:27.410470+01:00
         assert len(catalog.unreadable_backups) == 1
         assert "20210723T133818" in catalog.unreadable_backups
 
+    def test_can_remove_a_backup_from_cache(self):
+        """Test we can remove a backup from the cached list"""
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/base/20210723T133818/",
+            "mt-backups/test-server/base/20210723T154445/",
+        ]
+        mock_cloud_interface.remote_open.side_effect = (
+            lambda x: self.get_backup_info_file_object()
+        )
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        backups = catalog.get_backup_list()
+        assert len(backups) == 2
+        assert "20210723T133818" in backups
+        assert "20210723T154445" in backups
+        catalog.remove_backup_from_cache("20210723T154445")
+        backups = catalog.get_backup_list()
+        assert len(backups) == 1
+        assert "20210723T133818" in backups
+        assert "20210723T154445" not in backups
+
     def _verify_wal_is_in_catalog(self, wal_name, wal_path):
         """Create a catalog from the specified wal_path and verify it is listed"""
         mock_cloud_interface = MagicMock()
@@ -1424,3 +1445,21 @@ end_time=2014-12-22 09:25:27.410470+01:00
             "00000001.history",
             "mt-backups/test-server/wals/0000000100000000/00000001.history.gz",
         )
+
+    def test_can_remove_a_wal_from_cache(self):
+        """Test we can remove a WAL from the cached list"""
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.gz",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000076.gz",
+        ]
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        wals = catalog.get_wal_paths()
+        assert len(wals) == 2
+        assert "000000010000000000000075" in wals
+        assert "000000010000000000000076" in wals
+        catalog.remove_wal_from_cache("000000010000000000000075")
+        wals = catalog.get_wal_paths()
+        assert len(wals) == 1
+        assert "000000010000000000000075" not in wals
+        assert "000000010000000000000076" in wals
