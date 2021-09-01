@@ -1598,11 +1598,14 @@ class CloudBackupCatalog(object):
         backup_info.load(file_object=backup_info_file)
         return backup_info
 
-    def get_backup_files(self, backup_info):
+    def get_backup_files(self, backup_info, allow_missing=False):
         """
         Get the list of expected files part of a backup
 
         :param BackupInfo backup_info: the backup information
+        :param bool allow_missing: True if missing backup files are allowed, False
+         otherwise. A value of False will cause a SystemExit to be raised if any
+         files expected due to the `backup_info` content cannot be found.
         :rtype: dict[int, BackupFileInfo]
         """
         # Correctly format the source path
@@ -1659,12 +1662,14 @@ class CloudBackupCatalog(object):
                     break
 
         for backup_file in backup_files.values():
+            logging_fun = logging.warning if allow_missing else logging.error
             if backup_file.path is None:
-                logging.error(
+                logging_fun(
                     "Missing file %s.* for server %s",
                     backup_file.base,
                     self.server_name,
                 )
-                raise SystemExit(1)
+                if not allow_missing:
+                    raise SystemExit(1)
 
         return backup_files
