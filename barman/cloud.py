@@ -1502,6 +1502,7 @@ class CloudBackupCatalog(object):
         self.server_name = server_name
         self.prefix = os.path.join(self.cloud_interface.path, self.server_name, "base")
         self._backup_list = None
+        self.unreadable_backups = []
 
     def get_backup_list(self):
         """
@@ -1525,6 +1526,7 @@ class CloudBackupCatalog(object):
                     logging.warning(
                         "Unable to open backup.info file for %s: %s" % (backup_id, exc)
                     )
+                    self.unreadable_backups.append(backup_id)
                     continue
 
                 if backup_info:
