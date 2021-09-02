@@ -350,12 +350,15 @@ class BackupManager(RemoteStatusMixin):
             return False
         # Check if we are deleting the first available backup
         if not previous_backup:
-            # In the case of exclusive backup (default), removes any WAL
-            # files associated to the backup being deleted.
-            # In the case of concurrent backup, removes only WAL files
-            # prior to the start of the backup being deleted, as they
-            # might be useful to any concurrent backup started immediately
-            # after.
+            # There is no previous backup so we can remove unused WALs.
+            # If there is a next backup then all WALs up to the begin_wal
+            # of the next backup can be removed.
+            # If there is no next backup then there are no remaining backups so:
+            #   - In the case of exclusive backup (default), remove all WAL files.
+            #   - In the case of concurrent backup, removes only WAL files
+            #     prior to the start of the backup being deleted, as they
+            #     might be useful to any concurrent backup started immediately
+            #     after.
             remove_until = None  # means to remove all WAL files
             if next_backup:
                 remove_until = next_backup
