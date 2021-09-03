@@ -35,7 +35,7 @@ except ImportError:
 try:
     from azure.storage.blob import (
         BlobPrefix,
-        BlobServiceClient,
+        ContainerClient,
         PartialBatchErrorException,
     )
     from azure.core.exceptions import (
@@ -154,7 +154,7 @@ class AzureCloudInterface(CloudInterface):
         """
         if "AZURE_STORAGE_CONNECTION_STRING" in os.environ:
             logging.info("Authenticating to Azure with connection string")
-            client = BlobServiceClient.from_connection_string(
+            self.container_client = ContainerClient.from_connection_string(
                 conn_str=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
                 container_name=self.bucket_name,
             )
@@ -174,12 +174,11 @@ class AzureCloudInterface(CloudInterface):
                 except ImportError:
                     raise SystemExit("Missing required python module: azure-identity")
                 credential = DefaultAzureCredential()
-            client = BlobServiceClient(
+            self.container_client = ContainerClient(
                 account_url=self.account_url,
-                credential=credential,
                 container_name=self.bucket_name,
+                credential=credential,
             )
-        self.container_client = client.get_container_client(self.bucket_name)
 
     @property
     def _extra_upload_args(self):
@@ -205,10 +204,21 @@ class AzureCloudInterface(CloudInterface):
         """
         Chck Azure Blob Storage for the target container
 
+        Although there is an `exists` function it cannot be called by container-level
+        shared access tokens. We therefore check for existence by calling list_blobs
+        on the container.
+
         :return: True if the container exists, False otherwise
         :rtype: bool
         """
-        return self.container_client.exists()
+        try:
+            self.container_client.list_blobs().next()
+        except ResourceNotFoundError:
+            return False
+        except StopIteration:
+            # The bucket is empty but it does exist
+            pass
+        return True
 
     def _create_bucket(self):
         """
