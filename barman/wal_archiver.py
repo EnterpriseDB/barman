@@ -732,10 +732,6 @@ class StreamingWalArchiver(WalArchiver):
         # Ensure the presence of the destination directory
         mkpath(self.config.streaming_wals_directory)
 
-        command = "pg_receivewal"
-        if self.server.streaming.server_version < 100000:
-            command = "pg_receivexlog"
-
         # Execute basic sanity checks on PostgreSQL connection
         streaming_status = self.server.streaming.get_remote_status()
         if streaming_status["streaming_supported"] is None:
@@ -749,6 +745,9 @@ class StreamingWalArchiver(WalArchiver):
                 % self.server.streaming.server_txt_version
             )
         # Execute basic sanity checks on pg_receivexlog
+        command = "pg_receivewal"
+        if self.server.streaming.server_version < 100000:
+            command = "pg_receivexlog"
         remote_status = self.get_remote_status()
         if not remote_status["pg_receivexlog_installed"]:
             raise ArchiverFailure("%s not present in $PATH" % command)
