@@ -204,7 +204,7 @@ def parse_arguments(args=None):
         description="This script can be used to perform a backup "
         "of a local PostgreSQL instance and ship "
         "the resulting tarball(s) to the Cloud. "
-        "Currently AWS S3 and Azure Blob Storage are supported.",
+        "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
         source_or_destination=UrlArgumentType.destination,
     )
     compression = parser.add_mutually_exclusive_group()

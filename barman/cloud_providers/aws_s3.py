@@ -21,7 +21,12 @@ import shutil
 from io import RawIOBase
 
 from barman.clients.cloud_compression import decompress_to_file
-from barman.cloud import CloudInterface, CloudProviderError, DecompressingStreamingIO
+from barman.cloud import (
+    CloudInterface,
+    CloudProviderError,
+    DecompressingStreamingIO,
+    DEFAULT_DELIMITER,
+)
 
 
 try:
@@ -203,7 +208,7 @@ class S3CloudInterface(CloudInterface):
             }
         self.s3.Bucket(self.bucket_name).create(**create_bucket_config)
 
-    def list_bucket(self, prefix="", delimiter="/"):
+    def list_bucket(self, prefix="", delimiter=DEFAULT_DELIMITER):
         """
         List bucket content in a directory manner
 
@@ -237,7 +242,7 @@ class S3CloudInterface(CloudInterface):
 
         :param str key: The S3 key to download
         :param str dest_path: Where to put the destination file
-        :param bool decompress: Whenever to decompress this file or not
+        :param str|None decompress: Compression scheme to use for decompression
         """
         # Open the remote file
         obj = self.s3.Object(self.bucket_name, key)
@@ -246,7 +251,7 @@ class S3CloudInterface(CloudInterface):
         # Write the dest file in binary mode
         with open(dest_path, "wb") as dest_file:
             # If the file is not compressed, just copy its content
-            if not decompress:
+            if decompress is None:
                 shutil.copyfileobj(remote_file, dest_file)
                 return
 

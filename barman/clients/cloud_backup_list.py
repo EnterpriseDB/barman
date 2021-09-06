@@ -113,7 +113,7 @@ def parse_arguments(args=None):
     parser, _, _ = create_argument_parser(
         description="This script can be used to list backups "
         "made with barman-cloud-backup command. "
-        "Currently AWS S3 and Azure Blob Storage are supported.",
+        "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
     )
 
     parser.add_argument(
