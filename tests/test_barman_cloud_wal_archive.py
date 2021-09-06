@@ -468,6 +468,30 @@ class TestWalUploader(object):
         assert wal_final_name
         assert wal_final_name == "000000080000ABFF000000C1.snappy"
 
+    @mock.patch("barman.cloud.CloudInterface")
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader.retrieve_file_obj")
+    def test_upload_wal(self, rfo_mock, cloud_interface_mock):
+        """
+        Test upload_wal calls CloudInterface with expected parameters
+        """
+        bucket_path = "gs://bucket/path/to/dir"
+        server_name = "test_server"
+        type(cloud_interface_mock).path = mock.PropertyMock(return_value=bucket_path)
+        uploader = CloudWalUploader(cloud_interface_mock, server_name)
+        source = "/wal_dir/000000080000ABFF000000C1"
+        # Simulate the file object returned by the retrieve_file_obj method
+        rfo_mock.return_value.name = source
+        mock_fileobj_length = 42
+        rfo_mock.return_value.tell.return_value = mock_fileobj_length
+        uploader.upload_wal(source)
+
+        expected_key = os.path.join(
+            bucket_path, server_name, "wals", hash_dir(source), os.path.basename(source)
+        )
+        cloud_interface_mock.upload_fileobj.assert_called_once_with(
+            fileobj=rfo_mock(), key=expected_key, override_tags=None
+        )
+
 
 class TestWalUploaderS3(object):
     """

@@ -103,6 +103,7 @@ setup(
         "snappy": [
             "python-snappy == 0.6.0"
         ],  # version is limited py python2.7 see issue #529
+        "google": ["google-cloud-storage"],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[

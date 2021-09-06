@@ -34,6 +34,10 @@ import mock
 from mock.mock import MagicMock
 import pytest
 import snappy
+
+if sys.version_info.major > 2:
+    from unittest.mock import patch as unittest_patch
+from unittest import TestCase
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
@@ -44,6 +48,7 @@ from barman.cloud import (
     CloudTarUploader,
     CloudUploadingError,
     FileUploadStatistics,
+    DEFAULT_DELIMITER,
 )
 from barman.cloud_providers import (
     CloudProviderOptionUnsupported,
@@ -52,6 +57,9 @@ from barman.cloud_providers import (
 )
 from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
+from barman.cloud_providers.google_cloud_storage import GoogleCloudInterface
+
+from google.api_core.exceptions import GoogleAPIError, Conflict
 
 try:
     from queue import Queue
@@ -1740,6 +1748,429 @@ class TestAzureCloudInterface(object):
             assert f.read() == content
 
 
+class TestGoogleCloudInterface(TestCase):
+    """
+    Tests which verify backend-specific behaviour of GoogleCloudInterface.
+    """
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 5), reason="requires python3.6 or higher"
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_uploader_default_credential_auth(self, gcs_client_mock):
+        """Uses DefaultCredential if no other auth provided"""
+        tests = {
+            "https_url": {
+                "url": "https://console.cloud.google.com/storage/browser/some-bucket/useful/path",
+                "expected-path": "useful/path",
+                "expected-bucket-name": "some-bucket",
+            },
+            "gs_url": {
+                "url": "gs://some-bucket/useful/path",
+                "expected-path": "useful/path",
+                "expected-bucket-name": "some-bucket",
+            },
+        }
+
+        for test_name, test in tests.items():
+            with self.subTest(test_name):
+                cloud_interface = GoogleCloudInterface(test["url"])
+                assert cloud_interface.bucket_name == test["expected-bucket-name"]
+                assert cloud_interface.path == test["expected-path"]
+        self.assertEqual(gcs_client_mock.call_count, 2)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 5), reason="requires python3.6 or higher"
+    )
+    def test_uploader_malformed_urls(
+        self,
+    ):
+        error_string = (
+            "Google cloud storage URL {} is malformed. Expected format are "
+            "'https://console.cloud.google.com/storage/browser/bucket-name/some/path' "
+            "or 'gs://bucket-name/some/path'"
+        )
+        tests = {
+            "wrong domain": {
+                "url": "https://unexpected.domain/storage/browser/container",
+                "error": ValueError,
+                "message": error_string.format(
+                    "https://unexpected.domain/storage/browser/container"
+                ),
+            },
+            "wrong base path": {
+                "url": "https://console.cloud.google.com/storage/container",
+                "error": ValueError,
+                "message": error_string.format(
+                    "https://console.cloud.google.com/storage/container"
+                ),
+            },
+            "missing bucket": {
+                "url": "https://console.cloud.google.com/storage/browser",
+                "error": ValueError,
+                "message": error_string.format(
+                    "https://console.cloud.google.com/storage/browser"
+                ),
+            },
+            "missing bucket bis": {
+                "url": "https://console.cloud.google.com/storage/browser/",
+                "error": ValueError,
+                "message": "Google cloud storage URL https://console.cloud.google.com/storage/browser/ is malformed. "
+                "Bucket name not found",
+            },
+            "missing bucket ter": {
+                "url": "gs://",
+                "error": ValueError,
+                "message": "Google cloud storage URL gs:// is malformed. Bucket name not found",
+            },
+        }
+        for test_name, test in tests.items():
+            with self.subTest(test_name):
+                with pytest.raises(test["error"]) as exc:
+                    GoogleCloudInterface(url=test["url"])
+                assert str(exc.value) == test["message"]
+
+    @mock.patch.dict(os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": "credentials_path"})
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_connectivity(self, gcs_client_mock):
+        """
+        Test the test_connectivity method
+        """
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test"
+        )
+        assert cloud_interface.test_connectivity() is True
+        service_client_mock = gcs_client_mock.return_value
+        container_client_mock = service_client_mock.bucket.return_value
+        container_client_mock.exists.assert_called_once_with()
+
+    @mock.patch.dict(os.environ, {"GOOGLE_APPLICATION_CREDENTIALS": "credentials_path"})
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_connectivity_failure(self, gcs_client_mock):
+        """
+        Test the test_connectivity method in case of failure
+        """
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/bucket/path/some/blob"
+        )
+        service_client_mock = gcs_client_mock.return_value
+        container_client_mock = service_client_mock.bucket.return_value
+        container_client_mock.exists.side_effect = GoogleAPIError("error")
+        assert cloud_interface.test_connectivity() is False
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_setup_bucket(self, gcs_client_mock):
+        """
+        Test if a bucket already exists
+        """
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test/path/to/dir"
+        )
+        cloud_interface.setup_bucket()
+        service_client_mock = gcs_client_mock.return_value
+        container_client_mock = service_client_mock.bucket.return_value
+        container_client_mock.exists.assert_called_once_with()
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_setup_bucket_create(self, gcs_client_mock):
+        """
+        Test auto-creation of a bucket if it not exists
+        """
+        container_client_mock = mock.Mock()
+        container_client_mock.exists.return_value = False
+
+        service_client_mock = gcs_client_mock.return_value
+        service_client_mock.bucket.return_value = container_client_mock
+
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-testss/test/path/to/my/"
+        )
+        cloud_interface.setup_bucket()
+        container_client_mock.exists.assert_called_once_with()
+        service_client_mock.create_bucket.assert_called_once_with(container_client_mock)
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.logging")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_setup_bucket_create_conflict_error(self, gcs_client_mock, logging_mock):
+        """
+        Test auto-creation of a bucket if it not exists but exist error when creating bucket.
+        This doesn't seem logical, but it can happen when quickly deleting a bucket and object, recreating it
+        and testing existence just after.
+        Encountered in barman-testing suite 080 if I recall well.
+        """
+        container_client_mock = mock.Mock()
+        container_client_mock.exists.return_value = False
+
+        service_client_mock = gcs_client_mock.return_value
+        service_client_mock.bucket.return_value = container_client_mock
+        service_client_mock.create_bucket.side_effect = Conflict("Bucket already exist")
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-testss/test/path/to/my/"
+        )
+        cloud_interface.setup_bucket()
+        container_client_mock.exists.assert_called_once_with()
+
+        service_client_mock.create_bucket.assert_called_once_with(container_client_mock)
+        logging_mock.warning.assert_called()
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 5), reason="requires python3.5 or higher"
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_list_bucket(self, gcs_client_mock):
+        test_cases = {
+            "default_delimiter": {
+                "prefix": "test/path/to",
+                "delimiter": None,
+                "blob_files": ["path/to/some-file", "path/to/some-other-file"],
+                "blob_dirs": ["path/to/dir/", "path/to/dir2/"],
+                "expected": [
+                    "path/to/some-file",
+                    "path/to/some-other-file",
+                    "path/to/dir/",
+                    "path/to/dir2/",
+                ],
+            },
+            "no_delimiter": {
+                "prefix": "test/path/to",
+                "delimiter": "",
+                "blob_files": [
+                    "path/to/some-file",
+                    "path/to/some-other-file",
+                    "path/to/dir/f1",
+                    "path/to/dir2/f2",
+                ],
+                "blob_dirs": [],
+                "expected": [
+                    "path/to/some-file",
+                    "path/to/some-other-file",
+                    "path/to/dir/f1",
+                    "path/to/dir2/f2",
+                ],
+            },
+        }
+        for test_name, test_case in test_cases.items():
+            with self.subTest(msg=test_name, delimiter=test_case["delimiter"]):
+                # Simulate blobs client response object
+                blobs = MagicMock()
+                blobs.__iter__.return_value = list(
+                    map(
+                        lambda file: type("", (), {"name": file}),
+                        test_case["blob_files"],
+                    )
+                )
+                blobs.prefixes = test_case["blob_dirs"]
+
+                service_client_mock = gcs_client_mock.return_value
+                service_client_mock.list_blobs.return_value = blobs
+                # set delimiter value
+                delimiter = (
+                    test_case["delimiter"]
+                    if test_case["delimiter"]
+                    else DEFAULT_DELIMITER
+                )
+                # Create object and call list_bucket
+                cloud_interface = GoogleCloudInterface(
+                    "https://console.cloud.google.com/storage/browser/barman-tests/path/to/somewhere"
+                )
+                content = cloud_interface.list_bucket(
+                    test_case["prefix"], delimiter=delimiter
+                )
+                assert content == test_case["expected"]
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 5), reason="requires python3.5 or higher"
+    )
+    def test_upload_fileobj_with(self):
+        """
+        Tests the tags argument is provided to the container client when uploading
+        a file if tags are provided when creating AzureCloudInterface.
+        """
+        test_cases = {
+            "No tag": {
+                "cloud_interface_tags": None,
+                "override_tags": None,
+                "expected_tags": None,
+            },
+            "Cloud interface tags are used if no override tags": {
+                "cloud_interface_tags": [("foo", "bar"), ("baz $%", "qux -/")],
+                "override_tags": None,
+                "expected_tags": {"foo": "bar", "baz $%": "qux -/"},
+            },
+            "Override tags are used in place of cloud interface tags": {
+                "cloud_interface_tags": [("foo", "bar")],
+                "override_tags": [("$+ a", "///"), ("()", "[]")],
+                "expected_tags": {"$+ a": "///", "()": "[]"},
+            },
+        }
+        for test_name, test in test_cases.items():
+            with self.subTest(name=test_name):
+                with unittest_patch(
+                    "barman.cloud_providers.google_cloud_storage.storage.Client"
+                ) as gcs_client_mock:
+                    mock_fileobj = mock.MagicMock()
+                    mock_blob = mock.MagicMock()
+
+                    service_client_mock = gcs_client_mock.return_value
+                    container_client_mock = service_client_mock.bucket.return_value
+                    container_client_mock.blob.return_value = mock_blob
+                    # Init metadata to none for no tag case
+                    mock_blob.metadata = None
+                    cloud_interface = GoogleCloudInterface(
+                        "https://console.cloud.google.com/storage/browser/barman-test/test/path/to/my/",
+                        tags=test["cloud_interface_tags"],
+                    )
+                    mock_key = "path/to/blob"
+                    cloud_interface.upload_fileobj(
+                        mock_fileobj, mock_key, override_tags=test["override_tags"]
+                    )
+                    # Validate behavior
+                    assert mock_blob.metadata == test["expected_tags"]
+                    container_client_mock.blob.assert_called_once_with(mock_key)
+                    mock_blob.upload_from_file.assert_called_once_with(mock_fileobj)
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_upload_part(self, gcs_client_mock):
+        """
+        Tests the upload of a single block in Google
+        At that time there is no real multipart and file are sent entirely in one  bloc
+        """
+        mock_key = "path/to/blob"
+        mock_body = mock.MagicMock()
+        mock_blob = mock.MagicMock()
+
+        service_client_mock = gcs_client_mock.return_value
+        container_client_mock = service_client_mock.bucket.return_value
+        container_client_mock.blob.return_value = mock_blob
+
+        # Create Object and call upload_filobj
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test/path/to/my/"
+        )
+        cloud_interface._upload_part({}, mock_key, mock_body, 1)
+
+        # Validate behavior
+        container_client_mock.blob.assert_called_once_with(mock_key)
+        mock_blob.upload_from_file.assert_called_once_with(mock_body)
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_delete_objects(self, gcs_client_mock):
+        mock_blob1 = mock.MagicMock()
+        mock_blob2 = mock.MagicMock()
+
+        service_client_mock = gcs_client_mock.return_value
+        container_client_mock = service_client_mock.bucket.return_value
+
+        container_client_mock.blob.side_effect = [mock_blob1, mock_blob2]
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/path/to/object/"
+        )
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+        cloud_interface.delete_objects(mock_keys)
+
+        mock_blob1.delete.assert_called_once()
+        mock_blob2.delete.assert_called_once()
+        self.assertEqual(2, container_client_mock.blob.call_count)
+        mock_calls = list(map(lambda x: mock.call(x), mock_keys))
+        container_client_mock.blob.assert_has_calls(mock_calls, any_order=True)
+
+    @mock.patch("barman.cloud_providers.google_cloud_storage.logging")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_delete_objects_with_error(self, gcs_client_mock, logging_mock):
+        mock_blob1 = mock.MagicMock()
+        mock_blob1.delete.side_effect = GoogleAPIError("Failed delete blob1")
+        mock_blob2 = mock.MagicMock()
+        print("blob1", mock_blob1)
+        print("blob2", mock_blob2)
+
+        service_client_mock = gcs_client_mock.return_value
+        container_client_mock = service_client_mock.bucket.return_value
+
+        container_client_mock.blob.side_effect = {
+            "path/to/object/1": mock_blob1,
+            "path/to/object/2": mock_blob2,
+        }.get
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/path/to/object/"
+        )
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+        with pytest.raises(RuntimeError):
+            cloud_interface.delete_objects(mock_keys)
+
+        logging_mock.error.assert_called_with(
+            {
+                "path/to/object/1": [
+                    "<class 'google.api_core.exceptions.GoogleAPIError'>",
+                    "Failed delete blob1",
+                ]
+            }
+        )
+        mock_blob1.delete.assert_called_once()
+        mock_blob2.delete.assert_called_once()
+        print(container_client_mock.blob.call_count)
+        self.assertEqual(2, container_client_mock.blob.call_count)
+        mock_calls = list(map(lambda x: mock.call(x), mock_keys))
+        container_client_mock.blob.assert_has_calls(mock_calls, any_order=True)
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 5), reason="Requires Python 3.5 or higher"
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.open")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage")
+    def test_download_file(self, gcs_storage_mock, open_mock):
+        test_cases = {
+            "no_compression": {
+                "compression": None,
+            },
+            "bzip2_compression": {
+                "compression": "bzip2",
+            },
+            "gzip_compression": {
+                "compression": "gzip",
+            },
+            "snappy_compression": {
+                "compression": "snappy",
+            },
+        }
+        for test_name, test_case in test_cases.items():
+            with self.subTest(msg=test_name, compression=test_case["compression"]):
+                with unittest_patch(
+                    "barman.cloud_providers.google_cloud_storage.decompress_to_file"
+                ) as decompress_to_file_mock:
+                    opened_dest_file = open_mock().__enter__.return_value
+                    storage_client_mock = gcs_storage_mock.Client()
+                    blob_mock = gcs_storage_mock.Blob()
+                    blob_mock.exists.return_value = True
+
+                    """Verifies that cloud_interface.download_file decompresses correctly."""
+                    # AND is returned by a cloud interface
+                    object_key = "/arbitrary/object/key"
+                    cloud_interface = GoogleCloudInterface(
+                        "https://console.cloud.google.com/storage/browser/barman-test/path/to/object/"
+                    )
+
+                    # WHEN the file is downloaded from the cloud interface
+                    if test_case["compression"] is None:
+                        # Just verify the download_blob_to_file method was called because
+                        cloud_interface.download_file(
+                            object_key, "/some/fake/path", None
+                        )
+                        storage_client_mock.download_blob_to_file.assert_called_once()
+                        storage_client_mock.download_blob_to_file.assert_called_with(
+                            blob_mock, opened_dest_file
+                        )
+                    else:
+                        cloud_interface.download_file(
+                            object_key, "/some/fake/path", test_case["compression"]
+                        )
+                        assert decompress_to_file_mock.call_count
+                        decompress_to_file_mock.assert_called_with(
+                            blob_mock.open().__enter__(),
+                            opened_dest_file,
+                            test_case["compression"],
+                        )
+
+
 class TestGetCloudInterface(object):
     """
     Verify get_cloud_interface creates the required CloudInterface
@@ -1752,6 +2183,10 @@ class TestGetCloudInterface(object):
     @pytest.fixture()
     def mock_config_azure(self):
         return Namespace(credential=None, source_url="test-url")
+
+    @pytest.fixture()
+    def mock_config_gcs(self):
+        return Namespace(source_url="test-url")
 
     def test_unsupported_provider(self, mock_config_aws):
         """Verify an exception is raised for unsupported cloud providers"""
@@ -1830,6 +2265,27 @@ class TestGetCloudInterface(object):
             mock_azure_cloud_interface.call_args_list[0][1]["credential"],
             expected_credential,
         )
+
+    @pytest.mark.parametrize(
+        "extra_args",
+        [
+            {},
+            {"jobs": 2},
+            {"tags": [("foo", "bar"), ("baz", "qux")]},
+        ],
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.GoogleCloudInterface")
+    def test_google_cloud_storage(
+        self, mock_gcs_cloud_interface, mock_config_gcs, extra_args
+    ):
+        """Verify --cloud-provider=google-cloud-storage creates a GoogleCloudInterface"""
+        mock_config_gcs.cloud_provider = "google-cloud-storage"
+        for k, v in extra_args.items():
+            setattr(mock_config_gcs, k, v)
+        get_cloud_interface(mock_config_gcs)
+        # No matter what, jobs parameter will be set to 1
+        extra_args["jobs"] = 1
+        mock_gcs_cloud_interface.assert_called_once_with(url="test-url", **extra_args)
 
 
 class TestCloudBackupCatalog(object):

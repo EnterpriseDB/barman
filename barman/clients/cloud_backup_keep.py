@@ -91,7 +91,7 @@ def parse_arguments(args=None):
     parser, _, _ = create_argument_parser(
         description="This script can be used to tag backups in cloud storage as "
         "archival backups such that they will not be deleted. "
-        "Currently AWS S3 and Azure Blob Storage are supported.",
+        "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
     )
     parser.add_argument(
         "backup_id",

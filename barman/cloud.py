@@ -64,6 +64,8 @@ LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
 # Allowed compression algorithms
 ALLOWED_COMPRESSIONS = {".gz": "gzip", ".bz2": "bzip2", ".snappy": "snappy"}
 
+DEFAULT_DELIMITER = "/"
+
 
 def configure_logging(config):
     """
@@ -1024,7 +1026,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def list_bucket(self, prefix="", delimiter="/"):
+    def list_bucket(self, prefix="", delimiter=DEFAULT_DELIMITER):
         """
         List bucket content in a directory manner
 
@@ -1041,7 +1043,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
 
         :param str key: The key identifying the file to download
         :param str dest_path: Where to put the destination file
-        :param bool decompress: Whenever to decompress this file or not
+        :param str|None decompress: Compression scheme to use for decompression
         """
 
     @abstractmethod

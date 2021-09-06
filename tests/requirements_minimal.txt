@@ -2,6 +2,7 @@
  .[cloud]
  .[azure]
  .[snappy]
+ .[google]
 pytest==4.6.11
 boto3<1.11
 mock

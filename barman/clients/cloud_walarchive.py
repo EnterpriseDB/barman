@@ -119,7 +119,7 @@ def parse_arguments(args=None):
     parser, s3_arguments, azure_arguments = create_argument_parser(
         description="This script can be used in the `archive_command` "
         "of a PostgreSQL server to ship WAL files to the Cloud. "
-        "Currently AWS S3 and Azure Blob Storage are supported.",
+        "Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.",
         source_or_destination=UrlArgumentType.destination,
     )
     parser.add_argument(

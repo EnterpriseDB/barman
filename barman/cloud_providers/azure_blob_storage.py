@@ -22,7 +22,12 @@ import requests
 from io import BytesIO, RawIOBase, SEEK_END
 
 from barman.clients.cloud_compression import decompress_to_file
-from barman.cloud import CloudInterface, CloudProviderError, DecompressingStreamingIO
+from barman.cloud import (
+    CloudInterface,
+    CloudProviderError,
+    DecompressingStreamingIO,
+    DEFAULT_DELIMITER,
+)
 
 try:
     # Python 3.x
@@ -293,7 +298,7 @@ class AzureCloudInterface(CloudInterface):
                 for v in self._walk_blob_tree(child):
                     yield v
 
-    def list_bucket(self, prefix="", delimiter="/"):
+    def list_bucket(self, prefix="", delimiter=DEFAULT_DELIMITER):
         """
         List bucket content in a directory manner
 
@@ -317,7 +322,7 @@ class AzureCloudInterface(CloudInterface):
         """
         obj = self.container_client.download_blob(key)
         with open(dest_path, "wb") as dest_file:
-            if not decompress:
+            if decompress is None:
                 obj.download_to_stream(dest_file)
                 return
             blob = StreamingBlobIO(obj)
