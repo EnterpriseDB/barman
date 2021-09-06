@@ -3270,14 +3270,19 @@ class Server(RemoteStatusMixin):
         # We run it in a loop to retry when the master issues error.
         while True:
             try:
+                # Include the config path as an option if configured for this server
+                if self.config.forward_config_path:
+                    base_cmd = "barman -c %s sync-info" % barman.__config__.config_file
+                else:
+                    base_cmd = "barman sync-info"
                 # Build the command string
-                cmd_str = "barman sync-info %s " % self.config.name
+                cmd_str = "%s %s" % (base_cmd, self.config.name)
                 # If necessary we add last_wal and last_position
                 # to the command string
                 if last_wal is not None:
-                    cmd_str += "%s " % last_wal
+                    cmd_str += " %s " % last_wal
                     if last_position is not None:
-                        cmd_str += "%s " % last_position
+                        cmd_str += " %s " % last_position
                 # Then issue the command
                 remote_command(cmd_str)
                 # All good, exit the retry loop with 'break'

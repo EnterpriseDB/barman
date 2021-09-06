@@ -590,6 +590,22 @@ class TestSync(object):
             xlog = fxlogdb.readlines()
             assert xlog == exp_xlog
 
+    def _create_mock_config(self, tmpdir):
+        """Helper for passive node tests which returns a mock config object"""
+        barman_home = tmpdir.mkdir("barman_home")
+        backup_dir = barman_home.mkdir("main")
+        wals_dir = backup_dir.mkdir("wals")
+        # Build the configuration for the server using
+        # a fake configuration object filled with test values
+        return build_config_from_dicts(
+            global_conf=dict(barman_home=str(barman_home)),
+            main_conf=dict(
+                compression=None,
+                wals_directory=str(wals_dir),
+                primary_ssh_command="ssh fakeuser@fakehost",
+            ),
+        )
+
     @mock.patch("barman.server.Command")
     @mock.patch("barman.server.BarmanSubProcess")
     def test_passive_node_cron(
@@ -606,20 +622,8 @@ class TestSync(object):
         :param py.local.path tmpdir: pytest temporary directory
         :param capsys: fixture for reading sysout
         """
+        config = self._create_mock_config(tmpdir)
         # We need to setup a server object
-        barman_home = tmpdir.mkdir("barman_home")
-        backup_dir = barman_home.mkdir("main")
-        wals_dir = backup_dir.mkdir("wals")
-        # Build the configuration for the server using
-        # a fake configuration object filled with test values
-        config = build_config_from_dicts(
-            global_conf=dict(barman_home=str(barman_home)),
-            main_conf=dict(
-                compression=None,
-                wals_directory=str(wals_dir),
-                primary_ssh_command="ssh fakeuser@fakehost",
-            ),
-        )
         server = barman.server.Server(config.get_server("main"))
         # Make the configuration available through the global namespace
         # (required to invoke a subprocess to retrieve the config file name)
@@ -676,3 +680,47 @@ class TestSync(object):
             (out, err) = capsys.readouterr()
             assert "A synchronisation process for backup 1234567890" in out
             assert "WAL synchronisation already running" in out
+
+    @mock.patch("barman.server.Command")
+    @mock.patch("barman.server.BarmanSubProcess")
+    def test_passive_node_forward_config_path(
+        self, subprocess_mock, command_mock, monkeypatch, tmpdir
+    ):
+        """
+        Tests that the config file path is used in the primary node command only if
+        forward_config_path is set.
+
+        :param MagicMock subprocess_mock: Mock of
+            barman.command_wrappers.BarmanSubProcess
+        :param MagicMock command_mock: Mock of
+            barman.command_wrappers.Command
+        :param monkeypatch monkeypatch: pytest patcher
+        :param py.local.path tmpdir: pytest temporary directory
+        """
+        # GIVEN a simple passive node configuration with the default value of
+        # forward_config_path
+        config = self._create_mock_config(tmpdir)
+
+        # AND barman is invoked with the -c option, simulated here by directly
+        # storing the path to the config file in the config_file attribute
+        config.config_file = "/path/to/barman.conf"
+
+        # AND a mock barman server which provides successful responses
+        server = barman.server.Server(config.get_server("main"))
+        monkeypatch.setattr(barman, "__config__", config)
+        command = command_mock.return_value
+        command.out = json.dumps(EXPECTED_MINIMAL)
+
+        # WHEN cron is executed for the passive server
+        server.cron()
+        # THEN barman is invoked on the primary node with no -c option
+        assert command.call_args_list[0][0][0] == "barman sync-info main"
+        # WHEN forward_config_path is set to true for the server and cron is executed
+        config.get_server("main").forward_config_path = True
+        server.cron()
+        # THEN barman is invoked on the primary node with a -c option which provides
+        # the path to the barman config file
+        assert (
+            command.call_args_list[1][0][0]
+            == "barman -c /path/to/barman.conf sync-info main"
+        )

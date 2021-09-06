@@ -850,6 +850,14 @@ primary_ssh_command = ssh barman@primary_barman
 This option specifies the SSH connection parameters to the primary server,
 identifying the source of the backup data for the passive server.
 
+If you are invoking barman with the `-c/--config` option and you want to use
+the same option when the passive node invokes barman on the primary node then
+add the following option:
+
+``` ini
+forward_config_path = true
+```
+
 ### Node synchronisation
 
 When a node is marked as `passive` it is treated in a special way by Barman:
