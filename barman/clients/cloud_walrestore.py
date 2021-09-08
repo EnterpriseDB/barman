@@ -22,7 +22,7 @@ import sys
 from contextlib import closing
 
 import barman
-from barman.cloud import configure_logging
+from barman.cloud import configure_logging, ALLOWED_COMPRESSIONS
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
 from barman.utils import force_str
@@ -158,9 +158,6 @@ class CloudWalDownloader(object):
     Cloud storage download client
     """
 
-    # Allowed compression algorithms
-    ALLOWED_COMPRESSIONS = {".gz": "gzip", ".bz2": "bzip2"}
-
     def __init__(self, cloud_interface, server_name):
         """
         Object responsible for handling interactions with cloud storage
@@ -202,7 +199,7 @@ class CloudWalDownloader(object):
             elif item.startswith(wal_path):
                 # Detect compression
                 basename = item
-                for e, c in self.ALLOWED_COMPRESSIONS.items():
+                for e, c in ALLOWED_COMPRESSIONS.items():
                     if item[-len(e) :] == e:
                         # Strip extension
                         basename = basename[: -len(e)]

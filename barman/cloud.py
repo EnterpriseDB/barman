@@ -34,6 +34,7 @@ from io import BytesIO
 from tempfile import NamedTemporaryFile
 
 from barman.backup_executor import ConcurrentBackupStrategy, ExclusiveBackupStrategy
+from barman.exceptions import BarmanException
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
@@ -45,6 +46,7 @@ from barman.utils import (
     total_seconds,
     with_metaclass,
 )
+from barman import xlog
 
 try:
     # Python 3.x
@@ -56,6 +58,9 @@ except ImportError:
 
 BUFSIZE = 16 * 1024
 LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
+
+# Allowed compression algorithms
+ALLOWED_COMPRESSIONS = {".gz": "gzip", ".bz2": "bzip2"}
 
 
 def configure_logging(config):
@@ -98,7 +103,14 @@ def copyfileobj_pad_truncate(src, dst, length=None):
             dst.write(tarfile.NUL * (remainder - len(buf)))
 
 
-class CloudUploadingError(Exception):
+class CloudProviderError(BarmanException):
+    """
+    This exception is raised when we get an error in the response from the
+    cloud provider
+    """
+
+
+class CloudUploadingError(BarmanException):
     """
     This exception is raised when there are upload errors
     """
@@ -1008,6 +1020,14 @@ class CloudInterface(with_metaclass(ABCMeta)):
         :param str key: The key to use in the cloud service
         """
 
+    @abstractmethod
+    def delete_objects(self, paths):
+        """
+        Delete the objects at the specified paths
+
+        :param List[str] paths:
+        """
+
 
 class CloudBackupUploader(with_metaclass(ABCMeta)):
     """
@@ -1482,7 +1502,12 @@ class CloudBackupCatalog(object):
         self.cloud_interface = cloud_interface
         self.server_name = server_name
         self.prefix = os.path.join(self.cloud_interface.path, self.server_name, "base")
+        self.wal_prefix = os.path.join(
+            self.cloud_interface.path, self.server_name, "wals"
+        )
         self._backup_list = None
+        self._wal_paths = None
+        self.unreadable_backups = []
 
     def get_backup_list(self):
         """
@@ -1506,12 +1531,57 @@ class CloudBackupCatalog(object):
                     logging.warning(
                         "Unable to open backup.info file for %s: %s" % (backup_id, exc)
                     )
+                    self.unreadable_backups.append(backup_id)
                     continue
 
                 if backup_info:
                     backup_list[backup_id] = backup_info
             self._backup_list = backup_list
         return self._backup_list
+
+    def remove_backup_from_cache(self, backup_id):
+        """
+        Remove backup with backup_id from the cached list. This is intended for
+        cases where we want to update the state without firing lots of requests
+        at the bucket.
+        """
+        if self._backup_list:
+            self._backup_list.pop(backup_id)
+
+    def get_wal_paths(self):
+        """
+        Retrieve a dict of WAL paths keyed by the WAL name from cloud storage
+        """
+        if self._wal_paths is None:
+            wal_paths = {}
+            for wal in self.cloud_interface.list_bucket(
+                self.wal_prefix + "/", delimiter=""
+            ):
+                wal_basename = os.path.basename(wal)
+                if xlog.is_any_xlog_file(wal_basename):
+                    # We have an uncompressed xlog of some kind
+                    wal_paths[wal_basename] = wal
+                else:
+                    # Allow one suffix for compression and try again
+                    wal_name, suffix = os.path.splitext(wal_basename)
+                    if suffix in ALLOWED_COMPRESSIONS and xlog.is_any_xlog_file(
+                        wal_name
+                    ):
+                        wal_paths[wal_name] = wal
+                    else:
+                        # If it still doesn't look like an xlog file, ignore
+                        continue
+
+            self._wal_paths = wal_paths
+        return self._wal_paths
+
+    def remove_wal_from_cache(self, wal_name):
+        """
+        Remove named wal from the cached list. This is intended for cases where
+        we want to update the state without firing lots of requests at the bucket.
+        """
+        if self._wal_paths:
+            self._wal_paths.pop(wal_name)
 
     def get_backup_info(self, backup_id):
         """
@@ -1528,11 +1598,14 @@ class CloudBackupCatalog(object):
         backup_info.load(file_object=backup_info_file)
         return backup_info
 
-    def get_backup_files(self, backup_info):
+    def get_backup_files(self, backup_info, allow_missing=False):
         """
         Get the list of expected files part of a backup
 
         :param BackupInfo backup_info: the backup information
+        :param bool allow_missing: True if missing backup files are allowed, False
+         otherwise. A value of False will cause a SystemExit to be raised if any
+         files expected due to the `backup_info` content cannot be found.
         :rtype: dict[int, BackupFileInfo]
         """
         # Correctly format the source path
@@ -1589,12 +1662,14 @@ class CloudBackupCatalog(object):
                     break
 
         for backup_file in backup_files.values():
+            logging_fun = logging.warning if allow_missing else logging.error
             if backup_file.path is None:
-                logging.error(
+                logging_fun(
                     "Missing file %s.* for server %s",
                     backup_file.base,
                     self.server_name,
                 )
-                raise SystemExit(1)
+                if not allow_missing:
+                    raise SystemExit(1)
 
         return backup_files

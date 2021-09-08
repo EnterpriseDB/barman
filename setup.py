@@ -93,6 +93,7 @@ setup(
             "barman-cloud-wal-archive=barman.clients.cloud_walarchive:main",
             "barman-cloud-restore=barman.clients.cloud_restore:main",
             "barman-cloud-wal-restore=barman.clients.cloud_walrestore:main",
+            "barman-cloud-backup-delete=barman.clients.cloud_backup_delete:main",
             "barman-cloud-backup-list=barman.clients.cloud_backup_list:main",
             "barman-wal-archive=barman.clients.walarchive:main",
             "barman-wal-restore=barman.clients.walrestore:main",

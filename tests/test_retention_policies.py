@@ -39,22 +39,24 @@ class TestRetentionPolicies(object):
 
         """
         server = build_mocked_server()
-        rp = RetentionPolicyFactory.create(server, "retention_policy", "REDUNDANCY 2")
+        rp = RetentionPolicyFactory.create(
+            "retention_policy", "REDUNDANCY 2", server=server
+        )
         assert isinstance(rp, RedundancyRetentionPolicy)
 
         # Build a BackupInfo object with status to DONE
         backup_info = build_test_backup_info(
-            server=rp.server, backup_id="test1", end_time=datetime.now(tzlocal())
+            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
         )
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        rp.server.get_available_backups.return_value = {
+        server.get_available_backups.return_value = {
             "test_backup": backup_info,
             "test_backup2": backup_info,
             "test_backup3": backup_info,
         }
-        rp.server.config.minimum_redundancy = 1
+        server.config.minimum_redundancy = 1
         # execute retention policy report
         report = rp.report()
         # check that our mock is valid for the retention policy because
@@ -70,7 +72,7 @@ class TestRetentionPolicies(object):
             rp.report(context="invalid")
         # Set a new minimum_redundancy parameter, enforcing the usage of the
         # configuration parameter instead of the retention policy default
-        rp.server.config.minimum_redundancy = 3
+        server.config.minimum_redundancy = 3
         # execute retention policy report
         rp.report()
         # Check for the warning inside the log
@@ -94,13 +96,13 @@ class TestRetentionPolicies(object):
         """
         server = build_mocked_server()
         rp = RetentionPolicyFactory.create(
-            server, "retention_policy", "RECOVERY WINDOW OF 4 WEEKS"
+            "retention_policy", "RECOVERY WINDOW OF 4 WEEKS", server=server
         )
         assert isinstance(rp, RecoveryWindowRetentionPolicy)
 
         # Build a BackupInfo object with status to DONE
         backup_info = build_test_backup_info(
-            server=rp.server, backup_id="test1", end_time=datetime.now(tzlocal())
+            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
         )
 
         backup_source = {"test_backup3": backup_info}
@@ -110,11 +112,11 @@ class TestRetentionPolicies(object):
         # Add a second obsolete backup
         backup_info.end_time = datetime.now(tzlocal()) - timedelta(weeks=6)
         backup_source["test_backup"] = backup_info
-        rp.server.get_available_backups.return_value = backup_source
+        server.get_available_backups.return_value = backup_source
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        rp.server.config.minimum_redundancy = 1
-        rp.server.config.name = "test"
+        server.config.minimum_redundancy = 1
+        server.config.name = "test"
         # execute retention policy report
         report = rp.report()
         # check that our mock is valid for the retention policy
@@ -129,7 +131,7 @@ class TestRetentionPolicies(object):
             rp.report(context="invalid")
         # Set a new minimum_redundancy parameter, enforcing the usage of the
         # configuration parameter instead of the retention policy default
-        rp.server.config.minimum_redundancy = 4
+        server.config.minimum_redundancy = 4
         # execute retention policy report
         rp.report()
         # Check for the warning inside the log
@@ -155,18 +157,20 @@ class TestRetentionPolicies(object):
         """
 
         server = build_mocked_server()
-        rp = RetentionPolicyFactory.create(server, "retention_policy", "REDUNDANCY 2")
+        rp = RetentionPolicyFactory.create(
+            "retention_policy", "REDUNDANCY 2", server=server
+        )
         assert isinstance(rp, RedundancyRetentionPolicy)
 
         # Build a BackupInfo object with status to DONE
         backup_info = build_test_backup_info(
-            server=rp.server, backup_id="test1", end_time=datetime.now(tzlocal())
+            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
         )
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        rp.server.get_available_backups.return_value = {"test_backup": backup_info}
-        rp.server.config.minimum_redundancy = 1
+        server.get_available_backups.return_value = {"test_backup": backup_info}
+        server.config.minimum_redundancy = 1
         # execute retention policy report
         report = rp.backup_status("test_backup")
 
@@ -179,19 +183,19 @@ class TestRetentionPolicies(object):
         assert empty_report == BackupInfo.NONE
 
         rp = RetentionPolicyFactory.create(
-            server, "retention_policy", "RECOVERY WINDOW OF 4 WEEKS"
+            "retention_policy", "RECOVERY WINDOW OF 4 WEEKS", server=server
         )
         assert isinstance(rp, RecoveryWindowRetentionPolicy)
 
         # Build a BackupInfo object with status to DONE
         backup_info = build_test_backup_info(
-            server=rp.server, backup_id="test1", end_time=datetime.now(tzlocal())
+            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
         )
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        rp.server.get_available_backups.return_value = {"test_backup": backup_info}
-        rp.server.config.minimum_redundancy = 1
+        server.get_available_backups.return_value = {"test_backup": backup_info}
+        server.config.minimum_redundancy = 1
         # execute retention policy report
         report = rp.backup_status("test_backup")
 
@@ -207,36 +211,39 @@ class TestRetentionPolicies(object):
     def test_first_backup(self):
         server = build_mocked_server()
         rp = RetentionPolicyFactory.create(
-            server, "retention_policy", "RECOVERY WINDOW OF 4 WEEKS"
+            "retention_policy", "RECOVERY WINDOW OF 4 WEEKS", server
         )
         assert isinstance(rp, RecoveryWindowRetentionPolicy)
 
         # Build a BackupInfo object with status to DONE
         backup_info = build_test_backup_info(
-            server=rp.server, backup_id="test1", end_time=datetime.now(tzlocal())
+            server=server, backup_id="test0", end_time=datetime.now(tzlocal())
         )
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        rp.server.get_available_backups.return_value = {"test_backup": backup_info}
-        rp.server.config.minimum_redundancy = 1
+        server.get_available_backups.return_value = {"test_backup": backup_info}
+        server.config.minimum_redundancy = 1
         # execute retention policy report
         report = rp.first_backup()
 
         assert report == "test_backup"
 
-        rp = RetentionPolicyFactory.create(server, "retention_policy", "REDUNDANCY 2")
+        rp = RetentionPolicyFactory.create(
+            "retention_policy", "REDUNDANCY 2", server=server
+        )
         assert isinstance(rp, RedundancyRetentionPolicy)
 
         # Build a BackupInfo object with status to DONE
         backup_info = build_test_backup_info(
-            server=rp.server, backup_id="test1", end_time=datetime.now(tzlocal())
+            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
         )
 
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
-        rp.server.get_available_backups.return_value = {"test_backup": backup_info}
-        rp.server.config.minimum_redundancy = 1
+        server.get_available_backups.return_value = {"test_backup": backup_info}
+        server.config.minimum_redundancy = 1
+
         # execute retention policy report
         report = rp.first_backup()
 

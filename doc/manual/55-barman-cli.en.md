@@ -52,19 +52,22 @@ These utilities are distributed in the `barman-cli-cloud` RPM/Debian package,
 and can be installed alongside the PostgreSQL server:
 
 - `barman-cloud-wal-archive`: archiving script to be used as `archive_command`
-  to directly ship WAL files to an S3 object store, bypassing the Barman server;
+  to directly ship WAL files to cloud storage, bypassing the Barman server;
   alternatively, as a hook script for WAL archiving (`pre_archive_retry_script`);
 - `barman-cloud-wal-restore`: script to be used as `restore_command`
-  to fetch WAL files from an S3 object store, bypassing the Barman server, and
+  to fetch WAL files from cloud storage, bypassing the Barman server, and
   store them directly in the PostgreSQL standby;
 - `barman-cloud-backup`: backup script to be used to take a local backup
   directly on the PostgreSQL server and to ship it to a supported cloud provider,
   bypassing the Barman server; alternatively, as a hook script for copying barman
   backups to the cloud (`post_backup_retry_script)`
-- `barman-cloud-list-backup`: script to be used to list the content of
-  Barman backups taken with `barman-cloud-backup` from an S3 object store;
+- `barman-cloud-backup-delete`: script to be used to delete one or more backups
+  Barman backups taken with `barman-cloud-backup` from cloud storage and clean up
+  associated WALs;
+- `barman-cloud-backup-list`: script to be used to list the content of
+  Barman backups taken with `barman-cloud-backup` from cloud storage;
 - `barman-cloud-restore`: script to be used to restore a backup directly
-  taken with `barman-cloud-backup` from an S3 object store;
+  taken with `barman-cloud-backup` from cloud storage;
 
 For information on how to setup credentials for the aws-s3 cloud provider
 please refer to the ["Credentials" section in Boto 3 documentation][boto3creds].

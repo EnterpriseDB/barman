@@ -1,6 +1,7 @@
 MANPAGES=barman.1 barman.5 \
 		barman-wal-archive.1 barman-wal-restore.1 \
     barman-cloud-backup.1 \
+    barman-cloud-backup-delete.1 \
     barman-cloud-backup-list.1 \
     barman-cloud-wal-archive.1 \
     barman-cloud-restore.1 \
@@ -33,6 +34,9 @@ barman-wal-restore.1: barman-wal-restore.1.md
 	pandoc -s -f markdown$(NOSMART_SUFFIX) -t man -o $@ $<
 
 barman-cloud-backup.1: barman-cloud-backup.1.md
+	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
+
+barman-cloud-backup-delete.1: barman-cloud-backup-delete.1.md
 	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
 
 barman-cloud-backup-list.1: barman-cloud-backup-list.1.md

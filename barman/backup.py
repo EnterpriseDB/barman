@@ -178,6 +178,25 @@ class BackupManager(RemoteStatusMixin):
             return available_backups.get(backup_id)
         return None
 
+    @staticmethod
+    def find_previous_backup_in(
+        available_backups, backup_id, status_filter=DEFAULT_STATUS_FILTER
+    ):
+        """
+        Find the next backup (if any) in the supplied dict of BackupInfo objects.
+        """
+        ids = sorted(available_backups.keys())
+        try:
+            current = ids.index(backup_id)
+            while current > 0:
+                res = available_backups[ids[current - 1]]
+                if res.status in status_filter:
+                    return res
+                current -= 1
+            return None
+        except ValueError:
+            raise UnknownBackupIdException("Could not find backup_id %s" % backup_id)
+
     def get_previous_backup(self, backup_id, status_filter=DEFAULT_STATUS_FILTER):
         """
         Get the previous backup (if any) in the catalog
@@ -189,14 +208,23 @@ class BackupManager(RemoteStatusMixin):
             status_filter = tuple(status_filter)
         backup = LocalBackupInfo(self.server, backup_id=backup_id)
         available_backups = self.get_available_backups(status_filter + (backup.status,))
+        return self.find_previous_backup_in(available_backups, backup_id, status_filter)
+
+    @staticmethod
+    def find_next_backup_in(
+        available_backups, backup_id, status_filter=DEFAULT_STATUS_FILTER
+    ):
+        """
+        Find the next backup (if any) in the supplied dict of BackupInfo objects.
+        """
         ids = sorted(available_backups.keys())
         try:
             current = ids.index(backup_id)
-            while current > 0:
-                res = available_backups[ids[current - 1]]
+            while current < (len(ids) - 1):
+                res = available_backups[ids[current + 1]]
                 if res.status in status_filter:
                     return res
-                current -= 1
+                current += 1
             return None
         except ValueError:
             raise UnknownBackupIdException("Could not find backup_id %s" % backup_id)
@@ -212,17 +240,7 @@ class BackupManager(RemoteStatusMixin):
             status_filter = tuple(status_filter)
         backup = LocalBackupInfo(self.server, backup_id=backup_id)
         available_backups = self.get_available_backups(status_filter + (backup.status,))
-        ids = sorted(available_backups.keys())
-        try:
-            current = ids.index(backup_id)
-            while current < (len(ids) - 1):
-                res = available_backups[ids[current + 1]]
-                if res.status in status_filter:
-                    return res
-                current += 1
-            return None
-        except ValueError:
-            raise UnknownBackupIdException("Could not find backup_id %s" % backup_id)
+        return self.find_next_backup_in(available_backups, backup_id, status_filter)
 
     def get_last_backup_id(self, status_filter=DEFAULT_STATUS_FILTER):
         """
@@ -253,6 +271,29 @@ class BackupManager(RemoteStatusMixin):
 
         ids = sorted(available_backups.keys())
         return ids[0]
+
+    @staticmethod
+    def get_timelines_to_protect(remove_until, deleted_backup, available_backups):
+        """
+        Returns all timelines in available_backups which are not associated with
+        the backup at remove_until. This is so that we do not delete WALs on
+        any other timelines.
+        """
+        timelines_to_protect = set()
+        # If remove_until is not set there are no backup left
+        if remove_until:
+            # Retrieve the list of extra timelines that contains at least
+            # a backup. On such timelines we don't want to delete any WAL
+            for value in available_backups.values():
+                # Ignore the backup that is being deleted
+                if value == deleted_backup:
+                    continue
+                timelines_to_protect.add(value.timeline)
+            # Remove the timeline of `remove_until` from the list.
+            # We have enough information to safely delete unused WAL files
+            # on it.
+            timelines_to_protect -= set([remove_until.timeline])
+        return timelines_to_protect
 
     def delete_backup(self, backup):
         """
@@ -309,34 +350,26 @@ class BackupManager(RemoteStatusMixin):
             return False
         # Check if we are deleting the first available backup
         if not previous_backup:
-            # In the case of exclusive backup (default), removes any WAL
-            # files associated to the backup being deleted.
-            # In the case of concurrent backup, removes only WAL files
-            # prior to the start of the backup being deleted, as they
-            # might be useful to any concurrent backup started immediately
-            # after.
+            # There is no previous backup so we can remove unused WALs.
+            # If there is a next backup then all WALs up to the begin_wal
+            # of the next backup can be removed.
+            # If there is no next backup then there are no remaining backups so:
+            #   - In the case of exclusive backup (default), remove all WAL files.
+            #   - In the case of concurrent backup, removes only WAL files
+            #     prior to the start of the backup being deleted, as they
+            #     might be useful to any concurrent backup started immediately
+            #     after.
             remove_until = None  # means to remove all WAL files
             if next_backup:
                 remove_until = next_backup
             elif BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
                 remove_until = backup
 
-            timelines_to_protect = set()
-            # If remove_until is not set there are no backup left
-            if remove_until:
-                # Retrieve the list of extra timelines that contains at least
-                # a backup. On such timelines we don't want to delete any WAL
-                for value in self.get_available_backups(
-                    BackupInfo.STATUS_ARCHIVING
-                ).values():
-                    # Ignore the backup that is being deleted
-                    if value == backup:
-                        continue
-                    timelines_to_protect.add(value.timeline)
-                # Remove the timeline of `remove_until` from the list.
-                # We have enough information to safely delete unused WAL files
-                # on it.
-                timelines_to_protect -= set([remove_until.timeline])
+            timelines_to_protect = self.get_timelines_to_protect(
+                remove_until,
+                backup,
+                self.get_available_backups(BackupInfo.STATUS_ARCHIVING),
+            )
 
             output.info("Delete associated WAL segments:")
             for name in self.remove_wal_before_backup(

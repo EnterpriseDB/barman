@@ -20,6 +20,7 @@ import datetime
 import os
 from io import BytesIO
 from azure.core.exceptions import ServiceRequestError
+from azure.storage.blob import PartialBatchErrorException
 
 import mock
 from mock.mock import MagicMock
@@ -30,6 +31,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from barman.cloud import CloudBackupCatalog, CloudUploadingError, FileUploadStatistics
 from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
+from barman.cloud import CloudProviderError
 
 try:
     from queue import Queue
@@ -615,6 +617,108 @@ class TestS3CloudInterface(object):
             UploadId=mock_metadata["UploadId"],
         )
 
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects(self, boto_mock):
+        """
+        Tests the successful deletion of a list of objects
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+        cloud_interface.delete_objects(mock_keys)
+
+        s3_client.delete_objects.assert_called_once_with(
+            Bucket="bucket",
+            Delete={
+                "Quiet": True,
+                "Objects": [
+                    {"Key": "path/to/object/1"},
+                    {"Key": "path/to/object/2"},
+                ],
+            },
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_with_empty_list(self, boto_mock):
+        """
+        Tests the successful deletion of an empty list of objects
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = []
+        cloud_interface.delete_objects(mock_keys)
+
+        # boto3 does not accept an empty list of Objects in its delete_objects
+        # method so we verify it was not called
+        s3_client.delete_objects.assert_not_called()
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_multiple_batches(self, boto_mock):
+        """
+        Tests that deletions of more than 1000 objects are split into multiple requests
+        (necessary due to s3/boto3 limitations)
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = ["path/to/object/%s" % i for i in range(1001)]
+        cloud_interface.delete_objects(mock_keys)
+
+        assert s3_client.delete_objects.call_args_list[0] == mock.call(
+            Bucket="bucket",
+            Delete={
+                "Quiet": True,
+                "Objects": [{"Key": key} for key in mock_keys[:1000]],
+            },
+        )
+        assert s3_client.delete_objects.call_args_list[1] == mock.call(
+            Bucket="bucket",
+            Delete={"Quiet": True, "Objects": [{"Key": mock_keys[1000]}]},
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_delete_objects_partial_failure(self, boto_mock, caplog):
+        """
+        Tests that an exception is raised if there are any failures in the response
+        """
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        s3_client.delete_objects.return_value = {
+            "Errors": [
+                {
+                    "Key": "path/to/object/1",
+                    "Code": "AccessDenied",
+                    "Message": "Access Denied",
+                }
+            ]
+        }
+
+        with pytest.raises(CloudProviderError) as exc:
+            cloud_interface.delete_objects(mock_keys)
+
+        assert str(exc.value) == (
+            "Error from cloud provider while deleting objects - please "
+            "check the Barman logs"
+        )
+
+        assert (
+            "Deletion of object path/to/object/1 failed with error code: "
+            '"AccessDenied", message: "Access Denied"'
+        ) in caplog.text
+
 
 class TestAzureCloudInterface(object):
     """
@@ -1059,6 +1163,128 @@ class TestAzureCloudInterface(object):
         )
         blob_client_mock.delete_blob.assert_called_once_with()
 
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_delete_objects(self, blob_service_mock):
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+        cloud_interface.delete_objects(mock_keys)
+
+        container_client_mock.delete_blobs.assert_called_once_with(*mock_keys)
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_delete_objects_with_empty_list(self, blob_service_mock):
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+
+        mock_keys = []
+        cloud_interface.delete_objects(mock_keys)
+
+        # The Azure SDK is happy to accept an empty list here so verify that we
+        # simply passed it on
+        container_client_mock.delete_blobs.assert_called_once_with()
+
+    def _create_mock_HttpResponse(self, status_code, url):
+        """Helper function for partial failure tests."""
+        htr = mock.Mock()
+        htr.status_code = status_code
+        htr.request.url = url
+        return htr
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_delete_objects_partial_failure(self, blob_service_mock, caplog):
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        container_client_mock.delete_blobs.return_value = iter(
+            [
+                self._create_mock_HttpResponse(403, "path/to/object/1"),
+                self._create_mock_HttpResponse(202, "path/to/object/2"),
+            ]
+        )
+
+        with pytest.raises(CloudProviderError) as exc:
+            cloud_interface.delete_objects(mock_keys)
+
+        assert str(exc.value) == (
+            "Error from cloud provider while deleting objects - please "
+            "check the Barman logs"
+        )
+
+        assert (
+            'Deletion of object path/to/object/1 failed with error code: "403"'
+        ) in caplog.text
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    def test_delete_objects_partial_failure_exception(self, blob_service_mock, caplog):
+        """
+        Test that partial failures raised via PartialBatchErrorException are handled.
+        This isn't explicitly described in the Azure documentation but is something
+        which happens in practice so we must deal with it.
+        """
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
+        container_client_mock = (
+            blob_service_client_mock.get_container_client.return_value
+        )
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        parts = iter(
+            [
+                self._create_mock_HttpResponse(403, "path/to/object/1"),
+                self._create_mock_HttpResponse(202, "path/to/object/2"),
+            ]
+        )
+        partial_batch_error_exception = PartialBatchErrorException(
+            "something went wrong", None, parts
+        )
+        container_client_mock.delete_blobs.side_effect = partial_batch_error_exception
+
+        with pytest.raises(CloudProviderError) as exc:
+            cloud_interface.delete_objects(mock_keys)
+
+        assert str(exc.value) == (
+            "Error from cloud provider while deleting objects - please "
+            "check the Barman logs"
+        )
+
+        assert (
+            'Deletion of object path/to/object/1 failed with error code: "403"'
+        ) in caplog.text
+
 
 class TestCloudBackupCatalog(object):
     """
@@ -1118,3 +1344,266 @@ end_time=2014-12-22 09:25:27.410470+01:00
         assert "20210723T133818" in backups
         assert "20210723T154445" not in backups
         assert "20210723T154554" in backups
+
+    def test_unreadable_backup_ids_are_stored(self):
+        """Test we can retrieve IDs of backups which could not be read"""
+        self.remote_open_should_succeed = False
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/base/20210723T133818/",
+        ]
+        mock_cloud_interface.remote_open.side_effect = self.mock_remote_open
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        catalog.get_backup_list()
+        assert len(catalog.unreadable_backups) == 1
+        assert "20210723T133818" in catalog.unreadable_backups
+
+    def test_can_remove_a_backup_from_cache(self):
+        """Test we can remove a backup from the cached list"""
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/base/20210723T133818/",
+            "mt-backups/test-server/base/20210723T154445/",
+        ]
+        mock_cloud_interface.remote_open.side_effect = (
+            lambda x: self.get_backup_info_file_object()
+        )
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        backups = catalog.get_backup_list()
+        assert len(backups) == 2
+        assert "20210723T133818" in backups
+        assert "20210723T154445" in backups
+        catalog.remove_backup_from_cache("20210723T154445")
+        backups = catalog.get_backup_list()
+        assert len(backups) == 1
+        assert "20210723T133818" in backups
+        assert "20210723T154445" not in backups
+
+    def _verify_wal_is_in_catalog(self, wal_name, wal_path):
+        """Create a catalog from the specified wal_path and verify it is listed"""
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [wal_path]
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        wals = catalog.get_wal_paths()
+        assert len(wals) == 1
+        assert wal_name in wals
+        assert wals[wal_name] == wal_path
+
+    def test_can_list_single_wal(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075",
+        )
+
+    def test_can_list_compressed_wal(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.gz",
+        )
+
+    def test_ignores_unsupported_compression(self):
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.something",
+        ]
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        wals = catalog.get_wal_paths()
+        assert len(wals) == 0
+
+    def test_can_list_backup_labels(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075.00000028.backup",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup",
+        )
+
+    def test_can_list_compressed_backup_labels(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075.00000028.backup",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup.gz",
+        )
+
+    def test_can_list_partial_wals(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075.partial",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial",
+        )
+
+    def test_can_list_compressed_partial_wals(self):
+        self._verify_wal_is_in_catalog(
+            "000000010000000000000075.partial",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial.gz",
+        )
+
+    def test_can_list_history_wals(self):
+        self._verify_wal_is_in_catalog(
+            "00000001.history",
+            "mt-backups/test-server/wals/0000000100000000/00000001.history",
+        )
+
+    def test_can_list_compressed_history_wals(self):
+        self._verify_wal_is_in_catalog(
+            "00000001.history",
+            "mt-backups/test-server/wals/0000000100000000/00000001.history.gz",
+        )
+
+    def test_can_remove_a_wal_from_cache(self):
+        """Test we can remove a WAL from the cached list"""
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = [
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.gz",
+            "mt-backups/test-server/wals/0000000100000000/000000010000000000000076.gz",
+        ]
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        wals = catalog.get_wal_paths()
+        assert len(wals) == 2
+        assert "000000010000000000000075" in wals
+        assert "000000010000000000000076" in wals
+        catalog.remove_wal_from_cache("000000010000000000000075")
+        wals = catalog.get_wal_paths()
+        assert len(wals) == 1
+        assert "000000010000000000000075" not in wals
+        assert "000000010000000000000076" in wals
+
+    def _get_backup_files(
+        self, backup_id, list_bucket_response=[], tablespaces=[], allow_missing=False
+    ):
+        """
+        Helper which creates the necessary mocks for get_backup_files and calls it,
+        returning the result.
+
+        This allows tests to pass in a mock response for CloudInterface.list_bucket
+        along with any additional tablespaces. Missing file scenarios can be created
+        by including tablespaces but not including files for the tablespace in
+        list_bucket_response.
+        """
+        mock_cloud_interface = MagicMock()
+        mock_cloud_interface.list_bucket.return_value = list_bucket_response
+        mock_cloud_interface.path = "mt-backups"
+        # Create mock backup info which includes tablespaces
+        mock_backup_info = mock.MagicMock(name="backup_info")
+        mock_backup_info.backup_id = backup_id
+        mock_backup_info.status = "DONE"
+        mock_tablespaces = []
+        for tablespace in tablespaces:
+            mock_tablespace = mock.MagicMock(name="tablespace_%s" % tablespace)
+            mock_tablespace.oid = tablespace
+            mock_tablespaces.append(mock_tablespace)
+        mock_backup_info.tablespaces = mock_tablespaces
+        catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
+        return catalog.get_backup_files(mock_backup_info, allow_missing=allow_missing)
+
+    def test_can_get_backup_files(self):
+        """Test we can get backup file metadata successfully."""
+        # GIVEN a backup with one tablespace
+        backup_files = self._get_backup_files(
+            "20210723T133818",
+            # AND the cloud provider returns data.tar with one additional file and
+            # the tablespace archive
+            list_bucket_response=[
+                "mt-backups/test-server/base/20210723T133818/",
+                "mt-backups/test-server/base/20210723T133818/data.tar",
+                "mt-backups/test-server/base/20210723T133818/data_0000.tar",
+                "mt-backups/test-server/base/20210723T133818/16388.tar",
+            ],
+            tablespaces=[16388],
+        )
+        # THEN a BackupFileInfo is returned with a path to the data.tar file
+        assert (
+            backup_files[None].path
+            == "mt-backups/test-server/base/20210723T133818/data.tar"
+        )
+        # AND it has one additional file
+        assert len(backup_files[None].additional_files) == 1
+        # AND the additional file has a path to data_0000.tar
+        assert (
+            backup_files[None].additional_files[0].path
+            == "mt-backups/test-server/base/20210723T133818/data_0000.tar"
+        )
+        # AND a BackupFileInfo is returned with a path to the tablespace archive
+        assert (
+            backup_files[16388].path
+            == "mt-backups/test-server/base/20210723T133818/16388.tar"
+        )
+        # AND it has no additional files
+        assert len(backup_files[16388].additional_files) == 0
+
+    def test_get_backup_files_fails_if_missing(self):
+        """Test we fail if any backup files are missing."""
+        with pytest.raises(SystemExit) as exc:
+            # GIVEN a backup with one tablespace
+            self._get_backup_files(
+                "20210723T133818",
+                # AND the cloud provider returns data.tar with one additional file but
+                # omits the tablespace archive
+                list_bucket_response=[
+                    "mt-backups/test-server/base/20210723T133818/",
+                    "mt-backups/test-server/base/20210723T133818/data.tar",
+                    "mt-backups/test-server/base/20210723T133818/data_0000.tar",
+                ],
+                tablespaces=[16388],
+            )
+
+        # THEN attempting to get files for the backup fails with a SystemExit
+        assert exc.value.code == 1
+
+    def test_get_backup_succeeds_with_allow_missing(self):
+        """
+        Test we can get backup file metadata successfully even if backup files are
+        missing if allow_missing=True is used.
+        """
+        # GIVEN a backup with one tablespace
+        backup_files = self._get_backup_files(
+            "20210723T133818",
+            # AND the cloud provider returns data.tar with one additional file but
+            # omits the tablespace archive
+            list_bucket_response=[
+                "mt-backups/test-server/base/20210723T133818/",
+                "mt-backups/test-server/base/20210723T133818/data.tar",
+                "mt-backups/test-server/base/20210723T133818/data_0000.tar",
+            ],
+            tablespaces=[16388],
+            # AND allow_missing=True is passed to CloudBackupCatalog
+            allow_missing=True,
+        )
+        # THEN a BackupFileInfo is returned with a path to the data.tar file
+        assert (
+            backup_files[None].path
+            == "mt-backups/test-server/base/20210723T133818/data.tar"
+        )
+        # AND it has one additional file
+        assert len(backup_files[None].additional_files) == 1
+        # AND the additional file has a path to data_0000.tar
+        assert (
+            backup_files[None].additional_files[0].path
+            == "mt-backups/test-server/base/20210723T133818/data_0000.tar"
+        )
+        # AND a BackupFileInfo is returned for the tablespace which has a path of None
+        assert backup_files[16388].path is None
+        # AND it has no additional files
+        assert len(backup_files[16388].additional_files) == 0
+
+    def test_get_backup_succeeds_with_missing_main_file(self):
+        """
+        Test that additional files are still returned even if the main file is missing
+        when allow_missing=True is used.
+        """
+        # GIVEN a backup with one tablespace
+        backup_files = self._get_backup_files(
+            "20210723T133818",
+            # AND the cloud provider returns data_0000.tar but not the main data.tar
+            list_bucket_response=[
+                "mt-backups/test-server/base/20210723T133818/",
+                "mt-backups/test-server/base/20210723T133818/data_0000.tar",
+            ],
+            # AND allow_missing=True is passed to CloudBackupCatalog
+            allow_missing=True,
+        )
+        # THEN a BackupFileInfo is returned for data.tar with an empty path
+        assert backup_files[None].path is None
+        # AND it has one additional file
+        assert len(backup_files[None].additional_files) == 1
+        # AND the additional file has a path to data_0000.tar
+        assert (
+            backup_files[None].additional_files[0].path
+            == "mt-backups/test-server/base/20210723T133818/data_0000.tar"
+        )
