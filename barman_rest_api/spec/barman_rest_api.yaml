@@ -1,0 +1,50 @@
+openapi: 3.0.0
+info:
+  title: Barman REST API
+  version: 0.0.1
+paths:
+  /diagnose:
+    get:
+      tags:
+        - "utility"
+      summary: Return barman diagnose information
+      operationId: "diagnose"
+      responses:
+        "200":
+          description: A json blob of the diagnose information
+          content:
+            application/json:
+              schema:
+                $ref: "#/definitions/DiagnoseOutput"
+        "403":
+          description: User was not authenticated.
+          content:
+            application/json:
+              schema:
+                type: string
+        "500":  # is this necessary to specify?
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: string
+        "503":  # maybe? in case the underlying barman installation isn't up for some reason?
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                type: string
+      x-swagger-router-controller: "barman.barman_rest_api.controllers.utility_controller.diagnose"
+definitions:
+  DiagnoseOutput:
+    type: "object"
+    required:
+      - global
+      - servers
+    # these top-level entries are guaranteed, but otherwise we don't guarantee a particular format of diagnose's json output, 
+    # so the values being strings of json is the best we can do
+    properties:
+      global:
+        type: string
+      servers:
+        type: string
