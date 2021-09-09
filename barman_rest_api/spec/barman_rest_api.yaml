@@ -2,6 +2,20 @@ openapi: 3.0.0
 info:
   title: Barman REST API
   version: 0.0.1
+components:
+  schemas:
+    DiagnoseOutput:
+      type: "object"
+      required:
+        - global
+        - servers
+      # these top-level entries are guaranteed, but otherwise we don't guarantee a particular format of diagnose's json output, 
+      # so the values being strings of json is the best we can do
+      properties:
+        global:
+          type: string
+        servers:
+          type: string
 paths:
   /diagnose:
     get:
@@ -15,7 +29,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/definitions/DiagnoseOutput"
+                $ref: "#/components/schemas/DiagnoseOutput"
         "403":
           description: User was not authenticated.
           content:
@@ -35,16 +49,3 @@ paths:
               schema:
                 type: string
       x-swagger-router-controller: "barman.barman_rest_api.controllers.utility_controller.diagnose"
-definitions:
-  DiagnoseOutput:
-    type: "object"
-    required:
-      - global
-      - servers
-    # these top-level entries are guaranteed, but otherwise we don't guarantee a particular format of diagnose's json output, 
-    # so the values being strings of json is the best we can do
-    properties:
-      global:
-        type: string
-      servers:
-        type: string
