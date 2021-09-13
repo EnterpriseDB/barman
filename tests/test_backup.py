@@ -27,6 +27,7 @@ import pytest
 from mock import Mock, patch
 
 import barman.utils
+from barman.annotations import KeepManager
 from barman.exceptions import CompressionIncompatibility, RecoveryInvalidTargetException
 from barman.infofile import BackupInfo
 from testing_helpers import (
@@ -641,3 +642,38 @@ class TestBackup(object):
         assert len(latest) == 2
         assert latest["00000001"].name == "000000010000000100000001"
         assert latest["00000002"].name == "000000020000000000000003"
+
+    def test_backup_manager_has_keep_manager_capability(self, tmpdir):
+        """
+        Verifies that KeepManagerMixin methods are available in BackupManager
+        and that they work as expected.
+
+        We deliberately do not test the functionality at a more granular level as
+        KeepManagerMixin has its own tests and BackupManager adds no extra
+        functionality.
+        """
+        test_backup_id = "20210723T095432"
+        backup_manager = build_backup_manager(
+            name="test_server", global_conf={"barman_home": tmpdir.strpath}
+        )
+        # Initially a backup has no annotations and therefore shouldn't be kept
+        assert backup_manager.should_keep_backup(test_backup_id) is False
+        # The target is None because there is no keep annotation
+        assert backup_manager.get_keep_target(test_backup_id) is None
+        # Releasing the keep is a no-op because there is no keep
+        backup_manager.release_keep(test_backup_id)
+        # We can add a new keep
+        backup_manager.keep_backup(test_backup_id, KeepManager.TARGET_STANDALONE)
+        # Now we have added a keep, the backup manager knows the backup should be kept
+        assert backup_manager.should_keep_backup(test_backup_id) is True
+        # We can also see the recovery target
+        assert (
+            backup_manager.get_keep_target(test_backup_id)
+            == KeepManager.TARGET_STANDALONE
+        )
+        # We can release the keep
+        backup_manager.release_keep(test_backup_id)
+        # Having released the keep, the backup manager tells us it shouldn't be kept
+        assert backup_manager.should_keep_backup(test_backup_id) is False
+        # And the recovery target is None again
+        assert backup_manager.get_keep_target(test_backup_id) is None

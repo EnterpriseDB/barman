@@ -32,6 +32,7 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
+from barman.annotations import KeepManagerMixin
 from barman.backup_executor import (
     PassiveBackupExecutor,
     PostgresBackupExecutor,
@@ -61,7 +62,7 @@ from barman.utils import (
 _logger = logging.getLogger(__name__)
 
 
-class BackupManager(RemoteStatusMixin):
+class BackupManager(RemoteStatusMixin, KeepManagerMixin):
     """Manager of the backup archive for a server"""
 
     DEFAULT_STATUS_FILTER = BackupInfo.STATUS_COPY_DONE
@@ -70,7 +71,7 @@ class BackupManager(RemoteStatusMixin):
         """
         Constructor
         """
-        super(BackupManager, self).__init__()
+        super(BackupManager, self).__init__(server=server)
         self.server = server
         self.config = server.config
         self._backup_cache = None
