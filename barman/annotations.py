@@ -22,6 +22,7 @@ import os
 
 from abc import ABCMeta, abstractmethod
 
+from barman.exceptions import ArchivalBackupException
 from barman.utils import with_metaclass
 
 
@@ -220,4 +221,126 @@ class AnnotationManagerCloud(AnnotationManager):
         annotation_path = self._get_annotation_path(backup_id, key)
         self.cloud_interface.upload_fileobj(
             io.BytesIO(value.encode("utf-8")), annotation_path
+        )
+
+
+class KeepManager(with_metaclass(ABCMeta, object)):
+    """Abstract base class which defines the KeepManager interface"""
+
+    ANNOTATION_KEY = "keep"
+
+    TARGET_FULL = "full"
+    TARGET_STANDALONE = "standalone"
+
+    supported_targets = (TARGET_FULL, TARGET_STANDALONE)
+
+    @abstractmethod
+    def should_keep_backup(self, backup_id):
+        pass
+
+    @abstractmethod
+    def keep_backup(self, backup_id, target):
+        pass
+
+    @abstractmethod
+    def get_keep_target(self, backup_id):
+        pass
+
+    @abstractmethod
+    def release_keep(self, backup_id):
+        pass
+
+
+class KeepManagerMixin(KeepManager):
+    """
+    A Mixin which adds KeepManager functionality to its subclasses.
+
+    Keep management is built on top of annotations and consists of the
+    following functionality:
+      - Determine whether a given backup is intended to be kept beyond its retention
+        period.
+      - Determine the intended recovery target for the archival backup.
+      - Add and remove the keep annotation.
+
+    The functionality is implemented as a Mixin so that it can be used to add
+    keep management to the backup management class in barman (BackupManager)
+    as well as its closest analog in barman-cloud (CloudBackupCatalog).
+    """
+
+    def __init__(self, *args, **kwargs):
+        """
+        Base constructor (Mixin pattern).
+
+        kwargs must contain *either*:
+          - A barman.server.Server object with the key `server`, *or*:
+          - A CloudInterface object and a server name, keys `cloud_interface` and
+            `server_name` respectively.
+
+        """
+        if "server" in kwargs:
+            server = kwargs.pop("server")
+            self.annotation_manager = AnnotationManagerFile(
+                server.config.basebackups_directory
+            )
+        elif "cloud_interface" in kwargs:
+            self.annotation_manager = AnnotationManagerCloud(
+                kwargs.pop("cloud_interface"), kwargs.pop("server_name")
+            )
+        super(KeepManagerMixin, self).__init__(*args, **kwargs)
+
+    def should_keep_backup(self, backup_id):
+        """
+        Returns True if the specified backup_id for this server has a keep annotation.
+        False otherwise.
+        """
+        return (
+            self.annotation_manager.get_annotation(backup_id, type(self).ANNOTATION_KEY)
+            is not None
+        )
+
+    def keep_backup(self, backup_id, target):
+        """
+        Add a keep annotation for backup with ID backup_id with the specified
+        recovery target.
+        """
+        if target not in KeepManagerMixin.supported_targets:
+            raise ArchivalBackupException("Unsupported recovery target: %s" % target)
+        self.annotation_manager.put_annotation(
+            backup_id, type(self).ANNOTATION_KEY, target
+        )
+
+    def get_keep_target(self, backup_id):
+        """Retrieve the intended recovery target"""
+        return self.annotation_manager.get_annotation(
+            backup_id, type(self).ANNOTATION_KEY
+        )
+
+    def release_keep(self, backup_id):
+        """Release the keep annotation"""
+        self.annotation_manager.delete_annotation(backup_id, type(self).ANNOTATION_KEY)
+
+
+class KeepManagerMixinCloud(KeepManagerMixin):
+    """
+    A specialised KeepManager which allows the annotation caching optimization in
+    the AnnotationManagerCloud backend to be optionally disabled.
+    """
+
+    def should_keep_backup(self, backup_id, use_cache=True):
+        """
+        Like KeepManagerMixinCloud.should_keep_backup but with the use_cache option.
+        """
+        return (
+            self.annotation_manager.get_annotation(
+                backup_id, type(self).ANNOTATION_KEY, use_cache=use_cache
+            )
+            is not None
+        )
+
+    def get_keep_target(self, backup_id, use_cache=True):
+        """
+        Like KeepManagerMixinCloud.get_keep_target but with the use_cache option.
+        """
+        return self.annotation_manager.get_annotation(
+            backup_id, type(self).ANNOTATION_KEY, use_cache=use_cache
         )

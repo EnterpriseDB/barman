@@ -19,8 +19,16 @@
 import io
 import mock
 import os
+import pytest
 
-from barman.annotations import AnnotationManagerCloud, AnnotationManagerFile
+from barman.annotations import (
+    AnnotationManagerCloud,
+    AnnotationManagerFile,
+    KeepManager,
+    KeepManagerMixin,
+    KeepManagerMixinCloud,
+)
+from barman.exceptions import ArchivalBackupException
 
 test_backup_id = "20210723T095432"
 
@@ -384,4 +392,115 @@ class TestAnnotationManagerCloud(object):
         annotation_manager.delete_annotation(test_backup_id, "test_annotation")
         mock_cloud_interface.delete_objects.assert_called_once_with(
             ["test_server/base/%s/annotations/test_annotation" % test_backup_id]
+        )
+
+
+class TestKeepManagerMixin(object):
+    """Tests the functionality of the KeepManagerMixin"""
+
+    @mock.patch("barman.annotations.AnnotationManagerFile")
+    def test_file_backend(self, mock_annotation_manager):
+        """
+        Verify we initialise an AnnotationManagerFile when initialised with a
+        server argument.
+        """
+        mock_server = mock.MagicMock()
+        mock_server.config.basebackups_directory = "/path/to/basebackups"
+        KeepManagerMixin(server=mock_server)
+        mock_annotation_manager.assert_called_once_with("/path/to/basebackups")
+
+    @mock.patch("barman.annotations.AnnotationManagerCloud")
+    def test_cloud_backend(self, mock_annotation_manager):
+        """
+        Verify we initialise an AnnotationManagerCloud when initialised with
+        cloud_interface and server_name arguments.
+        """
+        mock_cloud_interface = mock.Mock()
+        KeepManagerMixin(
+            cloud_interface=mock_cloud_interface, server_name="test_server"
+        )
+        mock_annotation_manager.assert_called_once_with(
+            mock_cloud_interface, "test_server"
+        )
+
+    @pytest.fixture
+    def keep_manager(self, tmpdir):
+        """Create a mock keep_manager with a tmpdir backend"""
+        mock_server = mock.MagicMock()
+        mock_server.config.basebackups_directory = tmpdir.mkdir("base")
+        yield KeepManagerMixin(server=mock_server)
+
+    def test_should_keep_backup_false(self, keep_manager):
+        """Verify backups are initially not kept"""
+        assert keep_manager.should_keep_backup(test_backup_id) is False
+
+    def test_should_keep_backup_true(self, keep_manager):
+        """Verify a backup with the standalone keep target is kept"""
+        keep_manager.keep_backup(test_backup_id, KeepManager.TARGET_STANDALONE)
+        assert keep_manager.should_keep_backup(test_backup_id) is True
+
+    def test_get_keep_missing(self, keep_manager):
+        """Verify when there is no keep annotation get_keep_target returns None"""
+        assert keep_manager.get_keep_target(test_backup_id) is None
+
+    def test_get_keep_target_standalone(self, keep_manager):
+        """Verify we can set and retrieve the standalone target"""
+        keep_manager.keep_backup(test_backup_id, KeepManager.TARGET_STANDALONE)
+        assert (
+            keep_manager.get_keep_target(test_backup_id)
+            == KeepManager.TARGET_STANDALONE
+        )
+
+    def test_get_keep_target_full(self, keep_manager):
+        """Verify we can set and retrieve the full target"""
+        keep_manager.keep_backup(test_backup_id, KeepManager.TARGET_FULL)
+        assert keep_manager.get_keep_target(test_backup_id) == KeepManager.TARGET_FULL
+
+    def test_get_keep_target_unsupported(self, keep_manager):
+        """Verify we raise an exception if an unsupported target is supplied"""
+        with pytest.raises(ArchivalBackupException):
+            keep_manager.keep_backup(test_backup_id, "unsupported_target")
+
+    def test_release_keep(self, keep_manager):
+        """Verify once a keep has been released the backup should not be kept"""
+        keep_manager.keep_backup(test_backup_id, KeepManager.TARGET_STANDALONE)
+        assert (
+            keep_manager.get_keep_target(test_backup_id)
+            == KeepManager.TARGET_STANDALONE
+        )
+        assert keep_manager.should_keep_backup(test_backup_id) is True
+        keep_manager.release_keep(test_backup_id)
+        assert keep_manager.get_keep_target(test_backup_id) is None
+        assert keep_manager.should_keep_backup(test_backup_id) is False
+
+    def test_release_when_no_keep(self, keep_manager):
+        """Verify releasing a keep is successful even if there is nothing to release"""
+        keep_manager.release_keep(test_backup_id)
+        assert keep_manager.get_keep_target(test_backup_id) is None
+        assert keep_manager.should_keep_backup(test_backup_id) is False
+
+
+class TestKeepManagerMixinCloud(object):
+    """Verify cloud-specific keep manager functionality"""
+
+    @pytest.fixture
+    @mock.patch("barman.annotations.AnnotationManagerCloud")
+    def keep_manager(self, mock_annotation_manager):
+        mock_cloud_interface = mock.Mock()
+        return KeepManagerMixinCloud(
+            cloud_interface=mock_cloud_interface, server_name="test_server"
+        )
+
+    def test_should_keep_backup_passes_use_cache_option(self, keep_manager):
+        """Verify use_cache is passed to AnnotationManager"""
+        keep_manager.should_keep_backup(test_backup_id, use_cache=False)
+        keep_manager.annotation_manager.get_annotation.assert_called_once_with(
+            test_backup_id, "keep", use_cache=False
+        )
+
+    def test_get_keep_target_passes_use_cache_option(self, keep_manager):
+        """Verify use_cache is passed to AnnotationManager"""
+        keep_manager.get_keep_target(test_backup_id, use_cache=False)
+        keep_manager.annotation_manager.get_annotation.assert_called_once_with(
+            test_backup_id, "keep", use_cache=False
         )

@@ -367,3 +367,9 @@ class UnrecoverableHookScriptError(BarmanException):
     """
     Exception for hook script errors which mean the script should not be retried.
     """
+
+
+class ArchivalBackupException(BarmanException):
+    """
+    Exception for errors concerning archival backups.
+    """
