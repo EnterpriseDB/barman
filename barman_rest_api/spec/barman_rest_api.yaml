@@ -22,7 +22,7 @@ paths:
       tags:
         - "utility"
       summary: Return barman diagnose information
-      operationId: "diagnose"
+      operationId: "server.controllers.utility_controller.diagnose"
       responses:
         "200":
           description: A json blob of the diagnose information
