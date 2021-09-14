@@ -1,7 +1,11 @@
 To run the Flask app:
 
-tba
+Manually (either on local dev machine or from a barman server)
+if on an actual server, must do this as the `barman` user so barman can actually access the other servers
+`python run.py` or `python3 run.py`
 
+For a real deployment
+tba
 
 
 Technology notes and other reference material
