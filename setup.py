@@ -49,6 +49,10 @@ install_requires = [
     "connexion>=2.0.2",
     "swagger-ui-bundle>=0.0.2",
     "Flask",
+    # connexion requires werkzeug but connexion < 2.4.0 does not install werkzeug
+    # we must peg werkzeug versions below to fix connexion
+    # https://github.com/zalando/connexion/pull/1044
+    "werkzeug == 2.0.0",
 ]
 
 if sys.version_info < (2, 7):
@@ -100,7 +104,7 @@ setup(
             "barman-cloud-backup-list=barman.clients.cloud_backup_list:main",
             "barman-wal-archive=barman.clients.walarchive:main",
             "barman-wal-restore=barman.clients.walrestore:main",
-            "openapi_server=barman.barman_rest_api.server.run.__main__:main",
+            "barman_rest_server=barman.barman_rest_api.server.run.__main__:main",
         ],
     },
     license="GPL-3.0",
