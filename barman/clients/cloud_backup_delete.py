@@ -205,6 +205,18 @@ def main(args=None):
                 raise SystemExit(1)
 
             if config.backup_id:
+                # Because we only care about one backup, skip the annotation cache
+                # because it is only helpful when dealing with multiple backups
+                if catalog.should_keep_backup(config.backup_id, use_cache=False):
+                    logging.error(
+                        "Skipping delete of backup %s for server %s "
+                        "as it has a current keep request. If you really "
+                        "want to delete this backup please remove the keep "
+                        "and try again.",
+                        config.backup_id,
+                        config.server_name,
+                    )
+                    raise SystemExit(1)
                 _delete_backup(
                     cloud_interface, catalog, config.backup_id, config.dry_run
                 )

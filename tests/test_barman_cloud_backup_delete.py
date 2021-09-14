@@ -200,6 +200,7 @@ class TestCloudBackupDelete(object):
                 "remove_wal_from_cache.side_effect": remove_wal_from_cache,
             }
         )
+        catalog.should_keep_backup.return_value = False
         return catalog
 
     def _verify_cloud_interface_calls(self, get_cloud_interface_mock, expected_calls):
@@ -273,6 +274,38 @@ class TestCloudBackupDelete(object):
         self._verify_only_these_backups_deleted(
             get_cloud_interface_mock, backup_metadata, [backup_id]
         )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_delete_archival_backup(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, caplog
+    ):
+        """Test that attempting to delete an archival backup fails"""
+        # GIVEN a backup catalog with one backup and no WALs
+        backup_id = "20210723T095432"
+        backup_metadata = self._create_backup_metadata([backup_id])
+
+        # AND a CloudBackupCatalog which returns the backup_info for only that backup
+        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+
+        # AND the backup is archival
+        cloud_backup_catalog_mock.return_value.should_keep_backup.return_value = True
+
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID
+        with pytest.raises(SystemExit) as exc:
+            cloud_backup_delete.main(
+                ["cloud_storage_url", "test_server", "--backup-id", backup_id]
+            )
+
+        # THEN we exit with status 1
+        assert exc.value.code == 1
+
+        # AND log a helpful message
+        assert (
+            "Skipping delete of backup 20210723T095432 for server test_server "
+            "as it has a current keep request. If you really want to delete this "
+            "backup please remove the keep and try again."
+        ) in caplog.text
 
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
@@ -422,6 +455,7 @@ class TestCloudBackupDelete(object):
         # GIVEN an empty backup catalog
         catalog = cloud_backup_catalog_mock.return_value
         catalog.get_backup_info.return_value = None
+        catalog.should_keep_backup.return_value = False
 
         # AND a backup_id which is not in the catalog
         backup_id = "20210723T095432"
