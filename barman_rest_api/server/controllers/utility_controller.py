@@ -4,6 +4,7 @@ import json
 
 import barman
 from barman import config, diagnose, output
+from barman.server import Server
 from ..models.diagnose_output import DiagnoseOutput  # noqa: E501
 from .. import util
 
@@ -16,15 +17,17 @@ def diagnose():  # noqa: E501
 
     :rtype: DiagnoseOutput
     """
-
+    
     # FIXME set this in a system-appropriate way bc per-endpoint is dumb
     cfg = config.Config('/etc/barman.conf')  # FIXME generalize
     barman.__config__ = cfg
+    cfg.load_configuration_files_directory()
     output.set_output_writer(output.AVAILABLE_WRITERS['json']())
 
     # Get every server (both inactive and temporarily disabled)
     servers = barman.__config__.server_names()
     
+    server_dict = {}
     for server in servers:
         conf = barman.__config__.get_server(server)
         if conf is None:
@@ -36,7 +39,8 @@ def diagnose():  # noqa: E501
 
     # errors list with duplicate paths between servers
     errors_list = barman.__config__.servers_msg_list
-    barman.diagnose.exec_diagnose(servers, errors_list)
+
+    barman.diagnose.exec_diagnose(server_dict, errors_list)
 
     # FIXME not sure if the 0th thing is guaranteed
     stored_output = json.loads(output._writer.json_output['_INFO'][0])
