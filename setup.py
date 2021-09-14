@@ -46,13 +46,6 @@ install_requires = [
     "psycopg2 >= 2.4.2",
     "argh >= 0.21.2",
     "python-dateutil",
-    "connexion>=2.0.2",
-    "swagger-ui-bundle>=0.0.2",
-    "Flask",
-    # connexion requires werkzeug but connexion < 2.4.0 does not install werkzeug
-    # we must peg werkzeug versions below to fix connexion
-    # https://github.com/zalando/connexion/pull/1044
-    "werkzeug == 2.0.0",
 ]
 
 if sys.version_info < (2, 7):
@@ -115,6 +108,15 @@ setup(
         "cloud": ["boto3"],
         "completion": ["argcomplete"],
         "azure": ["azure-identity", "azure-storage-blob"],
+        "rest_app": [
+            "connexion>=2.0.2",
+            "swagger-ui-bundle>=0.0.2",
+            "Flask",
+            # connexion requires werkzeug but connexion < 2.4.0 does not install werkzeug
+            # we must peg werkzeug versions below to fix connexion
+            # https://github.com/zalando/connexion/pull/1044
+            "werkzeug == 2.0.0",            
+        ]
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[
