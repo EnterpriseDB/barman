@@ -1,7 +1,8 @@
 import connexion
 import six
 
-import barman as barman
+import barman
+from barman import output
 from ..models.diagnose_output import DiagnoseOutput  # noqa: E501
 from .. import util
 
@@ -15,8 +16,11 @@ def diagnose():  # noqa: E501
     :rtype: DiagnoseOutput
     """
 
+    # FIXME set this in a system-appropriate way bc per-endpoint is dumb
+    output.set_output_writer(output.AVAILABLE_WRITERS['json'])
+
     # Get every server (both inactive and temporarily disabled)
-    '''servers = barman.__config__.server_names()
+    servers = barman.__config__.server_names()
     
     for server in servers:
         conf = barman.__config__.get_server(server)
@@ -29,10 +33,12 @@ def diagnose():  # noqa: E501
 
     # errors list with duplicate paths between servers
     errors_list = barman.__config__.servers_msg_list
-    barman.diagnose.exec_diagnose(servers, errors_list)'''
+    barman.diagnose.exec_diagnose(servers, errors_list)
 
     # FIXME
-    output = DiagnoseOutput(_global='', servers='')
-    
+    diag_output = DiagnoseOutput(
+        _global=str(output._writer.json_output['global']), 
+        servers=str(output._writer.json_output['servers'])
+    )
 
-    return output.to_dict()
+    return diag_output.to_dict()
