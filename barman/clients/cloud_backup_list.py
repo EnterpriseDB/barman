@@ -64,16 +64,25 @@ def main(args=None):
 
             # Output
             if config.format == "console":
-                COLUMNS = "{:<20}{:<25}{:<30}"
-                print(COLUMNS.format("Backup ID", "End Time", "Begin Wal"))
+                COLUMNS = "{:<20}{:<25}{:<30}{:<16}"
+                print(
+                    COLUMNS.format(
+                        "Backup ID", "End Time", "Begin Wal", "Archival Status"
+                    )
+                )
                 for backup_id in sorted(backup_list):
                     item = backup_list[backup_id]
                     if item and item.status == BackupInfo.DONE:
+                        keep_target = catalog.get_keep_target(item.backup_id)
+                        keep_status = (
+                            keep_target and "KEEP:%s" % keep_target.upper() or ""
+                        )
                         print(
                             COLUMNS.format(
                                 item.backup_id,
                                 item.end_time.strftime("%Y-%m-%d %H:%M:%S"),
                                 item.begin_wal,
+                                keep_status,
                             )
                         )
             else:
