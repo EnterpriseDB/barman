@@ -28,6 +28,7 @@ import pytest
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
+from barman.annotations import KeepManager
 from barman.cloud import CloudBackupCatalog, CloudUploadingError, FileUploadStatistics
 from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
@@ -1596,3 +1597,78 @@ end_time=2014-12-22 09:25:27.410470+01:00
             backup_files[None].additional_files[0].path
             == "mt-backups/test-server/base/20210723T133818/data_0000.tar"
         )
+
+    @pytest.fixture
+    @mock.patch("barman.cloud.CloudInterface")
+    def in_memory_cloud_interface(self, cloud_interface_mock):
+        """Create a minimal in-memory CloudInterface implementation"""
+        in_memory_object_store = {}
+
+        def upload_fileobj(fileobj, key):
+            in_memory_object_store[key] = fileobj.read()
+
+        def remote_open(key):
+            try:
+                return BytesIO(in_memory_object_store[key])
+            except KeyError:
+                return None
+
+        def delete_objects(object_list):
+            for key in object_list:
+                try:
+                    del in_memory_object_store[key]
+                except KeyError:
+                    pass
+
+        def list_bucket(prefix, delimiter=""):
+            return in_memory_object_store.keys()
+
+        cloud_interface_mock.upload_fileobj.side_effect = upload_fileobj
+        cloud_interface_mock.remote_open.side_effect = remote_open
+        cloud_interface_mock.delete_objects.side_effect = delete_objects
+        cloud_interface_mock.list_bucket.side_effect = list_bucket
+
+        return cloud_interface_mock
+
+    def test_cloud_backup_catalog_has_keep_manager_capability(
+        self, in_memory_cloud_interface
+    ):
+        """
+        Verifies that KeepManagerMixinCloud methods are available in CloudBackupCatalog
+        and that they work as expected.
+
+        We deliberately do not test the functionality at a more granular level as
+        KeepManagerMixin has its own tests and CloudBackupCatalog adds no extra
+        functionality.
+        """
+        test_backup_id = "20210723T095432"
+
+        in_memory_cloud_interface.path = ""
+
+        # With a catalog using our minimal in-memory CloudInterface
+        catalog = CloudBackupCatalog(in_memory_cloud_interface, "test-server")
+        # Initially a backup has no annotations and therefore shouldn't be kept
+        assert catalog.should_keep_backup(test_backup_id, use_cache=False) is False
+        # The target is None because there is no keep annotation
+        assert catalog.get_keep_target(test_backup_id, use_cache=False) is None
+        # Releasing the keep is a no-op because there is no keep
+        catalog.release_keep(test_backup_id)
+        # We can add a new keep
+        catalog.keep_backup(test_backup_id, KeepManager.TARGET_STANDALONE)
+        # Now we have added a keep, the backup manager knows the backup should be kept
+        assert catalog.should_keep_backup(test_backup_id) is True
+        # We can also see the keep with the cache optimization
+        assert catalog.should_keep_backup(test_backup_id, use_cache=True) is True
+        # We can also see the recovery target
+        assert catalog.get_keep_target(test_backup_id) == KeepManager.TARGET_STANDALONE
+        # We can also see the recovery target with the cache optimization
+        assert (
+            catalog.get_keep_target(test_backup_id, use_cache=True)
+            == KeepManager.TARGET_STANDALONE
+        )
+        # We can release the keep
+        catalog.release_keep(test_backup_id)
+        # Having released the keep, the backup manager tells us it shouldn't be kept
+        assert catalog.should_keep_backup(test_backup_id) is False
+        # And the recovery target is None again
+        assert catalog.get_keep_target(test_backup_id) is None
