@@ -1,6 +1,6 @@
 import os
 import connexion
-import server.encoder as encoder
+from server import encoder
 
 def main():
     app = connexion.App(__name__, specification_dir='./spec/')
