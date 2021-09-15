@@ -555,8 +555,6 @@ class PostgreSQLConnection(PostgreSQL):
           usesuper
           OR
           (
-            userepl
-            AND
             (
               pg_has_role(CURRENT_USER, 'pg_monitor', 'MEMBER')
               OR
@@ -1325,9 +1323,12 @@ class PostgreSQLConnection(PostgreSQL):
         """
         try:
             conn = self.connect()
-            # Requires superuser privilege
             if not self.has_backup_privileges:
-                raise BackupFunctionsAccessRequired()
+                raise BackupFunctionsAccessRequired(
+                    "Postgres user '%s' is missing required privileges "
+                    "(see \"Preliminary steps\" in the Barman manual)"
+                    % self.conn_parameters.get("user")
+                )
 
             # If this server is in recovery there is nothing to do
             if self.is_in_recovery:
@@ -1385,7 +1386,11 @@ class PostgreSQLConnection(PostgreSQL):
             cur = self._cursor(cursor_factory=NamedTupleCursor)
 
             if not self.has_backup_privileges:
-                raise BackupFunctionsAccessRequired()
+                raise BackupFunctionsAccessRequired(
+                    "Postgres user '%s' is missing required privileges "
+                    "(see \"Preliminary steps\" in the Barman manual)"
+                    % self.conn_parameters.get("user")
+                )
 
             # pg_stat_replication is a system view that contains one
             # row per WAL sender process with information about the

@@ -26,7 +26,7 @@ postgres@pg$ createuser -s -P barman
 Or create a normal user with the required set of privileges as follows:
 
 ``` bash
-postgres@pg$ createuser --replication -P barman
+postgres@pg$ createuser -P barman
 ```
 
 ``` sql
