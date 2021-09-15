@@ -342,6 +342,27 @@ class TestBackup(object):
             assert os.path.exists(wal_history_file03.strpath)
             assert os.path.exists(wal_history_file04.strpath)
 
+    @patch("barman.backup.BackupManager.should_keep_backup")
+    def test_cannot_delete_keep_backup(self, mock_should_keep_backup, caplog):
+        """Verify that we cannot delete backups directly if they have a keep"""
+        # Setup of the test backup_manager
+        backup_manager = build_backup_manager()
+        backup_manager.server.config.name = "TestServer"
+        backup_manager.server.config.backup_options = []
+
+        mock_should_keep_backup.return_value = True
+
+        b_info = build_test_backup_info(
+            backup_id="fake_backup_id",
+            server=backup_manager.server,
+        )
+        assert backup_manager.delete_backup(b_info) is False
+        assert (
+            "Skipping delete of backup fake_backup_id for server TestServer as it "
+            "has a current keep request. If you really want to delete this backup "
+            "please remove the keep and try again." in caplog.text
+        )
+
     def test_available_backups(self, tmpdir):
         """
         Test the get_available_backups that retrieves all the

@@ -303,6 +303,16 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         :param backup: the backup to delete
         :return bool: True if deleted, False if could not delete the backup
         """
+        if self.should_keep_backup(backup.backup_id):
+            output.warning(
+                "Skipping delete of backup %s for server %s "
+                "as it has a current keep request. If you really "
+                "want to delete this backup please remove the keep "
+                "and try again.",
+                backup.backup_id,
+                self.config.name,
+            )
+            return False
         available_backups = self.get_available_backups(status_filter=(BackupInfo.DONE,))
         minimum_redundancy = self.server.config.minimum_redundancy
         # Honour minimum required redundancy
