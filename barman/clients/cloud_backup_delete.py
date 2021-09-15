@@ -225,7 +225,7 @@ def main(args=None):
                     "retention_policy",
                     config.retention_policy,
                     server_name=config.server_name,
-                    backup_info_list=catalog.get_backup_list(),
+                    catalog=catalog,
                 )
                 # Sort to ensure that we delete the backups in ascending order, that is
                 # from oldest to newest. This ensures that the relevant WALs will be cleaned

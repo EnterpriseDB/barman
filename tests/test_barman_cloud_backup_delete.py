@@ -20,6 +20,7 @@ import datetime
 import mock
 import pytest
 
+from barman.annotations import KeepManager
 from barman.clients import cloud_backup_delete
 from barman.cloud import CloudBackupCatalog
 
@@ -201,6 +202,7 @@ class TestCloudBackupDelete(object):
             }
         )
         catalog.should_keep_backup.return_value = False
+        catalog.get_keep_target.return_value = None
         return catalog
 
     def _verify_cloud_interface_calls(self, get_cloud_interface_mock, expected_calls):
@@ -503,6 +505,47 @@ class TestCloudBackupDelete(object):
             get_cloud_interface_mock, backup_metadata, sorted(out_of_policy_backup_ids)
         )
 
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_delete_by_redundancy_policy_preserves_archival_backups(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Test that files related to archival backups (those with a keep annotation)
+        are preserved when deleting by retention policy.
+        """
+        # GIVEN a backup catalog with four backups and no WALs
+        out_of_policy_backup_ids = ["20210723T095432", "20210722T095432"]
+        in_policy_backup_ids = ["20210724T095432", "20210725T095432"]
+        backup_metadata = self._create_backup_metadata(
+            in_policy_backup_ids + out_of_policy_backup_ids
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+
+        # AND one of the out-of-policy backups is archival
+        def should_keep_backup(backup_id, use_cache=True):
+            return (
+                backup_id == "20210722T095432" and KeepManager.TARGET_STANDALONE or None
+            )
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            should_keep_backup
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying a redundancy policy with
+        # two copies
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--retention-policy", "REDUNDANCY 2"]
+        )
+
+        # THEN the cloud interface was only used to delete the files associated with
+        # the backup which is not required to meet the policy and is not archival
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock, backup_metadata, ["20210723T095432"]
+        )
+
     @mock.patch("barman.retention_policies.datetime")
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
@@ -541,6 +584,56 @@ class TestCloudBackupDelete(object):
         # the backups which are not required to meet the policy
         self._verify_only_these_backups_deleted(
             get_cloud_interface_mock, backup_metadata, sorted(out_of_policy_backup_ids)
+        )
+
+    @mock.patch("barman.retention_policies.datetime")
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_delete_by_recovery_window_policy_preserves_archival_backups(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, datetime_mock
+    ):
+        """
+        Test that only files for the backups which are not needed to meet
+        the recovery window retention policy are deleted.
+        """
+        # GIVEN a backup catalog with four daily backups and no WALs
+        out_of_policy_backup_ids = ["20210723T095432", "20210722T095432"]
+        in_policy_backup_ids = ["20210724T095432", "20210725T095432"]
+        backup_metadata = self._create_backup_metadata(
+            in_policy_backup_ids + out_of_policy_backup_ids
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+
+        # AND a system time between one and two days after the most recent backup
+        datetime_mock.now.return_value = datetime.datetime(2021, 7, 27)
+
+        # AND one of the out-of-policy backups is archival
+        def should_keep_backup(backup_id, use_cache=True):
+            return (
+                backup_id == "20210722T095432" and KeepManager.TARGET_STANDALONE or None
+            )
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            should_keep_backup
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying a recovery window policy of
+        # 2 days
+        cloud_backup_delete.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                "--retention-policy",
+                "RECOVERY WINDOW OF 2 DAYS",
+            ]
+        )
+
+        # THEN the cloud interface was only used to delete the files associated with
+        # the backup which is not required to meet the policy and is not archival
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock, backup_metadata, ["20210723T095432"]
         )
 
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
