@@ -677,3 +677,33 @@ class TestBackup(object):
         assert backup_manager.should_keep_backup(test_backup_id) is False
         # And the recovery target is None again
         assert backup_manager.get_keep_target(test_backup_id) is None
+
+    @patch("barman.backup.BackupManager.delete_backup")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_cron_retention_only_deletes_OBSOLETE_backups(
+        self, get_available_backups, delete_backup, tmpdir
+    ):
+        """
+        Verify only backups with retention status OBSOLETE are deleted by
+        retention policy.
+        """
+        backup_manager = build_backup_manager()
+        backup_manager.server.config.name = "TestServer"
+        backup_manager.server.config.barman_lock_directory = tmpdir.strpath
+        backup_manager.server.config.backup_options = []
+        backup_manager.server.config.retention_policy = Mock()
+        backup_manager.config.retention_policy.report.return_value = {
+            "keep_full_backup": BackupInfo.KEEP_FULL,
+            "keep_standalone_backup": BackupInfo.KEEP_STANDALONE,
+            "valid_backup": BackupInfo.VALID,
+            "none_backup": BackupInfo.NONE,
+            "obsolete_backup": BackupInfo.OBSOLETE,
+            "potentially_obsolete_backup": BackupInfo.POTENTIALLY_OBSOLETE,
+        }
+        available_backups = dict(
+            (k, build_test_backup_info(server=backup_manager.server, backup_id=k))
+            for k in backup_manager.config.retention_policy.report.return_value
+        )
+        get_available_backups.return_value = available_backups
+        backup_manager.cron_retention_policy()
+        delete_backup.assert_called_once_with(available_backups["obsolete_backup"])
