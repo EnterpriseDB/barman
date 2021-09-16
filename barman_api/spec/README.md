@@ -1,7 +1,7 @@
 To generate new server controller/model code from the spec:
 
 1. Run
-`openapi-generator generate -i ./spec/barman_rest_api.yaml -o ./generated -g python-flask`
+`openapi-generator generate -i ./spec/barman_api.yaml -o ./generated -g python-flask`
 
 (For more information on openapi-generator, look at docs here: https://github.com/OpenAPITools/openapi-generator)
 

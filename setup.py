@@ -97,7 +97,7 @@ setup(
             "barman-cloud-backup-list=barman.clients.cloud_backup_list:main",
             "barman-wal-archive=barman.clients.walarchive:main",
             "barman-wal-restore=barman.clients.walrestore:main",
-            "barman_rest_server=barman.barman_rest_api.server.run.__main__:main",
+            "barman-api=barman_api.server.run.__main__:main",
         ],
     },
     license="GPL-3.0",
@@ -108,7 +108,7 @@ setup(
         "cloud": ["boto3"],
         "completion": ["argcomplete"],
         "azure": ["azure-identity", "azure-storage-blob"],
-        "rest_app": [
+        "barman_api": [
             "connexion>=2.0.2",
             "Flask",
             # connexion requires werkzeug but connexion < 2.4.0 does not install werkzeug

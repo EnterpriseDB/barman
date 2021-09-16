@@ -48,4 +48,4 @@ paths:
             application/json:
               schema:
                 type: string
-      x-swagger-router-controller: "barman.barman_rest_api.controllers.utility_controller.diagnose"
+      x-swagger-router-controller: "barman.barman_api.controllers.utility_controller.diagnose"
