@@ -22,6 +22,8 @@ import os
 import logging
 from logging.config import dictConfig
 
+import barman
+from barman import config, output
 from server import encoder
 
 
@@ -38,6 +40,14 @@ def serve(args):
     """
     Run the Barman API app.
     """
+
+    # load barman configs/setup barman for the app
+    cfg = config.Config('/etc/barman.conf')
+    barman.__config__ = cfg
+    cfg.load_configuration_files_directory()
+    output.set_output_writer(output.AVAILABLE_WRITERS['json']())
+
+    # setup flask logging
     dictConfig({
         'version': 1,
         'formatters': {'default': {
@@ -54,6 +64,7 @@ def serve(args):
         }
     })
 
+    # setup and run the app
     app = connexion.App(__name__, specification_dir='./spec/')
     app.app.json_encoder = encoder.JSONEncoder
     app.add_api('barman_api.yaml',

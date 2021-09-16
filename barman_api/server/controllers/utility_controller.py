@@ -21,7 +21,7 @@ import six
 import json
 
 import barman
-from barman import config, diagnose, output
+from barman import diagnose, output
 from barman.server import Server
 from ..models.diagnose_output import DiagnoseOutput  # noqa: E501
 from .. import util
@@ -35,13 +35,6 @@ def diagnose():  # noqa: E501
 
     :rtype: DiagnoseOutput
     """
-    
-    # FIXME set this in a system-appropriate way bc per-endpoint is dumb
-    cfg = config.Config('/etc/barman.conf')  # FIXME generalize
-    barman.__config__ = cfg
-    cfg.load_configuration_files_directory()
-    output.set_output_writer(output.AVAILABLE_WRITERS['json']())
-
     # Get every server (both inactive and temporarily disabled)
     servers = barman.__config__.server_names()
     
