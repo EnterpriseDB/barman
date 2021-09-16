@@ -47,23 +47,6 @@ def serve(args):
     cfg.load_configuration_files_directory()
     output.set_output_writer(output.AVAILABLE_WRITERS['json']())
 
-    # setup flask logging
-    dictConfig({
-        'version': 1,
-        'formatters': {'default': {
-            'format': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
-        }},
-        'handlers': {'wsgi': {
-            'class': 'logging.FileHandler',
-            'filename': LOG_FILENAME,
-            'formatter': 'default'
-        }},
-        'root': {
-            'level': 'INFO',
-            'handlers': ['wsgi']
-        }
-    })
-
     # setup and run the app
     app = connexion.App(__name__, specification_dir='./spec/')
     app.app.json_encoder = encoder.JSONEncoder
@@ -83,8 +66,22 @@ def main():
     """
     Main method of the Barman API app
     """
-    logging.basicConfig(filename='/var/log/barman/barman-api.log',
-                        level=logging.INFO)
+    # setup logging
+    dictConfig({
+        'version': 1,
+        'formatters': {'default': {
+            'format': '[%(asctime)s] %(levelname)s:%(module)s: %(message)s',
+        }},
+        'handlers': {'wsgi': {
+            'class': 'logging.FileHandler',
+            'filename': LOG_FILENAME,
+            'formatter': 'default'
+        }},
+        'root': {
+            'level': 'INFO',
+            'handlers': ['wsgi']
+        }
+    })
     logger = logging.getLogger(__name__)
 
     p = ArghParser(epilog="Barman API by EnterpriseDB (www.enterprisedb.com)")
