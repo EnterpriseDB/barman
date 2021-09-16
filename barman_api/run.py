@@ -17,10 +17,15 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 from argh import ArghParser, arg, expects_obj
-import os
 import connexion
+import os
+import logging
+from logging.config import dictConfig
 
 from server import encoder
+
+
+LOG_FILENAME = '/var/log/barman/barman-api.log'
 
 
 @arg(
@@ -30,6 +35,25 @@ from server import encoder
     )
 @expects_obj  # futureproofing for possible future args
 def serve(args):
+    """
+    Run the Barman API app.
+    """
+    dictConfig({
+        'version': 1,
+        'formatters': {'default': {
+            'format': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
+        }},
+        'handlers': {'wsgi': {
+            'class': 'logging.FileHandler',
+            'filename': LOG_FILENAME,
+            'formatter': 'default'
+        }},
+        'root': {
+            'level': 'INFO',
+            'handlers': ['wsgi']
+        }
+    })
+
     app = connexion.App(__name__, specification_dir='./spec/')
     app.app.json_encoder = encoder.JSONEncoder
     app.add_api('barman_api.yaml',
@@ -48,19 +72,22 @@ def main():
     """
     Main method of the Barman API app
     """
+    logging.basicConfig(filename='/var/log/barman/barman-api.log',
+                        level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
     p = ArghParser(epilog="Barman API by EnterpriseDB (www.enterprisedb.com)")
     p.add_commands(
         [
             serve,
             status
         ])
-    try: 
+    try:
         p.dispatch()
     except KeyboardInterrupt:
-        msg = "Process interrupted by user (KeyboardInterrupt)"
-        print(msg)  # TODO logging
+        logger.error("Process interrupted by user (KeyboardInterrupt)")
     except Exception as e:
-        pass  # TODO logging
+        logger.error(e)
 
 
 if __name__ == '__main__':
