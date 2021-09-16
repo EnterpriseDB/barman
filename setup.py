@@ -110,7 +110,6 @@ setup(
         "azure": ["azure-identity", "azure-storage-blob"],
         "rest_app": [
             "connexion>=2.0.2",
-            "swagger-ui-bundle>=0.0.2",
             "Flask",
             # connexion requires werkzeug but connexion < 2.4.0 does not install werkzeug
             # we must peg werkzeug versions below to fix connexion
