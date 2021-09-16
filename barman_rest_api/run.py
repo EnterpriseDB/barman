@@ -27,7 +27,7 @@ def main():
                 arguments={'title': 'Barman REST API'},
                 pythonic_params=True)
 
-    app.run(port=8080)
+    app.run(host='127.0.0.1', port=7480)
 
 if __name__ == '__main__':
     main()
