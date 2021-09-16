@@ -59,23 +59,34 @@ def _get_files_for_backup(catalog, backup_info):
     return backup_files
 
 
-def _remove_wals_for_backup(cloud_interface, catalog, deleted_backup, dry_run):
+def _remove_wals_for_backup(
+    cloud_interface,
+    catalog,
+    deleted_backup,
+    dry_run,
+    skip_wal_cleanup_if_standalone=True,
+):
     # An implementation of BackupManager.remove_wal_before_backup which does not
     # use xlogdb, since xlogdb is not available to barman-cloud
-    previous_backup = BackupManager.find_previous_backup_in(
-        catalog.get_backup_list(), deleted_backup.backup_id
+    should_remove_wals, wal_ranges_to_protect = BackupManager.should_remove_wals(
+        deleted_backup,
+        catalog.get_backup_list(),
+        keep_manager=catalog,
+        skip_wal_cleanup_if_standalone=skip_wal_cleanup_if_standalone,
     )
     next_backup = BackupManager.find_next_backup_in(
         catalog.get_backup_list(), deleted_backup.backup_id
     )
-    should_delete = {}
-    if not previous_backup:
-        # There is no previous backup so we can remove unused WALs.
-        # If there is a next backup then all WALs up to the begin_wal of the next
-        # backup can be removed.
-        # If there is no next backup then there are no remaining backups however
-        # because we must assume non-exclusive backups are taken we can only safely
-        # delete WALs up to begin_wal of the deleted backup.
+    wals_to_delete = {}
+    if should_remove_wals:
+        # There is no previous backup or all previous backups are archival
+        # standalone backups, so we can remove unused WALs (those WALs not
+        # required by standalone archival backups).
+        # If there is a next backup then all unused WALs up to the begin_wal
+        # of the next backup can be removed.
+        # If there is no next backup then there are no remaining backups,
+        # because we must assume non-exclusive backups are taken, we can only
+        # safely delete unused WALs up to begin_wal of the deleted backup.
         # See comments in barman.backup.BackupManager.delete_backup.
         if next_backup:
             remove_until = next_backup
@@ -105,10 +116,24 @@ def _remove_wals_for_backup(cloud_interface, catalog, deleted_backup, dry_run):
                 tli, _, _ = xlog.decode_segment_name(wal_name)
                 if tli in timelines_to_protect:
                     continue
+
+            # Check if the WAL is in a protected range, required by an archival
+            # standalone backup - so do not delete it
+            if xlog.is_backup_file(wal_name):
+                # If we have a backup file, truncate the name for the range check
+                range_check_wal_name = wal_name[:24]
+            else:
+                range_check_wal_name = wal_name
+            if any(
+                range_check_wal_name >= begin_wal and range_check_wal_name <= end_wal
+                for begin_wal, end_wal in wal_ranges_to_protect
+            ):
+                continue
+
             if wal_name < remove_until.begin_wal:
-                should_delete[wal_name] = wal
+                wals_to_delete[wal_name] = wal
     # Explicitly sort because dicts are not ordered in python < 3.6
-    wal_paths_to_delete = sorted(should_delete.values())
+    wal_paths_to_delete = sorted(wals_to_delete.values())
     if len(wal_paths_to_delete) > 0:
         if not dry_run:
             try:
@@ -128,11 +153,17 @@ def _remove_wals_for_backup(cloud_interface, catalog, deleted_backup, dry_run):
                 "Skipping deletion of objects %s due to --dry-run option"
                 % wal_paths_to_delete
             )
-        for wal_name in should_delete.keys():
+        for wal_name in wals_to_delete.keys():
             catalog.remove_wal_from_cache(wal_name)
 
 
-def _delete_backup(cloud_interface, catalog, backup_id, dry_run=True):
+def _delete_backup(
+    cloud_interface,
+    catalog,
+    backup_id,
+    dry_run=True,
+    skip_wal_cleanup_if_standalone=True,
+):
     backup_info = catalog.get_backup_info(backup_id)
     if not backup_info:
         logging.warning("Backup %s does not exist", backup_id)
@@ -158,7 +189,9 @@ def _delete_backup(cloud_interface, catalog, backup_id, dry_run=True):
             % (objects_to_delete + [backup_info_path])
         )
 
-    _remove_wals_for_backup(cloud_interface, catalog, backup_info, dry_run)
+    _remove_wals_for_backup(
+        cloud_interface, catalog, backup_info, dry_run, skip_wal_cleanup_if_standalone
+    )
     # It is important that the backup is removed from the catalog after cleaning
     # up the WALs because the code in _remove_wals_for_backup depends on the
     # deleted backup existing in the backup catalog
@@ -238,7 +271,13 @@ def main(args=None):
                     ]
                 )
                 for backup_id in backups_to_delete:
-                    _delete_backup(cloud_interface, catalog, backup_id, config.dry_run)
+                    _delete_backup(
+                        cloud_interface,
+                        catalog,
+                        backup_id,
+                        config.dry_run,
+                        skip_wal_cleanup_if_standalone=False,
+                    )
     except Exception as exc:
         logging.error("Barman cloud backup delete exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)

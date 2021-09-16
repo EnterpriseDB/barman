@@ -24,6 +24,8 @@ from barman.annotations import KeepManager
 from barman.clients import cloud_backup_delete
 from barman.cloud import CloudBackupCatalog
 
+from testing_helpers import interpolate_wals
+
 
 class TestCloudBackupDeleteArguments(object):
     """Test handling of command line arguments."""
@@ -98,7 +100,7 @@ class TestCloudBackupDelete(object):
             for name, path in file_paths.items()
         )
 
-    def _create_backup_metadata(self, backup_ids, begin_wals={}):
+    def _create_backup_metadata(self, backup_ids, begin_wals={}, end_wals={}):
         """
         Helper for tests which creates mock BackupFileInfo and BackupInfo objects
         which are returned in a dict keyed by backup_id.
@@ -129,6 +131,10 @@ class TestCloudBackupDelete(object):
             try:
                 backup_info.begin_wal = begin_wals[backup_id]
                 backup_info.timeline = int(backup_info.begin_wal[:8])
+            except KeyError:
+                pass
+            try:
+                backup_info.end_wal = end_wals[backup_id]
             except KeyError:
                 pass
             backup_metadata[backup_id]["info"] = backup_info
@@ -817,7 +823,7 @@ class TestCloudBackupDelete(object):
 
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
-    def test_no_wals_cleanup_when_older_backups_left(
+    def test_no_wal_cleanup_when_older_backups_left(
         self, get_cloud_interface_mock, cloud_backup_catalog_mock
     ):
         """Tests that no WALs are cleaned up when an older backup remains."""
@@ -1307,6 +1313,516 @@ class TestCloudBackupDelete(object):
                     "wals/000000010000000000000076.gz",
                     "wals/000000010000000000000077.gz",
                     "wals/000000020000000000000075.gz",
+                ]
+            },
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_no_wal_cleanup_when_oldest_is_keep_full(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Tests that no WALs are cleaned up when the oldest backup is archival
+        with a keep:full recovery target.
+        """
+        # GIVEN a backup catalog with three backups with begin_wal values
+        backup_id = "20210724T095432"
+        target_backup_id = "20210723T095432"
+        oldest_backup_id = "20210722T095432"
+        begin_wals = {
+            backup_id: "000000010000000000000077",
+            target_backup_id: "000000010000000000000075",
+            oldest_backup_id: "000000010000000000000073",
+        }
+        backup_metadata = self._create_backup_metadata(
+            [backup_id, target_backup_id, oldest_backup_id], begin_wals=begin_wals
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        # and a list of five WALs
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=interpolate_wals(
+                "000000010000000000000073", "000000010000000000000077"
+            ),
+        )
+
+        # AND the oldest backup is archival with a full recovery target
+        def get_keep_target(backup_id, use_cache=True):
+            return backup_id == "20210722T095432" and KeepManager.TARGET_FULL or None
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            get_keep_target
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID of the second
+        # oldest backup
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--backup-id", target_backup_id]
+        )
+
+        # THEN the cloud interface was only used to delete the files associated with
+        # that backup and no WALs were deleted
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock, backup_metadata, [target_backup_id], wals={}
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_no_wal_cleanup_when_oldest_is_keep_standalone(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Tests that no WALs are cleaned up when the oldest backup is archival
+        with a keep:standalone recovery target.
+        """
+        # GIVEN a backup catalog with three backups with begin_wal and end_wal values
+        backup_id = "20210724T095432"
+        target_backup_id = "20210723T095432"
+        oldest_backup_id = "20210722T095432"
+        begin_wals = {
+            backup_id: "000000010000000000000077",
+            target_backup_id: "000000010000000000000075",
+            oldest_backup_id: "000000010000000000000073",
+        }
+        end_wals = {
+            backup_id: "000000010000000000000078",
+            target_backup_id: "000000010000000000000076",
+            oldest_backup_id: "000000010000000000000074",
+        }
+        backup_metadata = self._create_backup_metadata(
+            [backup_id, target_backup_id, oldest_backup_id],
+            begin_wals=begin_wals,
+            end_wals=end_wals,
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        # and a list of five WALs
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=interpolate_wals(
+                "000000010000000000000073", "000000010000000000000077"
+            ),
+        )
+
+        # AND the oldest backup is archival with a standalone recovery target
+        def get_keep_target(backup_id, use_cache=True):
+            return (
+                backup_id == "20210722T095432" and KeepManager.TARGET_STANDALONE or None
+            )
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            get_keep_target
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID of the
+        # second oldest backup
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--backup-id", target_backup_id]
+        )
+
+        # THEN the cloud interface was only used to delete the files associated with
+        # that backup and no WALs were deleted
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock, backup_metadata, [target_backup_id], wals={}
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_wals_cleanup_when_oldest_is_keep_standalone_deletion_by_retention(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Tests >=oldest.begin_wal and <=oldest.end_wal are preserved when the
+        oldest backup is archival with keep:standalone and we are deleting by
+        retention policy.
+        """
+        # GIVEN a backup catalog with three backups with begin_wal and end_wal values
+        backup_id = "20210724T095432"
+        target_backup_id = "20210723T095432"
+        oldest_backup_id = "20210722T095432"
+        begin_wals = {
+            backup_id: "00000001000000000000007B",
+            target_backup_id: "000000010000000000000077",
+            oldest_backup_id: "000000010000000000000073",
+        }
+        end_wals = {
+            backup_id: "00000001000000000000007D",
+            target_backup_id: "000000010000000000000079",
+            oldest_backup_id: "000000010000000000000075",
+        }
+        backup_metadata = self._create_backup_metadata(
+            [backup_id, target_backup_id, oldest_backup_id],
+            begin_wals=begin_wals,
+            end_wals=end_wals,
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        # and a list of WALs
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=interpolate_wals(
+                "000000010000000000000072", "00000001000000000000007D"
+            ),
+        )
+
+        # AND the oldest backup is archival with a standalone recovery target
+        def get_keep_target(backup_id, use_cache=True):
+            return (
+                backup_id == "20210722T095432" and KeepManager.TARGET_STANDALONE or None
+            )
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            get_keep_target
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying a redundancy retention
+        # policy
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--retention-policy", "REDUNDANCY 1"]
+        )
+
+        # THEN the cloud interface was used to delete the files associated with
+        # the second oldest backup (the newest is required to meet the policy and
+        # the oldest is an archival backup)
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock,
+            backup_metadata,
+            [target_backup_id],
+            # AND we expect only the WALs before the archival backup begin_wal and after
+            # the archival backup end_wal but before the latest backup begin_wal to have
+            # been deleted
+            wals={
+                target_backup_id: [
+                    "wals/000000010000000000000072.gz",
+                    "wals/000000010000000000000076.gz",
+                    "wals/000000010000000000000077.gz",
+                    "wals/000000010000000000000078.gz",
+                    "wals/000000010000000000000079.gz",
+                    "wals/00000001000000000000007A.gz",
+                ]
+            },
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_wals_cleanup_when_all_oldest_are_keep_standalone_deletion_by_retention(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Tests >=oldest.begin_wal and <=oldest.end_wal are preserved for all
+        standalone archival backups when all backups up to oldest are standalone
+        and we are deleting by retention policy.
+        """
+        # GIVEN a backup catalog with four backups with begin_wal and end_wal values
+        backup_id = "20210724T095432"
+        target_backup_id = "20210723T095432"
+        second_oldest_backup_id = "20210722T095432"
+        oldest_backup_id = "20210721T095432"
+        begin_wals = {
+            backup_id: "00000001000000000000007B",
+            target_backup_id: "000000010000000000000077",
+            second_oldest_backup_id: "000000010000000000000073",
+            oldest_backup_id: "00000001000000000000006F",
+        }
+        end_wals = {
+            backup_id: "00000001000000000000007D",
+            target_backup_id: "000000010000000000000079",
+            second_oldest_backup_id: "000000010000000000000075",
+            oldest_backup_id: "000000010000000000000071",
+        }
+        backup_metadata = self._create_backup_metadata(
+            [backup_id, target_backup_id, second_oldest_backup_id, oldest_backup_id],
+            begin_wals=begin_wals,
+            end_wals=end_wals,
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        # and a list of WALs
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=interpolate_wals(
+                "00000001000000000000006E", "00000001000000000000007D"
+            ),
+        )
+
+        # AND the oldest two backups are archival with a standalone recovery target
+        def get_keep_target(backup_id, use_cache=True):
+            return (
+                backup_id == "20210721T095432"
+                and KeepManager.TARGET_STANDALONE
+                or backup_id == "20210722T095432"
+                and KeepManager.TARGET_STANDALONE
+                or None
+            )
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            get_keep_target
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying a redundancy retention
+        # policy
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--retention-policy", "REDUNDANCY 1"]
+        )
+
+        # THEN the cloud interface was only used to delete the files associated with
+        # the oldest non-archival backup
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock,
+            backup_metadata,
+            [target_backup_id],
+            # AND we expect only the WALs before the archival backup begin_wal and after
+            # the archival backup end_wal but before the latest backup begin_wal to have
+            # been deleted
+            wals={
+                target_backup_id: [
+                    "wals/00000001000000000000006E.gz",
+                    "wals/000000010000000000000072.gz",
+                    "wals/000000010000000000000076.gz",
+                    "wals/000000010000000000000077.gz",
+                    "wals/000000010000000000000078.gz",
+                    "wals/000000010000000000000079.gz",
+                    "wals/00000001000000000000007A.gz",
+                ]
+            },
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_wals_cleanup_when_oldest_two_nokeep_and_standalone_deletion_by_retention(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Tests >=oldest.begin_wal and <=oldest.end_wal are preserved for the
+        standalone archival backup when the oldest backup is not archival, the
+        second oldest is archival both are out-of-policy.
+        """
+        # GIVEN a backup catalog with four backups with begin_wal and end_wal values
+        backup_id = "20210724T095432"
+        target_backup_id = "20210723T095432"
+        second_oldest_backup_id = "20210722T095432"
+        oldest_backup_id = "20210721T095432"
+        begin_wals = {
+            backup_id: "00000001000000000000007B",
+            target_backup_id: "000000010000000000000077",
+            second_oldest_backup_id: "000000010000000000000073",
+            oldest_backup_id: "00000001000000000000006F",
+        }
+        end_wals = {
+            backup_id: "00000001000000000000007D",
+            target_backup_id: "000000010000000000000079",
+            second_oldest_backup_id: "000000010000000000000075",
+            oldest_backup_id: "000000010000000000000071",
+        }
+        backup_metadata = self._create_backup_metadata(
+            [backup_id, target_backup_id, second_oldest_backup_id, oldest_backup_id],
+            begin_wals=begin_wals,
+            end_wals=end_wals,
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        # and a list of WALs
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=interpolate_wals(
+                "00000001000000000000006E", "00000001000000000000007D"
+            ),
+        )
+
+        # AND the second oldest backup is archival with a standalone recovery target
+        def get_keep_target(backup_id, use_cache=True):
+            return (
+                backup_id == "20210722T095432" and KeepManager.TARGET_STANDALONE or None
+            )
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            get_keep_target
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying a redundancy retention
+        # policy
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--retention-policy", "REDUNDANCY 1"]
+        )
+
+        # THEN the cloud interface was only used to delete the files associated with
+        # the two out-of-policy backups which are not archival
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock,
+            backup_metadata,
+            [oldest_backup_id, target_backup_id],
+            wals={
+                # AND all WALs for the oldest backup up to the next backup were
+                # deleted because it was non-archival
+                oldest_backup_id: [
+                    "wals/00000001000000000000006E.gz",
+                    "wals/00000001000000000000006F.gz",
+                    "wals/000000010000000000000070.gz",
+                    "wals/000000010000000000000071.gz",
+                    "wals/000000010000000000000072.gz",
+                ],
+                # AND all WALs from but not including the end_wal of the archival
+                # backup up to but not including the begin_wal of the newest backup
+                # were deleted - therefore implicitly the WALs of the archival backup
+                # were preserved
+                target_backup_id: [
+                    "wals/000000010000000000000076.gz",
+                    "wals/000000010000000000000077.gz",
+                    "wals/000000010000000000000078.gz",
+                    "wals/000000010000000000000079.gz",
+                    "wals/00000001000000000000007A.gz",
+                ],
+            },
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_no_wal_cleanup_when_oldest_two_full_and_standalone(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Tests >=oldest.begin_wal and <=oldest.end_wal are preserved for the
+        standalone archival backup when the oldest backup is not archival, the
+        second oldest is archival both are out-of-policy.
+        """
+        # GIVEN a backup catalog with four backups with begin_wal and end_wal values
+        backup_id = "20210724T095432"
+        target_backup_id = "20210723T095432"
+        second_oldest_backup_id = "20210722T095432"
+        oldest_backup_id = "20210721T095432"
+        begin_wals = {
+            backup_id: "00000001000000000000007B",
+            target_backup_id: "000000010000000000000077",
+            second_oldest_backup_id: "000000010000000000000073",
+            oldest_backup_id: "00000001000000000000006F",
+        }
+        end_wals = {
+            backup_id: "00000001000000000000007D",
+            target_backup_id: "000000010000000000000079",
+            second_oldest_backup_id: "000000010000000000000075",
+            oldest_backup_id: "000000010000000000000071",
+        }
+        backup_metadata = self._create_backup_metadata(
+            [backup_id, target_backup_id, second_oldest_backup_id, oldest_backup_id],
+            begin_wals=begin_wals,
+            end_wals=end_wals,
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        # and a list of WALs
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=interpolate_wals(
+                "00000001000000000000006E", "00000001000000000000007D"
+            ),
+        )
+
+        # AND the oldest backup is a full archival backup and the second oldest
+        # backup is a standalone archival backup
+        def get_keep_target(backup_id, use_cache=True):
+            return (
+                backup_id == "20210721T095432"
+                and KeepManager.TARGET_FULL
+                or backup_id == "20210722T095432"
+                and KeepManager.TARGET_STANDALONE
+                or None
+            )
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            get_keep_target
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying a redundancy retention
+        # policy
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--retention-policy", "REDUNDANCY 1"]
+        )
+
+        # THEN the cloud interface was only used to delete the files associated with
+        # the non-archival, out-of-policy backup and no WALs were deleted
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock,
+            backup_metadata,
+            [target_backup_id],
+            # AND no WALs are cleaned up
+            wals={},
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_backup_wal_preserved_when_oldest_is_keep_standalone_deletion_by_retention(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+    ):
+        """
+        Verify .backup WALs are preserved for standalone archival backups.
+        """
+        # GIVEN a backup catalog with three backups with begin_wal and end_wal values
+        backup_id = "20210724T095432"
+        target_backup_id = "20210723T095432"
+        oldest_backup_id = "20210722T095432"
+        begin_wals = {
+            backup_id: "00000001000000000000007B",
+            target_backup_id: "000000010000000000000077",
+            oldest_backup_id: "000000010000000000000073",
+        }
+        end_wals = {
+            backup_id: "00000001000000000000007D",
+            target_backup_id: "000000010000000000000079",
+            oldest_backup_id: "000000010000000000000075",
+        }
+        backup_metadata = self._create_backup_metadata(
+            [backup_id, target_backup_id, oldest_backup_id],
+            begin_wals=begin_wals,
+            end_wals=end_wals,
+        )
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        # and a list of WALs, including a .backup WAL for the oldest backup
+        cloud_backup_catalog_mock.return_value = self._create_catalog(
+            backup_metadata,
+            wals=interpolate_wals(
+                "000000010000000000000072", "000000010000000000000075"
+            )
+            + ["000000010000000000000075.00000028.backup"]
+            + interpolate_wals("000000010000000000000076", "00000001000000000000007D"),
+        )
+
+        # AND the oldest backup is archival with a standalone recovery target
+        def get_keep_target(backup_id, use_cache=True):
+            return (
+                backup_id == "20210722T095432" and KeepManager.TARGET_STANDALONE or None
+            )
+
+        cloud_backup_catalog_mock.return_value.get_keep_target.side_effect = (
+            get_keep_target
+        )
+
+        # WHEN barman-cloud-backup-delete runs, specifying a redundancy retention
+        # policy
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--retention-policy", "REDUNDANCY 1"]
+        )
+
+        # THEN the cloud interface was used to delete the files associated with
+        # the second oldest backup (the newest is required to meet the policy and
+        # the oldest is an archival backup)
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock,
+            backup_metadata,
+            [target_backup_id],
+            # AND we expect only the WALs before the archival backup begin_wal and after
+            # the archival backup end_wal but before the latest backup begin_wal to have
+            # been deleted
+            wals={
+                target_backup_id: [
+                    "wals/000000010000000000000072.gz",
+                    "wals/000000010000000000000076.gz",
+                    "wals/000000010000000000000077.gz",
+                    "wals/000000010000000000000078.gz",
+                    "wals/000000010000000000000079.gz",
+                    "wals/00000001000000000000007A.gz",
                 ]
             },
         )
