@@ -16,18 +16,52 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+from argh import ArghParser, arg, expects_obj
 import os
 import connexion
+
 from server import encoder
 
-def main():
+
+@arg(
+    '--port',
+    help='port to run the REST app on',
+    default=7480
+    )
+@expects_obj  # futureproofing for possible future args
+def serve(args):
     app = connexion.App(__name__, specification_dir='./spec/')
     app.app.json_encoder = encoder.JSONEncoder
     app.add_api('barman_api.yaml',
                 arguments={'title': 'Barman API'},
                 pythonic_params=True)
 
-    app.run(host='127.0.0.1', port=7480)
+    # bc currently only the PEM agent will be connecting, only run on localhost
+    app.run(host='127.0.0.1', port=args.port)
+
+
+def status(args):
+    pass
+
+
+def main():
+    """
+    Main method of the Barman API app
+    """
+    p = ArghParser(epilog="Barman API by EnterpriseDB (www.enterprisedb.com)")
+    p.add_commands(
+        [
+            serve,
+            status
+        ])
+    try: 
+        p.dispatch()
+    except KeyboardInterrupt:
+        msg = "Process interrupted by user (KeyboardInterrupt)"
+        print(msg)  # TODO logging
+    except Exception as e:
+        pass  # TODO logging
+
 
 if __name__ == '__main__':
     main()
