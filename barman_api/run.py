@@ -21,10 +21,13 @@ import connexion
 import os
 import logging
 from logging.config import dictConfig
+import requests
+from requests.exceptions import ConnectionError
 
 import barman
 from barman import config, output
 from server import encoder
+from server.controllers.utility_controller import status as util_status
 
 
 LOG_FILENAME = '/var/log/barman/barman-api.log'
@@ -58,8 +61,18 @@ def serve(args):
     app.run(host='127.0.0.1', port=args.port)
 
 
+@arg(
+    '--port',
+    help='port the REST API is running on',
+    default=7480
+    )
+@expects_obj  # futureproofing for possible future args
 def status(args):
-    pass
+    try:
+        result = requests.get(f'http://127.0.0.1:{args.port}/status')
+    except ConnectionError as e:
+        return 'The Barman API does not appear to be available.'
+    return 'OK'
 
 
 def main():
