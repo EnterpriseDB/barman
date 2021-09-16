@@ -49,3 +49,17 @@ paths:
               schema:
                 type: string
       x-swagger-router-controller: "barman.barman_api.controllers.utility_controller.diagnose"
+  /status:
+    get:
+      tags:
+        - "utility"
+      summary: Check if Barman API App running
+      operationId: "server.controllers.utility_controller.status"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: string
+      x-swagger-router-controller: "barman.barman_api.controllers.utility_controller.status"

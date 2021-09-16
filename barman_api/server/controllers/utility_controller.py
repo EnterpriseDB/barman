@@ -62,3 +62,13 @@ def diagnose():  # noqa: E501
     )
 
     return diag_output.to_dict()
+
+def status():  # noqa: E501
+    """Check if Barman API App running
+
+     # noqa: E501
+
+
+    :rtype: None
+    """
+    return 'OK'  # If this app isn't running, we obviously won't return!
