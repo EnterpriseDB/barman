@@ -1242,6 +1242,38 @@ class TestAzureCloudInterface(object):
             'Deletion of object path/to/object/1 failed with error code: "403"'
         ) in caplog.text
 
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_delete_objects_404_not_failure(self, ContainerClientMock, caplog):
+        """
+        Test that 404 responses in partial failures do not create an error.
+        """
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        container_client = ContainerClientMock.from_connection_string.return_value
+
+        mock_keys = ["path/to/object/1", "path/to/object/2"]
+
+        parts = iter(
+            [
+                self._create_mock_HttpResponse(404, "path/to/object/1"),
+                self._create_mock_HttpResponse(202, "path/to/object/2"),
+            ]
+        )
+        partial_batch_error_exception = PartialBatchErrorException(
+            "something went wrong", None, parts
+        )
+        container_client.delete_blobs.side_effect = partial_batch_error_exception
+
+        cloud_interface.delete_objects(mock_keys)
+
+        assert (
+            "Deletion of object path/to/object/1 failed because it could not be found"
+        ) in caplog.text
+
 
 class TestCloudBackupCatalog(object):
     """
