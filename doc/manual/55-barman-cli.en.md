@@ -62,8 +62,11 @@ and can be installed alongside the PostgreSQL server:
   bypassing the Barman server; alternatively, as a hook script for copying barman
   backups to the cloud (`post_backup_retry_script)`
 - `barman-cloud-backup-delete`: script to be used to delete one or more backups
-  Barman backups taken with `barman-cloud-backup` from cloud storage and clean up
-  associated WALs;
+  taken with `barman-cloud-backup` from cloud storage and remove associated
+  WALs;
+- `barman-cloud-backup-keep`: script to be used to flag backups in cloud storage
+  as archival backups - such backups will be kept forever regardless of any
+  retention policies applied;
 - `barman-cloud-backup-list`: script to be used to list the content of
   Barman backups taken with `barman-cloud-backup` from cloud storage;
 - `barman-cloud-restore`: script to be used to restore a backup directly
