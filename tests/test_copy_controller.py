@@ -779,7 +779,9 @@ class TestRsyncCopyController(object):
             "tmp/diff_size",
         )
 
-        item, backup_info = self._run_analyze_directory(list_files_mock, tmpdir, ref_list, src_list)
+        item, backup_info = self._run_analyze_directory(
+            list_files_mock, tmpdir, ref_list, src_list
+        )
 
         # Verify that _list_files has been called correctly
         assert list_files_mock.mock_calls == [

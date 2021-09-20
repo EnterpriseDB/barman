@@ -1,0 +1,7 @@
+.
+.[cloud]
+.[azure]
+pytest
+mock
+pytest-timeout
+py

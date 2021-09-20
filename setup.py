@@ -33,8 +33,8 @@ import sys
 
 from setuptools import find_packages, setup
 
-if sys.version_info < (2, 6):
-    raise SystemExit("ERROR: Barman needs at least python 2.6 to work")
+if sys.version_info < (2, 7):
+    raise SystemExit("ERROR: Barman needs at least python 2.7 to work")
 
 # Depend on pytest_runner only when the tests are actually invoked
 needs_pytest = set(["pytest", "test"]).intersection(sys.argv)
@@ -47,17 +47,6 @@ install_requires = [
     "argh >= 0.21.2",
     "python-dateutil",
 ]
-
-if sys.version_info < (2, 7):
-    install_requires += [
-        "argparse",
-    ]
-    # If we are going to execute tests, we need to enforce wheel
-    # version before installing mock, or it will fail
-    if needs_pytest:
-        setup_requires += [
-            "wheel<0.30.0",  # wheel has dropped 2.6 support in 0.30.0
-        ]
 
 barman = {}
 with open("barman/version.py", "r") as fversion:
@@ -119,18 +108,13 @@ setup(
         "Intended Audience :: System Administrators",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     setup_requires=setup_requires,
-    tests_require=[
-        "mock",
-        "pytest-timeout",
-        "pytest",
-    ],
 )
