@@ -1,5 +1,28 @@
 Barman News - History of user-visible changes
 
+Version 2.14 - 22 September 2022
+
+- Add the `barman-cloud-backup-delete` command which allows backups in
+  cloud storage to be deleted by specifiying either a backup ID or a
+  retention policy.
+
+- Allow backups to be retained beyond any retention policies in force by
+  introducing the ability to tag existing backups as archival backups
+  using `barman keep` and `barman-cloud-backup-keep`.
+
+- Allow the use of SAS authentication tokens created at the restricted
+  blob container level (instead of the wider storage account level) for
+  Azure blob storage
+
+- Significantly speed up `barman restore` into an empty directory for
+  backups that contain hundreds of thousands of files.
+
+- Bug fixes:
+
+    - The backup privileges check will no longer fail if the user lacks
+      "userepl" permissions and will return better error messages if any
+      required permissions are missing (#318 and #319).
+
 Version 2.13 - 26 July 2021
 
 - Add Azure blob storage support to barman-cloud
