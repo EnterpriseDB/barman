@@ -2,6 +2,7 @@ MANPAGES=barman.1 barman.5 \
 		barman-wal-archive.1 barman-wal-restore.1 \
     barman-cloud-backup.1 \
     barman-cloud-backup-delete.1 \
+    barman-cloud-backup-keep.1 \
     barman-cloud-backup-list.1 \
     barman-cloud-wal-archive.1 \
     barman-cloud-restore.1 \
