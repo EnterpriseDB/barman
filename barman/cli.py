@@ -33,6 +33,7 @@ from argh import ArghParser, arg, expects_obj, named
 import barman.config
 import barman.diagnose
 from barman import output
+from barman.annotations import KeepManager
 from barman.config import RecoveryOptions
 from barman.exceptions import BadXlogSegmentName, RecoveryException, SyncError
 from barman.infofile import BackupInfo
@@ -1176,6 +1177,57 @@ def check_backup(args):
     output.close_and_exit()
 
 
+@named("keep")
+@arg(
+    "server_name",
+    completer=server_completer,
+    help="specifies the server name for the command",
+)
+@arg("backup_id", completer=backup_completer, help="specifies the backup ID")
+@arg("--release", help="remove the keep annotation", action="store_true")
+@arg(
+    "--status",
+    help="return the keep status of the backup",
+    action="store_true",
+)
+@arg(
+    "--target",
+    help="keep this backup with the specified recovery target",
+    choices=[KeepManager.TARGET_FULL, KeepManager.TARGET_STANDALONE],
+)
+@expects_obj
+def keep(args):
+    """
+    Tag the specified backup so that it will never be deleted
+    """
+    if not any((args.release, args.status, args.target)):
+        output.error(
+            "one of the arguments -r/--release -s/--status --target is required"
+        )
+        output.close_and_exit()
+    server = get_server(args)
+    backup_info = parse_backup_id(server, args)
+    backup_manager = server.backup_manager
+    if args.status:
+        output.init("status", server.config.name)
+        target = backup_manager.get_keep_target(backup_info.backup_id)
+        if target:
+            output.result("status", server.config.name, "keep_status", "Keep", target)
+        else:
+            output.result("status", server.config.name, "keep_status", "Keep", "nokeep")
+    elif args.release:
+        backup_manager.release_keep(backup_info.backup_id)
+    else:
+        if backup_info.status != BackupInfo.DONE:
+            msg = (
+                "Cannot add keep to backup %s because it has status %s. "
+                "Only backups with status DONE can be kept."
+            ) % (backup_info.backup_id, backup_info.status)
+            output.error(msg)
+            output.close_and_exit()
+        backup_manager.keep_backup(backup_info.backup_id, args.target)
+
+
 def pretty_args(args):
     """
     Prettify the given argh namespace to be human readable
@@ -1540,6 +1592,7 @@ def main():
             delete,
             diagnose,
             get_wal,
+            keep,
             list_backup,
             list_files,
             list_server,

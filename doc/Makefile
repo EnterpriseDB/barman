@@ -39,6 +39,9 @@ barman-cloud-backup.1: barman-cloud-backup.1.md
 barman-cloud-backup-delete.1: barman-cloud-backup-delete.1.md
 	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
 
+barman-cloud-backup-keep.1: barman-cloud-backup-keep.1.md
+	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
+
 barman-cloud-backup-list.1: barman-cloud-backup-list.1.md
 	pandoc -s -f markdown$(nosmart_suffix) -t man -o $@ $<
 

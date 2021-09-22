@@ -402,7 +402,12 @@ class AzureCloudInterface(CloudInterface):
         # which should all be 202 if successful
         errors = False
         for resp in responses:
-            if resp.status_code != 202:
+            if resp.status_code == 404:
+                logging.warning(
+                    "Deletion of object %s failed because it could not be found"
+                    % resp.request.url
+                )
+            elif resp.status_code != 202:
                 errors = True
                 logging.error(
                     'Deletion of object %s failed with error code: "%s"'

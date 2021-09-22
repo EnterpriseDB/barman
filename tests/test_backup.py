@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import errno
 import os
 import re
 from datetime import datetime, timedelta
@@ -27,13 +28,17 @@ import pytest
 from mock import Mock, patch
 
 import barman.utils
+from barman.annotations import KeepManager
+from barman.config import BackupOptions
 from barman.exceptions import CompressionIncompatibility, RecoveryInvalidTargetException
 from barman.infofile import BackupInfo
+from barman.retention_policies import RetentionPolicyFactory
 from testing_helpers import (
     build_backup_directories,
     build_backup_manager,
     build_test_backup_info,
     caplog_reset,
+    interpolate_wals,
 )
 
 
@@ -341,6 +346,27 @@ class TestBackup(object):
             assert os.path.exists(wal_history_file03.strpath)
             assert os.path.exists(wal_history_file04.strpath)
 
+    @patch("barman.backup.BackupManager.should_keep_backup")
+    def test_cannot_delete_keep_backup(self, mock_should_keep_backup, caplog):
+        """Verify that we cannot delete backups directly if they have a keep"""
+        # Setup of the test backup_manager
+        backup_manager = build_backup_manager()
+        backup_manager.server.config.name = "TestServer"
+        backup_manager.server.config.backup_options = []
+
+        mock_should_keep_backup.return_value = True
+
+        b_info = build_test_backup_info(
+            backup_id="fake_backup_id",
+            server=backup_manager.server,
+        )
+        assert backup_manager.delete_backup(b_info) is False
+        assert (
+            "Skipping delete of backup fake_backup_id for server TestServer as it "
+            "has a current keep request. If you really want to delete this backup "
+            "please remove the keep and try again." in caplog.text
+        )
+
     def test_available_backups(self, tmpdir):
         """
         Test the get_available_backups that retrieves all the
@@ -641,3 +667,821 @@ class TestBackup(object):
         assert len(latest) == 2
         assert latest["00000001"].name == "000000010000000100000001"
         assert latest["00000002"].name == "000000020000000000000003"
+
+    def test_backup_manager_has_keep_manager_capability(self, tmpdir):
+        """
+        Verifies that KeepManagerMixin methods are available in BackupManager
+        and that they work as expected.
+
+        We deliberately do not test the functionality at a more granular level as
+        KeepManagerMixin has its own tests and BackupManager adds no extra
+        functionality.
+        """
+        test_backup_id = "20210723T095432"
+        backup_manager = build_backup_manager(
+            name="test_server", global_conf={"barman_home": tmpdir.strpath}
+        )
+        # Initially a backup has no annotations and therefore shouldn't be kept
+        assert backup_manager.should_keep_backup(test_backup_id) is False
+        # The target is None because there is no keep annotation
+        assert backup_manager.get_keep_target(test_backup_id) is None
+        # Releasing the keep is a no-op because there is no keep
+        backup_manager.release_keep(test_backup_id)
+        # We can add a new keep
+        backup_manager.keep_backup(test_backup_id, KeepManager.TARGET_STANDALONE)
+        # Now we have added a keep, the backup manager knows the backup should be kept
+        assert backup_manager.should_keep_backup(test_backup_id) is True
+        # We can also see the recovery target
+        assert (
+            backup_manager.get_keep_target(test_backup_id)
+            == KeepManager.TARGET_STANDALONE
+        )
+        # We can release the keep
+        backup_manager.release_keep(test_backup_id)
+        # Having released the keep, the backup manager tells us it shouldn't be kept
+        assert backup_manager.should_keep_backup(test_backup_id) is False
+        # And the recovery target is None again
+        assert backup_manager.get_keep_target(test_backup_id) is None
+
+    @patch("barman.backup.BackupManager.delete_backup")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_cron_retention_only_deletes_OBSOLETE_backups(
+        self, get_available_backups, delete_backup, tmpdir
+    ):
+        """
+        Verify only backups with retention status OBSOLETE are deleted by
+        retention policy.
+        """
+        backup_manager = build_backup_manager()
+        backup_manager.server.config.name = "TestServer"
+        backup_manager.server.config.barman_lock_directory = tmpdir.strpath
+        backup_manager.server.config.backup_options = []
+        backup_manager.server.config.retention_policy = Mock()
+        backup_manager.config.retention_policy.report.return_value = {
+            "keep_full_backup": BackupInfo.KEEP_FULL,
+            "keep_standalone_backup": BackupInfo.KEEP_STANDALONE,
+            "valid_backup": BackupInfo.VALID,
+            "none_backup": BackupInfo.NONE,
+            "obsolete_backup": BackupInfo.OBSOLETE,
+            "potentially_obsolete_backup": BackupInfo.POTENTIALLY_OBSOLETE,
+        }
+        available_backups = dict(
+            (k, build_test_backup_info(server=backup_manager.server, backup_id=k))
+            for k in backup_manager.config.retention_policy.report.return_value
+        )
+        get_available_backups.return_value = available_backups
+        backup_manager.cron_retention_policy()
+        delete_backup.assert_called_once_with(
+            available_backups["obsolete_backup"], skip_wal_cleanup_if_standalone=False
+        )
+
+
+class TestWalCleanup(object):
+    """Test cleanup of WALs by BackupManager"""
+
+    @pytest.fixture
+    def backup_manager(self, tmpdir):
+        """
+        Creates a BackupManager backed by the filesystem with empty base backup
+        and WAL directories and an empty xlog.db.
+        """
+        backup_manager = build_backup_manager(
+            global_conf={"barman_home": tmpdir.strpath}
+        )
+        backup_manager.server.config.name = "TestServer"
+        backup_manager.server.config.barman_lock_directory = tmpdir.strpath
+        backup_manager.server.config.backup_options = [BackupOptions.CONCURRENT_BACKUP]
+        base_dir = tmpdir.mkdir("base")
+        wal_dir = tmpdir.mkdir("wals")
+        backup_manager.server.config.basebackups_directory = base_dir.strpath
+        backup_manager.server.config.wals_directory = wal_dir.strpath
+        backup_manager.server.config.minimum_redundancy = 1
+        self.xlog_db = wal_dir.join("xlog.db")
+        self.xlog_db.write("")
+
+        def open_xlog_db():
+            return open(self.xlog_db.strpath, "r+")
+
+        # This must be a side-effect so we open xlog_db each time it is called
+        backup_manager.server.xlogdb.return_value.__enter__.side_effect = open_xlog_db
+
+        # Wire get_available_backups in our mock server to call
+        # backup_manager.get_available_backups, just like a non-mock server
+        backup_manager.server.get_available_backups = (
+            backup_manager.get_available_backups
+        )
+        yield backup_manager
+
+    def _assert_wals_exist(self, wals_directory, begin_wal, end_wal):
+        """
+        Assert all WALs between begin_wal and end_wal (inclusive) exist in
+        wals_directory.
+        """
+        for wal in interpolate_wals(begin_wal, end_wal):
+            assert os.path.isfile("%s/%s/%s" % (wals_directory, wal[:16], wal))
+
+    def _assert_wals_missing(self, wals_directory, begin_wal, end_wal):
+        """
+        Assert all WALs between begin_wal and end_wal (inclusive) do not
+        exist in wals_directory.
+        """
+        for wal in interpolate_wals(begin_wal, end_wal):
+            assert not os.path.isfile("%s/%s/%s" % (wals_directory, wal[:16], wal))
+
+    def _create_wal_on_filesystem(self, wals_directory, wal):
+        """
+        Helper which creates the specified WAL on the filesystem and adds it to
+        xlogdb.
+        """
+        wal_path = "%s/%s" % (wals_directory, wal[:16])
+        try:
+            os.mkdir(wal_path)
+        except EnvironmentError as e:
+            # For Python 2 compatibility we must check the error code directly
+            # If the directory already exists then it is not an error condition
+            if e.errno != errno.EEXIST:
+                raise
+        with open("%s/%s" % (wal_path, wal), "a"):
+            # An empty file is fine for the purposes of these tests
+            pass
+        self.xlog_db.write("%s\t42\t43\tNone\n" % wal, mode="a")
+
+    def _create_wals_on_filesystem(self, wals_directory, begin_wal, end_wal):
+        """
+        Helper which creates all WALs between begin_wal and end_wal (inclusive)
+        on the filesystem.
+        """
+        for wal in interpolate_wals(begin_wal, end_wal):
+            self._create_wal_on_filesystem(wals_directory, wal)
+
+    def _create_backup_on_filesystem(self, backup_info):
+        """Helper which creates the backup on the filesystem"""
+        backup_path = "%s/%s" % (
+            backup_info.server.config.basebackups_directory,
+            backup_info.backup_id,
+        )
+        os.mkdir(backup_path)
+        backup_info.save("%s/backup.info" % backup_path)
+
+    def test_delete_no_wal_cleanup_if_not_oldest_backup(self, backup_manager):
+        """Verify no WALs are removed when the deleted backup is not the oldest"""
+        # GIVEN two backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        for backup_info in [oldest_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007A"
+        )
+
+        # WHEN the newest backup is deleted
+        backup_manager.delete_backup(backup)
+
+        # THEN no WALs were deleted
+        self._assert_wals_exist(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007A"
+        )
+
+    def test_delete_wal_cleanup(self, backup_manager):
+        """Verify correct WALs are removed when the oldest backup is deleted"""
+        # GIVEN two backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        for backup_info in [oldest_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007A"
+        )
+
+        # WHEN the newest backup is deleted
+        backup_manager.delete_backup(oldest_backup)
+
+        # THEN all WALs up to begin_wal of the remaining backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "00000001000000000000006C", "000000010000000000000077"
+        )
+
+        # AND all subsequent WALs still exist
+        self._assert_wals_exist(
+            wals_directory, "000000010000000000000078", "00000001000000000000007A"
+        )
+
+    def test_delete_wal_cleanup_last_backup(self, backup_manager):
+        """
+        Verify correct WALs are removed when the last backup is deleted.
+        Because backup_manager is configured with the CONCURRENT_BACKUP BackupOption
+        only WALs up to begin_wal of the last backup should be removed.
+        """
+        # GIVEN a single backup
+        backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        self._create_backup_on_filesystem(backup)
+
+        # AND WALs which range from before the backup to the end_wal of the backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007A"
+        )
+
+        # AND minimum_redundancy=0 so that the last backup can be removed
+        backup_manager.server.config.minimum_redundancy = 0
+
+        # WHEN the backup is deleted
+        backup_manager.delete_backup(backup)
+
+        # THEN all WALs up to the begin_wal of the deleted backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "00000001000000000000006C", "000000010000000000000077"
+        )
+
+        # AND all subsequent WALs still exist
+        self._assert_wals_exist(
+            wals_directory, "000000010000000000000078", "00000001000000000000007A"
+        )
+
+    def test_delete_wal_cleanup_preserves_history_files(self, backup_manager):
+        """ "Verify history files are preserved when WALs are removed"""
+        # GIVEN two backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        for backup_info in [oldest_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND a WAL history file
+        wals_directory = backup_manager.server.config.wals_directory
+        # Create a history file
+        with open("%s/%s" % (wals_directory, "00000001.history"), "a"):
+            # An empty file is fine for the purposes of these tests
+            pass
+        self.xlog_db.write("%s\t42\t43\tNone\n" % "00000001.history", mode="a")
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007A"
+        )
+
+        # WHEN the oldest backup is deleted
+        backup_manager.delete_backup(oldest_backup)
+
+        # THEN all WALs up to begin_wal of remaining backup are gone
+        self._assert_wals_missing(
+            wals_directory, "00000001000000000000006C", "000000010000000000000077"
+        )
+
+        # AND all subsequent WALs still exist
+        self._assert_wals_exist(
+            wals_directory, "000000010000000000000078", "00000001000000000000007A"
+        )
+
+        # AND the history file still exists
+        assert os.path.isfile("%s/%s" % (wals_directory, "00000001.history"))
+
+    def test_delete_no_wal_cleanup_if_oldest_is_keep_full(self, backup_manager):
+        """Verify no WALs are cleaned up if the oldest backup is keep:full"""
+        # GIVEN three backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        target_backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210724T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000007C",
+            end_wal="00000001000000000000007E",
+        )
+        for backup_info in [oldest_backup, target_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007E"
+        )
+
+        # AND the oldest backup is a full archival backup (i.e. it has a
+        # keep:full annotation)
+        def get_keep_target(backup_id):
+            return (
+                backup_id == oldest_backup.backup_id and KeepManager.TARGET_FULL or None
+            )
+
+        backup_manager.get_keep_target = get_keep_target
+
+        # WHEN the second oldest backup is deleted
+        backup_manager.delete_backup(target_backup)
+
+        # THEN no WALs were deleted at all
+        self._assert_wals_exist(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007A"
+        )
+
+    def test_delete_no_wal_cleanup_if_oldest_remaining_is_keep_standalone(
+        self, backup_manager
+    ):
+        """
+        Verify no WAL cleanup if oldest remaining backup is keep:standalone and we are
+        deleting by backup_id.
+        """
+        # GIVEN three backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        target_backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210724T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000007C",
+            end_wal="00000001000000000000007E",
+        )
+        for backup_info in [oldest_backup, target_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007E"
+        )
+
+        # AND the oldest backup is a standalone archival backup (i.e. it has a
+        # keep:standalone annotation)
+        def get_keep_target(backup_id):
+            return (
+                backup_id == oldest_backup.backup_id
+                and KeepManager.TARGET_STANDALONE
+                or None
+            )
+
+        backup_manager.get_keep_target = get_keep_target
+
+        # WHEN the second oldest backup is deleted
+        backup_manager.delete_backup(target_backup)
+
+        # THEN no WALs were deleted at all
+        self._assert_wals_exist(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007E"
+        )
+
+    def test_delete_by_retention_wal_cleanup_if_oldest_is_keep_standalone(
+        self, backup_manager
+    ):
+        """
+        Verify >=oldest.begin_wal and <=oldest.end_wal are preserved when the
+        oldest backup is archival with keep:standalone and we are deleting by
+        retention policy.
+        """
+        # GIVEN a server with a retention policy of REDUNDANCY 1
+        backup_manager.server.config.retention_policy = RetentionPolicyFactory.create(
+            "retention_policy",
+            "REDUNDANCY 1",
+            server=backup_manager.server,
+        )
+
+        # AND three backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        target_backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210724T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000007C",
+            end_wal="00000001000000000000007E",
+        )
+        for backup_info in [oldest_backup, target_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007E"
+        )
+
+        # AND the oldest backup is a standalone archival backup (i.e. it has a
+        # keep:standalone annotation)
+        def get_keep_target(backup_id):
+            return (
+                backup_id == oldest_backup.backup_id
+                and KeepManager.TARGET_STANDALONE
+                or None
+            )
+
+        backup_manager.get_keep_target = get_keep_target
+
+        # WHEN the retention policy is enforced
+        backup_manager.cron_retention_policy()
+
+        # THEN all WALs before the oldest backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "00000001000000000000006C", "000000010000000000000072"
+        )
+        # AND all WALs from begin_wal to end_wal (inclusive) of the oldest backup
+        # still exist
+        self._assert_wals_exist(
+            wals_directory, "000000010000000000000073", "000000010000000000000076"
+        )
+        # AND all WALs after end_wal of the oldest backup to before begin_wal of the
+        # newest backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "000000010000000000000077", "00000001000000000000007B"
+        )
+        # AND all subsequent WALs still exist
+        self._assert_wals_exist(
+            wals_directory, "00000001000000000000007C", "00000001000000000000007E"
+        )
+
+    def test_delete_by_retention_wal_cleanup_if_all_oldest_are_keep_standalone(
+        self, backup_manager
+    ):
+        """
+        Verify all >=begin_wal and <= end_wal are preserved for all standalone
+        backups when all backups up to oldest are standalone and we are deleting
+        by retention policy.
+        """
+        # GIVEN a server with a retention policy of REDUNDANCY 1
+        backup_manager.server.config.retention_policy = RetentionPolicyFactory.create(
+            "retention_policy",
+            "REDUNDANCY 1",
+            server=backup_manager.server,
+        )
+        # AND four backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210721T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000006E",
+            end_wal="000000010000000000000071",
+        )
+        second_oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        target_backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210724T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000007C",
+            end_wal="00000001000000000000007E",
+        )
+        for backup_info in [oldest_backup, second_oldest_backup, target_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007E"
+        )
+
+        # AND the oldest two backups are standalone archival backups (i.e. they have
+        # keep:standalone annotations)
+        def get_keep_target(backup_id):
+            return (
+                (
+                    backup_id == oldest_backup.backup_id
+                    or backup_id == second_oldest_backup.backup_id
+                )
+                and KeepManager.TARGET_STANDALONE
+                or None
+            )
+
+        backup_manager.get_keep_target = get_keep_target
+
+        # WHEN the retention policy is enforced
+        backup_manager.cron_retention_policy()
+
+        # THEN all WALs before the oldest backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "00000001000000000000006C", "00000001000000000000006D"
+        )
+        # AND all WALs from begin_wal to end_wal (inclusive) of the oldest backup
+        # still exist
+        self._assert_wals_exist(
+            wals_directory, "00000001000000000000006E", "000000010000000000000071"
+        )
+        # AND all WALs from after end_wal of the oldest backup to before begin_wal of
+        # the second oldest backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "000000010000000000000072", "000000010000000000000072"
+        )
+        # AND all WALs from begin_wal to end_wal (inclusive) of the second oldest
+        # backup still exist
+        self._assert_wals_exist(
+            wals_directory, "000000010000000000000073", "000000010000000000000076"
+        )
+        # AND all WALs from after end_wal of the second oldest backup to before
+        # begin_wal of the newest backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "000000010000000000000077", "00000001000000000000007B"
+        )
+        # AND all subsequent WALs still exist
+        self._assert_wals_exist(
+            wals_directory, "00000001000000000000007C", "00000001000000000000007E"
+        )
+
+    def test_delete_wal_cleanup_if_oldest_two_nokeep_and_standalone(
+        self, backup_manager
+    ):
+        """
+        Verify WALs are cleaned up if the oldest backup has no keep and the
+        second oldest is keep:standalone.
+        """
+        # GIVEN a server with a retention policy of REDUNDANCY 1
+        backup_manager.server.config.retention_policy = RetentionPolicyFactory.create(
+            "retention_policy",
+            "REDUNDANCY 1",
+            server=backup_manager.server,
+        )
+        # AND four backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210721T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000006E",
+            end_wal="000000010000000000000071",
+        )
+        second_oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        target_backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210724T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000007C",
+            end_wal="00000001000000000000007E",
+        )
+        for backup_info in [oldest_backup, second_oldest_backup, target_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007E"
+        )
+
+        # AND the second oldest backup is a standalone archive backup (i.e. it has
+        # a the keep:standalone annotation)
+        def get_keep_target(backup_id):
+            return (
+                backup_id == second_oldest_backup.backup_id
+                and KeepManager.TARGET_STANDALONE
+                or None
+            )
+
+        backup_manager.get_keep_target = get_keep_target
+
+        # WHEN the retention policy is enforced
+        backup_manager.cron_retention_policy()
+
+        # THEN all WALs before the standalone backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "00000001000000000000006C", "000000010000000000000072"
+        )
+        # AND all WALs from begin_wal to end_wal (inclusive) of the standalone backup
+        # still exist
+        self._assert_wals_exist(
+            wals_directory, "000000010000000000000073", "000000010000000000000076"
+        )
+        # AND all WALs from after end_wal of the standalone backup to before
+        # begin_wal of the newest backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "000000010000000000000077", "00000001000000000000007B"
+        )
+        # AND all subsequent WALs still exist
+        self._assert_wals_exist(
+            wals_directory, "00000001000000000000007C", "00000001000000000000007E"
+        )
+
+    def test_delete_no_wal_cleanup_if_oldest_two_full_and_standalone(
+        self, backup_manager
+    ):
+        """
+        Verify no WALs are cleaned up if the oldest backup has keep:full and the
+        second oldest is keep:standalone.
+        """
+        # GIVEN a server with a retention policy of REDUNDANCY 1
+        backup_manager.server.config.retention_policy = RetentionPolicyFactory.create(
+            "retention_policy",
+            "REDUNDANCY 1",
+            server=backup_manager.server,
+        )
+        # AND four backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210721T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000006E",
+            end_wal="000000010000000000000071",
+        )
+        second_oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        target_backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210724T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000007C",
+            end_wal="00000001000000000000007E",
+        )
+        for backup_info in [oldest_backup, second_oldest_backup, target_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007E"
+        )
+
+        # AND the oldest backup is a full archival backup (has a keep:full
+        # annotation) and the second oldest backup is a standalone archive
+        # backup (i.e. it has a keep:standalone annotation)
+        def get_keep_target(backup_id):
+            return (
+                backup_id == oldest_backup.backup_id
+                and KeepManager.TARGET_FULL
+                or backup_id == second_oldest_backup.backup_id
+                and KeepManager.TARGET_STANDALONE
+                or None
+            )
+
+        backup_manager.get_keep_target = get_keep_target
+
+        # WHEN the retention policy is enforced
+        backup_manager.cron_retention_policy()
+
+        # THEN no WALs were deleted at all
+        self._assert_wals_exist(
+            wals_directory, "00000001000000000000006C", "00000001000000000000007A"
+        )
+
+    def test_delete_by_retention_wal_cleanup_preserves_backup_wal(self, backup_manager):
+        """
+        Verify .backup WALs are preserved for standalone archival backups.
+        """
+        # GIVEN a server with a retention policy of REDUNDANCY 1
+        backup_manager.server.config.retention_policy = RetentionPolicyFactory.create(
+            "retention_policy",
+            "REDUNDANCY 1",
+            server=backup_manager.server,
+        )
+
+        # AND three backups
+        oldest_backup = build_test_backup_info(
+            backup_id="20210722T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000073",
+            end_wal="000000010000000000000076",
+        )
+        target_backup = build_test_backup_info(
+            backup_id="20210723T095432",
+            server=backup_manager.server,
+            begin_wal="000000010000000000000078",
+            end_wal="00000001000000000000007A",
+        )
+        backup = build_test_backup_info(
+            backup_id="20210724T095432",
+            server=backup_manager.server,
+            begin_wal="00000001000000000000007C",
+            end_wal="00000001000000000000007E",
+        )
+        for backup_info in [oldest_backup, target_backup, backup]:
+            self._create_backup_on_filesystem(backup_info)
+
+        # AND WALs which range from just before the oldest backup to the end_wal
+        # of the newest backup
+        wals_directory = backup_manager.server.config.wals_directory
+        self._create_wals_on_filesystem(
+            wals_directory, "00000001000000000000006C", "000000010000000000000076"
+        )
+        # AND the oldest backup has a .backup WAL
+        backup_wal = "000000010000000000000076.00000028.backup"
+        self._create_wal_on_filesystem(wals_directory, backup_wal)
+        self._create_wals_on_filesystem(
+            wals_directory, "000000010000000000000077", "00000001000000000000007E"
+        )
+
+        # AND the oldest backup is a standalone archival backup (i.e. it has a
+        # keep:standalone annotation)
+        def get_keep_target(backup_id):
+            return (
+                backup_id == oldest_backup.backup_id
+                and KeepManager.TARGET_STANDALONE
+                or None
+            )
+
+        backup_manager.get_keep_target = get_keep_target
+
+        # WHEN the retention policy is enforced
+        backup_manager.cron_retention_policy()
+
+        # THEN all WALs before the oldest backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "00000001000000000000006C", "000000010000000000000072"
+        )
+        # AND all WALs from begin_wal to end_wal (inclusive) of the oldest backup
+        # still exist
+        self._assert_wals_exist(
+            wals_directory, "000000010000000000000073", "000000010000000000000076"
+        )
+        # AND the .backup WAL still exists
+        assert os.path.isfile("%s/%s/%s" % (wals_directory, backup_wal[:16], backup_wal))
+        # AND all WALs after end_wal of the oldest backup to before begin_wal of the
+        # newest backup were deleted
+        self._assert_wals_missing(
+            wals_directory, "000000010000000000000077", "00000001000000000000007B"
+        )
+        # AND all subsequent WALs still exist
+        self._assert_wals_exist(
+            wals_directory, "00000001000000000000007C", "00000001000000000000007E"
+        )
