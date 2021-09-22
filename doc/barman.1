@@ -250,6 +250,44 @@ With this option, the \[aq]WAL_NAME\[aq] mandatory argument is ignored.
 .RE
 .RE
 .TP
+.B keep \f[I]SERVER_NAME\f[] \f[I]BACKUP_ID\f[]
+Flag the specified backup as an archival backup which should be kept
+forever, regardless of any retention policies in effect.
+See the Backup ID shortcuts section below for available shortcuts.
+.RS
+.TP
+.B \-\-target \f[I]RECOVERY_TARGET\f[]
+Specify the recovery target for the archival backup.
+Possible values for \f[I]RECOVERY_TARGET\f[] are:
+.RS
+.IP \[bu] 2
+\f[I]full\f[]: The backup can always be used to recover to the latest
+point in time.
+To achieve this, Barman will retain all WALs needed to ensure
+consistency of the backup and all subsequent WALs.
+.IP \[bu] 2
+\f[I]standalone\f[]: The backup can only be used to recover the server
+to its state at the time the backup was taken.
+Barman will only retain the WALs needed to ensure consistency of the
+backup.
+.RE
+.TP
+.B \-\-status
+Report the archival status of the backup.
+This will either be the recovery target of \f[I]full\f[] or
+\f[I]standalone\f[] for archival backups or \f[I]nokeep\f[] for backups
+which have not been flagged as archival.
+.RS
+.RE
+.TP
+.B \-\-release
+Release the keep flag from this backup.
+This will remove its archival status and make it available for deletion,
+either directly or by retention policy.
+.RS
+.RE
+.RE
+.TP
 .B list\-backup \f[I]SERVER_NAME\f[]
 Show available backups for \f[C]SERVER_NAME\f[].
 This command is useful to retrieve a backup ID.
