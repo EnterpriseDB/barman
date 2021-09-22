@@ -62,9 +62,11 @@ state.
 When set to \f[C]false\f[], the server can be used for diagnostics, but
 any operational command such as backup execution or WAL archiving is
 temporarily disabled.
-Setting \f[C]active=false\f[] is a good practice when adding a new node
-to Barman.
-Server.
+When adding a new server to Barman, we suggest setting active=false at
+first, making sure that barman check shows no problems, and only then
+activating the server.
+This will avoid spamming the Barman logs with errors during the initial
+setup.
 .RS
 .RE
 .TP
@@ -248,6 +250,17 @@ Server.
 Directory that contains WAL files that contain an error; usually this is
 related to a conflict with an existing WAL file (e.g.
 a WAL file that has been archived after a streamed one).
+.RS
+.RE
+.TP
+.B forward_config_path
+Parameter which determines whether a passive node should forward its
+configuration file path to its primary node during cron or sync\-info
+commands.
+Set to true if you are invoking barman with the \f[C]\-c/\-\-config\f[]
+option and your configuration is in the same place on both the passive
+and primary barman servers.
+Defaults to false.
 .RS
 .RE
 .TP
