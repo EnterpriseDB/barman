@@ -18,11 +18,10 @@
 
 import connexion
 import six
-import os
 
 {{#imports}}{{import}}  # noqa: E501
 {{/imports}}
-from barman_api.logic.adapter
+from barman_api.logic.controller import Controller
 from {{packageName}} import util
 {{#operations}}
 {{#operation}}
@@ -127,8 +126,8 @@ def {{operationId}}({{#allParams}}{{paramName}}{{^required}}=None{{/required}}{{
             {{/items}}
         {{/isMap}}
     {{/allParams}}
-    return Adapter.op(__file__.split(os.path.sep)[-1].split('.')[0], 
-                      "{{operationId}}", 
-                      {{#allParams}}{{paramName}}{{^-last}}, {{/-last}}{{/allParams}})
+    return Controller.call_method(__file__, 
+                                  "{{operationId}}", 
+                                  {{#allParams}}{{paramName}}{{^-last}}, {{/-last}}{{/allParams}})
 {{/operation}}
 {{/operations}}

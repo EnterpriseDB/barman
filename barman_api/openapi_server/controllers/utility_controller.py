@@ -18,10 +18,9 @@
 
 import connexion
 import six
-import os
 
 from openapi_server.models.diagnose_output import DiagnoseOutput  # noqa: E501
-from barman_api.logic.adapter
+from barman_api.logic.controller import Controller
 from openapi_server import util
 
 
@@ -33,9 +32,9 @@ def diagnose():  # noqa: E501
 
     :rtype: DiagnoseOutput
     """
-    return Adapter.op(__file__.split(os.path.sep)[-1].split('.')[0], 
-                      "diagnose", 
-                      )
+    return Controller.call_method(__file__, 
+                                  "diagnose", 
+                                  )
 
 
 def status():  # noqa: E501
@@ -46,6 +45,6 @@ def status():  # noqa: E501
 
     :rtype: str
     """
-    return Adapter.op(__file__.split(os.path.sep)[-1].split('.')[0], 
-                      "status", 
-                      )
+    return Controller.call_method(__file__, 
+                                  "status", 
+                                  )
