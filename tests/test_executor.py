@@ -852,12 +852,12 @@ class TestPostgresBackupExecutor(object):
             begin_offset=28,
             copy_stats=dict(copy_time=100, total_time=105),
         )
-        timestamp = datetime.datetime(2015, 10, 26, 14, 38)
+        current_xlog_timestamp = datetime.datetime(2015, 10, 26, 14, 38)
         backup_manager.server.postgres.current_xlog_info = dict(
             location="0/12000090",
             file_name="000000010000000000000012",
             file_offset=144,
-            timestamp=timestamp,
+            timestamp=current_xlog_timestamp,
         )
         backup_manager.server.postgres.get_setting.return_value = "/pg/data"
         tmp_backup_label = (
@@ -886,7 +886,7 @@ class TestPostgresBackupExecutor(object):
         assert "Finalising the backup." in out
         assert backup_info.end_xlog == "0/12000090"
         assert backup_info.end_offset == 144
-        assert backup_info.begin_time == start_time
+        assert backup_info.begin_time == current_xlog_timestamp
         assert backup_info.begin_wal == "000000010000000000000040"
 
         # Check the CommandFailedException re raising

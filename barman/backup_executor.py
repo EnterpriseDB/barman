@@ -1509,9 +1509,13 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
             "begin_offset",
             xlog.parse_lsn(wal_info.group(1)) % backup_info.xlog_segment_size,
         )
-        backup_info.set_attribute(
-            "begin_time", dateutil.parser.parse(start_time.group(1))
-        )
+
+        # If we have already obtained a begin_time then it takes precedence over the
+        # begin time in the backup label
+        if not backup_info.begin_time:
+            backup_info.set_attribute(
+                "begin_time", dateutil.parser.parse(start_time.group(1))
+            )
 
     def _read_backup_label(self, backup_info):
         """
