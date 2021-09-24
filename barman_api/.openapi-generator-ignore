@@ -1,0 +1,13 @@
+/.dockerignore
+/.gitignore
+/.travis.yml
+/Dockerfile
+/README.md
+/git_push.sh
+/*requirements.txt
+/setup.py
+/tox.ini
+
+/openapi_server/openapi/
+/openapi_server/test/
+/openapi_server/__main__.py

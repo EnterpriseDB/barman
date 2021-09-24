@@ -22,7 +22,8 @@ paths:
       tags:
         - "utility"
       summary: Return barman diagnose information
-      operationId: "server.controllers.utility_controller.diagnose"
+      x-openapi-router-controller: "openapi_server.controllers.utility_controller"
+      operationId: "diagnose"
       responses:
         "200":
           description: A json blob of the diagnose information
@@ -48,13 +49,13 @@ paths:
             application/json:
               schema:
                 type: string
-      x-swagger-router-controller: "barman.barman_api.controllers.utility_controller.diagnose"
   /status:
     get:
       tags:
         - "utility"
       summary: Check if Barman API App running
-      operationId: "server.controllers.utility_controller.status"
+      x-openapi-router-controller: "openapi_server.controllers.utility_controller"
+      operationId: "status"
       responses:
         "200":
           description: OK
@@ -62,4 +63,4 @@ paths:
             application/json:
               schema:
                 type: string
-      x-swagger-router-controller: "barman.barman_api.controllers.utility_controller.status"
+      

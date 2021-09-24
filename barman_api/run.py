@@ -16,6 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import os, sys
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+
 from argh import ArghParser, arg, expects_obj
 import connexion
 import os
@@ -26,8 +31,7 @@ from requests.exceptions import ConnectionError
 
 import barman
 from barman import config, output
-from server import encoder
-from server.controllers.utility_controller import status as util_status
+from openapi_server import encoder
 
 
 LOG_FILENAME = '/var/log/barman/barman-api.log'
@@ -43,20 +47,19 @@ def serve(args):
     """
     Run the Barman API app.
     """
-
     # load barman configs/setup barman for the app
     cfg = config.Config('/etc/barman.conf')
     barman.__config__ = cfg
     cfg.load_configuration_files_directory()
     output.set_output_writer(output.AVAILABLE_WRITERS['json']())
-
+    
     # setup and run the app
     app = connexion.App(__name__, specification_dir='./spec/')
     app.app.json_encoder = encoder.JSONEncoder
     app.add_api('barman_api.yaml',
                 arguments={'title': 'Barman API'},
                 pythonic_params=True)
-
+    
     # bc currently only the PEM agent will be connecting, only run on localhost
     app.run(host='127.0.0.1', port=args.port)
 

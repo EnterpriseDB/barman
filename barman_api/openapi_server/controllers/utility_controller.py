@@ -16,23 +16,40 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from connexion.apps.flask_app import FlaskJSONEncoder
+import connexion
 import six
+import os
 
-from .models.base_model_ import Model
+from openapi_server.models.diagnose_output import DiagnoseOutput  # noqa: E501
+from barman_api.logic.adapter import Adapter
+from openapi_server import util
 
 
-class JSONEncoder(FlaskJSONEncoder):
-    include_nulls = False
 
-    def default(self, o):
-        if isinstance(o, Model):
-            dikt = {}
-            for attr, _ in six.iteritems(o.openapi_types):
-                value = getattr(o, attr)
-                if value is None and not self.include_nulls:
-                    continue
-                attr = o.attribute_map[attr]
-                dikt[attr] = value
-            return dikt
-        return FlaskJSONEncoder.default(self, o)
+
+def diagnose():  # noqa: E501
+    """Return barman diagnose information
+
+     # noqa: E501
+
+
+    :rtype: DiagnoseOutput
+    """
+    return Adapter.op(__file__.split(os.path.sep)[-1].split('.')[0], 
+                      "diagnose", 
+                      )
+
+
+
+
+def status():  # noqa: E501
+    """Check if Barman API App running
+
+     # noqa: E501
+
+
+    :rtype: str
+    """
+    return Adapter.op(__file__.split(os.path.sep)[-1].split('.')[0], 
+                      "status", 
+                      )

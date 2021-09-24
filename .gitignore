@@ -35,3 +35,6 @@ venv/*
 
 # pyenv
 .python-version
+
+# openapi-generator
+barman_api/.openapi-generator/*
