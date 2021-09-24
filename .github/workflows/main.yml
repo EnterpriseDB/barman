@@ -1,0 +1,66 @@
+---
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  linter:
+    name: flake8
+    runs-on: ubuntu-latest
+    steps:
+      - name: Step 1 - Checkout repository
+        uses: actions/checkout@v2
+      - name: Step 2 - Install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - name:  Step 3 - Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-tox.txt
+      - name: Step 4 - Run flake with tox
+        run: "python -m tox -e flake8"
+
+  unit-tests:
+    name: "Python ${{ matrix.python-version }} ${{ matrix.tox-env }}"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["2.7", "3.5", "3.6", "3.7", "3.8", "3.9"]
+        tox-env: [""]
+        include:
+          - python-version: "2.7"
+            tox-env: "minimal"
+
+    steps:
+      - name: Step 1 - Checkout repository
+        uses: actions/checkout@v2
+      - name: Step 2 - Install python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "${{ matrix.python-version }}"
+      - name: Step 3 - Do some caching for python packages
+        uses: actions/cache@v2
+        id: cache-python-packages
+        with:
+          path: ${{ env.pythonLocation }}
+          key: ${{matrix.python-version}}-${{ hashFiles('requirements-tox.txt') }}-${{ env.pythonLocation }}
+          restore-keys: |
+            ${{matrix.python-version}}-${{ hashFiles('requirements-tox.txt') }}-
+      - name: Step 4 - Install dependencies to run tox
+        if: steps.cache-python-packages.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-tox.txt
+          python -m pip install --upgrade tox-gh-actions
+
+      - name: Step 5 - Run tox targets for ${{ matrix.python-version }} ${{matrix.tox-env}}
+        run: |
+          if [[ -z "${{ matrix.tox-env }}" ]]
+          then
+            python -m tox
+          else
+            python -m tox -e ${{ matrix.tox-env }}
+          fi
+
+
