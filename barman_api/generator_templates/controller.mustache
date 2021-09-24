@@ -126,8 +126,7 @@ def {{operationId}}({{#allParams}}{{paramName}}{{^required}}=None{{/required}}{{
             {{/items}}
         {{/isMap}}
     {{/allParams}}
-    return Controller.call_method(__file__, 
-                                  "{{operationId}}", 
+    return Controller.call_method("{{operationId}}", 
                                   {{#allParams}}{{paramName}}{{^-last}}, {{/-last}}{{/allParams}})
 {{/operation}}
 {{/operations}}

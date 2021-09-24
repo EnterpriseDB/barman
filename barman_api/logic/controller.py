@@ -18,6 +18,7 @@
 
 import importlib
 import os
+import inspect
 
 
 class Controller:
@@ -36,7 +37,7 @@ class Controller:
     rather than having to try to change or more deeply customize the autogeneration templates.
     """
     @staticmethod
-    def call_method(controller_filename, func_name, *args, **kwargs):
+    def call_method(func_name, *args, **kwargs):
         """
         Route the given function from the given controller to its implementation
         
@@ -62,6 +63,7 @@ class Controller:
         :param args - arguments for the called endpoint function
         :param kwargs - keyword arguments for the called endpoint function
         """
+        controller_filename = inspect.stack()[1].filename
         controller_name = os.path.splitext(os.path.split(controller_filename)[-1])[0]
         controller_module = importlib.import_module(f'.{controller_name}', package='logic')
         class_name = ''.join([s.capitalize() for s in controller_name.split('_')])
