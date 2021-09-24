@@ -1475,7 +1475,9 @@ class TestWalCleanup(object):
             wals_directory, "000000010000000000000073", "000000010000000000000076"
         )
         # AND the .backup WAL still exists
-        assert os.path.isfile("%s/%s/%s" % (wals_directory, backup_wal[:16], backup_wal))
+        assert os.path.isfile(
+            "%s/%s/%s" % (wals_directory, backup_wal[:16], backup_wal)
+        )
         # AND all WALs after end_wal of the oldest backup to before begin_wal of the
         # newest backup were deleted
         self._assert_wals_missing(
