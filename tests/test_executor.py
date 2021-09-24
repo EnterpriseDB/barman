@@ -852,31 +852,15 @@ class TestPostgresBackupExecutor(object):
             begin_offset=28,
             copy_stats=dict(copy_time=100, total_time=105),
         )
-        timestamp = datetime.datetime(2015, 10, 26, 14, 38)
+        start_timestamp = datetime.datetime(2015, 10, 26, 14, 38)
+        start_wal = "000000010000000000000012"
         backup_manager.server.postgres.current_xlog_info = dict(
             location="0/12000090",
-            file_name="000000010000000000000012",
+            file_name=start_wal,
             file_offset=144,
-            timestamp=timestamp,
+            timestamp=start_timestamp,
         )
         backup_manager.server.postgres.get_setting.return_value = "/pg/data"
-        tmp_backup_label = (
-            tmp_home.mkdir("main")
-            .mkdir("base")
-            .mkdir("fake_backup_id")
-            .mkdir("data")
-            .join("backup_label")
-        )
-        start_time = datetime.datetime.now(tz.tzlocal()).replace(microsecond=0)
-        tmp_backup_label.write(
-            "START WAL LOCATION: 0/40000028 (file 000000010000000000000040)\n"
-            "CHECKPOINT LOCATION: 0/40000028\n"
-            "BACKUP METHOD: streamed\n"
-            "BACKUP FROM: master\n"
-            "START TIME: %s\n"
-            "LABEL: pg_basebackup base backup"
-            % start_time.strftime("%Y-%m-%d %H:%M:%S %Z")
-        )
         backup_manager.executor.backup(backup_info)
         out, err = capsys.readouterr()
         gpb_mock.assert_called_once_with(backup_info.backup_id)
@@ -886,8 +870,8 @@ class TestPostgresBackupExecutor(object):
         assert "Finalising the backup." in out
         assert backup_info.end_xlog == "0/12000090"
         assert backup_info.end_offset == 144
-        assert backup_info.begin_time == start_time
-        assert backup_info.begin_wal == "000000010000000000000040"
+        assert backup_info.begin_time == start_timestamp
+        assert backup_info.begin_wal == start_wal
 
         # Check the CommandFailedException re raising
         with pytest.raises(CommandFailedException):

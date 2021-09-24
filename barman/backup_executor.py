@@ -1568,9 +1568,6 @@ class PostgresBackupStrategy(BackupStrategy):
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
-        self._read_backup_label(backup_info)
-        self._backup_info_from_backup_label(backup_info)
-
         # Set data in backup_info from current_xlog_info
         self.current_action = "stopping postgres backup_method"
         output.info("Finalising the backup.")
