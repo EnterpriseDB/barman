@@ -1,0 +1,10 @@
+ .
+ .[cloud]
+ .[azure]
+pytest==4.6.11
+boto3<1.11
+mock
+pytest-timeout
+py<1.6.0
+argh==0.21.2
+python-dateutil==1.5

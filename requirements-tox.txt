@@ -1,2 +1,2 @@
-tox<3
-virtualenv<16
+tox
+virtualenv

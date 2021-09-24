@@ -128,9 +128,4 @@ setup(
         "Programming Language :: Python :: 3.8",
     ],
     setup_requires=setup_requires,
-    tests_require=[
-        "mock",
-        "pytest-timeout",
-        "pytest",
-    ],
 )
