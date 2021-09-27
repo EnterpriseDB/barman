@@ -63,6 +63,15 @@ class ExceptionTest(Exception):
     pass
 
 
+def create_fake_info_file(name, size, time, compression=None):
+    info = WalFileInfo()
+    info.name = name
+    info.size = size
+    info.time = time
+    info.compression = compression
+    return info
+
+
 # noinspection PyMethodMayBeStatic
 class TestServer(object):
     def test_init(self):
@@ -210,32 +219,117 @@ class TestServer(object):
         full_path = server.get_wal_full_path(wal_name)
         assert full_path == str(tmpdir.join("wals").join(wal_hash).join(wal_name))
 
-    @patch("barman.server.Server.get_next_backup")
-    def test_get_wal_until_next_backup(self, get_backup_mock, tmpdir):
-        """
-        Simple test for the management of .history files
-        """
-        # build a WalFileInfo object
-        wfile_info = WalFileInfo()
-        wfile_info.name = "000000010000000000000003"
-        wfile_info.size = 42
-        wfile_info.time = 43
-        wfile_info.compression = None
+    @pytest.mark.parametrize(
+        "wal_info_files,expected_indices",
+        [
+            (
+                [
+                    create_fake_info_file("000000010000000000000003", 42, 43),
+                    create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 43),
+                    create_fake_info_file("00000002.history", 42, 43),
+                    create_fake_info_file("000000030000000000000005", 42, 43),
+                    create_fake_info_file("00000003.history", 42, 43),
+                ],
+                [1, 2, 3, 5],
+            ),
+            (
+                [
+                    create_fake_info_file("000000010000000000000003", 42, 43),
+                    create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 43),
+                    create_fake_info_file("000000020000000000000010", 42, 43),
+                    create_fake_info_file("00000002.history", 42, 43),
+                    create_fake_info_file("000000030000000000000005", 42, 43),
+                    create_fake_info_file("00000003.history", 42, 43),
+                ],
+                [1, 2, 3, 4, 6],
+            ),
+        ],
+    )
+    def test_get_required_xlog_files(self, wal_info_files, expected_indices, tmpdir):
+        # Prepare input string
+        walstring = ""
+        for i in wal_info_files:
+            walstring += i.to_xlogdb_line()
+        # Prepare expected list
+        expected_wals = []
+        for j in expected_indices:
+            expected_wals.append(wal_info_files[j].name)
 
-        # build a WalFileInfo history object
-        history_info = WalFileInfo()
-        history_info.name = "00000001.history"
-        history_info.size = 42
-        history_info.time = 43
-        history_info.compression = None
-
-        # create a xlog.db and add the 2 entries
+        # create a xlog.db and add those entries
         wals_dir = tmpdir.mkdir("wals")
         xlog = wals_dir.join("xlog.db")
-        xlog.write(wfile_info.to_xlogdb_line() + history_info.to_xlogdb_line())
+        xlog.write(walstring)
         # fake backup
         backup = build_test_backup_info(
-            begin_wal="000000010000000000000001", end_wal="000000010000000000000004"
+            begin_wal="000000020000000000000001", end_wal="000000020000000000000004"
+        )
+
+        # mock a server object and mock a return call to get_next_backup method
+        server = build_real_server(
+            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
+            main_conf={"wals_directory": wals_dir.strpath},
+        )
+
+        wals = []
+        for wal_file in server.get_required_xlog_files(backup, 2, 41):
+            # get the result of the xlogdb read
+            wals.append(wal_file.name)
+        # Check for the presence of expected files
+        assert expected_wals == wals
+
+    @pytest.mark.parametrize(
+        "wal_info_files,expected_indices",
+        [
+            (
+                [
+                    create_fake_info_file("000000010000000000000003", 42, 43),
+                    create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 43),
+                    create_fake_info_file("00000002.history", 42, 43),
+                    create_fake_info_file("000000030000000000000005", 42, 43),
+                    create_fake_info_file("00000003.history", 42, 43),
+                ],
+                [1, 2, 3, 5],
+            ),
+            (
+                [
+                    create_fake_info_file("000000010000000000000003", 42, 43),
+                    create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 43),
+                    create_fake_info_file("000000020000000000000010", 42, 43),
+                    create_fake_info_file("00000002.history", 42, 43),
+                    create_fake_info_file("000000030000000000000005", 42, 43),
+                    create_fake_info_file("00000003.history", 42, 43),
+                ],
+                [1, 2],
+            ),
+        ],
+    )
+    @patch("barman.server.Server.get_next_backup")
+    def test_get_wal_until_next_backup(
+        self, get_backup_mock, wal_info_files, expected_indices, tmpdir
+    ):
+        """
+        Test for the management of .history files and wal files
+        """
+        # Prepare input string
+        walstring = ""
+        for i in wal_info_files:
+            walstring += i.to_xlogdb_line()
+        # Prepare expected list
+        expected_wals = []
+        for j in expected_indices:
+            expected_wals.append(wal_info_files[j].name)
+
+        # create a xlog.db and add those entries
+        wals_dir = tmpdir.mkdir("wals")
+        xlog = wals_dir.join("xlog.db")
+        xlog.write(walstring)
+        # fake backup
+        backup = build_test_backup_info(
+            begin_wal="000000020000000000000001", end_wal="000000020000000000000004"
         )
 
         # mock a server object and mock a return call to get_next_backup method
@@ -245,16 +339,16 @@ class TestServer(object):
         )
         get_backup_mock.return_value = build_test_backup_info(
             backup_id="1234567899",
-            begin_wal="000000010000000000000005",
-            end_wal="000000010000000000000009",
+            begin_wal="000000020000000000000006",
+            end_wal="000000020000000000000009",
         )
 
         wals = []
         for wal_file in server.get_wal_until_next_backup(backup, include_history=True):
             # get the result of the xlogdb read
             wals.append(wal_file.name)
-        # check for the presence of the .history file
-        assert history_info.name in wals
+        # Check for the presence of expected files
+        assert expected_wals == wals
 
     @patch("barman.server.Server.get_remote_status")
     def test_pg_stat_archiver_show(self, remote_mock, capsys):
