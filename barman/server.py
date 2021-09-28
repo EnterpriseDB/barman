@@ -401,8 +401,7 @@ class Server(RemoteStatusMixin):
                 self.config.tablespace_bandwidth_limit = None
 
         # Set minimum redundancy (default 0)
-        if self.config.minimum_redundancy.isdigit():
-            self.config.minimum_redundancy = int(self.config.minimum_redundancy)
+        try self.config.minimum_redundancy = int(self.config.minimum_redundancy):
             if self.config.minimum_redundancy < 0:
                 _logger.warning(
                     'Negative value of minimum_redundancy "%s" '
@@ -410,7 +409,7 @@ class Server(RemoteStatusMixin):
                     % (self.config.minimum_redundancy, self.config.name)
                 )
                 self.config.minimum_redundancy = 0
-        else:
+        except:
             _logger.warning(
                 'Invalid minimum_redundancy "%s" for server "%s" '
                 '(fallback to "0")' % (self.config.minimum_redundancy, self.config.name)
