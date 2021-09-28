@@ -20,7 +20,7 @@ import connexion
 import six
 
 from openapi_server.models.diagnose_output import DiagnoseOutput  # noqa: E501
-from barman_api.logic.controller import Controller
+from logic.controller import Controller
 from openapi_server import util
 
 
