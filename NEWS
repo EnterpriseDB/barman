@@ -1,6 +1,6 @@
 Barman News - History of user-visible changes
 
-Version 2.14 - 22 September 2022
+Version 2.14 - 22 September 2021
 
 - Add the `barman-cloud-backup-delete` command which allows backups in
   cloud storage to be deleted by specifiying either a backup ID or a
