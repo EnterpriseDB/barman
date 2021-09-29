@@ -536,9 +536,7 @@ class FileWalArchiver(WalArchiver):
 
         # Build the list of WalFileInfo
         wal_files = [
-            WalFileInfo.from_file_with_compression(
-                f, self.backup_manager.compression_manager
-            )
+            WalFileInfo.from_file(f, self.backup_manager.compression_manager)
             for f in files
         ]
         return WalArchiverQueue(wal_files, batch_size=batch_size, errors=errors)
