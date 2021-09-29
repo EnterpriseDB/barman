@@ -2,7 +2,7 @@ To run the Flask app:
 
 Manually (either on local dev machine or from a barman server) if on an actual server, must do this as the barman user so barman can actually access the other servers  
 
-from the root directory
+from the root barman directory
 `python3 barman_api/run.py serve`
 
 
