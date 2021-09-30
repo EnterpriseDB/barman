@@ -1523,7 +1523,7 @@ def parse_backup_id(server, args):
     Exit with error if the backup id doesn't exist.
 
     :param Server server: server object to search for the required backup
-    :param args: command lien arguments namespace
+    :param args: command line arguments namespace
     :rtype: barman.infofile.LocalBackupInfo
     """
     if args.backup_id in ("latest", "last"):
