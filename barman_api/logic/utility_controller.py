@@ -29,7 +29,7 @@ class UtilityController:
     def diagnose(self):
         # Get every server (both inactive and temporarily disabled)
         servers = barman.__config__.server_names()
-        
+
         server_dict = {}
         for server in servers:
             conf = barman.__config__.get_server(server)
@@ -46,14 +46,13 @@ class UtilityController:
         barman.diagnose.exec_diagnose(server_dict, errors_list)
 
         # new outputs are appended, so grab the last one
-        stored_output = json.loads(output._writer.json_output['_INFO'][-1])
+        stored_output = json.loads(output._writer.json_output["_INFO"][-1])
 
         diag_output = DiagnoseOutput(
-            _global=str(stored_output['global']), 
-            servers=str(stored_output['servers'])
+            _global=str(stored_output["global"]), servers=str(stored_output["servers"])
         )
 
         return diag_output.to_dict()
 
     def status(self):
-        return 'OK'  # If this app isn't running, we obviously won't return!
+        return "OK"  # If this app isn't running, we obviously won't return!
