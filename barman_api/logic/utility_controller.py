@@ -45,8 +45,8 @@ class UtilityController:
 
         barman.diagnose.exec_diagnose(server_dict, errors_list)
 
-        # FIXME not sure if the 0th thing is guaranteed
-        stored_output = json.loads(output._writer.json_output['_INFO'][0])
+        # new outputs are appended, so grab the last one
+        stored_output = json.loads(output._writer.json_output['_INFO'][-1])
 
         diag_output = DiagnoseOutput(
             _global=str(stored_output['global']), 
