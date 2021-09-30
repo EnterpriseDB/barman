@@ -32,8 +32,9 @@ def diagnose():  # noqa: E501
 
     :rtype: DiagnoseOutput
     """
-    return Controller.call_method("diagnose", 
-                                  )
+    return Controller.call_method(
+        "diagnose",
+    )
 
 
 def status():  # noqa: E501
@@ -44,5 +45,6 @@ def status():  # noqa: E501
 
     :rtype: str
     """
-    return Controller.call_method("status", 
-                                  )
+    return Controller.call_method(
+        "status",
+    )

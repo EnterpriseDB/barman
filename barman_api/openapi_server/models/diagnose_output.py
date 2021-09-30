@@ -39,21 +39,15 @@ class DiagnoseOutput(Model):
         :param servers: The servers of this DiagnoseOutput.  # noqa: E501
         :type servers: str
         """
-        self.openapi_types = {
-            '_global': str,
-            'servers': str
-        }
+        self.openapi_types = {"_global": str, "servers": str}
 
-        self.attribute_map = {
-            '_global': 'global',
-            'servers': 'servers'
-        }
+        self.attribute_map = {"_global": "global", "servers": "servers"}
 
         self.__global = _global
         self._servers = servers
 
     @classmethod
-    def from_dict(cls, dikt) -> 'DiagnoseOutput':
+    def from_dict(cls, dikt) -> "DiagnoseOutput":
         """Returns the dict as a model
 
         :param dikt: A dict.
@@ -82,7 +76,9 @@ class DiagnoseOutput(Model):
         :type _global: str
         """
         if _global is None:
-            raise ValueError("Invalid value for `_global`, must not be `None`")  # noqa: E501
+            raise ValueError(
+                "Invalid value for `_global`, must not be `None`"
+            )  # noqa: E501
 
         self.__global = _global
 
@@ -105,6 +101,8 @@ class DiagnoseOutput(Model):
         :type servers: str
         """
         if servers is None:
-            raise ValueError("Invalid value for `servers`, must not be `None`")  # noqa: E501
+            raise ValueError(
+                "Invalid value for `servers`, must not be `None`"
+            )  # noqa: E501
 
         self._servers = servers
