@@ -15,6 +15,7 @@ Barman allows you to use special keywords to identify a specific backup:
 
 * `last/latest`: identifies the newest backup in the catalog
 * `first/oldest`: identifies the oldest backup in the catalog
+* `last-failed`: identifies the newest failed backup in the catalog
 
 Using those keywords with Barman commands allows you to execute actions
 without knowing the exact ID of a backup for a server.
