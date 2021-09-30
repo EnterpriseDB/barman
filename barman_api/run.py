@@ -16,13 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO see if I can figure out a solution to the relative import problem
-#      that is less hacky
-# source for this: https://codeolives.com/2020/01/10/python-reference-module-in-parent-directory/
-import os, sys
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)
 
 from argh import ArghParser, arg, expects_obj
 import connexion
