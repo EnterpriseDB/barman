@@ -75,7 +75,7 @@ from barman.lockfile import (
 from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
-from barman.retention_policies import RetentionPolicyFactory
+from barman.retention_policies import RetentionPolicyFactory, RetentionPolicy
 from barman.utils import (
     BarmanEncoder,
     file_md5,
@@ -432,7 +432,7 @@ class Server(RemoteStatusMixin):
             self.config.retention_policy_mode = "auto"
 
         # If retention_policy is present, enforce them
-        if self.config.retention_policy:
+        if self.config.retention_policy and not isinstance(self.config.retention_policy, RetentionPolicy):
             # Check wal_retention_policy
             if self.config.wal_retention_policy != "main":
                 _logger.warning(
@@ -441,6 +441,7 @@ class Server(RemoteStatusMixin):
                     % (self.config.wal_retention_policy, self.config.name)
                 )
                 self.config.wal_retention_policy = "main"
+
             # Create retention policy objects
             try:
                 rp = RetentionPolicyFactory.create(
@@ -482,7 +483,7 @@ class Server(RemoteStatusMixin):
                 _logger.exception(
                     'Invalid retention_policy setting "%s" for server "%s"'
                     % (self.config.retention_policy, self.config.name)
-                )
+                    )
 
     def get_identity_file_path(self):
         """
