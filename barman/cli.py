@@ -159,7 +159,7 @@ def backup_completer(prefix, parsed_args, **kwargs):
     for backup_id in sorted(backups, reverse=True):
         if backup_id.startswith(prefix):
             yield backup_id
-    for special_id in ("latest", "last", "oldest", "first"):
+    for special_id in ("latest", "last", "oldest", "first", "failed"):
         if len(backups) > 0 and special_id.startswith(prefix):
             yield special_id
 
@@ -1530,6 +1530,8 @@ def parse_backup_id(server, args):
         backup_id = server.get_last_backup_id()
     elif args.backup_id in ("oldest", "first"):
         backup_id = server.get_first_backup_id()
+    elif args.backup_id in ("failed"):
+        backup_id = server.get_last_backup_id([BackupInfo.FAILED])
     else:
         backup_id = args.backup_id
     backup_info = server.get_backup(backup_id)
