@@ -73,11 +73,11 @@ Then restart the PostgreSQL server.
 
 ### WAL archiving via rsync/SSH
 
-You can retrieve the incoming WALs directory using the `show-server`
+You can retrieve the incoming WALs directory using the `show-servers`
 Barman command and looking for the `incoming_wals_directory` value:
 
 ``` bash
-barman@backup$ barman show-server pg |grep incoming_wals_directory
+barman@backup$ barman show-servers pg |grep incoming_wals_directory
         incoming_wals_directory: /var/lib/barman/pg/incoming
 ```
 
@@ -91,7 +91,7 @@ archive_command = 'rsync -a %p barman@backup:INCOMING_WALS_DIRECTORY/%f'
 ```
 
 Make sure you change the `INCOMING_WALS_DIRECTORY` placeholder with
-the value returned by the `barman show-server pg` command above.
+the value returned by the `barman show-servers pg` command above.
 
 Restart the PostgreSQL server.
 

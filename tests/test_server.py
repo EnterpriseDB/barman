@@ -284,7 +284,7 @@ class TestServer(object):
             }
         )
 
-        # Testing for show-server command.
+        # Testing for show-servers command.
         # Expecting in the output the same values present into the stats dict
         server.show()
 

@@ -51,7 +51,7 @@ the cron entry and execute:
 barman receive-wal --stop SERVER_NAME
 ```
 
-You might want to check `barman list-server` to make sure you get all of
+You might want to check `barman list-servers` to make sure you get all of
 your servers.
 
 ## `diagnose`
@@ -66,17 +66,17 @@ servers.
 > of the interface. Format can change between different Barman versions.
 
 
-## `list-server`
+## `list-servers`
 
 You can display the list of active servers that have been configured
 for your backup system with:
 
 ``` bash
-barman list-server
+barman list-servers
 ```
 
 A machine readable output can be obtained with the `--minimal` option:
 
 ``` bash
-barman list-server --minimal
+barman list-servers --minimal
 ```

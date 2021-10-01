@@ -1,4 +1,4 @@
-list-backup *SERVER_NAME*
+list-backups *SERVER_NAME*
 :   Show available backups for `SERVER_NAME`. This command is useful to
     retrieve a backup ID. For example:
 

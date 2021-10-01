@@ -314,10 +314,10 @@ and the `receive-wal` process should figure as a synchronous standby
 of the PostgreSQL server.
 
 First of all, you need to retrieve the application name of the Barman
-`receive-wal` process with the `show-server` command:
+`receive-wal` process with the `show-servers` command:
 
 ``` bash
-barman@backup$ barman show-server pg|grep streaming_archiver_name
+barman@backup$ barman show-servers pg|grep streaming_archiver_name
 	streaming_archiver_name: barman_receive_wal
 ```
 

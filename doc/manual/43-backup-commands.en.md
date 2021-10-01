@@ -6,7 +6,7 @@ Backup commands are those that works directly on backups already existing in
 Barman's backup catalog.
 
 > **NOTE:**
-> Remember a backup ID can be retrieved with `barman list-backup
+> Remember a backup ID can be retrieved with `barman list-backups
 > <server_name>`
 
 ## Backup ID shortcuts
@@ -169,7 +169,7 @@ to start a PostgreSQL instance.
 > **IMPORTANT:**
 > Running this command as user `barman`, it will become the database superuser.
 
-The specific ID of a backup can be retrieved using the [list-backup](#list-backup)
+The specific ID of a backup can be retrieved using the [list-backups](#list-backups)
 command.
 
 > **IMPORTANT:**
