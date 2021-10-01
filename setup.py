@@ -104,8 +104,8 @@ setup(
             # connexion requires werkzeug but connexion < 2.4.0 does not install werkzeug
             # we must peg werkzeug versions below to fix connexion
             # https://github.com/zalando/connexion/pull/1044
-            "werkzeug == 2.0.0",            
-        ]
+            "werkzeug == 2.0.0",
+        ],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[
