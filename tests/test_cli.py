@@ -28,6 +28,7 @@ from barman.cli import (
     get_server_list,
     manage_server_command,
     recover,
+    keep,
 )
 from barman.infofile import BackupInfo
 from barman.server import Server
@@ -418,3 +419,135 @@ class TestCli(object):
         # Every other value is an error
         with pytest.raises(ArgumentTypeError):
             check_target_action("invalid_target_action")
+
+
+class TestKeepCli(object):
+    @pytest.fixture
+    def mock_args(self):
+        args = Mock()
+        args.sever_name = "test_server"
+        args.backup_id = "test_backup_id"
+        args.release = None
+        args.status = None
+        args.target = None
+        yield args
+
+    @pytest.fixture
+    def monkeypatch_config(self, monkeypatch):
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            build_config_from_dicts(),
+        )
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_barman_keep(
+        self, mock_get_server, mock_parse_backup_id, mock_args, monkeypatch_config
+    ):
+        """Verify barman keep command calls keep_backup"""
+        mock_args.target = "standalone"
+        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.status = BackupInfo.DONE
+        keep(mock_args)
+        mock_get_server.return_value.backup_manager.keep_backup.assert_called_once_with(
+            "test_backup_id", "standalone"
+        )
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_barman_keep_fails_if_no_target_release_or_status_provided(
+        self, mock_get_server, mock_parse_backup_id, mock_args, capsys
+    ):
+        """
+        Verify barman keep command fails if none of --release, --status or --target
+        are provided.
+        """
+        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.status = BackupInfo.DONE
+        with pytest.raises(SystemExit):
+            keep(mock_args)
+        _out, err = capsys.readouterr()
+        assert (
+            "one of the arguments -r/--release -s/--status --target is required" in err
+        )
+        mock_get_server.return_value.backup_manager.keep_backup.assert_not_called()
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_barman_keep_backup_not_done(
+        self,
+        mock_get_server,
+        mock_parse_backup_id,
+        mock_args,
+        capsys,
+    ):
+        """Verify barman keep command will not add keep if backup is not done"""
+        mock_args.target = "standalone"
+        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_parse_backup_id.return_value.status = BackupInfo.WAITING_FOR_WALS
+        with pytest.raises(SystemExit):
+            keep(mock_args)
+        _out, err = capsys.readouterr()
+        assert (
+            "Cannot add keep to backup test_backup_id because it has status "
+            "WAITING_FOR_WALS. Only backups with status DONE can be kept."
+        ) in err
+        mock_get_server.return_value.backup_manager.keep_backup.assert_not_called()
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_barman_keep_release(
+        self, mock_get_server, mock_parse_backup_id, mock_args, monkeypatch_config
+    ):
+        """Verify `barman keep --release` command calls release_keep"""
+        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_args.release = True
+        keep(mock_args)
+        mock_get_server.return_value.backup_manager.release_keep.assert_called_once_with(
+            "test_backup_id"
+        )
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_barman_keep_status(
+        self,
+        mock_get_server,
+        mock_parse_backup_id,
+        mock_args,
+        monkeypatch_config,
+        capsys,
+    ):
+        """Verify `barman keep --status` command prints get_keep_target output"""
+        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_get_server.return_value.backup_manager.get_keep_target.return_value = (
+            "standalone"
+        )
+        mock_args.status = True
+        keep(mock_args)
+        mock_get_server.return_value.backup_manager.get_keep_target.assert_called_once_with(
+            "test_backup_id"
+        )
+        out, _err = capsys.readouterr()
+        assert "standalone" in out
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_barman_keep_status_nokeep(
+        self,
+        mock_get_server,
+        mock_parse_backup_id,
+        mock_args,
+        monkeypatch_config,
+        capsys,
+    ):
+        """Verify `barman keep --status` command prints get_keep_target output"""
+        mock_parse_backup_id.return_value.backup_id = "test_backup_id"
+        mock_get_server.return_value.backup_manager.get_keep_target.return_value = None
+        mock_args.status = True
+        keep(mock_args)
+        mock_get_server.return_value.backup_manager.get_keep_target.assert_called_once_with(
+            "test_backup_id"
+        )
+        out, _err = capsys.readouterr()
+        assert "nokeep" in out

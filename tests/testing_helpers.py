@@ -460,3 +460,8 @@ else:
         :return:
         """
         return unicode(s.replace(r"\\", r"\\\\"), "unicode_escape")  # noqa
+
+
+def interpolate_wals(begin_wal, end_wal):
+    """Helper which generates all WAL names between two WALs (inclusive)"""
+    return ["%024X" % wal for wal in (range(int(begin_wal, 16), int(end_wal, 16) + 1))]

@@ -1,6 +1,6 @@
-% BARMAN-CLOUD-BACKUP-DELETE(1) Barman User manuals | Version 2.13
+% BARMAN-CLOUD-BACKUP-DELETE(1) Barman User manuals | Version 2.14
 % EnterpriseDB <http://www.enterprisedb.com>
-% July 26, 2021
+% September 22, 2020
 
 # NAME
 
@@ -27,8 +27,10 @@ will be deleted.
 When a backup is succesfully deleted any unused WALs associated with that
 backup are removed. WALs are only considered unused if:
 
- 1. There are no older backups than the deleted backup.
+ 1. There are no older backups than the deleted backup *or* all older backups
+    are archival backups.
  2. The WALs pre-date the begin_wal value of the oldest remaining backup.
+ 3. The WALs are not required by any archival backups present in cloud storage.
 
 Note: The deletion of each backup involves three separate delete requests
 to the cloud provider (once for the backup files, once for the backup.info

@@ -14,3 +14,6 @@ latest
 
 oldest
 :   same ast *first*.
+
+last-failed
+:   Latest failed backup, in chronological order.

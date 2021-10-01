@@ -870,13 +870,13 @@ class RsyncCopyController(object):
         # Build a hash containing all files present on reference directory.
         # Directories are not included
         try:
-            ref_hash = dict(
-                (
-                    (item.path, item)
-                    for item in self._list_files(item, ref)
-                    if item.mode[0] != "d"
-                )
-            )
+            ref_hash = {}
+            ref_has_content = False
+            for file_item in self._list_files(item, ref):
+                if file_item.path != ".":
+                    ref_has_content = True
+                if file_item.mode[0] != "d":
+                    ref_hash[file_item.path] = file_item
         except (CommandFailedException, RsyncListFilesFailure) as e:
             # Here we set ref_hash to None, thus disable the code that marks as
             # "safe matching" those destination files with different time or
@@ -915,8 +915,10 @@ class RsyncCopyController(object):
 
             # Add every file in the source path to the list of files
             # to be protected from deletion ('exclude_and_protect.filter')
-            exclude_and_protect_filter.write("P /" + entry.path + "\n")
-            exclude_and_protect_filter.write("- /" + entry.path + "\n")
+            # But only if we know the destination directory is non-empty
+            if ref_has_content:
+                exclude_and_protect_filter.write("P /" + entry.path + "\n")
+                exclude_and_protect_filter.write("- /" + entry.path + "\n")
 
             # If source item is older than safe_horizon,
             # add it to 'safe.list'

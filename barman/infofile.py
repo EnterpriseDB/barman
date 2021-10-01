@@ -424,7 +424,16 @@ class BackupInfo(FieldListFile):
     VALID = "VALID"
     POTENTIALLY_OBSOLETE = "OBSOLETE*"
     NONE = "-"
-    RETENTION_STATUS = (OBSOLETE, VALID, POTENTIALLY_OBSOLETE, NONE)
+    KEEP_FULL = "KEEP:FULL"
+    KEEP_STANDALONE = "KEEP:STANDALONE"
+    RETENTION_STATUS = (
+        OBSOLETE,
+        VALID,
+        POTENTIALLY_OBSOLETE,
+        KEEP_FULL,
+        KEEP_STANDALONE,
+        NONE,
+    )
 
     version = Field("version", load=int)
     pgdata = Field("pgdata")

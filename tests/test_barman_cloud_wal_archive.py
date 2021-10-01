@@ -335,9 +335,9 @@ class TestWalUploaderAzure(object):
     @mock.patch.dict(
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
-    @mock.patch("barman.cloud_providers.azure_blob_storage.BlobServiceClient")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
     @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader.retrieve_file_obj")
-    def test_upload_wal(self, rfo_mock, blob_service_mock):
+    def test_upload_wal(self, rfo_mock, ContainerClientMock):
         """
         Test the upload of a WAL
         """
@@ -352,20 +352,14 @@ class TestWalUploaderAzure(object):
         rfo_mock.return_value.name = source
         uploader.upload_wal(source)
 
-        blob_service_mock.from_connection_string.assert_called_once_with(
+        ContainerClientMock.from_connection_string.assert_called_once_with(
             conn_str=os.environ["AZURE_STORAGE_CONNECTION_STRING"],
             container_name=container_name,
         )
-        blob_service_client_mock = blob_service_mock.from_connection_string.return_value
-        blob_service_client_mock.get_container_client.assert_called_once_with(
-            container_name
-        )
-        container_client_mock = (
-            blob_service_client_mock.get_container_client.return_value
-        )
+        container_client = ContainerClientMock.from_connection_string.return_value
 
         # Check the call for the creation of the destination key
-        container_client_mock.upload_blob.assert_called_once_with(
+        container_client.upload_blob.assert_called_once_with(
             data=rfo_mock.return_value,
             name=os.path.join(
                 cloud_interface.path,

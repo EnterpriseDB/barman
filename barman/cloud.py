@@ -33,6 +33,7 @@ from functools import partial
 from io import BytesIO
 from tempfile import NamedTemporaryFile
 
+from barman.annotations import KeepManagerMixinCloud
 from barman.backup_executor import ConcurrentBackupStrategy, ExclusiveBackupStrategy
 from barman.exceptions import BarmanException
 from barman.fs import path_allowed
@@ -1485,7 +1486,7 @@ class BackupFileInfo(object):
         self.additional_files = []
 
 
-class CloudBackupCatalog(object):
+class CloudBackupCatalog(KeepManagerMixinCloud):
     """
     Cloud storage backup catalog
     """
@@ -1498,7 +1499,9 @@ class CloudBackupCatalog(object):
           upload the backup
         :param str server_name: The name of the server as configured in Barman
         """
-
+        super(CloudBackupCatalog, self).__init__(
+            cloud_interface=cloud_interface, server_name=server_name
+        )
         self.cloud_interface = cloud_interface
         self.server_name = server_name
         self.prefix = os.path.join(self.cloud_interface.path, self.server_name, "base")

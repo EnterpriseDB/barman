@@ -16,11 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import json
 import logging
 from contextlib import closing
 
 import barman
+from barman.annotations import KeepManager
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.infofile import BackupInfo
@@ -35,7 +35,6 @@ except ImportError:
 def main(args=None):
     """
     The main script entry point
-
     :param list[str] args: the raw arguments list. When not provided
         it defaults to sys.args[1:]
     """
@@ -46,10 +45,6 @@ def main(args=None):
         cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
-            catalog = CloudBackupCatalog(
-                cloud_interface=cloud_interface, server_name=config.server_name
-            )
-
             if not cloud_interface.test_connectivity():
                 raise SystemExit(1)
             # If test is requested, just exit after connectivity test
@@ -60,45 +55,30 @@ def main(args=None):
                 logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise SystemExit(1)
 
-            backup_list = catalog.get_backup_list()
-
-            # Output
-            if config.format == "console":
-                COLUMNS = "{:<20}{:<25}{:<30}{:<16}"
-                print(
-                    COLUMNS.format(
-                        "Backup ID", "End Time", "Begin Wal", "Archival Status"
-                    )
-                )
-                for backup_id in sorted(backup_list):
-                    item = backup_list[backup_id]
-                    if item and item.status == BackupInfo.DONE:
-                        keep_target = catalog.get_keep_target(item.backup_id)
-                        keep_status = (
-                            keep_target and "KEEP:%s" % keep_target.upper() or ""
-                        )
-                        print(
-                            COLUMNS.format(
-                                item.backup_id,
-                                item.end_time.strftime("%Y-%m-%d %H:%M:%S"),
-                                item.begin_wal,
-                                keep_status,
-                            )
-                        )
+            catalog = CloudBackupCatalog(cloud_interface, config.server_name)
+            if config.release:
+                catalog.release_keep(config.backup_id)
+            elif config.status:
+                target = catalog.get_keep_target(config.backup_id)
+                if target:
+                    print("Keep: %s" % target)
+                else:
+                    print("Keep: nokeep")
             else:
-                print(
-                    json.dumps(
-                        {
-                            "backups_list": [
-                                backup_list[backup_id].to_json()
-                                for backup_id in sorted(backup_list)
-                            ]
-                        }
+                backup_info = catalog.get_backup_info(config.backup_id)
+                if backup_info.status == BackupInfo.DONE:
+                    catalog.keep_backup(config.backup_id, config.target)
+                else:
+                    logging.error(
+                        "Cannot add keep to backup %s because it has status %s. "
+                        "Only backups with status DONE can be kept.",
+                        config.backup_id,
+                        backup_info.status,
                     )
-                )
+                    raise SystemExit(1)
 
     except Exception as exc:
-        logging.error("Barman cloud backup list exception: %s", force_str(exc))
+        logging.error("Barman cloud keep exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)
         raise SystemExit(1)
 
@@ -106,17 +86,14 @@ def main(args=None):
 def parse_arguments(args=None):
     """
     Parse command line arguments
-
     :return: The options parsed
     """
-
     parser = argparse.ArgumentParser(
-        description="This script can be used to list backups "
+        description="This script can be used to delete backups "
         "made with barman-cloud-backup command. "
         "Currently AWS S3 and Azure Blob Storage are supported.",
         add_help=False,
     )
-
     parser.add_argument(
         "source_url",
         help="URL of the cloud source, such as a bucket in AWS S3."
@@ -124,6 +101,29 @@ def parse_arguments(args=None):
     )
     parser.add_argument(
         "server_name", help="the name of the server as configured in Barman."
+    )
+    parser.add_argument(
+        "backup_id",
+        help="the backup ID of the backup to be kept",
+    )
+    keep_options = parser.add_mutually_exclusive_group(required=True)
+    keep_options.add_argument(
+        "-r",
+        "--release",
+        help="If specified, the command will remove the keep annotation and the "
+        "backup will be eligible for deletion",
+        action="store_true",
+    )
+    keep_options.add_argument(
+        "-s",
+        "--status",
+        help="Print the keep status of the backup",
+        action="store_true",
+    )
+    keep_options.add_argument(
+        "--target",
+        help="Specify the recovery target for this backup",
+        choices=[KeepManager.TARGET_FULL, KeepManager.TARGET_STANDALONE],
     )
     parser.add_argument(
         "-V", "--version", action="version", version="%%(prog)s %s" % barman.__version__
@@ -150,11 +150,6 @@ def parse_arguments(args=None):
         help="Test cloud connectivity and exit",
         action="store_true",
         default=False,
-    )
-    parser.add_argument(
-        "--format",
-        default="console",
-        help="Output format (console or json). Default console.",
     )
     parser.add_argument(
         "--cloud-provider",

@@ -1,27 +1,22 @@
-% BARMAN-CLOUD-WAL-ARCHIVE(1) Barman User manuals | Version 2.14
+% BARMAN-CLOUD-BACKUP-DELETE(1) Barman User manuals | Version 2.14
 % EnterpriseDB <http://www.enterprisedb.com>
 % September 22, 2020
 
 # NAME
 
-barman-cloud-wal-archive - Archive PostgreSQL WAL files in the Cloud using `archive_command`
+barman-cloud-backup-keep - Flag backups which should be kept forever
 
 
 # SYNOPSIS
 
-barman-cloud-wal-archive [*OPTIONS*] *DESTINATION_URL* *SERVER_NAME* *WAL_PATH*
+barman-cloud-backup-keep [*OPTIONS*] *SOURCE_URL* *SERVER_NAME* *BACKUP_ID*
 
 
 # DESCRIPTION
 
-This script can be used in the `archive_command` of a PostgreSQL
-server to ship WAL files to the Cloud. Currently AWS S3 and Azure Blob
-Storage are supported.
-
-Note: If you are running python 2 or older unsupported versions of
-python 3 then avoid the compression options `--gzip` or `--bzip2` as
-barman-cloud-wal-restore is unable to restore gzip-compressed WALs
-on python < 3.2 or bzip2-compressed WALs on python < 3.3.
+This script can be used to flag backups previously made with
+`barman-cloud-backup` as archival backups. Archival backups are kept forever
+regardless of any retention policies applied.
 
 This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
@@ -29,17 +24,16 @@ of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 
 # POSITIONAL ARGUMENTS
 
-DESTINATION_URL
-:    URL of the cloud destination, such as a bucket in AWS S3.
+SOURCE_URL
+:    URL of the cloud source, such as a bucket in AWS S3.
      For example: `s3://BUCKET_NAME/path/to/folder` (where `BUCKET_NAME`
      is the bucket you have created in AWS).
-
 
 SERVER_NAME
 :    the name of the server as configured in Barman.
 
-WAL_PATH
-:    the value of the '%p' keyword (according to 'archive_command').
+BACKUP_ID
+:    a valid Backup ID for a backup in cloud storage
 
 # OPTIONS
 
@@ -58,13 +52,26 @@ WAL_PATH
 -t, --test
 :    test connectivity to the cloud destination and exit
 
--z, --gzip
-:    gzip-compress the WAL while uploading to the cloud
-     (should not be used with python < 3.2)
+--target *RECOVERY_TARGET*
+:   Specify the recovery target for the archival backup.
+    Possible values for *RECOVERY_TARGET* are:
 
--j, --bzip2
-:    bzip2-compress the WAL while uploading to the cloud
-     (should not be used with python < 3.3)
+      - *full*: The backup can always be used to recover to the latest point
+        in time. To achieve this, Barman will retain all WALs needed to
+        ensure consistency of the backup and all subsequent WALs.
+      - *standalone*: The backup can only be used to recover the server to
+        its state at the time the backup was taken. Barman will only retain
+        the WALs needed to ensure consistency of the backup.
+
+-s, --status
+:   Report the archival status of the backup. This will either be the
+    recovery target of *full* or *standalone* for archival backups or
+    *nokeep* for backups which have not been flagged as archival.
+
+-r, --release
+:   Release the keep flag from this backup. This will remove its archival
+    status and make it available for deletion, either directly or by
+    retention policy.
 
 --cloud-provider {aws-s3,azure-blob-storage}
 :    the cloud provider to which the backup should be uploaded
@@ -74,14 +81,6 @@ WAL_PATH
 
 --endpoint-url
 :    override the default S3 URL construction mechanism by specifying an endpoint.
-
--e, --encryption
-:    the encryption algorithm used when storing the uploaded data in S3
-     Allowed values: 'AES256'|'aws:kms'
-
---encryption-scope
-:    the name of an encryption scope defined in the Azure Blob Storage
-     service which is to be used to encrypt the data in Azure
 
 
 # REFERENCES
@@ -100,6 +99,7 @@ For Azure Blob Storage:
 * https://docs.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters
 * https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python
 
+
 # DEPENDENCIES
 
 If using `--cloud-provider=aws-s3`:
@@ -111,6 +111,7 @@ If using `--cloud-provider=azure-blob-storage`:
 * azure-storage-blob
 * azure-identity (optional, if you wish to use DefaultAzureCredential)
 
+
 # EXIT STATUS
 
 0
@@ -120,22 +121,13 @@ Not zero
 :   Failure
 
 
-# SEE ALSO
-
-This script can be used in conjunction with `pre_archive_retry_script` to relay WAL
-files to S3, as follows:
-
-```
-pre_archive_retry_script = 'barman-cloud-wal-archive [*OPTIONS*] *DESTINATION_URL* ${BARMAN_SERVER}'
-```
-
-
 # BUGS
 
 Barman has been extensively tested, and is currently being used in several
 production environments. However, we cannot exclude the presence of bugs.
 
 Any bug can be reported via the Github issue tracker.
+
 
 # RESOURCES
 

@@ -76,6 +76,8 @@ sed -i -e "3s/^%.*/% ${release_date}/; 1s/| Version .*/| Version ${release_versi
     doc/barman-wal-archive.1.md \
     doc/barman-wal-restore.1.md \
     doc/barman-cloud-backup.1.md \
+    doc/barman-cloud-backup-delete.1.md \
+    doc/barman-cloud-backup-keep.1.md \
     doc/barman-cloud-backup-list.1.md \
     doc/barman-cloud-restore.1.md \
     doc/barman-cloud-wal-archive.1.md \
@@ -92,6 +94,8 @@ git add doc/barman.1.d/00-header.md \
     doc/barman-wal-archive.1.md \
     doc/barman-wal-restore.1.md \
     doc/barman-cloud-backup.1.md \
+    doc/barman-cloud-backup-delete.1.md \
+    doc/barman-cloud-backup-keep.1.md \
     doc/barman-cloud-backup-list.1.md \
     doc/barman-cloud-restore.1.md \
     doc/barman-cloud-wal-archive.1.md \
@@ -103,6 +107,8 @@ git add doc/barman.1.d/00-header.md \
     doc/barman-wal-archive.1 \
     doc/barman-wal-restore.1 \
     doc/barman-cloud-backup.1 \
+    doc/barman-cloud-backup-delete.1 \
+    doc/barman-cloud-backup-keep.1 \
     doc/barman-cloud-backup-list.1 \
     doc/barman-cloud-restore.1 \
     doc/barman-cloud-wal-archive.1 \

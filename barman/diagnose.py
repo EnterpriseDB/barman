@@ -87,4 +87,6 @@ def exec_diagnose(servers, errors_list):
         }
         # Release any PostgreSQL resource
         server.close()
-    output.info(json.dumps(diagnosis, cls=BarmanEncoder, indent=4, sort_keys=True), log=False)
+    output.info(
+        json.dumps(diagnosis, cls=BarmanEncoder, indent=4, sort_keys=True), log=False
+    )

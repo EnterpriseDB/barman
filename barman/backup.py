@@ -32,6 +32,7 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
+from barman.annotations import KeepManager, KeepManagerMixin
 from barman.backup_executor import (
     PassiveBackupExecutor,
     PostgresBackupExecutor,
@@ -61,7 +62,7 @@ from barman.utils import (
 _logger = logging.getLogger(__name__)
 
 
-class BackupManager(RemoteStatusMixin):
+class BackupManager(RemoteStatusMixin, KeepManagerMixin):
     """Manager of the backup archive for a server"""
 
     DEFAULT_STATUS_FILTER = BackupInfo.STATUS_COPY_DONE
@@ -70,7 +71,7 @@ class BackupManager(RemoteStatusMixin):
         """
         Constructor
         """
-        super(BackupManager, self).__init__()
+        super(BackupManager, self).__init__(server=server)
         self.server = server
         self.config = server.config
         self._backup_cache = None
@@ -211,6 +212,106 @@ class BackupManager(RemoteStatusMixin):
         return self.find_previous_backup_in(available_backups, backup_id, status_filter)
 
     @staticmethod
+    def should_remove_wals(
+        backup,
+        available_backups,
+        keep_manager,
+        skip_wal_cleanup_if_standalone,
+        status_filter=DEFAULT_STATUS_FILTER,
+    ):
+        """
+        Determine whether we should remove the WALs for the specified backup.
+
+        Returns the following tuple:
+
+           - `(bool should_remove_wals, list wal_ranges_to_protect)`
+
+        Where `should_remove_wals` is a boolean which is True if the WALs associated
+        with this backup should be removed and False otherwise.
+
+        `wal_ranges_to_protect` is a list of `(begin_wal, end_wal)` tuples which define
+        *inclusive* ranges where any matching WAL should not be deleted.
+
+        The rules for determining whether we should remove WALs are as follows:
+
+          1. If there is no previous backup then we can clean up the WALs.
+          2. If there is a previous backup and it has no keep annotation then do
+             not clean up the WALs. We need to allow PITR from that older backup
+             to the current time.
+          3. If there is a previous backup and it has a keep target of "full" then
+             do nothing. We need to allow PITR from that keep:full backup to the
+             current time.
+          4. If there is a previous backup and it has a keep target of "standalone":
+            a. If that previous backup is the oldest backup then delete WALs up to
+               the begin_wal of the next backup except for WALs which are
+               >= begin_wal and <= end_wal of the keep:standalone backup - we can
+               therefore add `(begin_wal, end_wal)` to `wal_ranges_to_protect` and
+               return True.
+            b. If that previous backup is not the oldest backup then we add the
+               `(begin_wal, end_wal)` to `wal_ranges_to_protect` and go to 2 above.
+               We will either end up returning False, because we hit a backup with
+               keep:full or no keep annotation, or all backups to the oldest backup
+               will be keep:standalone in which case we will delete up to the
+               begin_wal of the next backup, preserving the WALs needed by each
+               keep:standalone backups by adding them to `wal_ranges_to_protect`.
+
+        This is a static method so it can be re-used by barman-cloud which will
+        pass in its own dict of available_backups.
+
+        :param BackupInfo backup_info: The backup for which we are determining
+          whether we can clean up WALs.
+        :param dict[str,BackupInfo] available_backups: A dict of BackupInfo
+          objects keyed by backup_id which represent all available backups for
+          the current server.
+        :param KeepManagerMixin keep_manager: An object implementing the
+          KeepManagerMixin interface. This will be either a BackupManager (in
+          barman) or a CloudBackupCatalog (in barman-cloud).
+        :param bool skip_wal_cleanup_if_standalone: If set to True then we should
+          skip removing WALs for cases where all previous backups are standalone
+          archival backups (i.e. they have a keep annotation of "standalone").
+          The default is True. It is only safe to set this to False if the backup
+          is being deleted due to a retention policy rather than a `barman delete`
+          command.
+        :param status_filter: The status of the backups to check when determining
+          if we should remove WALs. default to DEFAULT_STATUS_FILTER.
+        """
+        previous_backup = BackupManager.find_previous_backup_in(
+            available_backups, backup.backup_id, status_filter=status_filter
+        )
+        wal_ranges_to_protect = []
+        while True:
+            if previous_backup is None:
+                # No previous backup so we should remove WALs and return any WAL ranges
+                # we have found so far
+                return True, wal_ranges_to_protect
+            elif (
+                keep_manager.get_keep_target(previous_backup.backup_id)
+                == KeepManager.TARGET_STANDALONE
+            ):
+                # A previous backup exists and it is a standalone backup - if we have
+                # been asked to skip wal cleanup on standalone backups then we
+                # should not remove wals
+                if skip_wal_cleanup_if_standalone:
+                    return False, []
+                # Otherwise we add to the WAL ranges to protect
+                wal_ranges_to_protect.append(
+                    (previous_backup.begin_wal, previous_backup.end_wal)
+                )
+                # and continue iterating through previous backups until we find either
+                # no previous backup or a non-standalone backup
+                previous_backup = BackupManager.find_previous_backup_in(
+                    available_backups,
+                    previous_backup.backup_id,
+                    status_filter=status_filter,
+                )
+                continue
+            else:
+                # A previous backup exists and it is not a standalone backup so we
+                # must not remove any WALs and we can discard any wal_ranges_to_protect
+                # since they are no longer relevant
+                return False, []
+
+    @staticmethod
     def find_next_backup_in(
         available_backups, backup_id, status_filter=DEFAULT_STATUS_FILTER
     ):
@@ -295,13 +396,29 @@ class BackupManager(RemoteStatusMixin):
             timelines_to_protect -= set([remove_until.timeline])
         return timelines_to_protect
 
-    def delete_backup(self, backup):
+    def delete_backup(self, backup, skip_wal_cleanup_if_standalone=True):
         """
         Delete a backup
 
         :param backup: the backup to delete
+        :param bool skip_wal_cleanup_if_standalone: By default we will skip removing
+          WALs if the oldest backups are standalong archival backups (i.e. they have
+          a keep annotation of "standalone"). If this function is being called in the
+          context of a retention policy however, it is safe to set
+          skip_wal_cleanup_if_standalone to False and clean up WALs associated with those
+          backups.
         :return bool: True if deleted, False if could not delete the backup
         """
+        if self.should_keep_backup(backup.backup_id):
+            output.warning(
+                "Skipping delete of backup %s for server %s "
+                "as it has a current keep request. If you really "
+                "want to delete this backup please remove the keep "
+                "and try again.",
+                backup.backup_id,
+                self.config.name,
+            )
+            return False
         available_backups = self.get_available_backups(status_filter=(BackupInfo.DONE,))
         minimum_redundancy = self.server.config.minimum_redundancy
         # Honour minimum required redundancy
@@ -335,7 +452,15 @@ class BackupManager(RemoteStatusMixin):
         output.info(
             "Deleting backup %s for server %s", backup.backup_id, self.config.name
         )
-        previous_backup = self.get_previous_backup(backup.backup_id)
+        should_remove_wals, wal_ranges_to_protect = BackupManager.should_remove_wals(
+            backup,
+            self.get_available_backups(
+                BackupManager.DEFAULT_STATUS_FILTER + (backup.status,)
+            ),
+            keep_manager=self,
+            skip_wal_cleanup_if_standalone=skip_wal_cleanup_if_standalone,
+        )
+
         next_backup = self.get_next_backup(backup.backup_id)
         # Delete all the data contained in the backup
         try:
@@ -348,14 +473,17 @@ class BackupManager(RemoteStatusMixin):
                 e,
             )
             return False
-        # Check if we are deleting the first available backup
-        if not previous_backup:
-            # There is no previous backup so we can remove unused WALs.
-            # If there is a next backup then all WALs up to the begin_wal
+
+        if should_remove_wals:
+            # There is no previous backup or all previous backups are archival
+            # standalone backups, so we can remove unused WALs (those WALs not
+            # required by standalone archival backups).
+            # If there is a next backup then all unused WALs up to the begin_wal
             # of the next backup can be removed.
             # If there is no next backup then there are no remaining backups so:
-            #   - In the case of exclusive backup (default), remove all WAL files.
-            #   - In the case of concurrent backup, removes only WAL files
+            #   - In the case of exclusive backup (default), remove all unused
+            #     WAL files.
+            #   - In the case of concurrent backup, removes only unused WAL files
             #     prior to the start of the backup being deleted, as they
             #     might be useful to any concurrent backup started immediately
             #     after.
@@ -373,7 +501,7 @@ class BackupManager(RemoteStatusMixin):
 
             output.info("Delete associated WAL segments:")
             for name in self.remove_wal_before_backup(
-                remove_until, timelines_to_protect
+                remove_until, timelines_to_protect, wal_ranges_to_protect
             ):
                 output.info("\t%s", name)
         # As last action, remove the backup directory,
@@ -680,7 +808,9 @@ class BackupManager(RemoteStatusMixin):
                         "Enforcing retention policy: removing backup %s for "
                         "server %s" % (bid, self.config.name)
                     )
-                    self.delete_backup(available_backups[bid])
+                    self.delete_backup(
+                        available_backups[bid], skip_wal_cleanup_if_standalone=False
+                    )
 
     def delete_basebackup(self, backup):
         """
@@ -1017,7 +1147,9 @@ class BackupManager(RemoteStatusMixin):
         # Return the timeline map
         return timelines
 
-    def remove_wal_before_backup(self, backup_info, timelines_to_protect=None):
+    def remove_wal_before_backup(
+        self, backup_info, timelines_to_protect=None, wal_ranges_to_protect=[]
+    ):
         """
         Remove WAL files which have been archived before the start of
         the provided backup.
@@ -1030,6 +1162,8 @@ class BackupManager(RemoteStatusMixin):
         :param BackupInfo|None backup_info: the backup information structure
         :param set timelines_to_protect: optional list of timelines
             to protect
+        :param list wal_ranges_to_protect: optional list of `(begin_wal, end_wal)`
+            tuples which define inclusive ranges of WALs which must not be deleted.
         :return list: a list of removed WAL files
         """
         removed = []
@@ -1056,6 +1190,16 @@ class BackupManager(RemoteStatusMixin):
                     if timelines_to_protect:
                         tli, _, _ = xlog.decode_segment_name(wal_info.name)
                         keep |= tli in timelines_to_protect
+
+                    # Keeps the WAL segment if it is within a protected range
+                    if xlog.is_backup_file(wal_info.name):
+                        # If we have a .backup file then truncate the name for the
+                        # range check
+                        wal_name = wal_info.name[:24]
+                    else:
+                        wal_name = wal_info.name
+                    for begin_wal, end_wal in wal_ranges_to_protect:
+                        keep |= wal_name >= begin_wal and wal_name <= end_wal
 
                     # Keeps the WAL segment if it is a newer
                     # than the given backup (the first available)
