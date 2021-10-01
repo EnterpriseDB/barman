@@ -410,7 +410,7 @@ class Server(RemoteStatusMixin):
                     % (self.config.minimum_redundancy, self.config.name)
                 )
                 self.config.minimum_redundancy = 0
-        except:
+        except ValueError:
             _logger.warning(
                 'Invalid minimum_redundancy "%s" for server "%s" '
                 '(fallback to "0")' % (self.config.minimum_redundancy, self.config.name)
@@ -432,7 +432,9 @@ class Server(RemoteStatusMixin):
             self.config.retention_policy_mode = "auto"
 
         # If retention_policy is present, enforce them
-        if self.config.retention_policy and not isinstance(self.config.retention_policy, RetentionPolicy):
+        if self.config.retention_policy and not isinstance(
+            self.config.retention_policy, RetentionPolicy
+        ):
             # Check wal_retention_policy
             if self.config.wal_retention_policy != "main":
                 _logger.warning(
@@ -483,7 +485,7 @@ class Server(RemoteStatusMixin):
                 _logger.exception(
                     'Invalid retention_policy setting "%s" for server "%s"'
                     % (self.config.retention_policy, self.config.name)
-                    )
+                )
 
     def get_identity_file_path(self):
         """

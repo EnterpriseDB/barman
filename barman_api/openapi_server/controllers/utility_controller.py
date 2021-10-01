@@ -16,12 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import connexion
-import six
-
-from openapi_server.models.diagnose_output import DiagnoseOutput  # noqa: E501
 from logic.controller import Controller
-from openapi_server import util
 
 
 def diagnose():  # noqa: E501

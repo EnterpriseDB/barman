@@ -19,7 +19,6 @@
 
 from argh import ArghParser, arg, expects_obj
 import connexion
-import os
 import logging
 from logging.config import dictConfig
 import requests
@@ -60,8 +59,8 @@ def serve(args):
 @expects_obj  # futureproofing for possible future args
 def status(args):
     try:
-        result = requests.get(f"http://127.0.0.1:{args.port}/status")
-    except ConnectionError as e:
+        requests.get(f"http://127.0.0.1:{args.port}/status")
+    except ConnectionError:
         return "The Barman API does not appear to be available."
     return "OK"
 

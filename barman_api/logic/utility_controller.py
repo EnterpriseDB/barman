@@ -22,7 +22,6 @@ import barman
 from barman import diagnose, output
 from barman.server import Server
 from barman_api.openapi_server.models.diagnose_output import DiagnoseOutput
-from barman_api.openapi_server import util
 
 
 class UtilityController:
@@ -43,7 +42,7 @@ class UtilityController:
         # errors list with duplicate paths between servers
         errors_list = barman.__config__.servers_msg_list
 
-        barman.diagnose.exec_diagnose(server_dict, errors_list)
+        diagnose.exec_diagnose(server_dict, errors_list)
 
         # new outputs are appended, so grab the last one
         stored_output = json.loads(output._writer.json_output["_INFO"][-1])
