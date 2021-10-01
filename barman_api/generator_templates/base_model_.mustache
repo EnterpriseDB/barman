@@ -19,11 +19,15 @@
 import pprint
 
 import six
+{{^supportPython2}}
 import typing
+{{/supportPython2}}
 
-from openapi_server import util
+from {{packageName}} import util
+{{^supportPython2}}
 
-T = typing.TypeVar("T")
+T = typing.TypeVar('T')
+{{/supportPython2}}
 
 
 class Model(object):
@@ -36,7 +40,7 @@ class Model(object):
     attribute_map = {}
 
     @classmethod
-    def from_dict(cls: typing.Type[T], dikt) -> T:
+    def from_dict(cls{{^supportPython2}}: typing.Type[T]{{/supportPython2}}, dikt){{^supportPython2}} -> T{{/supportPython2}}:
         """Returns the dict as a model"""
         return util.deserialize_model(dikt, cls)
 
@@ -50,20 +54,18 @@ class Model(object):
         for attr, _ in six.iteritems(self.openapi_types):
             value = getattr(self, attr)
             if isinstance(value, list):
-                result[attr] = list(
-                    map(lambda x: x.to_dict() if hasattr(x, "to_dict") else x, value)
-                )
+                result[attr] = list(map(
+                    lambda x: x.to_dict() if hasattr(x, "to_dict") else x,
+                    value
+                ))
             elif hasattr(value, "to_dict"):
                 result[attr] = value.to_dict()
             elif isinstance(value, dict):
-                result[attr] = dict(
-                    map(
-                        lambda item: (item[0], item[1].to_dict())
-                        if hasattr(item[1], "to_dict")
-                        else item,
-                        value.items(),
-                    )
-                )
+                result[attr] = dict(map(
+                    lambda item: (item[0], item[1].to_dict())
+                    if hasattr(item[1], "to_dict") else item,
+                    value.items()
+                ))
             else:
                 result[attr] = value
 

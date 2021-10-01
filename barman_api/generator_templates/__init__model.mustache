@@ -16,23 +16,8 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-from connexion.apps.flask_app import FlaskJSONEncoder
-import six
-
-from openapi_server.models.base_model_ import Model
-
-
-class JSONEncoder(FlaskJSONEncoder):
-    include_nulls = False
-
-    def default(self, o):
-        if isinstance(o, Model):
-            dikt = {}
-            for attr, _ in six.iteritems(o.openapi_types):
-                value = getattr(o, attr)
-                if value is None and not self.include_nulls:
-                    continue
-                attr = o.attribute_map[attr]
-                dikt[attr] = value
-            return dikt
-        return FlaskJSONEncoder.default(self, o)
+# flake8: noqa
+from __future__ import absolute_import
+# import models into model package
+{{#models}}{{#model}}from {{modelPackage}}.{{classFilename}} import {{classname}}{{/model}}
+{{/models}}
