@@ -49,3 +49,13 @@ def get_cloud_interface(config):
         if "encryption_scope" in config:
             cloud_interface_kwargs["encryption_scope"] = config.encryption_scope
         return AzureCloudInterface(**cloud_interface_kwargs)
+
+    elif config.cloud_provider == "ibm-cos":
+        from barman.cloud_providers.ibm_cos import COSCloudInterface
+
+        cloud_interface_kwargs.update(
+            {
+                "endpoint_url": config.endpoint_url,
+            }
+        )
+        return COSCloudInterface(**cloud_interface_kwargs)

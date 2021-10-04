@@ -159,7 +159,7 @@ def parse_arguments(args=None):
     parser.add_argument(
         "--cloud-provider",
         help="The cloud provider to use as a storage backend",
-        choices=["aws-s3", "azure-blob-storage"],
+        choices=["aws-s3", "azure-blob-storage", "ibm-cos"],
         default="aws-s3",
     )
     s3_arguments = parser.add_argument_group(

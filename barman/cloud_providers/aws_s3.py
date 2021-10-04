@@ -20,6 +20,7 @@ import bz2
 import gzip
 import logging
 import shutil
+import sys
 from io import RawIOBase
 
 from barman.cloud import CloudInterface, CloudProviderError
@@ -32,8 +33,10 @@ except ImportError:
     from urlparse import urlparse
 
 try:
-    import boto3
-    from botocore.exceptions import ClientError, EndpointConnectionError
+    # TODO something clever here so we can transparently use boto3 or ibm_boto3
+    #      depending on the cloud-provider being asked for
+    import ibm_boto3 as boto3
+    from ibm_botocore.exceptions import ClientError, EndpointConnectionError
 except ImportError:
     raise SystemExit("Missing required python module: boto3")
 
