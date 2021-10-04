@@ -140,13 +140,13 @@ and destination directory, which are ignored).
 For more information on the `barman-wal-restore` command,
 type `man barman-wal-restore` on the PostgreSQL server.
 
-## `list-backup`
+## `list-backups`
 
 You can list the catalog of available backups for a given server
 with:
 
 ``` bash
-barman list-backup <server_name>
+barman list-backups <server_name>
 ```
 
 > **TIP:** You can request a full list of the backups of all servers
@@ -233,12 +233,12 @@ barman replication-status <server_name>
 
 To have a machine-readable output you can use the `--minimal` option.
 
-## `show-server`
+## `show-servers`
 
 You can show the configuration parameters for a given server with:
 
 ``` bash
-barman show-server <server_name>
+barman show-servers <server_name>
 ```
 
 > **TIP:** you can request a full configuration report using `all` as

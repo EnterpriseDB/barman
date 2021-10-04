@@ -639,7 +639,7 @@ class ConsoleOutputWriter(object):
 
     def init_list_backup(self, server_name, minimal=False):
         """
-        Init the list-backup command
+        Init the list-backups command
 
         :param str server_name: the server we are start listing
         :param bool minimal: if true output only a list of backup id
@@ -648,7 +648,7 @@ class ConsoleOutputWriter(object):
 
     def result_list_backup(self, backup_info, backup_size, wal_size, retention_status):
         """
-        Output a single backup in the list-backup command
+        Output a single backup in the list-backups command
 
         :param BackupInfo backup_info: backup we are displaying
         :param backup_size: size of base backup (with the required WAL files)
@@ -1019,7 +1019,7 @@ class ConsoleOutputWriter(object):
 
     def init_list_server(self, server_name, minimal=False):
         """
-        Init the list-server command
+        Init the list-servers command
 
         :param str server_name: the server we are start listing
         """
@@ -1027,7 +1027,7 @@ class ConsoleOutputWriter(object):
 
     def result_list_server(self, server_name, description=None):
         """
-        Output a result line of a list-server command
+        Output a result line of a list-servers command
 
         :param str server_name: the server is being checked
         :param str,None description: server description if applicable
@@ -1039,7 +1039,7 @@ class ConsoleOutputWriter(object):
 
     def init_show_server(self, server_name):
         """
-        Init the show-server command output method
+        Init the show-servers command output method
 
         :param str server_name: the server we are displaying
         """
@@ -1047,7 +1047,7 @@ class ConsoleOutputWriter(object):
 
     def result_show_server(self, server_name, server_info):
         """
-        Output the results of the show-server command
+        Output the results of the show-servers command
 
         :param str server_name: the server we are displaying
         :param dict server_info: a dictionary containing the info to display
@@ -1232,7 +1232,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
 
     def init_list_backup(self, server_name, minimal=False):
         """
-        Init the list-backup command
+        Init the list-backups command
 
         :param str server_name: the server we are listing
         :param bool minimal: if true output only a list of backup id
@@ -1242,7 +1242,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
 
     def result_list_backup(self, backup_info, backup_size, wal_size, retention_status):
         """
-        Output a single backup in the list-backup command
+        Output a single backup in the list-backups command
 
         :param BackupInfo backup_info: backup we are displaying
         :param backup_size: size of base backup (with the required WAL files)
@@ -1636,7 +1636,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
 
     def init_list_server(self, server_name, minimal=False):
         """
-        Init the list-server command
+        Init the list-servers command
 
         :param str server_name: the server we are listing
         """
@@ -1645,7 +1645,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
 
     def result_list_server(self, server_name, description=None):
         """
-        Output a result line of a list-server command
+        Output a result line of a list-servers command
 
         :param str server_name: the server is being checked
         :param str,None description: server description if applicable
@@ -1654,7 +1654,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
 
     def init_show_server(self, server_name):
         """
-        Init the show-server command output method
+        Init the show-servers command output method
 
         :param str server_name: the server we are displaying
         """
@@ -1662,7 +1662,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
 
     def result_show_server(self, server_name, server_info):
         """
-        Output the results of the show-server command
+        Output the results of the show-servers command
 
         :param str server_name: the server we are displaying
         :param dict server_info: a dictionary containing the info to display

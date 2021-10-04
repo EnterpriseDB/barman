@@ -67,9 +67,9 @@ def check_target_action(value):
     raise ArgumentTypeError("'%s' is not a valid recovery target action" % value)
 
 
-@named("list-server")
+@named("list-servers")
 @arg("--minimal", help="machine readable output")
-def list_server(minimal=False):
+def list_servers(minimal=False):
     """
     List available servers, with useful information
     """
@@ -96,6 +96,13 @@ def list_server(minimal=False):
             description += " (Passive)"
         output.result("list_server", name, description)
     output.close_and_exit()
+
+
+@named("list-server")
+@wraps(list_servers)
+@arg("--minimal", help="machine readable output")
+def list_server(minimal=False):
+    return list_servers(minimal)
 
 
 @arg(
@@ -274,7 +281,7 @@ def backup(args):
     output.close_and_exit()
 
 
-@named("list-backup")
+@named("list-backups")
 @arg(
     "server_name",
     nargs="+",
@@ -284,7 +291,7 @@ def backup(args):
 )
 @arg("--minimal", help="machine readable output", action="store_true")
 @expects_obj
-def list_backup(args):
+def list_backups(args):
     """
     List available backups for the given server (supports 'all')
     """
@@ -300,6 +307,12 @@ def list_backup(args):
         with closing(server):
             server.list_backups()
     output.close_and_exit()
+
+
+@named("list-backup")
+@wraps(list_backups)
+def list_backup(args):
+    return list_backups(args)
 
 
 @arg(
@@ -639,7 +652,7 @@ def recover(args):
     output.close_and_exit()
 
 
-@named("show-server")
+@named("show-servers")
 @arg(
     "server_name",
     nargs="+",
@@ -648,7 +661,7 @@ def recover(args):
     "('all' will show all available servers)",
 )
 @expects_obj
-def show_server(args):
+def show_servers(args):
     """
     Show all configuration parameters for the specified servers
     """
@@ -676,6 +689,12 @@ def show_server(args):
         with closing(server):
             server.show()
     output.close_and_exit()
+
+
+@named("show-server")
+@wraps(show_servers)
+def show_server(args):
+    return show_servers(args)
 
 
 @named("switch-wal")
@@ -1596,14 +1615,17 @@ def main():
             get_wal,
             keep,
             list_backup,
+            list_backups,
             list_files,
             list_server,
+            list_servers,
             put_wal,
             rebuild_xlogdb,
             receive_wal,
             recover,
             show_backup,
             show_server,
+            show_servers,
             replication_status,
             status,
             switch_wal,
