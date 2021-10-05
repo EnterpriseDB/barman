@@ -112,7 +112,9 @@ class TestRetentionPolicies(object):
         # Build a BackupInfo object with status to DONE
         backup_source = {
             "test_backup3": build_test_backup_info(
-                server=server, backup_id="test_backup3", end_time=datetime.now(tzlocal())
+                server=server,
+                backup_id="test_backup3",
+                end_time=datetime.now(tzlocal()),
             )
         }
         # Add a obsolete backup
