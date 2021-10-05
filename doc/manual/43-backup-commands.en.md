@@ -237,7 +237,7 @@ as a restore label, or as a transaction ID.
 > (available only for PostgreSQL 9.4 and newer).
 
 The recovery target can be specified using one of
-four mutually exclusive options:
+the following mutually exclusive options:
 
 * `--target-time TARGET_TIME`: to specify a timestamp
 * `--target-xid TARGET_XID`: to specify a transaction ID
