@@ -72,6 +72,24 @@ def create_fake_info_file(name, size, time, compression=None):
     return info
 
 
+def get_wal_lines_from_wal_list(wal_list):
+    """
+    convert each wall_info_file to xlogdb line and concats into one string
+    """
+    walstring = ""
+    for wal_info in wal_list:
+        walstring += wal_info.to_xlogdb_line()
+    return walstring
+
+
+def get_wal_names_from_indices_selection(wal_info_files, indices):
+    # Prepare expected list
+    expected_wals = []
+    for index in indices:
+        expected_wals.append(wal_info_files[index].name)
+    return expected_wals
+
+
 # noinspection PyMethodMayBeStatic
 class TestServer(object):
     def test_init(self):
@@ -224,7 +242,7 @@ class TestServer(object):
         [
             (
                 [
-                    create_fake_info_file("000000010000000000000003", 42, 43),
+                    create_fake_info_file("000000010000000000000002", 42, 43),
                     create_fake_info_file("00000001.history", 42, 43),
                     create_fake_info_file("000000020000000000000003", 42, 43),
                     create_fake_info_file("00000002.history", 42, 43),
@@ -235,7 +253,7 @@ class TestServer(object):
             ),
             (
                 [
-                    create_fake_info_file("000000010000000000000003", 42, 43),
+                    create_fake_info_file("000000010000000000000002", 42, 43),
                     create_fake_info_file("00000001.history", 42, 43),
                     create_fake_info_file("000000020000000000000003", 42, 43),
                     create_fake_info_file("000000020000000000000010", 42, 43),
@@ -256,13 +274,12 @@ class TestServer(object):
         :param tmpdir: _pytest.tmpdir
         """
         # Prepare input string
-        walstring = ""
-        for wal_info in wal_info_files:
-            walstring += wal_info.to_xlogdb_line()
+        walstring = get_wal_lines_from_wal_list(wal_info_files)
+
         # Prepare expected list
-        expected_wals = []
-        for index in expected_indices:
-            expected_wals.append(wal_info_files[index].name)
+        expected_wals = get_wal_names_from_indices_selection(
+            wal_info_files, expected_indices
+        )
 
         # create a xlog.db and add those entries
         wals_dir = tmpdir.mkdir("wals")
@@ -326,15 +343,13 @@ class TestServer(object):
         :param expected_indices: expected WalFileInfo.name indices (values refers to wal_info_files)
         :param tmpdir: _pytest.tmpdir
         """
-        # Prepare input string
-        walstring = ""
-        for wal_info in wal_info_files:
-            walstring += wal_info.to_xlogdb_line()
-        # Prepare expected list
-        expected_wals = []
-        for index in expected_indices:
-            expected_wals.append(wal_info_files[index].name)
 
+        walstring = get_wal_lines_from_wal_list(wal_info_files)
+
+        # Prepare expected list
+        expected_wals = get_wal_names_from_indices_selection(
+            wal_info_files, expected_indices
+        )
         # create a xlog.db and add those entries
         wals_dir = tmpdir.mkdir("wals")
         xlog = wals_dir.join("xlog.db")
