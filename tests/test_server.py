@@ -248,14 +248,21 @@ class TestServer(object):
         ],
     )
     def test_get_required_xlog_files(self, wal_info_files, expected_indices, tmpdir):
+        """
+        Tests get_required_xlog_files function.
+        Validates that exact expected walfile list matches result file list
+        :param wal_info_files: List of fake WalFileInfo
+        :param expected_indices: expected WalFileInfo.name indices (values refers to wal_info_files)
+        :param tmpdir: _pytest.tmpdir
+        """
         # Prepare input string
         walstring = ""
-        for i in wal_info_files:
-            walstring += i.to_xlogdb_line()
+        for wal_info in wal_info_files:
+            walstring += wal_info.to_xlogdb_line()
         # Prepare expected list
         expected_wals = []
-        for j in expected_indices:
-            expected_wals.append(wal_info_files[j].name)
+        for index in expected_indices:
+            expected_wals.append(wal_info_files[index].name)
 
         # create a xlog.db and add those entries
         wals_dir = tmpdir.mkdir("wals")
@@ -313,15 +320,20 @@ class TestServer(object):
     ):
         """
         Test for the management of .history files and wal files
+        Validates that exact expected walfile list matches result file list
+        :param get_backup_mock: Mocks Server.get_next_backup function
+        :param wal_info_files: List of fake WalFileInfo
+        :param expected_indices: expected WalFileInfo.name indices (values refers to wal_info_files)
+        :param tmpdir: _pytest.tmpdir
         """
         # Prepare input string
         walstring = ""
-        for i in wal_info_files:
-            walstring += i.to_xlogdb_line()
+        for wal_info in wal_info_files:
+            walstring += wal_info.to_xlogdb_line()
         # Prepare expected list
         expected_wals = []
-        for j in expected_indices:
-            expected_wals.append(wal_info_files[j].name)
+        for index in expected_indices:
+            expected_wals.append(wal_info_files[index].name)
 
         # create a xlog.db and add those entries
         wals_dir = tmpdir.mkdir("wals")
