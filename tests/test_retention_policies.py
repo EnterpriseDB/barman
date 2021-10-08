@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
+import re
 from datetime import datetime, timedelta
 
 import mock
@@ -109,17 +110,23 @@ class TestRetentionPolicies(object):
         assert isinstance(rp, RecoveryWindowRetentionPolicy)
 
         # Build a BackupInfo object with status to DONE
-        backup_info = build_test_backup_info(
-            server=server, backup_id="test1", end_time=datetime.now(tzlocal())
-        )
-
-        backup_source = {"test_backup3": backup_info}
+        backup_source = {
+            "test_backup3": build_test_backup_info(
+                server=server, backup_id="test_backup3", end_time=datetime.now(tzlocal())
+            )
+        }
         # Add a obsolete backup
-        backup_info.end_time = datetime.now(tzlocal()) - timedelta(weeks=5)
-        backup_source["test_backup2"] = backup_info
+        backup_source["test_backup2"] = build_test_backup_info(
+            server=server,
+            backup_id="test_backup2",
+            end_time=datetime.now(tzlocal()) - timedelta(weeks=5),
+        )
         # Add a second obsolete backup
-        backup_info.end_time = datetime.now(tzlocal()) - timedelta(weeks=6)
-        backup_source["test_backup"] = backup_info
+        backup_source["test_backup"] = build_test_backup_info(
+            server=server,
+            backup_id="test_backup",
+            end_time=datetime.now(tzlocal()) - timedelta(weeks=6),
+        )
         server.get_available_backups.return_value = backup_source
         # instruct the get_available_backups method to return a map with
         # our mock as result and minimum_redundancy = 1
@@ -130,7 +137,7 @@ class TestRetentionPolicies(object):
         # check that our mock is valid for the retention policy
         assert report == {
             "test_backup3": "VALID",
-            "test_backup2": "OBSOLETE",
+            "test_backup2": "VALID",
             "test_backup": "OBSOLETE",
         }
 
@@ -146,11 +153,11 @@ class TestRetentionPolicies(object):
         caplog.set_level(logging.WARNING)
         log = caplog.text
         warn = (
-            "WARNING  Keeping obsolete backup test_backup2 for "
-            "server test (older than %s) due to minimum redundancy "
-            "requirements (4)\n" % rp._point_of_recoverability()
+            r"WARNING  .*Keeping obsolete backup test_backup for "
+            r"server test \(older than .*\) due to minimum redundancy "
+            r"requirements \(4\)\n"
         )
-        assert log.find(warn)
+        assert re.search(warn, log)
 
     def test_backup_status(self, server):
         """
