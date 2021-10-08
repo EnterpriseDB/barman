@@ -1,6 +1,6 @@
 % BARMAN-CLOUD-BACKUP-LIST(1) Barman User manuals | Version 2.14
 % EnterpriseDB <http://www.enterprisedb.com>
-% September 22, 2020
+% September 22, 2021
 
 # NAME
 
