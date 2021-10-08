@@ -74,7 +74,7 @@ def create_fake_info_file(name, size, time, compression=None):
 
 def get_wal_lines_from_wal_list(wal_list):
     """
-    convert each wall_info_file to xlogdb line and concats into one string
+    converts each wal_info to an xlogdb line and concats into one string
     """
     walstring = ""
     for wal_info in wal_list:
