@@ -1437,6 +1437,9 @@ class Server(RemoteStatusMixin):
     ):
         """
         Get the xlog files required for a recovery
+        params: BackupInfo backup: a backup object
+        params: target_tli : target timeline
+        param: target_time: target time
         """
         begin = backup.begin_wal
         end = backup.end_wal
@@ -1460,7 +1463,7 @@ class Server(RemoteStatusMixin):
                 yield wal_info
                 if wal_info.name > end:
                     end = wal_info.name
-                    if target_time and target_time < wal_info.time:
+                    if target_time and wal_info.time > target_time:
                         break
             # return all the remaining history files
             for line in fxlogdb:
