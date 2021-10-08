@@ -477,7 +477,11 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             cur = self._cursor()
             cur.execute("SELECT version()")
-            return cur.fetchone()[0].split()[1]
+            platform, version = cur.fetchone()[0].split()[:2]
+            if platform == "EnterpriseDB":
+                return ".".join(version.split(".")[:-1])
+            else:
+                return version
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
                 "Error retrieving PostgreSQL version: %s", force_str(e).strip()
