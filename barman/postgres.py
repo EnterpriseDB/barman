@@ -472,12 +472,28 @@ class PostgreSQLConnection(PostgreSQL):
     @property
     def server_txt_version(self):
         """
-        Human readable version of PostgreSQL (returned by the server)
+        Human readable version of PostgreSQL (returned by the server).
+
+        Note: The return value of this function is used when composing include
+        patterns which are passed to rsync when copying tablespaces. If the
+        value does not exactly match the PostgreSQL version then Barman may
+        fail to copy tablespace files during a backup.
         """
         try:
             cur = self._cursor()
             cur.execute("SELECT version()")
-            return cur.fetchone()[0].split()[1]
+            version_string = cur.fetchone()[0]
+            platform, version = version_string.split()[:2]
+            # EPAS <= 10 will return a version string which starts with
+            # EnterpriseDB followed by the PostgreSQL version with an
+            # additional version field. This additional field must be discarded
+            # so that we return the exact PostgreSQL version. Later versions of
+            # EPAS report the PostgreSQL version directly so do not need
+            # special handling.
+            if platform == "EnterpriseDB":
+                return ".".join(version.split(".")[:-1])
+            else:
+                return version
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
                 "Error retrieving PostgreSQL version: %s", force_str(e).strip()

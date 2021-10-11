@@ -4,6 +4,6 @@
 pytest==4.6.11
 boto3<1.11
 mock
-pytest-timeout
+pytest-timeout==1.4.2
 argh==0.21.2
 python-dateutil==1.5

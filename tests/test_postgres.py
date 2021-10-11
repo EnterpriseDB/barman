@@ -183,6 +183,35 @@ class TestPostgres(object):
         cursor_mock.execute.assert_called_with("SELECT version()")
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
+    def test_server_txt_version_epas(self, conn_mock):
+        """
+        Verify server_txt_version returns the correct Postgres version
+        against EPAS 9.6 and 10, which both return "EnterpriseDB" in the
+        response to `SELECT version();`.
+
+        Versions 11 and above return the Postgres version string with the
+        EnterpriseDB details appended so do not require special handling.
+        """
+        # Build a server
+        server = build_real_server()
+        cursor_mock = conn_mock.return_value.cursor.return_value
+
+        # EPAS 9.6 returns an extra version field which must be discarded
+        cursor_mock.fetchone.return_value = (
+            "EnterpriseDB 9.6.23.31 on x86_64-pc-linux-gnu, compiled by "
+            "gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-44), 64-bit",
+        )
+        assert server.postgres.server_txt_version == "9.6.23"
+
+        # EPAS 10 also returns an extra field relative to the corresponding
+        # PostgreSQL version and it must be discarded
+        cursor_mock.fetchone.return_value = (
+            "EnterpriseDB 10.18.28 on x86_64-pc-linux-gnu, compiled by "
+            "gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-36), 64-bit",
+        )
+        assert server.postgres.server_txt_version == "10.18"
+
+    @patch("barman.postgres.PostgreSQLConnection.connect")
     @patch(
         "barman.postgres.PostgreSQLConnection.is_in_recovery", new_callable=PropertyMock
     )
