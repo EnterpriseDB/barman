@@ -3,5 +3,5 @@
 .[azure]
 pytest
 mock
-pytest-timeout
+pytest-timeout==1.4.2
 py
