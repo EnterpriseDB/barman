@@ -74,6 +74,17 @@ class TestServer(object):
         )
         assert not server.config.disabled
 
+    def test_rerun_init(self):
+        """
+        Check initializing with the same config again
+        """
+        cfg = build_config_from_dicts(global_conf={"archiver": "on"}).get_server("main")
+        cfg.minimum_redundancy = "2" 
+        Server(cfg)
+        assert cfg.minimum_redundancy == 2
+        Server(cfg)
+        assert cfg.minimum_redundancy == 2
+
     def test_bad_init(self):
         """
         Check the server is buildable with an empty configuration
