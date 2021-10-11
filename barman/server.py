@@ -75,7 +75,7 @@ from barman.lockfile import (
 from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
-from barman.retention_policies import RetentionPolicyFactory
+from barman.retention_policies import RetentionPolicyFactory, RetentionPolicy
 from barman.utils import (
     BarmanEncoder,
     file_md5,
@@ -401,7 +401,7 @@ class Server(RemoteStatusMixin):
                 self.config.tablespace_bandwidth_limit = None
 
         # Set minimum redundancy (default 0)
-        if self.config.minimum_redundancy.isdigit():
+        try:
             self.config.minimum_redundancy = int(self.config.minimum_redundancy)
             if self.config.minimum_redundancy < 0:
                 _logger.warning(
@@ -410,7 +410,7 @@ class Server(RemoteStatusMixin):
                     % (self.config.minimum_redundancy, self.config.name)
                 )
                 self.config.minimum_redundancy = 0
-        else:
+        except ValueError:
             _logger.warning(
                 'Invalid minimum_redundancy "%s" for server "%s" '
                 '(fallback to "0")' % (self.config.minimum_redundancy, self.config.name)
@@ -421,7 +421,6 @@ class Server(RemoteStatusMixin):
         self._init_retention_policies()
 
     def _init_retention_policies(self):
-
         # Set retention policy mode
         if self.config.retention_policy_mode != "auto":
             _logger.warning(
@@ -432,7 +431,9 @@ class Server(RemoteStatusMixin):
             self.config.retention_policy_mode = "auto"
 
         # If retention_policy is present, enforce them
-        if self.config.retention_policy:
+        if self.config.retention_policy and not isinstance(
+            self.config.retention_policy, RetentionPolicy
+        ):
             # Check wal_retention_policy
             if self.config.wal_retention_policy != "main":
                 _logger.warning(
