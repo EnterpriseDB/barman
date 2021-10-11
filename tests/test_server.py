@@ -79,11 +79,22 @@ class TestServer(object):
         Check initializing with the same config again
         """
         cfg = build_config_from_dicts(global_conf={"archiver": "on"}).get_server("main")
-        cfg.minimum_redundancy = "2" 
+        cfg.minimum_redundancy = "2"
+        cfg.retention_policy = "RECOVERY WINDOW OF 4 WEEKS"
+
         Server(cfg)
         assert cfg.minimum_redundancy == 2
+        assert cfg.retention_policy
+        assert cfg.retention_policy.mode == "window"
+        assert cfg.retention_policy.value == 4
+        assert cfg.retention_policy.unit == "w"
+
         Server(cfg)
         assert cfg.minimum_redundancy == 2
+        assert cfg.retention_policy
+        assert cfg.retention_policy.mode == "window"
+        assert cfg.retention_policy.value == 4
+        assert cfg.retention_policy.unit == "w"
 
     def test_bad_init(self):
         """
