@@ -371,18 +371,6 @@ class Server(RemoteStatusMixin):
                     )
 
         # Set bandwidth_limit
-        self._init_bandwidth_limit()
-
-        # set tablespace_bandwidth_limit
-        self._init_tablespace_bandwidth_limit()
-
-        # Set minimum redundancy (default 0)
-        self._init_minimum_redundancy()
-
-        # Initialise retention policies
-        self._init_retention_policies()
-
-    def _init_bandwidth_limit(self):
         if self.config.bandwidth_limit:
             try:
                 self.config.bandwidth_limit = int(self.config.bandwidth_limit)
@@ -394,7 +382,7 @@ class Server(RemoteStatusMixin):
                 )
                 self.config.bandwidth_limit = None
 
-    def _init_tablespace_bandwidth_limit(self):
+        # set tablespace_bandwidth_limit
         if self.config.tablespace_bandwidth_limit:
             rules = {}
             for rule in self.config.tablespace_bandwidth_limit.split():
@@ -412,7 +400,7 @@ class Server(RemoteStatusMixin):
             else:
                 self.config.tablespace_bandwidth_limit = None
 
-    def _init_minimum_redundancy(self):
+        # Set minimum redundancy (default 0)
         try:
             self.config.minimum_redundancy = int(self.config.minimum_redundancy)
             if self.config.minimum_redundancy < 0:
@@ -428,6 +416,9 @@ class Server(RemoteStatusMixin):
                 '(fallback to "0")' % (self.config.minimum_redundancy, self.config.name)
             )
             self.config.minimum_redundancy = 0
+
+        # Initialise retention policies
+        self._init_retention_policies()
 
     def _init_retention_policies(self):
         # Set retention policy mode
