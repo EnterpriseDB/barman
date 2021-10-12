@@ -288,7 +288,7 @@ either directly or by retention policy.
 .RE
 .RE
 .TP
-.B list\-backup \f[I]SERVER_NAME\f[]
+.B list\-backups \f[I]SERVER_NAME\f[]
 Show available backups for \f[C]SERVER_NAME\f[].
 This command is useful to retrieve a backup ID.
 For example:
@@ -333,7 +333,7 @@ The default value is \f[C]standalone\f[].
 .RE
 .RE
 .TP
-.B list\-server
+.B list\-servers
 Show all the configured servers, and their descriptions.
 .RS
 .RE
@@ -594,7 +594,7 @@ Backup\ 20150828T130001:
 \f[]
 .fi
 .TP
-.B show\-server \f[I]SERVER_NAME\f[]
+.B show\-servers \f[I]SERVER_NAME\f[]
 Show information about \f[C]SERVER_NAME\f[], including:
 \f[C]conninfo\f[], \f[C]backup_directory\f[], \f[C]wals_directory\f[]
 and many more.
@@ -727,6 +727,11 @@ same ast \f[I]last\f[].
 .TP
 .B oldest
 same ast \f[I]first\f[].
+.RS
+.RE
+.TP
+.B last\-failed
+Latest failed backup, in chronological order.
 .RS
 .RE
 .SH EXIT STATUS
