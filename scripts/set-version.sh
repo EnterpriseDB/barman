@@ -22,7 +22,7 @@ set -eu
 BASE="$(dirname $(cd $(dirname "$0"); pwd))"
 cd "$BASE"
 
-if [[ $(uname -s) == "Darwin" ]]
+if [ "$(uname -s)" = "Darwin" ]
 then
     date_cmd="gdate"
 else
