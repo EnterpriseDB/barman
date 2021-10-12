@@ -1,9 +1,27 @@
 Barman News - History of user-visible changes
 
+Version 2.15 - 12 October 2021
+
+- Add plural forms for the `list-backup`, `list-server` and
+  `show-server` commands which are now `list-backups`, `list-servers`
+  and `show-servers`. The singular forms are retained for backward
+  compatibility.
+
+- Add the `last-failed` backup shortcut which references the newest
+  failed backup in the catalog so that you can do:
+
+    - `barman delete <SERVER> last-failed`
+
+- Bug fixes:
+
+    - Tablespaces will no longer be omitted from backups of EPAS
+      versions 9.6 and 10 due to an issue detecting the correct version
+      string on older versions of EPAS.
+
 Version 2.14 - 22 September 2021
 
 - Add the `barman-cloud-backup-delete` command which allows backups in
-  cloud storage to be deleted by specifiying either a backup ID or a
+  cloud storage to be deleted by specifying either a backup ID or a
   retention policy.
 
 - Allow backups to be retained beyond any retention policies in force by
