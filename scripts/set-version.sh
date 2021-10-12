@@ -91,7 +91,7 @@ sed -i -e "3s/^%.*/% ${release_date}/; 1s/| Version .*/| Version ${release_versi
     doc/barman-cloud-wal-restore.1.md
 sed -i -e "3s/^%.*/% ${release_date} (${release_version})/" \
     doc/manual/00-head.en.md
-sed -i -e "s/__version__ = .*/__version__ = '${release_version}'/" \
+sed -i -e "s/__version__ = .*/__version__ = \"${release_version}\"/" \
     barman/version.py
 
 make -C doc
