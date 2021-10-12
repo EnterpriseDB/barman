@@ -13,17 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source repo
-        uses: actions/checkout@master
-      - name: Install python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-      - name: Install dependencies for tox
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -r requirements-tox.txt
-      - name: Create coverage report
-        run: "python -m tox -e coverage"
+        uses: actions/checkout@v2
       - name: Checkout GitHub Action Repo
         uses: actions/checkout@master
         with:
@@ -42,4 +32,4 @@ jobs:
             PULL_REQUEST_BRANCH: '${{github.head_ref}}'
             PULL_REQUEST_BASE_BRANCH: '${{github.base_ref}}'
             REPO_DEFAULT_BRANCH: '${{github.event.repository.default_branch}}'
-            REPO_EXCLUDE_FILES: '*properties*,**/src/test/**/*,**/*.sql,**/docs/**/*,**/*/*.java,**/build/**'
+            REPO_EXCLUDE_FILES: '**/src/test/**/*,**/docs/**/*,**/build/**'
