@@ -22,10 +22,17 @@ set -eu
 BASE="$(dirname $(cd $(dirname "$0"); pwd))"
 cd "$BASE"
 
+if [[ $(uname -s) == "Darwin" ]]
+then
+    date_cmd="gdate"
+else
+    date_cmd="date"
+fi
+
 release_version=$1
 if [ -n "${2:-}" ]
 then
-    release_date=$(LANG=C date +"%B %-d, %Y" -d "$2")
+    release_date=$(LANG=C ${date_cmd} +"%B %-d, %Y" -d "$2")
 else
     release_date="Month DD, YYYY"
 fi
