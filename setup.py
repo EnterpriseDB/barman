@@ -44,8 +44,8 @@ setup_requires = pytest_runner
 
 install_requires = [
     "psycopg2 >= 2.4.2",
-    "argh >= 0.21.2",
     "python-dateutil",
+    "argcomplete",
 ]
 
 barman = {}
@@ -95,7 +95,6 @@ setup(
     install_requires=install_requires,
     extras_require={
         "cloud": ["boto3"],
-        "completion": ["argcomplete"],
         "azure": ["azure-identity", "azure-storage-blob"],
     },
     platforms=["Linux", "Mac OS X"],

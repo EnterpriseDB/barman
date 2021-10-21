@@ -24,11 +24,14 @@ import json
 import logging
 import os
 import sys
-from argparse import SUPPRESS, ArgumentTypeError
-from contextlib import closing
-from functools import wraps
+from argparse import SUPPRESS, ArgumentTypeError, ArgumentParser, HelpFormatter
 
-from argh import ArghParser, arg, expects_obj, named
+if sys.version_info.major < 3:
+    from argparse import Action, _SubParsersAction, _ActionsContainer
+import argcomplete
+from collections import OrderedDict
+from contextlib import closing
+
 
 import barman.config
 import barman.diagnose
@@ -52,6 +55,161 @@ from barman.utils import (
 _logger = logging.getLogger(__name__)
 
 
+# Support aliases for argparse in python2.
+# Derived from https://gist.github.com/sampsyo/471779 and based on the
+# initial patchset for CPython for supporting aliases in argparse.
+# Licensed under CC0 1.0
+if sys.version_info.major < 3:
+
+    class AliasedSubParsersAction(_SubParsersAction):
+        old_init = staticmethod(_ActionsContainer.__init__)
+
+        @staticmethod
+        def _containerInit(
+            self, description, prefix_chars, argument_default, conflict_handler
+        ):
+            AliasedSubParsersAction.old_init(
+                self, description, prefix_chars, argument_default, conflict_handler
+            )
+            self.register("action", "parsers", AliasedSubParsersAction)
+
+        class _AliasedPseudoAction(Action):
+            def __init__(self, name, aliases, help):
+                dest = name
+                if aliases:
+                    dest += " (%s)" % ",".join(aliases)
+                sup = super(AliasedSubParsersAction._AliasedPseudoAction, self)
+                sup.__init__(option_strings=[], dest=dest, help=help)
+
+        def add_parser(self, name, **kwargs):
+            aliases = kwargs.pop("aliases", [])
+            parser = super(AliasedSubParsersAction, self).add_parser(name, **kwargs)
+
+            # Make the aliases work.
+            for alias in aliases:
+                self._name_parser_map[alias] = parser
+            # Make the help text reflect them, first removing old help entry.
+            if "help" in kwargs:
+                help_text = kwargs.pop("help")
+                self._choices_actions.pop()
+                pseudo_action = self._AliasedPseudoAction(name, aliases, help_text)
+                self._choices_actions.append(pseudo_action)
+
+            return parser
+
+    # override argparse to register new subparser action by default
+    _ActionsContainer.__init__ = AliasedSubParsersAction._containerInit
+
+
+class OrderedHelpFormatter(HelpFormatter):
+    def _format_usage(self, usage, actions, groups, prefix):
+        for action in actions:
+            if not action.option_strings:
+                action.choices = OrderedDict(sorted(action.choices.items()))
+        return super(OrderedHelpFormatter, self)._format_usage(
+            usage, actions, groups, prefix
+        )
+
+
+p = ArgumentParser(
+    epilog="Barman by EnterpriseDB (www.enterprisedb.com)",
+    formatter_class=OrderedHelpFormatter,
+)
+p.add_argument(
+    "-v",
+    "--version",
+    action="version",
+    version="%s\n\nBarman by EnterpriseDB (www.enterprisedb.com)" % barman.__version__,
+)
+p.add_argument(
+    "-c",
+    "--config",
+    help="uses a configuration file "
+    "(defaults: %s)" % ", ".join(barman.config.Config.CONFIG_FILES),
+    default=SUPPRESS,
+)
+p.add_argument(
+    "--color",
+    "--colour",
+    help="Whether to use colors in the output",
+    choices=["never", "always", "auto"],
+    default="auto",
+)
+p.add_argument(
+    "--log-level",
+    help="Override the default log level",
+    choices=list(get_log_levels()),
+    default=SUPPRESS,
+)
+p.add_argument("-q", "--quiet", help="be quiet", action="store_true")
+p.add_argument("-d", "--debug", help="debug output", action="store_true")
+p.add_argument(
+    "-f",
+    "--format",
+    help="output format",
+    choices=output.AVAILABLE_WRITERS.keys(),
+    default=output.DEFAULT_WRITER,
+)
+
+subparsers = p.add_subparsers(dest="command")
+
+
+def argument(*name_or_flags, **kwargs):
+    """Convenience function to properly format arguments to pass to the
+    command decorator.
+    """
+
+    # Remove the completer keyword argument from the dictionary
+    completer = kwargs.pop("completer", None)
+    return (list(name_or_flags), completer, kwargs)
+
+
+def command(args=None, parent=subparsers, cmd_aliases=None):
+    """Decorator to define a new subcommand in a sanity-preserving way.
+    The function will be stored in the ``func`` variable when the parser
+    parses arguments so that it can be called directly like so::
+        args = cli.parse_args()
+        args.func(args)
+    Usage example::
+        @command([argument("-d", help="Enable debug mode", action="store_true")])
+        def command(args):
+            print(args)
+    Then on the command line::
+        $ python cli.py command -d
+    """
+
+    if args is None:
+        args = []
+    if cmd_aliases is None:
+        cmd_aliases = []
+
+    def decorator(func):
+        parser = parent.add_parser(
+            func.__name__.replace("_", "-"),
+            description=func.__doc__,
+            help=func.__doc__,
+            aliases=cmd_aliases,
+        )
+        parent._choices_actions = sorted(parent._choices_actions, key=lambda x: x.dest)
+        for arg in args:
+            if arg[1]:
+                parser.add_argument(*arg[0], **arg[2]).completer = arg[1]
+            else:
+                parser.add_argument(*arg[0], **arg[2])
+        parser.set_defaults(func=func)
+        return func
+
+    return decorator
+
+
+@command()
+def help(args=None):
+    """
+    show this help message and exit
+    """
+    p.print_help()
+
+
 def check_target_action(value):
     """
     Check the target action option
@@ -67,9 +225,11 @@ def check_target_action(value):
     raise ArgumentTypeError("'%s' is not a valid recovery target action" % value)
 
 
-@named("list-servers")
-@arg("--minimal", help="machine readable output")
-def list_servers(minimal=False):
+@command(
+    [argument("--minimal", help="machine readable output", action="store_true")],
+    cmd_aliases=["list-server"],
+)
+def list_servers(args):
     """
     List available servers, with useful information
     """
@@ -83,7 +243,7 @@ def list_servers(minimal=False):
         # server is None and to report inactive and disabled servers, but here
         # we want all servers and the server cannot be None
 
-        output.init("list_server", name, minimal=minimal)
+        output.init("list_server", name, minimal=args.minimal)
         description = server.config.description or ""
         # If the server has been manually disabled
         if not server.config.active:
@@ -98,18 +258,16 @@ def list_servers(minimal=False):
     output.close_and_exit()
 
 
-@named("list-server")
-@wraps(list_servers)
-@arg("--minimal", help="machine readable output")
-def list_server(minimal=False):
-    return list_servers(minimal)
-
-
-@arg(
-    "--keep-descriptors",
-    help="Keep the stdout and the stderr streams attached to Barman subprocesses.",
+@command(
+    [
+        argument(
+            "--keep-descriptors",
+            help="Keep the stdout and the stderr streams attached to Barman subprocesses",
+            action="store_true",
+        )
+    ]
 )
-def cron(keep_descriptors=False):
+def cron(args):
     """
     Run maintenance tasks (global command)
     """
@@ -124,7 +282,7 @@ def cron(keep_descriptors=False):
         # but here we have only active and well configured servers.
 
         try:
-            server.cron(keep_descriptors=keep_descriptors)
+            server.cron(keep_descriptors=args.keep_descriptors)
         except Exception:
             # A cron should never raise an exception, so this code
             # should never be executed. However, it is here to protect
@@ -171,87 +329,90 @@ def backup_completer(prefix, parsed_args, **kwargs):
             yield special_id
 
 
-@arg(
-    "server_name",
-    nargs="+",
-    completer=server_completer_all,
-    help="specifies the server names for the backup command "
-    "('all' will show all available servers)",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer_all,
+            nargs="+",
+            help="specifies the server names for the backup command "
+            "('all' will show all available servers)",
+        ),
+        argument(
+            "--immediate-checkpoint",
+            help="forces the initial checkpoint to be done as quickly as possible",
+            dest="immediate_checkpoint",
+            action="store_true",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--no-immediate-checkpoint",
+            help="forces the initial checkpoint to be spread",
+            dest="immediate_checkpoint",
+            action="store_false",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--reuse-backup",
+            nargs="?",
+            choices=barman.config.REUSE_BACKUP_VALUES,
+            default=None,
+            const="link",
+            help="use the previous backup to improve transfer-rate. "
+            'If no argument is given "link" is assumed',
+        ),
+        argument(
+            "--retry-times",
+            help="Number of retries after an error if base backup copy fails.",
+            type=check_non_negative,
+        ),
+        argument(
+            "--retry-sleep",
+            help="Wait time after a failed base backup copy, before retrying.",
+            type=check_non_negative,
+        ),
+        argument(
+            "--no-retry",
+            help="Disable base backup copy retry logic.",
+            dest="retry_times",
+            action="store_const",
+            const=0,
+        ),
+        argument(
+            "--jobs",
+            "-j",
+            help="Run the copy in parallel using NJOBS processes.",
+            type=check_positive,
+            metavar="NJOBS",
+        ),
+        argument(
+            "--bwlimit",
+            help="maximum transfer rate in kilobytes per second. "
+            "A value of 0 means no limit. Overrides 'bandwidth_limit' "
+            "configuration option.",
+            metavar="KBPS",
+            type=check_non_negative,
+            default=SUPPRESS,
+        ),
+        argument(
+            "--wait",
+            "-w",
+            help="wait for all the required WAL files to be archived",
+            dest="wait",
+            action="store_true",
+            default=False,
+        ),
+        argument(
+            "--wait-timeout",
+            help="the time, in seconds, spent waiting for the required "
+            "WAL files to be archived before timing out",
+            dest="wait_timeout",
+            metavar="TIMEOUT",
+            default=None,
+            type=check_non_negative,
+        ),
+    ]
 )
-@arg(
-    "--immediate-checkpoint",
-    help="forces the initial checkpoint to be done as quickly as possible",
-    dest="immediate_checkpoint",
-    action="store_true",
-    default=SUPPRESS,
-)
-@arg(
-    "--no-immediate-checkpoint",
-    help="forces the initial checkpoint to be spread",
-    dest="immediate_checkpoint",
-    action="store_false",
-    default=SUPPRESS,
-)
-@arg(
-    "--reuse-backup",
-    nargs="?",
-    choices=barman.config.REUSE_BACKUP_VALUES,
-    default=None,
-    const="link",
-    help="use the previous backup to improve transfer-rate. "
-    'If no argument is given "link" is assumed',
-)
-@arg(
-    "--retry-times",
-    help="Number of retries after an error if base backup copy fails.",
-    type=check_non_negative,
-)
-@arg(
-    "--retry-sleep",
-    help="Wait time after a failed base backup copy, before retrying.",
-    type=check_non_negative,
-)
-@arg(
-    "--no-retry",
-    help="Disable base backup copy retry logic.",
-    dest="retry_times",
-    action="store_const",
-    const=0,
-)
-@arg(
-    "--jobs",
-    "-j",
-    help="Run the copy in parallel using NJOBS processes.",
-    type=check_positive,
-    metavar="NJOBS",
-)
-@arg(
-    "--bwlimit",
-    help="maximum transfer rate in kilobytes per second. "
-    "A value of 0 means no limit. Overrides 'bandwidth_limit' "
-    "configuration option.",
-    metavar="KBPS",
-    type=check_non_negative,
-    default=SUPPRESS,
-)
-@arg(
-    "--wait",
-    "-w",
-    help="wait for all the required WAL files to be archived",
-    dest="wait",
-    action="store_true",
-    default=False,
-)
-@arg(
-    "--wait-timeout",
-    help="the time, in seconds, spent waiting for the required "
-    "WAL files to be archived before timing out",
-    dest="wait_timeout",
-    metavar="TIMEOUT",
-    default=None,
-    type=check_non_negative,
-)
-@expects_obj
 def backup(args):
     """
     Perform a full backup for the given server (supports 'all')
@@ -281,16 +442,19 @@ def backup(args):
     output.close_and_exit()
 
 
-@named("list-backups")
-@arg(
-    "server_name",
-    nargs="+",
-    completer=server_completer_all,
-    help="specifies the server name for the command "
-    "('all' will show all available servers)",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer_all,
+            nargs="+",
+            help="specifies the server name for the command "
+            "('all' will show all available servers)",
+        ),
+        argument("--minimal", help="machine readable output", action="store_true"),
+    ],
+    cmd_aliases=["list-backup"],
 )
-@arg("--minimal", help="machine readable output", action="store_true")
-@expects_obj
 def list_backups(args):
     """
     List available backups for the given server (supports 'all')
@@ -309,19 +473,16 @@ def list_backups(args):
     output.close_and_exit()
 
 
-@named("list-backup")
-@wraps(list_backups)
-def list_backup(args):
-    return list_backups(args)
-
-
-@arg(
-    "server_name",
-    nargs="+",
-    completer=server_completer_all,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer_all,
+            nargs="+",
+            help="specifies the server name for the command",
+        )
+    ]
 )
-@expects_obj
 def status(args):
     """
     Shows live information and status of the PostgreSQL server
@@ -340,24 +501,27 @@ def status(args):
     output.close_and_exit()
 
 
-@named("replication-status")
-@arg(
-    "server_name",
-    nargs="+",
-    completer=server_completer_all,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer_all,
+            nargs="+",
+            help="specifies the server name for the command "
+            "('all' will show all available servers)",
+        ),
+        argument("--minimal", help="machine readable output", action="store_true"),
+        argument(
+            "--target",
+            choices=("all", "hot-standby", "wal-streamer"),
+            default="all",
+            help="""
+                        Possible values are: 'hot-standby' (only hot standby servers),
+                        'wal-streamer' (only WAL streaming clients, such as pg_receivewal),
+                        'all' (any of them). Defaults to %(default)s""",
+        ),
+    ]
 )
-@arg("--minimal", help="machine readable output", action="store_true")
-@arg(
-    "--target",
-    choices=("all", "hot-standby", "wal-streamer"),
-    default="all",
-    help="""
-         Possible values are: 'hot-standby' (only hot standby servers),
-         'wal-streamer' (only WAL streaming clients, such as pg_receivewal),
-         'all' (any of them). Defaults to %(default)s""",
-)
-@expects_obj
 def replication_status(args):
     """
     Shows live information and status of any streaming client
@@ -376,13 +540,16 @@ def replication_status(args):
     output.close_and_exit()
 
 
-@arg(
-    "server_name",
-    nargs="+",
-    completer=server_completer_all,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer_all,
+            nargs="+",
+            help="specifies the server name for the command ",
+        )
+    ]
 )
-@expects_obj
 def rebuild_xlogdb(args):
     """
     Rebuild the WAL file database guessing it from the disk content.
@@ -400,128 +567,140 @@ def rebuild_xlogdb(args):
     output.close_and_exit()
 
 
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command ",
+        ),
+        argument("--target-tli", help="target timeline", type=check_positive),
+        argument(
+            "--target-time",
+            help="target time. You can use any valid unambiguous representation. "
+            'e.g: "YYYY-MM-DD HH:MM:SS.mmm"',
+        ),
+        argument("--target-xid", help="target transaction ID"),
+        argument("--target-lsn", help="target LSN (Log Sequence Number)"),
+        argument(
+            "--target-name",
+            help="target name created previously with "
+            "pg_create_restore_point() function call",
+        ),
+        argument(
+            "--target-immediate",
+            help="end recovery as soon as a consistent state is reached",
+            action="store_true",
+            default=False,
+        ),
+        argument(
+            "--exclusive", help="set target to be non inclusive", action="store_true"
+        ),
+        argument(
+            "--tablespace",
+            help="tablespace relocation rule",
+            metavar="NAME:LOCATION",
+            action="append",
+        ),
+        argument(
+            "--remote-ssh-command",
+            metavar="SSH_COMMAND",
+            help="This options activates remote recovery, by specifying the secure "
+            "shell command to be launched on a remote host. It is "
+            'the equivalent of the "ssh_command" server option in '
+            "the configuration file for remote recovery. "
+            'Example: "ssh postgres@db2"',
+        ),
+        argument(
+            "backup_id",
+            completer=backup_completer,
+            help="specifies the backup ID to recover",
+        ),
+        argument(
+            "destination_directory",
+            help="the directory where the new server is created",
+        ),
+        argument(
+            "--bwlimit",
+            help="maximum transfer rate in kilobytes per second. "
+            "A value of 0 means no limit. Overrides 'bandwidth_limit' "
+            "configuration option.",
+            metavar="KBPS",
+            type=check_non_negative,
+            default=SUPPRESS,
+        ),
+        argument(
+            "--retry-times",
+            help="Number of retries after an error if base backup copy fails.",
+            type=check_non_negative,
+        ),
+        argument(
+            "--retry-sleep",
+            help="Wait time after a failed base backup copy, before retrying.",
+            type=check_non_negative,
+        ),
+        argument(
+            "--no-retry",
+            help="Disable base backup copy retry logic.",
+            dest="retry_times",
+            action="store_const",
+            const=0,
+        ),
+        argument(
+            "--jobs",
+            "-j",
+            help="Run the copy in parallel using NJOBS processes.",
+            type=check_positive,
+            metavar="NJOBS",
+        ),
+        argument(
+            "--get-wal",
+            help="Enable the get-wal option during the recovery.",
+            dest="get_wal",
+            action="store_true",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--no-get-wal",
+            help="Disable the get-wal option during recovery.",
+            dest="get_wal",
+            action="store_false",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--network-compression",
+            help="Enable network compression during remote recovery.",
+            dest="network_compression",
+            action="store_true",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--no-network-compression",
+            help="Disable network compression during remote recovery.",
+            dest="network_compression",
+            action="store_false",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--target-action",
+            help="Specifies what action the server should take once the "
+            "recovery target is reached. This option is not allowed for "
+            "PostgreSQL < 9.1. If PostgreSQL is between 9.1 and 9.4 included "
+            'the only allowed value is "pause". If PostgreSQL is 9.5 or newer '
+            'the possible values are "shutdown", "pause", "promote".',
+            dest="target_action",
+            type=check_target_action,
+            default=SUPPRESS,
+        ),
+        argument(
+            "--standby-mode",
+            dest="standby_mode",
+            action="store_true",
+            default=SUPPRESS,
+            help="Enable standby mode when starting the recovered PostgreSQL instance",
+        ),
+    ]
 )
-@arg("--target-tli", help="target timeline", type=check_positive)
-@arg(
-    "--target-time",
-    help="target time. You can use any valid unambiguous representation. "
-    'e.g: "YYYY-MM-DD HH:MM:SS.mmm"',
-)
-@arg("--target-xid", help="target transaction ID")
-@arg("--target-lsn", help="target LSN (Log Sequence Number)")
-@arg(
-    "--target-name",
-    help="target name created previously with "
-    "pg_create_restore_point() function call",
-)
-@arg(
-    "--target-immediate",
-    help="end recovery as soon as a consistent state is reached",
-    action="store_true",
-    default=False,
-)
-@arg("--exclusive", help="set target to be non inclusive", action="store_true")
-@arg(
-    "--tablespace",
-    help="tablespace relocation rule",
-    metavar="NAME:LOCATION",
-    action="append",
-)
-@arg(
-    "--remote-ssh-command",
-    metavar="SSH_COMMAND",
-    help="This options activates remote recovery, by specifying the secure "
-    "shell command to be launched on a remote host. It is "
-    'the equivalent of the "ssh_command" server option in '
-    "the configuration file for remote recovery. "
-    'Example: "ssh postgres@db2"',
-)
-@arg("backup_id", completer=backup_completer, help="specifies the backup ID to recover")
-@arg("destination_directory", help="the directory where the new server is created")
-@arg(
-    "--bwlimit",
-    help="maximum transfer rate in kilobytes per second. "
-    "A value of 0 means no limit. Overrides 'bandwidth_limit' "
-    "configuration option.",
-    metavar="KBPS",
-    type=check_non_negative,
-    default=SUPPRESS,
-)
-@arg(
-    "--retry-times",
-    help="Number of retries after an error if base backup copy fails.",
-    type=check_non_negative,
-)
-@arg(
-    "--retry-sleep",
-    help="Wait time after a failed base backup copy, before retrying.",
-    type=check_non_negative,
-)
-@arg(
-    "--no-retry",
-    help="Disable base backup copy retry logic.",
-    dest="retry_times",
-    action="store_const",
-    const=0,
-)
-@arg(
-    "--jobs",
-    "-j",
-    help="Run the copy in parallel using NJOBS processes.",
-    type=check_positive,
-    metavar="NJOBS",
-)
-@arg(
-    "--get-wal",
-    help="Enable the get-wal option during the recovery.",
-    dest="get_wal",
-    action="store_true",
-    default=SUPPRESS,
-)
-@arg(
-    "--no-get-wal",
-    help="Disable the get-wal option during recovery.",
-    dest="get_wal",
-    action="store_false",
-    default=SUPPRESS,
-)
-@arg(
-    "--network-compression",
-    help="Enable network compression during remote recovery.",
-    dest="network_compression",
-    action="store_true",
-    default=SUPPRESS,
-)
-@arg(
-    "--no-network-compression",
-    help="Disable network compression during remote recovery.",
-    dest="network_compression",
-    action="store_false",
-    default=SUPPRESS,
-)
-@arg(
-    "--target-action",
-    help="Specifies what action the server should take once the "
-    "recovery target is reached. This option is not allowed for "
-    "PostgreSQL < 9.1. If PostgreSQL is between 9.1 and 9.4 included "
-    'the only allowed value is "pause". If PostgreSQL is 9.5 or newer '
-    'the possible values are "shutdown", "pause", "promote".',
-    dest="target_action",
-    type=check_target_action,
-    default=SUPPRESS,
-)
-@arg(
-    "--standby-mode",
-    dest="standby_mode",
-    action="store_true",
-    default=SUPPRESS,
-    help="Enable standby mode when starting the recovered PostgreSQL instance",
-)
-@expects_obj
 def recover(args):
     """
     Recover a server at a given time, name, LSN or xid
@@ -652,15 +831,18 @@ def recover(args):
     output.close_and_exit()
 
 
-@named("show-servers")
-@arg(
-    "server_name",
-    nargs="+",
-    completer=server_completer_all,
-    help="specifies the server names to show "
-    "('all' will show all available servers)",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer_all,
+            nargs="+",
+            help="specifies the server names to show "
+            "('all' will show all available servers)",
+        )
+    ],
+    cmd_aliases=["show-server"],
 )
-@expects_obj
 def show_servers(args):
     """
     Show all configuration parameters for the specified servers
@@ -691,42 +873,39 @@ def show_servers(args):
     output.close_and_exit()
 
 
-@named("show-server")
-@wraps(show_servers)
-def show_server(args):
-    return show_servers(args)
-
-
-@named("switch-wal")
-@arg(
-    "server_name",
-    nargs="+",
-    completer=server_completer_all,
-    help="specifies the server name target of the switch-wal command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer_all,
+            nargs="+",
+            help="specifies the server name target of the switch-wal command",
+        ),
+        argument(
+            "--force",
+            help="forces the switch of a WAL by executing a checkpoint before",
+            dest="force",
+            action="store_true",
+            default=False,
+        ),
+        argument(
+            "--archive",
+            help="wait for one WAL file to be archived",
+            dest="archive",
+            action="store_true",
+            default=False,
+        ),
+        argument(
+            "--archive-timeout",
+            help="the time, in seconds, the archiver will wait for a new WAL file "
+            "to be archived before timing out",
+            metavar="TIMEOUT",
+            default="30",
+            type=check_non_negative,
+        ),
+    ],
+    cmd_aliases=["switch-xlog"],
 )
-@arg(
-    "--force",
-    help="forces the switch of a WAL by executing a checkpoint before",
-    dest="force",
-    action="store_true",
-    default=False,
-)
-@arg(
-    "--archive",
-    help="wait for one WAL file to be archived",
-    dest="archive",
-    action="store_true",
-    default=False,
-)
-@arg(
-    "--archive-timeout",
-    help="the time, in seconds, the archiver will wait for a new WAL file "
-    "to be archived before timing out",
-    metavar="TIMEOUT",
-    default="30",
-    type=check_non_negative,
-)
-@expects_obj
 def switch_wal(args):
     """
     Execute the switch-wal command on the target server
@@ -742,25 +921,20 @@ def switch_wal(args):
     output.close_and_exit()
 
 
-@named("switch-xlog")
-# Set switch-xlog as alias of switch-wal.
-# We cannot use the @argh.aliases decorator, because it needs Python >= 3.2,
-# so we create a wraqpper function and use @wraps to copy all the function
-# attributes needed by argh
-@wraps(switch_wal)
-def switch_xlog(args):
-    return switch_wal(args)
-
-
-@arg(
-    "server_name",
-    nargs="+",
-    completer=server_completer_all,
-    help="specifies the server names to check "
-    "('all' will check all available servers)",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer_all,
+            nargs="+",
+            help="specifies the server names to check "
+            "('all' will check all available servers)",
+        ),
+        argument(
+            "--nagios", help="Nagios plugin compatible output", action="store_true"
+        ),
+    ]
 )
-@arg("--nagios", help="Nagios plugin compatible output", action="store_true")
-@expects_obj
 def check(args):
     """
     Check if the server configuration is working.
@@ -790,7 +964,8 @@ def check(args):
     output.close_and_exit()
 
 
-def diagnose():
+@command()
+def diagnose(args=None):
     """
     Diagnostic command (for support and problems detection purpose)
     """
@@ -802,26 +977,30 @@ def diagnose():
     output.close_and_exit()
 
 
-@named("sync-info")
-@arg(
-    "--primary",
-    help="execute the sync-info on the primary node (if set)",
-    action="store_true",
-    default=SUPPRESS,
+@command(
+    [
+        argument(
+            "--primary",
+            help="execute the sync-info on the primary node (if set)",
+            action="store_true",
+            default=SUPPRESS,
+        ),
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "last_wal", help="specifies the name of the latest WAL read", nargs="?"
+        ),
+        argument(
+            "last_position",
+            nargs="?",
+            type=check_positive,
+            help="the last position read from xlog database (in bytes)",
+        ),
+    ]
 )
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
-)
-@arg("last_wal", help="specifies the name of the latest WAL read", nargs="?")
-@arg(
-    "last_position",
-    nargs="?",
-    type=check_positive,
-    help="the last position read from xlog database (in bytes)",
-)
-@expects_obj
 def sync_info(args):
     """
     Output the internal synchronisation status.
@@ -845,14 +1024,18 @@ def sync_info(args):
     output.close_and_exit()
 
 
-@named("sync-backup")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "backup_id", help="specifies the backup ID to be copied on the passive node"
+        ),
+    ]
 )
-@arg("backup_id", help="specifies the backup ID to be copied on the passive node")
-@expects_obj
 def sync_backup(args):
     """
     Command that synchronises a backup from a master to a passive node
@@ -867,13 +1050,15 @@ def sync_backup(args):
     output.close_and_exit()
 
 
-@named("sync-wals")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        )
+    ]
 )
-@expects_obj
 def sync_wals(args):
     """
     Command that synchronises WAL files from a master to a passive node
@@ -888,14 +1073,19 @@ def sync_wals(args):
     output.close_and_exit()
 
 
-@named("show-backup")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "backup_id", completer=backup_completer, help="specifies the backup ID"
+        ),
+    ],
+    cmd_aliases=["show-backups"],
 )
-@arg("backup_id", completer=backup_completer, help="specifies the backup ID")
-@expects_obj
 def show_backup(args):
     """
     This method shows a single backup information
@@ -909,25 +1099,29 @@ def show_backup(args):
     output.close_and_exit()
 
 
-@named("list-files")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "backup_id", completer=backup_completer, help="specifies the backup ID"
+        ),
+        argument(
+            "--target",
+            choices=("standalone", "data", "wal", "full"),
+            default="standalone",
+            help="""
+                       Possible values are: data (just the data files), standalone
+                       (base backup files, including required WAL files),
+                       wal (just WAL files between the beginning of base
+                       backup and the following one (if any) or the end of the log) and
+                       full (same as data + wal). Defaults to %(default)s""",
+        ),
+    ]
 )
-@arg("backup_id", completer=backup_completer, help="specifies the backup ID")
-@arg(
-    "--target",
-    choices=("standalone", "data", "wal", "full"),
-    default="standalone",
-    help="""
-         Possible values are: data (just the data files), standalone
-         (base backup files, including required WAL files),
-         wal (just WAL files between the beginning of base
-         backup and the following one (if any) or the end of the log) and
-         full (same as data + wal). Defaults to %(default)s""",
-)
-@expects_obj
 def list_files(args):
     """
     List all the files for a single backup
@@ -950,13 +1144,18 @@ def list_files(args):
         output.close_and_exit()
 
 
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "backup_id", completer=backup_completer, help="specifies the backup ID"
+        ),
+    ]
 )
-@arg("backup_id", completer=backup_completer, help="specifies the backup ID")
-@expects_obj
 def delete(args):
     """
     Delete a backup
@@ -973,67 +1172,69 @@ def delete(args):
     output.close_and_exit()
 
 
-@named("get-wal")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument("wal_name", help="the WAL file to get"),
+        argument(
+            "--output-directory",
+            "-o",
+            help="put the retrieved WAL file in this directory with the original name",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--partial",
+            "-P",
+            help="retrieve also partial WAL files (.partial)",
+            action="store_true",
+            dest="partial",
+            default=False,
+        ),
+        argument(
+            "--gzip",
+            "-z",
+            "-x",
+            help="compress the output with gzip",
+            action="store_const",
+            const="gzip",
+            dest="compression",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--bzip2",
+            "-j",
+            help="compress the output with bzip2",
+            action="store_const",
+            const="bzip2",
+            dest="compression",
+            default=SUPPRESS,
+        ),
+        argument(
+            "--peek",
+            "-p",
+            help="peek from the WAL archive up to 'SIZE' WAL files, starting "
+            "from the requested one. 'SIZE' must be an integer >= 1. "
+            "When invoked with this option, get-wal returns a list of "
+            "zero to 'SIZE' WAL segment names, one per row.",
+            metavar="SIZE",
+            type=check_positive,
+            default=SUPPRESS,
+        ),
+        argument(
+            "--test",
+            "-t",
+            help="test both the connection and the configuration of the requested "
+            "PostgreSQL server in Barman for WAL retrieval. With this option, "
+            "the 'wal_name' mandatory argument is ignored.",
+            action="store_true",
+            default=SUPPRESS,
+        ),
+    ]
 )
-@arg("wal_name", help="the WAL file to get")
-@arg(
-    "--output-directory",
-    "-o",
-    help="put the retrieved WAL file in this directory with the original name",
-    default=SUPPRESS,
-)
-@arg(
-    "--partial",
-    "-P",
-    help="retrieve also partial WAL files (.partial)",
-    action="store_true",
-    dest="partial",
-    default=False,
-)
-@arg(
-    "--gzip",
-    "-z",
-    "-x",
-    help="compress the output with gzip",
-    action="store_const",
-    const="gzip",
-    dest="compression",
-    default=SUPPRESS,
-)
-@arg(
-    "--bzip2",
-    "-j",
-    help="compress the output with bzip2",
-    action="store_const",
-    const="bzip2",
-    dest="compression",
-    default=SUPPRESS,
-)
-@arg(
-    "--peek",
-    "-p",
-    help="peek from the WAL archive up to 'SIZE' WAL files, starting "
-    "from the requested one. 'SIZE' must be an integer >= 1. "
-    "When invoked with this option, get-wal returns a list of "
-    "zero to 'SIZE' WAL segment names, one per row.",
-    metavar="SIZE",
-    type=check_positive,
-    default=SUPPRESS,
-)
-@arg(
-    "--test",
-    "-t",
-    help="test both the connection and the configuration of the requested "
-    "PostgreSQL server in Barman for WAL retrieval. With this option, "
-    "the 'wal_name' mandatory argument is ignored.",
-    action="store_true",
-    default=SUPPRESS,
-)
-@expects_obj
 def get_wal(args):
     """
     Retrieve WAL_NAME file from SERVER_NAME archive.
@@ -1066,22 +1267,24 @@ def get_wal(args):
     output.close_and_exit()
 
 
-@named("put-wal")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "--test",
+            "-t",
+            help="test both the connection and the configuration of the requested "
+            "PostgreSQL server in Barman to make sure it is ready to receive "
+            "WAL files.",
+            action="store_true",
+            default=SUPPRESS,
+        ),
+    ]
 )
-@arg(
-    "--test",
-    "-t",
-    help="test both the connection and the configuration of the requested "
-    "PostgreSQL server in Barman to make sure it is ready to receive "
-    "WAL files.",
-    action="store_true",
-    default=SUPPRESS,
-)
-@expects_obj
 def put_wal(args):
     """
     Receive a WAL file from SERVER_NAME and securely store it in the incoming
@@ -1104,13 +1307,15 @@ def put_wal(args):
     output.close_and_exit()
 
 
-@named("archive-wal")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        )
+    ]
 )
-@expects_obj
 def archive_wal(args):
     """
     Execute maintenance operations on WAL files for a given server.
@@ -1124,27 +1329,35 @@ def archive_wal(args):
     output.close_and_exit()
 
 
-@named("receive-wal")
-@arg(
-    "--stop", help="stop the receive-wal subprocess for the server", action="store_true"
+@command(
+    [
+        argument(
+            "--stop",
+            help="stop the receive-wal subprocess for the server",
+            action="store_true",
+        ),
+        argument(
+            "--reset",
+            help="reset the status of receive-wal removing any status files",
+            action="store_true",
+        ),
+        argument(
+            "--create-slot",
+            help="create the replication slot, if it does not exist",
+            action="store_true",
+        ),
+        argument(
+            "--drop-slot",
+            help="drop the replication slot, if it exists",
+            action="store_true",
+        ),
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+    ]
 )
-@arg(
-    "--reset",
-    help="reset the status of receive-wal removing any status files",
-    action="store_true",
-)
-@arg(
-    "--create-slot",
-    help="create the replication slot, if it does not exist",
-    action="store_true",
-)
-@arg("--drop-slot", help="drop the replication slot, if it exists", action="store_true")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
-)
-@expects_obj
 def receive_wal(args):
     """
     Start a receive-wal process.
@@ -1170,14 +1383,18 @@ def receive_wal(args):
     output.close_and_exit()
 
 
-@named("check-backup")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "backup_id", completer=backup_completer, help="specifies the backup ID"
+        ),
+    ]
 )
-@arg("backup_id", completer=backup_completer, help="specifies the backup ID")
-@expects_obj
 def check_backup(args):
     """
     Make sure that all the required WAL files to check
@@ -1196,25 +1413,27 @@ def check_backup(args):
     output.close_and_exit()
 
 
-@named("keep")
-@arg(
-    "server_name",
-    completer=server_completer,
-    help="specifies the server name for the command",
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "backup_id", completer=backup_completer, help="specifies the backup ID"
+        ),
+        argument("--release", help="remove the keep annotation", action="store_true"),
+        argument(
+            "--status", help="return the keep status of the backup", action="store_true"
+        ),
+        argument(
+            "--target",
+            help="keep this backup with the specified recovery target",
+            choices=[KeepManager.TARGET_FULL, KeepManager.TARGET_STANDALONE],
+        ),
+    ]
 )
-@arg("backup_id", completer=backup_completer, help="specifies the backup ID")
-@arg("--release", help="remove the keep annotation", action="store_true")
-@arg(
-    "--status",
-    help="return the keep status of the backup",
-    action="store_true",
-)
-@arg(
-    "--target",
-    help="keep this backup with the specified recovery target",
-    choices=[KeepManager.TARGET_FULL, KeepManager.TARGET_STANDALONE],
-)
-@expects_obj
 def keep(args):
     """
     Tag the specified backup so that it will never be deleted
@@ -1249,9 +1468,9 @@ def keep(args):
 
 def pretty_args(args):
     """
-    Prettify the given argh namespace to be human readable
+    Prettify the given argparse namespace to be human readable
 
-    :type args: argh.dispatching.ArghNamespace
+    :type args: argparse.Namespace
     :return: the human readable content of the namespace
     """
     values = dict(vars(args))
@@ -1566,78 +1785,16 @@ def main():
     """
     The main method of Barman
     """
-    p = ArghParser(epilog="Barman by EnterpriseDB (www.enterprisedb.com)")
-    p.add_argument(
-        "-v",
-        "--version",
-        action="version",
-        version="%s\n\nBarman by EnterpriseDB (www.enterprisedb.com)"
-        % barman.__version__,
-    )
-    p.add_argument(
-        "-c",
-        "--config",
-        help="uses a configuration file "
-        "(defaults: %s)" % ", ".join(barman.config.Config.CONFIG_FILES),
-        default=SUPPRESS,
-    )
-    p.add_argument(
-        "--color",
-        "--colour",
-        help="Whether to use colors in the output",
-        choices=["never", "always", "auto"],
-        default="auto",
-    )
-    p.add_argument(
-        "--log-level",
-        help="Override the default log level",
-        choices=list(get_log_levels()),
-        default=SUPPRESS,
-    )
-    p.add_argument("-q", "--quiet", help="be quiet", action="store_true")
-    p.add_argument("-d", "--debug", help="debug output", action="store_true")
-    p.add_argument(
-        "-f",
-        "--format",
-        help="output format",
-        choices=output.AVAILABLE_WRITERS.keys(),
-        default=output.DEFAULT_WRITER,
-    )
-    p.add_commands(
-        [
-            archive_wal,
-            backup,
-            check,
-            check_backup,
-            cron,
-            delete,
-            diagnose,
-            get_wal,
-            keep,
-            list_backup,
-            list_backups,
-            list_files,
-            list_server,
-            list_servers,
-            put_wal,
-            rebuild_xlogdb,
-            receive_wal,
-            recover,
-            show_backup,
-            show_server,
-            show_servers,
-            replication_status,
-            status,
-            switch_wal,
-            switch_xlog,
-            sync_info,
-            sync_backup,
-            sync_wals,
-        ]
-    )
+
     # noinspection PyBroadException
     try:
-        p.dispatch(pre_call=global_config)
+        argcomplete.autocomplete(p)
+        args = p.parse_args()
+        global_config(args)
+        if args.command is None:
+            p.print_help()
+        else:
+            args.func(args)
     except KeyboardInterrupt:
         msg = "Process interrupted by user (KeyboardInterrupt)"
         output.error(msg)

@@ -6,7 +6,6 @@
 - Python >= 3.4
 - Python modules:
     - argcomplete
-    - argh >= 0.21.2
     - psycopg2 >= 2.4.2
     - python-dateutil
     - setuptools
