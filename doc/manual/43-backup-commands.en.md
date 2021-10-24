@@ -93,7 +93,7 @@ status of the backup. This will either be the recovery target of `full` or
 `standalone` for archival backups or `nokeep` for backups which have not
 been flagged as archival.
 
-If the `--release- option is provided then Barman will release the keep
+If the `--release` option is provided then Barman will release the keep
 flag from this backup. This will remove its archival status and make it
 available for deletion, either directly or by retention policy.
 
