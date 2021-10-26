@@ -77,3 +77,20 @@ class TestDiagnose(object):
 
         # Assert that the JSON output syntax is correct
         json.loads(json_output)
+
+    @patch("barman.cli.output.close_and_exit")
+    @patch("barman.diagnose.output.info")
+    def test_diagnose_rerun(self, info_mock_output, close_exit_mock, monkeypatch):
+        monkeypatch.setattr(barman, "__config__", self.test_config)
+        diagnose()
+        info_mock_output.assert_called_once()
+        json_output = info_mock_output.call_args[0][0]
+
+        # Assert that the JSON output syntax is correct
+        json.loads(json_output)
+
+        diagnose()
+        json_output2 = info_mock_output.call_args[0][0]
+
+        # Assert that the JSON output syntax is correct
+        json.loads(json_output2)
