@@ -65,7 +65,8 @@ def exec_diagnose(servers, errors_list):
         # server configuration
         diagnosis["servers"][name] = {}
         diagnosis["servers"][name]["config"] = vars(server.config)
-        del diagnosis["servers"][name]["config"]["config"]
+        if "config" in diagnosis["servers"][name]["config"]:
+            del diagnosis["servers"][name]["config"]["config"]
         # server system info
         if server.config.ssh_command:
             try:
