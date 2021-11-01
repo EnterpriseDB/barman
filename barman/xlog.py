@@ -24,9 +24,15 @@ files
 import collections
 import os
 import re
+from functools import partial
 from tempfile import NamedTemporaryFile
 
-from barman.exceptions import BadHistoryFileContents, BadXlogSegmentName
+from barman.exceptions import (
+    BadHistoryFileContents,
+    BadXlogSegmentName,
+    CommandException,
+    WalArchiveContentError,
+)
 
 # xlog file segment name parser (regular expression)
 _xlog_re = re.compile(
@@ -467,3 +473,78 @@ def decode_history_file(wal_info, comp_manager):
         raise BadHistoryFileContents(path)
     else:
         return lines
+
+
+def _validate_timeline(timeline):
+    """Check that timeline is a valid timeline value."""
+    try:
+        # Explicitly check the type becauase python 2 will allow < to be used
+        # between strings and ints
+        if type(timeline) is not int or timeline < 1:
+            raise ValueError()
+        return True
+    except Exception:
+        raise CommandException(
+            "Cannot check WAL archive with malformed current_timeline %s" % timeline
+        )
+
+
+def _get_full_wal_name(wal_segment, timeline):
+    try:
+        # Pad current_wal_segment with fake timeline so we can use
+        # decode_segment_name
+        padding = "0" * 8
+        _, current_log_num, current_segment_num = decode_segment_name(
+            padding + wal_segment
+        )
+    except Exception:
+        raise CommandException(
+            "Cannot check WAL archive with malformed current_wal_segment %s"
+            % wal_segment
+        )
+
+    return encode_segment_name(timeline, current_log_num, current_segment_num)
+
+
+def _wal_archive_filter_fun(current_wal, wal):
+    try:
+        if not is_any_xlog_file(wal):
+            raise ValueError()
+    except Exception:
+        raise WalArchiveContentError("Unexpected file %s found in WAL archive" % wal)
+    return current_wal <= wal
+
+
+def check_archive_usable(
+    existing_wals, current_wal_segment=None, current_timeline=None
+):
+    """
+    Carry out pre-flight checks on the existing content of a WAL archive to
+    determine if it is safe to archive WALs from the supplied current_wal_segment
+    and current_timeline.
+    """
+    if current_wal_segment is None and current_timeline is None:
+        if len(existing_wals) > 0:
+            raise WalArchiveContentError("Expected empty archive")
+    elif current_wal_segment is not None and current_timeline is not None:
+        _validate_timeline(current_timeline)
+        current_wal = _get_full_wal_name(current_wal_segment, current_timeline)
+        filter_fun = partial(_wal_archive_filter_fun, current_wal)
+        unexpected_wals = [wal for wal in existing_wals if filter_fun(wal)]
+        num_unexpected_wals = len(unexpected_wals)
+        if num_unexpected_wals > 0:
+            raise WalArchiveContentError(
+                "Found %s file%s in WAL archive equal to or newer than "
+                "WAL segment %s on timeline %s"
+                % (
+                    num_unexpected_wals,
+                    num_unexpected_wals > 1 and "s" or "",
+                    current_wal_segment,
+                    current_timeline,
+                )
+            )
+    else:
+        raise CommandException(
+            "Invalid parameter combination: current_wal_segment=%s, current_timeline=%s"
+            % (current_wal_segment, current_timeline)
+        )

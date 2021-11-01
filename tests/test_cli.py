@@ -24,6 +24,7 @@ from mock import Mock, patch
 import barman.config
 from barman.cli import (
     check_target_action,
+    check_wal_archive,
     get_server,
     get_server_list,
     manage_server_command,
@@ -551,3 +552,49 @@ class TestKeepCli(object):
         )
         out, _err = capsys.readouterr()
         assert "nokeep" in out
+
+
+class TestCheckWalArchiveCli(object):
+    @pytest.fixture
+    def mock_args(self):
+        args = Mock()
+        args.sever_name = "test_server"
+        args.current_wal_segment = None
+        args.current_timeline = None
+        yield args
+
+    @patch("barman.cli.check_archive_usable")
+    @patch("barman.cli.get_server")
+    def test_barman_check_wal_archive_no_args(
+        self, mock_get_server, mock_check_archive_usable, mock_args
+    ):
+        """Verify barman check-wal-archive command calls xlog.check_archive_usable."""
+        mock_get_server.return_value.xlogdb.return_value.__enter__.return_value = [
+            "000000010000000000000001        0       0       gzip",
+            "000000010000000000000002        0       0       gzip",
+        ]
+        check_wal_archive(mock_args)
+        mock_check_archive_usable.assert_called_once_with(
+            ["000000010000000000000001", "000000010000000000000002"],
+            current_wal_segment=None,
+            current_timeline=None,
+        )
+
+    @patch("barman.cli.check_archive_usable")
+    @patch("barman.cli.get_server")
+    def test_barman_check_wal_archive_args(
+        self, mock_get_server, mock_check_archive_usable, mock_args
+    ):
+        """Verify args passed to xlog.check_archive_usable."""
+        mock_get_server.return_value.xlogdb.return_value.__enter__.return_value = [
+            "000000010000000000000001        0       0       gzip",
+            "000000010000000000000002        0       0       gzip",
+        ]
+        mock_args.current_wal_segment = "0000000000000001"
+        mock_args.current_timeline = 2
+        check_wal_archive(mock_args)
+        mock_check_archive_usable.assert_called_once_with(
+            ["000000010000000000000001", "000000010000000000000002"],
+            current_wal_segment="0000000000000001",
+            current_timeline=2,
+        )

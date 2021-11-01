@@ -31,7 +31,11 @@ from barman.exceptions import (
 from barman.infofile import WalFileInfo
 from barman.process import ProcessInfo
 from barman.server import CheckOutputStrategy
-from barman.wal_archiver import FileWalArchiver, StreamingWalArchiver, WalArchiverQueue
+from barman.wal_archiver import (
+    FileWalArchiver,
+    StreamingWalArchiver,
+    WalArchiverQueue,
+)
 from testing_helpers import build_backup_manager, build_test_backup_info, caplog_reset
 
 
