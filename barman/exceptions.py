@@ -373,3 +373,9 @@ class ArchivalBackupException(BarmanException):
     """
     Exception for errors concerning archival backups.
     """
+
+
+class WalArchiveContentError(BarmanException):
+    """
+    Exception raised when unexpected content is detected in the WAL archive.
+    """
