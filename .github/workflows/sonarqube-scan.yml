@@ -42,4 +42,4 @@ jobs:
             PULL_REQUEST_BRANCH: '${{github.head_ref}}'
             PULL_REQUEST_BASE_BRANCH: '${{github.base_ref}}'
             REPO_DEFAULT_BRANCH: '${{github.event.repository.default_branch}}'
-            REPO_EXCLUDE_FILES: '*properties*,**/src/test/**/*,**/*.sql,**/docs/**/*,**/*/*.java'
+            REPO_EXCLUDE_FILES: '*properties*,**/src/test/**/*,**/*.sql,**/docs/**/*,**/*/*.java,**/build/**'
