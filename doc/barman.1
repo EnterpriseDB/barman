@@ -163,6 +163,24 @@ at the end of every backup operation.
 .RS
 .RE
 .TP
+.B check\-wal\-archive \f[I]SERVER_NAME\f[]
+Check that the WAL archive destination for \f[I]SERVER_NAME\f[] is safe
+to use for a new PostgreSQL cluster.
+With no optional args (the default) this will pass if the WAL archive is
+empty and fail otherwise.
+.RS
+.TP
+.B \-\-timeline [TIMELINE]
+A positive integer specifying the earliest timeline for which associated
+WALs should cause the check to fail.
+The check will pass if all WAL content in the archive relates to earlier
+timelines.
+If any WAL files are on this timeline or greater then the check will
+fail.
+.RS
+.RE
+.RE
+.TP
 .B check \f[I]SERVER_NAME\f[]
 Show diagnostic information about \f[C]SERVER_NAME\f[], including: Ssh
 connection check, PostgreSQL version, configuration and backup
