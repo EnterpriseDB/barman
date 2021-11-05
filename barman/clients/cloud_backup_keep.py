@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import argparse
 import logging
 from contextlib import closing
 
@@ -25,11 +26,6 @@ from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.infofile import BackupInfo
 from barman.utils import force_str
-
-try:
-    import argparse
-except ImportError:
-    raise SystemExit("Missing required python module: argparse")
 
 
 def main(args=None):
