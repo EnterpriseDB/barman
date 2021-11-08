@@ -1,5 +1,4 @@
 argcomplete
-argh
 psycopg2-binary
 python-dateutil
 Sphinx
