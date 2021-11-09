@@ -18,15 +18,21 @@
 
 from argparse import ArgumentTypeError
 
+import os
 import pytest
+import sys
 from mock import Mock, patch
 
 import barman.config
 from barman.cli import (
+    ArgumentParser,
+    argument,
     check_target_action,
+    command,
     get_server,
     get_server_list,
     manage_server_command,
+    OrderedHelpFormatter,
     recover,
     keep,
 )
@@ -551,3 +557,69 @@ class TestKeepCli(object):
         )
         out, _err = capsys.readouterr()
         assert "nokeep" in out
+
+
+class TestCliHelp(object):
+    """
+    Verify the help output of the ArgumentParser constructed by cli.py
+
+    Checks that the cli ArgumentParser correctly expands the subcommand help and
+    prints the subcommands and positional args in alphabetical order.
+
+    This is achieved by creating a minimal argument parser and checking the
+    print_help() output matches our expected output.
+    """
+
+    _expected_help_output = """usage: %s [-h] [-t] {another-test-command,test-command} ...
+
+positional arguments:
+  {another-test-command,test-command}
+    another-test-command
+                        Another test docstring also readable in expanded help
+    test-command        Test docstring which should be readable in expanded
+                        help
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -t, --test-arg        Test command arg
+
+test epilog string
+""" % os.path.basename(
+        sys.argv[0]
+    )
+
+    @pytest.fixture
+    def minimal_parser(self):
+        parser = ArgumentParser(
+            epilog="test epilog string", formatter_class=OrderedHelpFormatter
+        )
+        parser.add_argument(
+            "-t", "--test-arg", help="Test command arg", action="store_true"
+        )
+        subparsers = parser.add_subparsers(dest="barman.cli.command")
+
+        @command(
+            [
+                argument(
+                    "--test-subcommand-arg", help="subcommand arg", action="store_true"
+                )
+            ],
+            subparsers,
+        )
+        def test_command(args=None):
+            """Test docstring which should be readable in expanded help"""
+            pass
+
+        @command([], subparsers)
+        def another_test_command(args=None):
+            """Another test docstring also readable in expanded help"""
+            pass
+
+        yield parser
+
+    def test_help_output(self, minimal_parser, capsys):
+        """Check the help output matches the expected help output"""
+        minimal_parser.print_help()
+        out, err = capsys.readouterr()
+        assert "" == err
+        assert self._expected_help_output == out
