@@ -54,6 +54,7 @@ from testing_helpers import (
     build_config_from_dicts,
     build_real_server,
     build_test_backup_info,
+    write_wal,
 )
 
 
@@ -266,26 +267,26 @@ class TestServer(object):
         [
             (
                 [
-                    create_fake_info_file("000000010000000000000002", 42, 43),
                     create_fake_info_file("00000001.history", 42, 43),
-                    create_fake_info_file("000000020000000000000003", 42, 43),
+                    create_fake_info_file("000000010000000000000002", 42, 43),
                     create_fake_info_file("00000002.history", 42, 43),
-                    create_fake_info_file("000000030000000000000005", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 43),
                     create_fake_info_file("00000003.history", 42, 43),
+                    create_fake_info_file("000000030000000000000005", 42, 43),
                 ],
-                [1, 2, 3, 5],
+                [0, 2, 3, 4],
             ),
             (
                 [
-                    create_fake_info_file("000000010000000000000002", 42, 43),
                     create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000010000000000000002", 42, 43),
+                    create_fake_info_file("00000002.history", 42, 43),
                     create_fake_info_file("000000020000000000000003", 42, 43),
                     create_fake_info_file("000000020000000000000010", 42, 43),
-                    create_fake_info_file("00000002.history", 42, 43),
-                    create_fake_info_file("000000030000000000000005", 42, 43),
                     create_fake_info_file("00000003.history", 42, 43),
+                    create_fake_info_file("000000030000000000000005", 42, 43),
                 ],
-                [1, 2, 3, 4, 6],
+                [0, 2, 3, 4, 5],
             ),
         ],
     )
@@ -297,28 +298,32 @@ class TestServer(object):
         :param expected_indices: expected WalFileInfo.name indices (values refers to wal_info_files)
         :param tmpdir: _pytest.tmpdir
         """
-        # Prepare input string
-        walstring = get_wal_lines_from_wal_list(wal_info_files)
-
         # Prepare expected list
         expected_wals = get_wal_names_from_indices_selection(
             wal_info_files, expected_indices
         )
 
-        # create a xlog.db and add those entries
-        wals_dir = tmpdir.mkdir("wals")
-        xlog = wals_dir.join("xlog.db")
-        xlog.write(walstring)
         # fake backup
         backup = build_test_backup_info(
             begin_wal="000000020000000000000001", end_wal="000000020000000000000004"
         )
 
         # mock a server object and mock a return call to get_next_backup method
+        wals_dir = tmpdir.mkdir("wals")
         server = build_real_server(
             global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
             main_conf={"wals_directory": wals_dir.strpath},
         )
+
+        # Write test WALs to disk
+        for wal_info in wal_info_files:
+            write_wal(
+                wals_dir,
+                name=wal_info.name,
+                size=wal_info.size,
+                time=wal_info.time,
+                compression=wal_info.compression,
+            )
 
         wals = []
         for wal_file in server.get_required_xlog_files(backup, 2, 41):
@@ -332,26 +337,26 @@ class TestServer(object):
         [
             (
                 [
-                    create_fake_info_file("000000010000000000000003", 42, 43),
                     create_fake_info_file("00000001.history", 42, 43),
-                    create_fake_info_file("000000020000000000000003", 42, 43),
+                    create_fake_info_file("000000010000000000000003", 42, 43),
                     create_fake_info_file("00000002.history", 42, 43),
-                    create_fake_info_file("000000030000000000000005", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 43),
                     create_fake_info_file("00000003.history", 42, 43),
+                    create_fake_info_file("000000030000000000000005", 42, 43),
                 ],
-                [1, 2, 3, 5],
+                [0, 2, 3, 4],
             ),
             (
                 [
-                    create_fake_info_file("000000010000000000000003", 42, 43),
                     create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000010000000000000003", 42, 43),
+                    create_fake_info_file("00000002.history", 42, 43),
                     create_fake_info_file("000000020000000000000003", 42, 43),
                     create_fake_info_file("000000020000000000000010", 42, 43),
-                    create_fake_info_file("00000002.history", 42, 43),
-                    create_fake_info_file("000000030000000000000005", 42, 43),
                     create_fake_info_file("00000003.history", 42, 43),
+                    create_fake_info_file("000000030000000000000005", 42, 43),
                 ],
-                [1, 2],
+                [0, 2, 3],
             ),
         ],
     )
@@ -367,23 +372,18 @@ class TestServer(object):
         :param expected_indices: expected WalFileInfo.name indices (values refers to wal_info_files)
         :param tmpdir: _pytest.tmpdir
         """
-
-        walstring = get_wal_lines_from_wal_list(wal_info_files)
-
         # Prepare expected list
         expected_wals = get_wal_names_from_indices_selection(
             wal_info_files, expected_indices
         )
-        # create a xlog.db and add those entries
-        wals_dir = tmpdir.mkdir("wals")
-        xlog = wals_dir.join("xlog.db")
-        xlog.write(walstring)
+
         # fake backup
         backup = build_test_backup_info(
             begin_wal="000000020000000000000001", end_wal="000000020000000000000004"
         )
 
         # mock a server object and mock a return call to get_next_backup method
+        wals_dir = tmpdir.mkdir("wals")
         server = build_real_server(
             global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
             main_conf={"wals_directory": wals_dir.strpath},
@@ -393,6 +393,16 @@ class TestServer(object):
             begin_wal="000000020000000000000006",
             end_wal="000000020000000000000009",
         )
+
+        # Write test WALs to disk
+        for wal_info in wal_info_files:
+            write_wal(
+                wals_dir,
+                name=wal_info.name,
+                size=wal_info.size,
+                time=wal_info.time,
+                compression=wal_info.compression,
+            )
 
         wals = []
         for wal_file in server.get_wal_until_next_backup(backup, include_history=True):
@@ -1102,23 +1112,6 @@ class TestServer(object):
         incoming_dir_setting = "%s_wals_directory" % icoming_name
         incoming_dir = getattr(server.config, incoming_dir_setting)
         assert incoming_dir
-
-        # Utility function to generare fake WALs
-        def write_wal(target_dir, wal_number, partial=False, prefix=None):
-            if prefix:
-                try:
-                    os.makedirs("%s/%s" % (target_dir, prefix))
-                except FileExistsError:
-                    pass
-            wal_name = "%s/%s0000000000000000%08d" % (
-                target_dir,
-                prefix and "%s/" % prefix or "",
-                wal_number,
-            )
-            if partial:
-                wal_name += ".partial"
-            with open(wal_name, "w") as wal_file:
-                wal_file.write("%s\t42\t43\tNone" % os.path.basename(wal_name))
 
         # Create a single WAL to avoid triggering empty WAL archive errors
         write_wal(server.config.wals_directory, 0, prefix="0000000000000000")

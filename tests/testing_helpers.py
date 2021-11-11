@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import sys
 from datetime import datetime, timedelta
 from shutil import rmtree
@@ -471,3 +472,41 @@ else:
 def interpolate_wals(begin_wal, end_wal):
     """Helper which generates all WAL names between two WALs (inclusive)"""
     return ["%024X" % wal for wal in (range(int(begin_wal, 16), int(end_wal, 16) + 1))]
+
+
+def write_wal(
+    target_dir,
+    wal_number=None,
+    name=None,
+    partial=False,
+    prefix=None,
+    size=42,
+    time=43,
+    compression=None,
+):
+    """Generate fake WALs on disk"""
+    if name and not prefix and 'history' not in name:
+        prefix = name[:16]
+    if prefix:
+        try:
+            os.makedirs("%s/%s" % (target_dir, prefix))
+        except FileExistsError:
+            pass
+    if name:
+        wal_name = "%s/%s%s" % (
+            target_dir,
+            prefix and "%s/" % prefix or "",
+            name,
+        )
+    else:
+        wal_name = "%s/%s0000000000000000%08d" % (
+            target_dir,
+            prefix and "%s/" % prefix or "",
+            wal_number,
+        )
+    if partial:
+        wal_name += ".partial"
+    with open(wal_name, "w") as wal_file:
+        wal_file.write(
+            "%s\t%s\t%s\t%s" % (os.path.basename(wal_name), size, time, compression)
+        )

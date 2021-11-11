@@ -1557,9 +1557,9 @@ class Server(RemoteStatusMixin):
         # of the backup
         if not target_tli:
             target_tli, _, _ = xlog.decode_segment_name(end)
-        with self.xlogdb() as fxlogdb:
-            for line in fxlogdb:
-                wal_info = WalFileInfo.from_xlogdb_line(line)
+        with self.storage() as storage:
+            wal_infos = storage.get_wal_infos()
+            for wal_info in wal_infos:
                 # Handle .history files: add all of them to the output,
                 # regardless of their age
                 if xlog.is_history_file(wal_info.name):
@@ -1576,8 +1576,7 @@ class Server(RemoteStatusMixin):
                     if target_time and wal_info.time > target_time:
                         break
             # return all the remaining history files
-            for line in fxlogdb:
-                wal_info = WalFileInfo.from_xlogdb_line(line)
+            for wal_info in wal_infos:
                 if xlog.is_history_file(wal_info.name):
                     yield wal_info
 
@@ -1597,9 +1596,8 @@ class Server(RemoteStatusMixin):
             next_end = self.get_next_backup(backup.backup_id).end_wal
         backup_tli, _, _ = xlog.decode_segment_name(begin)
 
-        with self.xlogdb() as fxlogdb:
-            for line in fxlogdb:
-                wal_info = WalFileInfo.from_xlogdb_line(line)
+        with self.storage() as storage:
+            for wal_info in storage.get_wal_infos():
                 # Handle .history files: add all of them to the output,
                 # regardless of their age, if requested (the 'include_history'
                 # parameter is True)
