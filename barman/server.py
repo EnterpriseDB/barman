@@ -70,6 +70,7 @@ from barman.lockfile import (
     ServerBackupLock,
     ServerBackupSyncLock,
     ServerCronLock,
+    ServerTierLock,
     ServerWalArchiveLock,
     ServerWalReceiveLock,
     ServerWalSyncLock,
@@ -79,6 +80,7 @@ from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory, RetentionPolicy
+from barman.storage import tiers
 from barman.utils import (
     BarmanEncoder,
     file_md5,
@@ -243,6 +245,7 @@ class Server(RemoteStatusMixin):
         super(Server, self).__init__()
         self.config = config
         self.path = self._build_path(self.config.path_prefix)
+        self._storage = tiers.initialize_tiers(self.config)
         self.process_manager = ProcessManager(self.config)
 
         # If 'primary_ssh_command' is specified, the source of the backup
@@ -620,26 +623,23 @@ class Server(RemoteStatusMixin):
         """
         check_strategy.init_check("WAL archive")
         # Make sure that WAL archiving has been setup
-        # XLOG_DB needs to exist and its size must be > 0
+        # There should be something in the WAL archive directory
         # NOTE: we do not need to acquire a lock in this phase
-        xlogdb_empty = True
-        if os.path.exists(self.xlogdb_file_name):
-            with open(self.xlogdb_file_name, "rb") as fxlogdb:
-                if os.fstat(fxlogdb.fileno()).st_size > 0:
-                    xlogdb_empty = False
+        with self.storage(tier=tiers.Tier.RAW, lock=False) as storage:
+            wal_archive_empty = storage.is_wal_archive_empty()
 
-        # NOTE: This check needs to be only visible if it fails
-        if xlogdb_empty:
-            # Skip the error if we have a terminated backup
-            # with status WAITING_FOR_WALS.
-            # TODO: Improve this check
-            backup_id = self.get_last_backup_id([BackupInfo.WAITING_FOR_WALS])
-            if not backup_id:
-                check_strategy.result(
-                    self.config.name,
-                    False,
-                    hint="please make sure WAL shipping is setup",
-                )
+            # NOTE: This check needs to be only visible if it fails
+            if wal_archive_empty:
+                # Skip the error if we have a terminated backup
+                # with status WAITING_FOR_WALS.
+                # TODO: Improve this check
+                backup_id = self.get_last_backup_id([BackupInfo.WAITING_FOR_WALS])
+                if not backup_id:
+                    check_strategy.result(
+                        self.config.name,
+                        False,
+                        hint="please make sure WAL shipping is setup",
+                    )
 
         # Check the number of wals in the incoming directory
         self._check_wal_queue(check_strategy, "incoming", "archiver")
@@ -2591,6 +2591,20 @@ class Server(RemoteStatusMixin):
         :return str: the name of the file that contains the XLOG_DB
         """
         return os.path.join(self.config.wals_directory, self.XLOG_DB)
+
+    @contextmanager
+    def storage(self, tier=tiers.Tier.RAW, lock=True):
+        """
+        Context manager to access the storage layer.
+        """
+        # TODO we will want some tier-aware locking here
+        if lock:
+            with ServerTierLock(
+                self.config.barman_lock_directory, self.config.name, tier
+            ):
+                yield self._storage[tier]
+        else:
+            yield self._storage[tier]
 
     @contextmanager
     def xlogdb(self, mode="r"):

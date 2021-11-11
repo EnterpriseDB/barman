@@ -1026,25 +1026,21 @@ class TestServer(object):
         )
         strategy = CheckStrategy()
 
-        # Call the server on an unexistent xlog file. expect it to fail
+        # Call the server on an empty WAL archive. expect it to fail
         server.check_archive(strategy)
         assert strategy.has_error is True
         assert strategy.check_result[0].check == "WAL archive"
         assert strategy.check_result[0].status is False
 
-        # Call the check on an empty xlog file. expect it to contain errors.
-        with open(server.xlogdb_file_name, "a"):
-            # the open call forces the file creation
-            pass
+        # Write a WAL into the WAL archive and check for the results
+        os.makedirs("%s/0000000000000000" % server.config.wals_directory)
+        wal_name = "%s/0000000000000000/0000000000000000%08d" % (
+            server.config.wals_directory,
+            0,
+        )
+        with open(wal_name, "w") as wal_file:
+            wal_file.write("%s\t42\t43\tNone" % os.path.basename(wal_name))
 
-        server.check_archive(strategy)
-        assert strategy.has_error is True
-        assert strategy.check_result[0].check == "WAL archive"
-        assert strategy.check_result[0].status is False
-
-        # Write something in the xlog db file and check for the results
-        with server.xlogdb("w") as fxlogdb:
-            fxlogdb.write("00000000000000000000")
         # The check strategy should contain no errors.
         strategy = CheckStrategy()
         server.check_archive(strategy)
@@ -1093,7 +1089,9 @@ class TestServer(object):
         """
         # Setup temp dir and server
         server = build_real_server(
-            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
+            global_conf={
+                "barman_lock_directory": tmpdir.mkdir("lock").strpath,
+            },
             main_conf={
                 "wals_directory": tmpdir.mkdir("wals").strpath,
                 "%s_wals_directory" % icoming_name: tmpdir.mkdir(icoming_name).strpath,
@@ -1105,19 +1103,25 @@ class TestServer(object):
         incoming_dir = getattr(server.config, incoming_dir_setting)
         assert incoming_dir
 
-        # Create some content in the fake xlog.db to avoid triggering
-        # empty xlogdb errors
-        with open(server.xlogdb_file_name, "a") as fxlogdb:
-            # write something
-            fxlogdb.write("00000000000000000000")
-
         # Utility function to generare fake WALs
-        def write_wal(target_dir, wal_number, partial=False):
-            wal_name = "%s/0000000000000000%08d" % (target_dir, wal_number)
+        def write_wal(target_dir, wal_number, partial=False, prefix=None):
+            if prefix:
+                try:
+                    os.makedirs("%s/%s" % (target_dir, prefix))
+                except FileExistsError:
+                    pass
+            wal_name = "%s/%s0000000000000000%08d" % (
+                target_dir,
+                prefix and "%s/" % prefix or "",
+                wal_number,
+            )
             if partial:
                 wal_name += ".partial"
             with open(wal_name, "w") as wal_file:
-                wal_file.write("fake WAL %s" % wal_number)
+                wal_file.write("%s\t42\t43\tNone" % os.path.basename(wal_name))
+
+        # Create a single WAL to avoid triggering empty WAL archive errors
+        write_wal(server.config.wals_directory, 0, prefix="0000000000000000")
 
         # Case one, queue below the threshold
 

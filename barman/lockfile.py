@@ -353,3 +353,16 @@ class ServerWalSyncLock(LockFile):
             raise_if_fail=True,
             wait=True,
         )
+
+
+class ServerTierLock(LockFile):
+    """
+    This lock protects specific server/tier combination from concurrent access.
+    """
+
+    def __init__(self, lock_directory, server_name, tier):
+        super(ServerTierLock, self).__init__(
+            os.path.join(lock_directory, ".%s-%s-tier.lock" % (server_name, tier)),
+            raise_if_fail=True,
+            wait=True,
+        )
