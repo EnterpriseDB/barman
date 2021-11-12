@@ -33,6 +33,7 @@ from barman.config import BackupOptions
 from barman.exceptions import CompressionIncompatibility, RecoveryInvalidTargetException
 from barman.infofile import BackupInfo
 from barman.retention_policies import RetentionPolicyFactory
+from barman.storage.tiers import Tier, initialize_tiers
 from testing_helpers import (
     build_backup_directories,
     build_backup_manager,
@@ -192,14 +193,17 @@ class TestBackup(object):
         backup_manager.server.config.name = "TestServer"
         backup_manager.server.config.barman_lock_directory = tmpdir.strpath
         backup_manager.server.config.backup_options = []
-
+        wal_dir = tmpdir.mkdir("wals")
+        backup_manager.server.config.wals_directory = wal_dir
+        backup_manager.server.storage.return_value.__enter__.return_value = (
+            initialize_tiers(backup_manager.server.config)[Tier.RAW]
+        )
         # Create a fake backup directory inside tmpdir (old format)
 
         base_dir = tmpdir.mkdir("base")
         backup_dir = base_dir.mkdir("fake_backup_id")
         pg_data = backup_dir.mkdir("pgdata")
         pg_data_v2 = backup_dir.mkdir("data")
-        wal_dir = tmpdir.mkdir("wals")
         wal_history_file02 = wal_dir.join("00000002.history")
         wal_history_file03 = wal_dir.join("00000003.history")
         wal_history_file04 = wal_dir.join("00000004.history")
@@ -209,16 +213,6 @@ class TestBackup(object):
         wal_history_file04.write("2\t0/3000028\tunknown\n")
         wal_file = wal_dir.join("0000000100000000/000000010000000000000001")
         wal_file.ensure()
-        xlog_db = wal_dir.join("xlog.db")
-        xlog_db.write(
-            "000000010000000000000001\t42\t43\tNone\n"
-            "00000002.history\t42\t43\tNone\n"
-            "00000003.history\t42\t43\tNone\n"
-            "00000004.history\t42\t43\tNone\n"
-        )
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
-            mode="r+"
-        )
         backup_manager.server.config.basebackups_directory = base_dir.strpath
         backup_manager.server.config.wals_directory = wal_dir.strpath
         # The following tablespaces are defined in the default backup info

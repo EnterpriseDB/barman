@@ -1091,57 +1091,45 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         :return list: a list of removed WAL files
         """
         removed = []
-        with self.server.xlogdb("r+") as fxlogdb:
-            xlogdb_dir = os.path.dirname(fxlogdb.name)
-            with tempfile.TemporaryFile(mode="w+", dir=xlogdb_dir) as fxlogdb_new:
-                for line in fxlogdb:
-                    wal_info = WalFileInfo.from_xlogdb_line(line)
-                    if not xlog.is_any_xlog_file(wal_info.name):
-                        output.error(
-                            "invalid WAL segment name %r\n"
-                            'HINT: Please run "barman rebuild-xlogdb %s" '
-                            "to solve this issue",
-                            wal_info.name,
-                            self.config.name,
-                        )
-                        continue
+        with self.server.storage() as storage:
+            for wal_info in storage.get_wal_infos():
+                if not xlog.is_any_xlog_file(wal_info.name):
+                    output.error(
+                        "invalid WAL segment name %r\n"
+                        'HINT: Please run "barman rebuild-xlogdb %s" '
+                        "to solve this issue",
+                        wal_info.name,
+                        self.config.name,
+                    )
+                    continue
 
-                    # Keeps the WAL segment if it is a history file
-                    keep = xlog.is_history_file(wal_info.name)
+                # Keeps the WAL segment if it is a history file
+                keep = xlog.is_history_file(wal_info.name)
 
-                    # Keeps the WAL segment if its timeline is in
-                    # `timelines_to_protect`
-                    if timelines_to_protect:
-                        tli, _, _ = xlog.decode_segment_name(wal_info.name)
-                        keep |= tli in timelines_to_protect
+                # Keeps the WAL segment if its timeline is in
+                # `timelines_to_protect`
+                if timelines_to_protect:
+                    tli, _, _ = xlog.decode_segment_name(wal_info.name)
+                    keep |= tli in timelines_to_protect
 
-                    # Keeps the WAL segment if it is within a protected range
-                    if xlog.is_backup_file(wal_info.name):
-                        # If we have a .backup file then truncate the name for the
-                        # range check
-                        wal_name = wal_info.name[:24]
-                    else:
-                        wal_name = wal_info.name
-                    for begin_wal, end_wal in wal_ranges_to_protect:
-                        keep |= wal_name >= begin_wal and wal_name <= end_wal
+                # Keeps the WAL segment if it is within a protected range
+                if xlog.is_backup_file(wal_info.name):
+                    # If we have a .backup file then truncate the name for the
+                    # range check
+                    wal_name = wal_info.name[:24]
+                else:
+                    wal_name = wal_info.name
+                for begin_wal, end_wal in wal_ranges_to_protect:
+                    keep |= wal_name >= begin_wal and wal_name <= end_wal
 
-                    # Keeps the WAL segment if it is a newer
-                    # than the given backup (the first available)
-                    if backup_info and backup_info.begin_wal is not None:
-                        keep |= wal_info.name >= backup_info.begin_wal
+                # Keeps the WAL segment if it is a newer
+                # than the given backup (the first available)
+                if backup_info and backup_info.begin_wal is not None:
+                    keep |= wal_info.name >= backup_info.begin_wal
 
-                    # If the file has to be kept write it in the new xlogdb
-                    # otherwise delete it  and record it in the removed list
-                    if keep:
-                        fxlogdb_new.write(wal_info.to_xlogdb_line())
-                    else:
-                        self.delete_wal(wal_info)
-                        removed.append(wal_info.name)
-                fxlogdb_new.flush()
-                fxlogdb_new.seek(0)
-                fxlogdb.seek(0)
-                shutil.copyfileobj(fxlogdb_new, fxlogdb)
-                fxlogdb.truncate()
+                if not keep:
+                    self.delete_wal(wal_info)
+                    removed.append(wal_info.name)
         return removed
 
     def validate_last_backup_maximum_age(self, last_backup_maximum_age):
