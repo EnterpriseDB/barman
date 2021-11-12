@@ -2655,12 +2655,6 @@ class Server(RemoteStatusMixin):
         else:
             return self.config.retention_policy.report()
 
-    def rebuild_xlogdb(self):
-        """
-        Rebuild the whole xlog database guessing it from the archive content.
-        """
-        return self.backup_manager.rebuild_xlogdb()
-
     def get_backup_ext_info(self, backup_info):
         """
         Return a dictionary containing all available information about a backup

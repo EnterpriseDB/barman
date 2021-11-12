@@ -550,33 +550,6 @@ def replication_status(args):
     [
         argument(
             "server_name",
-            completer=server_completer_all,
-            nargs="+",
-            help="specifies the server name for the command ",
-        )
-    ]
-)
-def rebuild_xlogdb(args):
-    """
-    Rebuild the WAL file database guessing it from the disk content.
-    """
-    servers = get_server_list(args, skip_inactive=True)
-    for name in sorted(servers):
-        server = servers[name]
-
-        # Skip the server (apply general rule)
-        if not manage_server_command(server, name):
-            continue
-
-        with closing(server):
-            server.rebuild_xlogdb()
-    output.close_and_exit()
-
-
-@command(
-    [
-        argument(
-            "server_name",
             completer=server_completer,
             help="specifies the server name for the command ",
         ),
