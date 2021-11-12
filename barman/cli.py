@@ -999,12 +999,6 @@ def diagnose(args=None):
         argument(
             "last_wal", help="specifies the name of the latest WAL read", nargs="?"
         ),
-        argument(
-            "last_position",
-            nargs="?",
-            type=check_positive,
-            help="the last position read from xlog database (in bytes)",
-        ),
     ]
 )
 def sync_info(args):
@@ -1016,12 +1010,12 @@ def sync_info(args):
     try:
         # if called with --primary option
         if getattr(args, "primary", False):
-            primary_info = server.primary_node_info(args.last_wal, args.last_position)
+            primary_info = server.primary_node_info(args.last_wal)
             output.info(
                 json.dumps(primary_info, cls=BarmanEncoder, indent=4), log=False
             )
         else:
-            server.sync_status(args.last_wal, args.last_position)
+            server.sync_status(args.last_wal)
     except SyncError as e:
         # Catch SyncError exceptions and output only the error message,
         # preventing from logging the stack trace

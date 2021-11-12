@@ -822,7 +822,7 @@ current status of a Barman server that is useful for synchronisation purposes.
 The available syntax is the following:
 
 ``` bash
-barman sync-info [--primary] <server_name> [<last_wal> [<last_position>]]
+barman sync-info [--primary] <server_name> [<last_wal>]
 ```
 
 The command returns a JSON object containing:

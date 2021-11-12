@@ -77,7 +77,6 @@ EXPECTED_MINIMAL = {
     },
     "config": {},
     "last_name": "000000010000000000000005",
-    "last_position": 209,
     "wals": [
         {
             "time": 1406019026.0,
@@ -114,59 +113,6 @@ class TestSync(object):
     Test class for sync module
     """
 
-    def test_set_starting_point(self, tmpdir):
-        """
-        Test for the set_starting_point method.
-
-        Test the different results of the method:
-         * No last_position parameter, only last_wal.
-         * last_position parameter and the correct last_wal
-         * No last_position and no last_wal
-         * Wrong combination of last_position and last_wal
-
-        :param path tmpdir: py.test temporary directory unique to the test
-        """
-        # build a test xlog.db
-        tmp_path = tmpdir.join("xlog.db")
-        tmp_path.write(
-            "000000010000000000000002\t16777216\t1406019026.0\tNone\n"
-            "000000010000000000000003\t16777216\t1406019026.0\tNone\n"
-            "000000010000000000000004\t16777216\t1406019329.93\tNone\n"
-        )
-        tmp_file = tmp_path.open()
-
-        tmp_file.seek(0)
-        server = build_real_server()
-        # No last_position parameter, only last_wal.
-        # Expect the method to set the read point to 0 (beginning of the file)
-        result = server.set_sync_starting_point(
-            tmp_file, "000000010000000000000002", None
-        )
-        assert result == 0
-        assert tmp_file.tell() == 0
-
-        # last_position parameter and the correct last_wal
-        # Expect the method to set the read point to the given last_position
-        result = server.set_sync_starting_point(
-            tmp_file, "000000010000000000000003", 52
-        )
-        assert result == 52
-        assert tmp_file.tell() == 52
-
-        # No last_position and no last_wal.
-        # Expect the method to set the read point to 0
-        result = server.set_sync_starting_point(tmp_file, None, None)
-        assert result == 0
-        assert tmp_file.tell() == 0
-
-        # Wrong combination of last_position and last_wal.
-        # Expect the method to set the read point to 0
-        result = server.set_sync_starting_point(
-            tmp_file, "000000010000000000000004", 52
-        )
-        assert result == 0
-        assert tmp_file.tell() == 0
-
     def test_status(self, capsys, tmpdir):
         """
         Test the status method.
@@ -199,7 +145,7 @@ class TestSync(object):
         }
 
         # Call the status method capturing the output using capsys
-        server.sync_status(None, None)
+        server.sync_status(None)
         (out, err) = capsys.readouterr()
         # prepare the expected results
         # (complex values have to be converted to json)
@@ -227,7 +173,6 @@ class TestSync(object):
         server.sync_status("000000010000000000000001")
         (out, err) = capsys.readouterr()
         result = json.loads(out)
-        assert result["last_position"] == 0
         assert result["last_name"] == ""
 
     def test_check_sync_required(self):

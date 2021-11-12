@@ -102,7 +102,7 @@ SYNC_WALS_INFO_FILE = "sync-wals.info"
 _logger = logging.getLogger(__name__)
 
 # NamedTuple for a better readability of SyncWalInfo
-SyncWalInfo = namedtuple("SyncWalInfo", "last_wal last_position")
+SyncWalInfo = namedtuple("SyncWalInfo", "last_wal")
 
 
 class CheckStrategy(object):
@@ -3028,7 +3028,7 @@ class Server(RemoteStatusMixin):
             output.error("Permission denied, unable to access '%s'" % e)
             return
 
-    def sync_status(self, last_wal=None, last_position=None):
+    def sync_status(self, last_wal=None):
         """
         Return server status for sync purposes.
 
@@ -3041,13 +3041,8 @@ class Server(RemoteStatusMixin):
 
         If last_wal is provided, the method will discard all the wall files
         older than last_wal.
-        If last_position is provided the method will try to read
-        the xlog.db file using last_position as starting point.
-        If the wal file at last_position does not match last_wal, read from the
-        start and use last_wal as limit
 
         :param str|None last_wal: last read wal
-        :param int|None last_position: last read position (in xlog.db)
         """
         sync_status = {}
         wals = []
@@ -3062,10 +3057,7 @@ class Server(RemoteStatusMixin):
             first_useful_wal = backups[sorted(backups.keys())[0]].begin_wal
         # Read xlogdb file.
         with self.xlogdb() as fxlogdb:
-            starting_point = self.set_sync_starting_point(
-                fxlogdb, last_wal, last_position
-            )
-            check_first_wal = starting_point == 0 and last_wal is not None
+            check_first_wal = last_wal is not None
             # The wal_info and line variables are used after the loop.
             # We initialize them here to avoid errors with an empty xlogdb.
             line = None
@@ -3099,14 +3091,10 @@ class Server(RemoteStatusMixin):
                         "last_wal '%s' is newer than the last available wal "
                         " '%s'" % (last_wal, wal_info.name)
                     )
-                # Set last_position with the current position - len(last_line)
-                # (returning the beginning of the last line)
-                sync_status["last_position"] = fxlogdb.tell() - len(line)
                 # Set the name of the last wal of the file
                 sync_status["last_name"] = wal_info.name
             else:
                 # we started over
-                sync_status["last_position"] = 0
                 sync_status["last_name"] = ""
             sync_status["backups"] = backups
             sync_status["wals"] = wals
@@ -3126,12 +3114,9 @@ class Server(RemoteStatusMixin):
         """
         # Recover information from primary node
         sync_wal_info = self.load_sync_wals_info()
-        # Use last_wal and last_position for the remote call to the
-        # master server
+        # Use last_wal for the remote call to the primary server
         try:
-            remote_info = self.primary_node_info(
-                sync_wal_info.last_wal, sync_wal_info.last_position
-            )
+            remote_info = self.primary_node_info(sync_wal_info.last_wal)
         except SyncError as exc:
             output.error(
                 "Failed to retrieve the primary node status: %s" % force_str(exc)
@@ -3360,7 +3345,7 @@ class Server(RemoteStatusMixin):
             self.config.wals_directory, SYNC_WALS_INFO_FILE
         )
         if not os.path.exists(sync_wals_info_file):
-            return SyncWalInfo(None, None)
+            return SyncWalInfo(None)
         try:
             with open(sync_wals_info_file) as f:
                 return SyncWalInfo._make(f.readline().split("\t"))
@@ -3370,7 +3355,7 @@ class Server(RemoteStatusMixin):
                 % (SYNC_WALS_INFO_FILE, self.config.name, e)
             )
 
-    def primary_node_info(self, last_wal=None, last_position=None):
+    def primary_node_info(self, last_wal=None):
         """
         Invoke sync-info directly on the specified primary node
 
@@ -3379,13 +3364,10 @@ class Server(RemoteStatusMixin):
 
         :param barman.server.Server self: the Server object
         :param str|None last_wal: last read wal
-        :param int|None last_position: last read position (in xlog.db)
         :raise SyncError: if the ssh command fails
         """
         # First we need to check if the server is in passive mode
-        _logger.debug(
-            "primary sync-info(%s, %s, %s)", self.config.name, last_wal, last_position
-        )
+        _logger.debug("primary sync-info(%s, %s, %s)", self.config.name, last_wal)
         if not self.passive_node:
             raise SyncError("server %s is not passive" % self.config.name)
         # Issue a call to 'barman sync-info' to the primary node,
@@ -3404,12 +3386,9 @@ class Server(RemoteStatusMixin):
                     base_cmd = "barman sync-info"
                 # Build the command string
                 cmd_str = "%s %s" % (base_cmd, self.config.name)
-                # If necessary we add last_wal and last_position
-                # to the command string
+                # If necessary we add last_wal to the command string
                 if last_wal is not None:
                     cmd_str += " %s " % last_wal
-                    if last_position is not None:
-                        cmd_str += " %s " % last_position
                 # Then issue the command
                 remote_command(cmd_str)
                 # All good, exit the retry loop with 'break'
@@ -3421,7 +3400,6 @@ class Server(RemoteStatusMixin):
                 # the error is not from Barman (i.e. ssh failure)
                 if exc.args[0]["ret"] == 1 and last_wal is not None:
                     last_wal = None
-                    last_position = None
                     output.warning(
                         "sync-info is out of sync. "
                         "Self-recovery procedure started: "
@@ -3680,8 +3658,8 @@ class Server(RemoteStatusMixin):
         Once the copy is finished, acquires a lock on xlog.db, updates it
         then releases the lock.
 
-        Before exiting, the method updates the last_wal
-        and last_position fields in the sync-wals.info file.
+        Before exiting, the method updates the last_wal field in the
+        sync-wals.info file.
 
         :param barman.server.Server self: the Server object to synchronise
         """
@@ -3840,32 +3818,6 @@ class Server(RemoteStatusMixin):
                 self.config.name,
             )
 
-    @staticmethod
-    def set_sync_starting_point(xlogdb_file, last_wal, last_position):
-        """
-        Check if the xlog.db file has changed between two requests
-        from the client and set the start point for reading the file
-
-        :param file xlogdb_file: an open and readable xlog.db file object
-        :param str|None last_wal: last read name
-        :param int|None last_position: last read position
-        :return int: the position has been set
-        """
-        # If last_position is None start reading from the beginning of the file
-        position = int(last_position) if last_position is not None else 0
-        # Seek to required position
-        xlogdb_file.seek(position)
-        # Read 24 char (the size of a wal name)
-        wal_name = xlogdb_file.read(24)
-        # If the WAL name is the requested one start from last_position
-        if wal_name == last_wal:
-            # Return to the line start
-            xlogdb_file.seek(position)
-            return position
-        # If the file has been truncated, start over
-        xlogdb_file.seek(0)
-        return 0
-
     def write_sync_wals_info_file(self, primary_info):
         """
         Write the content of SYNC_WALS_INFO_FILE on disk
@@ -3876,10 +3828,7 @@ class Server(RemoteStatusMixin):
             with open(
                 os.path.join(self.config.wals_directory, SYNC_WALS_INFO_FILE), "w"
             ) as syncfile:
-                syncfile.write(
-                    "%s\t%s"
-                    % (primary_info["last_name"], primary_info["last_position"])
-                )
+                syncfile.write("%s" % (primary_info["last_name"]))
         except (OSError, IOError):
             # Wrap file access exceptions using SyncError
             raise SyncError(
