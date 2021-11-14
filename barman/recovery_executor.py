@@ -280,9 +280,8 @@ class RecoveryExecutor(object):
                 output.close_and_exit()
             except BadXlogSegmentName as e:
                 output.error(
-                    "invalid xlog segment name %r\n"
-                    'HINT: Please run "barman rebuild-xlogdb %s" '
-                    "to solve this issue",
+                    "invalid WAL segment name %r\n"
+                    'HINT: Please check WAL archive content for server "%s"',
                     force_str(e),
                     self.config.name,
                 )

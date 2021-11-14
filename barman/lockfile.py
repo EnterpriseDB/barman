@@ -253,22 +253,6 @@ class ServerCronLock(LockFile):
         )
 
 
-class ServerXLOGDBLock(LockFile):
-    """
-    This lock protects a server's xlogdb access
-
-    Creates a '.<SERVER>-xlogdb.lock' lock file under the given lock_directory
-    for the named SERVER.
-    """
-
-    def __init__(self, lock_directory, server_name):
-        super(ServerXLOGDBLock, self).__init__(
-            os.path.join(lock_directory, ".%s-xlogdb.lock" % server_name),
-            raise_if_fail=True,
-            wait=True,
-        )
-
-
 class ServerWalArchiveLock(LockFile):
     """
     This lock protects a server from multiple executions of wal-archive command

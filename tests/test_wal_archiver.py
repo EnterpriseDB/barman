@@ -179,7 +179,6 @@ class TestFileWalArchiver(object):
         # See all logs
         caplog.set_level(0)
 
-        fxlogdb_mock = MagicMock()
         backup_manager = MagicMock()
         archiver = FileWalArchiver(backup_manager)
         archiver.config.name = "test_server"
@@ -195,7 +194,7 @@ class TestFileWalArchiver(object):
         archive_wal_mock.side_effect = DuplicateWalFile
         datetime_mock.utcnow.return_value.strftime.return_value = "test_time"
 
-        archiver.archive(fxlogdb_mock)
+        archiver.archive()
 
         out, err = capsys.readouterr()
         assert (
@@ -209,14 +208,14 @@ class TestFileWalArchiver(object):
         ) in caplog.text
 
         archive_wal_mock.side_effect = MatchingDuplicateWalFile
-        archiver.archive(fxlogdb_mock)
+        archiver.archive()
         unlink_mock.assert_called_with(wal_info.orig_filename)
 
         # Test batch errors
         caplog_reset(caplog)
         batch.errors = ["testfile_1", "testfile_2"]
         archive_wal_mock.side_effect = DuplicateWalFile
-        archiver.archive(fxlogdb_mock)
+        archiver.archive()
         out, err = capsys.readouterr()
 
         assert (

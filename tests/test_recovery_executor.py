@@ -895,9 +895,9 @@ class TestRecoveryExecutor(object):
 
         # Test: local copy
         required_wals = (
-            WalFileInfo.from_xlogdb_line("000000000000000000000001\t42\t43\tNone\n"),
-            WalFileInfo.from_xlogdb_line("000000000000000000000002\t42\t43\tgzip\n"),
-            WalFileInfo.from_xlogdb_line("000000000000000000000003\t42\t43\tbzip2\n"),
+            WalFileInfo(name="000000000000000000000001", size=42, time=43, compression=None),
+            WalFileInfo(name="000000000000000000000002", size=42, time=43, compression="gzip"),
+            WalFileInfo(name="000000000000000000000003", size=42, time=43, compression="bzip2"),
         )
         executor._xlog_copy(required_wals, dest.strpath, None)
         # Check for a correct invocation of rsync using local paths

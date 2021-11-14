@@ -1096,8 +1096,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 if not xlog.is_any_xlog_file(wal_info.name):
                     output.error(
                         "invalid WAL segment name %r\n"
-                        'HINT: Please run "barman rebuild-xlogdb %s" '
-                        "to solve this issue",
+                        'HINT: Please check WAL archive content for server "%s"',
                         wal_info.name,
                         self.config.name,
                     )

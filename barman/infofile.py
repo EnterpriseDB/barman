@@ -357,36 +357,6 @@ class WalFileInfo(FieldListFile):
         obj.orig_filename = filename
         return obj
 
-    def to_xlogdb_line(self):
-        """
-        Format the content of this object as a xlogdb line.
-        """
-        return "%s\t%s\t%s\t%s\n" % (self.name, self.size, self.time, self.compression)
-
-    @classmethod
-    def from_xlogdb_line(cls, line):
-        """
-        Parse a line from xlog catalogue
-
-        :param str line: a line in the wal database to parse
-        :rtype: WalFileInfo
-        """
-        try:
-            name, size, time, compression = line.split()
-        except ValueError:
-            # Old format compatibility (no compression)
-            compression = None
-            try:
-                name, size, time = line.split()
-            except ValueError:
-                raise ValueError("cannot parse line: %r" % (line,))
-        # The to_xlogdb_line method writes None values as literal 'None'
-        if compression == "None":
-            compression = None
-        size = int(size)
-        time = float(time)
-        return cls(name=name, size=size, time=time, compression=compression)
-
     def to_json(self):
         """
         Return an equivalent dictionary that can be encoded in json

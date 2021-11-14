@@ -904,8 +904,7 @@ class TestWalCleanup(object):
 
     def _create_wal_on_filesystem(self, wals_directory, wal):
         """
-        Helper which creates the specified WAL on the filesystem and adds it to
-        xlogdb.
+        Helper which creates the specified WAL on the filesystem.
         """
         wal_path = "%s/%s" % (wals_directory, wal[:16])
         try:

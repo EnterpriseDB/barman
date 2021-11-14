@@ -1108,9 +1108,8 @@ def list_files(args):
             output.info(line, log=False)
     except BadXlogSegmentName as e:
         output.error(
-            "invalid xlog segment name %r\n"
-            'HINT: Please run "barman rebuild-xlogdb %s" '
-            "to solve this issue",
+            "invalid WAL segment name %r\n"
+            'HINT: Please check WAL archive content for server "%s"',
             force_str(e),
             server.config.name,
         )

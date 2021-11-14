@@ -75,16 +75,6 @@ def create_fake_info_file(name, size, time, compression=None):
     return info
 
 
-def get_wal_lines_from_wal_list(wal_list):
-    """
-    converts each wal_info to an xlogdb line and concats into one string
-    """
-    walstring = ""
-    for wal_info in wal_list:
-        walstring += wal_info.to_xlogdb_line()
-    return walstring
-
-
 def get_wal_names_from_indices_selection(wal_info_files, indices):
     # Prepare expected list
     expected_wals = []
@@ -189,66 +179,6 @@ class TestServer(object):
         server.check(check_strategy)
         assert check_strategy.has_error
 
-    @patch("barman.server.os")
-    def test_xlogdb_with_exception(self, os_mock, tmpdir):
-        """
-        Testing the execution of xlog-db operations with an Exception
-
-        :param os_mock: mock for os module
-        :param tmpdir: temporary directory unique to the test invocation
-        """
-        # unpatch os.path
-        os_mock.path = os.path
-        # Setup temp dir and server
-        server = build_real_server(
-            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
-            main_conf={"wals_directory": tmpdir.mkdir("wals").strpath},
-        )
-        # Test the execution of the fsync on xlogdb file forcing an exception
-        with pytest.raises(ExceptionTest):
-            with server.xlogdb("w") as fxlogdb:
-                fxlogdb.write("00000000000000000000")
-                raise ExceptionTest()
-        # Check call on fsync method. If the call have been issued,
-        # the "exit" section of the contextmanager have been executed
-        assert os_mock.fsync.called
-
-    @patch("barman.server.os")
-    @patch("barman.server.ServerXLOGDBLock")
-    def test_xlogdb(self, lock_file_mock, os_mock, tmpdir):
-        """
-        Testing the normal execution of xlog-db operations.
-
-        :param lock_file_mock: mock for LockFile object
-        :param os_mock: mock for os module
-        :param tmpdir: temporary directory unique to the test invocation
-        """
-        # unpatch os.path
-        os_mock.path = os.path
-        # Setup temp dir and server
-        server = build_real_server(
-            global_conf={"barman_lock_directory": tmpdir.mkdir("lock").strpath},
-            main_conf={"wals_directory": tmpdir.mkdir("wals").strpath},
-        )
-        # Test the execution of the fsync on xlogdb file
-        with server.xlogdb("w") as fxlogdb:
-            fxlogdb.write("00000000000000000000")
-        # Check for calls on fsync method. If the call have been issued
-        # the "exit" method of the contextmanager have been executed
-        assert os_mock.fsync.called
-        # Check for enter and exit calls on mocked LockFile
-        lock_file_mock.return_value.__enter__.assert_called_once_with()
-        lock_file_mock.return_value.__exit__.assert_called_once_with(None, None, None)
-
-        os_mock.fsync.reset_mock()
-        with server.xlogdb():
-            # nothing to do here.
-            pass
-        # Check for calls on fsync method.
-        # If the file is readonly exit method of the context manager must
-        # skip calls on fsync method
-        assert not os_mock.fsync.called
-
     def test_get_wal_full_path(self, tmpdir):
         """
         Testing Server.get_wal_full_path() method
@@ -327,7 +257,6 @@ class TestServer(object):
 
         wals = []
         for wal_file in server.get_required_xlog_files(backup, 2, 41):
-            # get the result of the xlogdb read
             wals.append(wal_file.name)
         # Check for the presence of expected files
         assert expected_wals == wals
@@ -406,7 +335,6 @@ class TestServer(object):
 
         wals = []
         for wal_file in server.get_wal_until_next_backup(backup, include_history=True):
-            # get the result of the xlogdb read
             wals.append(wal_file.name)
         # Check for the presence of expected files
         assert expected_wals == wals
@@ -727,14 +655,23 @@ class TestServer(object):
         # Mock method get_wal_until_next_backup for returning a list of
         # 3 fake WAL. the first one is the start and stop WAL of the backup
         wal_list = [
-            WalFileInfo.from_xlogdb_line(
-                "000000010000000000000002\t16777216\t1434450086.53\tNone\n"
+            WalFileInfo(
+                name="000000010000000000000002",
+                size=16777216,
+                time=1434450086.53,
+                compression=None,
             ),
-            WalFileInfo.from_xlogdb_line(
-                "000000010000000000000003\t16777216\t1434450087.54\tNone\n"
+            WalFileInfo(
+                name="000000010000000000000003",
+                size=16777216,
+                time=1434450087.54,
+                compression=None,
             ),
-            WalFileInfo.from_xlogdb_line(
-                "000000010000000000000004\t16777216\t1434450088.55\tNone\n"
+            WalFileInfo(
+                name="000000010000000000000004",
+                size=16777216,
+                time=1434450088.55,
+                compression=None,
             ),
         ]
         get_wal_mock.return_value = wal_list
@@ -1306,17 +1243,6 @@ class TestServer(object):
         assert len(server.get_children_timelines(2)) == 1
         assert len(server.get_children_timelines(3)) == 0
         assert len(server.get_children_timelines(4)) == 0
-
-    def test_xlogdb_file_name(self):
-        """
-        Test the xlogdb_file_name server property
-        """
-        server = build_real_server()
-        server.config.wals_directory = "mock_wals_directory"
-
-        result = os.path.join(server.config.wals_directory, server.XLOG_DB)
-
-        assert server.xlogdb_file_name == result
 
     def test_create_physical_repslot(self, capsys):
         """

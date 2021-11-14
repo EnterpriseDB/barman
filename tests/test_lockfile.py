@@ -30,9 +30,9 @@ from barman.lockfile import (
     ServerBackupLock,
     ServerBackupSyncLock,
     ServerCronLock,
+    ServerTierLock,
     ServerWalReceiveLock,
     ServerWalSyncLock,
-    ServerXLOGDBLock,
 )
 
 
@@ -355,12 +355,12 @@ class TestLockFileSubclasses(object):
         assert lock.raise_if_fail
         assert not lock.wait
 
-    def test_server_xlogdb_lock(self, tmpdir):
+    def test_server_tier_lock(self, tmpdir):
         """
-        Tests for ServerCronLock class
+        Tests for ServerTierLock class
         """
-        lock = ServerXLOGDBLock(tmpdir.strpath, "server_name")
-        assert lock.filename == tmpdir.join(".server_name-xlogdb.lock")
+        lock = ServerTierLock(tmpdir.strpath, "server_name", "raw")
+        assert lock.filename == tmpdir.join(".server_name-raw-tier.lock")
         assert lock.raise_if_fail
         assert lock.wait
 

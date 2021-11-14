@@ -74,7 +74,6 @@ from barman.lockfile import (
     ServerWalArchiveLock,
     ServerWalReceiveLock,
     ServerWalSyncLock,
-    ServerXLOGDBLock,
 )
 from barman.postgres import PostgreSQLConnection, StreamingConnection
 from barman.process import ProcessManager
@@ -1502,7 +1501,7 @@ class Server(RemoteStatusMixin):
                 except BadXlogSegmentName as e:
                     output.error(
                         "invalid WAL segment name %r\n"
-                        'HINT: Please run "barman rebuild-xlogdb %s" '
+                        'HINT: Please check WAL archive content for server "%s"',
                         "to solve this issue",
                         force_str(e),
                         self.config.name,
@@ -2582,14 +2581,6 @@ class Server(RemoteStatusMixin):
         # Fallback: streaming connection
         return status.get("streaming_systemid")
 
-    @property
-    def xlogdb_file_name(self):
-        """
-        The name of the file containing the XLOG_DB
-        :return str: the name of the file that contains the XLOG_DB
-        """
-        return os.path.join(self.config.wals_directory, self.XLOG_DB)
-
     @contextmanager
     def storage(self, tier=tiers.Tier.RAW, lock=True):
         """
@@ -2603,51 +2594,6 @@ class Server(RemoteStatusMixin):
                 yield self._storage[tier]
         else:
             yield self._storage[tier]
-
-    @contextmanager
-    def xlogdb(self, mode="r"):
-        """
-        Context manager to access the xlogdb file.
-
-        This method uses locking to make sure only one process is accessing
-        the database at a time. The database file will be created
-        if it not exists.
-
-        Usage example:
-
-            with server.xlogdb('w') as file:
-                file.write(new_line)
-
-        :param str mode: open the file with the required mode
-            (default read-only)
-        """
-        if not os.path.exists(self.config.wals_directory):
-            os.makedirs(self.config.wals_directory)
-        xlogdb = self.xlogdb_file_name
-
-        with ServerXLOGDBLock(self.config.barman_lock_directory, self.config.name):
-            # If the file doesn't exist and it is required to read it,
-            # we open it in a+ mode, to be sure it will be created
-            if not os.path.exists(xlogdb) and mode.startswith("r"):
-                if "+" not in mode:
-                    mode = "a%s+" % mode[1:]
-                else:
-                    mode = "a%s" % mode[1:]
-
-            with open(xlogdb, mode) as f:
-
-                # execute the block nested in the with statement
-                try:
-                    yield f
-
-                finally:
-                    # we are exiting the context
-                    # if file is writable (mode contains w, a or +)
-                    # make sure the data is written to disk
-                    # http://docs.python.org/2/library/os.html#os.fsync
-                    if any((c in "wa+") for c in f.mode):
-                        f.flush()
-                        os.fsync(f.fileno())
 
     def report_backups(self):
         if not self.enforce_retention_policies:
@@ -2719,8 +2665,8 @@ class Server(RemoteStatusMixin):
             output.result("show_backup", backup_ext_info)
         except BadXlogSegmentName as e:
             output.error(
-                "invalid xlog segment name %r\n"
-                'HINT: Please run "barman rebuild-xlogdb %s" '
+                "invalid WAL segment name %r\n"
+                'HINT: Please check WAL archive content for server "%s"',
                 "to solve this issue",
                 force_str(e),
                 self.config.name,
@@ -3049,12 +2995,10 @@ class Server(RemoteStatusMixin):
         first_useful_wal = None
         if backups:
             first_useful_wal = backups[sorted(backups.keys())[0]].begin_wal
-        # Read xlogdb file.
+        # Traverse WAL archive from oldest to newest
         with self.storage() as storage:
             check_first_wal = last_wal is not None
-            # The wal_info and line variables are used after the loop.
-            # We initialize them here to avoid errors with an empty xlogdb.
-            line = None
+            # The wal_info variable is used after the loop.
             wal_info = None
             for wal_info in storage.get_wal_infos():
                 # Check if user is requesting data that is not available.
