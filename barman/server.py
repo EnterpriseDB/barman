@@ -3050,15 +3050,13 @@ class Server(RemoteStatusMixin):
         if backups:
             first_useful_wal = backups[sorted(backups.keys())[0]].begin_wal
         # Read xlogdb file.
-        with self.xlogdb() as fxlogdb:
+        with self.storage() as storage:
             check_first_wal = last_wal is not None
             # The wal_info and line variables are used after the loop.
             # We initialize them here to avoid errors with an empty xlogdb.
             line = None
             wal_info = None
-            for line in fxlogdb:
-                # Parse the line
-                wal_info = WalFileInfo.from_xlogdb_line(line)
+            for wal_info in storage.get_wal_infos()
                 # Check if user is requesting data that is not available.
                 # TODO: probably the check should be something like
                 # TODO: last_wal + 1 < wal_info.name
