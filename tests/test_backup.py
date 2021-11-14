@@ -750,14 +750,12 @@ class TestWalCleanup(object):
         backup_manager.server.config.basebackups_directory = base_dir.strpath
         backup_manager.server.config.wals_directory = wal_dir.strpath
         backup_manager.server.config.minimum_redundancy = 1
-        self.xlog_db = wal_dir.join("xlog.db")
-        self.xlog_db.write("")
 
-        def open_xlog_db():
-            return open(self.xlog_db.strpath, "r+")
-
-        # This must be a side-effect so we open xlog_db each time it is called
-        backup_manager.server.xlogdb.return_value.__enter__.side_effect = open_xlog_db
+        # Create tier manager and hook it into our mock server
+        initialize_tiers(backup_manager.server.config)[Tier.RAW]
+        backup_manager.server.storage.return_value.__enter__.return_value = (
+            initialize_tiers(backup_manager.server.config)[Tier.RAW]
+        )
 
         # Wire get_available_backups in our mock server to call
         # backup_manager.get_available_backups, just like a non-mock server
@@ -798,7 +796,6 @@ class TestWalCleanup(object):
         with open("%s/%s" % (wal_path, wal), "a"):
             # An empty file is fine for the purposes of these tests
             pass
-        self.xlog_db.write("%s\t42\t43\tNone\n" % wal, mode="a")
 
     def _create_wals_on_filesystem(self, wals_directory, begin_wal, end_wal):
         """
@@ -949,7 +946,6 @@ class TestWalCleanup(object):
         with open("%s/%s" % (wals_directory, "00000001.history"), "a"):
             # An empty file is fine for the purposes of these tests
             pass
-        self.xlog_db.write("%s\t42\t43\tNone\n" % "00000001.history", mode="a")
 
         # AND WALs which range from just before the oldest backup to the end_wal
         # of the newest backup
