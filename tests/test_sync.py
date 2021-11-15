@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import json
+import os
 from datetime import datetime, timedelta
 
 import dateutil
@@ -33,10 +34,12 @@ from barman.exceptions import (
 )
 from barman.infofile import BackupInfo, LocalBackupInfo
 from barman.lockfile import LockFileBusy
+from barman.storage.tiers import Tier, initialize_tiers
 from testing_helpers import (
     build_config_from_dicts,
     build_real_server,
     build_test_backup_info,
+    write_wal,
 )
 
 # expected result of the sync --status command
@@ -79,26 +82,26 @@ EXPECTED_MINIMAL = {
     "last_name": "000000010000000000000005",
     "wals": [
         {
-            "time": 1406019026.0,
-            "size": 16777216,
+            "time": 43,
+            "size": 42,
             "compression": None,
             "name": "000000010000000000000002",
         },
         {
-            "time": 1406019026.0,
-            "size": 16777216,
+            "time": 43,
+            "size": 42,
             "compression": None,
             "name": "000000010000000000000003",
         },
         {
-            "time": 1406019329.9300001,
-            "size": 16777216,
+            "time": 43,
+            "size": 42,
             "compression": None,
             "name": "000000010000000000000004",
         },
         {
-            "time": 1406019330.84,
-            "size": 16777216,
+            "time": 43,
+            "size": 42,
             "compression": None,
             "name": "000000010000000000000005",
         },
@@ -113,7 +116,7 @@ class TestSync(object):
     Test class for sync module
     """
 
-    def test_status(self, capsys, tmpdir):
+    def test_status(self, monkeypatch, capsys, tmpdir):
         """
         Test the status method.
 
@@ -123,19 +126,24 @@ class TestSync(object):
         :param path tmpdir: py.test temporary directory unique to the test
         :param capsys: fixture that allow to access stdout/stderr output
         """
-        # Create a test xlog.db
-        tmp_path = tmpdir.join("xlog.db")
-        tmp_path.write(
-            "000000010000000000000001\t16777216\t1406019022.4\tNone\n"
-            "000000010000000000000002\t16777216\t1406019026.0\tNone\n"
-            "000000010000000000000003\t16777216\t1406019026.0\tNone\n"
-            "000000010000000000000004\t16777216\t1406019329.93\tNone\n"
-            "000000010000000000000005\t16777216\t1406019330.84\tNone\n"
-        )
+        # Create WALs in archive dir
+        wals_dir = tmpdir.mkdir("wals")
+        write_wal(wals_dir, name="000000010000000000000001")
+        write_wal(wals_dir, name="000000010000000000000002")
+        write_wal(wals_dir, name="000000010000000000000003")
+        write_wal(wals_dir, name="000000010000000000000004")
+        write_wal(wals_dir, name="000000010000000000000005")
 
         # Build a server, replacing some function to use the the tmpdir objects
-        server = build_real_server()
-        server.xlogdb = lambda: tmp_path.open()
+        server = build_real_server(
+            global_conf={
+                "barman_home": tmpdir.mkdir("home").strpath,
+                "barman_lock_directory": tmpdir.mkdir("locks"),
+            },
+            main_conf={
+                "wals_directory": wals_dir,
+            },
+        )
         server.get_available_backups = lambda: {
             "1234567890": build_test_backup_info(
                 server=server,
@@ -144,8 +152,21 @@ class TestSync(object):
             )
         }
 
+        # WAL Size and Time are determined from the filesystem so mock stat to
+        # produce deterministic results
+        real_stat = os.stat
+
+        def mock_stat(filename):
+            if "00000001" in filename:
+                stat_result = real_stat(filename)
+                result = mock.Mock(st_size=42, st_mtime=43, st_mode=stat_result.st_mode)
+                return result
+            else:
+                return real_stat(filename)
+
         # Call the status method capturing the output using capsys
-        server.sync_status(None)
+        with mock.patch("barman.infofile.os.stat", new=mock_stat):
+            server.sync_status(None)
         (out, err) = capsys.readouterr()
         # prepare the expected results
         # (complex values have to be converted to json)
@@ -167,13 +188,6 @@ class TestSync(object):
         # if last_wal is newer than the last entry of the xlog.db
         with pytest.raises(SyncError):
             server.sync_status("000000010000000000000007")
-
-        # test with an empty file
-        tmp_path.write("")
-        server.sync_status("000000010000000000000001")
-        (out, err) = capsys.readouterr()
-        result = json.loads(out)
-        assert result["last_name"] == ""
 
     def test_check_sync_required(self):
         """

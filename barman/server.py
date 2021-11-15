@@ -3056,7 +3056,7 @@ class Server(RemoteStatusMixin):
             # We initialize them here to avoid errors with an empty xlogdb.
             line = None
             wal_info = None
-            for wal_info in storage.get_wal_infos()
+            for wal_info in storage.get_wal_infos():
                 # Check if user is requesting data that is not available.
                 # TODO: probably the check should be something like
                 # TODO: last_wal + 1 < wal_info.name
