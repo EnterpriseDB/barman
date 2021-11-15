@@ -434,10 +434,13 @@ class TestSync(object):
         server_name = "main"
 
         # Prepare paths
-        barman_home = tmpdir.mkdir("barman_home")
-        backup_dir = barman_home.mkdir(server_name)
-        wals_dir = backup_dir.mkdir("wals")
-        primary_info_file = backup_dir.join(barman.server.PRIMARY_INFO_FILE)
+        barman_home_primary = tmpdir.mkdir("barman_home")
+        backup_dir_primary = barman_home_primary.mkdir(server_name)
+        wals_dir_primary = backup_dir_primary.mkdir("wals")
+        barman_home_passive = tmpdir.mkdir("barman_home_passive")
+        backup_dir_passive = barman_home_passive.mkdir(server_name)
+        wals_dir_passive = backup_dir_passive.mkdir("wals_passive")
+        primary_info_file = backup_dir_passive.join(barman.server.PRIMARY_INFO_FILE)
 
         # prepare the primary_info file
         remote_basebackup_dir = tmpdir.mkdir("primary")
@@ -445,20 +448,22 @@ class TestSync(object):
         primary_info_content["config"].update(
             compression=None,
             basebackups_directory=str(remote_basebackup_dir),
-            wals_directory=str(wals_dir),
+            wals_directory=str(wals_dir_primary),
         )
         primary_info_file.write(json.dumps(primary_info_content))
 
         # Test 1: Not a passive node.
         # Expect SyncError
-        server = build_real_server(global_conf=dict(barman_home=str(barman_home)))
+        server = build_real_server(
+            global_conf=dict(barman_home=str(barman_home_passive))
+        )
         with pytest.raises(SyncError):
             server.sync_wals()
 
         # Test 2: different compression between Master and Passive node.
         # Expect a SyncError
         server = build_real_server(
-            global_conf=dict(barman_home=str(barman_home)),
+            global_conf=dict(barman_home=str(barman_home_passive)),
             main_conf=dict(
                 compression="gzip", primary_ssh_command="ssh fakeuser@fakehost"
             ),
@@ -470,10 +475,10 @@ class TestSync(object):
 
         # Test 3: No base backup for server, exit with warning
         server = build_real_server(
-            global_conf=dict(barman_home=str(barman_home)),
+            global_conf=dict(barman_home=str(barman_home_passive)),
             main_conf=dict(
                 compression=None,
-                wals_directory=str(wals_dir),
+                wals_directory=str(wals_dir_passive),
                 primary_ssh_command="ssh fakeuser@fakehost",
             ),
         )
@@ -526,8 +531,8 @@ class TestSync(object):
         (out, err) = capsys.readouterr()
         assert "KeyboardInterrupt" in err
 
-        # Test 8: normal execution, expect no output. xlog.db
-        # must contain information about the primary info wals
+        # Test 8: normal execution, expect no output. WAL archive
+        # must contain the primary info wals
 
         # reset the rsync_moc, and remove the side_effect
         rsync_mock.reset_mock()
@@ -538,16 +543,19 @@ class TestSync(object):
         (out, err) = capsys.readouterr()
         assert out == ""
         assert err == ""
-        # check the xlog content for primary.info wals
-        exp_xlog = [
-            "000000010000000000000002\t16777216\t1406019026.0\tNone\n",
-            "000000010000000000000003\t16777216\t1406019026.0\tNone\n",
-            "000000010000000000000004\t16777216\t1406019329.93\tNone\n",
-            "000000010000000000000005\t16777216\t1406019330.84\tNone\n",
+
+        # check RSync was called to transfer the expected WALs
+        exp_wal = [
+            "0000000100000000/000000010000000000000002",
+            "0000000100000000/000000010000000000000003",
+            "0000000100000000/000000010000000000000004",
+            "0000000100000000/000000010000000000000005",
         ]
-        with server.xlogdb() as fxlogdb:
-            xlog = fxlogdb.readlines()
-            assert xlog == exp_xlog
+        rsync_mock.side_effect.return_value.from_file_list.assert_called_once_with(
+            exp_wal,
+            ":%s/" % wals_dir_primary,
+            "%s/" % wals_dir_passive,
+        )
 
     def _create_mock_config(self, tmpdir):
         """Helper for passive node tests which returns a mock config object"""

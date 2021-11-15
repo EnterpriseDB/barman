@@ -3775,11 +3775,6 @@ class Server(RemoteStatusMixin):
                     # obtained from the primary.info file
                     rsync.from_file_list(wal_file_paths, src, dest)
 
-                    # If everything is synced without errors,
-                    # update xlog.db using the list of WalFileInfo object
-                    with self.xlogdb("a") as fxlogdb:
-                        for wal_info in local_wals:
-                            fxlogdb.write(wal_info.to_xlogdb_line())
                     # We need to update the sync-wals.info file with the latest
                     # synchronised WAL and the latest read position.
                     self.write_sync_wals_info_file(primary_info)
