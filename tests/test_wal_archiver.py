@@ -19,6 +19,7 @@ import os
 
 import pytest
 from mock import ANY, MagicMock, patch
+from barman.storage.tiers import Tier, initialize_tiers
 
 import barman.xlog
 from barman.compression import PyGZipCompressor, CompressionManager
@@ -324,14 +325,13 @@ class TestFileWalArchiver(object):
         basedir = tmpdir.join("main")
         incoming_dir = basedir.join("incoming")
         archive_dir = basedir.join("wals")
-        xlog_db = archive_dir.join("xlog.db")
         wal_name = "000000010000000000000001"
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
-        xlog_db.ensure()
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
-            mode="a"
+
+        backup_manager.server.storage.return_value.__enter__.return_value = (
+            initialize_tiers(backup_manager.server.config)[Tier.RAW]
         )
         backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
 
@@ -339,10 +339,8 @@ class TestFileWalArchiver(object):
         wal_path = os.path.join(
             archive_dir.strpath, barman.xlog.hash_dir(wal_name), wal_name
         )
-        # Check for the presence of the wal file in the wal catalog
-        with xlog_db.open() as f:
-            line = str(f.readline())
-            assert wal_name in line
+        # Check for the presence of the wal file in the wal archive
+        assert os.path.isfile("%s/%s/%s" % (archive_dir, wal_name[:16], wal_name))
         # Check that the wal file have been moved from the incoming dir
         assert not os.path.exists(wal_file.strpath)
         # Check that the wal file have been archived to the expected location
@@ -495,22 +493,17 @@ class TestFileWalArchiver(object):
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
-        xlog_db.ensure()
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
-            mode="a"
+        backup_manager.server.storage.return_value.__enter__.return_value = (
+            initialize_tiers(backup_manager.server.config)[Tier.RAW]
         )
         backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
 
         backup_manager.archive_wal()
 
-        # Check that the WAL file is present inside the wal catalog
-        with xlog_db.open() as f:
-            line = str(f.readline())
-            assert wal_name in line
+        # Check that the wal file have been archived
         wal_path = os.path.join(
             archive_dir.strpath, barman.xlog.hash_dir(wal_name), wal_name
         )
-        # Check that the wal file have been archived
         assert os.path.exists(wal_path)
         out, err = capsys.readouterr()
         # Check the output for the archival of the wal file
@@ -543,27 +536,21 @@ class TestFileWalArchiver(object):
         incoming_dir = basedir.join("incoming")
         basedir.mkdir("errors")
         archive_dir = basedir.join("wals")
-        xlog_db = archive_dir.join("xlog.db")
         wal_name = "000000010000000000000001"
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
-        xlog_db.ensure()
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
-            mode="a"
+        backup_manager.server.storage.return_value.__enter__.return_value = (
+            initialize_tiers(backup_manager.server.config)[Tier.RAW]
         )
         backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
 
         backup_manager.archive_wal()
 
-        # Check that the WAL file is not present inside the wal catalog
-        with xlog_db.open() as f:
-            line = str(f.readline())
-            assert wal_name in line
+        # Check that the wal file have been archived
         wal_path = os.path.join(
             archive_dir.strpath, barman.xlog.hash_dir(wal_name), wal_name
         )
-        # Check that the wal file have been archived
         assert os.path.exists(wal_path)
         # Check the output for the archival of the wal file
         out, err = capsys.readouterr()
@@ -597,27 +584,21 @@ class TestFileWalArchiver(object):
         incoming_dir = basedir.join("incoming")
         basedir.mkdir("errors")
         archive_dir = basedir.join("wals")
-        xlog_db = archive_dir.join("xlog.db")
         wal_name = "000000010000000000000001"
         wal_file = incoming_dir.join(wal_name)
         wal_file.ensure()
         archive_dir.ensure(dir=True)
-        xlog_db.ensure()
-        backup_manager.server.xlogdb.return_value.__enter__.return_value = xlog_db.open(
-            mode="a"
+        backup_manager.server.storage.return_value.__enter__.return_value = (
+            initialize_tiers(backup_manager.server.config)[Tier.RAW]
         )
         backup_manager.server.archivers = [FileWalArchiver(backup_manager)]
 
         backup_manager.archive_wal()
 
-        # Check that the WAL file is present inside the wal catalog
-        with xlog_db.open() as f:
-            line = str(f.readline())
-            assert wal_name in line
+        # Check that the wal file have been archived
         wal_path = os.path.join(
             archive_dir.strpath, barman.xlog.hash_dir(wal_name), wal_name
         )
-        # Check that the wal file have been archived
         assert os.path.exists(wal_path)
         # Check the output for the archival of the wal file
         out, err = capsys.readouterr()
