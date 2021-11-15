@@ -164,6 +164,7 @@ class CheckStrategy(object):
         :param bool status: True if succeeded
         :param str,None hint: hint to print if not None:
         :param str,None check: the check name
+        :param str,None perfdata: additional performance data to print if not None
         """
         check = self._check_name(check)
         if not status:
@@ -213,6 +214,7 @@ class CheckOutputStrategy(CheckStrategy):
         :param str check: the check name
         :param bool status: True if succeeded
         :param str,None hint: hint to print if not None:
+        :param str,None perfdata: additional performance data to print if not None
         """
         check = self._check_name(check)
         super(CheckOutputStrategy, self).result(

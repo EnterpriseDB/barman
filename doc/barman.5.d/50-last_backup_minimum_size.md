@@ -1,5 +1,5 @@
 last_backup_minimum_size
-:   This option identifies lower limit to the acceptable size of the latest successful backup
+:   This option identifies lower limit to the acceptable size of the latest successful backup.
     If the latest backup is smaller than the specified size, barman check command will
     report an error to the user.
     If empty (default), latest backup is always considered valid.

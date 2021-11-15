@@ -1270,7 +1270,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         backup_id = self.get_last_backup_id()
         if backup_id:
             # Get the backup object
-            backup = BackupInfo(self.server, backup_id=backup_id)
+            backup = LocalBackupInfo(self.server, backup_id=backup_id)
             if backup.size < last_backup_minimum_size:
                 return False, backup.size
             else:

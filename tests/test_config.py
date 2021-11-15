@@ -303,7 +303,7 @@ class TestConfig(object):
         basic test the parsing method for timedelta values
         pass a value, check if is correctly transformed in a timedelta
         """
-        # A simple integer is accetpable
+        # A simple integer is acceptable
         val = parse_si_suffix("12345678")
         assert val == 12345678
         # 2 k -> 2000

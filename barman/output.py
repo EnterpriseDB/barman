@@ -592,6 +592,7 @@ class ConsoleOutputWriter(object):
         :param str check: the check name
         :param bool status: True if succeeded
         :param str,None hint: hint to print if not None
+        :param str,None perfdata: additional performance data to print if not None
         """
         self.result_check_list.append(
             dict(
@@ -633,20 +634,17 @@ class ConsoleOutputWriter(object):
         :param str check: the check name
         :param bool status: True if succeeded
         :param str,None hint: hint to print if not None
+        :param str,None perfdata: additional performance data to print if not None
         """
         self._record_check(server_name, check, status, hint, perfdata)
-        if hint is None:
-            self.info("\t%s: %s" % (check, _green("OK") if status else _red("FAILED")))
-        elif type(hint) is int:
-            self.info(
-                "\t%s: %s (%s)"
-                % (check, _green("OK") if status else _red("FAILED"), pretty_size(hint))
-            )
-        else:
+
+        if hint:
             self.info(
                 "\t%s: %s (%s)"
                 % (check, _green("OK") if status else _red("FAILED"), hint)
             )
+        else:
+            self.info("\t%s: %s" % (check, _green("OK") if status else _red("FAILED")))
 
     def init_list_backup(self, server_name, minimal=False):
         """
@@ -1240,7 +1238,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         self.json_output[server_name] = {}
         self.active = active
 
-    def result_check(self, server_name, check, status, hint=None):
+    def result_check(self, server_name, check, status, hint=None, perfdata=None):
         """
         Record a server result of a server check
         and output it as INFO
@@ -1249,8 +1247,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
         :param str check: the check name
         :param bool status: True if succeeded
         :param str,None hint: hint to print if not None
+        :param str,None perfdata: additional performance data to print if not None
         """
-        self._record_check(server_name, check, status, hint)
+        self._record_check(server_name, check, status, hint, perfdata)
         check_key = self._mangle_key(check)
 
         self.json_output[server_name][check_key] = dict(
