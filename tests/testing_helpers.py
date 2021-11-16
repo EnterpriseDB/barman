@@ -248,6 +248,7 @@ def build_config_dictionary(config_keys=None):
         "check_timeout": 30,
         "custom_compression_filter": None,
         "custom_decompression_filter": None,
+        "custom_compression_magic": None,
         "description": " Text with quotes ",
         "immediate_checkpoint": False,
         "incoming_wals_directory": "/some/barman/home/main/incoming",
@@ -371,8 +372,11 @@ def build_backup_manager(
         server = build_mocked_server(name, config, global_conf, main_conf)
     with mock.patch("barman.backup.CompressionManager"):
         manager = BackupManager(server=server)
+    manager.compression_manager.unidentified_compression = None
+    manager.compression_manager.get_wal_file_info.side_effect = (
+        lambda filename: WalFileInfo.from_file(filename, manager.compression_manager)
+    )
     server.backup_manager = manager
-    manager.compression_manager.get_wal_file_info.side_effect = WalFileInfo.from_file
     return manager
 
 

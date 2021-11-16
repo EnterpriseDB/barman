@@ -25,7 +25,6 @@ import os
 import dateutil.parser
 import dateutil.tz
 
-import barman.compression
 from barman import xlog
 from barman.exceptions import BackupInfoBadInitialisation
 from barman.utils import fsync_dir
@@ -328,7 +327,9 @@ class WalFileInfo(FieldListFile):
     compression = Field("compression", doc="compression type")
 
     @classmethod
-    def from_file(cls, filename, unidentified_compression=None, **kwargs):
+    def from_file(
+        cls, filename, compression_manager=None, unidentified_compression=None, **kwargs
+    ):
         """
         Factory method to generate a WalFileInfo from a WAL file.
 
@@ -337,17 +338,19 @@ class WalFileInfo(FieldListFile):
         an AttributeError exception is raised.
 
         :param str filename: the file to inspect
+        :param Compressionmanager compression_manager: a compression manager
+            which will be used to identify the compression
         :param str unidentified_compression: the compression to set if
-            the current schema is not identifiable.
+            the current schema is not identifiable
         """
-        identify_compression = barman.compression.identify_compression
         stat = os.stat(filename)
         kwargs.setdefault("name", os.path.basename(filename))
         kwargs.setdefault("size", stat.st_size)
         kwargs.setdefault("time", stat.st_mtime)
         if "compression" not in kwargs:
             kwargs["compression"] = (
-                identify_compression(filename) or unidentified_compression
+                compression_manager.identify_compression(filename)
+                or unidentified_compression
             )
         obj = cls(**kwargs)
         obj.filename = "%s.meta" % filename

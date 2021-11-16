@@ -20,10 +20,12 @@
 This module is responsible to manage the compression features of Barman
 """
 
+import binascii
 import bz2
 import gzip
 import logging
 import shutil
+import sys
 from abc import ABCMeta, abstractmethod
 from contextlib import closing
 
@@ -91,26 +93,36 @@ class CompressionManager(object):
         :rtype: barman.infofile.WalFileInfo
         """
         return barman.infofile.WalFileInfo.from_file(
-            filename, self.unidentified_compression
+            filename,
+            compression_manager=self,
+            unidentified_compression=self.unidentified_compression,
         )
 
+    def identify_compression(self, filename):
+        """
+        Try to guess the compression algorithm of a file
 
-def identify_compression(filename):
-    """
-    Try to guess the compression algorithm of a file
-
-    :param str filename: the path of the file to identify
-    :rtype: str
-    """
-    # TODO: manage multiple decompression methods for the same
-    # compression algorithm (e.g. what to do when gzip is detected?
-    # should we use gzip or pigz?)
-    with open(filename, "rb") as f:
-        file_start = f.read(MAGIC_MAX_LENGTH)
-    for file_type, cls in sorted(compression_registry.items()):
-        if cls.validate(file_start):
-            return file_type
-    return None
+        :param str filename: the path of the file to identify
+        :rtype: str
+        """
+        # TODO: manage multiple decompression methods for the same
+        # compression algorithm (e.g. what to do when gzip is detected?
+        # should we use gzip or pigz?)
+        with open(filename, "rb") as f:
+            file_start = f.read(MAGIC_MAX_LENGTH)
+        for file_type, cls in sorted(compression_registry.items()):
+            if file_type == "custom":
+                try:
+                    compressor = self.get_compressor(file_type)
+                    if compressor.validate(file_start):
+                        return file_type
+                except CompressionIncompatibility:
+                    # ignore exceptions that might happen when creating
+                    # a custom compressor
+                    pass
+            elif cls.validate(file_start):
+                return file_type
+        return None
 
 
 class Compressor(with_metaclass(ABCMeta, object)):
@@ -343,14 +355,36 @@ class CustomCompressor(CommandCompressor):
     """
 
     def __init__(self, config, compression, path=None):
-        if not config.custom_compression_filter:
+        if (
+            config.custom_compression_filter is None
+            or type(config.custom_compression_filter) != str
+        ):
             raise CompressionIncompatibility("custom_compression_filter")
-        if not config.custom_decompression_filter:
+        if (
+            config.custom_decompression_filter is None
+            or type(config.custom_decompression_filter) != str
+        ):
             raise CompressionIncompatibility("custom_decompression_filter")
+
+        if type(config.custom_compression_magic) == str:
+            self.MAGIC = binascii.unhexlify(config.custom_compression_magic[2:])
+
+            # increase the MAGIC_MAX_LENGTH
+            sys.modules[__name__].MAGIC_MAX_LENGTH = max(
+                MAGIC_MAX_LENGTH, len(self.MAGIC)
+            )
 
         super(CustomCompressor, self).__init__(config, compression, path)
         self._compress = self._build_command(config.custom_compression_filter)
         self._decompress = self._build_command(config.custom_decompression_filter)
+
+    def validate(self, file_start):
+        """
+        An instance version of the validate class method.
+        This is needed because it is not possible to determine what the first bytes
+        should be for a custom compressor until the compressor object is created.
+        """
+        return self.MAGIC and file_start.startswith(self.MAGIC)
 
 
 # a dictionary mapping all supported compression schema
