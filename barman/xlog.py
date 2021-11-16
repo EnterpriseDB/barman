@@ -24,9 +24,15 @@ files
 import collections
 import os
 import re
+from functools import partial
 from tempfile import NamedTemporaryFile
 
-from barman.exceptions import BadHistoryFileContents, BadXlogSegmentName
+from barman.exceptions import (
+    BadHistoryFileContents,
+    BadXlogSegmentName,
+    CommandException,
+    WalArchiveContentError,
+)
 
 # xlog file segment name parser (regular expression)
 _xlog_re = re.compile(
@@ -467,3 +473,52 @@ def decode_history_file(wal_info, comp_manager):
         raise BadHistoryFileContents(path)
     else:
         return lines
+
+
+def _validate_timeline(timeline):
+    """Check that timeline is a valid timeline value."""
+    try:
+        # Explicitly check the type becauase python 2 will allow < to be used
+        # between strings and ints
+        if type(timeline) is not int or timeline < 1:
+            raise ValueError()
+        return True
+    except Exception:
+        raise CommandException(
+            "Cannot check WAL archive with malformed timeline %s" % timeline
+        )
+
+
+def _wal_archive_filter_fun(timeline, wal):
+    try:
+        if not is_any_xlog_file(wal):
+            raise ValueError()
+    except Exception:
+        raise WalArchiveContentError("Unexpected file %s found in WAL archive" % wal)
+    wal_timeline, _, _ = decode_segment_name(wal)
+    return timeline <= wal_timeline
+
+
+def check_archive_usable(existing_wals, timeline=None):
+    """
+    Carry out pre-flight checks on the existing content of a WAL archive to
+    determine if it is safe to archive WALs from the supplied timeline.
+    """
+    if timeline is None:
+        if len(existing_wals) > 0:
+            raise WalArchiveContentError("Expected empty archive")
+    else:
+        _validate_timeline(timeline)
+        filter_fun = partial(_wal_archive_filter_fun, timeline)
+        unexpected_wals = [wal for wal in existing_wals if filter_fun(wal)]
+        num_unexpected_wals = len(unexpected_wals)
+        if num_unexpected_wals > 0:
+            raise WalArchiveContentError(
+                "Found %s file%s in WAL archive equal to or newer than "
+                "timeline %s"
+                % (
+                    num_unexpected_wals,
+                    num_unexpected_wals > 1 and "s" or "",
+                    timeline,
+                )
+            )

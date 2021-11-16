@@ -38,8 +38,13 @@ import barman.diagnose
 from barman import output
 from barman.annotations import KeepManager
 from barman.config import RecoveryOptions
-from barman.exceptions import BadXlogSegmentName, RecoveryException, SyncError
-from barman.infofile import BackupInfo
+from barman.exceptions import (
+    BadXlogSegmentName,
+    RecoveryException,
+    SyncError,
+    WalArchiveContentError,
+)
+from barman.infofile import BackupInfo, WalFileInfo
 from barman.server import Server
 from barman.utils import (
     BarmanEncoder,
@@ -51,6 +56,7 @@ from barman.utils import (
     get_log_levels,
     parse_log_level,
 )
+from barman.xlog import check_archive_usable
 
 _logger = logging.getLogger(__name__)
 
@@ -1466,6 +1472,49 @@ def keep(args):
         backup_manager.keep_backup(backup_info.backup_id, args.target)
 
 
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command",
+        ),
+        argument(
+            "--timeline",
+            help="the earliest timeline whose WALs should cause the check to fail",
+            type=check_positive,
+        ),
+    ]
+)
+def check_wal_archive(args):
+    """
+    Check the WAL archive can be safely used for a new server.
+
+    This will fail if there are any existing WALs in the archive.
+    If the --timeline option is used then any WALs on earlier timelines
+    than that specified will not cause the check to fail.
+    """
+    server = get_server(args)
+    output.init("check_wal_archive", server.config.name)
+
+    with server.xlogdb() as fxlogdb:
+        wals = [WalFileInfo.from_xlogdb_line(w).name for w in fxlogdb]
+        try:
+            check_archive_usable(
+                wals,
+                timeline=args.timeline,
+            )
+            output.result("check_wal_archive", server.config.name)
+        except WalArchiveContentError as err:
+            msg = "WAL archive check failed for server %s: %s" % (
+                server.config.name,
+                force_str(err),
+            )
+            logging.error(msg)
+            output.error(msg)
+            output.close_and_exit()
+
+
 def pretty_args(args):
     """
     Prettify the given argparse namespace to be human readable
@@ -1785,7 +1834,6 @@ def main():
     """
     The main method of Barman
     """
-
     # noinspection PyBroadException
     try:
         argcomplete.autocomplete(p)

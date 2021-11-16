@@ -1055,6 +1055,22 @@ class ConsoleOutputWriter(object):
         for status, message in sorted(server_info.items()):
             self.info("\t%s: %s", status, message)
 
+    def init_check_wal_archive(self, server_name):
+        """
+        Init the check-wal-archive command output method
+
+        :param str server_name: the server we are displaying
+        """
+        self.info("Server %s:" % server_name)
+
+    def result_check_wal_archive(self, server_name):
+        """
+        Output the results of the check-wal-archive command
+
+        :param str server_name: the server we are displaying
+        """
+        self.info(" - WAL archive check for server %s passed" % server_name)
+
 
 class JsonOutputWriter(ConsoleOutputWriter):
     def __init__(self, *args, **kwargs):
@@ -1672,6 +1688,24 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 message = str(message)
 
             self.json_output[server_name][status] = message
+
+    def init_check_wal_archive(self, server_name):
+        """
+        Init the check-wal-archive command output method
+
+        :param str server_name: the server we are displaying
+        """
+        self.json_output[server_name] = {}
+
+    def result_check_wal_archive(self, server_name):
+        """
+        Output the results of the check-wal-archive command
+
+        :param str server_name: the server we are displaying
+        """
+        self.json_output[server_name] = (
+            "WAL archive check for server %s passed" % server_name
+        )
 
 
 class NagiosOutputWriter(ConsoleOutputWriter):

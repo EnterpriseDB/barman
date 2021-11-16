@@ -28,6 +28,7 @@ from barman.cli import (
     ArgumentParser,
     argument,
     check_target_action,
+    check_wal_archive,
     command,
     get_server,
     get_server_list,
@@ -36,6 +37,7 @@ from barman.cli import (
     recover,
     keep,
 )
+from barman.exceptions import WalArchiveContentError
 from barman.infofile import BackupInfo
 from barman.server import Server
 from testing_helpers import build_config_dictionary, build_config_from_dicts
@@ -623,3 +625,59 @@ test epilog string
         out, err = capsys.readouterr()
         assert "" == err
         assert self._expected_help_output == out
+
+
+class TestCheckWalArchiveCli(object):
+    @pytest.fixture
+    def mock_args(self):
+        args = Mock()
+        args.sever_name = "test_server"
+        args.timeline = None
+        yield args
+
+    @patch("barman.cli.check_archive_usable")
+    @patch("barman.cli.get_server")
+    def test_barman_check_wal_archive_no_args(
+        self, mock_get_server, mock_check_archive_usable, mock_args
+    ):
+        """Verify barman check-wal-archive command calls xlog.check_archive_usable."""
+        mock_get_server.return_value.xlogdb.return_value.__enter__.return_value = [
+            "000000010000000000000001        0       0       gzip",
+            "000000010000000000000002        0       0       gzip",
+        ]
+        check_wal_archive(mock_args)
+        mock_check_archive_usable.assert_called_once_with(
+            ["000000010000000000000001", "000000010000000000000002"],
+            timeline=None,
+        )
+
+    @patch("barman.cli.check_archive_usable")
+    @patch("barman.cli.get_server")
+    def test_barman_check_wal_archive_args(
+        self, mock_get_server, mock_check_archive_usable, mock_args
+    ):
+        """Verify args passed to xlog.check_archive_usable."""
+        mock_get_server.return_value.xlogdb.return_value.__enter__.return_value = [
+            "000000010000000000000001        0       0       gzip",
+            "000000010000000000000002        0       0       gzip",
+        ]
+        mock_args.timeline = 2
+        check_wal_archive(mock_args)
+        mock_check_archive_usable.assert_called_once_with(
+            ["000000010000000000000001", "000000010000000000000002"],
+            timeline=2,
+        )
+
+    @patch("barman.cli.check_archive_usable")
+    @patch("barman.cli.get_server")
+    def test_barman_check_wal_archive_content_error(
+        self, mock_get_server, mock_check_archive_usable, mock_args, caplog
+    ):
+        """Verify barman check-wal-archive command calls xlog.check_archive_usable."""
+        mock_get_server.return_value.config.name = "test_server"
+        mock_get_server.return_value.xlogdb.return_value.__enter__.return_value = []
+        mock_check_archive_usable.side_effect = WalArchiveContentError("oh dear")
+        with pytest.raises(SystemExit) as exc:
+            check_wal_archive(mock_args)
+        assert 1 == exc.value.code
+        assert "WAL archive check failed for server test_server: oh dear" in caplog.text

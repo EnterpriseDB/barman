@@ -18,19 +18,19 @@
 
 import argparse
 import logging
-from contextlib import closing
 
 import barman
-from barman.annotations import KeepManager
-from barman.cloud import CloudBackupCatalog, configure_logging
+from barman.cloud import configure_logging, CloudBackupCatalog
 from barman.cloud_providers import get_cloud_interface
-from barman.infofile import BackupInfo
-from barman.utils import force_str
+from barman.exceptions import WalArchiveContentError
+from barman.utils import force_str, check_positive
+from barman.xlog import check_archive_usable
 
 
 def main(args=None):
     """
     The main script entry point
+
     :param list[str] args: the raw arguments list. When not provided
         it defaults to sys.args[1:]
     """
@@ -39,87 +39,44 @@ def main(args=None):
 
     try:
         cloud_interface = get_cloud_interface(config)
-
-        with closing(cloud_interface):
-            if not cloud_interface.test_connectivity():
-                raise SystemExit(1)
-            # If test is requested, just exit after connectivity test
-            elif config.test:
-                raise SystemExit(0)
-
-            if not cloud_interface.bucket_exists:
-                logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
-                raise SystemExit(1)
-
-            catalog = CloudBackupCatalog(cloud_interface, config.server_name)
-            if config.release:
-                catalog.release_keep(config.backup_id)
-            elif config.status:
-                target = catalog.get_keep_target(config.backup_id)
-                if target:
-                    print("Keep: %s" % target)
-                else:
-                    print("Keep: nokeep")
-            else:
-                backup_info = catalog.get_backup_info(config.backup_id)
-                if backup_info.status == BackupInfo.DONE:
-                    catalog.keep_backup(config.backup_id, config.target)
-                else:
-                    logging.error(
-                        "Cannot add keep to backup %s because it has status %s. "
-                        "Only backups with status DONE can be kept.",
-                        config.backup_id,
-                        backup_info.status,
-                    )
-                    raise SystemExit(1)
-
-    except Exception as exc:
-        logging.error("Barman cloud keep exception: %s", force_str(exc))
-        logging.debug("Exception details:", exc_info=exc)
+        catalog = CloudBackupCatalog(cloud_interface, config.server_name)
+        wals = list(catalog.get_wal_paths().keys())
+        check_archive_usable(
+            wals,
+            timeline=config.timeline,
+        )
+    except WalArchiveContentError as err:
+        logging.error(
+            "WAL archive check failed for server %s: %s",
+            config.server_name,
+            force_str(err),
+        )
         raise SystemExit(1)
+    except Exception as exc:
+        logging.error("Barman cloud WAL archive check exception: %s", force_str(exc))
+        logging.debug("Exception details:", exc_info=exc)
+        raise SystemExit(2)
 
 
 def parse_arguments(args=None):
     """
     Parse command line arguments
+
     :return: The options parsed
     """
+
     parser = argparse.ArgumentParser(
-        description="This script can be used to delete backups "
-        "made with barman-cloud-backup command. "
-        "Currently AWS S3 and Azure Blob Storage are supported.",
+        description="Checks that the WAL archive on the specified cloud storage "
+        "can be safely used for a new PostgreSQL server.",
         add_help=False,
     )
     parser.add_argument(
-        "source_url",
-        help="URL of the cloud source, such as a bucket in AWS S3."
+        "destination_url",
+        help="URL of the cloud destination, such as a bucket in AWS S3."
         " For example: `s3://bucket/path/to/folder`.",
     )
     parser.add_argument(
         "server_name", help="the name of the server as configured in Barman."
-    )
-    parser.add_argument(
-        "backup_id",
-        help="the backup ID of the backup to be kept",
-    )
-    keep_options = parser.add_mutually_exclusive_group(required=True)
-    keep_options.add_argument(
-        "-r",
-        "--release",
-        help="If specified, the command will remove the keep annotation and the "
-        "backup will be eligible for deletion",
-        action="store_true",
-    )
-    keep_options.add_argument(
-        "-s",
-        "--status",
-        help="Print the keep status of the backup",
-        action="store_true",
-    )
-    keep_options.add_argument(
-        "--target",
-        help="Specify the recovery target for this backup",
-        choices=[KeepManager.TARGET_FULL, KeepManager.TARGET_STANDALONE],
     )
     parser.add_argument(
         "-V", "--version", action="version", version="%%(prog)s %s" % barman.__version__
@@ -146,6 +103,11 @@ def parse_arguments(args=None):
         help="Test cloud connectivity and exit",
         action="store_true",
         default=False,
+    )
+    parser.add_argument(
+        "--timeline",
+        help="The earliest timeline whose WALs should cause the check to fail",
+        type=check_positive,
     )
     parser.add_argument(
         "--cloud-provider",

@@ -24,6 +24,7 @@ from mock import mock
 import barman.exceptions
 from barman import xlog
 from barman.compression import CompressionManager
+from barman.exceptions import CommandException, WalArchiveContentError
 from barman.infofile import WalFileInfo
 
 
@@ -491,3 +492,175 @@ class Test(object):
     )
     def test_xlog_segment_mask(self, mask, size):
         assert mask == xlog.xlog_segment_mask(size)
+
+
+class TestCheckArchiveUsable(object):
+    EXPECTED_EMPTY_MESSAGE = "Expected empty archive"
+    EXPECTED_ARCHIVE_CONTENT_ERROR = (
+        "Found %s file%s in WAL archive equal to or newer than timeline %s"
+    )
+
+    def test_passes_if_no_wals(self):
+        xlog.check_archive_usable([])
+
+    def test_fails_if_wal_exists(self):
+        with pytest.raises(WalArchiveContentError) as exc:
+            xlog.check_archive_usable(["000000010000000000000001"])
+        assert self.EXPECTED_EMPTY_MESSAGE == str(exc.value)
+
+    def test_fails_if_history_exists(self):
+        with pytest.raises(WalArchiveContentError) as exc:
+            xlog.check_archive_usable(["00000002.history"])
+        assert self.EXPECTED_EMPTY_MESSAGE == str(exc.value)
+
+    def test_fails_if_backup_wal_exists(self):
+        with pytest.raises(WalArchiveContentError) as exc:
+            xlog.check_archive_usable(["000000010000000000000001.00000028.backup"])
+        assert self.EXPECTED_EMPTY_MESSAGE == str(exc.value)
+
+    @pytest.mark.parametrize("bad_timeline", [-1, 0, "a string"])
+    def test_error_if_timeline_is_malformed(self, bad_timeline):
+        with pytest.raises(CommandException) as exc:
+            xlog.check_archive_usable(
+                [],
+                timeline=bad_timeline,
+            )
+        assert (
+            "Cannot check WAL archive with malformed timeline %s" % bad_timeline
+            == str(exc.value)
+        )
+
+    def test_passes_if_timeline_with_no_wals(self):
+        xlog.check_archive_usable([], timeline=1)
+
+    @pytest.mark.parametrize(
+        "wals,timeline",
+        [
+            (["00000002.history"], 3),
+            (["00000002.history", "00000003.history"], 4),
+            (["00000003.history", "00000002.history"], 4),
+        ],
+    )
+    def test_passes_if_timeline_gt_history_file(self, wals, timeline):
+        xlog.check_archive_usable(
+            wals,
+            timeline=timeline,
+        )
+
+    @pytest.mark.parametrize(
+        "wals,timeline,num_expected_newer_files",
+        [
+            (["00000002.history"], 1, 1),
+            (["00000002.history", "00000003.history"], 2, 2),
+            (["00000002.history", "00000003.history"], 3, 1),
+            (["00000003.history", "00000002.history"], 2, 2),
+            (["00000003.history", "00000002.history"], 3, 1),
+        ],
+    )
+    def test_fails_if_timeline_lte_history_file(
+        self, wals, timeline, num_expected_newer_files
+    ):
+        with pytest.raises(WalArchiveContentError) as exc:
+            xlog.check_archive_usable(
+                wals,
+                timeline=timeline,
+            )
+        assert (
+            self.EXPECTED_ARCHIVE_CONTENT_ERROR
+            % (
+                num_expected_newer_files,
+                num_expected_newer_files > 1 and "s" or "",
+                timeline,
+            )
+            == str(exc.value)
+        )
+
+    @pytest.mark.parametrize(
+        "wals,timeline",
+        [
+            (["000000010000000000000001"], 2),
+            (["000000020000000000000001"], 3),
+            (
+                [
+                    "000000010000000000000001",
+                    "000000010000000000000002",
+                    "000000010000000000000003",
+                ],
+                2,
+            ),
+            (
+                [
+                    "000000010000000000000001",
+                    "000000010000000000000002",
+                    "000000020000000000000001",
+                ],
+                3,
+            ),
+        ],
+    )
+    def test_passes_if_timeline_gt_wal_file_timeline(self, wals, timeline):
+        xlog.check_archive_usable(
+            wals,
+            timeline=timeline,
+        )
+
+    @pytest.mark.parametrize(
+        "wals,timeline,num_expected_illegal_files",
+        [
+            (["000000020000000000000001"], 1, 1),
+            (["000000030000000000000001"], 2, 1),
+            (
+                [
+                    "000000020000000000000001",
+                    "000000020000000000000002",
+                    "000000020000000000000003",
+                ],
+                1,
+                3,
+            ),
+            (
+                [
+                    "000000020000000000000001",
+                    "000000020000000000000002",
+                    "000000030000000000000001",
+                ],
+                2,
+                3,
+            ),
+        ],
+    )
+    def test_fails_if_timeline_lte_wal_file_timeline(
+        self, wals, timeline, num_expected_illegal_files
+    ):
+        with pytest.raises(WalArchiveContentError) as exc:
+            xlog.check_archive_usable(
+                wals,
+                timeline=timeline,
+            )
+        assert (
+            self.EXPECTED_ARCHIVE_CONTENT_ERROR
+            % (
+                num_expected_illegal_files,
+                num_expected_illegal_files > 1 and "s" or "",
+                timeline,
+            )
+            == str(exc.value)
+        )
+
+    @pytest.mark.parametrize(
+        "wals",
+        [
+            ["00000002.history", "0"],
+            ["000000010000000100000001", 0],
+            ["000000010000000100000001", "00000001000000010000000G"],
+            ["000000010000000100000001", "000000010000000100000001.gz"],
+        ],
+    )
+    def test_fails_if_existing_wals_malformed(self, wals):
+        timeline = 2
+        with pytest.raises(WalArchiveContentError) as exc:
+            xlog.check_archive_usable(
+                wals,
+                timeline=timeline,
+            )
+        assert "Unexpected file %s found in WAL archive" % wals[1] == str(exc.value)

@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import argparse
 import logging
 import os
 import re
@@ -37,11 +38,6 @@ from barman.exceptions import (
 )
 from barman.postgres import PostgreSQLConnection
 from barman.utils import check_positive, check_size, force_str
-
-try:
-    import argparse
-except ImportError:
-    raise SystemExit("Missing required python module: argparse")
 
 _find_space = re.compile(r"[\s]").search
 

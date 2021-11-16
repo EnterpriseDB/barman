@@ -23,6 +23,7 @@
 
 from __future__ import print_function
 
+import argparse
 import copy
 import hashlib
 import os
@@ -34,11 +35,6 @@ from contextlib import closing
 from io import BytesIO
 
 import barman
-
-try:
-    import argparse
-except ImportError:
-    raise SystemExit("Missing required python module: argparse")
 
 DEFAULT_USER = "barman"
 BUFSIZE = 16 * 1024

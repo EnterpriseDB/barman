@@ -25,6 +25,7 @@
 
 from __future__ import print_function
 
+import argparse
 import os
 import shutil
 import subprocess
@@ -33,11 +34,6 @@ import time
 
 import barman
 from barman.utils import force_str
-
-try:
-    import argparse
-except ImportError:
-    raise SystemExit("Missing required python module: argparse")
 
 DEFAULT_USER = "barman"
 DEFAULT_SPOOL_DIR = "/var/tmp/walrestore"
