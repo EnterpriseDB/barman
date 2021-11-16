@@ -948,6 +948,35 @@ class Server(RemoteStatusMixin):
                 perfdata=backup_size[1],
             )
 
+    def _check_wal_info(self, wal_info, last_wal_maximum_age):
+        """
+        Checks the supplied wal_info is within the last_wal_maximum_age.
+
+        :param last_backup_minimum_age: timedelta representing the time from now
+            during which a WAL is considered valid
+        :return tuple: a tuple containing the boolean result of the check, a string
+            with auxiliary information about the check, and an integer representing
+            the size of the WAL in bytes
+        """
+        wal_last = datetime.datetime.fromtimestamp(
+            wal_info["wal_last_timestamp"], dateutil.tz.tzlocal()
+        )
+        now = datetime.datetime.now(dateutil.tz.tzlocal())
+        wal_age = now - wal_last
+        if wal_age <= last_wal_maximum_age:
+            wal_age_isok = True
+        else:
+            wal_age_isok = False
+        wal_message = "interval provided: %s, latest wal age: %s" % (
+            human_readable_timedelta(last_wal_maximum_age),
+            human_readable_timedelta(wal_age),
+        )
+        if wal_info["wal_until_next_size"] is None:
+            wal_size = 0
+        else:
+            wal_size = wal_info["wal_until_next_size"]
+        return wal_age_isok, wal_message, wal_size
+
     def check_wal_validity(self, check_strategy):
         """
         Check if wal archiving requirements are satisfied
@@ -969,23 +998,9 @@ class Server(RemoteStatusMixin):
                 wal_message = "No WAL files archived for last backup"
                 wal_size = 0
             else:
-                wal_last = datetime.datetime.fromtimestamp(
-                    wal_info["wal_last_timestamp"], dateutil.tz.tzlocal()
+                wal_age_isok, wal_message, wal_size = self._check_wal_info(
+                    wal_info, self.config.last_wal_maximum_age
                 )
-                now = datetime.datetime.now(dateutil.tz.tzlocal())
-                wal_age = now - wal_last
-                if wal_age <= self.config.last_wal_maximum_age:
-                    wal_age_isok = True
-                else:
-                    wal_age_isok = False
-                wal_message = "interval provided: %s, latest wal age: %s" % (
-                    human_readable_timedelta(self.config.last_wal_maximum_age),
-                    human_readable_timedelta(wal_age),
-                )
-                if wal_info["wal_until_next_size"] is None:
-                    wal_size = 0
-                else:
-                    wal_size = wal_info["wal_until_next_size"]
             # format the output
             check_strategy.result(self.config.name, wal_age_isok, hint=wal_message)
         else:
