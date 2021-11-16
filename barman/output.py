@@ -1736,15 +1736,13 @@ class NagiosOutputWriter(ConsoleOutputWriter):
         Do not print anything on standard error
         """
 
-    def close(self):
+    def _parse_check_results(self):
         """
-        Display the result of a check run as expected by Nagios.
+        Parse the check results and return the servers checked and any issues.
 
-        Also set the exit code as 2 (CRITICAL) in case of errors
+        :return tuple: a tuple containing a list of checked servers, a list of all
+            issues found and a list of additional performance detail.
         """
-
-        global error_occurred, error_exit_code
-
         # List of all servers that have been checked
         servers = []
         # List of servers reporting issues
@@ -1767,6 +1765,118 @@ class NagiosOutputWriter(ConsoleOutputWriter):
                 perf_detail.append(
                     "%s_wals=%dB" % (item["server_name"], int(item["perfdata"]))
                 )
+        return servers, issues, perf_detail
+
+    def _summarise_server_issues(self, issues):
+        """
+        Converts the supplied list of issues into a printable summary.
+
+        :return tuple: A tuple where the first element is a string summarising each
+            server with issues and the second element is a string containing the
+            details of all failures for each server.
+        """
+        fail_summary = []
+        details = []
+        for server in issues:
+            # Join all the issues for a server. Output format is in the
+            # form:
+            # "<server_name> FAILED: <failed_check1>, <failed_check2> ... "
+            # All strings will be concatenated into the $SERVICEOUTPUT$
+            # macro of the Nagios output
+            server_fail = "%s FAILED: %s" % (
+                server,
+                ", ".join(
+                    [
+                        item["check"]
+                        for item in self.result_check_list
+                        if item["server_name"] == server and not item["status"]
+                    ]
+                ),
+            )
+            fail_summary.append(server_fail)
+            # Prepare an array with the detailed output for
+            # the $LONGSERVICEOUTPUT$ macro of the Nagios output
+            # line format:
+            # <servername>.<failed_check1>: FAILED
+            # <servername>.<failed_check2>: FAILED (Hint if present)
+            # <servername2.<failed_check1>: FAILED
+            # .....
+            for issue in self.result_check_list:
+                if issue["server_name"] == server and not issue["status"]:
+                    fail_detail = "%s.%s: FAILED" % (server, issue["check"])
+                    if issue["hint"]:
+                        fail_detail += " (%s)" % issue["hint"]
+                    details.append(fail_detail)
+        return fail_summary, details
+
+    def _print_check_failure(self, servers, issues, perf_detail):
+        """Prints the output for a failed check."""
+        # Generate the performance data message - blank string if no perf detail
+        perf_detail_message = perf_detail and "|%s" % " ".join(perf_detail) or ""
+
+        fail_summary, details = self._summarise_server_issues(issues)
+        # Append the summary of failures to the first line of the output
+        # using * as delimiter
+        if len(servers) == 1:
+            print(
+                "BARMAN CRITICAL - server %s has issues * %s%s"
+                % (servers[0], " * ".join(fail_summary), perf_detail_message)
+            )
+        else:
+            print(
+                "BARMAN CRITICAL - %d server out of %d have issues * "
+                "%s%s"
+                % (
+                    len(issues),
+                    len(servers),
+                    " * ".join(fail_summary),
+                    perf_detail_message,
+                )
+            )
+
+        # add the detailed list to the output
+        for issue in details:
+            print(issue)
+
+    def _print_check_success(self, servers, issues=None, perf_detail=None):
+        """Prints the output for a successful check."""
+        if issues is None:
+            issues = []
+
+        # Generate the issues message - blank string if no issues
+        issues_message = "".join([" * IGNORING: %s" % issue for issue in issues])
+        # Generate the performance data message - blank string if no perf detail
+        perf_detail_message = perf_detail and "|%s" % " ".join(perf_detail) or ""
+
+        # Some issues, but only in skipped server
+        good = [item for item in servers if item not in issues]
+        # Display the output message for a single server check
+        if len(good) == 0:
+            print("BARMAN OK - No server configured%s" % issues_message)
+        elif len(good) == 1:
+            print(
+                "BARMAN OK - Ready to serve the Espresso backup "
+                "for %s%s%s" % (good[0], issues_message, perf_detail_message)
+            )
+        else:
+            # Display the output message for several servers, using
+            # '*' as delimiter
+            print(
+                "BARMAN OK - Ready to serve the Espresso backup "
+                "for %d servers * %s%s%s"
+                % (len(good), " * ".join(good), issues_message, perf_detail_message)
+            )
+
+    def close(self):
+        """
+        Display the result of a check run as expected by Nagios.
+
+        Also set the exit code as 2 (CRITICAL) in case of errors
+        """
+
+        global error_occurred, error_exit_code
+
+        servers, issues, perf_detail = self._parse_check_results()
 
         # Global error (detected at configuration level)
         if len(issues) == 0 and error_occurred:
@@ -1775,105 +1885,10 @@ class NagiosOutputWriter(ConsoleOutputWriter):
             return
 
         if len(issues) > 0 and error_occurred:
-            fail_summary = []
-            details = []
-            for server in issues:
-                # Join all the issues for a server. Output format is in the
-                # form:
-                # "<server_name> FAILED: <failed_check1>, <failed_check2> ... "
-                # All strings will be concatenated into the $SERVICEOUTPUT$
-                # macro of the Nagios output
-                server_fail = "%s FAILED: %s" % (
-                    server,
-                    ", ".join(
-                        [
-                            item["check"]
-                            for item in self.result_check_list
-                            if item["server_name"] == server and not item["status"]
-                        ]
-                    ),
-                )
-                fail_summary.append(server_fail)
-                # Prepare an array with the detailed output for
-                # the $LONGSERVICEOUTPUT$ macro of the Nagios output
-                # line format:
-                # <servername>.<failed_check1>: FAILED
-                # <servername>.<failed_check2>: FAILED (Hint if present)
-                # <servername2.<failed_check1>: FAILED
-                # .....
-                for issue in self.result_check_list:
-                    if issue["server_name"] == server and not issue["status"]:
-                        fail_detail = "%s.%s: FAILED" % (server, issue["check"])
-                        if issue["hint"]:
-                            fail_detail += " (%s)" % issue["hint"]
-                        details.append(fail_detail)
-            # Append the summary of failures to the first line of the output
-            # using * as delimiter
-            if len(servers) == 1:
-                print(
-                    "BARMAN CRITICAL - server %s has issues * %s|%s"
-                    % (servers[0], " * ".join(fail_summary), " ".join(perf_detail))
-                )
-            else:
-                print(
-                    "BARMAN CRITICAL - %d server out of %d have issues * "
-                    "%s|%s"
-                    % (
-                        len(issues),
-                        len(servers),
-                        " * ".join(fail_summary),
-                        " ".join(perf_detail),
-                    )
-                )
-
-            # add the detailed list to the output
-            for issue in details:
-                print(issue)
+            self._print_check_failure(servers, issues, perf_detail)
             error_exit_code = 2
-        elif len(issues) > 0 and not error_occurred:
-            # Some issues, but only in skipped server
-            good = [item for item in servers if item not in issues]
-            # Display the output message for a single server check
-            if len(good) == 0:
-                print(
-                    "BARMAN OK - No server configured * IGNORING: %s"
-                    % (" * IGNORING: ".join(issues))
-                )
-            elif len(good) == 1:
-                print(
-                    "BARMAN OK - Ready to serve the Espresso backup "
-                    "for %s * IGNORING: %s" % (good[0], " * IGNORING: ".join(issues))
-                )
-            else:
-                # Display the output message for several servers, using
-                # '*' as delimiter
-                print(
-                    "BARMAN OK - Ready to serve the Espresso backup "
-                    "for %d servers * %s * IGNORING: %s"
-                    % (len(good), " * ".join(good), " * IGNORING: ".join(issues))
-                )
         else:
-            # No issues, all good!
-            # Display the output message for a single server check
-            if not len(servers):
-                print("BARMAN OK - No server configured")
-            elif len(servers) == 1:
-                print(
-                    "BARMAN OK - Ready to serve the Espresso backup "
-                    "for %s|%s" % (servers[0], " ".join(perf_detail))
-                )
-            else:
-                # Display the output message for several servers, using
-                # '*' as delimiter
-                print(
-                    "BARMAN OK - Ready to serve the Espresso backup "
-                    "for %d server(s) * %s|%s"
-                    % (
-                        len(servers),
-                        " * ".join([server for server in servers]),
-                        " ".join(perf_detail),
-                    )
-                )
+            self._print_check_success(servers, issues, perf_detail)
 
 
 #: This dictionary acts as a registry of available OutputWriters

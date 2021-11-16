@@ -2040,7 +2040,7 @@ class TestNagiosWriter(object):
 
         writer.close()
         (out, err) = capsys.readouterr()
-        assert out == "BARMAN OK - Ready to serve the Espresso backup for a|\n"
+        assert out == "BARMAN OK - Ready to serve the Espresso backup for a\n"
         assert err == ""
         assert not output.error_occurred
 
@@ -2058,7 +2058,7 @@ class TestNagiosWriter(object):
         (out, err) = capsys.readouterr()
         assert (
             out == "BARMAN OK - Ready to serve the Espresso backup "
-            "for 3 server(s) * a * b * c|c=789B\n"
+            "for 3 servers * a * b * c|c=789B\n"
         )
         assert err == ""
         assert not output.error_occurred
@@ -2131,7 +2131,7 @@ class TestNagiosWriter(object):
         (out, err) = capsys.readouterr()
         assert (
             out == "BARMAN CRITICAL - server a has issues * "
-            "a FAILED: test|\na.test: FAILED\n"
+            "a FAILED: test\na.test: FAILED\n"
         )
         assert err == ""
         assert output.error_occurred
