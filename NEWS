@@ -5,18 +5,18 @@ Version 2.16 - 17 November 2021
 - Support magic bytes for custom compression identification.
 
 - Add the commands `barman-check-wal-archive` and `barman-cloud-check-wal-archive`
-  to validate if a proposed archive location is safe to use. 
+  to validate if a proposed archive location is safe to use safe to use for a new 
+  PostgreSQL server. 
 
 - Add `last_backup_minimum_size` and `last_wal_maximum_age` options to `barman check`.
-
-- Check whether a backup_info already has begin_time before setting it
-  from a backup label in _backup_info_from_backup_label.
 
 - Bug fixes:
 
     - Unsupported dependency argh replaced by argparse.
 
     - `barman diagnose` can now be rerun within the same session.
+
+    - Make timezones consistent for `begin_time` and `end_time`.
 
 - Thank you to our external contributors chtitux, George Hansper, stratakis, 
   Thoro, and vrms.
