@@ -2,12 +2,12 @@ Barman News - History of user-visible changes
 
 Version 2.16 - 17 November 2021 
 
-- Allow Barman to identify WAL that's already compressed using a custom
-  compression scheme to avoid compressing it again.
-
 - Add the commands `barman-check-wal-archive` and `barman-cloud-check-wal-archive`
   to validate if a proposed archive location is safe to use for a new PostgreSQL 
   server. 
+
+- Allow Barman to identify WAL that's already compressed using a custom
+  compression scheme to avoid compressing it again.
 
 - Add `last_backup_minimum_size` and `last_wal_maximum_age` options to 
   `barman check`.
