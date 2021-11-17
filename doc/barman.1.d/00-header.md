@@ -1,3 +1,3 @@
-% BARMAN(1) Barman User manuals | Version 2.15
+% BARMAN(1) Barman User manuals | Version 2.16
 % EnterpriseDB <https://www.enterprisedb.com>
-% October 12, 2021
+% November 17, 2021

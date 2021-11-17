@@ -1,5 +1,27 @@
 Barman News - History of user-visible changes
 
+Version 2.16 - 17 November 2021 
+
+- Add the commands `barman-check-wal-archive` and `barman-cloud-check-wal-archive`
+  to validate if a proposed archive location is safe to use for a new PostgreSQL 
+  server. 
+
+- Allow Barman to identify WAL that's already compressed using a custom
+  compression scheme to avoid compressing it again.
+
+- Add `last_backup_minimum_size` and `last_wal_maximum_age` options to 
+  `barman check`.
+
+- Bug fixes:
+
+    - Use argparse for command line parsing instead of the unmaintained
+      argh module.
+
+    - Make timezones consistent for `begin_time` and `end_time`.
+
+- Thank you to our external contributors chtitux, George Hansper, 
+  stratakis, Thoro, and vrms.
+
 Version 2.15 - 12 October 2021
 
 - Add plural forms for the `list-backup`, `list-server` and
