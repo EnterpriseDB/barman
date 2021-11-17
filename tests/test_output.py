@@ -2052,12 +2052,13 @@ class TestNagiosWriter(object):
         writer.result_check("a", "test", True, None)
         writer.result_check("b", "test", True, None)
         writer.result_check("c", "test", True, None)
+        writer.result_check("c", "backup minimum size", True, 789, perfdata=789)
 
         writer.close()
         (out, err) = capsys.readouterr()
         assert (
             out == "BARMAN OK - Ready to serve the Espresso backup "
-            "for 3 servers * a * b * c\n"
+            "for 3 servers * a * b * c|c=789B\n"
         )
         assert err == ""
         assert not output.error_occurred
@@ -2144,12 +2145,13 @@ class TestNagiosWriter(object):
         writer.result_check("a", "test", True, None)
         writer.result_check("b", "test", False, "hint")
         writer.result_check("c", "test", True, None)
+        writer.result_check("c", "wal size", True, 789, perfdata=789)
 
         writer.close()
         (out, err) = capsys.readouterr()
         assert (
             out == "BARMAN CRITICAL - 1 server out of 3 have issues * "
-            "b FAILED: test\nb.test: FAILED (hint)\n"
+            "b FAILED: test|c_wals=789B\nb.test: FAILED (hint)\n"
         )
         assert err == ""
         assert output.error_occurred

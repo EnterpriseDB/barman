@@ -293,6 +293,8 @@ def build_config_dictionary(config_keys=None):
         "post_wal_delete_retry_script": None,
         "pre_wal_delete_retry_script": None,
         "last_backup_maximum_age": None,
+        "last_backup_minimum_size": None,
+        "last_wal_maximum_age": None,
         "disabled": False,
         "msg_list": [],
         "path_prefix": None,

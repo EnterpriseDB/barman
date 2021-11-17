@@ -21,7 +21,9 @@ import hashlib
 import json
 import os
 import tarfile
+import time
 from collections import namedtuple
+import dateutil.tz
 from io import BytesIO
 
 import pytest
@@ -1907,6 +1909,223 @@ class TestServer(object):
         server.check_identity(strategy)
         (out, err) = capsys.readouterr()
         assert out == "\tsystemid coherence: OK\n"
+
+    @pytest.fixture
+    def server(self, tmpdir):
+        """Returns a basic real server."""
+        return Server(
+            build_config_from_dicts(
+                global_conf={
+                    "barman_home": tmpdir.mkdir("barman_home").strpath,
+                },
+                main_conf={
+                    "backup_directory": tmpdir.mkdir("backup").strpath,
+                    "wals_directory": tmpdir.mkdir("wals").strpath,
+                },
+            ).get_server("main")
+        )
+
+    def test_check_wal_validity_no_wals(self, server, capsys):
+        """Verify the check fails if there is no last WAL"""
+        server.config.last_wal_maximum_age = datetime.timedelta(hours=1)
+        strategy = CheckOutputStrategy()
+        server.check_wal_validity(strategy)
+        assert strategy.has_error
+        out, _err = capsys.readouterr()
+        assert (
+            "\twal maximum age: FAILED (No WAL files archived for last backup)\n" in out
+        )
+
+    def _get_epoch_time_hours_ago(self, hours):
+        """Helper function which returns unix timestamp exactly the specified hours old"""
+        n_hours_ago = datetime.datetime.now(dateutil.tz.tzlocal()) - datetime.timedelta(
+            hours=hours
+        )
+        return time.mktime(n_hours_ago.timetuple())
+
+    def test_check_wal_validity_within_maximum_age(self, server, capsys):
+        """Verify the check passes if the last WAL is newer than specified"""
+        with server.xlogdb("w") as fxlogdb:
+            fxlogdb.write(
+                "000000020000000000000001 42 %s None"
+                % self._get_epoch_time_hours_ago(1)
+            )
+
+        backup = build_test_backup_info(
+            server=server,
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000001",
+        )
+        backup.save()
+
+        server.config.last_wal_maximum_age = datetime.timedelta(hours=2)
+        strategy = CheckOutputStrategy()
+        server.check_wal_validity(strategy)
+        assert not strategy.has_error
+        out, _err = capsys.readouterr()
+        assert (
+            "\twal maximum age: OK (interval provided: 2 hours, latest wal age: 1 hour"
+            in out
+        )
+
+    def test_check_wal_validity_exceeds_maximum_age(self, server, capsys):
+        """Verify the check fails if the last WAL is older than specified"""
+        with server.xlogdb("w") as fxlogdb:
+            fxlogdb.write(
+                "000000020000000000000001 42 %s None"
+                % self._get_epoch_time_hours_ago(2)
+            )
+
+        backup = build_test_backup_info(
+            server=server,
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000001",
+        )
+        backup.save()
+
+        server.config.last_wal_maximum_age = datetime.timedelta(hours=1)
+        strategy = CheckOutputStrategy()
+        server.check_wal_validity(strategy)
+        assert strategy.has_error
+        out, _err = capsys.readouterr()
+        assert (
+            "\twal maximum age: FAILED (interval provided: 1 hour, latest wal age: 2 hours"
+            in out
+        )
+
+    def test_check_wal_validity_no_maximum_age(self, server, capsys):
+        """Verify the check passes when last_wal_maximum_age isn't set"""
+        with server.xlogdb("w") as fxlogdb:
+            fxlogdb.write("000000020000000000000001 42 0 None\n")
+
+        backup = build_test_backup_info(
+            server=server,
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000001",
+        )
+        backup.save()
+
+        strategy = CheckOutputStrategy()
+        server.check_wal_validity(strategy)
+        assert not strategy.has_error
+        out, _err = capsys.readouterr()
+        assert "\twal maximum age: OK (no last_wal_maximum_age provided)\n" in out
+
+    def test_check_wal_validity_size(self, server, capsys):
+        """Verify that the correct WAL size since the last backup is returned"""
+        with server.xlogdb("w") as fxlogdb:
+            fxlogdb.write("000000020000000000000001 42 0 None\n")
+            fxlogdb.write("000000020000000000000002 43 0 None\n")
+            fxlogdb.write("000000020000000000000003 42 0 None\n")
+
+        backup = build_test_backup_info(
+            server=server,
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000001",
+        )
+        backup.save()
+
+        strategy = CheckOutputStrategy()
+        server.check_wal_validity(strategy)
+        assert not strategy.has_error
+        out, _err = capsys.readouterr()
+        assert "\twal size: OK (85 B)\n" in out
+
+    def test_check_backup_validity_no_minimum_age_or_size(self, server, capsys):
+        backup = build_test_backup_info(
+            server=server,
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000001",
+        )
+        backup.save()
+
+        strategy = CheckOutputStrategy()
+        server.check_backup_validity(strategy)
+
+        assert not strategy.has_error
+        out, _err = capsys.readouterr()
+        assert "\tbackup maximum age: OK (no last_backup_maximum_age provided)\n" in out
+
+    def test_check_backup_validity_within_minimum_age(self, server, capsys):
+        backup = build_test_backup_info(
+            server=server,
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000001",
+            end_time=datetime.datetime.now(dateutil.tz.tzlocal())
+            - datetime.timedelta(hours=1),
+        )
+        backup.save()
+
+        server.config.last_backup_maximum_age = datetime.timedelta(hours=2)
+        strategy = CheckOutputStrategy()
+        server.check_backup_validity(strategy)
+
+        assert not strategy.has_error
+        out, _err = capsys.readouterr()
+        assert (
+            "\tbackup maximum age: OK (interval provided: 2 hours, latest backup age: 1 hour"
+            in out
+        )
+
+    def test_check_backup_validity_exceeds_minimum_age(self, server, capsys):
+        backup = build_test_backup_info(
+            server=server,
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000001",
+            end_time=datetime.datetime.now(dateutil.tz.tzlocal())
+            - datetime.timedelta(hours=2),
+        )
+        backup.save()
+
+        server.config.last_backup_maximum_age = datetime.timedelta(hours=1)
+        strategy = CheckOutputStrategy()
+        server.check_backup_validity(strategy)
+
+        assert strategy.has_error
+        out, _err = capsys.readouterr()
+        assert (
+            "\tbackup maximum age: FAILED (interval provided: 1 hour, latest backup age: 2 hours"
+            in out
+        )
+
+    def test_check_backup_validity_exceeds_minimum_size(self, server, capsys):
+        backup = build_test_backup_info(
+            server=server,
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000001",
+            size=43,
+        )
+        backup.save()
+
+        server.config.last_backup_minimum_size = 42
+        strategy = CheckOutputStrategy()
+        server.check_backup_validity(strategy)
+
+        assert not strategy.has_error
+        out, _err = capsys.readouterr()
+        assert (
+            "\tbackup minimum size: OK (last backup size 43 B > 42 B minimum)\n" in out
+        )
+
+    def test_check_backup_validity_under_minimum_size(self, server, capsys):
+        backup = build_test_backup_info(
+            server=server,
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000001",
+            size=41,
+        )
+        backup.save()
+
+        server.config.last_backup_minimum_size = 42
+        strategy = CheckOutputStrategy()
+        server.check_backup_validity(strategy)
+
+        assert strategy.has_error
+        out, _err = capsys.readouterr()
+        assert (
+            "\tbackup minimum size: FAILED (last backup size 41 B < 42 B minimum)\n"
+            in out
+        )
 
 
 class TestCheckStrategy(object):
