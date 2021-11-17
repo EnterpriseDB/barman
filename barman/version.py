@@ -20,4 +20,4 @@
 This module contains the current Barman version.
 """
 
-__version__ = "2.15"
+__version__ = "2.16"
