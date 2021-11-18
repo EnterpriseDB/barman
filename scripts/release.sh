@@ -23,12 +23,6 @@ BASE="$(dirname $(cd $(dirname "$0"); pwd))"
 cd "$BASE"
 
 VERSION="$(python -c 'd={}; exec(open("barman/version.py").read(), d); print(d["__version__"])')"
-scripts/gitlog-to-changelog > ChangeLog
-git add ChangeLog
-git commit -m "Update the ChangeLog file"
-scripts/gitlog-to-changelog > ChangeLog
-git add ChangeLog
-git commit -m "Update the ChangeLog file" --amend
 ./setup.py sdist
 if ! git tag -s -m "Release ${VERSION}" release/${VERSION}
 then
