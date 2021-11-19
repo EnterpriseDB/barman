@@ -203,6 +203,15 @@ def parse_arguments(args=None):
         "Extra options for the azure-blob-storage cloud provider"
     )
     azure_arguments.add_argument(
+        "--credential",
+        choices=["azure-cli", "managed-identity"],
+        help="Optionally specify the type of credential to use when "
+        "authenticating with Azure Blob Storage. If omitted then "
+        "the credential will be obtained from the environment. If no "
+        "credentials can be found in the environment then the default "
+        "Azure authentication flow will be used",
+    )
+    azure_arguments.add_argument(
         "--encryption-scope",
         help="The name of an encryption scope defined in the Azure Blob Storage "
         "service which is to be used to encrypt the data in Azure",

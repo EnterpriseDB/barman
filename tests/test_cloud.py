@@ -18,8 +18,10 @@
 
 import datetime
 import os
+from argparse import Namespace
 from io import BytesIO
 from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
+from azure.identity import AzureCliCredential, ManagedIdentityCredential
 from azure.storage.blob import PartialBatchErrorException
 
 import mock
@@ -29,10 +31,19 @@ from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
 from barman.annotations import KeepManager
-from barman.cloud import CloudBackupCatalog, CloudUploadingError, FileUploadStatistics
+from barman.cloud import (
+    CloudBackupCatalog,
+    CloudProviderError,
+    CloudUploadingError,
+    FileUploadStatistics,
+)
+from barman.cloud_providers import (
+    CloudProviderOptionUnsupported,
+    CloudProviderUnsupported,
+    get_cloud_interface,
+)
 from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
-from barman.cloud import CloudProviderError
 
 try:
     from queue import Queue
@@ -752,6 +763,33 @@ class TestAzureCloudInterface(object):
 
     @mock.patch.dict(
         os.environ,
+        {
+            "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
+            "AZURE_STORAGE_SAS_TOKEN": "sas_token",
+            "AZURE_STORAGE_KEY": "storage_key",
+        },
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_uploader_with_specified_credential(self, ContainerClientMock):
+        """Specified credential option takes precedences over environment"""
+        container_name = "container"
+        account_url = "storageaccount.blob.core.windows.net"
+        credential = AzureCliCredential()
+        cloud_interface = AzureCloudInterface(
+            url="https://%s/%s/path/to/dir" % (account_url, container_name),
+            credential=credential,
+        )
+
+        assert cloud_interface.bucket_name == "container"
+        assert cloud_interface.path == "path/to/dir"
+        ContainerClientMock.assert_called_once_with(
+            account_url=account_url,
+            credential=credential,
+            container_name=container_name,
+        )
+
+    @mock.patch.dict(
+        os.environ,
         {"AZURE_STORAGE_SAS_TOKEN": "sas_token", "AZURE_STORAGE_KEY": "storage_key"},
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
@@ -1274,6 +1312,74 @@ class TestAzureCloudInterface(object):
         assert (
             "Deletion of object path/to/object/1 failed because it could not be found"
         ) in caplog.text
+
+
+class TestGetCloudInterface(object):
+    """
+    Verify get_cloud_interface creates the required CloudInterface
+    """
+
+    @pytest.fixture()
+    def mock_config_aws(self):
+        return Namespace(endpoint_url=None, profile=None, source_url="test-url")
+
+    @pytest.fixture()
+    def mock_config_azure(self):
+        return Namespace(credential=None, source_url="test-url")
+
+    def test_unsupported_provider(self, mock_config_aws):
+        """Verify an exception is raised for unsupported cloud providers"""
+        mock_config_aws.cloud_provider = "aws-infinidash"
+        with pytest.raises(CloudProviderUnsupported) as exc:
+            get_cloud_interface(mock_config_aws)
+        assert "Unsupported cloud provider: aws-infinidash" == str(exc.value)
+
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_aws_s3(self, mock_s3_cloud_interface, mock_config_aws):
+        """Verify --cloud-provider=aws-s3 creates an S3CloudInterface"""
+        mock_config_aws.cloud_provider = "aws-s3"
+        get_cloud_interface(mock_config_aws)
+        mock_s3_cloud_interface.assert_called_once()
+
+    @mock.patch("barman.cloud_providers.azure_blob_storage.AzureCloudInterface")
+    def test_azure_blob_storage(self, mock_azure_cloud_interface, mock_config_azure):
+        """Verify --cloud-provider=azure-blob-storage creates an AzureCloudInterface"""
+        mock_config_azure.cloud_provider = "azure-blob-storage"
+        get_cloud_interface(mock_config_azure)
+        mock_azure_cloud_interface.assert_called_once()
+
+    def test_azure_blob_storage_unsupported_credential(self, mock_config_azure):
+        """Verify unsupported Azure credentials raise an exception"""
+        mock_config_azure.cloud_provider = "azure-blob-storage"
+        mock_config_azure.credential = "qbasic-credential"
+        with pytest.raises(CloudProviderOptionUnsupported) as exc:
+            get_cloud_interface(mock_config_azure)
+        assert "Unsupported credential: qbasic-credential" == str(exc.value)
+
+    @pytest.mark.parametrize(
+        "credential_arg,expected_credential",
+        [
+            ("azure-cli", AzureCliCredential),
+            ("managed-identity", ManagedIdentityCredential),
+        ],
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.AzureCloudInterface")
+    def test_azure_blob_storage_supported_credential(
+        self,
+        mock_azure_cloud_interface,
+        mock_config_azure,
+        credential_arg,
+        expected_credential,
+    ):
+        """Verify provided credentials result in the correct credential type"""
+        mock_config_azure.cloud_provider = "azure-blob-storage"
+        mock_config_azure.credential = credential_arg
+        get_cloud_interface(mock_config_azure)
+        mock_azure_cloud_interface.assert_called_once()
+        assert isinstance(
+            type(mock_azure_cloud_interface.call_args_list[0][1]["credential"]),
+            expected_credential,
+        )
 
 
 class TestCloudBackupCatalog(object):

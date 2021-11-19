@@ -170,6 +170,18 @@ def parse_arguments(args=None):
         "--profile",
         help="profile name (e.g. INI section in AWS credentials file)",
     )
+    azure_arguments = parser.add_argument_group(
+        "Extra options for the azure-blob-storage cloud provider"
+    )
+    azure_arguments.add_argument(
+        "--credential",
+        choices=["azure-cli", "managed-identity"],
+        help="Optionally specify the type of credential to use when "
+        "authenticating with Azure Blob Storage. If omitted then "
+        "the credential will be obtained from the environment. If no "
+        "credentials can be found in the environment then the default "
+        "Azure authentication flow will be used",
+    )
     return parser.parse_args(args=args)
 
 
