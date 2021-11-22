@@ -19,8 +19,8 @@ Version 2.16 - 17 November 2021
 
     - Make timezones consistent for `begin_time` and `end_time`.
 
-- Thank you to our external contributors chtitux, George Hansper, 
-  stratakis, Thoro, and vrms.
+- We thank chtitux, George Hansper, stratakis, Thoro, and vrms for their
+  contributions to this release.
 
 Version 2.15 - 12 October 2021
 
