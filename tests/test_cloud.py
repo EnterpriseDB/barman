@@ -1377,7 +1377,7 @@ class TestGetCloudInterface(object):
         get_cloud_interface(mock_config_azure)
         mock_azure_cloud_interface.assert_called_once()
         assert isinstance(
-            type(mock_azure_cloud_interface.call_args_list[0][1]["credential"]),
+            mock_azure_cloud_interface.call_args_list[0][1]["credential"],
             expected_credential,
         )
 
