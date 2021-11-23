@@ -1463,11 +1463,10 @@ def check_wal_archive(args):
     server = get_server(args)
     output.init("check_wal_archive", server.config.name)
 
-    with server.xlogdb() as fxlogdb:
-        wals = [WalFileInfo.from_xlogdb_line(w).name for w in fxlogdb]
+    with server.storage() as storage:
         try:
             check_archive_usable(
-                wals,
+                [wal.name for wal in storage.get_wal_infos()],
                 timeline=args.timeline,
             )
             output.result("check_wal_archive", server.config.name)

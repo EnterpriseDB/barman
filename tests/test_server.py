@@ -1866,13 +1866,17 @@ class TestServer(object):
         )
         return time.mktime(n_hours_ago.timetuple())
 
-    def test_check_wal_validity_within_maximum_age(self, server, capsys):
+    @patch("barman.server.Server.storage")
+    def test_check_wal_validity_within_maximum_age(self, mock_storage, server, capsys):
         """Verify the check passes if the last WAL is newer than specified"""
-        with server.xlogdb("w") as fxlogdb:
-            fxlogdb.write(
-                "000000020000000000000001 42 %s None"
-                % self._get_epoch_time_hours_ago(1)
+        mock_storage.return_value.__enter__.return_value.get_wal_infos.return_value = [
+            WalFileInfo(
+                name="000000020000000000000001",
+                size=42,
+                time=self._get_epoch_time_hours_ago(1),
+                compression=None,
             )
+        ]
 
         backup = build_test_backup_info(
             server=server,
@@ -1891,13 +1895,17 @@ class TestServer(object):
             in out
         )
 
-    def test_check_wal_validity_exceeds_maximum_age(self, server, capsys):
+    @patch("barman.server.Server.storage")
+    def test_check_wal_validity_exceeds_maximum_age(self, mock_storage, server, capsys):
         """Verify the check fails if the last WAL is older than specified"""
-        with server.xlogdb("w") as fxlogdb:
-            fxlogdb.write(
-                "000000020000000000000001 42 %s None"
-                % self._get_epoch_time_hours_ago(2)
+        mock_storage.return_value.__enter__.return_value.get_wal_infos.return_value = [
+            WalFileInfo(
+                name="000000020000000000000001",
+                size=42,
+                time=self._get_epoch_time_hours_ago(2),
+                compression=None,
             )
+        ]
 
         backup = build_test_backup_info(
             server=server,
@@ -1916,10 +1924,17 @@ class TestServer(object):
             in out
         )
 
-    def test_check_wal_validity_no_maximum_age(self, server, capsys):
+    @patch("barman.server.Server.storage")
+    def test_check_wal_validity_no_maximum_age(self, mock_storage, server, capsys):
         """Verify the check passes when last_wal_maximum_age isn't set"""
-        with server.xlogdb("w") as fxlogdb:
-            fxlogdb.write("000000020000000000000001 42 0 None\n")
+        mock_storage.return_value.__enter__.return_value.get_wal_infos.return_value = [
+            WalFileInfo(
+                name="000000020000000000000001",
+                size=42,
+                time=0,
+                compression=None,
+            )
+        ]
 
         backup = build_test_backup_info(
             server=server,
@@ -1934,12 +1949,18 @@ class TestServer(object):
         out, _err = capsys.readouterr()
         assert "\twal maximum age: OK (no last_wal_maximum_age provided)\n" in out
 
-    def test_check_wal_validity_size(self, server, capsys):
+    @patch("barman.server.Server.storage")
+    def test_check_wal_validity_size(self, mock_storage, server, capsys):
         """Verify that the correct WAL size since the last backup is returned"""
-        with server.xlogdb("w") as fxlogdb:
-            fxlogdb.write("000000020000000000000001 42 0 None\n")
-            fxlogdb.write("000000020000000000000002 43 0 None\n")
-            fxlogdb.write("000000020000000000000003 42 0 None\n")
+        mock_storage.return_value.__enter__.return_value.get_wal_infos.return_value = [
+            WalFileInfo(
+                name="00000002000000000000000%s" % i,
+                size=size,
+                time=0,
+                compression=None,
+            )
+            for i, size in [(1, 42), (2, 43), (3, 42)]
+        ]
 
         backup = build_test_backup_info(
             server=server,

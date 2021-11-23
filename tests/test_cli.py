@@ -38,7 +38,7 @@ from barman.cli import (
     keep,
 )
 from barman.exceptions import WalArchiveContentError
-from barman.infofile import BackupInfo
+from barman.infofile import BackupInfo, WalFileInfo
 from barman.server import Server
 from testing_helpers import build_config_dictionary, build_config_from_dicts
 
@@ -641,9 +641,13 @@ class TestCheckWalArchiveCli(object):
         self, mock_get_server, mock_check_archive_usable, mock_args
     ):
         """Verify barman check-wal-archive command calls xlog.check_archive_usable."""
-        mock_get_server.return_value.xlogdb.return_value.__enter__.return_value = [
-            "000000010000000000000001        0       0       gzip",
-            "000000010000000000000002        0       0       gzip",
+        mock_get_server.return_value.storage.return_value.__enter__.return_value.get_wal_infos.return_value = [
+            WalFileInfo(
+                name="000000010000000000000001", size=0, time=0, compression="gzip"
+            ),
+            WalFileInfo(
+                name="000000010000000000000002", size=0, time=0, compression="gzip"
+            ),
         ]
         check_wal_archive(mock_args)
         mock_check_archive_usable.assert_called_once_with(
@@ -657,9 +661,13 @@ class TestCheckWalArchiveCli(object):
         self, mock_get_server, mock_check_archive_usable, mock_args
     ):
         """Verify args passed to xlog.check_archive_usable."""
-        mock_get_server.return_value.xlogdb.return_value.__enter__.return_value = [
-            "000000010000000000000001        0       0       gzip",
-            "000000010000000000000002        0       0       gzip",
+        mock_get_server.return_value.storage.return_value.__enter__.return_value.get_wal_infos.return_value = [
+            WalFileInfo(
+                name="000000010000000000000001", size=0, time=0, compression="gzip"
+            ),
+            WalFileInfo(
+                name="000000010000000000000002", size=0, time=0, compression="gzip"
+            ),
         ]
         mock_args.timeline = 2
         check_wal_archive(mock_args)
@@ -675,7 +683,6 @@ class TestCheckWalArchiveCli(object):
     ):
         """Verify barman check-wal-archive command calls xlog.check_archive_usable."""
         mock_get_server.return_value.config.name = "test_server"
-        mock_get_server.return_value.xlogdb.return_value.__enter__.return_value = []
         mock_check_archive_usable.side_effect = WalArchiveContentError("oh dear")
         with pytest.raises(SystemExit) as exc:
             check_wal_archive(mock_args)

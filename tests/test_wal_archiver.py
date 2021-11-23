@@ -269,7 +269,6 @@ class TestFileWalArchiver(object):
         caplog.set_level(0)
 
         # Setup the test
-        fxlogdb_mock = MagicMock()
         backup_manager = MagicMock()
         archiver = FileWalArchiver(backup_manager)
         archiver.config.name = "test_server"
@@ -285,7 +284,7 @@ class TestFileWalArchiver(object):
         assert batch.run_size == 1
 
         get_next_batch_mock.return_value = batch
-        archiver.archive(fxlogdb_mock)
+        archiver.archive()
         # check the log for messages
         assert (
             "Found %s xlog segments from %s for %s."
@@ -382,15 +381,10 @@ class TestFileWalArchiver(object):
             basedir = tmpdir.join("main")
             incoming_dir = basedir.join("incoming")
             archive_dir = basedir.join("wals")
-            xlog_db = archive_dir.join("xlog.db")
             wal_name = "000000010000000000000001"
             wal_file = incoming_dir.join(wal_name)
             wal_file.ensure()
             archive_dir.ensure(dir=True)
-            xlog_db.ensure()
-            backup_manager.server.xlogdb.return_value.__enter__.return_value = (
-                xlog_db.open(mode="a")
-            )
             archiver = FileWalArchiver(backup_manager)
             backup_manager.server.archivers = [archiver]
 
