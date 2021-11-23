@@ -30,7 +30,7 @@ class StorageTierRaw(StorageTier):
 
     def __init__(self, server_config, path):
         self.server = server_config.name
-        self.path = path
+        self.path = str(path)
         self.compression_manager = CompressionManager(server_config, self.path)
 
     def is_wal_archive_empty(self):

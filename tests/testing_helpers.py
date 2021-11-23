@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import errno
 import os
 import sys
 from datetime import datetime, timedelta
@@ -485,13 +486,14 @@ def write_wal(
     compression=None,
 ):
     """Generate fake WALs on disk"""
-    if name and not prefix and 'history' not in name:
+    if name and not prefix and "history" not in name:
         prefix = name[:16]
     if prefix:
         try:
             os.makedirs("%s/%s" % (target_dir, prefix))
-        except FileExistsError:
-            pass
+        except EnvironmentError as e:
+            if e.errno != errno.EEXIST:
+                raise
     if name:
         wal_name = "%s/%s%s" % (
             target_dir,
