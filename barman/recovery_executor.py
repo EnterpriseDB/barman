@@ -1258,6 +1258,7 @@ class RecoveryExecutor(object):
         # Write the mangled content
         mangled = []
         with open(filename, "wb") as f:
+            last_line = None
             for l_number, line in enumerate(content):
                 rm = PG_CONF_SETTING_RE.match(line.decode("utf-8"))
                 if rm:
@@ -1275,10 +1276,12 @@ class RecoveryExecutor(object):
                             )
                         )
                         continue
+                last_line = line
                 f.write(line)
-            # Append content of append_lises array
+            # Append content of append_lines array
             if append_lines:
-                if line[-1] != "\n".encode("utf-8"):
+                # Ensure we have end of line character at the end of the file before adding new lines
+                if last_line and last_line[-1] != "\n".encode("utf-8"):
                     f.write("\n".encode("utf-8"))
                 f.write(("\n".join(append_lines) + "\n").encode("utf-8"))
 
