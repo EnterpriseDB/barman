@@ -95,6 +95,15 @@ class TestRecoveryExecutor(object):
         assert len(recovery_info["results"]["changes"]) == 2
         assert len(recovery_info["results"]["warnings"]) == 4
 
+        # Test corner case with empty auto file
+        recovery_info["results"]["changes"] = []
+        recovery_info["results"]["warnings"] = []
+        recovery_info["auto_conf_append_lines"] = ["l1", "l2"]
+        postgresql_auto.write("")
+        executor._analyse_temporary_config_files(recovery_info)
+        assert len(recovery_info["results"]["changes"]) == 1
+        assert len(recovery_info["results"]["warnings"]) == 3
+
     def test_map_temporary_config_files(self, tmpdir):
         """
         Test the method that prepares configuration files
