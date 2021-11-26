@@ -65,7 +65,10 @@ setup(
             [
                 "doc/barman.1",
                 "doc/barman-cloud-backup.1",
+                "doc/barman-cloud-backup-keep.1",
                 "doc/barman-cloud-backup-list.1",
+                "doc/barman-cloud-backup-delete.1",
+                "doc/barman-cloud-check-wal-archive.1",
                 "doc/barman-cloud-restore.1",
                 "doc/barman-cloud-wal-archive.1",
                 "doc/barman-cloud-wal-restore.1",
