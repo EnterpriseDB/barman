@@ -873,7 +873,9 @@ class RsyncCopyController(object):
             ref_hash = {}
             ref_has_content = False
             for file_item in self._list_files(item, ref):
-                if file_item.path != ".":
+                if file_item.path != "." and not (
+                    item.label == "pgdata" and file_item.path == "pg_tblspc"
+                ):
                     ref_has_content = True
                 if file_item.mode[0] != "d":
                     ref_hash[file_item.path] = file_item
