@@ -274,7 +274,7 @@ class RsyncCopyController(object):
         |
         # final summary
         rsync\ error:\ .* \(code\ 23\)\ at\ main\.c\(\d+\)
-            \ \[(generator|receiver)=[^\]]+\]
+            \ \[(generator|receiver|sender)=[^\]]+\]
         )
         $ # end of the line
     """,
