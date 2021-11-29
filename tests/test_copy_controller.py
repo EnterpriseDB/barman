@@ -879,10 +879,10 @@ class TestRsyncCopyController(object):
         # the directories
         assert item.dir_file
         assert open(item.dir_file).read() == (".\ntmp\n")
-        # The exclude_and_protect file should be empty because the destination
-        # was empty
+        # The exclude_and_protect file should contain only wildcards to include
+        # all directories and exclude all files
         assert item.exclude_and_protect_file
-        assert open(item.exclude_and_protect_file).read() == ""
+        assert open(item.exclude_and_protect_file).read() == "+ */\n- *\n"
 
     @patch("barman.copy_controller.RsyncCopyController._rsync_factory")
     @patch("barman.copy_controller.RsyncCopyController._rsync_ignore_vanished_files")
