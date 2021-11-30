@@ -873,7 +873,9 @@ class RsyncCopyController(object):
             ref_hash = {}
             ref_has_content = False
             for file_item in self._list_files(item, ref):
-                if file_item.path != ".":
+                if file_item.path != "." and not (
+                    item.label == "pgdata" and file_item.path == "pg_tblspc"
+                ):
                     ref_has_content = True
                 if file_item.mode[0] != "d":
                     ref_hash[file_item.path] = file_item
@@ -900,6 +902,16 @@ class RsyncCopyController(object):
             self.temp_dir, "%s_exclude_and_protect.filter" % item.label
         )
         exclude_and_protect_filter = open(item.exclude_and_protect_file, "w+")
+
+        if not ref_has_content:
+            # If the destination directory is empty then include all
+            # directories and exclude all files. This stops the rsync
+            # command which runs during the _create_dir_and_purge function
+            # from copying the entire contents of the source directory and
+            # ensures it only creates the directories.
+            exclude_and_protect_filter.write("+ */\n")
+            exclude_and_protect_filter.write("- *\n")
+
         # The `safe_list` will contain all items older than
         # safe_horizon, as well as files that we know rsync will
         # check anyway due to a difference in mtime or size
