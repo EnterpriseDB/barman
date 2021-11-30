@@ -1,6 +1,9 @@
 Barman, Backup and Recovery Manager for PostgreSQL
 ==================================================
 
+This is the new (starting with version 2.13) home of Barman. It replaces
+the legacy sourceforge repository.
+
 Barman (Backup and Recovery Manager) is an open-source administration
 tool for disaster recovery of PostgreSQL servers written in Python. It
 allows your organisation to perform remote backups of multiple servers
@@ -38,6 +41,7 @@ Web resources
 -  Community support : http://www.pgbarman.org/support/
 -  Professional support : https://www.enterprisedb.com/
 -  pgespresso extension : https://github.com/2ndquadrant-it/pgespresso
+-  pre barman 2.13 versions : https://sourceforge.net/projects/pgbarman/files/
 
 Licence
 -------
