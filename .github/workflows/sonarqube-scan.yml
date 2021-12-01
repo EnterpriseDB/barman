@@ -11,7 +11,7 @@ jobs:
   sonarQube:
     name: SonarQube-Job
     runs-on: ubuntu-latest
-    if: github.repository == 'EnterpriseDB/barman'
+    if: github.event.pull_request.head.repo.full_name == 'EnterpriseDB/barman'
     steps:
       - name: Checkout source repo
         uses: actions/checkout@v2
