@@ -448,7 +448,6 @@ if sys.version_info[0] >= 3:
         """
         return s
 
-
 else:
 
     def b(s):
