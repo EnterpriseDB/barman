@@ -727,3 +727,23 @@ class TestCheckSize(object):
 
     def test_none(self):
         assert barman.utils.check_size(None) is None
+
+
+class TestSHA256(object):
+    def test_get_name(self):
+        sha = barman.utils.SHA256()
+        assert "SHA256" == sha.get_name()
+
+    def test_checksum(self):
+        sha = barman.utils.SHA256()
+        ref_checksum = (
+            "9c6609fc5111405ea3f5bb3d1f6b5a5efd19a0cec53d85893fd96d265439cd5b"
+        )
+        assert ref_checksum == sha.checksum("Some content".encode("utf-8"))
+
+    def test_checksum_from_str(self):
+        sha = barman.utils.SHA256()
+        ref_checksum = (
+            "9c6609fc5111405ea3f5bb3d1f6b5a5efd19a0cec53d85893fd96d265439cd5b"
+        )
+        assert ref_checksum == sha.checksum_from_str("Some content")
