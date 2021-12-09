@@ -102,7 +102,7 @@ class AzureCloudInterface(CloudInterface):
     # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
     MAX_ARCHIVE_SIZE = 1 << 40
 
-    def __init__(self, url, jobs=2, encryption_scope=None):
+    def __init__(self, url, jobs=2, encryption_scope=None, credential=None):
         """
         Create a new Azure Blob Storage interface given the supplied acccount url
 
@@ -115,6 +115,7 @@ class AzureCloudInterface(CloudInterface):
             jobs=jobs,
         )
         self.encryption_scope = encryption_scope
+        self.credential = credential
 
         parsed_url = urlparse(url)
         if parsed_url.netloc.endswith(AZURE_BLOB_STORAGE_DOMAIN):
@@ -152,12 +153,16 @@ class AzureCloudInterface(CloudInterface):
         """
         Create a new session
         """
-        if "AZURE_STORAGE_CONNECTION_STRING" in os.environ:
+        if self.credential:
+            # Any supplied credential takes precedence over the environment
+            credential = self.credential
+        elif "AZURE_STORAGE_CONNECTION_STRING" in os.environ:
             logging.info("Authenticating to Azure with connection string")
             self.container_client = ContainerClient.from_connection_string(
                 conn_str=os.getenv("AZURE_STORAGE_CONNECTION_STRING"),
                 container_name=self.bucket_name,
             )
+            return
         else:
             if "AZURE_STORAGE_SAS_TOKEN" in os.environ:
                 logging.info("Authenticating to Azure with SAS token")
@@ -174,11 +179,11 @@ class AzureCloudInterface(CloudInterface):
                 except ImportError:
                     raise SystemExit("Missing required python module: azure-identity")
                 credential = DefaultAzureCredential()
-            self.container_client = ContainerClient(
-                account_url=self.account_url,
-                container_name=self.bucket_name,
-                credential=credential,
-            )
+        self.container_client = ContainerClient(
+            account_url=self.account_url,
+            container_name=self.bucket_name,
+            credential=credential,
+        )
 
     @property
     def _extra_upload_args(self):

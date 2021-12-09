@@ -78,7 +78,9 @@ please refer to the ["Credentials" section in Boto 3 documentation][boto3creds].
 For credentials for the azure-blob-storage cloud provider see the
 ["Environment variables for authorization parameters" section in the Azure documentation][azure-storage-auth].
 The following environment variables are supported: `AZURE_STORAGE_CONNECTION_STRING`,
-`AZURE_STORAGE_KEY` and `AZURE_STORAGE_SAS_TOKEN`.
+`AZURE_STORAGE_KEY` and `AZURE_STORAGE_SAS_TOKEN`. You can also use the
+`--credential` option to specify either `azure-cli` or `managed-identity` credentials
+in order to authenticate via Azure Active Directory.
 
 > **WARNING:** Cloud utilities require the appropriate library for the cloud
 > provider you wish to use - either: [boto3][boto3] or

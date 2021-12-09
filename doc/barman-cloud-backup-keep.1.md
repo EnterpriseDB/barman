@@ -82,6 +82,11 @@ BACKUP_ID
 --endpoint-url
 :    override the default S3 URL construction mechanism by specifying an endpoint.
 
+--credential {azure-cli,managed-identity}
+:    optionally specify the type of credential to use when authenticating with
+     Azure Blob Storage. If omitted then the credential will be obtained from the
+     environment. If no credentials can be found in the environment then the default
+     Azure authentication flow will be used.
 
 # REFERENCES
 

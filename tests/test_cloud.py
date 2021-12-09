@@ -18,8 +18,10 @@
 
 import datetime
 import os
+from argparse import Namespace
 from io import BytesIO
 from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
+from azure.identity import AzureCliCredential, ManagedIdentityCredential
 from azure.storage.blob import PartialBatchErrorException
 
 import mock
@@ -29,10 +31,19 @@ from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
 from barman.annotations import KeepManager
-from barman.cloud import CloudBackupCatalog, CloudUploadingError, FileUploadStatistics
+from barman.cloud import (
+    CloudBackupCatalog,
+    CloudProviderError,
+    CloudUploadingError,
+    FileUploadStatistics,
+)
+from barman.cloud_providers import (
+    CloudProviderOptionUnsupported,
+    CloudProviderUnsupported,
+    get_cloud_interface,
+)
 from barman.cloud_providers.aws_s3 import S3CloudInterface
 from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
-from barman.cloud import CloudProviderError
 
 try:
     from queue import Queue
@@ -726,6 +737,18 @@ class TestAzureCloudInterface(object):
     Tests which verify backend-specific behaviour of AzureCloudInterface.
     """
 
+    @pytest.fixture
+    def mock_account_url(self):
+        return "storageaccount.blob.core.windows.net"
+
+    @pytest.fixture
+    def mock_object_path(self):
+        return "path/to/object"
+
+    @pytest.fixture
+    def mock_storage_url(self, mock_account_url, mock_object_path):
+        return "https://%s/%s/%s" % (mock_account_url, "container", mock_object_path)
+
     @mock.patch.dict(
         os.environ,
         {
@@ -735,18 +758,49 @@ class TestAzureCloudInterface(object):
         },
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_uploader_minimal(self, ContainerClientMock):
+    def test_uploader_minimal(
+        self, container_client_mock, mock_storage_url, mock_object_path
+    ):
         """Connection string auth takes precedence over SAS token or shared token"""
         container_name = "container"
-        account_url = "https://storageaccount.blob.core.windows.net"
+        cloud_interface = AzureCloudInterface(url=mock_storage_url)
+
+        assert cloud_interface.bucket_name == "container"
+        assert cloud_interface.path == mock_object_path
+        container_client_mock.from_connection_string.assert_called_once_with(
+            conn_str=os.environ["AZURE_STORAGE_CONNECTION_STRING"],
+            container_name=container_name,
+        )
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "AZURE_STORAGE_CONNECTION_STRING": "connection_string",
+            "AZURE_STORAGE_SAS_TOKEN": "sas_token",
+            "AZURE_STORAGE_KEY": "storage_key",
+        },
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_uploader_with_specified_credential(
+        self,
+        container_client_mock,
+        mock_account_url,
+        mock_object_path,
+        mock_storage_url,
+    ):
+        """Specified credential option takes precedences over environment"""
+        container_name = "container"
+        credential = AzureCliCredential()
         cloud_interface = AzureCloudInterface(
-            url="%s/%s/path/to/dir" % (account_url, container_name)
+            url=mock_storage_url,
+            credential=credential,
         )
 
         assert cloud_interface.bucket_name == "container"
-        assert cloud_interface.path == "path/to/dir"
-        ContainerClientMock.from_connection_string.assert_called_once_with(
-            conn_str=os.environ["AZURE_STORAGE_CONNECTION_STRING"],
+        assert cloud_interface.path == mock_object_path
+        container_client_mock.assert_called_once_with(
+            account_url=mock_account_url,
+            credential=credential,
             container_name=container_name,
         )
 
@@ -755,18 +809,23 @@ class TestAzureCloudInterface(object):
         {"AZURE_STORAGE_SAS_TOKEN": "sas_token", "AZURE_STORAGE_KEY": "storage_key"},
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_uploader_sas_token_auth(self, ContainerClientMock):
+    def test_uploader_sas_token_auth(
+        self,
+        container_client_mock,
+        mock_account_url,
+        mock_storage_url,
+        mock_object_path,
+    ):
         """SAS token takes precedence over shared token"""
         container_name = "container"
-        account_url = "storageaccount.blob.core.windows.net"
         cloud_interface = AzureCloudInterface(
-            url="https://%s/%s/path/to/dir" % (account_url, container_name)
+            mock_storage_url,
         )
 
         assert cloud_interface.bucket_name == "container"
-        assert cloud_interface.path == "path/to/dir"
-        ContainerClientMock.assert_called_once_with(
-            account_url=account_url,
+        assert cloud_interface.path == mock_object_path
+        container_client_mock.assert_called_once_with(
+            account_url=mock_account_url,
             credential=os.environ["AZURE_STORAGE_SAS_TOKEN"],
             container_name=container_name,
         )
@@ -776,18 +835,21 @@ class TestAzureCloudInterface(object):
         {"AZURE_STORAGE_KEY": "storage_key"},
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_uploader_shared_token_auth(self, ContainerClientMock):
+    def test_uploader_shared_token_auth(
+        self,
+        container_client_mock,
+        mock_account_url,
+        mock_storage_url,
+        mock_object_path,
+    ):
         """Shared token is used if SAS token and connection string aren't set"""
         container_name = "container"
-        account_url = "storageaccount.blob.core.windows.net"
-        cloud_interface = AzureCloudInterface(
-            url="https://%s/%s/path/to/dir" % (account_url, container_name)
-        )
+        cloud_interface = AzureCloudInterface(url=mock_storage_url)
 
         assert cloud_interface.bucket_name == "container"
-        assert cloud_interface.path == "path/to/dir"
-        ContainerClientMock.assert_called_once_with(
-            account_url=account_url,
+        assert cloud_interface.path == mock_object_path
+        container_client_mock.assert_called_once_with(
+            account_url=mock_account_url,
             credential=os.environ["AZURE_STORAGE_KEY"],
             container_name=container_name,
         )
@@ -795,19 +857,23 @@ class TestAzureCloudInterface(object):
     @mock.patch("azure.identity.DefaultAzureCredential")
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
     def test_uploader_default_credential_auth(
-        self, ContainerClientMock, default_azure_credential
+        self,
+        container_client_mock,
+        default_azure_credential,
+        mock_account_url,
+        mock_storage_url,
+        mock_object_path,
     ):
         """Uses DefaultAzureCredential if no other auth provided"""
         container_name = "container"
-        account_url = "storageaccount.blob.core.windows.net"
         cloud_interface = AzureCloudInterface(
-            url="https://%s/%s/path/to/dir" % (account_url, container_name)
+            url=mock_storage_url,
         )
 
         assert cloud_interface.bucket_name == "container"
-        assert cloud_interface.path == "path/to/dir"
-        ContainerClientMock.assert_called_once_with(
-            account_url=account_url,
+        assert cloud_interface.path == mock_object_path
+        container_client_mock.assert_called_once_with(
+            account_url=mock_account_url,
             credential=default_azure_credential.return_value,
             container_name=container_name,
         )
@@ -819,17 +885,17 @@ class TestAzureCloudInterface(object):
         },
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_emulated_storage(self, ContainerClientMock):
+    def test_emulated_storage(self, container_client_mock, mock_object_path):
         """Connection string auth and emulated storage URL are valid"""
         container_name = "container"
         account_url = "https://127.0.0.1/devstoreaccount1"
         cloud_interface = AzureCloudInterface(
-            url="%s/%s/path/to/dir" % (account_url, container_name)
+            url="%s/%s/%s" % (account_url, container_name, mock_object_path)
         )
 
         assert cloud_interface.bucket_name == "container"
-        assert cloud_interface.path == "path/to/dir"
-        ContainerClientMock.from_connection_string.assert_called_once_with(
+        assert cloud_interface.path == mock_object_path
+        container_client_mock.from_connection_string.assert_called_once_with(
             conn_str=os.environ["AZURE_STORAGE_CONNECTION_STRING"],
             container_name=container_name,
         )
@@ -839,12 +905,14 @@ class TestAzureCloudInterface(object):
         os.environ,
         {"AZURE_STORAGE_SAS_TOKEN": "sas_token", "AZURE_STORAGE_KEY": "storage_key"},
     )
-    def test_emulated_storage_no_connection_string(self):
+    def test_emulated_storage_no_connection_string(self, mock_object_path):
         """Emulated storage URL with no connection string fails"""
         container_name = "container"
         account_url = "https://127.0.0.1/devstoreaccount1"
         with pytest.raises(ValueError) as exc:
-            AzureCloudInterface(url="%s/%s/path/to/dir" % (account_url, container_name))
+            AzureCloudInterface(
+                url="%s/%s/%s" % (account_url, container_name, mock_object_path)
+            )
         assert (
             str(exc.value)
             == "A connection string must be provided when using emulated storage"
@@ -868,7 +936,7 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_connectivity(self, ContainerClientMock):
+    def test_connectivity(self, container_client_mock):
         """
         Test the test_connectivity method
         """
@@ -878,7 +946,7 @@ class TestAzureCloudInterface(object):
         assert cloud_interface.test_connectivity() is True
         # Bucket existence checking is carried out by checking we can successfully
         # iterate the bucket contents
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         container_client.list_blobs.assert_called_once_with()
         blobs_iterator = container_client.list_blobs.return_value
         blobs_iterator.next.assert_called_once_with()
@@ -890,14 +958,14 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_connectivity_failure(self, ContainerClientMock):
+    def test_connectivity_failure(self, container_client_mock):
         """
         Test the test_connectivity method in case of failure
         """
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         blobs_iterator = container_client.list_blobs.return_value
         blobs_iterator.next.side_effect = ServiceRequestError("error")
         assert cloud_interface.test_connectivity() is False
@@ -906,7 +974,7 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_setup_bucket(self, ContainerClientMock):
+    def test_setup_bucket(self, container_client_mock):
         """
         Test if a bucket already exists
         """
@@ -914,7 +982,7 @@ class TestAzureCloudInterface(object):
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
         cloud_interface.setup_bucket()
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         container_client.list_blobs.assert_called_once_with()
         blobs_iterator = container_client.list_blobs.return_value
         blobs_iterator.next.assert_called_once_with()
@@ -923,14 +991,14 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_setup_bucket_create(self, ContainerClientMock):
+    def test_setup_bucket_create(self, container_client_mock):
         """
         Test auto-creation of a bucket if it does not exist
         """
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         blobs_iterator = container_client.list_blobs.return_value
         blobs_iterator.next.side_effect = ResourceNotFoundError()
         cloud_interface.setup_bucket()
@@ -942,12 +1010,12 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_upload_fileobj(self, ContainerClientMock):
+    def test_upload_fileobj(self, container_client_mock):
         """Test container client upload_blob is called with expected args"""
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         mock_fileobj = mock.MagicMock()
         mock_key = "path/to/blob"
         cloud_interface.upload_fileobj(mock_fileobj, mock_key)
@@ -960,14 +1028,14 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_upload_fileobj_with_encryption_scope(self, ContainerClientMock):
+    def test_upload_fileobj_with_encryption_scope(self, container_client_mock):
         """Test encrption scope is passed to upload_blob"""
         encryption_scope = "test_encryption_scope"
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob",
             encryption_scope=encryption_scope,
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         mock_fileobj = mock.MagicMock()
         mock_key = "path/to/blob"
         cloud_interface.upload_fileobj(mock_fileobj, mock_key)
@@ -984,14 +1052,14 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_upload_part(self, ContainerClientMock):
+    def test_upload_part(self, container_client_mock):
         """
         Tests the upload of a single block in Azure
         """
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         blob_client_mock = container_client.get_blob_client.return_value
 
         mock_body = mock.MagicMock()
@@ -1007,7 +1075,7 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_upload_part_with_encryption_scope(self, ContainerClientMock):
+    def test_upload_part_with_encryption_scope(self, container_client_mock):
         """
         Tests that the encryption scope is passed to the blob client when
         uploading a single block
@@ -1017,7 +1085,7 @@ class TestAzureCloudInterface(object):
             "https://storageaccount.blob.core.windows.net/container/path/to/blob",
             encryption_scope=encryption_scope,
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         blob_client_mock = container_client.get_blob_client.return_value
 
         mock_body = mock.MagicMock()
@@ -1036,12 +1104,12 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_complete_multipart_upload(self, ContainerClientMock):
+    def test_complete_multipart_upload(self, container_client_mock):
         """Tests completion of a block blob upload in Azure Blob Storage"""
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         blob_client_mock = container_client.get_blob_client.return_value
 
         mock_parts = [{"PartNumber": "00001"}]
@@ -1057,7 +1125,9 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_complete_multipart_upload_with_encryption_scope(self, ContainerClientMock):
+    def test_complete_multipart_upload_with_encryption_scope(
+        self, container_client_mock
+    ):
         """
         Tests the completion of a block blob upload in Azure Blob Storage and that
         the encryption scope is passed to the blob client
@@ -1067,7 +1137,7 @@ class TestAzureCloudInterface(object):
             "https://storageaccount.blob.core.windows.net/container/path/to/blob",
             encryption_scope=encryption_scope,
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         blob_client_mock = container_client.get_blob_client.return_value
 
         mock_parts = [{"PartNumber": "00001"}]
@@ -1085,12 +1155,12 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_abort_multipart_upload(self, ContainerClientMock):
+    def test_abort_multipart_upload(self, container_client_mock):
         """Test aborting a block blob upload in Azure Blob Storage"""
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         blob_client_mock = container_client.get_blob_client.return_value
 
         mock_key = "path/to/blob"
@@ -1106,7 +1176,7 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_abort_multipart_upload_with_encryption_scope(self, ContainerClientMock):
+    def test_abort_multipart_upload_with_encryption_scope(self, container_client_mock):
         """
         Test aborting a block blob upload in Azure Blob Storage and verify that the
         encryption scope is passed to the blob client
@@ -1116,7 +1186,7 @@ class TestAzureCloudInterface(object):
             "https://storageaccount.blob.core.windows.net/container/path/to/blob",
             encryption_scope=encryption_scope,
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
         blob_client_mock = container_client.get_blob_client.return_value
 
         mock_key = "path/to/blob"
@@ -1135,11 +1205,11 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_delete_objects(self, ContainerClientMock):
+    def test_delete_objects(self, container_client_mock):
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
 
         mock_keys = ["path/to/object/1", "path/to/object/2"]
         cloud_interface.delete_objects(mock_keys)
@@ -1150,11 +1220,11 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_delete_objects_with_empty_list(self, ContainerClientMock):
+    def test_delete_objects_with_empty_list(self, container_client_mock):
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
 
         mock_keys = []
         cloud_interface.delete_objects(mock_keys)
@@ -1174,11 +1244,11 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_delete_objects_partial_failure(self, ContainerClientMock, caplog):
+    def test_delete_objects_partial_failure(self, container_client_mock, caplog):
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
 
         mock_keys = ["path/to/object/1", "path/to/object/2"]
 
@@ -1206,7 +1276,7 @@ class TestAzureCloudInterface(object):
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
     def test_delete_objects_partial_failure_exception(
-        self, ContainerClientMock, caplog
+        self, container_client_mock, caplog
     ):
         """
         Test that partial failures raised via PartialBatchErrorException are handled.
@@ -1216,7 +1286,7 @@ class TestAzureCloudInterface(object):
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
 
         mock_keys = ["path/to/object/1", "path/to/object/2"]
 
@@ -1247,14 +1317,14 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_delete_objects_404_not_failure(self, ContainerClientMock, caplog):
+    def test_delete_objects_404_not_failure(self, container_client_mock, caplog):
         """
         Test that 404 responses in partial failures do not create an error.
         """
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
-        container_client = ContainerClientMock.from_connection_string.return_value
+        container_client = container_client_mock.from_connection_string.return_value
 
         mock_keys = ["path/to/object/1", "path/to/object/2"]
 
@@ -1274,6 +1344,74 @@ class TestAzureCloudInterface(object):
         assert (
             "Deletion of object path/to/object/1 failed because it could not be found"
         ) in caplog.text
+
+
+class TestGetCloudInterface(object):
+    """
+    Verify get_cloud_interface creates the required CloudInterface
+    """
+
+    @pytest.fixture()
+    def mock_config_aws(self):
+        return Namespace(endpoint_url=None, profile=None, source_url="test-url")
+
+    @pytest.fixture()
+    def mock_config_azure(self):
+        return Namespace(credential=None, source_url="test-url")
+
+    def test_unsupported_provider(self, mock_config_aws):
+        """Verify an exception is raised for unsupported cloud providers"""
+        mock_config_aws.cloud_provider = "aws-infinidash"
+        with pytest.raises(CloudProviderUnsupported) as exc:
+            get_cloud_interface(mock_config_aws)
+        assert "Unsupported cloud provider: aws-infinidash" == str(exc.value)
+
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_aws_s3(self, mock_s3_cloud_interface, mock_config_aws):
+        """Verify --cloud-provider=aws-s3 creates an S3CloudInterface"""
+        mock_config_aws.cloud_provider = "aws-s3"
+        get_cloud_interface(mock_config_aws)
+        mock_s3_cloud_interface.assert_called_once()
+
+    @mock.patch("barman.cloud_providers.azure_blob_storage.AzureCloudInterface")
+    def test_azure_blob_storage(self, mock_azure_cloud_interface, mock_config_azure):
+        """Verify --cloud-provider=azure-blob-storage creates an AzureCloudInterface"""
+        mock_config_azure.cloud_provider = "azure-blob-storage"
+        get_cloud_interface(mock_config_azure)
+        mock_azure_cloud_interface.assert_called_once()
+
+    def test_azure_blob_storage_unsupported_credential(self, mock_config_azure):
+        """Verify unsupported Azure credentials raise an exception"""
+        mock_config_azure.cloud_provider = "azure-blob-storage"
+        mock_config_azure.credential = "qbasic-credential"
+        with pytest.raises(CloudProviderOptionUnsupported) as exc:
+            get_cloud_interface(mock_config_azure)
+        assert "Unsupported credential: qbasic-credential" == str(exc.value)
+
+    @pytest.mark.parametrize(
+        "credential_arg,expected_credential",
+        [
+            ("azure-cli", AzureCliCredential),
+            ("managed-identity", ManagedIdentityCredential),
+        ],
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.AzureCloudInterface")
+    def test_azure_blob_storage_supported_credential(
+        self,
+        mock_azure_cloud_interface,
+        mock_config_azure,
+        credential_arg,
+        expected_credential,
+    ):
+        """Verify provided credentials result in the correct credential type"""
+        mock_config_azure.cloud_provider = "azure-blob-storage"
+        mock_config_azure.credential = credential_arg
+        get_cloud_interface(mock_config_azure)
+        mock_azure_cloud_interface.assert_called_once()
+        assert isinstance(
+            mock_azure_cloud_interface.call_args_list[0][1]["credential"],
+            expected_credential,
+        )
 
 
 class TestCloudBackupCatalog(object):

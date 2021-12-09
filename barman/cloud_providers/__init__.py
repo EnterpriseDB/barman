@@ -16,6 +16,63 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
+from barman.exceptions import BarmanException
+
+
+class CloudProviderUnsupported(BarmanException):
+    """
+    Exception raised when an unsupported cloud provider is requested
+    """
+
+
+class CloudProviderOptionUnsupported(BarmanException):
+    """
+    Exception raised when a supported cloud provider is given an unsupported
+    option
+    """
+
+
+def _make_s3_cloud_interface(config, cloud_interface_kwargs):
+    from barman.cloud_providers.aws_s3 import S3CloudInterface
+
+    cloud_interface_kwargs.update(
+        {
+            "profile_name": config.profile,
+            "endpoint_url": config.endpoint_url,
+        }
+    )
+    if "encryption" in config:
+        cloud_interface_kwargs["encryption"] = config.encryption
+    return S3CloudInterface(**cloud_interface_kwargs)
+
+
+def _make_azure_cloud_interface(config, cloud_interface_kwargs):
+    from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
+
+    if "encryption_scope" in config:
+        cloud_interface_kwargs["encryption_scope"] = config.encryption_scope
+
+    if "credential" in config and config.credential is not None:
+        try:
+            from azure.identity import AzureCliCredential, ManagedIdentityCredential
+        except ImportError:
+            raise SystemExit("Missing required python module: azure-identity")
+
+        supported_credentials = {
+            "azure-cli": AzureCliCredential,
+            "managed-identity": ManagedIdentityCredential,
+        }
+        try:
+            cloud_interface_kwargs["credential"] = supported_credentials[
+                config.credential
+            ]()
+        except KeyError:
+            raise CloudProviderOptionUnsupported(
+                "Unsupported credential: %s" % config.credential
+            )
+
+    return AzureCloudInterface(**cloud_interface_kwargs)
+
 
 def get_cloud_interface(config):
     """
@@ -31,21 +88,10 @@ def get_cloud_interface(config):
         cloud_interface_kwargs["jobs"] = config.jobs
 
     if config.cloud_provider == "aws-s3":
-        from barman.cloud_providers.aws_s3 import S3CloudInterface
-
-        cloud_interface_kwargs.update(
-            {
-                "profile_name": config.profile,
-                "endpoint_url": config.endpoint_url,
-            }
-        )
-        if "encryption" in config:
-            cloud_interface_kwargs["encryption"] = config.encryption
-        return S3CloudInterface(**cloud_interface_kwargs)
-
+        return _make_s3_cloud_interface(config, cloud_interface_kwargs)
     elif config.cloud_provider == "azure-blob-storage":
-        from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
-
-        if "encryption_scope" in config:
-            cloud_interface_kwargs["encryption_scope"] = config.encryption_scope
-        return AzureCloudInterface(**cloud_interface_kwargs)
+        return _make_azure_cloud_interface(config, cloud_interface_kwargs)
+    else:
+        raise CloudProviderUnsupported(
+            "Unsupported cloud provider: %s" % config.cloud_provider
+        )
