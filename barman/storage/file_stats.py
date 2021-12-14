@@ -17,18 +17,26 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 from datetime import datetime
+try:
+    from datetime import timezone
+    utc = timezone.utc
+except ImportError:
+    # python 2.7 compatibility
+    from dateutil import tz
+    utc = tz.UTC
 
 
 class FileStats:
     def __init__(self, size, last_modified):
         """
+        Arbitrary timezone set to UTC. There is probably possible improvement here.
         :param size: file size in bytes
         :type size: int
         :param last_modified: Time of last modification in seconds
         :type last_modified: int
         """
         self.size = size
-        self.last_modified = datetime.fromtimestamp(last_modified)
+        self.last_modified = datetime.fromtimestamp(last_modified, tz=utc)
 
     def get_size(self):
         """ """
