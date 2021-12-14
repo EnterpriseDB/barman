@@ -17,12 +17,15 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 from datetime import datetime
+
 try:
     from datetime import timezone
+
     utc = timezone.utc
 except ImportError:
     # python 2.7 compatibility
     from dateutil import tz
+
     utc = tz.UTC
 
 
