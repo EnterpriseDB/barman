@@ -49,3 +49,52 @@ class TestLocalFileManager(object):
         file_manager.get_file_stats(source.strpath)
 
         file_stat.assert_called_once_with(9, expected_mtime)
+
+    def test_get_file_list(self, tmpdir):
+        tmpdir.join("subdir").mkdir()
+        tmpdir.join("subdir/file").write("")
+        tmpdir.join("some_file").write("")
+
+        base_dir = tmpdir.strpath
+        expected_list = [base_dir + "/some_file", base_dir + "/subdir/file"]
+        file_manager = LocalFileManager()
+        file_list = file_manager.get_file_list(base_dir)
+        assert expected_list == file_list
+
+    def test_get_file_content_string_mode(self, tmpdir):
+        file_content = "this is \n a very useful\t content."
+        a_file = tmpdir.join("some_file")
+        a_file.write(file_content, ensure=True)
+
+        file_manager = LocalFileManager()
+        read_content = file_manager.get_file_content(a_file.strpath, file_mode="r")
+        assert file_content == read_content
+
+    def test_get_file_content_binary_mode(self, tmpdir):
+        file_content = "this is \n a very useful\t content."
+        a_file = tmpdir.join("some_file")
+        a_file.write(file_content, ensure=True)
+
+        file_manager = LocalFileManager()
+        read_content = file_manager.get_file_content(a_file.strpath, file_mode="rb")
+        assert file_content.encode("utf-8") == read_content
+
+    def test_save_content_to_file_string_mode(self, tmpdir):
+        file_content = "this is \n a very useful\t content."
+        a_file = tmpdir.join("some_file")
+        file_manager = LocalFileManager()
+        file_manager.save_content_to_file(a_file.strpath, file_content, file_mode="w")
+
+        read_content = a_file.read()
+        assert file_content == read_content
+
+    def test_save_content_to_file_binary_mode(self, tmpdir):
+        file_content = "this is \n a very useful\t content."
+        a_file = tmpdir.join("some_file")
+        file_manager = LocalFileManager()
+        file_manager.save_content_to_file(
+            a_file.strpath, file_content.encode(), file_mode="wb"
+        )
+
+        read_content = a_file.read()
+        assert file_content == read_content

@@ -20,9 +20,6 @@ import logging
 import os
 import json
 
-import barman.storage.local_file_manager
-import barman.utils
-
 
 class BackupManifest:
     name = "backup_manifest"
@@ -56,16 +53,15 @@ class BackupManifest:
             "Files": self.files,
         }
         # Convert to text
-        # Might be useful to implement a JSONEncoder
-        str_manifest = json.dumps(manifest, indent=2)
-        # str_manifest = str_manifest[:-1] + ','
+        # sort_keys and separators are used for python compatibility
+        str_manifest = json.dumps(
+            manifest, indent=2, sort_keys=True, separators=(",", ": ")
+        )
         str_manifest = str_manifest[:-2] + ",\n"
         # Create checksum from string without last '}' and ',' instead
         manifest_checksum = self.checksum_algorithm.checksum_from_str(str_manifest)
         last_line = '"Manifest-Checksum": "%s"}\n' % manifest_checksum
         full_manifest = str_manifest + last_line
-
-        print(full_manifest)
         self.file_manager.save_content_to_file(
             self._get_manifest_file_path(), full_manifest.encode(), file_mode="wb"
         )
@@ -142,11 +138,3 @@ class FileIdentity:
         """
         content = self.file_manager.get_file_content(self.file_path)
         return self.checksum_algorithm.checksum(content)
-
-
-def _main_():
-    backup_dir = ""
-    checksum = barman.utils.SHA256()
-    file_manager = barman.storage.local_file_manager.LocalFileManager()
-    backup_manifest = BackupManifest(backup_dir, file_manager, checksum)
-    backup_manifest.create_backup_manifest()

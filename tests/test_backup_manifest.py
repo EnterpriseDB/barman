@@ -20,6 +20,7 @@ import pytest
 import os
 from mock import patch
 from barman.backup_manifest import FileIdentity, BackupManifest
+from barman.utils import SHA256
 
 
 class TestFileIdentity:
@@ -136,13 +137,61 @@ class TestBackupManifest:
 
         assert backup_manifest.files == expected_files
 
-        file_identity()
+    @patch("barman.backup_manifest.FileIdentity")
+    @patch("barman.storage.file_manager")
+    def test_create_backup_manifest(self, file_manager, file_identity, tmpdir):
+        # tmpdir is used to get a random path. files are not used either. only their path
+        file1 = tmpdir.join("file")
+        file2 = tmpdir.join("subdir/other_file")
 
-    # Actual call to create manifest.
-    # def test_something(self):
-    #     backup_dir = "/Users/didier.michel/projects/data_test/tmp/1638456037"
-    #     checksum = SHA256()
-    #     file_manager = LocalFileManager()
-    #     backup_manifest = BackupManifest(backup_dir, file_manager, checksum)
-    #     backup_manifest.create_backup_manifest()
-    #     assert 1 == 1
+        file_manager.file_exist.return_value = False
+        file_manager.get_file_list.return_value = [file1.strpath, file2.strpath]
+
+        file_identity_instance = file_identity.return_value
+        file_identity_instance.get_value.side_effect = [
+            {
+                "Size": 7,
+                "Last-Modified": "2021-12-13 15:46:57",
+                "Checksum-Algorithm": "SHA256",
+                "Path": "file",
+                "Checksum": "fd0edbe123e4edcec85407b10ce35900dc6cc2c64104be1b8275d3120df8dda6",
+            },
+            {
+                "Size": 351,
+                "Last-Modified": "2021-12-13 15:46:57",
+                "Checksum-Algorithm": "SHA256",
+                "Path": "subdir/other_file",
+                "Checksum": "ed7002b439e9ac845f22357d822bac1444730fbdb6016d3ec9432297b9ec9f73",
+            },
+        ]
+
+        checksum = SHA256()
+        backup_manifest = BackupManifest(tmpdir.strpath, file_manager, checksum)
+        backup_manifest.create_backup_manifest()
+
+        expected_manifest_path = tmpdir.join("backup_manifest")
+        expected_manifest_full = """{
+  "Files": [
+    {
+      "Checksum": "fd0edbe123e4edcec85407b10ce35900dc6cc2c64104be1b8275d3120df8dda6",
+      "Checksum-Algorithm": "SHA256",
+      "Last-Modified": "2021-12-13 15:46:57",
+      "Path": "file",
+      "Size": 7
+    },
+    {
+      "Checksum": "ed7002b439e9ac845f22357d822bac1444730fbdb6016d3ec9432297b9ec9f73",
+      "Checksum-Algorithm": "SHA256",
+      "Last-Modified": "2021-12-13 15:46:57",
+      "Path": "subdir/other_file",
+      "Size": 351
+    }
+  ],
+  "PostgreSQL-Backup-Manifest-Version": 1,
+"Manifest-Checksum": "111aab15e873962db80633dd4f582d3d6756baf2a7d85946aa6fc00b7825c33e"}
+"""
+        file_manager.save_content_to_file.assert_called_once_with(
+            expected_manifest_path,
+            expected_manifest_full.encode("utf-8"),
+            file_mode="wb",
+        )
