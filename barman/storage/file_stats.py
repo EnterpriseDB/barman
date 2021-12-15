@@ -24,14 +24,9 @@ try:
     utc = timezone.utc
 except ImportError:
     # python 2.7 compatibility
-    try:
-        from dateutil import tz
+    from dateutil import tz
 
-        utc = tz.UTC
-
-    except AttributeError:
-        # This is to manage special case for minimal env with python-dateutil==1.5
-        utc = None
+    utc = tz.UTC
 
 
 class FileStats:
@@ -44,10 +39,7 @@ class FileStats:
         :type last_modified: int
         """
         self.size = size
-        if utc:
-            self.last_modified = datetime.fromtimestamp(last_modified, tz=utc)
-        else:
-            self.last_modified = datetime.utcfromtimestamp(last_modified)
+        self.last_modified = datetime.fromtimestamp(last_modified, tz=utc)
 
     def get_size(self):
         """ """
