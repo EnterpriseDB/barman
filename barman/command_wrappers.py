@@ -1014,6 +1014,63 @@ class PgReceiveXlog(PostgreSQLClient):
             self.args += args
 
 
+class PgVerifyBackup(PostgreSQLClient):
+    """
+    Wrapper class for the pg_verify system command
+    todo: findout why script path is:
+    /usr/lib/postgresql/13/bin/
+    and not /usr/bin/
+    """
+
+    # COMMAND_ALTERNATIVES = ["pg_verifybackup"]
+    COMMAND_ALTERNATIVES = ["/usr/lib/postgresql/13/bin/pg_verifybackup"]
+
+    def __init__(
+        self,
+        connection,
+        data_path,
+        command,
+        version=None,
+        app_name=None,
+        check=True,
+        args=None,
+        **kwargs
+    ):
+        """
+        Constructor
+
+        :param PostgreSQL connection: an object representing
+          a database connection
+        :param str data_path: backup data directory
+        :param str command: the command to use
+        :param Version version: the command version
+        :param str app_name: the application name to use for the connection
+        :param bool check: check if the return value is in the list of
+          allowed values of the Command obj
+        :param List[str] args: additional arguments
+        """
+        PostgreSQLClient.__init__(
+            self,
+            connection=connection,
+            command=command,
+            version=version,
+            app_name=app_name,
+            check=check,
+            **kwargs
+        )
+
+        # There is probably something to do with return code cf pg_verifybackup documentation:
+        # Exit status:
+        #     0  if OK,
+        #     1  if minor problems (e.g., cannot access subdirectory),
+        #     2  if serious trouble (e.g., cannot access command-line argument).
+        # Prepare command
+        # /usr/lib/postgresql/13/bin/pg_verifybackup /var/lib/barman/main/base/20211216T105052/data -n
+        # Set the backup destination
+        # Not sure this is clean to remove previous args ...
+        self.args = ["-n", data_path]
+
+
 class BarmanSubProcess(object):
     """
     Wrapper class for barman sub instances
@@ -1029,7 +1086,7 @@ class BarmanSubProcess(object):
     ):
         """
         Build a specific wrapper for all the barman sub-commands,
-        providing an unified interface.
+        providing a unified interface.
 
         :param str command: path to barman
         :param str subcommand: the barman sub-command

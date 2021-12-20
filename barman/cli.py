@@ -1424,6 +1424,37 @@ def check_backup(args):
         argument(
             "server_name",
             completer=server_completer,
+            help="specifies the server name for the command ",
+        ),
+        argument(
+            "backup_id", completer=backup_completer, help="specifies the backup ID"
+        ),
+    ],
+    cmd_aliases=["verify"],
+)
+def verify_backup(args):
+    """
+    verify a backup for the given server and backup id
+    """
+    # get barman.server.Server
+    server = get_server(args)
+    # get barman.infofile.LocalBackupInfo
+    # raises an error if wrong backup
+    backup_info = parse_backup_id(server, args)
+    # get backup path
+    server.backup_manager.verify_backup(backup_info)
+    # Not sure if should use this class barman.command_wrappers.PgVerifyBackup(PostgreSQLClient)
+    # because it might not run on expected server (ie the one the backup and backup-manifest are.)
+
+    output.info("Backup %s is valid on server %s" % (args.backup_id, args.server_name))
+    output.close_and_exit()
+
+
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
             help="specifies the server name for the command",
         ),
         argument(

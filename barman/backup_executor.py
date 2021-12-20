@@ -39,7 +39,7 @@ import dateutil.parser
 from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
-from barman.command_wrappers import PgBaseBackup
+from barman.command_wrappers import PgBaseBackup, PgVerifyBackup
 from barman.config import BackupOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
@@ -49,6 +49,7 @@ from barman.exceptions import (
     PostgresConnectionError,
     PostgresIsInRecovery,
     SshCommandException,
+    BackupVerificationFailure,
 )
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
@@ -657,6 +658,41 @@ class PostgresBackupExecutor(BackupExecutor):
         output.info(
             "Starting backup copy via pg_basebackup for %s", backup_info.backup_id
         )
+
+    def backup_verify(self, backup_info):
+        # Todo not sure this is the best place for this code
+        output.info("Starting verify backup")
+        # define remote status
+        remote_status = {}
+        # Test pg_pgbackup existence
+        version_info = PgVerifyBackup.get_version_info(self.server.path)
+        if version_info["full_path"]:
+            remote_status["pg_verifybackup_installed"] = True
+            remote_status["pg_verifybackup_path"] = version_info["full_path"]
+            remote_status["pg_verifybackup_version"] = version_info["full_version"]
+        else:
+            remote_status["pg_verifybackup_installed"] = False
+        # todo to be refactored (copied from self.fetch_remote_status)
+        output.info("remote status %s" % str(remote_status))
+
+        pg_verifybackup = PgVerifyBackup(
+            connection=self.server.streaming,
+            data_path=backup_info.get_data_directory(),
+            command=remote_status["pg_verifybackup_path"],
+            version=remote_status["pg_verifybackup_version"],
+            app_name=self.config.streaming_backup_name,
+            path=self.server.path,
+        )
+        try:
+            pg_verifybackup()
+        except CommandFailedException as e:
+            msg = (
+                "verify backup failure on directory '%s'"
+                % backup_info.get_data_directory()
+            )
+            raise BackupVerificationFailure.from_command_error(
+                "pg_verifybackup", e, msg
+            )
 
 
 class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):

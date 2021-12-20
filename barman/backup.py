@@ -70,6 +70,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
     def __init__(self, server):
         """
         Constructor
+        :param server: barman.server.Server
         """
         super(BackupManager, self).__init__(server=server)
         self.server = server
@@ -1414,3 +1415,17 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             # all the WAL files until that point are present.
             backup_info.status = BackupInfo.WAITING_FOR_WALS
         backup_info.save()
+
+    def verify_backup(self, backup_info):
+        """
+
+        :param backup_info:
+        """
+
+        print(type(self.executor))
+        if not isinstance(self.executor, PostgresBackupExecutor):
+            output.info("wrong executor")
+            return
+        # Todo either complete implementations backup_verify exists and abstract in BackupExecutor and implemented on each executor
+        # or move it to another place.
+        self.executor.backup_verify(backup_info)
