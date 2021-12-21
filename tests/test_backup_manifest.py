@@ -170,26 +170,11 @@ class TestBackupManifest:
         backup_manifest.create_backup_manifest()
 
         expected_manifest_path = tmpdir.join("backup_manifest")
-        expected_manifest_full = """{
-  "Files": [
-    {
-      "Checksum": "fd0edbe123e4edcec85407b10ce35900dc6cc2c64104be1b8275d3120df8dda6",
-      "Checksum-Algorithm": "SHA256",
-      "Last-Modified": "2021-12-13 15:46:57",
-      "Path": "file",
-      "Size": 7
-    },
-    {
-      "Checksum": "ed7002b439e9ac845f22357d822bac1444730fbdb6016d3ec9432297b9ec9f73",
-      "Checksum-Algorithm": "SHA256",
-      "Last-Modified": "2021-12-13 15:46:57",
-      "Path": "subdir/other_file",
-      "Size": 351
-    }
-  ],
-  "PostgreSQL-Backup-Manifest-Version": 1,
-"Manifest-Checksum": "111aab15e873962db80633dd4f582d3d6756baf2a7d85946aa6fc00b7825c33e"}
-"""
+        expected_manifest_full = """{"PostgreSQL-Backup-Manifest-Version": 1,
+"Files": [
+{"Checksum": "fd0edbe123e4edcec85407b10ce35900dc6cc2c64104be1b8275d3120df8dda6", "Checksum-Algorithm": "SHA256", "Last-Modified": "2021-12-13 15:46:57", "Path": "file", "Size": 7},
+{"Checksum": "ed7002b439e9ac845f22357d822bac1444730fbdb6016d3ec9432297b9ec9f73", "Checksum-Algorithm": "SHA256", "Last-Modified": "2021-12-13 15:46:57", "Path": "subdir/other_file", "Size": 351}],
+"Manifest-Checksum": "b829d668b87cf5d8eded3a1267185bc1ba98960f3ddde4cb44859b3f0b9c58fd"}\n"""
         file_manager.save_content_to_file.assert_called_once_with(
             expected_manifest_path,
             expected_manifest_full.encode("utf-8"),

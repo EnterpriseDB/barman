@@ -38,6 +38,10 @@ class BackupManifest:
         self.checksum_algorithm = checksum_algorithm
 
     def create_backup_manifest(self):
+        """
+        Will create a manifest file if it doesn't exists.
+        :return:
+        """
         if self.file_manager.file_exist(self._get_manifest_file_path()):
             msg = (
                 "%s already exists. Skip file creation."
@@ -48,6 +52,21 @@ class BackupManifest:
             return
 
         self._create_files_metadata()
+        str_manifest = self._get_manifest_str()
+        # Create checksum from string without last '}' and ',' instead
+        manifest_checksum = self.checksum_algorithm.checksum_from_str(str_manifest)
+        last_line = '"Manifest-Checksum": "%s"}\n' % manifest_checksum
+        full_manifest = str_manifest + last_line
+        self.file_manager.save_content_to_file(
+            self._get_manifest_file_path(), full_manifest.encode(), file_mode="wb"
+        )
+
+    def _get_manifest_from_dict(self):
+        """
+        Old version used to create manifest first section
+        Could be used
+        :return: str
+        """
         manifest = {
             "PostgreSQL-Backup-Manifest-Version": 1,
             "Files": self.files,
@@ -58,13 +77,20 @@ class BackupManifest:
             manifest, indent=2, sort_keys=True, separators=(",", ": ")
         )
         str_manifest = str_manifest[:-2] + ",\n"
-        # Create checksum from string without last '}' and ',' instead
-        manifest_checksum = self.checksum_algorithm.checksum_from_str(str_manifest)
-        last_line = '"Manifest-Checksum": "%s"}\n' % manifest_checksum
-        full_manifest = str_manifest + last_line
-        self.file_manager.save_content_to_file(
-            self._get_manifest_file_path(), full_manifest.encode(), file_mode="wb"
-        )
+        return str_manifest
+
+    def _get_manifest_str(self):
+        """
+
+        :return:
+        """
+        manifest = '{"PostgreSQL-Backup-Manifest-Version": 1,\n"Files": [\n'
+        for i in self.files:
+            # sort_keys needed for python 2/3 compatibility
+            manifest += json.dumps(i, sort_keys=True) + ",\n"
+
+        manifest = manifest[:-2] + "],\n"
+        return manifest
 
     def _create_files_metadata(self):
         """
