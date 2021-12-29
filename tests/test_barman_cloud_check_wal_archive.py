@@ -38,12 +38,13 @@ class TestCloudCheckWalArchive(object):
     @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
     def test_check_wal_archive_no_args(
         self,
-        _mock_cloud_interface,
+        mock_cloud_interface,
         mock_cloud_backup_catalog,
         mock_check_archive_usable,
         cloud_backup_catalog,
     ):
         """Verify xlog.check_archive_usable is called with no additional args."""
+        mock_cloud_interface.return_value.bucket_exists = True
         mock_cloud_backup_catalog.return_value = cloud_backup_catalog
         cloud_check_wal_archive.main(["cloud_storage_url", "test_server"])
         mock_check_archive_usable.assert_called_once_with(
@@ -52,16 +53,29 @@ class TestCloudCheckWalArchive(object):
         )
 
     @mock.patch("barman.clients.cloud_check_wal_archive.check_archive_usable")
+    @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
+    def test_check_wal_archive_missing_bucket(
+        self,
+        mock_cloud_interface,
+        mock_cloud_backup_catalog,
+    ):
+        """Verify a missing bucket passes the check"""
+        mock_cloud_interface.return_value.bucket_exists = False
+        cloud_check_wal_archive.main(["cloud_storage_url", "test_server"])
+        mock_cloud_backup_catalog.assert_not_called()
+
+    @mock.patch("barman.clients.cloud_check_wal_archive.check_archive_usable")
     @mock.patch("barman.clients.cloud_check_wal_archive.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
     def test_check_wal_archive_args(
         self,
-        _mock_cloud_interface,
+        mock_cloud_interface,
         mock_cloud_backup_catalog,
         mock_check_archive_usable,
         cloud_backup_catalog,
     ):
         """Verify xlog.check_archive_usable is called with no additional args."""
+        mock_cloud_interface.return_value.bucket_exists = True
         mock_cloud_backup_catalog.return_value = cloud_backup_catalog
         cloud_check_wal_archive.main(
             [
@@ -81,13 +95,14 @@ class TestCloudCheckWalArchive(object):
     @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
     def test_check_wal_archive_content_error(
         self,
-        _mock_cloud_interface,
+        mock_cloud_interface,
         mock_cloud_backup_catalog,
         mock_check_archive_usable,
         cloud_backup_catalog,
         caplog,
     ):
         """Verify log output when wal archive check fails"""
+        mock_cloud_interface.return_value.bucket_exists = True
         mock_cloud_backup_catalog.return_value = cloud_backup_catalog
         mock_check_archive_usable.side_effect = WalArchiveContentError("oh dear")
         with pytest.raises(SystemExit) as exc:
@@ -100,16 +115,26 @@ class TestCloudCheckWalArchive(object):
     @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
     def test_check_wal_archive_exception(
         self,
-        _mock_cloud_interface,
+        mock_cloud_interface,
         mock_cloud_backup_catalog,
         mock_check_archive_usable,
         cloud_backup_catalog,
         caplog,
     ):
         """Verify log output when there is an error checking the wal archive"""
+        mock_cloud_interface.return_value.bucket_exists = True
         mock_cloud_backup_catalog.return_value = cloud_backup_catalog
         mock_check_archive_usable.side_effect = Exception("oh dear")
         with pytest.raises(SystemExit) as exc:
             cloud_check_wal_archive.main(["cloud_storage_url", "test_server"])
         assert 4 == exc.value.code
         assert "Barman cloud WAL archive check exception: oh dear" in caplog.text
+
+    @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
+    def test_check_wal_archive_failed_connectivity(self, mock_cloud_interface, caplog):
+        """Verify the check errors if we cannot connect to the cloud provider"""
+        mock_cloud_interface.return_value.test_connectivity.return_value = False
+        with pytest.raises(SystemExit) as exc:
+            cloud_check_wal_archive.main(["cloud_storage_url", "test_server"])
+        assert 2 == exc.value.code
+        mock_cloud_interface.return_value.test_connectivity.assert_called_once_with()
