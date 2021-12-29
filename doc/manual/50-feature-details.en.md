@@ -310,7 +310,7 @@ collecting the transaction WAL files like a synchronous standby server
 would.
 
 To configure such a scenario, the Barman server must be configured to
-archive WALs via the [streaming connection](#streaming_connection),
+archive WALs via the [streaming connection](#postgresql-streaming-connection),
 and the `receive-wal` process should figure as a synchronous standby
 of the PostgreSQL server.
 
