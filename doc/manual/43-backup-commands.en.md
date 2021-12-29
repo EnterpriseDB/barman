@@ -68,7 +68,7 @@ You can delete a given backup with:
 barman delete <server_name> <backup_id>
 ```
 
-The `delete` command accepts any [shortcut](#shortcuts) to identify backups.
+The `delete` command accepts any [shortcut](#backup-id-shortcuts) to identify backups.
 
 ## `keep`
 
@@ -311,4 +311,4 @@ a given server with:
 barman show-backup <server_name> <backup_id>
 ```
 
-The `show-backup` command accepts any [shortcut](#shortcuts) to identify backups.
+The `show-backup` command accepts any [shortcut](#backup-id-shortcuts) to identify backups.
