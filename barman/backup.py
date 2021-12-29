@@ -45,6 +45,7 @@ from barman.exceptions import (
     CompressionIncompatibility,
     SshCommandException,
     UnknownBackupIdException,
+    CommandFailedException,
 )
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
@@ -58,6 +59,7 @@ from barman.utils import (
     human_readable_timedelta,
     pretty_size,
 )
+from barman.command_wrappers import PgVerifyBackup
 
 _logger = logging.getLogger(__name__)
 
@@ -1418,14 +1420,35 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
     def verify_backup(self, backup_info):
         """
+        This function should check if pg_verifybackup is installed and run it against backup path
+        should test if pg_verifybackup is installed locally
 
-        :param backup_info:
+
+        :param backup_info: barman.infofile.LocalBackupInfo instance
         """
-
-        print(type(self.executor))
-        if not isinstance(self.executor, PostgresBackupExecutor):
-            output.info("wrong executor")
+        output.info("Calling pg_verifybackup")
+        # Test pg_verifybackup existence
+        version_info = PgVerifyBackup.get_version_info(self.server.path)
+        if not version_info["full_path"]:
+            output.error("pg_verifybackup not found")
             return
-        # Todo either complete implementations backup_verify exists and abstract in BackupExecutor and implemented on each executor
-        # or move it to another place.
-        self.executor.backup_verify(backup_info)
+
+        pg_verifybackup = PgVerifyBackup(
+            connection=None,
+            data_path=backup_info.get_data_directory(),
+            command=version_info["full_path"],
+            version=version_info["full_version"],
+            app_name=self.config.streaming_backup_name,
+            path=self.server.path,
+        )
+        try:
+            pg_verifybackup()
+        except CommandFailedException as e:
+            output.error(
+                "verify backup failure on directory '%s'"
+                % backup_info.get_data_directory()
+            )
+            output.error(e.args[0]["err"])
+            return
+        # return pg_verifybackup
+        output.info(pg_verifybackup.get_output()[0].strip())

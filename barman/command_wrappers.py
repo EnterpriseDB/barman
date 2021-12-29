@@ -165,7 +165,7 @@ class Command(object):
         the method arguments will take the precedence over
         the constructor arguments.
 
-        :param str cmd: The command to exexute
+        :param str cmd: The command to execute
         :param list[str]|None args: List of additional arguments to append
         :param dict[str.str]|None env_append: additional environment variables
         :param str path: PATH to be used while searching for `cmd`
@@ -734,7 +734,10 @@ class PostgreSQLClient(Command):
         :param str path: additional path for executable retrieval
         """
         Command.__init__(self, command, path=path, **kwargs)
-
+        if not connection:
+            self.enable_signal_forwarding(signal.SIGINT)
+            self.enable_signal_forwarding(signal.SIGTERM)
+            return
         if version and version >= Version("9.3"):
             # If version of the client is >= 9.3 we use the connection
             # string because allows the user to use all the parameters
@@ -1022,8 +1025,11 @@ class PgVerifyBackup(PostgreSQLClient):
     and not /usr/bin/
     """
 
-    # COMMAND_ALTERNATIVES = ["pg_verifybackup"]
-    COMMAND_ALTERNATIVES = ["/usr/lib/postgresql/13/bin/pg_verifybackup"]
+    # Todo  find a clean way to find exec
+    COMMAND_ALTERNATIVES = [
+        "pg_verifybackup",
+        "/usr/lib/postgresql/13/bin/pg_verifybackup",
+    ]
 
     def __init__(
         self,
@@ -1059,16 +1065,9 @@ class PgVerifyBackup(PostgreSQLClient):
             **kwargs
         )
 
-        # There is probably something to do with return code cf pg_verifybackup documentation:
-        # Exit status:
-        #     0  if OK,
-        #     1  if minor problems (e.g., cannot access subdirectory),
-        #     2  if serious trouble (e.g., cannot access command-line argument).
-        # Prepare command
-        # /usr/lib/postgresql/13/bin/pg_verifybackup /var/lib/barman/main/base/20211216T105052/data -n
-        # Set the backup destination
-        # Not sure this is clean to remove previous args ...
         self.args = ["-n", data_path]
+        if args:
+            self.args += args
 
 
 class BarmanSubProcess(object):

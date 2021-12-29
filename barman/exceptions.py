@@ -182,37 +182,6 @@ class DataTransferFailure(CommandException):
             return cls(force_str(e.args))
 
 
-class BackupVerificationFailure(CommandException):
-    """
-    Used to pass failure details from a verify backup Command
-    # Todo: refactor duplication
-    """
-
-    @classmethod
-    def from_command_error(cls, cmd, e, msg):
-        """
-        This method build a BackupVerificationFailure exception and report the
-        provided message to the user (both console and log file) along with
-        the output of the failed command.
-
-        :param str cmd: The command that failed the transfer
-        :param CommandFailedException e: The exception we are handling
-        :param str msg: a descriptive message on what we are trying to do
-        :return DataTransferFailure: will contain the message provided in msg
-        """
-        try:
-            details = msg
-            details += "\n%s error:\n" % cmd
-            details += e.args[0]["out"]
-            details += e.args[0]["err"]
-            return cls(details)
-        except (TypeError, NameError):
-            # If it is not a dictionary just convert it to a string
-            from barman.utils import force_str
-
-            return cls(force_str(e.args))
-
-
 class CompressionIncompatibility(CompressionException):
     """
     Exception for compression incompatibility
