@@ -15,7 +15,8 @@ barman\-cloud\-check\-wal\-archive [\f[I]OPTIONS\f[]]
 Check that the WAL archive destination for \f[I]SERVER_NAME\f[] is safe
 to use for a new PostgreSQL cluster.
 With no optional args (the default) this check will pass if the WAL
-archive is empty and fail otherwise.
+archive is empty or if the target bucket cannot be found.
+All other conditions will result in failure.
 .PP
 This script and Barman are administration tools for disaster recovery of
 PostgreSQL servers written in Python and maintained by EnterpriseDB.

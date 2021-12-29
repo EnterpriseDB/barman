@@ -22,6 +22,7 @@ from barman.clients.cloud_cli import (
     create_argument_parser,
     GeneralErrorExit,
     OperationErrorExit,
+    NetworkErrorExit,
     UrlArgumentType,
 )
 from barman.cloud import configure_logging, CloudBackupCatalog
@@ -43,6 +44,12 @@ def main(args=None):
 
     try:
         cloud_interface = get_cloud_interface(config)
+        if not cloud_interface.test_connectivity():
+            # Deliberately raise an error if we cannot connect
+            raise NetworkErrorExit()
+        if not cloud_interface.bucket_exists:
+            # If the bucket does not exist then the check should pass
+            return
         catalog = CloudBackupCatalog(cloud_interface, config.server_name)
         wals = list(catalog.get_wal_paths().keys())
         check_archive_usable(
