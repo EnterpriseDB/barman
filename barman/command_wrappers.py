@@ -1033,9 +1033,9 @@ class PgVerifyBackup(PostgreSQLClient):
 
     def __init__(
         self,
-        connection,
         data_path,
         command,
+        connection=None,
         version=None,
         app_name=None,
         check=True,
@@ -1044,11 +1044,10 @@ class PgVerifyBackup(PostgreSQLClient):
     ):
         """
         Constructor
-
-        :param PostgreSQL connection: an object representing
-          a database connection
         :param str data_path: backup data directory
         :param str command: the command to use
+        :param PostgreSQL connection: an object representing
+          a database connection
         :param Version version: the command version
         :param str app_name: the application name to use for the connection
         :param bool check: check if the return value is in the list of

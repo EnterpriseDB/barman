@@ -1430,6 +1430,34 @@ class TestReceiveXlog(object):
         assert version_info["major_version"] is None
 
 
+class TestPgVerifyBackup(object):
+    """
+    Simple class for testing of the PgVerifyBackup obj
+    """
+
+    def test_(self):
+        pass
+
+    def test_init_simple(self, which):
+        """
+        Test class build
+        """
+        pg_verify_backup = command_wrappers.PgVerifyBackup(
+            data_path="/fake/path",
+            command="/usr/bin/pg_verifybackup",
+            version="13.2",
+        )
+        assert pg_verify_backup.args == [
+            "-n",
+            "/fake/path",
+        ]
+        assert pg_verify_backup.cmd == "/usr/bin/pg_verifybackup"
+        assert pg_verify_backup.check is True
+        assert pg_verify_backup.allowed_retval == (0,)
+        assert pg_verify_backup.err_handler
+        assert pg_verify_backup.out_handler
+
+
 # noinspection PyMethodMayBeStatic
 class TestBarmanSubProcess(object):
     """
