@@ -59,7 +59,9 @@ class LocalFileManager(FileManager):
             raise NotADirectoryError(path)
         file_list = []
         for root, dirs, files in os.walk(path):
-            file_list.extend(list(map(lambda x: os.path.join(root, x), files)))
+            file_list.extend(
+                list(map(lambda x, prefix=root: os.path.join(prefix, x), files))
+            )
         return file_list
 
     def get_file_content(self, file_path, file_mode="rb"):

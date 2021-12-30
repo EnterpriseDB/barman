@@ -1447,5 +1447,4 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             )
             output.error(e.args[0]["err"])
             return
-        # return pg_verifybackup
         output.info(pg_verifybackup.get_output()[0].strip())

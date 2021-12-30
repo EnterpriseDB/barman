@@ -1435,23 +1435,22 @@ class TestPgVerifyBackup(object):
     Simple class for testing of the PgVerifyBackup obj
     """
 
-    def test_(self):
-        pass
-
     def test_init_simple(self, which):
         """
         Test class build
         """
+        backup_path = "/backup/path"
+        verifybackup_path = "/usr/bin/pg_verifybackup"
         pg_verify_backup = command_wrappers.PgVerifyBackup(
-            data_path="/fake/path",
-            command="/usr/bin/pg_verifybackup",
+            data_path=backup_path,
+            command=verifybackup_path,
             version="13.2",
         )
         assert pg_verify_backup.args == [
             "-n",
-            "/fake/path",
+            backup_path,
         ]
-        assert pg_verify_backup.cmd == "/usr/bin/pg_verifybackup"
+        assert pg_verify_backup.cmd == verifybackup_path
         assert pg_verify_backup.check is True
         assert pg_verify_backup.allowed_retval == (0,)
         assert pg_verify_backup.err_handler

@@ -1498,12 +1498,14 @@ class TestVerifyBackup:
 
     @patch("barman.backup.PgVerifyBackup")
     def test_verify_backup_nominal(self, mock_pg_verify_backup):
+        backup_path = "/fake/path"
+        pg_verify_backup_path = "/path/to/pg_verifybackup"
         backup_manager = build_backup_manager()
         mock_backup_info = Mock()
-        mock_backup_info.get_data_directory.return_value = "/fake/path"
+        mock_backup_info.get_data_directory.return_value = backup_path
 
         mock_pg_verify_backup.get_version_info.return_value = {
-            "full_path": "/path/to/pg_verifybackup",
+            "full_path": pg_verify_backup_path,
             "full_version": "13.2",
         }
 
@@ -1512,7 +1514,7 @@ class TestVerifyBackup:
         mock_backup_info.get_data_directory.assert_called_once()
         mock_pg_verify_backup_instance = mock_pg_verify_backup.return_value
         mock_pg_verify_backup.assert_called_once_with(
-            data_path="/fake/path", command="/path/to/pg_verifybackup", version="13.2"
+            data_path=backup_path, command=pg_verify_backup_path, version="13.2"
         )
         mock_pg_verify_backup.return_value.assert_called_once()
         mock_pg_verify_backup_instance.get_output.assert_called_once()
@@ -1521,7 +1523,7 @@ class TestVerifyBackup:
     def test_verify_backup_exec_not_found(self, mock_pg_verify_backup):
         backup_manager = build_backup_manager()
         mock_backup_info = Mock()
-        mock_backup_info.get_data_directory.return_value = "/fake/path"
+        mock_backup_info.get_data_directory.return_value = "/fake/path2"
         mock_pg_verify_backup.get_version_info.return_value = {}
 
         backup_manager.verify_backup(mock_backup_info)
@@ -1533,7 +1535,7 @@ class TestVerifyBackup:
     def test_verify_backup_failed_cmd(self, mock_pg_verify_backup):
         backup_manager = build_backup_manager()
         mock_backup_info = Mock()
-        mock_backup_info.get_data_directory.return_value = "/fake/path"
+        mock_backup_info.get_data_directory.return_value = "/fake/path3"
         mock_pg_verify_backup.get_version_info.return_value = {
             "full_path": "/path/to/pg_verifybackup",
             "full_version": "13.2",

@@ -22,6 +22,10 @@ from barman.storage.local_file_manager import LocalFileManager
 
 
 class TestLocalFileManager(object):
+    @pytest.fixture
+    def file_content(self):
+        return "this is \n a very useful\t content."
+
     def test_file_exists_false(self, tmpdir):
         file_manager = LocalFileManager()
         assert not file_manager.file_exist(str(tmpdir + "/some_file"))
@@ -61,8 +65,7 @@ class TestLocalFileManager(object):
         file_list = file_manager.get_file_list(base_dir)
         assert expected_list == file_list
 
-    def test_get_file_content_string_mode(self, tmpdir):
-        file_content = "this is \n a very useful\t content."
+    def test_get_file_content_string_mode(self, tmpdir, file_content):
         a_file = tmpdir.join("some_file")
         a_file.write(file_content, ensure=True)
 
@@ -70,8 +73,7 @@ class TestLocalFileManager(object):
         read_content = file_manager.get_file_content(a_file.strpath, file_mode="r")
         assert file_content == read_content
 
-    def test_get_file_content_binary_mode(self, tmpdir):
-        file_content = "this is \n a very useful\t content."
+    def test_get_file_content_binary_mode(self, tmpdir, file_content):
         a_file = tmpdir.join("some_file")
         a_file.write(file_content, ensure=True)
 
@@ -79,8 +81,7 @@ class TestLocalFileManager(object):
         read_content = file_manager.get_file_content(a_file.strpath, file_mode="rb")
         assert file_content.encode("utf-8") == read_content
 
-    def test_save_content_to_file_string_mode(self, tmpdir):
-        file_content = "this is \n a very useful\t content."
+    def test_save_content_to_file_string_mode(self, tmpdir, file_content):
         a_file = tmpdir.join("some_file")
         file_manager = LocalFileManager()
         file_manager.save_content_to_file(a_file.strpath, file_content, file_mode="w")
@@ -88,8 +89,7 @@ class TestLocalFileManager(object):
         read_content = a_file.read()
         assert file_content == read_content
 
-    def test_save_content_to_file_binary_mode(self, tmpdir):
-        file_content = "this is \n a very useful\t content."
+    def test_save_content_to_file_binary_mode(self, tmpdir, file_content):
         a_file = tmpdir.join("some_file")
         file_manager = LocalFileManager()
         file_manager.save_content_to_file(
