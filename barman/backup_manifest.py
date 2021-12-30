@@ -20,6 +20,8 @@ import logging
 import os
 import json
 
+from barman import output
+
 
 class BackupManifest:
     name = "backup_manifest"
@@ -42,15 +44,15 @@ class BackupManifest:
         Will create a manifest file if it doesn't exists.
         :return:
         """
+
         if self.file_manager.file_exist(self._get_manifest_file_path()):
             msg = (
-                "%s already exists. Skip file creation."
+                "File %s already exists. Skip file creation."
                 % self._get_manifest_file_path()
             )
             logging.info(msg)
-            print(msg)
+            output.info(msg)
             return
-
         self._create_files_metadata()
         str_manifest = self._get_manifest_str()
         # Create checksum from string without last '}' and ',' instead

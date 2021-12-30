@@ -180,3 +180,11 @@ class TestBackupManifest:
             expected_manifest_full.encode("utf-8"),
             file_mode="wb",
         )
+
+    @patch("barman.utils.ChecksumAlgorithm")
+    @patch("barman.storage.file_manager.FileManager")
+    def test_manifest_already_exist(self, file_manager, checksum_algorithm):
+        file_manager.file_exist.return_value = True
+        backup_manifest = BackupManifest("/path", file_manager, checksum_algorithm)
+        backup_manifest.create_backup_manifest()
+        file_manager.get_file_list.assert_not_called()
