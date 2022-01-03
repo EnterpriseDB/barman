@@ -1429,7 +1429,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         output.info("Calling pg_verifybackup")
         # Test pg_verifybackup existence
         version_info = PgVerifyBackup.get_version_info(self.server.path)
-        if "full_path" not in version_info:
+        if version_info.get("full_path", None) is None:
             output.error("pg_verifybackup not found")
             return
 

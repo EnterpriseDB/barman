@@ -1524,7 +1524,9 @@ class TestVerifyBackup:
         backup_manager = build_backup_manager()
         mock_backup_info = Mock()
         mock_backup_info.get_data_directory.return_value = "/fake/path2"
-        mock_pg_verify_backup.get_version_info.return_value = {}
+        mock_pg_verify_backup.get_version_info.return_value = dict.fromkeys(
+            ("full_path", "full_version", "major_version"), None
+        )
 
         backup_manager.verify_backup(mock_backup_info)
 
