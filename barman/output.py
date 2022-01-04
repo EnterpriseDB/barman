@@ -147,6 +147,8 @@ def _put(level, message, *args, **kwargs):
     # handle keyword-only parameters
     log = kwargs.pop("log", True)
     is_error = kwargs.pop("is_error", False)
+    global error_exit_code
+    error_exit_code = kwargs.pop("exit_code", error_exit_code)
     if len(kwargs):
         raise TypeError(
             "%s() got an unexpected keyword argument %r"

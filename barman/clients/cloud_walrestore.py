@@ -21,7 +21,13 @@ import os
 import sys
 from contextlib import closing
 
-from barman.clients.cloud_cli import create_argument_parser
+from barman.clients.cloud_cli import (
+    create_argument_parser,
+    CLIErrorExit,
+    GeneralErrorExit,
+    NetworkErrorExit,
+    OperationErrorExit,
+)
 from barman.cloud import configure_logging, ALLOWED_COMPRESSIONS
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
@@ -42,7 +48,7 @@ def main(args=None):
     # Validate the WAL file name before downloading it
     if not is_any_xlog_file(config.wal_name):
         logging.error("%s is an invalid name for a WAL file" % config.wal_name)
-        raise SystemExit(1)
+        raise CLIErrorExit()
 
     try:
         cloud_interface = get_cloud_interface(config)
@@ -53,21 +59,21 @@ def main(args=None):
             )
 
             if not cloud_interface.test_connectivity():
-                raise SystemExit(1)
+                raise NetworkErrorExit()
             # If test is requested, just exit after connectivity test
             elif config.test:
                 raise SystemExit(0)
 
             if not cloud_interface.bucket_exists:
                 logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
-                raise SystemExit(1)
+                raise OperationErrorExit()
 
             downloader.download_wal(config.wal_name, config.wal_dest)
 
     except Exception as exc:
         logging.error("Barman cloud WAL restore exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)
-        raise SystemExit(1)
+        raise GeneralErrorExit()
 
 
 def parse_arguments(args=None):
@@ -171,7 +177,7 @@ class CloudWalDownloader(object):
             logging.info(
                 "WAL file %s for server %s does not exists", wal_name, self.server_name
             )
-            raise SystemExit(1)
+            raise OperationErrorExit()
 
         if compression and sys.version_info < (3, 0, 0):
             raise BarmanException(

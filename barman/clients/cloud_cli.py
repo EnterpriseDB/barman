@@ -23,9 +23,50 @@ from enum import Enum
 import barman
 
 
+class OperationErrorExit(SystemExit):
+    """
+    Dedicated exit code for errors where connectivity to the cloud provider was ok
+    but the operation still failed.
+    """
+
+    def __init__(self):
+        super(OperationErrorExit, self).__init__(1)
+
+
+class NetworkErrorExit(SystemExit):
+    """Dedicated exit code for network related errors."""
+
+    def __init__(self):
+        super(NetworkErrorExit, self).__init__(2)
+
+
+class CLIErrorExit(SystemExit):
+    """Dedicated exit code for CLI level errors."""
+
+    def __init__(self):
+        super(CLIErrorExit, self).__init__(3)
+
+
+class GeneralErrorExit(SystemExit):
+    """Dedicated exit code for general barman cloud errors."""
+
+    def __init__(self):
+        super(GeneralErrorExit, self).__init__(4)
+
+
 class UrlArgumentType(Enum):
     source = "source"
     destination = "destination"
+
+
+class CloudArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser which exits with CLIErrorExit on errors."""
+
+    def error(self, message):
+        try:
+            super(CloudArgumentParser, self).error(message)
+        except SystemExit:
+            raise CLIErrorExit()
 
 
 def create_argument_parser(description, source_or_destination=UrlArgumentType.source):
@@ -35,7 +76,7 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
     Returns an `argparse.ArgumentParser` object which parses the core arguments
     and options for barman-cloud commands.
     """
-    parser = argparse.ArgumentParser(
+    parser = CloudArgumentParser(
         description=description,
         add_help=False,
     )

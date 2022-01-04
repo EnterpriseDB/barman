@@ -84,7 +84,14 @@ WAL_DEST
 0
 :   Success
 
-Not zero
+1
+:   The remote `get-wal` command failed, most likely because the requested WAL
+    could not be found.
+
+2
+:   The SSH connection to the Barman server failed.
+
+Other non-zero codes
 :   Failure
 
 

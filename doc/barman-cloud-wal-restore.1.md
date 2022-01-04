@@ -102,9 +102,17 @@ If using `--cloud-provider=azure-blob-storage`:
 0
 :   Success
 
-Not zero
-:   Failure
+1
+:   The requested WAL could not be found
 
+2
+:   The connection to the cloud provider failed
+
+3
+:   There was an error in the command input
+
+Other non-zero codes
+:   Failure
 
 # BUGS
 
