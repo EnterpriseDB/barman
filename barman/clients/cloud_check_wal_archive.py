@@ -18,7 +18,12 @@
 
 import logging
 
-from barman.clients.cloud_cli import create_argument_parser, UrlArgumentType
+from barman.clients.cloud_cli import (
+    create_argument_parser,
+    GeneralErrorExit,
+    OperationErrorExit,
+    UrlArgumentType,
+)
 from barman.cloud import configure_logging, CloudBackupCatalog
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import WalArchiveContentError
@@ -50,11 +55,11 @@ def main(args=None):
             config.server_name,
             force_str(err),
         )
-        raise SystemExit(1)
+        raise OperationErrorExit()
     except Exception as exc:
         logging.error("Barman cloud WAL archive check exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)
-        raise SystemExit(2)
+        raise GeneralErrorExit()
 
 
 def parse_arguments(args=None):

@@ -127,7 +127,16 @@ If using `--cloud-provider=azure-blob-storage`:
 0
 :   Success
 
-Not zero
+1
+:   The delete operation was not successful
+
+2
+:   The connection to the cloud provider failed
+
+3
+:   There was an error in the command input
+
+Other non-zero codes
 :   Failure
 
 

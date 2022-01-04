@@ -20,7 +20,12 @@ import logging
 from contextlib import closing
 
 from barman.annotations import KeepManager
-from barman.clients.cloud_cli import create_argument_parser
+from barman.clients.cloud_cli import (
+    create_argument_parser,
+    GeneralErrorExit,
+    NetworkErrorExit,
+    OperationErrorExit,
+)
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.infofile import BackupInfo
@@ -41,14 +46,14 @@ def main(args=None):
 
         with closing(cloud_interface):
             if not cloud_interface.test_connectivity():
-                raise SystemExit(1)
+                raise NetworkErrorExit()
             # If test is requested, just exit after connectivity test
             elif config.test:
                 raise SystemExit(0)
 
             if not cloud_interface.bucket_exists:
                 logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
-                raise SystemExit(1)
+                raise OperationErrorExit()
 
             catalog = CloudBackupCatalog(cloud_interface, config.server_name)
             if config.release:
@@ -70,12 +75,12 @@ def main(args=None):
                         config.backup_id,
                         backup_info.status,
                     )
-                    raise SystemExit(1)
+                    raise OperationErrorExit()
 
     except Exception as exc:
         logging.error("Barman cloud keep exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)
-        raise SystemExit(1)
+        raise GeneralErrorExit()
 
 
 def parse_arguments(args=None):

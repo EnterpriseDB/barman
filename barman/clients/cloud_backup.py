@@ -23,7 +23,13 @@ import tempfile
 from contextlib import closing
 from shutil import rmtree
 
-from barman.clients.cloud_cli import create_argument_parser, UrlArgumentType
+from barman.clients.cloud_cli import (
+    create_argument_parser,
+    GeneralErrorExit,
+    NetworkErrorExit,
+    OperationErrorExit,
+    UrlArgumentType,
+)
 from barman.cloud import (
     CloudBackupUploaderBarman,
     CloudBackupUploaderPostgres,
@@ -112,7 +118,7 @@ def main(args=None):
         cloud_interface = get_cloud_interface(config)
 
         if not cloud_interface.test_connectivity():
-            raise SystemExit(1)
+            raise NetworkErrorExit()
         # If test is requested, just exit after connectivity test
         elif config.test:
             raise SystemExit(0)
@@ -161,7 +167,7 @@ def main(args=None):
                 except PostgresConnectionError as exc:
                     logging.error("Cannot connect to postgres: %s", force_str(exc))
                     logging.debug("Exception details:", exc_info=exc)
-                    raise SystemExit(1)
+                    raise OperationErrorExit()
 
                 with closing(postgres):
                     uploader = CloudBackupUploaderPostgres(
@@ -172,7 +178,7 @@ def main(args=None):
     except KeyboardInterrupt as exc:
         logging.error("Barman cloud backup was interrupted by the user")
         logging.debug("Exception details:", exc_info=exc)
-        raise SystemExit(1)
+        raise OperationErrorExit()
     except UnrecoverableHookScriptError as exc:
         logging.error("Barman cloud backup exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)
@@ -180,7 +186,7 @@ def main(args=None):
     except Exception as exc:
         logging.error("Barman cloud backup exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)
-        raise SystemExit(1)
+        raise GeneralErrorExit()
     finally:
         # Remove the temporary directory and all the contained files
         rmtree(tempdir, ignore_errors=True)

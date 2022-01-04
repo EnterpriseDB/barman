@@ -19,7 +19,13 @@ import logging
 import os
 from contextlib import closing
 
-from barman.clients.cloud_cli import create_argument_parser
+from barman.clients.cloud_cli import (
+    CLIErrorExit,
+    create_argument_parser,
+    GeneralErrorExit,
+    NetworkErrorExit,
+    OperationErrorExit,
+)
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.utils import force_str
@@ -40,7 +46,7 @@ def main(args=None):
         logging.error(
             "Destination %s already exists and it is not empty", config.recovery_dir
         )
-        raise SystemExit(1)
+        raise OperationErrorExit()
 
     try:
         cloud_interface = get_cloud_interface(config)
@@ -51,14 +57,14 @@ def main(args=None):
             )
 
             if not cloud_interface.test_connectivity():
-                raise SystemExit(1)
+                raise NetworkErrorExit()
             # If test is requested, just exit after connectivity test
             elif config.test:
                 raise SystemExit(0)
 
             if not cloud_interface.bucket_exists:
                 logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
-                raise SystemExit(1)
+                raise OperationErrorExit()
 
             downloader.download_backup(
                 config.backup_id,
@@ -69,11 +75,11 @@ def main(args=None):
     except KeyboardInterrupt as exc:
         logging.error("Barman cloud restore was interrupted by the user")
         logging.debug("Exception details:", exc_info=exc)
-        raise SystemExit(1)
+        raise OperationErrorExit()
     except Exception as exc:
         logging.error("Barman cloud restore exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)
-        raise SystemExit(1)
+        raise GeneralErrorExit()
 
 
 def parse_arguments(args=None):
@@ -116,7 +122,7 @@ def tablespace_map(rules):
                 "NAME:LOCATION",
                 rule,
             )
-            raise SystemExit(1)
+            raise CLIErrorExit()
     return tablespaces
 
 
@@ -152,7 +158,7 @@ class CloudBackupDownloader(object):
             logging.error(
                 "Backup %s for server %s does not exists", backup_id, self.server_name
             )
-            raise SystemExit(1)
+            raise OperationErrorExit()
 
         backup_files = self.catalog.get_backup_files(backup_info)
 
@@ -198,7 +204,7 @@ class CloudBackupDownloader(object):
                 logging.error(
                     "Destination %s already exists and it is not empty", target_dir
                 )
-                raise SystemExit(1)
+                raise OperationErrorExit()
             copy_jobs.append([file_info, target_dir])
             for additional_file in file_info.additional_files:
                 copy_jobs.append([additional_file, target_dir])

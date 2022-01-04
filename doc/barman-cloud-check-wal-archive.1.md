@@ -109,6 +109,12 @@ If using `--cloud-provider=azure-blob-storage`:
 :   Failure
 
 2
+:   The connection to the cloud provider failed
+
+3
+:   There was an error in the command input
+
+Other non-zero codes
 :   Error running the check
 
 

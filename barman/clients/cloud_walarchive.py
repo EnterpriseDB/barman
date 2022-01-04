@@ -25,7 +25,13 @@ import shutil
 from contextlib import closing
 from io import BytesIO
 
-from barman.clients.cloud_cli import create_argument_parser, UrlArgumentType
+from barman.clients.cloud_cli import (
+    create_argument_parser,
+    CLIErrorExit,
+    GeneralErrorExit,
+    NetworkErrorExit,
+    UrlArgumentType,
+)
 from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
@@ -72,7 +78,7 @@ def main(args=None):
     # Validate the WAL file name before uploading it
     if not is_any_xlog_file(config.wal_path):
         logging.error("%s is an invalid name for a WAL file" % config.wal_path)
-        raise SystemExit(1)
+        raise CLIErrorExit()
 
     try:
         cloud_interface = get_cloud_interface(config)
@@ -85,7 +91,7 @@ def main(args=None):
             )
 
             if not cloud_interface.test_connectivity():
-                raise SystemExit(1)
+                raise NetworkErrorExit()
             # If test is requested, just exit after connectivity test
             elif config.test:
                 raise SystemExit(0)
@@ -97,7 +103,7 @@ def main(args=None):
     except Exception as exc:
         logging.error("Barman cloud WAL archiver exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)
-        raise SystemExit(1)
+        raise GeneralErrorExit()
 
 
 def parse_arguments(args=None):

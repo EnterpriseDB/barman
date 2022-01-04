@@ -101,7 +101,7 @@ class TestMain(object):
                     "/tmp/000000080000ABFF000000C1-INVALID",
                 ]
             )
-        assert excinfo.value.code == 1
+        assert excinfo.value.code == 3
 
         # Successful connectivity test
         uploader_mock.reset_mock()
@@ -137,7 +137,7 @@ class TestMain(object):
                     "/tmp/000000080000ABFF000000C1",
                 ]
             )
-        assert excinfo.value.code == 1
+        assert excinfo.value.code == 2
         uploader_mock.assert_called_once_with(
             cloud_interface=cloud_object_interface_mock,
             server_name="test-server",
