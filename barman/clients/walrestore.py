@@ -59,14 +59,17 @@ def main(args=None):
 
     # Check WAL destination is not a directory
     if os.path.isdir(config.wal_dest):
-        exit_with_error("WAL_DEST cannot be a directory: %s" % config.wal_dest)
+        exit_with_error(
+            "WAL_DEST cannot be a directory: %s" % config.wal_dest, status=3
+        )
 
     # Open the destination file
     try:
         dest_file = open(config.wal_dest, "wb")
     except EnvironmentError as e:
         exit_with_error(
-            "Cannot open '%s' (WAL_DEST) for writing: %s" % (config.wal_dest, e)
+            "Cannot open '%s' (WAL_DEST) for writing: %s" % (config.wal_dest, e),
+            status=3,
         )
         return  # never reached
 
@@ -100,9 +103,9 @@ def main(args=None):
     if ssh_process.returncode == 0:
         sys.exit(0)
 
-    # Report the exit code, remapping ssh failure code (255) to 3
+    # Report the exit code, remapping ssh failure code (255) to 2
     if ssh_process.returncode == 255:
-        exit_with_error("Connection problem with ssh", 3, sleep=config.sleep)
+        exit_with_error("Connection problem with ssh", 2, sleep=config.sleep)
     else:
         exit_with_error(
             "Remote 'barman get-wal' command has failed!",

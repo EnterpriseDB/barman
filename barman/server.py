@@ -1818,7 +1818,12 @@ class Server(RemoteStatusMixin):
 
         # Sanity check
         if not xlog.is_any_xlog_file(wal_name):
-            output.error("'%s' is not a valid wal file name%s", wal_name, source_suffix)
+            output.error(
+                "'%s' is not a valid wal file name%s",
+                wal_name,
+                source_suffix,
+                exit_code=3,
+            )
             return
 
         # If peek is requested we only output a list of files
@@ -1893,7 +1898,11 @@ class Server(RemoteStatusMixin):
                 destination = open(destination_path, "wb")
             except IOError as e:
                 output.error(
-                    "Unable to open '%s' file%s: %s", destination_path, source_suffix, e
+                    "Unable to open '%s' file%s: %s",
+                    destination_path,
+                    source_suffix,
+                    e,
+                    exit_code=3,
                 )
                 return
         else:

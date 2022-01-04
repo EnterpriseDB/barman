@@ -77,3 +77,61 @@ class TestRemoteGetWal(object):
             "Command 'remote barman' returned non-zero "
             "exit status 255"
         ) in err
+
+    @mock.patch("barman.clients.walrestore.RemoteGetWal")
+    def test_ssh_connectivity_error(self, remote_get_wal_mock, capsys):
+        """Verifies exit status is 2 when ssh connectivity fails."""
+        mock_ssh_process = remote_get_wal_mock.return_value
+        mock_ssh_process.returncode = 255
+
+        with pytest.raises(SystemExit) as exc:
+            walrestore.main(["a.host", "a-server", "dummy_wal", "dummy_dest"])
+
+        assert exc.value.code == 2
+        out, err = capsys.readouterr()
+        assert not out
+        assert ("ERROR: Connection problem with ssh\n") in err
+
+    @mock.patch("barman.clients.walrestore.RemoteGetWal")
+    def test_ssh_exit_code_is_passed_through(self, remote_get_wal_mock, capsys):
+        """Verifies non-255 SSH exit codes are passed through."""
+        mock_ssh_process = remote_get_wal_mock.return_value
+        mock_ssh_process.returncode = 1
+
+        with pytest.raises(SystemExit) as exc:
+            walrestore.main(["a.host", "a-server", "dummy_wal", "dummy_dest"])
+
+        assert exc.value.code == 1
+        out, err = capsys.readouterr()
+        assert not out
+        assert ("ERROR: Remote 'barman get-wal' command has failed!\n") in err
+
+    @mock.patch("barman.clients.walrestore.os.path.isdir")
+    def test_exit_code_if_wal_dest_is_dir(self, isdir_mock, capsys):
+        """Verifies exit status 3 when destination is a directory."""
+        isdir_mock.return_value = True
+
+        with pytest.raises(SystemExit) as exc:
+            walrestore.main(["a.host", "a-server", "dummy_wal", "dummy_dest"])
+
+        assert exc.value.code == 3
+        out, err = capsys.readouterr()
+        assert not out
+        assert ("ERROR: WAL_DEST cannot be a directory: dummy_dest\n") in err
+
+    @mock.patch("barman.clients.walrestore.open")
+    @mock.patch("barman.clients.walrestore.os.path.isdir")
+    def test_exit_code_if_wal_dest_not_writable(self, isdir_mock, open_mock, capsys):
+        """Verifies exit status 3 when destination is not writable."""
+        isdir_mock.return_value = False
+        open_mock.side_effect = EnvironmentError("error")
+
+        with pytest.raises(SystemExit) as exc:
+            walrestore.main(["a.host", "a-server", "dummy_wal", "dummy_dest"])
+
+        assert exc.value.code == 3
+        out, err = capsys.readouterr()
+        assert not out
+        assert (
+            "ERROR: Cannot open 'dummy_dest' (WAL_DEST) for writing: error\n"
+        ) in err
