@@ -66,7 +66,7 @@ class TestCloudBackupDelete(object):
             cloud_backup_delete.main(
                 ["cloud_storage_url", "test_server", "--backup-id", "backup_id"]
             )
-        assert exc.value.code == 1
+        assert exc.value.code == 2
         cloud_interface_mock.test_connectivity.assert_called_once()
 
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
@@ -690,8 +690,8 @@ class TestCloudBackupDelete(object):
                 ]
             )
 
-        # THEN we exit with status 1
-        assert exc.value.code == 1
+        # THEN we exit with status 3
+        assert exc.value.code == 3
 
         # AND we logged a useful message
         assert "Cannot parse option retention_policy: THIS IS NOT VALID" in caplog.text
@@ -758,8 +758,8 @@ class TestCloudBackupDelete(object):
             in caplog.text
         )
 
-        # AND we exit with status 2
-        assert exc.value.code == 2
+        # AND we exit with status 1
+        assert exc.value.code == 1
 
         # AND the cloud interface was used to delete objects only once - for
         # the backup that failed. It was not called to delete the backup.info file

@@ -114,7 +114,7 @@ class TestCloudBackupKeep(object):
                     "standalone",
                 ]
             )
-        assert exc.value.code == 1
+        assert exc.value.code == 2
         cloud_interface_mock.test_connectivity.assert_called_once()
 
     @mock.patch("barman.clients.cloud_backup_keep.get_cloud_interface")

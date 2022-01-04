@@ -111,5 +111,5 @@ class TestCloudCheckWalArchive(object):
         mock_check_archive_usable.side_effect = Exception("oh dear")
         with pytest.raises(SystemExit) as exc:
             cloud_check_wal_archive.main(["cloud_storage_url", "test_server"])
-        assert 2 == exc.value.code
+        assert 4 == exc.value.code
         assert "Barman cloud WAL archive check exception: oh dear" in caplog.text
