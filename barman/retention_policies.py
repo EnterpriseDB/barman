@@ -35,6 +35,7 @@ from datetime import datetime, timedelta
 from dateutil import tz
 
 from barman.annotations import KeepManager
+from barman.exceptions import InvalidRetentionPolicy
 from barman.infofile import BackupInfo
 from barman.utils import with_metaclass
 
@@ -490,7 +491,9 @@ class RetentionPolicyFactory(object):
         elif option == "retention_policy":
             context = "BASE"
         else:
-            raise ValueError("Unknown option for retention policy: %s" % option)
+            raise InvalidRetentionPolicy(
+                "Unknown option for retention policy: %s" % option
+            )
 
         if server:
             server_metadata = ServerMetadataLive(
@@ -506,4 +509,4 @@ class RetentionPolicyFactory(object):
             if policy:
                 return policy
 
-        raise ValueError("Cannot parse option %s: %s" % (option, value))
+        raise InvalidRetentionPolicy("Cannot parse option %s: %s" % (option, value))

@@ -47,6 +47,7 @@ from barman.exceptions import (
     BadXlogSegmentName,
     CommandFailedException,
     ConninfoException,
+    InvalidRetentionPolicy,
     LockFileBusy,
     LockFileException,
     LockFilePermissionDenied,
@@ -475,7 +476,7 @@ class Server(RemoteStatusMixin):
                         "WAL retention policy for server %s: %s"
                         % (self.config.name, self.config.wal_retention_policy)
                     )
-                except ValueError:
+                except InvalidRetentionPolicy:
                     _logger.exception(
                         'Invalid wal_retention_policy setting "%s" '
                         'for server "%s" (fallback to "main")'
@@ -488,7 +489,7 @@ class Server(RemoteStatusMixin):
 
                 self.enforce_retention_policies = True
 
-            except ValueError:
+            except InvalidRetentionPolicy:
                 _logger.exception(
                     'Invalid retention_policy setting "%s" for server "%s"'
                     % (self.config.retention_policy, self.config.name)

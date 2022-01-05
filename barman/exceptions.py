@@ -379,3 +379,9 @@ class WalArchiveContentError(BarmanException):
     """
     Exception raised when unexpected content is detected in the WAL archive.
     """
+
+
+class InvalidRetentionPolicy(BarmanException):
+    """
+    Exception raised when a retention policy cannot be parsed.
+    """
