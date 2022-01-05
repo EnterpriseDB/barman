@@ -24,12 +24,14 @@ from operator import attrgetter
 from barman.backup import BackupManager
 from barman.clients.cloud_cli import (
     create_argument_parser,
+    CLIErrorExit,
     GeneralErrorExit,
     NetworkErrorExit,
     OperationErrorExit,
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import get_cloud_interface
+from barman.exceptions import InvalidRetentionPolicy
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import force_str
 from barman import xlog
@@ -254,12 +256,20 @@ def main(args=None):
                     cloud_interface, catalog, config.backup_id, config.dry_run
                 )
             elif config.retention_policy:
-                retention_policy = RetentionPolicyFactory.create(
-                    "retention_policy",
-                    config.retention_policy,
-                    server_name=config.server_name,
-                    catalog=catalog,
-                )
+                try:
+                    retention_policy = RetentionPolicyFactory.create(
+                        "retention_policy",
+                        config.retention_policy,
+                        server_name=config.server_name,
+                        catalog=catalog,
+                    )
+                except InvalidRetentionPolicy as exc:
+                    logging.error(
+                        "Could not create retention policy %s: %s",
+                        config.retention_policy,
+                        force_str(exc),
+                    )
+                    raise CLIErrorExit()
                 # Sort to ensure that we delete the backups in ascending order, that is
                 # from oldest to newest. This ensures that the relevant WALs will be cleaned
                 # up after each backup is deleted.
