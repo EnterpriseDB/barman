@@ -86,6 +86,25 @@ the cloud provider to which the backup should be uploaded
 .RS
 .RE
 .TP
+.B \[en]tags KEY1,VALUE1 KEY2,VALUE2 \&...
+A space\-separated list of comma\-separated key\-value pairs
+representing tags to be added to each WAL file archived to cloud
+storage.
+.RS
+.RE
+.TP
+.B \[en]history\-tags KEY1,VALUE1 KEY2,VALUE2 \&...
+A space\-separated list of comma\-separated key\-value pairs
+representing tags to be added to each history file archived to cloud
+storage.
+If this is provided alongside the \f[C]\-\-tags\f[] option then the
+value of \f[C]\-\-history\-tags\f[] will be used in place of
+\f[C]\-\-tags\f[] for history files.
+All other WAL files will continue to be tagged with the value of
+\f[C]\-\-tags\f[].
+.RS
+.RE
+.TP
 .B \-P, \[en]profile
 profile name (e.g.\ INI section in AWS credentials file)
 .RS

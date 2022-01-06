@@ -90,6 +90,10 @@ SERVER_NAME
 --cloud-provider {aws-s3,azure-blob-storage}
 :    the cloud provider to which the backup should be uploaded
 
+--tags KEY1,VALUE1 KEY2,VALUE2 ...
+:    a space-separated list of comma-separated key-value pairs representing tags
+     to be added to each object created in cloud storage
+
 -P, --profile
 :    profile name (e.g. INI section in AWS credentials file)
 

@@ -26,6 +26,7 @@ from contextlib import closing
 from io import BytesIO
 
 from barman.clients.cloud_cli import (
+    add_tag_argument,
     create_argument_parser,
     CLIErrorExit,
     GeneralErrorExit,
@@ -36,7 +37,7 @@ from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
 from barman.utils import force_str
-from barman.xlog import hash_dir, is_any_xlog_file
+from barman.xlog import hash_dir, is_any_xlog_file, is_history_file
 
 
 def __is_hook_script():
@@ -99,7 +100,12 @@ def main(args=None):
             # TODO: Should the setup be optional?
             cloud_interface.setup_bucket()
 
-            uploader.upload_wal(config.wal_path)
+            upload_kwargs = {}
+            if is_history_file(config.wal_path):
+                upload_kwargs["override_tags"] = config.history_tags
+
+            uploader.upload_wal(config.wal_path, **upload_kwargs)
+
     except Exception as exc:
         logging.error("Barman cloud WAL archiver exception: %s", force_str(exc))
         logging.debug("Exception details:", exc_info=exc)
@@ -144,6 +150,16 @@ def parse_arguments(args=None):
         const="bzip2",
         dest="compression",
     )
+    add_tag_argument(
+        parser,
+        name="tags",
+        help="Tags to be added to archived WAL files in cloud storage",
+    )
+    add_tag_argument(
+        parser,
+        name="history-tags",
+        help="Tags to be added to archived history files in cloud storage",
+    )
     s3_arguments.add_argument(
         "-e",
         "--encryption",
@@ -179,11 +195,13 @@ class CloudWalUploader(object):
         self.compression = compression
         self.server_name = server_name
 
-    def upload_wal(self, wal_path):
+    def upload_wal(self, wal_path, override_tags=None):
         """
         Upload a WAL file from postgres to cloud storage
 
         :param str wal_path: Full path of the WAL file
+        :param List[tuple] override_tags: List of k,v tuples which should override any
+          tags already defined in the cloud interface
         """
         # Extract the WAL file
         wal_name = self.retrieve_wal_name(wal_path)
@@ -200,7 +218,9 @@ class CloudWalUploader(object):
 
         # Put the file in the correct bucket.
         # The put method will handle automatically multipart upload
-        self.cloud_interface.upload_fileobj(fileobj=file_object, key=destination)
+        self.cloud_interface.upload_fileobj(
+            fileobj=file_object, key=destination, override_tags=override_tags
+        )
 
     def retrieve_file_obj(self, wal_path):
         """

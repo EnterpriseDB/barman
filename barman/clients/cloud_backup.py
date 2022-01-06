@@ -24,6 +24,7 @@ from contextlib import closing
 from shutil import rmtree
 
 from barman.clients.cloud_cli import (
+    add_tag_argument,
     create_argument_parser,
     GeneralErrorExit,
     NetworkErrorExit,
@@ -264,6 +265,11 @@ def parse_arguments(args=None):
         "--dbname",
         help="Database name or conninfo string for Postgres connection (default: postgres)",
         default="postgres",
+    )
+    add_tag_argument(
+        parser,
+        name="tags",
+        help="Tags to be added to all uploaded files in cloud storage",
     )
     s3_arguments.add_argument(
         "-e",

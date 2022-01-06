@@ -102,7 +102,7 @@ class AzureCloudInterface(CloudInterface):
     # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
     MAX_ARCHIVE_SIZE = 1 << 40
 
-    def __init__(self, url, jobs=2, encryption_scope=None, credential=None):
+    def __init__(self, url, jobs=2, encryption_scope=None, credential=None, tags=None):
         """
         Create a new Azure Blob Storage interface given the supplied acccount url
 
@@ -113,6 +113,7 @@ class AzureCloudInterface(CloudInterface):
         super(AzureCloudInterface, self).__init__(
             url=url,
             jobs=jobs,
+            tags=tags,
         )
         self.encryption_scope = encryption_scope
         self.credential = credential
@@ -303,15 +304,21 @@ class AzureCloudInterface(CloudInterface):
         except ResourceNotFoundError:
             return None
 
-    def upload_fileobj(self, fileobj, key):
+    def upload_fileobj(self, fileobj, key, override_tags=None):
         """
         Synchronously upload the content of a file-like object to a cloud key
 
         :param fileobj IOBase: File-like object to upload
         :param str key: The key to identify the uploaded object
+        :param List[tuple] override_tags: List of tags as k,v tuples to be added to the
+          uploaded object
         """
+        extra_args = self._extra_upload_args.copy()
+        tags = override_tags or self.tags
+        if tags is not None:
+            extra_args["tags"] = dict(tags)
         self.container_client.upload_blob(
-            name=key, data=fileobj, overwrite=True, **self._extra_upload_args
+            name=key, data=fileobj, overwrite=True, **extra_args
         )
 
     def create_multipart_upload(self, key):
@@ -358,7 +365,10 @@ class AzureCloudInterface(CloudInterface):
         """
         blob_client = self.container_client.get_blob_client(key)
         block_list = [part["PartNumber"] for part in parts]
-        blob_client.commit_block_list(block_list, **self._extra_upload_args)
+        extra_args = self._extra_upload_args.copy()
+        if self.tags is not None:
+            extra_args["tags"] = dict(self.tags)
+        blob_client.commit_block_list(block_list, **extra_args)
 
     def _abort_multipart_upload(self, upload_metadata, key):
         """

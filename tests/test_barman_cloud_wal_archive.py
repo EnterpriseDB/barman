@@ -167,6 +167,115 @@ class TestMain(object):
             ) in caplog.record_tuples
             assert e.value.code == 1
 
+    @pytest.mark.parametrize(
+        (
+            "wal_name",
+            "tags_args",
+            "history_tags_args",
+            "expected_tags",
+            "expected_override_tags",
+        ),
+        [
+            # With a standard WAL file, the cloud interface should be created with tags
+            # and no override tags are expected
+            (
+                "/tmp/000000080000ABFF000000C1",
+                ["--tags", "foo,bar", '"b,az",qux'],
+                ["--history-tags", "historyfoo,historybar", "historybaz,historyqux"],
+                [("foo", "bar"), ("b,az", "qux")],
+                None,
+            ),
+            # With a history WAL file, the cloud interface should be created with tags
+            # and override tags should be included on WAL upload
+            (
+                "/tmp/00000008.history",
+                ["--tags", "foo,bar", "baz,qux"],
+                ["--history-tags", "historyfoo,historybar", '"historyb,az",historyqux'],
+                [("foo", "bar"), ("baz", "qux")],
+                [("historyfoo", "historybar"), ("historyb,az", "historyqux")],
+            ),
+        ],
+    )
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_wal_archive_tags(
+        self,
+        cloud_interface_mock,
+        uploader_mock,
+        wal_name,
+        tags_args,
+        history_tags_args,
+        expected_tags,
+        expected_override_tags,
+    ):
+        """Test that tags and history tags are handled."""
+        uploader_object_mock = uploader_mock.return_value
+
+        cloud_walarchive.main(
+            [
+                "s3://test-bucket/testfolder",
+                "test-server",
+                wal_name,
+            ]
+            + tags_args
+            + history_tags_args
+        )
+
+        # Verify expected tags are passed to cloud interface
+        cloud_interface_mock.assert_called_once_with(
+            url="s3://test-bucket/testfolder",
+            tags=expected_tags,
+            profile_name=None,
+            endpoint_url=None,
+            encryption=None,
+        )
+
+        # Verify expected override tags are passed to upload_wal
+        override_args = (
+            expected_override_tags and {"override_tags": expected_override_tags} or {}
+        )
+        uploader_object_mock.upload_wal.assert_called_once_with(
+            wal_name, **override_args
+        )
+
+    @pytest.mark.parametrize(
+        ("tags_args"),
+        [
+            # Newline in tag
+            ["--tags", "foo,bar\nbaz,qux"],
+            # Newline in history_tag
+            ["--history-tags", "foo,bar\nbaz,qux"],
+            # Carriage return in tag
+            ["--tags", "foo,bar\r\nbaz,qux"],
+            # Carriage return in history_tag
+            ["--history-tags", "foo,bar\r\nbaz,qux"],
+            # Too many values in tag
+            ["--tags", "foo,bar,baz"],
+            # Too many values in history tag
+            ["--history-tags", "foo,bar,baz"],
+        ],
+    )
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_badly_formed_tags(
+        self,
+        _cloud_interface_mock,
+        _uploader_mock,
+        tags_args,
+        caplog,
+    ):
+        """Test that badly formed tags are rejected."""
+        with pytest.raises(SystemExit) as excinfo:
+            cloud_walarchive.main(
+                [
+                    "s3://test-bucket/testfolder",
+                    "test-server",
+                    "/path/to/somewhere/000000080000ABFF000000C1",
+                ]
+                + tags_args
+            )
+        assert excinfo.value.code == 3
+
 
 # noinspection PyProtectedMember
 class TestWalUploader(object):
