@@ -670,6 +670,7 @@ class LocalBackupInfo(BackupInfo):
         # Walk down the base backup directory
         if target in ("data", "standalone", "full"):
             for root, _, files in os.walk(self.get_basebackup_directory()):
+                files.sort()
                 for f in files:
                     yield os.path.join(root, f)
         if target in "standalone":
