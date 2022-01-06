@@ -6,4 +6,4 @@ boto3<1.11
 mock
 pytest-timeout==1.4.2
 argcomplete
-python-dateutil
+python-dateutil==1.5

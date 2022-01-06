@@ -1461,7 +1461,6 @@ def verify_backup(args):
             "backup_id", completer=backup_completer, help="specifies the backup ID"
         ),
     ],
-    cmd_aliases=["generate-manifest"],
 )
 def generate_manifest(args):
     """

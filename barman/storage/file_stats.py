@@ -26,7 +26,7 @@ except ImportError:
     # python 2.7 compatibility
     from dateutil import tz
 
-    utc = tz.UTC
+    utc = tz.tzutc()
 
 
 class FileStats:

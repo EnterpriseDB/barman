@@ -55,9 +55,10 @@ barman check <server_name>
 
 ## `generate-manifest`
 
-This command is useful when backup is created remotely and bg_basebackup is not 
+This command is useful when backup is created remotely and pg_basebackup is not 
 involved and `backup_manifest` file does not exist in backup.
-It will generate `backup_manifest` from backup_id if it does not already exist.
+It will generate `backup_manifest` file from backup_id using backup in barman server.
+If the file already exist, generation command will abort.
 
 Command example:
 ```bash
