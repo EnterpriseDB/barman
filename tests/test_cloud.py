@@ -526,6 +526,55 @@ class TestS3CloudInterface(object):
             ExtraArgs={"ServerSideEncryption": "aws:kms"},
         )
 
+    @pytest.mark.parametrize(
+        "cloud_interface_tags, override_tags, expected_tagging",
+        [
+            # Cloud interface tags are used if no override tags
+            (
+                [("foo", "bar"), ("baz $%", "qux -/")],
+                None,
+                "foo=bar&baz+%24%25=qux+-%2F",
+            ),
+            # Override tags are used in place of cloud interface tags
+            (
+                [("foo", "bar")],
+                [("$+ a", "///"), ("()", "[]")],
+                "%24%2B+a=%2F%2F%2F&%28%29=%5B%5D",
+            ),
+        ],
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_upload_fileobj_with_tags(
+        self, boto_mock, cloud_interface_tags, override_tags, expected_tagging
+    ):
+        """
+        Tests the Tagging argument is provided to boto3 when uploading
+        a file if tags are provided when creating S3CloudInterface.
+        """
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/path/to/dir",
+            # Tags must be urlencoded so include quotable characters
+            tags=cloud_interface_tags,
+        )
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_fileobj = mock.MagicMock()
+        mock_key = "path/to/dir"
+        cloud_interface.upload_fileobj(
+            mock_fileobj, mock_key, override_tags=override_tags
+        )
+
+        s3_client.upload_fileobj.assert_called_once_with(
+            Fileobj=mock_fileobj,
+            Bucket="bucket",
+            Key=mock_key,
+            ExtraArgs={
+                "Tagging": expected_tagging,
+            },
+        )
+
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_create_multipart_upload(self, boto_mock):
         """
@@ -562,6 +611,26 @@ class TestS3CloudInterface(object):
 
         s3_client.create_multipart_upload.assert_called_once_with(
             Bucket="bucket", Key=mock_key, ServerSideEncryption="aws:kms"
+        )
+
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_create_multipart_upload_with_tags(self, boto_mock):
+        """
+        Tests the Tagging argument is provided to boto3 when creating
+        a multipart upload if the S3CloudInterface is created with tags
+        """
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/path/to/dir", tags=[("foo", "bar"), ("baz +%", "qux %/")]
+        )
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_client = s3_mock.meta.client
+
+        mock_key = "path/to/dir"
+        cloud_interface.create_multipart_upload(mock_key)
+
+        s3_client.create_multipart_upload.assert_called_once_with(
+            Bucket="bucket", Key=mock_key, Tagging="foo=bar&baz+%2B%25=qux+%25%2F"
         )
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
@@ -1048,6 +1117,53 @@ class TestAzureCloudInterface(object):
             encryption_scope=encryption_scope,
         )
 
+    @pytest.mark.parametrize(
+        "cloud_interface_tags, override_tags, expected_tags",
+        [
+            # Cloud interface tags are used if no override tags
+            (
+                [("foo", "bar"), ("baz $%", "qux -/")],
+                None,
+                {"foo": "bar", "baz $%": "qux -/"},
+            ),
+            # Override tags are used in place of cloud interface tags
+            (
+                [("foo", "bar")],
+                [("$+ a", "///"), ("()", "[]")],
+                {"$+ a": "///", "()": "[]"},
+            ),
+        ],
+    )
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_upload_fileobj_with_tags(
+        self, container_client_mock, cloud_interface_tags, override_tags, expected_tags
+    ):
+        """
+        Tests the tags argument is provided to the container client when uploading
+        a file if tags are provided when creating AzureCloudInterface.
+        """
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob",
+            tags=cloud_interface_tags,
+        )
+        container_client = container_client_mock.from_connection_string.return_value
+        mock_fileobj = mock.MagicMock()
+        mock_key = "path/to/blob"
+        cloud_interface.upload_fileobj(
+            mock_fileobj, mock_key, override_tags=override_tags
+        )
+        # The key and fileobj are passed on to the upload_blob call along
+        # with the encryption_scope
+        container_client.upload_blob.assert_called_once_with(
+            name=mock_key,
+            data=mock_fileobj,
+            overwrite=True,
+            tags=expected_tags,
+        )
+
     @mock.patch.dict(
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
@@ -1149,6 +1265,34 @@ class TestAzureCloudInterface(object):
         container_client.get_blob_client.assert_called_once_with(mock_key)
         blob_client_mock.commit_block_list.assert_called_once_with(
             ["00001"], encryption_scope=encryption_scope
+        )
+
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_complete_multipart_upload_with_tags(self, container_client_mock):
+        """
+        Tests that the tags argument is provided to the container client when
+        completing a multipart upload if the AzureCloudInterface is created with
+        tags
+        """
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob",
+            tags=[("foo", "bar"), ("baz", "qux")],
+        )
+        container_client = container_client_mock.from_connection_string.return_value
+        blob_client_mock = container_client.get_blob_client.return_value
+
+        mock_parts = [{"PartNumber": "00001"}]
+        mock_key = "path/to/blob"
+        cloud_interface._complete_multipart_upload({}, mock_key, mock_parts)
+
+        # A blob client is created for the key and commit_block_list is called
+        # with the supplied list of part numbers and the encryption scope
+        container_client.get_blob_client.assert_called_once_with(mock_key)
+        blob_client_mock.commit_block_list.assert_called_once_with(
+            ["00001"], tags={"foo": "bar", "baz": "qux"}
         )
 
     @mock.patch.dict(
@@ -1366,19 +1510,43 @@ class TestGetCloudInterface(object):
             get_cloud_interface(mock_config_aws)
         assert "Unsupported cloud provider: aws-infinidash" == str(exc.value)
 
+    @pytest.mark.parametrize(
+        "extra_args",
+        [
+            {},
+            {"jobs": 2},
+            {"tags": [("foo", "bar"), ("baz", "qux")]},
+        ],
+    )
     @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
-    def test_aws_s3(self, mock_s3_cloud_interface, mock_config_aws):
+    def test_aws_s3(self, mock_s3_cloud_interface, mock_config_aws, extra_args):
         """Verify --cloud-provider=aws-s3 creates an S3CloudInterface"""
         mock_config_aws.cloud_provider = "aws-s3"
+        for k, v in extra_args.items():
+            setattr(mock_config_aws, k, v)
         get_cloud_interface(mock_config_aws)
-        mock_s3_cloud_interface.assert_called_once()
+        mock_s3_cloud_interface.assert_called_once_with(
+            url="test-url", profile_name=None, endpoint_url=None, **extra_args
+        )
 
+    @pytest.mark.parametrize(
+        "extra_args",
+        [
+            {},
+            {"jobs": 2},
+            {"tags": [("foo", "bar"), ("baz", "qux")]},
+        ],
+    )
     @mock.patch("barman.cloud_providers.azure_blob_storage.AzureCloudInterface")
-    def test_azure_blob_storage(self, mock_azure_cloud_interface, mock_config_azure):
+    def test_azure_blob_storage(
+        self, mock_azure_cloud_interface, mock_config_azure, extra_args
+    ):
         """Verify --cloud-provider=azure-blob-storage creates an AzureCloudInterface"""
         mock_config_azure.cloud_provider = "azure-blob-storage"
+        for k, v in extra_args.items():
+            setattr(mock_config_azure, k, v)
         get_cloud_interface(mock_config_azure)
-        mock_azure_cloud_interface.assert_called_once()
+        mock_azure_cloud_interface.assert_called_once_with(url="test-url", **extra_args)
 
     def test_azure_blob_storage_unsupported_credential(self, mock_config_azure):
         """Verify unsupported Azure credentials raise an exception"""

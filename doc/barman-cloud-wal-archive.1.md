@@ -69,6 +69,17 @@ WAL_PATH
 --cloud-provider {aws-s3,azure-blob-storage}
 :    the cloud provider to which the backup should be uploaded
 
+--tags KEY1,VALUE1 KEY2,VALUE2 ...
+:    A space-separated list of comma-separated key-value pairs representing tags
+     to be added to each WAL file archived to cloud storage.
+
+--history-tags KEY1,VALUE1 KEY2,VALUE2 ...
+:    A space-separated list of comma-separated key-value pairs representing tags
+     to be added to each history file archived to cloud storage.
+     If this is provided alongside the `--tags` option then the value of
+     `--history-tags` will be used in place of `--tags` for history files.
+     All other WAL files will continue to be tagged with the value of `--tags`.
+
 -P, --profile
 :    profile name (e.g. INI section in AWS credentials file)
 

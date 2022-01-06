@@ -26,10 +26,11 @@ from barman.cloud import CloudInterface, CloudProviderError
 
 try:
     # Python 3.x
-    from urllib.parse import urlparse
+    from urllib.parse import urlencode, urlparse
 except ImportError:
     # Python 2.x
     from urlparse import urlparse
+    from urllib import urlencode
 
 try:
     import boto3
@@ -80,7 +81,13 @@ class S3CloudInterface(CloudInterface):
         self.__dict__.update(state)
 
     def __init__(
-        self, url, encryption=None, jobs=2, profile_name=None, endpoint_url=None
+        self,
+        url,
+        encryption=None,
+        jobs=2,
+        profile_name=None,
+        endpoint_url=None,
+        tags=None,
     ):
         """
         Create a new S3 interface given the S3 destination url and the profile
@@ -97,6 +104,7 @@ class S3CloudInterface(CloudInterface):
         super(S3CloudInterface, self).__init__(
             url=url,
             jobs=jobs,
+            tags=tags,
         )
         self.profile_name = profile_name
         self.encryption = encryption
@@ -270,18 +278,21 @@ class S3CloudInterface(CloudInterface):
             else:
                 raise
 
-    def upload_fileobj(self, fileobj, key):
+    def upload_fileobj(self, fileobj, key, override_tags=None):
         """
         Synchronously upload the content of a file-like object to a cloud key
 
         :param fileobj IOBase: File-like object to upload
         :param str key: The key to identify the uploaded object
+        :param List[tuple] override_tags: List of k,v tuples which should override any
+          tags already defined in the cloud interface
         """
+        extra_args = self._extra_upload_args.copy()
+        tags = override_tags or self.tags
+        if tags is not None:
+            extra_args["Tagging"] = urlencode(tags)
         self.s3.meta.client.upload_fileobj(
-            Fileobj=fileobj,
-            Bucket=self.bucket_name,
-            Key=key,
-            ExtraArgs=self._extra_upload_args,
+            Fileobj=fileobj, Bucket=self.bucket_name, Key=key, ExtraArgs=extra_args
         )
 
     def create_multipart_upload(self, key):
@@ -292,8 +303,11 @@ class S3CloudInterface(CloudInterface):
         :return: The multipart upload handle
         :rtype: dict[str, str]
         """
+        extra_args = self._extra_upload_args.copy()
+        if self.tags is not None:
+            extra_args["Tagging"] = urlencode(self.tags)
         return self.s3.meta.client.create_multipart_upload(
-            Bucket=self.bucket_name, Key=key, **self._extra_upload_args
+            Bucket=self.bucket_name, Key=key, **extra_args
         )
 
     def _upload_part(self, upload_metadata, key, body, part_number):

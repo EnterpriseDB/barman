@@ -18,9 +18,12 @@
 
 import argparse
 
+import csv
+import logging
 from enum import Enum
 
 import barman
+from barman.utils import force_str
 
 
 class OperationErrorExit(SystemExit):
@@ -57,6 +60,36 @@ class GeneralErrorExit(SystemExit):
 class UrlArgumentType(Enum):
     source = "source"
     destination = "destination"
+
+
+def __parse_tag(tag):
+    """Parse key,value tag with csv reader"""
+    try:
+        rows = list(csv.reader([tag], delimiter=","))
+    except csv.Error as exc:
+        logging.error(
+            "Error parsing tag %s: %s",
+            tag,
+            force_str(exc),
+        )
+        raise CLIErrorExit()
+    if len(rows) != 1 or len(rows[0]) != 2:
+        logging.error(
+            "Invalid tag format: %s",
+            tag,
+        )
+        raise CLIErrorExit()
+
+    return tuple(rows[0])
+
+
+def add_tag_argument(parser, name, help):
+    parser.add_argument(
+        "--%s" % name,
+        type=__parse_tag,
+        nargs="*",
+        help=help,
+    )
 
 
 class CloudArgumentParser(argparse.ArgumentParser):

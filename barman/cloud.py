@@ -525,15 +525,18 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
         pass
 
-    def __init__(self, url, jobs=2):
+    def __init__(self, url, jobs=2, tags=None):
         """
         Base constructor
 
         :param str url: url for the cloud storage resource
         :param int jobs: How many sub-processes to use for asynchronous
           uploading, defaults to 2.
+        :param List[tuple] tags: List of tags as k,v tuples to be added to all
+          uploaded objects
         """
         self.url = url
+        self.tags = tags
 
         # The worker process and the shared queue are created only when
         # needed
@@ -944,12 +947,14 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def upload_fileobj(self, fileobj, key):
+    def upload_fileobj(self, fileobj, key, override_tags=None):
         """
         Synchronously upload the content of a file-like object to a cloud key
 
         :param fileobj IOBase: File-like object to upload
         :param str key: The key to identify the uploaded object
+        :param List[tuple] override_tags: List of k,v tuples which should override any
+          tags already defined in the cloud interface
         """
 
     @abstractmethod
@@ -1046,7 +1051,11 @@ class CloudBackupUploader(with_metaclass(ABCMeta)):
     """
 
     def __init__(
-        self, server_name, cloud_interface, max_archive_size, compression=None
+        self,
+        server_name,
+        cloud_interface,
+        max_archive_size,
+        compression=None,
     ):
         """
         Base constructor.
@@ -1297,7 +1306,12 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
     """
 
     def __init__(
-        self, server_name, cloud_interface, max_archive_size, postgres, compression=None
+        self,
+        server_name,
+        cloud_interface,
+        max_archive_size,
+        postgres,
+        compression=None,
     ):
         super(CloudBackupUploaderPostgres, self).__init__(
             server_name,

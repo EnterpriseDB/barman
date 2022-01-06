@@ -84,8 +84,9 @@ def get_cloud_interface(config):
     cloud_interface_kwargs = {
         "url": config.source_url if "source_url" in config else config.destination_url
     }
-    if "jobs" in config:
-        cloud_interface_kwargs["jobs"] = config.jobs
+    for arg in ("jobs", "tags"):
+        if arg in config:
+            cloud_interface_kwargs[arg] = getattr(config, arg)
 
     if config.cloud_provider == "aws-s3":
         return _make_s3_cloud_interface(config, cloud_interface_kwargs)
