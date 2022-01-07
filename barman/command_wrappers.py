@@ -1020,15 +1020,9 @@ class PgReceiveXlog(PostgreSQLClient):
 class PgVerifyBackup(PostgreSQLClient):
     """
     Wrapper class for the pg_verify system command
-    todo: findout why script path is:
-    /usr/lib/postgresql/13/bin/
-    and not /usr/bin/
     """
-
-    # Todo  find a clean way to find exec
     COMMAND_ALTERNATIVES = [
-        "pg_verifybackup",
-        "/usr/lib/postgresql/13/bin/pg_verifybackup",
+        "pg_verifybackup"
     ]
 
     def __init__(
