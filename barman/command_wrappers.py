@@ -1021,9 +1021,8 @@ class PgVerifyBackup(PostgreSQLClient):
     """
     Wrapper class for the pg_verify system command
     """
-    COMMAND_ALTERNATIVES = [
-        "pg_verifybackup"
-    ]
+
+    COMMAND_ALTERNATIVES = ["pg_verifybackup"]
 
     def __init__(
         self,
