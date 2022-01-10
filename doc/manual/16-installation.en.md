@@ -90,6 +90,29 @@ The `barman` application will be installed in your user directory ([make sure th
 
 [Barman is also available on the Python Package Index (PyPI)][pypi] and can be installed through `pip`.
 
+## PostgreSQL client binaries
+
+The following Barman features depend on PostgreSQL client binaries:
+
+* [Streaming backup](#streaming-backup) with `backup_method = postgres` (requires `pg_basebackup`)
+* [Streaming WAL archiving](#wal-streaming) with `streaming_archiver = on` (requires
+  `pg_receivewal` or `pg_receivexlog`)
+* [Verifying backups](#verify) with `barman verfy-backup` (requires `pg_verifybackup`)
+
+These binaries are installed with the PostgreSQL client packages and can be
+found in the following locations:
+
+* On RedHat/CentOS: `/usr/pgsql-${PG_MAJOR_VERSION}/bin`
+* On Debian/Ubuntu: `/usr/lib/postgresql/${PG_MAJOR_VERSION}/bin`
+
+You must ensure that either:
+
+1. The Barman user has the `bin` directory for the appropriate `PG_MAJOR_VERSION`
+   on its path, or:
+2. The [path_prefix](#binary-paths) option is set in the Barman configuration for each
+   server and points to the `bin` directory for the appropriate
+   `PG_MAJOR_VERSION`.
+
 # Upgrading Barman
 
 Barman follows the trunk-based development paradigm, and as such
