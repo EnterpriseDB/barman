@@ -14,7 +14,7 @@
   [aptpgdg]: http://apt.postgresql.org/
   [aptpgdgwiki]: https://wiki.postgresql.org/wiki/Apt
   [epel]: http://fedoraproject.org/wiki/EPEL
-  [man5]: http://docs.pgbarman.org/barman.5.html
+  [man5]: https://docs.pgbarman.org/barman.5.html
   [setup_user]: https://docs.python.org/3/install/index.html#alternate-installation-the-user-scheme
   [pypi]: https://pypi.python.org/pypi/barman/
   [pgpass]: https://www.postgresql.org/docs/current/static/libpq-pgpass.html
