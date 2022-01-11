@@ -55,8 +55,11 @@ from barman.utils import (
     force_str,
     get_log_levels,
     parse_log_level,
+    SHA256,
 )
 from barman.xlog import check_archive_usable
+from barman.backup_manifest import BackupManifest
+from barman.storage.local_file_manager import LocalFileManager
 
 _logger = logging.getLogger(__name__)
 
@@ -1416,6 +1419,65 @@ def check_backup(args):
 
     with closing(server):
         server.check_backup(backup_info)
+    output.close_and_exit()
+
+
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command ",
+        ),
+        argument(
+            "backup_id", completer=backup_completer, help="specifies the backup ID"
+        ),
+    ],
+    cmd_aliases=["verify"],
+)
+def verify_backup(args):
+    """
+    verify a backup for the given server and backup id
+    """
+    # get barman.server.Server
+    server = get_server(args)
+    # Raises an error if wrong backup
+    backup_info = parse_backup_id(server, args)
+    # get backup path
+    output.info("Verifying backup %s on server %s" % (args.backup_id, args.server_name))
+
+    server.backup_manager.verify_backup(backup_info)
+    output.close_and_exit()
+
+
+@command(
+    [
+        argument(
+            "server_name",
+            completer=server_completer,
+            help="specifies the server name for the command ",
+        ),
+        argument(
+            "backup_id", completer=backup_completer, help="specifies the backup ID"
+        ),
+    ],
+)
+def generate_manifest(args):
+    """
+    Generate a manifest-backup for the given server and backup id
+    """
+    server = get_server(args)
+    # Raises an error if wrong backup
+    backup_info = parse_backup_id(server, args)
+    # know context (remote backup? local?)
+
+    local_file_manager = LocalFileManager()
+    backup_manifest = BackupManifest(
+        backup_info.get_data_directory(), local_file_manager, SHA256()
+    )
+    backup_manifest.create_backup_manifest()
+
+    output.info("Backup %s is valid on server %s" % (args.backup_id, args.server_name))
     output.close_and_exit()
 
 

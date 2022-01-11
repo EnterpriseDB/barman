@@ -30,7 +30,11 @@ from mock import Mock, patch
 import barman.utils
 from barman.annotations import KeepManager
 from barman.config import BackupOptions
-from barman.exceptions import CompressionIncompatibility, RecoveryInvalidTargetException
+from barman.exceptions import (
+    CompressionIncompatibility,
+    RecoveryInvalidTargetException,
+    CommandFailedException,
+)
 from barman.infofile import BackupInfo
 from barman.retention_policies import RetentionPolicyFactory
 from testing_helpers import (
@@ -1487,3 +1491,62 @@ class TestWalCleanup(object):
         self._assert_wals_exist(
             wals_directory, "00000001000000000000007C", "00000001000000000000007E"
         )
+
+
+class TestVerifyBackup:
+    """Test backupManager verify_backup function"""
+
+    @patch("barman.backup.PgVerifyBackup")
+    def test_verify_backup_nominal(self, mock_pg_verify_backup):
+        backup_path = "/fake/path"
+        pg_verify_backup_path = "/path/to/pg_verifybackup"
+        backup_manager = build_backup_manager()
+        mock_backup_info = Mock()
+        mock_backup_info.get_data_directory.return_value = backup_path
+
+        mock_pg_verify_backup.get_version_info.return_value = {
+            "full_path": pg_verify_backup_path,
+            "full_version": "13.2",
+        }
+
+        backup_manager.verify_backup(mock_backup_info)
+
+        mock_backup_info.get_data_directory.assert_called_once()
+        mock_pg_verify_backup_instance = mock_pg_verify_backup.return_value
+        mock_pg_verify_backup.assert_called_once_with(
+            data_path=backup_path, command=pg_verify_backup_path, version="13.2"
+        )
+        mock_pg_verify_backup.return_value.assert_called_once()
+        mock_pg_verify_backup_instance.get_output.assert_called_once()
+
+    @patch("barman.backup.PgVerifyBackup")
+    def test_verify_backup_exec_not_found(self, mock_pg_verify_backup):
+        backup_manager = build_backup_manager()
+        mock_backup_info = Mock()
+        mock_backup_info.get_data_directory.return_value = "/fake/path2"
+        mock_pg_verify_backup.get_version_info.return_value = dict.fromkeys(
+            ("full_path", "full_version", "major_version"), None
+        )
+
+        backup_manager.verify_backup(mock_backup_info)
+
+        mock_backup_info.get_data_directory.assert_not_called()
+        mock_pg_verify_backup.assert_not_called()
+
+    @patch("barman.backup.PgVerifyBackup")
+    def test_verify_backup_failed_cmd(self, mock_pg_verify_backup):
+        backup_manager = build_backup_manager()
+        mock_backup_info = Mock()
+        mock_backup_info.get_data_directory.return_value = "/fake/path3"
+        mock_pg_verify_backup.get_version_info.return_value = {
+            "full_path": "/path/to/pg_verifybackup",
+            "full_version": "13.2",
+        }
+        mock_pg_verify_backup_instance = mock_pg_verify_backup.return_value
+        mock_pg_verify_backup_instance.side_effect = CommandFailedException(
+            {"err": "Failed"}
+        )
+
+        backup_manager.verify_backup(mock_backup_info)
+
+        mock_pg_verify_backup_instance.get_output.assert_not_called()

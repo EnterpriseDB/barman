@@ -34,6 +34,7 @@ import re
 import signal
 import sys
 from argparse import ArgumentTypeError
+from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 
 from distutils.version import Version
@@ -473,6 +474,50 @@ def file_md5(file_path, buffer_size=1024 * 16):
                 break
             md5.update(buf)
     return md5.hexdigest()
+
+
+# Might be better to use stream instead of full file content. As done in file_md5.
+# Might create performance issue for large files.
+class ChecksumAlgorithm(with_metaclass(ABCMeta)):
+    @abstractmethod
+    def checksum(self, value):
+        """
+        Creates hash hexadecimal string from input byte
+        :param value: Value to create checksum from
+        :type value: byte
+
+        :return: Return the digest value as a string of hexadecimal digits.
+        :rtype: str
+        """
+
+    def checksum_from_str(self, value, encoding="utf-8"):
+        """
+        Creates hash hexadecimal string from input string
+        :param value: Value to create checksum from
+        :type value: str
+        :param encoding: The encoding in which to encode the string.
+        :type encoding: str
+        :return: Return the digest value as a string of hexadecimal digits.
+        :rtype: str
+        """
+        return self.checksum(value.encode(encoding))
+
+    def get_name(self):
+        return self.__class__.__name__
+
+
+class SHA256(ChecksumAlgorithm):
+    def checksum(self, value):
+        """
+        Creates hash hexadecimal string from input byte
+        :param value: Value to create checksum from
+        :type value: byte
+
+        :return: Return the digest value as a string of hexadecimal digits.
+        :rtype: str
+        """
+        sha = hashlib.sha256(value)
+        return sha.hexdigest()
 
 
 def force_str(obj, encoding="utf-8", errors="replace"):

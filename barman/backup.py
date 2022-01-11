@@ -45,6 +45,7 @@ from barman.exceptions import (
     CompressionIncompatibility,
     SshCommandException,
     UnknownBackupIdException,
+    CommandFailedException,
 )
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
@@ -58,6 +59,7 @@ from barman.utils import (
     human_readable_timedelta,
     pretty_size,
 )
+from barman.command_wrappers import PgVerifyBackup
 
 _logger = logging.getLogger(__name__)
 
@@ -70,6 +72,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
     def __init__(self, server):
         """
         Constructor
+        :param server: barman.server.Server
         """
         super(BackupManager, self).__init__(server=server)
         self.server = server
@@ -1414,3 +1417,34 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             # all the WAL files until that point are present.
             backup_info.status = BackupInfo.WAITING_FOR_WALS
         backup_info.save()
+
+    def verify_backup(self, backup_info):
+        """
+        This function should check if pg_verifybackup is installed and run it against backup path
+        should test if pg_verifybackup is installed locally
+
+
+        :param backup_info: barman.infofile.LocalBackupInfo instance
+        """
+        output.info("Calling pg_verifybackup")
+        # Test pg_verifybackup existence
+        version_info = PgVerifyBackup.get_version_info(self.server.path)
+        if version_info.get("full_path", None) is None:
+            output.error("pg_verifybackup not found")
+            return
+
+        pg_verifybackup = PgVerifyBackup(
+            data_path=backup_info.get_data_directory(),
+            command=version_info["full_path"],
+            version=version_info["full_version"],
+        )
+        try:
+            pg_verifybackup()
+        except CommandFailedException as e:
+            output.error(
+                "verify backup failure on directory '%s'"
+                % backup_info.get_data_directory()
+            )
+            output.error(e.args[0]["err"])
+            return
+        output.info(pg_verifybackup.get_output()[0].strip())
