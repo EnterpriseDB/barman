@@ -818,6 +818,13 @@ class TestAzureCloudInterface(object):
     def mock_storage_url(self, mock_account_url, mock_object_path):
         return "https://%s/%s/%s" % (mock_account_url, "container", mock_object_path)
 
+    @pytest.fixture
+    def mock_fileobj(self):
+        """Returns a mock fileobj with length 42."""
+        mock_fileobj = mock.MagicMock()
+        mock_fileobj.tell.return_value = 42
+        return mock_fileobj
+
     @mock.patch.dict(
         os.environ,
         {
@@ -1079,25 +1086,29 @@ class TestAzureCloudInterface(object):
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_upload_fileobj(self, container_client_mock):
+    def test_upload_fileobj(self, container_client_mock, mock_fileobj):
         """Test container client upload_blob is called with expected args"""
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob"
         )
         container_client = container_client_mock.from_connection_string.return_value
-        mock_fileobj = mock.MagicMock()
         mock_key = "path/to/blob"
         cloud_interface.upload_fileobj(mock_fileobj, mock_key)
         # The key and fileobj are passed on to the upload_blob call
         container_client.upload_blob.assert_called_once_with(
-            name=mock_key, data=mock_fileobj, overwrite=True
+            name=mock_key,
+            data=mock_fileobj,
+            overwrite=True,
+            length=mock_fileobj.tell.return_value,
         )
 
     @mock.patch.dict(
         os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
-    def test_upload_fileobj_with_encryption_scope(self, container_client_mock):
+    def test_upload_fileobj_with_encryption_scope(
+        self, container_client_mock, mock_fileobj
+    ):
         """Test encrption scope is passed to upload_blob"""
         encryption_scope = "test_encryption_scope"
         cloud_interface = AzureCloudInterface(
@@ -1105,7 +1116,6 @@ class TestAzureCloudInterface(object):
             encryption_scope=encryption_scope,
         )
         container_client = container_client_mock.from_connection_string.return_value
-        mock_fileobj = mock.MagicMock()
         mock_key = "path/to/blob"
         cloud_interface.upload_fileobj(mock_fileobj, mock_key)
         # The key and fileobj are passed on to the upload_blob call along
@@ -1114,6 +1124,7 @@ class TestAzureCloudInterface(object):
             name=mock_key,
             data=mock_fileobj,
             overwrite=True,
+            length=mock_fileobj.tell.return_value,
             encryption_scope=encryption_scope,
         )
 
@@ -1139,7 +1150,12 @@ class TestAzureCloudInterface(object):
     )
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
     def test_upload_fileobj_with_tags(
-        self, container_client_mock, cloud_interface_tags, override_tags, expected_tags
+        self,
+        container_client_mock,
+        cloud_interface_tags,
+        override_tags,
+        expected_tags,
+        mock_fileobj,
     ):
         """
         Tests the tags argument is provided to the container client when uploading
@@ -1150,7 +1166,6 @@ class TestAzureCloudInterface(object):
             tags=cloud_interface_tags,
         )
         container_client = container_client_mock.from_connection_string.return_value
-        mock_fileobj = mock.MagicMock()
         mock_key = "path/to/blob"
         cloud_interface.upload_fileobj(
             mock_fileobj, mock_key, override_tags=override_tags
@@ -1161,6 +1176,7 @@ class TestAzureCloudInterface(object):
             name=mock_key,
             data=mock_fileobj,
             overwrite=True,
+            length=mock_fileobj.tell.return_value,
             tags=expected_tags,
         )
 

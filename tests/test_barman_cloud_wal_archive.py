@@ -459,6 +459,8 @@ class TestWalUploaderAzure(object):
         source = "/wal_dir/000000080000ABFF000000C1"
         # Simulate the file object returned by the retrieve_file_obj method
         rfo_mock.return_value.name = source
+        mock_fileobj_length = 42
+        rfo_mock.return_value.tell.return_value = mock_fileobj_length
         uploader.upload_wal(source)
 
         ContainerClientMock.from_connection_string.assert_called_once_with(
@@ -478,6 +480,7 @@ class TestWalUploaderAzure(object):
                 os.path.basename(source),
             ),
             overwrite=True,
+            length=mock_fileobj_length,
         )
 
 

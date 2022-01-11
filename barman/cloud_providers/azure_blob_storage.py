@@ -21,7 +21,7 @@ import gzip
 import logging
 import os
 import shutil
-from io import BytesIO, RawIOBase
+from io import BytesIO, RawIOBase, SEEK_END
 
 from barman.cloud import CloudInterface, CloudProviderError
 
@@ -313,12 +313,17 @@ class AzureCloudInterface(CloudInterface):
         :param List[tuple] override_tags: List of tags as k,v tuples to be added to the
           uploaded object
         """
+        # Find length of the file so we can pass it to the Azure client
+        fileobj.seek(0, SEEK_END)
+        length = fileobj.tell()
+        fileobj.seek(0)
+
         extra_args = self._extra_upload_args.copy()
         tags = override_tags or self.tags
         if tags is not None:
             extra_args["tags"] = dict(tags)
         self.container_client.upload_blob(
-            name=key, data=fileobj, overwrite=True, **extra_args
+            name=key, data=fileobj, overwrite=True, length=length, **extra_args
         )
 
     def create_multipart_upload(self, key):
