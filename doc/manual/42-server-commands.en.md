@@ -53,6 +53,24 @@ barman check <server_name>
 > and monitoring infrastructure. The `--nagios` option allows you
 > to easily create a plugin for Nagios/Icinga.
 
+## `generate-manifest`
+
+This command is useful when backup is created remotely and pg_basebackup is not 
+involved and `backup_manifest` file does not exist in backup.
+It will generate `backup_manifest` file from backup_id using backup in barman server.
+If the file already exist, generation command will abort.
+
+Command example:
+```bash
+barman generate-manifest <server_name> <backup_id>
+```
+Either backup_id [backup id shortcuts]{#backup-id-shortcuts} can be used.
+
+This command can also be used as post_backup hook script as follows:
+```bash
+post_backup_script=barman generate-manifest ${BARMAN_SERVER} ${BARMAN_BACKUP_ID}
+```
+
 ## `get-wal`
 
 Barman allows users to request any _xlog_ file from its WAL archive
@@ -275,3 +293,16 @@ an error is returned.
 
 > **NOTE:** In Barman 2.1 and 2.2 this command was called `switch-xlog`.
 > It has been renamed for naming consistency with PostgreSQL 10 and higher.
+
+## `verify`
+
+The `verify` command uses backup_manifest file from backup and runs 
+`pg_verifybackup` against it.  
+```bash
+barman verify <server_name> <backup_id>
+```
+This command will call `pg_verifybackup <path_to_backup_manifest> -n` (available on PG>=13)
+`pg_verifybackup` Must be installed on backup server.
+For rsync backups, it can be used with `generate-manifest` command.
+
+Either backup_id [backup id shortcuts]{#backup-id-shortcuts} can be used.

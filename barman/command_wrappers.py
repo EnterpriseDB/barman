@@ -165,7 +165,7 @@ class Command(object):
         the method arguments will take the precedence over
         the constructor arguments.
 
-        :param str cmd: The command to exexute
+        :param str cmd: The command to execute
         :param list[str]|None args: List of additional arguments to append
         :param dict[str.str]|None env_append: additional environment variables
         :param str path: PATH to be used while searching for `cmd`
@@ -734,7 +734,10 @@ class PostgreSQLClient(Command):
         :param str path: additional path for executable retrieval
         """
         Command.__init__(self, command, path=path, **kwargs)
-
+        if not connection:
+            self.enable_signal_forwarding(signal.SIGINT)
+            self.enable_signal_forwarding(signal.SIGTERM)
+            return
         if version and version >= Version("9.3"):
             # If version of the client is >= 9.3 we use the connection
             # string because allows the user to use all the parameters
@@ -1014,6 +1017,51 @@ class PgReceiveXlog(PostgreSQLClient):
             self.args += args
 
 
+class PgVerifyBackup(PostgreSQLClient):
+    """
+    Wrapper class for the pg_verify system command
+    """
+
+    COMMAND_ALTERNATIVES = ["pg_verifybackup"]
+
+    def __init__(
+        self,
+        data_path,
+        command,
+        connection=None,
+        version=None,
+        app_name=None,
+        check=True,
+        args=None,
+        **kwargs
+    ):
+        """
+        Constructor
+        :param str data_path: backup data directory
+        :param str command: the command to use
+        :param PostgreSQL connection: an object representing
+          a database connection
+        :param Version version: the command version
+        :param str app_name: the application name to use for the connection
+        :param bool check: check if the return value is in the list of
+          allowed values of the Command obj
+        :param List[str] args: additional arguments
+        """
+        PostgreSQLClient.__init__(
+            self,
+            connection=connection,
+            command=command,
+            version=version,
+            app_name=app_name,
+            check=check,
+            **kwargs
+        )
+
+        self.args = ["-n", data_path]
+        if args:
+            self.args += args
+
+
 class BarmanSubProcess(object):
     """
     Wrapper class for barman sub instances
@@ -1029,7 +1077,7 @@ class BarmanSubProcess(object):
     ):
         """
         Build a specific wrapper for all the barman sub-commands,
-        providing an unified interface.
+        providing a unified interface.
 
         :param str command: path to barman
         :param str subcommand: the barman sub-command
