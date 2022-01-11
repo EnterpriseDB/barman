@@ -36,7 +36,7 @@ from barman.clients.cloud_cli import (
 from barman.cloud import configure_logging
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
-from barman.utils import force_str
+from barman.utils import check_positive, check_size, force_str
 from barman.xlog import hash_dir, is_any_xlog_file, is_history_file
 
 
@@ -172,6 +172,28 @@ def parse_arguments(args=None):
         "--encryption-scope",
         help="The name of an encryption scope defined in the Azure Blob Storage "
         "service which is to be used to encrypt the data in Azure",
+    )
+    azure_arguments.add_argument(
+        "--max-block-size",
+        help="The chunk size to be used when uploading an object via the "
+        "concurrent chunk method (default: 4MB).",
+        type=check_size,
+        default="4MB",
+    )
+    azure_arguments.add_argument(
+        "--max-concurrency",
+        help="The maximum number of chunks to be uploaded concurrently (default: 1).",
+        type=check_positive,
+        default=1,
+    )
+    azure_arguments.add_argument(
+        "--max-single-put-size",
+        help="Maximum size for which the Azure client will upload an object in a "
+        "single request (default: 64MB). If this is set lower than the PostgreSQL "
+        "WAL segment size after any applied compression then the concurrent chunk "
+        "upload method for WAL archiving will be used.",
+        default="64MB",
+        type=check_size,
     )
     return parser.parse_args(args=args)
 

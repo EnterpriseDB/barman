@@ -32,6 +32,16 @@ class CloudProviderOptionUnsupported(BarmanException):
     """
 
 
+def _update_kwargs(kwargs, config, args):
+    """
+    Helper which adds the attributes of config specified in args to the supplied
+    kwargs dict if they exist.
+    """
+    for arg in args:
+        if arg in config:
+            kwargs[arg] = getattr(config, arg)
+
+
 def _make_s3_cloud_interface(config, cloud_interface_kwargs):
     from barman.cloud_providers.aws_s3 import S3CloudInterface
 
@@ -49,8 +59,16 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
 def _make_azure_cloud_interface(config, cloud_interface_kwargs):
     from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 
-    if "encryption_scope" in config:
-        cloud_interface_kwargs["encryption_scope"] = config.encryption_scope
+    _update_kwargs(
+        cloud_interface_kwargs,
+        config,
+        (
+            "encryption_scope",
+            "max_block_size",
+            "max_concurrency",
+            "max_single_put_size",
+        ),
+    )
 
     if "credential" in config and config.credential is not None:
         try:
@@ -84,9 +102,7 @@ def get_cloud_interface(config):
     cloud_interface_kwargs = {
         "url": config.source_url if "source_url" in config else config.destination_url
     }
-    for arg in ("jobs", "tags"):
-        if arg in config:
-            cloud_interface_kwargs[arg] = getattr(config, arg)
+    _update_kwargs(cloud_interface_kwargs, config, ("jobs", "tags"))
 
     if config.cloud_provider == "aws-s3":
         return _make_s3_cloud_interface(config, cloud_interface_kwargs)

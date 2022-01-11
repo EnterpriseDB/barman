@@ -825,6 +825,13 @@ class TestAzureCloudInterface(object):
         mock_fileobj.tell.return_value = 42
         return mock_fileobj
 
+    @pytest.fixture
+    def default_azure_client_args(self):
+        return {
+            "max_block_size": 2 << 20,
+            "max_single_put_size": 4 << 20,
+        }
+
     @mock.patch.dict(
         os.environ,
         {
@@ -863,6 +870,7 @@ class TestAzureCloudInterface(object):
         mock_account_url,
         mock_object_path,
         mock_storage_url,
+        default_azure_client_args,
     ):
         """Specified credential option takes precedences over environment"""
         container_name = "container"
@@ -878,6 +886,7 @@ class TestAzureCloudInterface(object):
             account_url=mock_account_url,
             credential=credential,
             container_name=container_name,
+            **default_azure_client_args
         )
 
     @mock.patch.dict(
@@ -891,6 +900,7 @@ class TestAzureCloudInterface(object):
         mock_account_url,
         mock_storage_url,
         mock_object_path,
+        default_azure_client_args,
     ):
         """SAS token takes precedence over shared token"""
         container_name = "container"
@@ -904,6 +914,7 @@ class TestAzureCloudInterface(object):
             account_url=mock_account_url,
             credential=os.environ["AZURE_STORAGE_SAS_TOKEN"],
             container_name=container_name,
+            **default_azure_client_args
         )
 
     @mock.patch.dict(
@@ -917,6 +928,7 @@ class TestAzureCloudInterface(object):
         mock_account_url,
         mock_storage_url,
         mock_object_path,
+        default_azure_client_args,
     ):
         """Shared token is used if SAS token and connection string aren't set"""
         container_name = "container"
@@ -928,6 +940,7 @@ class TestAzureCloudInterface(object):
             account_url=mock_account_url,
             credential=os.environ["AZURE_STORAGE_KEY"],
             container_name=container_name,
+            **default_azure_client_args
         )
 
     @mock.patch("azure.identity.DefaultAzureCredential")
@@ -939,6 +952,7 @@ class TestAzureCloudInterface(object):
         mock_account_url,
         mock_storage_url,
         mock_object_path,
+        default_azure_client_args,
     ):
         """Uses DefaultAzureCredential if no other auth provided"""
         container_name = "container"
@@ -952,6 +966,7 @@ class TestAzureCloudInterface(object):
             account_url=mock_account_url,
             credential=default_azure_credential.return_value,
             container_name=container_name,
+            **default_azure_client_args
         )
 
     @mock.patch.dict(
@@ -1099,6 +1114,7 @@ class TestAzureCloudInterface(object):
             name=mock_key,
             data=mock_fileobj,
             overwrite=True,
+            max_concurrency=8,
             length=mock_fileobj.tell.return_value,
         )
 
@@ -1125,6 +1141,7 @@ class TestAzureCloudInterface(object):
             data=mock_fileobj,
             overwrite=True,
             length=mock_fileobj.tell.return_value,
+            max_concurrency=8,
             encryption_scope=encryption_scope,
         )
 
@@ -1177,6 +1194,7 @@ class TestAzureCloudInterface(object):
             data=mock_fileobj,
             overwrite=True,
             length=mock_fileobj.tell.return_value,
+            max_concurrency=8,
             tags=expected_tags,
         )
 
