@@ -20,6 +20,7 @@ import bz2
 import gzip
 import logging
 import os
+import requests
 import shutil
 from io import BytesIO, RawIOBase, SEEK_END
 
@@ -118,6 +119,10 @@ class AzureCloudInterface(CloudInterface):
     # force the Azure client to use concurrent chunk upload for archiving WAL files.
     DEFAULT_MAX_SINGLE_PUT_SIZE = 4 << 20
 
+    # The maximum size of the requests connection pool used by the Azure client
+    # to upload objects.
+    REQUESTS_POOL_MAXSIZE = 32
+
     def __init__(
         self,
         url,
@@ -209,12 +214,16 @@ class AzureCloudInterface(CloudInterface):
                 except ImportError:
                     raise SystemExit("Missing required python module: azure-identity")
                 credential = DefaultAzureCredential()
+        session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(pool_maxsize=self.REQUESTS_POOL_MAXSIZE)
+        session.mount("https://", adapter)
         self.container_client = ContainerClient(
             account_url=self.account_url,
             container_name=self.bucket_name,
             credential=credential,
             max_single_put_size=self.max_single_put_size,
             max_block_size=self.max_block_size,
+            session=session,
         )
 
     @property

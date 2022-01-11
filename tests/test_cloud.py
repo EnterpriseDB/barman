@@ -863,10 +863,12 @@ class TestAzureCloudInterface(object):
             "AZURE_STORAGE_KEY": "storage_key",
         },
     )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.requests.Session")
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
     def test_uploader_with_specified_credential(
         self,
         container_client_mock,
+        mock_session,
         mock_account_url,
         mock_object_path,
         mock_storage_url,
@@ -886,6 +888,7 @@ class TestAzureCloudInterface(object):
             account_url=mock_account_url,
             credential=credential,
             container_name=container_name,
+            session=mock_session.return_value,
             **default_azure_client_args
         )
 
@@ -893,10 +896,12 @@ class TestAzureCloudInterface(object):
         os.environ,
         {"AZURE_STORAGE_SAS_TOKEN": "sas_token", "AZURE_STORAGE_KEY": "storage_key"},
     )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.requests.Session")
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
     def test_uploader_sas_token_auth(
         self,
         container_client_mock,
+        mock_session,
         mock_account_url,
         mock_storage_url,
         mock_object_path,
@@ -914,6 +919,7 @@ class TestAzureCloudInterface(object):
             account_url=mock_account_url,
             credential=os.environ["AZURE_STORAGE_SAS_TOKEN"],
             container_name=container_name,
+            session=mock_session.return_value,
             **default_azure_client_args
         )
 
@@ -921,10 +927,12 @@ class TestAzureCloudInterface(object):
         os.environ,
         {"AZURE_STORAGE_KEY": "storage_key"},
     )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.requests.Session")
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
     def test_uploader_shared_token_auth(
         self,
         container_client_mock,
+        mock_session,
         mock_account_url,
         mock_storage_url,
         mock_object_path,
@@ -940,14 +948,17 @@ class TestAzureCloudInterface(object):
             account_url=mock_account_url,
             credential=os.environ["AZURE_STORAGE_KEY"],
             container_name=container_name,
+            session=mock_session.return_value,
             **default_azure_client_args
         )
 
     @mock.patch("azure.identity.DefaultAzureCredential")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.requests.Session")
     @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
     def test_uploader_default_credential_auth(
         self,
         container_client_mock,
+        mock_session,
         default_azure_credential,
         mock_account_url,
         mock_storage_url,
@@ -966,6 +977,7 @@ class TestAzureCloudInterface(object):
             account_url=mock_account_url,
             credential=default_azure_credential.return_value,
             container_name=container_name,
+            session=mock_session.return_value,
             **default_azure_client_args
         )
 
