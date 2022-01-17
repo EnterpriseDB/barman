@@ -224,6 +224,13 @@ def parse_arguments(args=None):
         const="bz2",
         dest="compression",
     )
+    compression.add_argument(
+        "--snappy",
+        help="snappy-compress the WAL while uploading to the cloud ",
+        action="store_const",
+        const="snappy",
+        dest="compression",
+    )
     parser.add_argument(
         "-h",
         "--host",

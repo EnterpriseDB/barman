@@ -66,6 +66,11 @@ WAL_PATH
 :    bzip2-compress the WAL while uploading to the cloud
      (should not be used with python < 3.3)
 
+--snappy
+:    snappy-compress the WAL while uploading to the cloud
+     (requires optional python-snappy library and should not be
+     used with python < 3.3)
+
 --cloud-provider {aws-s3,azure-blob-storage}
 :    the cloud provider to which the backup should be uploaded
 

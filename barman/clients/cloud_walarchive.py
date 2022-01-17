@@ -16,14 +16,10 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import bz2
-import gzip
 import logging
 import os
 import os.path
-import shutil
 from contextlib import closing
-from io import BytesIO
 
 from barman.clients.cloud_cli import (
     add_tag_argument,
@@ -34,6 +30,7 @@ from barman.clients.cloud_cli import (
     UrlArgumentType,
 )
 from barman.cloud import configure_logging
+from barman.clients.cloud_compression import compress
 from barman.cloud_providers import get_cloud_interface
 from barman.exceptions import BarmanException
 from barman.utils import check_positive, check_size, force_str
@@ -148,6 +145,14 @@ def parse_arguments(args=None):
         "(should not be used with python < 3.3)",
         action="store_const",
         const="bzip2",
+        dest="compression",
+    )
+    compression.add_argument(
+        "--snappy",
+        help="snappy-compress the WAL while uploading to the cloud "
+        "(requires optional python-snappy library)",
+        action="store_const",
+        const="snappy",
         dest="compression",
     )
     add_tag_argument(
@@ -269,23 +274,7 @@ class CloudWalUploader(object):
         if not self.compression:
             return wal_file
 
-        if self.compression == "gzip":
-            # Create a BytesIO for in memory compression
-            in_mem_gzip = BytesIO()
-            # TODO: closing is redundant with python >= 2.7
-            with closing(gzip.GzipFile(fileobj=in_mem_gzip, mode="wb")) as gz:
-                # copy the gzipped data in memory
-                shutil.copyfileobj(wal_file, gz)
-            in_mem_gzip.seek(0)
-            return in_mem_gzip
-
-        elif self.compression == "bzip2":
-            # Create a BytesIO for in memory compression
-            in_mem_bz2 = BytesIO(bz2.compress(wal_file.read()))
-            in_mem_bz2.seek(0)
-            return in_mem_bz2
-        else:
-            raise ValueError("Unknown compression type: %s" % self.compression)
+        return compress(wal_file, self.compression)
 
     def retrieve_wal_name(self, wal_path):
         """
@@ -312,6 +301,10 @@ class CloudWalUploader(object):
         elif self.compression == "bzip2":
             # add bz2 extension
             return "%s.bz2" % wal_name
+
+        elif self.compression == "snappy":
+            # add snappy extension
+            return "%s.snappy" % wal_name
         else:
             raise ValueError("Unknown compression type: %s" % self.compression)
 

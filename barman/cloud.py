@@ -30,11 +30,12 @@ import signal
 import tarfile
 from abc import ABCMeta, abstractmethod, abstractproperty
 from functools import partial
-from io import BytesIO
+from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
 
 from barman.annotations import KeepManagerMixinCloud
 from barman.backup_executor import ConcurrentBackupStrategy, ExclusiveBackupStrategy
+from barman.clients import cloud_compression
 from barman.exceptions import BarmanException
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
@@ -61,7 +62,7 @@ BUFSIZE = 16 * 1024
 LOGGING_FORMAT = "%(asctime)s [%(process)s] %(levelname)s: %(message)s"
 
 # Allowed compression algorithms
-ALLOWED_COMPRESSIONS = {".gz": "gzip", ".bz2": "bzip2"}
+ALLOWED_COMPRESSIONS = {".gz": "gzip", ".bz2": "bzip2", ".snappy": "snappy"}
 
 
 def configure_logging(config):
@@ -178,8 +179,19 @@ class CloudTarUploader(object):
             self.chunk_size = max(chunk_size, cloud_interface.MIN_CHUNK_SIZE)
         self.buffer = None
         self.counter = 0
-        tar_mode = "w|%s" % (compression or "")
-        self.tar = TarFileIgnoringTruncate.open(fileobj=self, mode=tar_mode)
+        self.compressor = None
+        # Some supported compressions (e.g. snappy) require CloudTarUploader to apply
+        # compression manually rather than relying on the tar file.
+        self.compressor = cloud_compression.get_compressor(compression)
+        # If the compression is supported by tar then it will be added to the filemode
+        # passed to tar_mode.
+        tar_mode = cloud_compression.get_streaming_tar_mode("w", compression)
+        # The value of 65536 for the chunk size is based on comments in the python-snappy
+        # library which suggest it should be good for almost every scenario.
+        # See: https://github.com/andrix/python-snappy/blob/0.6.0/snappy/snappy.py#L282
+        self.tar = TarFileIgnoringTruncate.open(
+            fileobj=self, mode=tar_mode, bufsize=64 << 10
+        )
         self.size = 0
         self.stats = None
 
@@ -188,8 +200,17 @@ class CloudTarUploader(object):
             self.flush()
         if not self.buffer:
             self.buffer = self._buffer()
-        self.buffer.write(buf)
-        self.size += len(buf)
+        if self.compressor:
+            # If we have a custom compressor we must use it here
+            compressed_buf = self.compressor.add_chunk(buf)
+            self.buffer.write(compressed_buf)
+            self.size += len(compressed_buf)
+        else:
+            # If there is no custom compressor then we are either not using
+            # compression or tar has already compressed it - in either case we
+            # just write the data to the buffer
+            self.buffer.write(buf)
+            self.size += len(buf)
 
     def flush(self):
         if not self.upload_metadata:
@@ -275,6 +296,8 @@ class CloudUploadController(object):
             components.append(".gz")
         elif self.compression == "bz2":
             components.append(".bz2")
+        elif self.compression == "snappy":
+            components.append(".snappy")
         return "".join(components)
 
     def _get_tar(self, name):
@@ -471,6 +494,91 @@ class FileUploadStatistics(dict):
     def set_part_start_time(self, part_number, start_time):
         part = self["parts"].setdefault(part_number, {"part_number": part_number})
         part["start_time"] = start_time
+
+
+class DecompressingStreamingIO(RawIOBase):
+    """
+    Provide an IOBase interface which decompresses streaming cloud responses.
+
+    This is intended to wrap azure_blob_storage.StreamingBlobIO and
+    aws_s3.StreamingBodyIO objects, transparently decompressing chunks while
+    continuing to expose them via the read method of the IOBase interface.
+
+    This allows TarFile to stream the uncompressed data directly from the cloud
+    provider responses without requiring it to know anything about the compression.
+    """
+
+    # The value of 65536 for the chunk size is based on comments in the python-snappy
+    # library which suggest it should be good for almost every scenario.
+    # See: https://github.com/andrix/python-snappy/blob/0.6.0/snappy/snappy.py#L300
+    COMPRESSED_CHUNK_SIZE = 65536
+
+    def __init__(self, streaming_response, decompressor):
+        """
+        Create a new DecompressingStreamingIO object.
+
+        A DecompressingStreamingIO object will be created which reads compressed
+        bytes from streaming_response and decompresses them with the supplied
+        decompressor.
+
+        :param RawIOBase streaming_response: A file-like object which provides the
+          data in the response streamed from the cloud provider.
+        :param barman.clients.cloud_compression.ChunkedCompressor: A ChunkedCompressor
+          object which provides a decompress(bytes) method to return the decompressed bytes.
+        """
+        self.streaming_response = streaming_response
+        self.decompressor = decompressor
+        self.buffer = bytes()
+
+    def _read_from_uncompressed_buffer(self, n):
+        """
+        Read up to n bytes from the local buffer of uncompressed data.
+
+        Removes up to n bytes from the local buffer and returns them. If n is
+        greater than the length of the buffer then the entire buffer content is
+        returned and the buffer is emptied.
+
+        :param int n: The number of bytes to read
+        :return: The bytes read from the local buffer
+        :rtype: bytes
+        """
+        if n <= len(self.buffer):
+            return_bytes = self.buffer[:n]
+            self.buffer = self.buffer[n:]
+            return return_bytes
+        else:
+            return_bytes = self.buffer
+            self.buffer = bytes()
+            return return_bytes
+
+    def read(self, n=-1):
+        """
+        Read up to n bytes of uncompressed data from the wrapped IOBase.
+
+        Bytes are initially read from the local buffer of uncompressed data. If more
+        bytes are required then chunks of COMPRESSED_CHUNK_SIZE are read from the
+        wrapped IOBase and decompressed in memory until >= n uncompressed bytes have
+        been read. n bytes are then returned with any remaining bytes being stored
+        in the local buffer for future requests.
+
+        :param int n: The number of uncompressed bytes required
+        :return: Up to n uncompressed bytes from the wrapped IOBase
+        :rtype: bytes
+        """
+        uncompressed_bytes = self._read_from_uncompressed_buffer(n)
+        if len(uncompressed_bytes) == n:
+            return uncompressed_bytes
+
+        while len(uncompressed_bytes) < n:
+            compressed_bytes = self.streaming_response.read(self.COMPRESSED_CHUNK_SIZE)
+            uncompressed_bytes += self.decompressor.decompress(compressed_bytes)
+            if len(compressed_bytes) < self.COMPRESSED_CHUNK_SIZE:
+                # If we got fewer bytes than we asked for then we're done
+                break
+
+        return_bytes = uncompressed_bytes[:n]
+        self.buffer = uncompressed_bytes[n:]
+        return return_bytes
 
 
 class CloudInterface(with_metaclass(ABCMeta)):
@@ -877,8 +985,8 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
         extension = os.path.splitext(key)[-1]
         compression = "" if extension == ".tar" else extension[1:]
-        tar_mode = "r|%s" % compression
-        fileobj = self.remote_open(key)
+        tar_mode = cloud_compression.get_streaming_tar_mode("r", compression)
+        fileobj = self.remote_open(key, cloud_compression.get_compressor(compression))
         with tarfile.open(fileobj=fileobj, mode=tar_mode) as tf:
             tf.extractall(path=dst)
 
@@ -937,11 +1045,14 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def remote_open(self, key):
+    def remote_open(self, key, decompressor=None):
         """
         Open a remote object in cloud storage and returns a readable stream
 
         :param str key: The key identifying the object to open
+        :param barman.clients.cloud_compression.ChunkedCompressor decompressor:
+          A ChunkedCompressor object which will be used to decompress chunks of bytes
+          as they are read from the stream
         :return: A file-like object from which the stream can be read or None if
           the key does not exist
         """
@@ -1666,6 +1777,8 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                         info.compression = "gzip"
                     elif ext == "tar.bz2":
                         info.compression = "bzip2"
+                    elif ext == "tar.snappy":
+                        info.compression = "snappy"
                     else:
                         logging.warning("Skipping unknown extension: %s", ext)
                         continue
