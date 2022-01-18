@@ -276,6 +276,72 @@ class TestMain(object):
             )
         assert excinfo.value.code == 3
 
+    @pytest.mark.parametrize(
+        (
+            "azure_client_args",
+            "expected_cloud_interface_kwargs",
+        ),
+        [
+            # Defaults should result in CLI defaults which match the Azure
+            # defaults
+            (
+                [],
+                {
+                    "max_block_size": 4 << 20,
+                    "max_concurrency": 1,
+                    "max_single_put_size": 64 << 20,
+                },
+            ),
+            # CLI args should override defaults in CLI and AzureCloudInterface
+            (
+                [
+                    "--max-block-size",
+                    "1MB",
+                    "--max-concurrency",
+                    "16",
+                    "--max-single-put-size",
+                    "8MB",
+                ],
+                {
+                    "max_block_size": 1 << 20,
+                    "max_concurrency": 16,
+                    "max_single_put_size": 8 << 20,
+                },
+            ),
+        ],
+    )
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.AzureCloudInterface")
+    def test_wal_archive_azure_upload_block_args(
+        self,
+        cloud_interface_mock,
+        _uploader_mock,
+        azure_client_args,
+        expected_cloud_interface_kwargs,
+    ):
+        """Test that azure block upload arguments are passed to the cloud interface."""
+        cloud_walarchive.main(
+            [
+                "https://account.blob.core.windows.net/container/path/to/dir",
+                "test-server",
+                "000000080000ABFF000000C2",
+                "--cloud-provider",
+                "azure-blob-storage",
+            ]
+            + azure_client_args
+        )
+
+        # Verify expected kwargs are passed to cloud interface
+        cloud_interface_mock.assert_called_once_with(
+            url="https://account.blob.core.windows.net/container/path/to/dir",
+            encryption_scope=None,
+            tags=None,
+            **expected_cloud_interface_kwargs
+        )
+
 
 # noinspection PyProtectedMember
 class TestWalUploader(object):
@@ -450,7 +516,7 @@ class TestWalUploaderAzure(object):
         """
         Test the upload of a WAL
         """
-        # Create a simple S3WalUploader obj
+        # Create a simple CloudWalUploader obj
         container_name = "container"
         cloud_interface = AzureCloudInterface(
             url="https://account.blob.core.windows.net/container/path/to/dir"
@@ -459,6 +525,8 @@ class TestWalUploaderAzure(object):
         source = "/wal_dir/000000080000ABFF000000C1"
         # Simulate the file object returned by the retrieve_file_obj method
         rfo_mock.return_value.name = source
+        mock_fileobj_length = 42
+        rfo_mock.return_value.tell.return_value = mock_fileobj_length
         uploader.upload_wal(source)
 
         ContainerClientMock.from_connection_string.assert_called_once_with(
@@ -478,6 +546,8 @@ class TestWalUploaderAzure(object):
                 os.path.basename(source),
             ),
             overwrite=True,
+            length=mock_fileobj_length,
+            max_concurrency=8,
         )
 
 

@@ -100,6 +100,23 @@ WAL_PATH
      environment. If no credentials can be found in the environment then the default
      Azure authentication flow will be used.
 
+--max-block-size SIZE
+:    the chunk size to be used when uploading an object to Azure Blob Storage via the
+     concurrent chunk method (default: 4MB).
+
+--max-concurrency CONCURRENCY
+:    the maximum number of chunks to be uploaded concurrently to Azure Blob Storage
+     (default: 1). Whether the maximum concurrency is achieved depends on the values
+     of --max-block-size (should be less than or equal to
+     `WAL segment size after compression / max_concurrency`) and --max-single-put-size
+     (must be less than WAL segment size after compression).
+
+--max-single-put-size SIZE
+:    maximum size for which the Azure client will upload an object to Azure Blob
+     Storage in a single request (default: 64MB). If this is set lower than the
+     WAL segment size after any applied compression then the concurrent chunk upload
+     method for WAL archiving will be used.
+
 # REFERENCES
 
 For Boto:

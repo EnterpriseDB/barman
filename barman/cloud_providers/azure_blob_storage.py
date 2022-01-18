@@ -20,8 +20,9 @@ import bz2
 import gzip
 import logging
 import os
+import requests
 import shutil
-from io import BytesIO, RawIOBase
+from io import BytesIO, RawIOBase, SEEK_END
 
 from barman.cloud import CloudInterface, CloudProviderError
 
@@ -102,7 +103,37 @@ class AzureCloudInterface(CloudInterface):
     # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
     MAX_ARCHIVE_SIZE = 1 << 40
 
-    def __init__(self, url, jobs=2, encryption_scope=None, credential=None, tags=None):
+    # The size of each chunk in a single object upload when the size of the
+    # object exceeds max_single_put_size. We default to 2MB in order to
+    # allow the default max_concurrency of 8 to be achieved when uploading
+    # uncompressed WAL segments of the default 16MB size.
+    DEFAULT_MAX_BLOCK_SIZE = 2 << 20
+
+    # The maximum amount of concurrent chunks allowed in a single object upload
+    # where the size exceeds max_single_put_size. We default to 8 based on
+    # experiments with in-region and inter-region transfers within Azure.
+    DEFAULT_MAX_CONCURRENCY = 8
+
+    # The largest file size which will be uploaded in a single PUT request. This
+    # should be lower than the size of the compressed WAL segment in order to
+    # force the Azure client to use concurrent chunk upload for archiving WAL files.
+    DEFAULT_MAX_SINGLE_PUT_SIZE = 4 << 20
+
+    # The maximum size of the requests connection pool used by the Azure client
+    # to upload objects.
+    REQUESTS_POOL_MAXSIZE = 32
+
+    def __init__(
+        self,
+        url,
+        jobs=2,
+        encryption_scope=None,
+        credential=None,
+        tags=None,
+        max_block_size=DEFAULT_MAX_BLOCK_SIZE,
+        max_concurrency=DEFAULT_MAX_CONCURRENCY,
+        max_single_put_size=DEFAULT_MAX_SINGLE_PUT_SIZE,
+    ):
         """
         Create a new Azure Blob Storage interface given the supplied acccount url
 
@@ -117,6 +148,9 @@ class AzureCloudInterface(CloudInterface):
         )
         self.encryption_scope = encryption_scope
         self.credential = credential
+        self.max_block_size = max_block_size
+        self.max_concurrency = max_concurrency
+        self.max_single_put_size = max_single_put_size
 
         parsed_url = urlparse(url)
         if parsed_url.netloc.endswith(AZURE_BLOB_STORAGE_DOMAIN):
@@ -180,10 +214,16 @@ class AzureCloudInterface(CloudInterface):
                 except ImportError:
                     raise SystemExit("Missing required python module: azure-identity")
                 credential = DefaultAzureCredential()
+        session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(pool_maxsize=self.REQUESTS_POOL_MAXSIZE)
+        session.mount("https://", adapter)
         self.container_client = ContainerClient(
             account_url=self.account_url,
             container_name=self.bucket_name,
             credential=credential,
+            max_single_put_size=self.max_single_put_size,
+            max_block_size=self.max_block_size,
+            session=session,
         )
 
     @property
@@ -304,7 +344,12 @@ class AzureCloudInterface(CloudInterface):
         except ResourceNotFoundError:
             return None
 
-    def upload_fileobj(self, fileobj, key, override_tags=None):
+    def upload_fileobj(
+        self,
+        fileobj,
+        key,
+        override_tags=None,
+    ):
         """
         Synchronously upload the content of a file-like object to a cloud key
 
@@ -313,12 +358,22 @@ class AzureCloudInterface(CloudInterface):
         :param List[tuple] override_tags: List of tags as k,v tuples to be added to the
           uploaded object
         """
+        # Find length of the file so we can pass it to the Azure client
+        fileobj.seek(0, SEEK_END)
+        length = fileobj.tell()
+        fileobj.seek(0)
+
         extra_args = self._extra_upload_args.copy()
         tags = override_tags or self.tags
         if tags is not None:
             extra_args["tags"] = dict(tags)
         self.container_client.upload_blob(
-            name=key, data=fileobj, overwrite=True, **extra_args
+            name=key,
+            data=fileobj,
+            overwrite=True,
+            length=length,
+            max_concurrency=self.max_concurrency,
+            **extra_args
         )
 
     def create_multipart_upload(self, key):
