@@ -1935,16 +1935,48 @@ end_time=2014-12-22 09:25:27.410470+01:00
         assert wal_name in wals
         assert wals[wal_name] == wal_path
 
-    def test_can_list_single_wal(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075",
-        )
+    @pytest.mark.parametrize(
+        ("expected_wal", "wal_path", "suffix"),
+        [
+            spec
+            for spec_group in [
+                [
+                    # Regular WAL files
+                    (
+                        "000000010000000000000075",
+                        "mt-backups/test-server/wals/0000000100000000/000000010000000000000075",
+                        suffix,
+                    ),
+                    # Backup labels
+                    (
+                        "000000010000000000000075.00000028.backup",
+                        "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup",
+                        suffix,
+                    ),
+                    # Partial WALs
+                    (
+                        "000000010000000000000075.partial",
+                        "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial",
+                        suffix,
+                    ),
+                    # History files
+                    (
+                        "00000001.history",
+                        "mt-backups/test-server/wals/0000000100000000/00000001.history",
+                        suffix,
+                    ),
+                ]
+                for suffix in ("", ".gz", ".bz2", ".snappy")
+            ]
+            for spec in spec_group
+        ],
+    )
+    def test_can_list_wals(self, expected_wal, wal_path, suffix):
 
-    def test_can_list_compressed_wal(self):
+        """Test the various different WAL files are listed correctly"""
         self._verify_wal_is_in_catalog(
-            "000000010000000000000075",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.gz",
+            expected_wal,
+            wal_path + suffix,
         )
 
     def test_ignores_unsupported_compression(self):
@@ -1955,42 +1987,6 @@ end_time=2014-12-22 09:25:27.410470+01:00
         catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
         wals = catalog.get_wal_paths()
         assert len(wals) == 0
-
-    def test_can_list_backup_labels(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075.00000028.backup",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup",
-        )
-
-    def test_can_list_compressed_backup_labels(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075.00000028.backup",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup.gz",
-        )
-
-    def test_can_list_partial_wals(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075.partial",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial",
-        )
-
-    def test_can_list_compressed_partial_wals(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075.partial",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial.gz",
-        )
-
-    def test_can_list_history_wals(self):
-        self._verify_wal_is_in_catalog(
-            "00000001.history",
-            "mt-backups/test-server/wals/0000000100000000/00000001.history",
-        )
-
-    def test_can_list_compressed_history_wals(self):
-        self._verify_wal_is_in_catalog(
-            "00000001.history",
-            "mt-backups/test-server/wals/0000000100000000/00000001.history.gz",
-        )
 
     def test_can_remove_a_wal_from_cache(self):
         """Test we can remove a WAL from the cached list"""
