@@ -16,15 +16,13 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
-import bz2
-import gzip
 import logging
 import os
 import requests
-import shutil
 from io import BytesIO, RawIOBase, SEEK_END
 
-from barman.cloud import CloudInterface, CloudProviderError
+from barman.clients.cloud_compression import decompress_to_file
+from barman.cloud import CloudInterface, CloudProviderError, DecompressingStreamingIO
 
 try:
     # Python 3.x
@@ -323,24 +321,26 @@ class AzureCloudInterface(CloudInterface):
                 obj.download_to_stream(dest_file)
                 return
             blob = StreamingBlobIO(obj)
-            if decompress == "gzip":
-                source_file = gzip.GzipFile(fileobj=blob, mode="rb")
-            elif decompress == "bzip2":
-                source_file = bz2.BZ2File(blob, "rb")
-            with source_file:
-                shutil.copyfileobj(source_file, dest_file)
+            decompress_to_file(blob, dest_file, decompress)
 
-    def remote_open(self, key):
+    def remote_open(self, key, decompressor=None):
         """
         Open a remote Azure Blob Storage object and return a readable stream
 
         :param str key: The key identifying the object to open
+        :param barman.clients.cloud_compression.ChunkedCompressor decompressor:
+          A ChunkedCompressor object which will be used to decompress chunks of bytes
+          as they are read from the stream
         :return: A file-like object from which the stream can be read or None if
           the key does not exist
         """
         try:
             obj = self.container_client.download_blob(key)
-            return StreamingBlobIO(obj)
+            resp = StreamingBlobIO(obj)
+            if decompressor:
+                return DecompressingStreamingIO(resp, decompressor)
+            else:
+                return resp
         except ResourceNotFoundError:
             return None
 

@@ -16,13 +16,13 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
-import bz2
-import gzip
 import logging
 import shutil
 from io import RawIOBase
 
-from barman.cloud import CloudInterface, CloudProviderError
+from barman.clients.cloud_compression import decompress_to_file
+from barman.cloud import CloudInterface, CloudProviderError, DecompressingStreamingIO
+
 
 try:
     # Python 3.x
@@ -250,27 +250,26 @@ class S3CloudInterface(CloudInterface):
                 shutil.copyfileobj(remote_file, dest_file)
                 return
 
-            if decompress == "gzip":
-                source_file = gzip.GzipFile(fileobj=remote_file, mode="rb")
-            elif decompress == "bzip2":
-                source_file = bz2.BZ2File(remote_file, "rb")
-            else:
-                raise ValueError("Unknown compression type: %s" % decompress)
+            decompress_to_file(remote_file, dest_file, decompress)
 
-            with source_file:
-                shutil.copyfileobj(source_file, dest_file)
-
-    def remote_open(self, key):
+    def remote_open(self, key, decompressor=None):
         """
         Open a remote S3 object and returns a readable stream
 
         :param str key: The key identifying the object to open
+        :param barman.clients.cloud_compression.ChunkedCompressor decompressor:
+          A ChunkedCompressor object which will be used to decompress chunks of bytes
+          as they are read from the stream
         :return: A file-like object from which the stream can be read or None if
           the key does not exist
         """
         try:
             obj = self.s3.Object(self.bucket_name, key)
-            return StreamingBodyIO(obj.get()["Body"])
+            resp = StreamingBodyIO(obj.get()["Body"])
+            if decompressor:
+                return DecompressingStreamingIO(resp, decompressor)
+            else:
+                return resp
         except ClientError as exc:
             error_code = exc.response["Error"]["Code"]
             if error_code == "NoSuchKey":

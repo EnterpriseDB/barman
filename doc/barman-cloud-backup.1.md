@@ -66,6 +66,10 @@ SERVER_NAME
 -j, --bzip2
 :    bzip2-compress the tar files when uploading to the cloud
 
+--snappy
+:    snappy-compress the tar files when uploading to the cloud
+     (requires optional python-snappy library)
+
 -d, --dbname
 :    database name or conninfo string for Postgres connection (default: postgres)
 

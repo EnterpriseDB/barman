@@ -16,10 +16,16 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import bz2
 import datetime
+import gzip
 import os
+import shutil
+import sys
 from argparse import Namespace
 from io import BytesIO
+from tarfile import TarFile, TarInfo
+from tarfile import open as open_tar
 from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
 from azure.identity import AzureCliCredential, ManagedIdentityCredential
 from azure.storage.blob import PartialBatchErrorException
@@ -27,6 +33,7 @@ from azure.storage.blob import PartialBatchErrorException
 import mock
 from mock.mock import MagicMock
 import pytest
+import snappy
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import ClientError, EndpointConnectionError
 
@@ -34,6 +41,7 @@ from barman.annotations import KeepManager
 from barman.cloud import (
     CloudBackupCatalog,
     CloudProviderError,
+    CloudTarUploader,
     CloudUploadingError,
     FileUploadStatistics,
 )
@@ -49,6 +57,41 @@ try:
     from queue import Queue
 except ImportError:
     from Queue import Queue
+
+
+def _tar_helper(content, content_filename):
+    """Helper to create an in-memory tar file with a single file."""
+    tar_fileobj = BytesIO()
+    tf = TarFile.open(mode="w|", fileobj=tar_fileobj)
+    ti = TarInfo(name=content_filename)
+    content_as_bytes = content.encode("utf-8")
+    ti.size = len(content_as_bytes)
+    tf.addfile(ti, BytesIO(content_as_bytes))
+    tf.close()
+    tar_fileobj.seek(0)
+    return tar_fileobj
+
+
+def _compression_helper(src, compression):
+    """
+    Helper to compress a file-like object.
+    Similar to barman.clients.cloud_compression.compress however we tolerate
+    duplication here so as to avoid including code-under-test in the test.
+    """
+    if compression == "snappy":
+        dest = BytesIO()
+        snappy.stream_compress(src, dest)
+    elif compression == "gzip":
+        dest = BytesIO()
+        with gzip.GzipFile(fileobj=dest, mode="wb") as gz:
+            shutil.copyfileobj(src, gz)
+    elif compression == "bzip2" or compression == "bz2":
+        dest = BytesIO(bz2.compress(src.read()))
+    elif compression is None:
+        dest = BytesIO()
+        dest.write(src.read())
+    dest.seek(0)
+    return dest
 
 
 class TestCloudInterface(object):
@@ -800,6 +843,72 @@ class TestS3CloudInterface(object):
             '"AccessDenied", message: "Access Denied"'
         ) in caplog.text
 
+    @pytest.mark.skipif(sys.version_info < (3, 0), reason="Requires Python 3 or higher")
+    @pytest.mark.parametrize("compression", (None, "bzip2", "gzip", "snappy"))
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_download_file(self, boto_mock, compression, tmpdir):
+        """Verifies that cloud_interface.download_file decompresses correctly."""
+        dest_path = os.path.join(str(tmpdir), "downloaded_file")
+        # GIVEN A single file containing a string
+        content = "this is an arbitrary string"
+        # WHICH is compressed with the specified compression
+        mock_s3_fileobj = _compression_helper(
+            BytesIO(content.encode("utf-8")), compression
+        )
+        # AND is returned by a cloud interface
+        object_key = "/arbitrary/object/key"
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/%s" % object_key, encryption=None
+        )
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_mock.Object.return_value.get.return_value = {
+            "Body": mock_s3_fileobj,
+        }
+
+        # WHEN the file is downloaded from the cloud interface
+        cloud_interface.download_file(object_key, dest_path, compression)
+
+        # THEN the data is automatically decompressed and therefore the content
+        # of the downloaded file matches the original content
+        with open(dest_path, "r") as f:
+            assert f.read() == content
+
+    @pytest.mark.parametrize(
+        ("compression", "file_ext"),
+        ((None, ""), ("bzip2", ".bz2"), ("gzip", ".gz"), ("snappy", ".snappy")),
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_extract_tar(self, boto_mock, compression, file_ext, tmpdir):
+        """Verifies that cloud_interface.exrtact_tar decompresses correctly."""
+        # GIVEN A tar file containing a single file containing a string
+        content = "this is an arbitrary string"
+        content_filename = "an_arbitrary_filename"
+        tar_fileobj = _tar_helper(
+            content="this is an arbitrary string",
+            content_filename="an_arbitrary_filename",
+        )
+        # WHICH is compressed with the specified compression
+        mock_s3_fileobj = _compression_helper(tar_fileobj, compression)
+        object_key = "/arbitrary/object/key.tar" + file_ext
+        # AND is returned by a cloud interface
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/%s" % object_key, encryption=None
+        )
+        session_mock = boto_mock.Session.return_value
+        s3_mock = session_mock.resource.return_value
+        s3_mock.Object.return_value.get.return_value = {
+            "Body": mock_s3_fileobj,
+        }
+
+        # WHEN the tar is extracted via the cloud interface
+        cloud_interface.extract_tar(object_key, str(tmpdir))
+
+        # THEN the content of the archive is 0automatically decompressed and therefore
+        # the content of the downloaded file matches the original content
+        with open(os.path.join(str(tmpdir), content_filename), "r") as f:
+            assert f.read() == content
+
 
 class TestAzureCloudInterface(object):
     """
@@ -1535,6 +1644,101 @@ class TestAzureCloudInterface(object):
             "Deletion of object path/to/object/1 failed because it could not be found"
         ) in caplog.text
 
+    @pytest.mark.skipif(sys.version_info < (3, 0), reason="Requires Python 3 or higher")
+    @pytest.mark.parametrize("compression", (None, "bzip2", "gzip", "snappy"))
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_download_file(self, container_client_mock, compression, tmpdir):
+        """Verifies that cloud_interface.download_file decompresses correctly."""
+        dest_path = os.path.join(str(tmpdir), "downloaded_file")
+        # GIVEN A single file containing a string
+        content = "this is an arbitrary string"
+        # WHICH is compressed with the specified compression
+        mock_fileobj = _compression_helper(
+            BytesIO(content.encode("utf-8")), compression
+        )
+        # AND is returned by a cloud interface
+        object_key = "/arbitrary/object/key"
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        container_client = container_client_mock.from_connection_string.return_value
+
+        # WHEN the file is downloaded from the cloud interface
+        if compression is None:
+            # Just verify the Azure download_to_stream method was called because
+            # that is a shortcut taken when there is no compression
+            cloud_interface.download_file(object_key, dest_path, compression)
+            azure_resp = container_client.download_blob.return_value
+            azure_resp.download_to_stream.assert_called_once()
+        else:
+            # The response from container_client.download_blob isn't a file-like
+            # object - it provides a chunks() method which returns an iterable of
+            # bytes, so that is what we create here
+            chunks = iter([mock_fileobj.read()])
+            try:
+                chunk_iter_fun = chunks.__next__
+            except AttributeError:
+                # If there was no __next__ then we must be python2 so use next
+                chunk_iter_fun = chunks.next
+            container_client.download_blob.return_value.chunks.return_value.next = (
+                chunk_iter_fun
+            )
+            cloud_interface.download_file(object_key, dest_path, compression)
+            # THEN the data is automatically decompressed and therefore the content
+            # of the downloaded file matches the original content
+            with open(dest_path, "r") as f:
+                assert f.read() == content
+
+    @pytest.mark.parametrize(
+        ("compression", "file_ext"),
+        ((None, ""), ("bzip2", ".bz2"), ("gzip", ".gz"), ("snappy", ".snappy")),
+    )
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_extract_tar(self, container_client_mock, compression, file_ext, tmpdir):
+        """Verifies that cloud_interface.download_file decompresses correctly."""
+        # GIVEN A tar file containing a single file containing a string
+        content = "this is an arbitrary string"
+        content_filename = "an_arbitrary_filename"
+        tar_fileobj = _tar_helper(
+            content="this is an arbitrary string",
+            content_filename="an_arbitrary_filename",
+        )
+        # WHICH is compressed with the specified compression
+        mock_fileobj = _compression_helper(tar_fileobj, compression)
+        object_key = "/arbitrary/object/key.tar" + file_ext
+        # AND is returned by a cloud interface
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob"
+        )
+        container_client = container_client_mock.from_connection_string.return_value
+
+        # The response from container_client.download_blob isn't a file-like
+        # object - it provides a chunks() method which returns an iterable of
+        # bytes, so that is what we create here
+        chunks = iter([mock_fileobj.read()])
+        try:
+            chunk_iter_fun = chunks.__next__
+        except AttributeError:
+            # If there was no __next__ then we must be python2 so use next
+            chunk_iter_fun = chunks.next
+        container_client.download_blob.return_value.chunks.return_value.next = (
+            chunk_iter_fun
+        )
+
+        # WHEN the tar is extracted via the cloud interface
+        cloud_interface.extract_tar(object_key, str(tmpdir))
+
+        # THEN the content of the archive is 0automatically decompressed and therefore
+        # the content of the downloaded file matches the original content
+        with open(os.path.join(str(tmpdir), content_filename), "r") as f:
+            assert f.read() == content
+
 
 class TestGetCloudInterface(object):
     """
@@ -1731,16 +1935,48 @@ end_time=2014-12-22 09:25:27.410470+01:00
         assert wal_name in wals
         assert wals[wal_name] == wal_path
 
-    def test_can_list_single_wal(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075",
-        )
+    @pytest.mark.parametrize(
+        ("expected_wal", "wal_path", "suffix"),
+        [
+            spec
+            for spec_group in [
+                [
+                    # Regular WAL files
+                    (
+                        "000000010000000000000075",
+                        "mt-backups/test-server/wals/0000000100000000/000000010000000000000075",
+                        suffix,
+                    ),
+                    # Backup labels
+                    (
+                        "000000010000000000000075.00000028.backup",
+                        "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup",
+                        suffix,
+                    ),
+                    # Partial WALs
+                    (
+                        "000000010000000000000075.partial",
+                        "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial",
+                        suffix,
+                    ),
+                    # History files
+                    (
+                        "00000001.history",
+                        "mt-backups/test-server/wals/0000000100000000/00000001.history",
+                        suffix,
+                    ),
+                ]
+                for suffix in ("", ".gz", ".bz2", ".snappy")
+            ]
+            for spec in spec_group
+        ],
+    )
+    def test_can_list_wals(self, expected_wal, wal_path, suffix):
 
-    def test_can_list_compressed_wal(self):
+        """Test the various different WAL files are listed correctly"""
         self._verify_wal_is_in_catalog(
-            "000000010000000000000075",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.gz",
+            expected_wal,
+            wal_path + suffix,
         )
 
     def test_ignores_unsupported_compression(self):
@@ -1751,42 +1987,6 @@ end_time=2014-12-22 09:25:27.410470+01:00
         catalog = CloudBackupCatalog(mock_cloud_interface, "test-server")
         wals = catalog.get_wal_paths()
         assert len(wals) == 0
-
-    def test_can_list_backup_labels(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075.00000028.backup",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup",
-        )
-
-    def test_can_list_compressed_backup_labels(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075.00000028.backup",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.00000028.backup.gz",
-        )
-
-    def test_can_list_partial_wals(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075.partial",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial",
-        )
-
-    def test_can_list_compressed_partial_wals(self):
-        self._verify_wal_is_in_catalog(
-            "000000010000000000000075.partial",
-            "mt-backups/test-server/wals/0000000100000000/000000010000000000000075.partial.gz",
-        )
-
-    def test_can_list_history_wals(self):
-        self._verify_wal_is_in_catalog(
-            "00000001.history",
-            "mt-backups/test-server/wals/0000000100000000/00000001.history",
-        )
-
-    def test_can_list_compressed_history_wals(self):
-        self._verify_wal_is_in_catalog(
-            "00000001.history",
-            "mt-backups/test-server/wals/0000000100000000/00000001.history.gz",
-        )
 
     def test_can_remove_a_wal_from_cache(self):
         """Test we can remove a WAL from the cached list"""
@@ -2024,3 +2224,63 @@ end_time=2014-12-22 09:25:27.410470+01:00
         assert catalog.should_keep_backup(test_backup_id) is False
         # And the recovery target is None again
         assert catalog.get_keep_target(test_backup_id) is None
+
+
+class TestCloudTarUploader(object):
+    """Tests CloudTarUploader creates valid tar files."""
+
+    @pytest.mark.parametrize(
+        "compression",
+        # The CloudTarUploader expects the short form compression args set by the
+        # cloud_backup argument parser
+        (None, "bz2", "gz", "snappy"),
+    )
+    @mock.patch("barman.cloud.CloudInterface")
+    def test_add(self, mock_cloud_interface, compression, tmpdir):
+        """
+        Verifies that when files are added to the CloudTarUploader tar file
+        the bytes passed to async_upload_part represent a valid tar file.
+        """
+        # GIVEN a cloud interface
+        mock_cloud_interface.MIN_CHUNK_SIZE = 5 << 20
+        # AND a source directory containing one file
+        src_file = "arbitrary_file_name"
+        content = "arbitrary strong representing file content"
+        key = "arbitrary/path/in/the/cloud"
+        with open(os.path.join(str(tmpdir), src_file), "w") as f:
+            f.write(content)
+        # AND a CloudTarUploader using the configured compression
+        uploader = CloudTarUploader(mock_cloud_interface, key, compression=compression)
+
+        # WHEN the file is added to the tar uploader
+        uploader.tar.add(
+            os.path.join(str(tmpdir), src_file), arcname=src_file, recursive=False
+        )
+        # AND the uploader is closed, forcing the data to be flushed to the cloud
+        uploader.tar.close()
+        uploader.close()
+
+        # THEN async_upload_part is called
+        mock_cloud_interface.async_upload_part.assert_called_once()
+        # AND the body argument of the async_upload_part call contains the source
+        # file with the specified compression
+        uploaded_tar = mock_cloud_interface.async_upload_part.call_args_list[0][1][
+            "body"
+        ]
+        with open(uploaded_tar.name, "rb") as uploaded_data:
+            tar_fileobj = uploaded_data
+            if compression is None:
+                tar_mode = "r|"
+            elif compression == "snappy":
+                tar_mode = "r|"
+                # We must manually decompress the snappy bytes before extracting
+                tar_fileobj = BytesIO()
+                snappy.stream_decompress(uploaded_data, tar_fileobj)
+                tar_fileobj.seek(0)
+            else:
+                tar_mode = "r|%s" % compression
+            with open_tar(fileobj=tar_fileobj, mode=tar_mode) as tf:
+                dest_path = str(tmpdir.mkdir("result"))
+                tf.extractall(path=dest_path)
+                with open(os.path.join(dest_path, src_file), "r") as result:
+                    assert result.read() == content
