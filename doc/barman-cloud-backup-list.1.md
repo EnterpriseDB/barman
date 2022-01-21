@@ -131,4 +131,4 @@ Any bug can be reported via the Github issue tracker.
 Barman is the property of EnterpriseDB UK Limited
 and its code is distributed under GNU General Public License v3.
 
-© Copyright EnterpriseDB UK Limited 2011-2021
+© Copyright EnterpriseDB UK Limited 2011-2022
