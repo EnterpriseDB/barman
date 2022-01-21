@@ -1,6 +1,7 @@
 .
 .[cloud]
 .[azure]
+.[snappy]
 pytest
 mock
 pytest-timeout==1.4.2

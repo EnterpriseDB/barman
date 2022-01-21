@@ -45,7 +45,6 @@ setup_requires = pytest_runner
 install_requires = [
     "psycopg2 >= 2.4.2",
     "python-dateutil",
-    "python-snappy >= 0.6.0",
     "argcomplete",
 ]
 
@@ -101,6 +100,7 @@ setup(
     extras_require={
         "cloud": ["boto3"],
         "azure": ["azure-identity", "azure-storage-blob"],
+        "snappy": ["python-snappy >= 0.6.0"],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[
