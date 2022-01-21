@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# © Copyright EnterpriseDB UK Limited 2011-2021
+# © Copyright EnterpriseDB UK Limited 2011-2022
 #
 # This file is part of Barman.
 #
