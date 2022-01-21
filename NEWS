@@ -1,5 +1,39 @@
 Barman News - History of user-visible changes
 
+Version 2.18 - 21 January 2022
+
+- Add snappy compression algorithm support in barman cloud (requires the
+  optional python-snappy dependency).
+
+- Allow Azure client concurrency parameters to be set when uploading
+  WALs with barman-cloud-wal-archive.
+
+- Add `--tags` option in barman cloud so that backup files and archived
+  WALs can be tagged in cloud storage (aws and azure).
+
+- Update the barman cloud exit status codes so that there is a dedicated
+  code (2) for connectivity errors.
+
+- Add the commands `barman verify-backup` and `barman generate-manifest`
+  to check if a backup is valid.
+
+- Add support for Azure Managed Identity auth in barman cloud which can
+  be enabled with the `--credential` option.
+
+- Bug fixes:
+
+    - Change `barman-cloud-check-wal-archive` behavior when bucket does
+      not exist.
+
+    - Ensure `list-files` output is always sorted regardless of the
+      underlying filesystem.
+
+    - Man pages for barman-cloud-backup-keep, barman-cloud-backup-delete
+      and barman-cloud-check-wal-archive added to Python packaging.
+
+- We thank richyen and stratakis for their contributions to this
+  release.
+
 Version 2.17 - 1 December 2021
 
 - Bug fixes:
