@@ -19,11 +19,18 @@
 import bz2
 import gzip
 import shutil
-import snappy
 from abc import ABCMeta, abstractmethod
 from io import BytesIO
 
 from barman.utils import with_metaclass
+
+
+def _try_import_snappy():
+    try:
+        import snappy
+    except ImportError:
+        raise SystemExit("Missing required python module: python-snappy")
+    return snappy
 
 
 class ChunkedCompressor(with_metaclass(ABCMeta, object)):
@@ -59,6 +66,7 @@ class SnappyCompressor(ChunkedCompressor):
     """
 
     def __init__(self):
+        snappy = _try_import_snappy()
         self.compressor = snappy.StreamCompressor()
         self.decompressor = snappy.StreamDecompressor()
 
@@ -113,6 +121,7 @@ def compress(wal_file, compression):
     """
     if compression == "snappy":
         in_mem_snappy = BytesIO()
+        snappy = _try_import_snappy()
         snappy.stream_compress(wal_file, in_mem_snappy)
         in_mem_snappy.seek(0)
         return in_mem_snappy
@@ -165,6 +174,7 @@ def decompress_to_file(blob, dest_file, compression):
     :rtype: None
     """
     if compression == "snappy":
+        snappy = _try_import_snappy()
         snappy.stream_decompress(blob, dest_file)
         return
     elif compression == "gzip":
