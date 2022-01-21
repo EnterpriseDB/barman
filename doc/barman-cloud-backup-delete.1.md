@@ -1,6 +1,6 @@
-% BARMAN-CLOUD-BACKUP-DELETE(1) Barman User manuals | Version 2.17
+% BARMAN-CLOUD-BACKUP-DELETE(1) Barman User manuals | Version 2.18
 % EnterpriseDB <http://www.enterprisedb.com>
-% December 1, 2021
+% January 21, 2022
 
 # NAME
 
