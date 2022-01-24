@@ -24,7 +24,7 @@ policies are the same as those for Barman server and work as described in
 the Barman manual: all backups not required to meet the specified policy
 will be deleted.
 
-When a backup is succesfully deleted any unused WALs associated with that
+When a backup is successfully deleted any unused WALs associated with that
 backup are removed. WALs are only considered unused if:
 
  1. There are no older backups than the deleted backup *or* all older backups
