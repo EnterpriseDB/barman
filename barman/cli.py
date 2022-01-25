@@ -872,11 +872,13 @@ def show_servers(args):
 
         # If the server has been manually disabled
         if not server.config.active:
-            name += " (inactive)"
+            description = "(inactive)"
         # If server has configuration errors
         elif server.config.disabled:
-            name += " (WARNING: disabled)"
-        output.init("show_server", name)
+            description = "(WARNING: disabled)"
+        else:
+            description = None
+        output.init("show_server", name, description=description)
         with closing(server):
             server.show()
     output.close_and_exit()
