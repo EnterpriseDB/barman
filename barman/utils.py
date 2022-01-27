@@ -623,10 +623,10 @@ def check_tli(value):
     if value is None:
         return None
     try:
-        int_value = int(value)
+        int(value)
     except Exception:
         if not value.isdigit():
-            assert(value in ["current","latest"]), "'%s' is not a valid TLI" % value
+            assert(value in ["current", "latest"]), "'%s' is not a valid TLI" % value
         else:
             raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
     if value < 1:

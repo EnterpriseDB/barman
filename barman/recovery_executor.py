@@ -459,8 +459,8 @@ class RecoveryExecutor(object):
         target_datetime = None
         calculated_target_tli = target_tli
         if target_tli and type(target_tli) is str:
-          if target_tli in ["current","latest"]:
-            calculated_target_tli = backup_info.timeline
+            if target_tli in ["current", "latest"]:
+                calculated_target_tli = backup_info.timeline
         d_immediate = backup_info.version >= 90400 and target_immediate
         d_lsn = backup_info.version >= 100000 and target_lsn
         d_tli = target_tli and calculated_target_tli != backup_info.timeline
