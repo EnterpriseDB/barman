@@ -502,7 +502,7 @@ class RecoveryExecutor(object):
                 targets["xid"] = str(target_xid)
             if d_lsn:
                 targets["lsn"] = str(d_lsn)
-            if d_tli and target_tli != backup_info.timeline:
+            if d_tli:
                 targets["timeline"] = str(d_tli)
             if target_name:
                 targets["name"] = str(target_name)
