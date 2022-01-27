@@ -1556,8 +1556,9 @@ class Server(RemoteStatusMixin):
         end = backup.end_wal
         # If timeline isn't specified, assume it is the same timeline
         # of the backup
-        if not target_tli:
-            target_tli, _, _ = xlog.decode_segment_name(end)
+        calculated_target_tli = None
+        if not target_tli or (type(target_tli) is str and target_tli in ["current", "latest"]):
+            calculated_target_tli, _, _ = xlog.decode_segment_name(end)
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
                 wal_info = WalFileInfo.from_xlogdb_line(line)
@@ -1569,7 +1570,7 @@ class Server(RemoteStatusMixin):
                 if wal_info.name < begin:
                     continue
                 tli, _, _ = xlog.decode_segment_name(wal_info.name)
-                if tli > target_tli:
+                if tli > calculated_target_tli:
                     continue
                 yield wal_info
                 if wal_info.name > end:

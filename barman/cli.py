@@ -50,6 +50,7 @@ from barman.utils import (
     BarmanEncoder,
     check_non_negative,
     check_positive,
+    check_tli,
     configure_logging,
     drop_privileges,
     force_str,
@@ -583,7 +584,7 @@ def rebuild_xlogdb(args):
             completer=server_completer,
             help="specifies the server name for the command ",
         ),
-        argument("--target-tli", help="target timeline", type=check_positive),
+        argument("--target-tli", help="target timeline", type=check_tli),
         argument(
             "--target-time",
             help="target time. You can use any valid unambiguous representation. "

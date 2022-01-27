@@ -614,6 +614,26 @@ def check_positive(value):
     return int_value
 
 
+def check_tli(value):
+    """
+    Check for a positive integer option, and also make "current" and "latest" acceptable values
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    try:
+        int_value = int(value)
+    except Exception:
+        if not value.isdigit():
+            assert(value in ["current","latest"]), "'%s' is not a valid TLI" % value
+        else:
+            raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
+    if value < 1:
+        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
+    return value
+
+
 def check_size(value):
     """
     Check user input for a human readable size
