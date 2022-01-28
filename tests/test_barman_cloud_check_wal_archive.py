@@ -33,6 +33,16 @@ class TestCloudCheckWalArchive(object):
         }
         return cloud_backup_catalog
 
+    @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
+    def test_exits_on_connectivity_test(self, get_cloud_interface_mock):
+        """If the -t option is used we check connectivity and exit."""
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        cloud_interface_mock.test_connectivity.return_value = True
+        with pytest.raises(SystemExit) as exc:
+            cloud_check_wal_archive.main(["cloud_storage_url", "test_server", "-t"])
+        assert exc.value.code == 0
+        cloud_interface_mock.test_connectivity.assert_called_once()
+
     @mock.patch("barman.clients.cloud_check_wal_archive.check_archive_usable")
     @mock.patch("barman.clients.cloud_check_wal_archive.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_check_wal_archive.get_cloud_interface")
