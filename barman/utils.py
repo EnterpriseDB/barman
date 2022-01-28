@@ -684,10 +684,24 @@ def check_positive(value):
     try:
         int_value = int(value)
     except Exception:
-        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
+        raise ArgumentTypeError("'%s' is not a valid input" % value)
     if int_value < 1:
         raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
     return int_value
+
+
+def check_tli(value):
+    """
+    Check for a positive integer option, and also make "current" and "latest" acceptable values
+
+    :param value: str containing the value to check
+    """
+    if value is None:
+        return None
+    if value in ["current", "latest"]:
+        return value
+    else:
+        return check_positive(value)
 
 
 def check_size(value):
