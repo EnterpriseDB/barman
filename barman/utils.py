@@ -620,18 +620,16 @@ def check_tli(value):
 
     :param value: str containing the value to check
     """
+    retval = value
     if value is None:
         return None
     try:
-        int(value)
-    except Exception:
-        if not value.isdigit():
-            assert value in ["current", "latest"], "'%s' is not a valid TLI" % value
-        else:
-            raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
-    if value < 1:
-        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
-    return value
+        retval = check_positive(value)
+    except ArgumentTypeError:
+        #  Value is not a positive integer so check for the valid string alternatives here
+        if value not in ["current", "latest"]:
+            raise ArgumentTypeError("'%s' is not a valid TLI" % value)
+    return retval
 
 
 def check_size(value):
