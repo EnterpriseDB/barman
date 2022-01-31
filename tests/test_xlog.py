@@ -75,17 +75,14 @@ class Test(object):
             "000000010000000200000001",
             "000000010000000200000002",
         )
-        assert (
-            tuple(
-                xlog.generate_segment_names(
-                    "0000000100000001000000FD",
-                    "0000000100000001000000FF",
-                    90200,
-                    xlog.DEFAULT_XLOG_SEG_SIZE,
-                )
+        assert tuple(
+            xlog.generate_segment_names(
+                "0000000100000001000000FD",
+                "0000000100000001000000FF",
+                90200,
+                xlog.DEFAULT_XLOG_SEG_SIZE,
             )
-            == ("0000000100000001000000FD", "0000000100000001000000FE")
-        )
+        ) == ("0000000100000001000000FD", "0000000100000001000000FE")
 
         assert tuple(
             xlog.generate_segment_names(
@@ -565,15 +562,11 @@ class TestCheckArchiveUsable(object):
                 wals,
                 timeline=timeline,
             )
-        assert (
-            self.EXPECTED_ARCHIVE_CONTENT_ERROR
-            % (
-                num_expected_newer_files,
-                num_expected_newer_files > 1 and "s" or "",
-                timeline,
-            )
-            == str(exc.value)
-        )
+        assert self.EXPECTED_ARCHIVE_CONTENT_ERROR % (
+            num_expected_newer_files,
+            num_expected_newer_files > 1 and "s" or "",
+            timeline,
+        ) == str(exc.value)
 
     @pytest.mark.parametrize(
         "wals,timeline",
@@ -637,15 +630,11 @@ class TestCheckArchiveUsable(object):
                 wals,
                 timeline=timeline,
             )
-        assert (
-            self.EXPECTED_ARCHIVE_CONTENT_ERROR
-            % (
-                num_expected_illegal_files,
-                num_expected_illegal_files > 1 and "s" or "",
-                timeline,
-            )
-            == str(exc.value)
-        )
+        assert self.EXPECTED_ARCHIVE_CONTENT_ERROR % (
+            num_expected_illegal_files,
+            num_expected_illegal_files > 1 and "s" or "",
+            timeline,
+        ) == str(exc.value)
 
     @pytest.mark.parametrize(
         "wals",
