@@ -456,6 +456,7 @@ class RecoveryExecutor(object):
         :param str|None target_action: recovery target action for PITR
         """
         import pprint
+
         target_epoch = None
         target_datetime = None
         calculated_target_tli = target_tli
