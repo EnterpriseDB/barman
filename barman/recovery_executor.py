@@ -468,7 +468,7 @@ class RecoveryExecutor(object):
                 raise ValueError("%s is not a valid timeline keyword" % target_tli)
         d_immediate = backup_info.version >= 90400 and target_immediate
         d_lsn = backup_info.version >= 100000 and target_lsn
-        d_tli = calculated_target_tli != backup_info.timeline and target_tli
+        d_tli = target_tli != backup_info.timeline and calculated_target_tli
         # Detect PITR
         if target_time or target_xid or d_tli or target_name or d_immediate or d_lsn:
             recovery_info["is_pitr"] = True
