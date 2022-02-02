@@ -24,7 +24,7 @@
   [roles]: http://www.postgresql.org/docs/current/static/role-attributes.html
   [replication-slots]: https://www.postgresql.org/docs/current/static/warm-standby.html#STREAMING-REPLICATION-SLOTS
   [synch]: http://www.postgresql.org/docs/current/static/warm-standby.html#SYNCHRONOUS-REPLICATION
-  [target]: https://www.postgresql.org/docs/current/static/recovery-target-settings.html
+  [target]: https://www.postgresql.org/docs/current/static/runtime-config-wal.html#RUNTIME-CONFIG-WAL-RECOVERY-TARGET
   [2ndqrpmrepo]: https://rpm.2ndquadrant.com/
   [2ndqdebrepo]: https://apt.2ndquadrant.com/
   [boto3]: https://github.com/boto/boto3
