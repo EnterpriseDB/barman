@@ -455,12 +455,18 @@ class RecoveryExecutor(object):
             is reached
         :param str|None target_action: recovery target action for PITR
         """
+        import pprint
         target_epoch = None
         target_datetime = None
         calculated_target_tli = target_tli
         if target_tli and type(target_tli) is str:
-            if target_tli in ["current", "latest"]:
+            if target_tli == "current":
                 calculated_target_tli = backup_info.timeline
+            elif target_tli == "latest":
+                valid_timelines = self.backup_manager.get_latest_archived_wals_info()
+                calculated_target_tli = int(max(valid_timelines.keys()))
+            else:
+                raise ValueError("%s is not a valid timeline keyword" % target_tli)
         d_immediate = backup_info.version >= 90400 and target_immediate
         d_lsn = backup_info.version >= 100000 and target_lsn
         d_tli = calculated_target_tli != backup_info.timeline and target_tli
