@@ -159,16 +159,20 @@ class TestMain(object):
         assert "Remote 'barman put-wal' command has failed" in err
 
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
-    def test_connectivity_test_ok(self, popen_mock, capsys):
+    def test_connectivity_test_returns_subprocess_output(self, popen_mock, capsys):
 
-        popen_mock.return_value.communicate.return_value = (b"Good test!", b"")
+        popen_mock.return_value.communicate.return_value = (
+            b"Tested subprocess return code percolation",
+            b"",
+        )
+        popen_mock.return_value.returncode = 255
 
         with pytest.raises(SystemExit) as exc:
             walarchive.main(["a.host", "a-server", "--test", "dummy_wal"])
 
-        assert exc.value.code == 0
+        assert exc.value.code == 255
         out, err = capsys.readouterr()
-        assert "Good test!" in out
+        assert "Tested subprocess return code percolation" in out
         assert not err
 
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
