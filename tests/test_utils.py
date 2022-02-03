@@ -641,7 +641,7 @@ class TestForceText(object):
         """
         Force text normal usage
         """
-        accented = u"\u0227\u0188\u0188\u1e17\u019e\u0167\u1e17\u1e13"
+        accented = "\u0227\u0188\u0188\u1e17\u019e\u0167\u1e17\u1e13"
 
         class Test:
             if sys.version_info[0] >= 3:
@@ -708,10 +708,10 @@ class TestCheckSize(object):
             ["300MB", 300 << 20],
             ["20GB", 20 << 30],
             ["1TB", 1 << 40],
-            ["12kiB", 12 * 10 ** 3],
-            ["300MiB", 300 * 10 ** 6],
-            ["20GiB", 20 * 10 ** 9],
-            ["1TiB", 1 * 10 ** 12],
+            ["12kiB", 12 * 10**3],
+            ["300MiB", 300 * 10**6],
+            ["20GiB", 20 * 10**9],
+            ["1TiB", 1 * 10**12],
         ],
     )
     def test_parse(self, size, bytes):
