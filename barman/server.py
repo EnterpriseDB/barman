@@ -1559,7 +1559,7 @@ class Server(RemoteStatusMixin):
         calculated_target_tli = target_tli
         if target_tli and type(target_tli) is str:
             if target_tli == "current":
-                calculated_target_tli = backup_info.timeline
+                calculated_target_tli = backup.timeline
             elif target_tli == "latest":
                 valid_timelines = self.backup_manager.get_latest_archived_wals_info()
                 calculated_target_tli = int(max(valid_timelines.keys()))
