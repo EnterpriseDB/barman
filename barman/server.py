@@ -1554,10 +1554,23 @@ class Server(RemoteStatusMixin):
         """
         begin = backup.begin_wal
         end = backup.end_wal
+
+        # Calculate the integer value of TLI if a keyword is provided
+        calculated_target_tli = target_tli
+        if target_tli and type(target_tli) is str:
+            if target_tli == "current":
+                calculated_target_tli = backup_info.timeline
+            elif target_tli == "latest":
+                valid_timelines = self.backup_manager.get_latest_archived_wals_info()
+                calculated_target_tli = int(max(valid_timelines.keys()))
+            elif not target_tli.isdigit():
+                raise ValueError("%s is not a valid timeline keyword" % target_tli)
+
         # If timeline isn't specified, assume it is the same timeline
         # of the backup
         if not target_tli:
             target_tli, _, _ = xlog.decode_segment_name(end)
+            calculated_target_tli = target_tli
         with self.xlogdb() as fxlogdb:
             for line in fxlogdb:
                 wal_info = WalFileInfo.from_xlogdb_line(line)
@@ -1569,7 +1582,7 @@ class Server(RemoteStatusMixin):
                 if wal_info.name < begin:
                     continue
                 tli, _, _ = xlog.decode_segment_name(wal_info.name)
-                if tli > target_tli:
+                if tli > calculated_target_tli:
                     continue
                 yield wal_info
                 if wal_info.name > end:

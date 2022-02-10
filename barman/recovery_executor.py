@@ -457,6 +457,8 @@ class RecoveryExecutor(object):
         """
         target_epoch = None
         target_datetime = None
+
+        # Calculate the integer value of TLI if a keyword is provided
         calculated_target_tli = target_tli
         if target_tli and type(target_tli) is str:
             if target_tli == "current":
@@ -466,9 +468,11 @@ class RecoveryExecutor(object):
                 calculated_target_tli = int(max(valid_timelines.keys()))
             elif not target_tli.isdigit():
                 raise ValueError("%s is not a valid timeline keyword" % target_tli)
+
         d_immediate = backup_info.version >= 90400 and target_immediate
         d_lsn = backup_info.version >= 100000 and target_lsn
         d_tli = target_tli != backup_info.timeline and calculated_target_tli
+
         # Detect PITR
         if target_time or target_xid or d_tli or target_name or d_immediate or d_lsn:
             recovery_info["is_pitr"] = True
