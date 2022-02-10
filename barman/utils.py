@@ -608,7 +608,7 @@ def check_positive(value):
     try:
         int_value = int(value)
     except Exception:
-        raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
+        raise ArgumentTypeError("'%s' is not a valid input" % value)
     if int_value < 1:
         raise ArgumentTypeError("'%s' is not a valid positive integer" % value)
     return int_value
@@ -626,8 +626,8 @@ def check_tli(value):
         return value
     try:
         return check_positive(value)
-    except ArgumentTypeError:
-        raise ArgumentTypeError("'%s' is not a valid TLI" % value)
+    except ArgumentTypeError as err:
+        raise ArgumentTypeError("%s" % err)
 
 
 def check_size(value):
