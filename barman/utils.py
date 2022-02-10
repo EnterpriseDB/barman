@@ -620,16 +620,14 @@ def check_tli(value):
 
     :param value: str containing the value to check
     """
-    retval = value
     if value is None:
         return None
+    if value in ["current", "latest"]:
+        return value
     try:
-        retval = check_positive(value)
+        return check_positive(value)
     except ArgumentTypeError:
-        #  Value is not a positive integer so check for the valid string alternatives here
-        if value not in ["current", "latest"]:
-            raise ArgumentTypeError("'%s' is not a valid TLI" % value)
-    return retval
+        raise ArgumentTypeError("'%s' is not a valid TLI" % value)
 
 
 def check_size(value):
