@@ -1,5 +1,5 @@
 % BARMAN-CLOUD-CHECK-WAL-ARCHIVE(1) Barman User manuals | Version 2.18
-% EnterpriseDB <http://www.enterprisedb.com>
+% EnterpriseDB <https://www.enterprisedb.com>
 % January 21, 2022
 
 # NAME
@@ -80,8 +80,8 @@ For Boto:
 
 For AWS:
 
-* http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html
-* http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html.
+* https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html
+* https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html.
 
 For Azure Blob Storage:
 
@@ -129,9 +129,9 @@ Any bug can be reported via the Github issue tracker.
 
 # RESOURCES
 
-* Homepage: <http://www.pgbarman.org/>
-* Documentation: <http://docs.pgbarman.org/>
-* Professional support: <http://www.enterprisedb.com/>
+* Homepage: <https://www.pgbarman.org/>
+* Documentation: <https://docs.pgbarman.org/>
+* Professional support: <https://www.enterprisedb.com/>
 
 
 # COPYING
