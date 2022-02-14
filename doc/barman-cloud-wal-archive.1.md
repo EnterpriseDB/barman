@@ -15,8 +15,8 @@ barman-cloud-wal-archive [*OPTIONS*] *DESTINATION_URL* *SERVER_NAME* *WAL_PATH*
 # DESCRIPTION
 
 This script can be used in the `archive_command` of a PostgreSQL
-server to ship WAL files to the Cloud. Currently AWS S3 and Azure Blob
-Storage are supported.
+server to ship WAL files to the Cloud. Currently AWS S3, Azure Blob
+Storage and Google Cloud Storage are supported.
 
 Note: If you are running python 2 or older unsupported versions of
 python 3 then avoid the compression options `--gzip` or `--bzip2` as
@@ -71,7 +71,7 @@ WAL_PATH
      (requires optional python-snappy library and should not be
      used with python < 3.3)
 
---cloud-provider {aws-s3,azure-blob-storage}
+--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
 :    the cloud provider to which the backup should be uploaded
 
 --tags KEY1,VALUE1 KEY2,VALUE2 ...
@@ -138,6 +138,11 @@ For Azure Blob Storage:
 * https://docs.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters
 * https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python
 
+For Google Cloud Storage:
+* Credentials: https://cloud.google.com/docs/authentication/getting-started#setting_the_environment_variable
+
+  Only authentication with `GOOGLE_APPLICATION_CREDENTIALS` env is supported at the moment.
+
 # DEPENDENCIES
 
 If using `--cloud-provider=aws-s3`:
@@ -148,6 +153,9 @@ If using `--cloud-provider=azure-blob-storage`:
 
 * azure-storage-blob
 * azure-identity (optional, if you wish to use DefaultAzureCredential)
+
+If using `--cloud-provider=google-cloud-storage`
+* google-cloud-storage 
 
 # EXIT STATUS
 

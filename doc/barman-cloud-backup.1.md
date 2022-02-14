@@ -15,8 +15,8 @@ barman-cloud-backup [*OPTIONS*] *DESTINATION_URL* *SERVER_NAME*
 # DESCRIPTION
 
 This script can be used to perform a backup of a local PostgreSQL instance
-and ship the resulting tarball(s) to the Cloud. Currently AWS S3 and Azure
-Blob Storage are supported.
+and ship the resulting tarball(s) to the Cloud. Currently AWS S3, Azure
+Blob Storage and Google Cloud Storage are supported.
 
 It requires read access to PGDATA and tablespaces (normally run as `postgres`
 user). It can also be used as a hook script on a barman server, in which
@@ -91,7 +91,7 @@ SERVER_NAME
 -S MAX_ARCHIVE_SIZE, --max-archive-size MAX_ARCHIVE_SIZE
 :    maximum size of an archive when uploading to cloud storage (default: 100GB)
 
---cloud-provider {aws-s3,azure-blob-storage}
+--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
 :    the cloud provider to which the backup should be uploaded
 
 --tags KEY1,VALUE1 KEY2,VALUE2 ...
@@ -138,6 +138,11 @@ For libpq settings information:
 
 * https://www.postgresql.org/docs/current/libpq-envars.html
 
+For Google Cloud Storage:
+* Credentials: https://cloud.google.com/docs/authentication/getting-started#setting_the_environment_variable
+
+  Only authentication with `GOOGLE_APPLICATION_CREDENTIALS` env is supported at the moment.
+
 # DEPENDENCIES
 
 If using `--cloud-provider=aws-s3`:
@@ -148,6 +153,9 @@ If using `--cloud-provider=azure-blob-storage`:
 
 * azure-storage-blob
 * azure-identity (optional, if you wish to use DefaultAzureCredential)
+
+If using `--cloud-provider=google-cloud-storage`
+* google-cloud-storage 
 
 # EXIT STATUS
 
