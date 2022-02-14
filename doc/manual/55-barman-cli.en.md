@@ -47,6 +47,7 @@ Supported cloud providers are:
 
 * AWS S3 (or any S3 compatible object store)
 * Azure Blob Storage
+* Google Cloud Storage (Rest API)
 
 These utilities are distributed in the `barman-cli-cloud` RPM/Debian package,
 and can be installed alongside the PostgreSQL server:
@@ -141,3 +142,50 @@ and WALs. This can be set to one of the following:
 
 * `aws-s3` [DEFAULT]: AWS S3 or S3-compatible object store.
 * `azure-blob-storage`: Azure Blob Storage service.
+* `google-cloud-storage`: Google Cloud Storage service.
+
+
+## Specificity by provider
+
+### Google Cloud Storage
+
+#### set up
+It will need google_storage_client dependency:
+```bash
+pip3 install google-cloud-storage 
+```
+
+To set credentials:
+
+* [Create a service account](https://cloud.google.com/docs/authentication/getting-started#setting_the_environment_variable)
+  And create a service account key.
+
+
+* Set bucket access rights:
+
+  We suggest to give [Storage Admin Role](https://cloud.google.com/storage/docs/access-control/iam-roles) 
+to the service account on the bucket.
+    
+
+* When using barman_cloud, If the bucket does not exist, it will be created. Default options will be used to create 
+the bucket. If you need the bucket to have specific options (region, storage class, labels), it is advised to create 
+and set the bucket to match all you needs. 
+
+* Set [env variable](https://cloud.google.com/docs/authentication/getting-started#setting_the_environment_variable) 
+  `GOOGLE_APPLICATION_CREDENTIALS` to the service account key file path. 
+
+  If running barman cloud from postgres (archive_command or restore_command), do not forget to set 
+  `GOOGLE_APPLICATION_CREDENTIALS` in postgres environment file.
+
+#### Usage
+Some details are specific to all barman cloud commands:
+* Select Google Cloud Storage`--cloud-provider=google-cloud-storage`
+* `SOURCE_URL` support both gs and https format.
+  ex:
+  ```
+  gs://BUCKET_NAME/path
+  or
+  https://console.cloud.google.com/storage/browser/BUCKET_NAME/path
+  ```
+
+  

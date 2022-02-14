@@ -16,7 +16,7 @@ barman-cloud-wal-restore [*OPTIONS*] *SOURCE_URL* *SERVER_NAME* *WAL_NAME* *WAL_
 
 This script can be used as a `restore_command` to download WAL files
 previously archived with `barman-cloud-wal-archive` command.
-Currently AWS S3 and Azure Blob Storage are supported.
+Currently AWS S3, Azure Blob Storage and Google Cloud Storage are supported.
 
 This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
@@ -55,7 +55,7 @@ WAL_PATH
 -t, --test
 :    test connectivity to the cloud destination and exit
 
---cloud-provider {aws-s3,azure-blob-storage}
+--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
 :    the cloud provider to which the backup should be uploaded
 
 -P, --profile
@@ -86,6 +86,11 @@ For Azure Blob Storage:
 * https://docs.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters
 * https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python
 
+For Google Cloud Storage:
+* Credentials: https://cloud.google.com/docs/authentication/getting-started#setting_the_environment_variable
+
+  Only authentication with `GOOGLE_APPLICATION_CREDENTIALS` env is supported at the moment.
+
 # DEPENDENCIES
 
 If using `--cloud-provider=aws-s3`:
@@ -96,6 +101,9 @@ If using `--cloud-provider=azure-blob-storage`:
 
 * azure-storage-blob
 * azure-identity (optional, if you wish to use DefaultAzureCredential)
+
+If using `--cloud-provider=google-cloud-storage`
+* google-cloud-storage 
 
 # EXIT STATUS
 
