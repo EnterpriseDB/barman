@@ -775,7 +775,7 @@ def recover(args):
     if hasattr(args, "get_wal"):
         if args.get_wal:
             server.config.recovery_options.add(RecoveryOptions.GET_WAL)
-        else:
+        elif RecoveryOptions.GET_WAL in server.config.recovery_options:
             server.config.recovery_options.remove(RecoveryOptions.GET_WAL)
     if args.jobs is not None:
         server.config.parallel_jobs = args.jobs
