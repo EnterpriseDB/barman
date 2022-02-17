@@ -983,11 +983,14 @@ class Config(object):
             # if a required key is not found, then print an error
             if req_key not in config_keys:
                 output.error(
-                    'Parameter "%s" is required for in [%s] section.' % (req_key, section),
+                    'Parameter "%s" is required for in [%s] section.'
+                    % (req_key, section),
                 )
                 missing_key_detected = 1
         if missing_key_detected:
-            raise SystemExit("Your configuration is missing required parameters. Exiting.")
+            raise SystemExit(
+                "Your configuration is missing required parameters. Exiting."
+            )
 
     @staticmethod
     def _validate_with_keys(config_items, allowed_keys, section):
