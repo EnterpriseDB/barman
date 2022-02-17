@@ -237,7 +237,7 @@ def info(message, *args, **kwargs):
 
 def warning(message, *args, **kwargs):
     """
-    Output a message with severity 'WARNING'
+    Output a message with severity 'INFO'
 
     :key bool log: whether to log the message
     """

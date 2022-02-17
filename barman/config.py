@@ -940,11 +940,6 @@ class Config(object):
         """
         # Check for the existence of unexpected parameters in the
         # global section of the configuration file
-        required_keys = [
-            "barman_home",
-        ]
-        self._detect_missing_keys(self._global_config, required_keys, "barman")
-
         keys = [
             "barman_home",
             "barman_lock_directory",
@@ -965,29 +960,6 @@ class Config(object):
         # Check for the existence of unexpected parameters in the
         # server section of the configuration file
         self._validate_with_keys(self._config.items(server), ServerConfig.KEYS, server)
-
-    @staticmethod
-    def _detect_missing_keys(config_items, required_keys, section):
-        """
-        Check config for any missing required keys
-
-        :param config_items: list of tuples containing provided parameters
-            along with their values
-        :param required_keys: list of required keys
-        :param section: source section (for error reporting)
-        """
-        missing_key_detected = 0
-
-        config_keys = [item[0] for item in config_items]
-        for req_key in required_keys:
-            # if a required key is not found, then print an error
-            if req_key not in config_keys:
-                output.error(
-                    'Parameter "%s" is required for in [%s] section.' % (req_key, section),
-                )
-                missing_key_detected = 1
-        if missing_key_detected:
-            raise SystemExit("Your configuration is missing required parameters. Exiting.")
 
     @staticmethod
     def _validate_with_keys(config_items, allowed_keys, section):
