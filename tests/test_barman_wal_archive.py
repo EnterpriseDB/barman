@@ -161,7 +161,10 @@ class TestMain(object):
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
     def test_connectivity_test_returns_subprocess_output(self, popen_mock, capsys):
 
-        popen_mock.return_value.communicate.return_value = (b"Tested subprocess return code percolation", b"")
+        popen_mock.return_value.communicate.return_value = (
+            b"Tested subprocess return code percolation",
+            b"",
+        )
         popen_mock.return_value.returncode = 255
 
         with pytest.raises(SystemExit) as exc:
