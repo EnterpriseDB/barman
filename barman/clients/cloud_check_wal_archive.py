@@ -47,6 +47,9 @@ def main(args=None):
         if not cloud_interface.test_connectivity():
             # Deliberately raise an error if we cannot connect
             raise NetworkErrorExit()
+        # If test is requested, just exit after connectivity test
+        elif config.test:
+            raise SystemExit(0)
         if not cloud_interface.bucket_exists:
             # If the bucket does not exist then the check should pass
             return
