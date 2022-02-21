@@ -323,6 +323,50 @@ class BarmanEncoder(json.JSONEncoder):
         return super(BarmanEncoder, self).default(obj)
 
 
+class NewBarmanEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder used for BackupInfo encoding
+
+    This encoder supports the following types:
+
+    * datetime objects displayed in local time isoformat and shall have tzinfo field set. It is advised to use utc dates
+    * objects that implement the 'to_json' method.
+    * binary strings (python 3)
+    """
+
+    def default(self, obj):
+        # If the object implements to_json() method use it
+        if hasattr(obj, "to_json"):
+            return obj.to_json()
+        # try set  output isoformat for this datetime.
+        # Date must have tzinfo set
+        # Will display date in local time
+        if isinstance(obj, datetime.datetime):
+            if obj.tzinfo is None:
+                raise ValueError(
+                    'Got naive datetime. Expecting tzinfo for date: "{}"'.format(obj)
+                )
+            return obj.isoformat()
+
+        # Serialise timedelta objects using human_readable_timedelta()
+        if isinstance(obj, datetime.timedelta):
+            return human_readable_timedelta(obj)
+        # Serialise Decimal objects using their string representation
+        # WARNING: When deserialized they will be treat as float values
+        # which have a lower precision
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)
+        # Binary strings must be decoded before using them in
+        # an unicode string
+        if hasattr(obj, "decode") and callable(obj.decode):
+            return obj.decode("utf-8", "replace")
+        # Manage (Loose|Strict)Version objects as strings.
+        if isinstance(obj, Version):
+            return str(obj)
+        # Let the base class default method raise the TypeError
+        return super(BarmanEncoder, self).default(obj)
+
+
 def fsync_dir(dir_path):
     """
     Execute fsync on a directory ensuring it is synced to disk
