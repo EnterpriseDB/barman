@@ -295,131 +295,6 @@ class TestCli(object):
         assert global_error_list
         assert len(global_error_list) == 6
 
-    @patch("barman.cli.parse_backup_id")
-    @patch("barman.cli.get_server")
-    def test_recover_multiple_targets(
-        self, get_server_mock, parse_backup_id_mock, monkeypatch, capsys
-    ):
-        backup_info = Mock()
-        backup_info.status = BackupInfo.DONE
-        backup_info.tablespaces = []
-
-        parse_backup_id_mock.return_value = backup_info
-
-        monkeypatch.setattr(
-            barman,
-            "__config__",
-            build_config_from_dicts(
-                main_conf={
-                    "archiver": "on",
-                }
-            ),
-        )
-
-        # Testing mutual exclusiveness of target options
-        args = Mock()
-        args.backup_id = "20170823T104400"
-        args.server_name = "main"
-        args.destination_directory = "recovery_dir"
-        args.tablespace = None
-        args.target_name = None
-        args.target_tli = None
-        args.target_lsn = None
-        args.target_immediate = True
-        args.target_time = "2021-01-001 00:00:00.000"
-        args.target_xid = None
-
-        with pytest.raises(SystemExit):
-            recover(args)
-
-        _, err = capsys.readouterr()
-        assert (
-            "ERROR: You cannot specify multiple targets for the recovery "
-            "operation" in err
-        )
-
-    @patch("barman.cli.parse_backup_id")
-    @patch("barman.cli.get_server")
-    def test_recover_one_target(
-        self, get_server_mock, parse_backup_id_mock, monkeypatch, capsys
-    ):
-        backup_info = Mock()
-        backup_info.status = BackupInfo.DONE
-        backup_info.tablespaces = []
-
-        parse_backup_id_mock.return_value = backup_info
-
-        monkeypatch.setattr(
-            barman,
-            "__config__",
-            build_config_from_dicts(
-                main_conf={
-                    "archiver": "on",
-                }
-            ),
-        )
-
-        # This parameters are fine
-        args = Mock()
-        args.backup_id = "20170823T104400"
-        args.server_name = "main"
-        args.destination_directory = "recovery_dir"
-        args.tablespace = None
-        args.target_name = None
-        args.target_tli = None
-        args.target_immediate = True
-        args.target_time = None
-        args.target_xid = None
-        args.target_lsn = None
-        args.target_action = None
-
-        with pytest.raises(SystemExit):
-            recover(args)
-
-        _, err = capsys.readouterr()
-        assert "" == err
-
-    @patch("barman.cli.parse_backup_id")
-    @patch("barman.cli.get_server")
-    def test_recover_default_target(
-        self, get_server_mock, parse_backup_id_mock, monkeypatch, capsys
-    ):
-        backup_info = Mock()
-        backup_info.status = BackupInfo.DONE
-        backup_info.tablespaces = []
-
-        parse_backup_id_mock.return_value = backup_info
-
-        monkeypatch.setattr(
-            barman,
-            "__config__",
-            build_config_from_dicts(
-                main_conf={
-                    "archiver": "on",
-                }
-            ),
-        )
-
-        # This parameters are fine
-        args = Mock()
-        args.backup_id = "20170823T104400"
-        args.server_name = "main"
-        args.destination_directory = "recovery_dir"
-        args.tablespace = None
-        args.target_name = None
-        args.target_tli = None
-        args.target_immediate = None
-        args.target_time = None
-        args.target_xid = None
-        args.target_lsn = None
-        args.target_action = None
-
-        with pytest.raises(SystemExit):
-            recover(args)
-
-        _, err = capsys.readouterr()
-        assert "" == err
-
     @pytest.fixture
     def mock_backup_info(self):
         backup_info = Mock()
@@ -440,8 +315,119 @@ class TestCli(object):
         args.target_time = None
         args.target_xid = None
         args.target_lsn = None
-        args.target_action = None
         return args
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_recover_multiple_targets(
+        self,
+        get_server_mock,
+        parse_backup_id_mock,
+        mock_backup_info,
+        mock_recover_args,
+        monkeypatch,
+        capsys,
+    ):
+        parse_backup_id_mock.return_value = mock_backup_info
+
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            build_config_from_dicts(
+                main_conf={
+                    "archiver": "on",
+                }
+            ),
+        )
+
+        # Testing mutual exclusiveness of target options
+        args = mock_recover_args
+        args.backup_id = "20170823T104400"
+        args.server_name = "main"
+        args.destination_directory = "recovery_dir"
+        args.target_immediate = True
+        args.target_time = "2021-01-001 00:00:00.000"
+
+        with pytest.raises(SystemExit):
+            recover(args)
+
+        _, err = capsys.readouterr()
+        assert (
+            "ERROR: You cannot specify multiple targets for the recovery "
+            "operation" in err
+        )
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_recover_one_target(
+        self,
+        get_server_mock,
+        parse_backup_id_mock,
+        mock_backup_info,
+        mock_recover_args,
+        monkeypatch,
+        capsys,
+    ):
+        parse_backup_id_mock.return_value = mock_backup_info
+
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            build_config_from_dicts(
+                main_conf={
+                    "archiver": "on",
+                }
+            ),
+        )
+
+        # This parameters are fine
+        args = mock_recover_args
+        args.backup_id = "20170823T104400"
+        args.server_name = "main"
+        args.destination_directory = "recovery_dir"
+        args.target_action = None
+
+        with pytest.raises(SystemExit):
+            recover(args)
+
+        _, err = capsys.readouterr()
+        assert "" == err
+
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_recover_default_target(
+        self,
+        get_server_mock,
+        parse_backup_id_mock,
+        mock_backup_info,
+        mock_recover_args,
+        monkeypatch,
+        capsys,
+    ):
+        parse_backup_id_mock.return_value = mock_backup_info
+
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            build_config_from_dicts(
+                main_conf={
+                    "archiver": "on",
+                }
+            ),
+        )
+
+        # This parameters are fine
+        args = mock_recover_args
+        args.backup_id = "20170823T104400"
+        args.server_name = "main"
+        args.destination_directory = "recovery_dir"
+        args.target_action = None
+
+        with pytest.raises(SystemExit):
+            recover(args)
+
+        _, err = capsys.readouterr()
+        assert "" == err
 
     @pytest.mark.parametrize(
         (
