@@ -417,6 +417,110 @@ class TestCli(object):
         _, err = capsys.readouterr()
         assert "" == err
 
+    @pytest.fixture
+    def mock_backup_info(self):
+        backup_info = Mock()
+        backup_info.status = BackupInfo.DONE
+        backup_info.tablespaces = []
+        return backup_info
+
+    @pytest.fixture
+    def mock_recover_args(self):
+        args = Mock()
+        args.backup_id = "20170823T104400"
+        args.server_name = "main"
+        args.destination_directory = "recovery_dir"
+        args.tablespace = None
+        args.target_name = None
+        args.target_tli = None
+        args.target_immediate = None
+        args.target_time = None
+        args.target_xid = None
+        args.target_lsn = None
+        args.target_action = None
+        return args
+
+    @pytest.mark.parametrize(
+        (
+            "recovery_options",
+            "get_wal_arg",
+            "no_get_wal_arg",
+            "expect_get_wal",
+        ),
+        [
+            # WHEN there are no recovery options set
+            # AND neither --get-wal nor --no-get-wal are used
+            # THEN no get_wal option is expected
+            ("", False, False, False),
+            # OR --get-wal is not used and --no-get-wal is used
+            # THEN no get_wal option is expected
+            ("", False, True, False),
+            # OR --get-wal is used and --no-get-wal is not used
+            # THEN the get_wal option is expected
+            ("", True, False, True),
+            # WHEN get-wal is set in recovery options
+            # AND neither --get-wal nor --no-get-wal are used
+            # THEN the get_wal option is expected
+            ("get-wal", False, False, True),
+            # OR --get-wal is not used and --no-get-wal is used
+            # THEN no get_wal option is expected
+            ("get-wal", False, True, False),
+            # OR --get-wal is used and --no-get-wal is not used
+            # THEN the get_wal option is expected
+            ("get-wal", True, False, True),
+        ],
+    )
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_recover_get_wal(
+        self,
+        get_server_mock,
+        parse_backup_id_mock,
+        mock_backup_info,
+        mock_recover_args,
+        recovery_options,
+        get_wal_arg,
+        no_get_wal_arg,
+        expect_get_wal,
+        monkeypatch,
+        capsys,
+    ):
+        # GIVEN a backup
+        parse_backup_id_mock.return_value = mock_backup_info
+        # AND a configuration with the specified recovery options
+        config = build_config_from_dicts(
+            global_conf={"recovery_options": recovery_options}
+        )
+        server = config.get_server("main")
+        get_server_mock.return_value.config = server
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            (config,),
+        )
+
+        # WHEN the specified --get-wal / --no-get-wal combinations are used
+        if get_wal_arg:
+            mock_recover_args.get_wal = True
+        elif no_get_wal_arg:
+            mock_recover_args.get_wal = False
+        else:
+            del mock_recover_args.get_wal
+
+        # WITH a barman recover command
+        with pytest.raises(SystemExit):
+            recover(mock_recover_args)
+
+        # THEN then the presence of the get_wal recovery option matches expectations
+        if expect_get_wal:
+            assert barman.config.RecoveryOptions.GET_WAL in server.recovery_options
+        else:
+            assert barman.config.RecoveryOptions.GET_WAL not in server.recovery_options
+
+        # AND there are no errors
+        _out, err = capsys.readouterr()
+        assert "" == err
+
     def test_check_target_action(self):
         # The following ones must work
         assert None is check_target_action(None)
