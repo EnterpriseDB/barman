@@ -624,10 +624,8 @@ def check_tli(value):
         return None
     if value in ["current", "latest"]:
         return value
-    try:
+    else:
         return check_positive(value)
-    except ArgumentTypeError as err:
-        raise ArgumentTypeError("%s" % err)
 
 
 def check_size(value):
