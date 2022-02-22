@@ -525,6 +525,13 @@ class TestBarmanEncoder(object):
         )
         string_value.decode.assert_called_once_with("utf-8", "replace")
 
+    def test_against_zero_values(self):
+        # Test encoding with a Decimal object
+        num = decimal.Decimal("0")
+        assert json.dumps(num, cls=barman.utils.BarmanEncoder) == repr(float(num))
+
+        assert json.dumps("", cls=barman.utils.BarmanEncoder) == '""'
+
     def test_simple_objects(self):
         """
         Test the BarmanEncoder on simple objects
@@ -547,7 +554,9 @@ class TestNewBarmanEncoder(object):
     Test NewBarmanEncoder object
     """
 
-    @pytest.mark.skipif(sys.version_info < (3, 0), reason="Requires Python 3 or higher")
+    @pytest.mark.skipif(
+        sys.version_info < (3, 6), reason="Requires Python 3.6 or higher"
+    )
     def test_datetime_object_v3(self):
         dt = datetime(2015, 1, 10, 12, 34, 56)
 
@@ -561,7 +570,7 @@ class TestNewBarmanEncoder(object):
             dttz, cls=barman.utils.NewBarmanEncoder
         ) == '"2015-01-10T12:34:56{}"'.format(tz_str)
 
-    @pytest.mark.skipif(sys.version_info >= (3, 0), reason="Requires Python 2")
+    @pytest.mark.skipif(sys.version_info >= (3, 6), reason="Requires Python 2 or 3.5")
     def test_datetime_object_v2(self):
         dt = datetime(2015, 1, 10, 12, 34, 56)
 
