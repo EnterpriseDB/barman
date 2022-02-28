@@ -5,7 +5,7 @@
 ; only streaming replication protocol
 ;
 
-[streaming]
+[streaming-server]
 ; Human readable description
 description =  "Example of PostgreSQL Database (Streaming-Only)"
 
