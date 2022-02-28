@@ -29,7 +29,7 @@ import barman
 from barman import fs, output
 from barman.backup import BackupInfo
 from barman.exceptions import CommandFailedException, FsOperationFailed
-from barman.utils import NewBarmanEncoder
+from barman.utils import BarmanEncoderV2
 
 _logger = logging.getLogger(__name__)
 
@@ -104,5 +104,5 @@ def exec_diagnose(servers, errors_list):
         # Release any PostgreSQL resource
         server.close()
     output.info(
-        json.dumps(diagnosis, cls=NewBarmanEncoder, indent=4, sort_keys=True), log=False
+        json.dumps(diagnosis, cls=BarmanEncoderV2, indent=4, sort_keys=True), log=False
     )

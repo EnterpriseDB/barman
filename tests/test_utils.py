@@ -549,9 +549,9 @@ class TestBarmanEncoder(object):
         assert json_dump == '"9.5.3"'
 
 
-class TestNewBarmanEncoder(object):
+class TestBarmanEncoderV2(object):
     """
-    Test NewBarmanEncoder object
+    Test BarmanEncoderV2 object
     """
 
     @pytest.mark.skipif(
@@ -562,12 +562,12 @@ class TestNewBarmanEncoder(object):
 
         # Test date without tzinfo. should raise an exception
         with pytest.raises(ValueError):
-            json.dumps(dt, cls=barman.utils.NewBarmanEncoder)
+            json.dumps(dt, cls=barman.utils.BarmanEncoderV2)
         dttz = dt.astimezone()
         tz_str = datetime.now().astimezone().isoformat()[-6:]
         assert re.match(r"^[\+-][0-1][0-9]:[0-6][0-9]$", tz_str)
         assert json.dumps(
-            dttz, cls=barman.utils.NewBarmanEncoder
+            dttz, cls=barman.utils.BarmanEncoderV2
         ) == '"2015-01-10T12:34:56{}"'.format(tz_str)
 
     @pytest.mark.skipif(sys.version_info >= (3, 6), reason="Requires Python 2 or 3.5")
@@ -576,13 +576,13 @@ class TestNewBarmanEncoder(object):
 
         # Test date without tzinfo. should raise an exception
         with pytest.raises(ValueError):
-            json.dumps(dt, cls=barman.utils.NewBarmanEncoder)
+            json.dumps(dt, cls=barman.utils.BarmanEncoderV2)
 
         dttz = dt.replace(tzinfo=tz.tzlocal())
         tz_str = datetime.now(tz=tz.tzlocal()).isoformat()[-6:]
         assert re.match(r"^[\+-][0-1][0-9]:[0-6][0-9]$", tz_str)
         assert json.dumps(
-            dttz, cls=barman.utils.NewBarmanEncoder
+            dttz, cls=barman.utils.BarmanEncoderV2
         ) == '"2015-01-10T12:34:56{}"'.format(tz_str)
 
     def test_complex_objects(self):
@@ -593,51 +593,50 @@ class TestNewBarmanEncoder(object):
         to_json_mock = mock.Mock(name="to_json_mock")
         to_json_mock.to_json.return_value = "json_value"
         assert (
-            json.dumps(to_json_mock, cls=barman.utils.NewBarmanEncoder)
-            == '"json_value"'
+            json.dumps(to_json_mock, cls=barman.utils.BarmanEncoderV2) == '"json_value"'
         )
 
         # Test encoding with a timedelta object
         assert (
             json.dumps(
-                timedelta(days=35, seconds=12345), cls=barman.utils.NewBarmanEncoder
+                timedelta(days=35, seconds=12345), cls=barman.utils.BarmanEncoderV2
             )
             == '"35 days, 3 hours, '
             '25 minutes, 45 seconds"'
         )
         assert (
-            json.dumps(timedelta(seconds=0.1), cls=barman.utils.NewBarmanEncoder)
+            json.dumps(timedelta(seconds=0.1), cls=barman.utils.BarmanEncoderV2)
             == '"less than one second"'
         )
 
         # Test encoding with a Decimal object
         num = decimal.Decimal("123456789.9876543210")
-        assert json.dumps(num, cls=barman.utils.NewBarmanEncoder) == repr(float(num))
+        assert json.dumps(num, cls=barman.utils.BarmanEncoderV2) == repr(float(num))
 
         # Test encoding with a raw string object (simulated)
         string_value = mock.Mock(name="string_value", wraps="string_value")
         string_value.attach_mock(mock.Mock(), "decode")
         string_value.decode.return_value = "decoded_value"
         assert (
-            json.dumps(string_value, cls=barman.utils.NewBarmanEncoder)
+            json.dumps(string_value, cls=barman.utils.BarmanEncoderV2)
             == '"decoded_value"'
         )
         string_value.decode.assert_called_once_with("utf-8", "replace")
 
     def test_simple_objects(self):
         """
-        Test the NewBarmanEncoder on simple objects
+        Test the BarmanEncoderV2 on simple objects
         """
         assert (
-            json.dumps([{"a": 1}, "test"], cls=barman.utils.NewBarmanEncoder)
+            json.dumps([{"a": 1}, "test"], cls=barman.utils.BarmanEncoderV2)
             == '[{"a": 1}, "test"]'
         )
 
     def test_version_objects(self):
         """
-        Test the NewBarmanEncoder on distutils version objects
+        Test the BarmanEncoderV2 on distutils version objects
         """
-        json_dump = json.dumps(LooseVersion("9.5.3"), cls=barman.utils.NewBarmanEncoder)
+        json_dump = json.dumps(LooseVersion("9.5.3"), cls=barman.utils.BarmanEncoderV2)
         assert json_dump == '"9.5.3"'
 
 
