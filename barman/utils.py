@@ -378,7 +378,12 @@ class BarmanEncoder(json.JSONEncoder):
             return str(obj)
 
 
-class NewBarmanEncoder(BarmanEncoder):
+class BarmanEncoderV2(BarmanEncoder):
+    """
+    This class purpose is to replace default datetime encoding from ctime to isoformat (ISO 8601).
+    Next major barman version will use this new format. So this class will be merged back to BarmanEncoder.
+    """
+
     @staticmethod
     def _datetime_to_str(obj):
         """
