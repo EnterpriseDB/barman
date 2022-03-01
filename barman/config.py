@@ -976,7 +976,7 @@ class Config(object):
         :param required_keys: list of required keys
         :param section: source section (for error reporting)
         """
-        missing_key_detected = 0
+        missing_key_detected = False
 
         config_keys = [item[0] for item in config_items]
         for req_key in required_keys:
@@ -986,7 +986,7 @@ class Config(object):
                     'Parameter "%s" is required for in [%s] section.'
                     % (req_key, section),
                 )
-                missing_key_detected = 1
+                missing_key_detected = True
         if missing_key_detected:
             raise SystemExit(
                 "Your configuration is missing required parameters. Exiting."
