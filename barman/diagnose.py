@@ -21,6 +21,7 @@ This module represents the barman diagnostic tool.
 """
 
 import datetime
+from dateutil import tz
 import json
 import logging
 
@@ -28,7 +29,7 @@ import barman
 from barman import fs, output
 from barman.backup import BackupInfo
 from barman.exceptions import CommandFailedException, FsOperationFailed
-from barman.utils import BarmanEncoder
+from barman.utils import BarmanEncoderV2
 
 _logger = logging.getLogger(__name__)
 
@@ -55,7 +56,9 @@ def exec_diagnose(servers, errors_list):
     except CommandFailedException as e:
         diagnosis["global"]["system_info"] = {"error": repr(e)}
     diagnosis["global"]["system_info"]["barman_ver"] = barman.__version__
-    diagnosis["global"]["system_info"]["timestamp"] = datetime.datetime.now()
+    diagnosis["global"]["system_info"]["timestamp"] = datetime.datetime.now(
+        tz=tz.tzlocal()
+    )
     # per server section
     for name in sorted(servers):
         server = servers[name]
@@ -80,6 +83,19 @@ def exec_diagnose(servers, errors_list):
         diagnosis["servers"][name]["status"] = server.get_remote_status()
         # backup list
         backups = server.get_available_backups(BackupInfo.STATUS_ALL)
+        # update date format for each backup begin_time and end_time and ensure local timezone.
+        # This code is a duplicate from BackupInfo.to_json()
+        # This should be temporary to keep original behavior for other usage.
+        for key in backups.keys():
+            data = backups[key].to_dict()
+            if data.get("tablespaces") is not None:
+                data["tablespaces"] = [list(item) for item in data["tablespaces"]]
+            if data.get("begin_time") is not None:
+                data["begin_time"] = data["begin_time"].astimezone(tz=tz.tzlocal())
+            if data.get("end_time") is not None:
+                data["end_time"] = data["end_time"].astimezone(tz=tz.tzlocal())
+            backups[key] = data
+
         diagnosis["servers"][name]["backups"] = backups
         # wal status
         diagnosis["servers"][name]["wals"] = {
@@ -88,5 +104,5 @@ def exec_diagnose(servers, errors_list):
         # Release any PostgreSQL resource
         server.close()
     output.info(
-        json.dumps(diagnosis, cls=BarmanEncoder, indent=4, sort_keys=True), log=False
+        json.dumps(diagnosis, cls=BarmanEncoderV2, indent=4, sort_keys=True), log=False
     )

@@ -297,30 +297,106 @@ class BarmanEncoder(json.JSONEncoder):
     * binary strings (python 3)
     """
 
+    method_list = [
+        "_to_json",
+        "_datetime_to_str",
+        "_timedelta_to_str",
+        "_decimal_to_float",
+        "binary_to_str",
+        "version_to_str",
+    ]
+
     def default(self, obj):
-        # If the object implements to_json() method use it
-        if hasattr(obj, "to_json"):
-            return obj.to_json()
-        # Serialise date and datetime objects using ctime() method
-        if hasattr(obj, "ctime") and callable(obj.ctime):
-            return obj.ctime()
-        # Serialise timedelta objects using human_readable_timedelta()
-        if isinstance(obj, datetime.timedelta):
-            return human_readable_timedelta(obj)
-        # Serialise Decimal objects using their string representation
-        # WARNING: When deserialized they will be treat as float values
-        # which have a lower precision
-        if isinstance(obj, decimal.Decimal):
-            return float(obj)
-        # Binary strings must be decoded before using them in
-        # an unicode string
-        if hasattr(obj, "decode") and callable(obj.decode):
-            return obj.decode("utf-8", "replace")
-        # Manage (Loose|Strict)Version objects as strings.
-        if isinstance(obj, Version):
-            return str(obj)
+        # Go through all methods until one returns something
+        for method in self.method_list:
+            res = getattr(self, method)(obj)
+            if res is not None:
+                return res
+
         # Let the base class default method raise the TypeError
         return super(BarmanEncoder, self).default(obj)
+
+    @staticmethod
+    def _to_json(obj):
+        """
+        # If the object implements to_json() method use it
+        :param obj:
+        :return: None|str
+        """
+        if hasattr(obj, "to_json"):
+            return obj.to_json()
+
+    @staticmethod
+    def _datetime_to_str(obj):
+        """
+        Serialise date and datetime objects using ctime() method
+        :param obj:
+        :return: None|str
+        """
+        if hasattr(obj, "ctime") and callable(obj.ctime):
+            return obj.ctime()
+
+    @staticmethod
+    def _timedelta_to_str(obj):
+        """
+        Serialise timedelta objects using human_readable_timedelta()
+        :param obj:
+        :return: None|str
+        """
+        if isinstance(obj, datetime.timedelta):
+            return human_readable_timedelta(obj)
+
+    @staticmethod
+    def _decimal_to_float(obj):
+        """
+        Serialise Decimal objects using their string representation
+        WARNING: When deserialized they will be treat as float values which have a lower precision
+        :param obj:
+        :return: None|float
+        """
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)
+
+    @staticmethod
+    def binary_to_str(obj):
+        """
+        Binary strings must be decoded before using them in an unicode string
+        :param obj:
+        :return: None|str
+        """
+        if hasattr(obj, "decode") and callable(obj.decode):
+            return obj.decode("utf-8", "replace")
+
+    @staticmethod
+    def version_to_str(obj):
+        """
+        Manage (Loose|Strict)Version objects as strings.
+        :param obj:
+        :return: None|str
+        """
+        if isinstance(obj, Version):
+            return str(obj)
+
+
+class BarmanEncoderV2(BarmanEncoder):
+    """
+    This class purpose is to replace default datetime encoding from ctime to isoformat (ISO 8601).
+    Next major barman version will use this new format. So this class will be merged back to BarmanEncoder.
+    """
+
+    @staticmethod
+    def _datetime_to_str(obj):
+        """
+        Try set output isoformat for this datetime. Date must have tzinfo set.
+        :param obj:
+        :return: None|str
+        """
+        if isinstance(obj, datetime.datetime):
+            if obj.tzinfo is None:
+                raise ValueError(
+                    'Got naive datetime. Expecting tzinfo for date: "{}"'.format(obj)
+                )
+            return obj.isoformat()
 
 
 def fsync_dir(dir_path):

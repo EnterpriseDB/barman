@@ -18,12 +18,14 @@
 
 from argparse import ArgumentTypeError
 
+import json
 import os
 import pytest
 import sys
-from mock import Mock, patch
+from mock import MagicMock, Mock, patch
 
 import barman.config
+from barman import output
 from barman.cli import (
     ArgumentParser,
     argument,
@@ -36,6 +38,7 @@ from barman.cli import (
     OrderedHelpFormatter,
     recover,
     keep,
+    show_servers,
 )
 from barman.exceptions import WalArchiveContentError
 from barman.infofile import BackupInfo
@@ -681,3 +684,123 @@ class TestCheckWalArchiveCli(object):
             check_wal_archive(mock_args)
         assert 1 == exc.value.code
         assert "WAL archive check failed for server test_server: oh dear" in caplog.text
+
+
+class TestShowServersCli(object):
+    """Verify output of show-servers command."""
+
+    test_server_name = "test_server"
+
+    @pytest.fixture
+    def mock_args(self):
+        args = Mock()
+        args.server_name = self.test_server_name
+        yield args
+
+    @pytest.fixture
+    def mock_config(self):
+        mock_config = MagicMock()
+        mock_config.name = self.test_server_name
+        mock_config.retention_policy = None
+        mock_config.last_backup_maximum_age = None
+        yield mock_config
+
+    @pytest.mark.parametrize(
+        ("active", "disabled", "expected_description"),
+        [
+            # No description for active servers
+            (True, False, ""),
+            # Inactive servers are described as inactive
+            (False, False, " (inactive)"),
+            # Disabled servers are described as disabled
+            (True, True, " (WARNING: disabled)"),
+        ],
+    )
+    @patch("barman.server.ProcessManager")
+    @patch("barman.cli.get_server_list")
+    def test_show_servers_plain(
+        self,
+        mock_get_server_list,
+        _mock_process_manager,
+        mock_config,
+        mock_args,
+        active,
+        disabled,
+        expected_description,
+        monkeypatch,
+        capsys,
+    ):
+        # GIVEN a config with the specified active and disabled booleans
+        mock_config.active = active
+        mock_config.disabled = disabled
+        # AND a server using that config
+        server = Server(mock_config)
+        mock_server_list = {self.test_server_name: server}
+        mock_get_server_list.return_value = mock_server_list
+
+        # WHEN the output format is console
+        # monkeypatch(output._writer = output.AVAILABLE_WRITERS["console"]()
+        monkeypatch.setattr(
+            barman.output, "_writer", output.AVAILABLE_WRITERS["console"]()
+        )
+        with pytest.raises(SystemExit):
+            # AND barman show-servers runs
+            show_servers(mock_args)
+
+        # THEN nothing is sent to stderr
+        out, err = capsys.readouterr()
+        assert "" == err
+
+        # AND the command output includes the description and server name
+        assert "%s%s:" % (self.test_server_name, expected_description) in out
+
+    @pytest.mark.parametrize(
+        ("active", "disabled", "expected_description"),
+        [
+            # No description for active servers
+            (True, False, None),
+            # Inactive servers are described as inactive
+            (False, False, "(inactive)"),
+            # Disabled servers are described as disabled
+            (True, True, "(WARNING: disabled)"),
+        ],
+    )
+    @patch("barman.server.ProcessManager")
+    @patch("barman.cli.get_server_list")
+    def test_show_servers_json(
+        self,
+        mock_get_server_list,
+        _mock_process_manager,
+        mock_config,
+        mock_args,
+        active,
+        disabled,
+        expected_description,
+        monkeypatch,
+        capsys,
+    ):
+        # GIVEN a config with the specified active and disabled booleans
+        mock_config.active = active
+        mock_config.disabled = disabled
+        # AND a server using that config
+        server = Server(mock_config)
+        mock_server_list = {self.test_server_name: server}
+        mock_get_server_list.return_value = mock_server_list
+
+        # WHEN the output format is json
+        # output._writer = output.AVAILABLE_WRITERS["json"]()
+        monkeypatch.setattr(
+            barman.output, "_writer", output.AVAILABLE_WRITERS["json"]()
+        )
+        with pytest.raises(SystemExit):
+            # AND barman show-servers runs
+            show_servers(mock_args)
+
+        # THEN nothing is sent to stderr
+        out, err = capsys.readouterr()
+        assert "" == err
+
+        # AND the description is available in the description field
+        json_output = json.loads(out)
+        assert [self.test_server_name] == list(json_output.keys())
+        assert json_output[self.test_server_name]["description"] == expected_description

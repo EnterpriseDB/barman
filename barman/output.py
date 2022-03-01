@@ -377,7 +377,10 @@ def set_output_writer(new_writer, *args, **kwargs):
 
 
 class ConsoleOutputWriter(object):
+    SERVER_OUTPUT_PREFIX = "Server %s:"
+
     def __init__(self, debug=False, quiet=False):
+
         """
         Default output writer that output everything on console.
 
@@ -624,7 +627,7 @@ class ConsoleOutputWriter(object):
         # If server has configuration errors
         elif disabled:
             display_name += " (WARNING: disabled)"
-        self.info("Server %s:" % display_name)
+        self.info(self.SERVER_OUTPUT_PREFIX % display_name)
         self.active = active
 
     def result_check(self, server_name, check, status, hint=None, perfdata=None):
@@ -833,7 +836,7 @@ class ConsoleOutputWriter(object):
 
         :param str server_name: the server we are start listing
         """
-        self.info("Server %s:", server_name)
+        self.info(self.SERVER_OUTPUT_PREFIX, server_name)
 
     def result_status(self, server_name, status, description, message):
         """
@@ -1048,13 +1051,17 @@ class ConsoleOutputWriter(object):
         else:
             self.info("%s - %s", server_name, description)
 
-    def init_show_server(self, server_name):
+    def init_show_server(self, server_name, description=None):
         """
         Init the show-servers command output method
 
         :param str server_name: the server we are displaying
+        :param str,None description: server description if applicable
         """
-        self.info("Server %s:" % server_name)
+        if description:
+            self.info(self.SERVER_OUTPUT_PREFIX % " ".join((server_name, description)))
+        else:
+            self.info(self.SERVER_OUTPUT_PREFIX % server_name)
 
     def result_show_server(self, server_name, server_info):
         """
@@ -1072,7 +1079,7 @@ class ConsoleOutputWriter(object):
 
         :param str server_name: the server we are displaying
         """
-        self.info("Server %s:" % server_name)
+        self.info(self.SERVER_OUTPUT_PREFIX % server_name)
 
     def result_check_wal_archive(self, server_name):
         """
@@ -1680,13 +1687,14 @@ class JsonOutputWriter(ConsoleOutputWriter):
         """
         self.json_output[server_name] = dict(description=description)
 
-    def init_show_server(self, server_name):
+    def init_show_server(self, server_name, description=None):
         """
         Init the show-servers command output method
 
         :param str server_name: the server we are displaying
+        :param str,None description: server description if applicable
         """
-        self.json_output[server_name] = {}
+        self.json_output[server_name] = dict(description=description)
 
     def result_show_server(self, server_name, server_info):
         """
@@ -1699,6 +1707,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
             if not isinstance(message, (int, str, bool, list, dict, type(None))):
                 message = str(message)
 
+            # Prevent null values overriding existing values
+            if message is None and status in self.json_output[server_name]:
+                continue
             self.json_output[server_name][status] = message
 
     def init_check_wal_archive(self, server_name):
