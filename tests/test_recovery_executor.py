@@ -448,6 +448,79 @@ class TestRecoveryExecutor(object):
             "(version 9.4 minimum required)"
         )
 
+    @pytest.mark.parametrize(
+        ["target_tli", "expected_pitr", "expected_tli"],
+        [
+            # WHEN no target_tli we expect no target timeline in the output
+            # AND we expect that `is_pitr` is not set
+            (None, False, None),
+            # WHEN target_tli is 2 we expect no target timeline in the output
+            # AND we expect that `is_pitr` is not set
+            (2, False, None),
+            # WHEN target_tli is 3 we expect target timeline 3 in the output
+            # AND we expect that `is_pitr` is set
+            (3, True, 3),
+            # WHEN target_tli is current we expect no target timeline in the output
+            # AND we expect that `is_pitr` is not set
+            ("current", False, None),
+            # WHEN target_tli is latest we expect target timeline 4 in the output
+            # AND we expect that `is_pitr` is set
+            ("latest", True, 4),
+        ],
+    )
+    @mock.patch("barman.backup.BackupManager.get_latest_archived_wals_info")
+    def test_set_pitr_targets_with_target_tli(
+        self,
+        mock_get_latest_archived_wals_info,
+        target_tli,
+        expected_pitr,
+        expected_tli,
+        capsys,
+    ):
+        """Verify target_tli values result in correct PITR status and output."""
+        # GIVEN A simple recovery_info object
+        recovery_info = {
+            "is_pitr": False,
+        }
+        # AND a recent backup on timeline 2
+        backup_info = testing_helpers.build_test_backup_info(
+            end_time=dateutil.parser.parse("2022-03-02 10:41:00.00000+01"), timeline=2
+        )
+        # AND a BackupManager and RecoveryExecutor
+        backup_manager = testing_helpers.build_backup_manager()
+        executor = RecoveryExecutor(backup_manager)
+
+        # AND WALs in the archive for timelines 2, 3 and 4
+        mock_get_latest_archived_wals_info.return_value = {
+            2: WalFileInfo(),
+            3: WalFileInfo(),
+            4: WalFileInfo(),
+        }
+
+        # WHEN _set_pitr_targets is called with the provided target_tli
+        executor._set_pitr_targets(
+            recovery_info,
+            backup_info,
+            "/path/to/nowhere",
+            "",
+            "",
+            target_tli,
+            "",
+            "",
+            False,
+            None,
+        )
+
+        if expected_pitr:
+            # THEN if we expected to enable pitr, is_pitr is set
+            assert recovery_info["is_pitr"]
+            # AND the output shows the expected recovery target timeline
+            out, _ = capsys.readouterr()
+            assert "Recovery target timeline: '%s'" % expected_tli in out
+        else:
+            # AND if we did not expect to enable pitr, is_pitr is not set
+            assert not recovery_info["is_pitr"]
+
     @mock.patch("barman.recovery_executor.RsyncPgData")
     def test_generate_recovery_conf_pre12(self, rsync_pg_mock, tmpdir):
         """
