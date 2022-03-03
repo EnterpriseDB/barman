@@ -35,6 +35,18 @@ barman backup <server_name>
 > You can use `barman backup all` to sequentially backup all your
 > configured servers.
 
+Barman 2.10 introduces the `-w`/`--wait` option for the `backup` command.
+When set, Barman temporarily saves the state of the backup to
+`WAITING_FOR_WALS`, then waits for all the required WAL files to be
+archived before setting the state to `DONE` and proceeding
+with post-backup hook scripts.  If the `--wait-timeout` option is
+provided, Barman will stop waiting for WAL files after the specified
+number of seconds, and the state will remain in `WAITING_FOR_WALS`.The
+`cron` command will continue to check that missing WAL files are
+archived, then label the backup as `DONE`.
+
+
+
 ## `check`
 
 You can check the connection to a given server and the

@@ -53,12 +53,6 @@ important that you verify that WAL archiving (whether via streaming
 or `archive_command`) is properly working before executing a backup
 operation - especially when backing up from a standby server.
 
-Barman 2.10 introduces the `-w`/`--wait` option for the `backup` command.
-When set, Barman temporarily saves the state of the backup to
-`WAITING_FOR_WALS`, then waits for all the required WAL files to be
-archived before setting the state to `DONE` and proceeding
-with post-backup hook scripts.
-
 
 ## `delete`
 
