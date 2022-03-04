@@ -37,6 +37,10 @@ try:
 except ImportError:
     from io import StringIO
 
+BAD_CONFIG = """
+[barman]
+"""
+
 MINIMAL_CONFIG = """
 [barman]
 barman_home = /some/barman/home
@@ -119,6 +123,20 @@ class TestConfig(object):
         # configuration file does not exists
         with pytest.raises(SystemExit):
             Config("/very/fake/path/to.file")
+
+    def test_missing_barman_home(self, capsys):
+        """
+        Test that an exception is raised if barman_home is missing
+        """
+        config = Config(StringIO(BAD_CONFIG))
+        with pytest.raises(SystemExit) as exc_info:
+            config.validate_global_config()
+        _out, err = capsys.readouterr()
+
+        assert "Your configuration is missing required parameters. Exiting." == str(
+            exc_info.value
+        )
+        assert 'Parameter "barman_home" is required in [barman] section.\n'
 
     def test_config(self):
         """
