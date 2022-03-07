@@ -122,6 +122,10 @@ fetch the required WAL files.
 Similarly, one can use the `--get-wal` option for the `recover` command
 at run-time.
 
+If `get-wal` is set in `recovery_options` but not required during a
+recovery operation then the `--no-get-wal` option can be used with the
+`recover` command to disable the `get-wal` recovery option.
+
 This is an example of a `restore_command` for a local recovery:
 
 ``` ini

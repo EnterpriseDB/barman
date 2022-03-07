@@ -296,6 +296,20 @@ as a standby by creating a `standby.signal` file (from PostgreSQL 12)
 or by adding `standby_mode = on` to the generated recovery configuration.
 Further information on _standby mode_ is available in the PostgreSQL documentation.
 
+### Fetching WALs from the Barman server
+
+The `barman recover` command can optionally configure PostgreSQL to fetch
+WALs from Barman during recovery. This is enabled by setting the
+`recovery_options` global/server configuration option to `'get-wal'` as
+described in the [get-wal section](#get-wal). If `recovery_options` is not
+set or is empty then Barman will instead copy the WALs required for recovery
+while executing the `barman recover` command.
+
+The `--get-wal` and `--no-get-wal` options can be used to override the
+behaviour defined by `recovery_options`. Use `--get-wal` with `barman recover`
+to enable the fetching of WALs from the Barman server, alternatively use
+`--no-get-wal` to disable it.
+
 ## `show-backup`
 
 You can retrieve all the available information for a particular backup of
