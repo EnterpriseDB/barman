@@ -339,13 +339,15 @@ class TestSync(object):
             with pytest.raises(SyncNothingToDo):
                 server.check_sync_required(backup_name, backups, local_backup_info_mock)
 
-    def _create_primary_info_file(self, base_tmpdir, backup_dir):
+    def _create_primary_info_file(self, base_tmpdir, backup_dir, tablespaces=True):
         """
         Helper for sync_backup tests which creates a primary info file on disk.
         """
         primary_info_file = backup_dir.join(barman.server.PRIMARY_INFO_FILE)
         remote_basebackup_dir = base_tmpdir.mkdir("primary")
         primary_info_content = dict(EXPECTED_MINIMAL)
+        if not tablespaces:
+            primary_info_content["backups"]["1234567890"]["tablespaces"] = None
         primary_info_content["config"].update(
             basebackups_directory=str(remote_basebackup_dir)
         )
@@ -515,6 +517,43 @@ class TestSync(object):
         ]
         assert set(expected_excludes) == set(
             copy_controller.add_directory.call_args_list[0][1]["exclude_and_protect"]
+        )
+
+    @mock.patch("barman.server.RsyncCopyController")
+    def test_sync_backup_no_tablespaces(self, rsync_mock, tmpdir):
+        """
+        Verify that sync_backup works if no tablespaces are present.
+        """
+        # GIVEN a backup for server 'main'
+        backup_name = "1234567890"
+        server_name = "main"
+
+        # WITH a minimal set of files on disk
+        backup_dir = tmpdir.mkdir(server_name)
+        primary_info_content = self._create_primary_info_file(
+            tmpdir, backup_dir, tablespaces=False
+        )
+
+        # AND a primary server
+        server = build_real_server(
+            global_conf={"barman_lock_directory": tmpdir.strpath},
+            main_conf={
+                "backup_directory": backup_dir.strpath,
+                "primary_ssh_command": "ssh fakeuser@fakehost",
+            },
+        )
+
+        # WHEN sync_backup is called for the backup
+        server.sync_backup(backup_name)
+
+        # THEN the data directory of that backup is added to the copy controller
+        copy_controller = rsync_mock.return_value
+        copy_controller.add_directory.assert_called_once()
+        assert "basebackup" == copy_controller.add_directory.call_args_list[0][0][0]
+        assert (
+            ":%s/%s/"
+            % (primary_info_content["config"]["basebackups_directory"], backup_name)
+            == copy_controller.add_directory.call_args_list[0][0][1]
         )
 
     @mock.patch("barman.server.Rsync")

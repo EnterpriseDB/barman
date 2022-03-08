@@ -3593,8 +3593,11 @@ class Server(RemoteStatusMixin):
                     # Exclude primary Barman metadata and state
                     exclude_and_protect = ["/backup.info", "/.backup.lock"]
                     # Exclude any tablespace symlinks created by pg_basebackup
-                    for tablespace in local_backup_info.tablespaces:
-                        exclude_and_protect += ["/data/pg_tblspc/%s" % tablespace.oid]
+                    if local_backup_info.tablespaces is not None:
+                        for tablespace in local_backup_info.tablespaces:
+                            exclude_and_protect += [
+                                "/data/pg_tblspc/%s" % tablespace.oid
+                            ]
                     copy_controller.add_directory(
                         "basebackup",
                         ":%s/%s/" % (remote_backup_dir, backup_name),
