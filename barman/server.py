@@ -3603,11 +3603,19 @@ class Server(RemoteStatusMixin):
                         retry_sleep=self.config.basebackup_retry_sleep,
                         workers=self.config.parallel_jobs,
                     )
+                    # Exclude primary Barman metadata and state
+                    exclude_and_protect = ["/backup.info", "/.backup.lock"]
+                    # Exclude any tablespace symlinks created by pg_basebackup
+                    if local_backup_info.tablespaces is not None:
+                        for tablespace in local_backup_info.tablespaces:
+                            exclude_and_protect += [
+                                "/data/pg_tblspc/%s" % tablespace.oid
+                            ]
                     copy_controller.add_directory(
                         "basebackup",
                         ":%s/%s/" % (remote_backup_dir, backup_name),
                         local_backup_info.get_basebackup_directory(),
-                        exclude_and_protect=["/backup.info", "/.backup.lock"],
+                        exclude_and_protect=exclude_and_protect,
                         bwlimit=self.config.bandwidth_limit,
                         reuse=reuse_dir,
                         item_class=RsyncCopyController.PGDATA_CLASS,
