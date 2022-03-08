@@ -829,6 +829,17 @@ class TestCheckSize(object):
         assert barman.utils.check_size(None) is None
 
 
+class TestCheckTli(object):
+    @pytest.mark.parametrize("tli", ["1", "2", "current", "latest"])
+    def test_parse(self, tli):
+        assert barman.utils.check_tli(tli)
+
+    @pytest.mark.parametrize("tli", ["0", "-1", "newest"])
+    def test_parse_error(self, tli):
+        with pytest.raises(ArgumentTypeError):
+            barman.utils.check_tli(tli)
+
+
 class TestSHA256(object):
     def test_get_name(self):
         sha = barman.utils.SHA256()

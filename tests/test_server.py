@@ -262,9 +262,10 @@ class TestServer(object):
         assert full_path == str(tmpdir.join("wals").join(wal_hash).join(wal_name))
 
     @pytest.mark.parametrize(
-        "wal_info_files,expected_indices",
+        ["wal_info_files", "target_tlis", "target_time", "expected_indices"],
         [
             (
+                # GIVEN The following WALs
                 [
                     create_fake_info_file("000000010000000000000002", 42, 43),
                     create_fake_info_file("00000001.history", 42, 43),
@@ -273,9 +274,16 @@ class TestServer(object):
                     create_fake_info_file("000000030000000000000005", 42, 43),
                     create_fake_info_file("00000003.history", 42, 43),
                 ],
+                # AND target_tli values None, 2 and current
+                (None, 2, "current"),
+                # AND no target_time
+                None,
+                # WHEN get_required_xlog_files runs for a backup on tli 2
+                # the WAL on tli 2 is returned along with all history files
                 [1, 2, 3, 5],
             ),
             (
+                # GIVEN The following WALs
                 [
                     create_fake_info_file("000000010000000000000002", 42, 43),
                     create_fake_info_file("00000001.history", 42, 43),
@@ -285,11 +293,62 @@ class TestServer(object):
                     create_fake_info_file("000000030000000000000005", 42, 43),
                     create_fake_info_file("00000003.history", 42, 43),
                 ],
+                # AND target_tli values None, 2 and current
+                (None, 2, "current"),
+                # AND no target_time
+                None,
+                # WHEN get_required_xlog_files runs for a backup on tli 2
+                # all WALs on tli 2 are returned along with all history files
                 [1, 2, 3, 4, 6],
+            ),
+            (
+                # GIVEN The following WALs
+                [
+                    create_fake_info_file("000000010000000000000002", 42, 43),
+                    create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 44),
+                    create_fake_info_file("000000020000000000000005", 42, 45),
+                    create_fake_info_file("000000020000000000000010", 42, 46),
+                    create_fake_info_file("00000002.history", 42, 44),
+                    create_fake_info_file("000000030000000000000005", 42, 47),
+                    create_fake_info_file("00000003.history", 42, 47),
+                ],
+                # AND target_tli values None, 2 and current
+                (None, 2, "current"),
+                # AND a target_time of 44
+                44,
+                # WHEN get_required_xlog_files runs for a backup on tli 2
+                # the first two WALs on tli 2 are returned along with all history
+                # files. The WAL on tli 2 which starts after the target_time is
+                # not returned.
+                [1, 2, 3, 5, 7],
+            ),
+            (
+                # Verify both WALs on timeline 2 are returned plus all history files
+                # when we specify the "latest" timeline
+                [
+                    create_fake_info_file("000000010000000000000002", 42, 43),
+                    create_fake_info_file("00000001.history", 42, 43),
+                    create_fake_info_file("000000020000000000000003", 42, 43),
+                    create_fake_info_file("000000020000000000000010", 42, 43),
+                    create_fake_info_file("00000002.history", 42, 43),
+                    create_fake_info_file("000000030000000000000005", 42, 43),
+                    create_fake_info_file("00000003.history", 42, 43),
+                ],
+                # AND target_tli values of 3 and latest
+                (3, "latest"),
+                # AND no target_time
+                None,
+                # WHEN get_required_xlog_files runs for a backup on tli 2
+                # all WALs on timelines 2 and 3 are returned along with all history
+                # files.
+                [1, 2, 3, 4, 5, 6],
             ),
         ],
     )
-    def test_get_required_xlog_files(self, wal_info_files, expected_indices, tmpdir):
+    def test_get_required_xlog_files(
+        self, wal_info_files, target_tlis, target_time, expected_indices, tmpdir
+    ):
         """
         Tests get_required_xlog_files function.
         Validates that exact expected walfile list matches result file list
@@ -309,9 +368,20 @@ class TestServer(object):
         wals_dir = tmpdir.mkdir("wals")
         xlog = wals_dir.join("xlog.db")
         xlog.write(walstring)
+
+        # Populate wals_dir with fake WALs
+        for wal in wal_info_files:
+            if wal.name.endswith("history"):
+                wals_dir.join(wal.name).ensure()
+            else:
+                subdir = wal.name[0:16]
+                wals_dir.join(subdir).join(wal.name).ensure()
+
         # fake backup
         backup = build_test_backup_info(
-            begin_wal="000000020000000000000001", end_wal="000000020000000000000004"
+            begin_wal="000000020000000000000001",
+            end_wal="000000020000000000000004",
+            timeline=2,
         )
 
         # mock a server object and mock a return call to get_next_backup method
@@ -320,12 +390,15 @@ class TestServer(object):
             main_conf={"wals_directory": wals_dir.strpath},
         )
 
-        wals = []
-        for wal_file in server.get_required_xlog_files(backup, 2, 41):
-            # get the result of the xlogdb read
-            wals.append(wal_file.name)
-        # Check for the presence of expected files
-        assert expected_wals == wals
+        for target_tli in target_tlis:
+            wals = []
+            for wal_file in server.get_required_xlog_files(
+                backup, target_tli, target_time
+            ):
+                # get the result of the xlogdb read
+                wals.append(wal_file.name)
+            # Check for the presence of expected files
+            assert expected_wals == wals
 
     @pytest.mark.parametrize(
         "wal_info_files,expected_indices",
