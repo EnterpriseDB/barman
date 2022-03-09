@@ -1,6 +1,6 @@
-% BARMAN-CLOUD-RESTORE(1) Barman User manuals | Version 2.18
+% BARMAN-CLOUD-RESTORE(1) Barman User manuals | Version 2.19
 % EnterpriseDB <https://www.enterprisedb.com>
-% January 21, 2022
+% March 9, 2022
 
 # NAME
 
