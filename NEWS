@@ -1,5 +1,31 @@
 Barman News - History of user-visible changes
 
+Version 2.19 - 9 March 2022
+
+- Change `barman diagnose` output date format for ISO8601.
+
+- Add Google cloud Storage (GCS) support to barman cloud.
+
+- `barman-wal-archive --test` now returns proper exit code when an error occurs.
+
+- `--target-tli` now allow current or latest .
+
+- Add documentation for installation on SLES.
+
+- Bug fixes:
+    - Fix `barman-cloud-check-wal-archive` behavior when `-t` option is used.
+      It now exits after connectivity test.
+
+    - `barman recover` now continues when `--no-get-wal` is used and get-wal
+      does not exist.
+
+    - Fix `barman show-servers --format=json ${server}` output for inactive server.
+
+    - Increase barman_home configuration file validation.
+
+- We thank richyen for his contributions to this
+  release.
+
 Version 2.18 - 21 January 2022
 
 - Add snappy compression algorithm support in barman cloud (requires the
