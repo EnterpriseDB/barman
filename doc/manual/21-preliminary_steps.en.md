@@ -55,7 +55,9 @@ You can choose your favourite client authentication method among those
 offered by PostgreSQL. More information can be found in the
 ["Client Authentication" section of the PostgreSQL Documentation][pghba].
 
-Make sure you test the following command before proceeding:
+Run the following command as the barman user on the `backup` host in
+order to verify that the `backup` host can connect to PostgreSQL on
+the `pg` host:
 
 ``` bash
 barman@backup$ psql -c 'SELECT version()' -U barman -h pg postgres
