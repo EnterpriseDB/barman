@@ -1,21 +1,92 @@
-# This is a basic workflow to help you get started with Actions
-
 name: Barman Release
 
-# Controls when the workflow will run
 on:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'barman release (ex: 2.18)'
+        required: true
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  set_version:
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    container:
+      image: ghcr.io/enterprisedb/pandoc:2.2.1
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.DELIVER_REPO_ACCESS_TOKEN }}
     steps:
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      - name: Run only on master
+        if: ${{ github.ref_name }} != 'dev/barman_release'
+#        if: ${{ github.ref_name }} != 'master'
+        run: echo 1
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Update version in barman.
+        run: |
+          ${GITHUB_WORKSPACE}/scripts/ci-set-version.sh ${{ github.event.inputs.release }}
+      - name: Commit changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: '["barman/version.py", "doc/*"]'
+          default_author: github_actions
+          message:  "Version set to ${{ github.event.inputs.release }}"
+          push: true
+
+  news_tag_release:
+    needs: set_version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Checkout GitHub Action Repo
+        uses: actions/checkout@master
+        with:
+          repository: EnterpriseDB/barman-deliver.git
+          ref: main
+          token: ${{ secrets.DELIVER_REPO_ACCESS_TOKEN}}
+          path: barman-deliver
+      - run: echo ${{ github.workspace }}
+      - name: Update repo with new version ${{ github.event.inputs.release }}
+        uses: ./barman-deliver
+        with:
+          command: 'barman'
+          release: "release/${{ github.event.inputs.release }}"
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Commit News and tag
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: 'NEWS'
+          default_author: github_actions
+          message: "Update changelog for ${{ env.release_name }}"
+          tag: 'release/${{ github.event.inputs.release }} -m "Release ${{ github.event.inputs.release }}"'
+      - name: Create draft release from tag
+        uses: ncipollo/release-action@v1
+        with:
+          bodyFile: "release_content.md"
+          tag: "release/${{ github.event.inputs.release }}"
+          name: "Barman ${{ github.event.inputs.release }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: true
+
+  dispatch:
+    name: "trigger ${{ matrix.repo }} release"
+    needs: news_tag_release
+    strategy:
+      matrix:
+        repo:
+          - 'EnterpriseDB/barman-packaging'
+          - 'EnterpriseDB/edb-barman-packaging'
+          - 'EnterpriseDB/barman.github.io'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository dispatch
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          # Personal access token to trigger the other pipelines
+          token: ${{ secrets.DELIVER_REPO_ACCESS_TOKEN }}
+          repository: ${{ matrix.repo }}
+          event-type: dispatch_release
+          client-payload: '{"release_name": "release/${{ github.event.inputs.release }}"}'
