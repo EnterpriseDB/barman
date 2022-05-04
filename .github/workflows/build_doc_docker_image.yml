@@ -1,0 +1,26 @@
+name: Build documentation docker image
+
+on:
+  push:
+    paths:
+      - 'doc/Dockerfile'
+env:
+  docker_tag:
+jobs:
+  build_docker_image:
+    runs-on: ubuntu-latest
+    env:
+      # Should match pandoc version specified in (doc/Dockerfile)
+      docker_tag: "2.2.1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Loging to GHCR registry
+        run: |
+          echo ${{ secrets.DELIVER_REPO_ACCESS_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build Docker image
+        run: docker build . --file doc/Dockerfile --tag ghcr.io/enterprisedb/pandoc:${{ env.docker_tag }}
+      - name: Push to registry
+        run: docker push ghcr.io/enterprisedb/pandoc:${{ env.docker_tag }}
+
+
