@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'doc/Dockerfile'
+      - '.github/workflows/build_doc_docker_image.yml'
+
 env:
   docker_tag:
 jobs:
@@ -15,9 +17,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Loging to GHCR registry
+      - name: Loging to ghcr.io registry
         run: |
-          echo ${{ secrets.DELIVER_REPO_ACCESS_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo ${{ secrets.DELIVER_REPO_ACCESS_TOKEN }} | docker login ghcr.io -u didiermichel --password-stdin
       - name: Build Docker image
         run: docker build . --file doc/Dockerfile --tag ghcr.io/enterprisedb/pandoc:${{ env.docker_tag }}
       - name: Push to registry

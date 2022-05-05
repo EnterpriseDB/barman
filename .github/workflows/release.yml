@@ -13,8 +13,8 @@ jobs:
     container:
       image: ghcr.io/enterprisedb/pandoc:2.2.1
       credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUBSECURITYTOKEN }}
+        username: didiermichel
+        password: ${{ secrets.DELIVER_REPO_ACCESS_TOKEN }}
     steps:
       - name: Run only on master
         # To change for master when ready
@@ -61,7 +61,8 @@ jobs:
         with:
           repository: EnterpriseDB/barman-deliver.git
           ref: main
-          token: ${{ secrets.GITHUBSECURITYTOKEN}}
+          token: ${{ secrets.DELIVER_REPO_ACCESS_TOKEN}}
+          # token: ${{ secrets.GITHUBSECURITYTOKEN}}
           path: barman-deliver
       - name: Update repo with new version ${{ github.event.inputs.release }}
         uses: ./barman-deliver
@@ -99,8 +100,8 @@ jobs:
       - name: Repository dispatch
         uses: peter-evans/repository-dispatch@v2
         with:
-          # Personal access token to trigger the other pipelines
-          token: ${{ secrets.GITHUBSECURITYTOKEN }}
+          # Personal access token to trigger the other pipelines should be replace by GITHUBSECURITYTOKEN
+          token: ${{ secrets.DELIVER_REPO_ACCESS_TOKEN }}
           repository: ${{ matrix.repo }}
           event-type: dispatch_release
           client-payload: '{"release_name": "release/${{ github.event.inputs.release }}"}'
