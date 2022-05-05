@@ -1,8 +1,13 @@
 Barman News - History of user-visible changes
 Unreleased:
-    Features: []
-    BugFixes: []
-    AdditionalContributors: []
+    Features:
+      - Add fake feature to test new release workflow
+      - If you se this.
+    BugFixes:
+      - This is not a real release.
+    AdditionalContributors:
+      - mom
+      - dad
 
 Version 2.19 - 9 March 2022
 
