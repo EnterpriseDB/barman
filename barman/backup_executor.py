@@ -1669,6 +1669,23 @@ class ExclusiveBackupStrategy(BackupStrategy):
                     False,
                     hint="cannot perform exclusive backup on a standby",
                 )
+        check_strategy.init_check("exclusive backup supported")
+        try:
+            if self.postgres and self.postgres.server_version < 150000:
+                check_strategy.result(self.server_name, True)
+            else:
+                check_strategy.result(
+                    self.server_name,
+                    False,
+                    hint="exclusive backups not supported "
+                    "on PostgreSQL %s" % self.postgres.server_major_version,
+                )
+        except PostgresConnectionError:
+            check_strategy.result(
+                self.server_name,
+                False,
+                hint="unable to determine postgres version",
+            )
 
 
 class ConcurrentBackupStrategy(BackupStrategy):

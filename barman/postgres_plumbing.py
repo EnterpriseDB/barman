@@ -70,24 +70,10 @@ def function_name_map(server_version):
         is None, default to the latest PostgreSQL version
     :rtype: dict[str]
     """
-
-    if server_version and server_version < 100000:
-        return {
-            "pg_switch_wal": "pg_switch_xlog",
-            "pg_walfile_name": "pg_xlogfile_name",
-            "pg_wal": "pg_xlog",
-            "pg_walfile_name_offset": "pg_xlogfile_name_offset",
-            "pg_last_wal_replay_lsn": "pg_last_xlog_replay_location",
-            "pg_current_wal_lsn": "pg_current_xlog_location",
-            "pg_current_wal_insert_lsn": "pg_current_xlog_insert_location",
-            "pg_last_wal_receive_lsn": "pg_last_xlog_receive_location",
-            "sent_lsn": "sent_location",
-            "write_lsn": "write_location",
-            "flush_lsn": "flush_location",
-            "replay_lsn": "replay_location",
-        }
-
-    return {
+    # Start by defining the current names in name_map
+    name_map = {
+        "pg_backup_start": "pg_backup_start",
+        "pg_backup_stop": "pg_backup_stop",
         "pg_switch_wal": "pg_switch_wal",
         "pg_walfile_name": "pg_walfile_name",
         "pg_wal": "pg_wal",
@@ -101,3 +87,33 @@ def function_name_map(server_version):
         "flush_lsn": "flush_lsn",
         "replay_lsn": "replay_lsn",
     }
+    if server_version and server_version < 150000:
+        # For versions below 15, pg_backup_start and pg_backup_stop are named
+        # pg_start_backup and pg_stop_backup respectively
+        name_map.update(
+            {
+                "pg_backup_start": "pg_start_backup",
+                "pg_backup_stop": "pg_stop_backup",
+            }
+        )
+    if server_version and server_version < 100000:
+        # For versions below 10, xlog is used in place of wal and location is
+        # used in place of lsn
+        name_map.update(
+            {
+                "pg_switch_wal": "pg_switch_xlog",
+                "pg_walfile_name": "pg_xlogfile_name",
+                "pg_wal": "pg_xlog",
+                "pg_walfile_name_offset": "pg_xlogfile_name_offset",
+                "pg_last_wal_replay_lsn": "pg_last_xlog_replay_location",
+                "pg_current_wal_lsn": "pg_current_xlog_location",
+                "pg_current_wal_insert_lsn": "pg_current_xlog_insert_location",
+                "pg_last_wal_receive_lsn": "pg_last_xlog_receive_location",
+                "sent_lsn": "sent_location",
+                "write_lsn": "write_location",
+                "flush_lsn": "flush_location",
+                "replay_lsn": "replay_location",
+            }
+        )
+
+    return name_map

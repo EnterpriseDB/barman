@@ -40,6 +40,16 @@ GRANT pg_read_all_settings TO barman;
 GRANT pg_read_all_stats TO barman;
 ```
 
+In the PostgreSQL 15 beta and any subsequent PostgreSQL versions the functions
+`pg_start_backup` and `pg_stop_backup` have been renamed and have different
+signatures. You will therefore need to replace the first three lines in the
+above block with:
+
+``` sql
+GRANT EXECUTE ON FUNCTION pg_backup_start(text, boolean) to barman;
+GRANT EXECUTE ON FUNCTION pg_backup_stop(boolean) to barman;
+```
+
 It is worth noting that without a real superuser, the `--force` option
 of the `barman switch-wal` command will not work.
 

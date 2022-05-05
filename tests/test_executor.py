@@ -24,7 +24,11 @@ import pytest
 from dateutil import tz
 from mock import Mock, patch
 
-from barman.backup_executor import PostgresBackupExecutor, RsyncBackupExecutor
+from barman.backup_executor import (
+    ExclusiveBackupStrategy,
+    PostgresBackupExecutor,
+    RsyncBackupExecutor,
+)
 from barman.config import BackupOptions
 from barman.exceptions import (
     CommandFailedException,
@@ -108,6 +112,9 @@ class TestRsyncBackupExecutor(object):
                 "backup_options": "exclusive_backup",
             }
         )
+        # Set server_version on the mock postgres connection because the
+        # strategy check needs access to it
+        backup_manager.executor.strategy.postgres.server_version = 140000
 
         # Test 1: ssh ok
         check_strategy = CheckOutputStrategy()
@@ -801,6 +808,44 @@ class TestStrategy(object):
             "(file 000000000000A25700000044)\n"
             "START TIME: %s\n" % start_time.strftime("%Y-%m-%d %H:%M:%S %Z")
         )
+
+    @pytest.mark.parametrize(
+        ("server_version", "expected_message"),
+        [(140000, ""), (150000, "exclusive backups not supported on PostgreSQL 15")],
+    )
+    def test_exclusive_check(self, server_version, expected_message, capsys):
+        # GIVEN a PostgreSQL connection of the specified version
+        mock_postgres = mock.Mock()
+        mock_postgres.server_version = server_version
+        mock_postgres.server_major_version = str(server_version)[:2]
+        # AND the PostgreSQL server is not in recovery
+        mock_postgres.is_in_recovery = False
+
+        # AND a ConcurrentBackupStrategy for that server
+        strategy = ExclusiveBackupStrategy(mock_postgres, "test server")
+
+        # AND a CheckOutputStrategy
+        check_strategy = CheckOutputStrategy()
+
+        # WHEN the check function is called
+        strategy.check(check_strategy)
+
+        # THEN if an error is expected, the "exclusive backup supported"
+        # check has status False
+        check_result = [
+            r
+            for r in check_strategy.check_result
+            if r.check == "exclusive backup supported"
+        ][0]
+        if len(expected_message) > 0:
+            assert check_result.status is False
+            # AND the output contains the expected message
+            out, _err = capsys.readouterr()
+            assert expected_message in out
+        # OR if no errors are expected, the "exclusive backup supported"
+        # check has status True
+        else:
+            assert check_result.status is True
 
 
 class TestPostgresBackupExecutor(object):

@@ -30,6 +30,7 @@ from barman.exceptions import (
     PostgresInvalidReplicationSlot,
     PostgresIsInRecovery,
     BackupFunctionsAccessRequired,
+    PostgresObsoleteFeature,
     PostgresSuperuserRequired,
     PostgresUnsupportedFeature,
 )
@@ -290,6 +291,14 @@ class TestPostgres(object):
             "FROM pg_stop_backup() AS location"
         )
 
+        # Test call on PostgreSQL 15
+        conn_mock.reset_mock()
+        conn_mock.return_value.server_version = 150000
+        # Expect a PostgresObsoleteFeature exception when attempting
+        # to use exclusive backup with >=150000
+        with pytest.raises(PostgresObsoleteFeature):
+            server.postgres.stop_exclusive_backup()
+
         # Test Error: Setup the mock to trigger an exception
         # expect the method to raise a PostgresException
         conn_mock.reset_mock()
@@ -298,8 +307,12 @@ class TestPostgres(object):
         with pytest.raises(PostgresException):
             server.postgres.stop_exclusive_backup()
 
+    @pytest.mark.parametrize(
+        ("server_version", "expected_stop_call"),
+        [(140000, "pg_stop_backup(FALSE)"), (150000, "pg_backup_stop()")],
+    )
     @patch("barman.postgres.PostgreSQLConnection.connect")
-    def test_stop_concurrent_backup(self, conn):
+    def test_stop_concurrent_backup(self, conn, server_version, expected_stop_call):
         """
         Basic test for the stop_concurrent_backup method
 
@@ -307,6 +320,7 @@ class TestPostgres(object):
         """
         # Build a server
         server = build_real_server()
+        conn.return_value.server_version = server_version
 
         # Expect no errors on normal call
         assert server.postgres.stop_concurrent_backup()
@@ -322,7 +336,7 @@ class TestPostgres(object):
             ") AS timeline, "
             "end_row.labelfile AS backup_label, "
             "now() AS timestamp "
-            "FROM pg_stop_backup(FALSE) AS end_row"
+            "FROM %s AS end_row" % expected_stop_call
         )
 
         # Test 2: Setup the mock to trigger an exception
@@ -415,14 +429,32 @@ class TestPostgres(object):
         # reset the mock for the next test
         conn.reset_mock()
 
+        # Test call on PostgreSQL 15
+        conn.return_value.server_version = 150000
+        # Expect a PostgresObsoleteFeature exception when attempting
+        # to use exclusive backup with >=150000
+        with pytest.raises(PostgresObsoleteFeature):
+            server.postgres.start_exclusive_backup(backup_label)
+        # check for the correct call on the execute method
+        conn.reset_mock()
+
         # test error management
         cursor_mock.execute.side_effect = psycopg2.Error
         with pytest.raises(PostgresException):
             server.postgres.start_exclusive_backup(backup_label)
         conn.return_value.rollback.assert_called_once_with()
 
+    @pytest.mark.parametrize(
+        ("server_version", "expected_start_fun", "expected_start_args"),
+        [
+            (140000, "pg_start_backup", "%s, %s, FALSE"),
+            (150000, "pg_backup_start", "%s, %s"),
+        ],
+    )
     @patch("barman.postgres.PostgreSQLConnection.connect")
-    def test_start_concurrent_backup(self, conn):
+    def test_start_concurrent_backup(
+        self, conn, server_version, expected_start_fun, expected_start_args
+    ):
         """
         Simple test for start_exclusive_backup method of
         the RsyncBackupExecutor class
@@ -430,6 +462,8 @@ class TestPostgres(object):
         # Build a server
         server = build_real_server()
         label = "test label"
+
+        conn.return_value.server_version = server_version
 
         # Expect no errors
         assert server.postgres.start_concurrent_backup(label)
@@ -441,7 +475,7 @@ class TestPostgres(object):
             "(SELECT timeline_id "
             "FROM pg_control_checkpoint()) AS timeline, "
             "now() AS timestamp "
-            "FROM pg_start_backup(%s, %s, FALSE) AS location",
+            "FROM %s(%s) AS location" % (expected_start_fun, expected_start_args),
             ("test label", False),
         )
         conn.return_value.rollback.assert_has_calls([call(), call()])
@@ -1733,6 +1767,10 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
+        conn_mock.return_value.server_version = 150000
+        map_15 = server.postgres.name_map
+        assert map_15
+
         conn_mock.return_value.server_version = 100000
         map_10 = server.postgres.name_map
         assert map_10
@@ -1743,7 +1781,7 @@ class TestPostgres(object):
 
         conn_mock.side_effect = PostgresConnectionError
         map_error = server.postgres.name_map
-        assert map_10 == map_error
+        assert map_15 == map_error
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
     def test_switch_wal_function(self, conn_mock):

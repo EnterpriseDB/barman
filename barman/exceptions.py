@@ -263,6 +263,13 @@ class PostgresUnsupportedFeature(PostgresException):
     """
 
 
+class PostgresObsoleteFeature(PostgresException):
+    """
+    Obsolete feature, i.e. one which has been deprecated and since
+    removed.
+    """
+
+
 class PostgresDuplicateReplicationSlot(PostgresException):
     """
     The creation of a physical replication slot failed because
