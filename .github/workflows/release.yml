@@ -17,11 +17,26 @@ jobs:
         password: ${{ secrets.DELIVER_REPO_ACCESS_TOKEN }}
     steps:
       - name: Run only on master
-        if: ${{ github.ref_name }} != 'dev/barman_release'
-#        if: ${{ github.ref_name }} != 'master'
-        run: echo 1
+        # To change for master when ready
+        if: github.ref_name != 'dev/barman_release'
+        run: exit 1
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Check version '${{ github.event.inputs.release }}' is valid and tag does not already exits
+        shell: bash
+        run: |
+          if [[ -z "$(echo ${{ github.event.inputs.release }} | grep -E "^[1-9]\.[0-9]+$")" ]]
+          then
+             echo "wrong pattern for version"
+             exit 1
+          fi
+          git fetch origin 'refs/tags/*:refs/tags/*'
+          tag_search=`git tag -l "release/${{ github.event.inputs.release }}"`
+          if [[ "$tag_search" ]]
+          then
+            echo "tag $tag_search already exist."
+            exit 1
+          fi
       - name: Update version in barman.
         run: |
           ${GITHUB_WORKSPACE}/scripts/ci-set-version.sh ${{ github.event.inputs.release }}
