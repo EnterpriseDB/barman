@@ -55,6 +55,7 @@ from barman.exceptions import (
     PostgresException,
     PostgresInvalidReplicationSlot,
     PostgresIsInRecovery,
+    PostgresObsoleteFeature,
     PostgresReplicationSlotInUse,
     PostgresReplicationSlotsFull,
     PostgresSuperuserRequired,
@@ -2923,6 +2924,8 @@ class Server(RemoteStatusMixin):
                 )
         except PostgresUnsupportedFeature as e:
             output.info("  Requires PostgreSQL %s or higher", e)
+        except PostgresObsoleteFeature as e:
+            output.info("  Requires PostgreSQL lower than %s", e)
         except PostgresSuperuserRequired:
             output.info("  Requires superuser rights")
 

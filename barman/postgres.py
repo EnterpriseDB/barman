@@ -37,6 +37,7 @@ from barman.exceptions import (
     PostgresException,
     PostgresInvalidReplicationSlot,
     PostgresIsInRecovery,
+    PostgresObsoleteFeature,
     PostgresReplicationSlotInUse,
     PostgresReplicationSlotsFull,
     BackupFunctionsAccessRequired,
@@ -566,6 +567,27 @@ class PostgreSQLConnection(PostgreSQL):
         if self.server_version < 100000:
             return self.is_superuser
 
+        stop_fun_check = ""
+        if self.server_version < 150000:
+            pg_backup_start_args = "text,bool,bool"
+            pg_backup_stop_args = "bool,bool"
+            stop_fun_check = (
+                "has_function_privilege("
+                "CURRENT_USER, '{pg_backup_stop}()', 'EXECUTE') OR "
+            ).format(**self.name_map)
+        else:
+            pg_backup_start_args = "text,bool"
+            pg_backup_stop_args = "bool"
+
+        start_fun_check = (
+            "has_function_privilege("
+            "CURRENT_USER, '{pg_backup_start}({pg_backup_start_args})', 'EXECUTE')"
+        ).format(pg_backup_start_args=pg_backup_start_args, **self.name_map)
+        stop_fun_check += (
+            "has_function_privilege(CURRENT_USER, "
+            "'{pg_backup_stop}({pg_backup_stop_args})', 'EXECUTE')"
+        ).format(pg_backup_stop_args=pg_backup_stop_args, **self.name_map)
+
         backup_check_query = """
         SELECT
           usesuper
@@ -579,14 +601,13 @@ class PostgreSQLConnection(PostgreSQL):
                 AND pg_has_role(CURRENT_USER, 'pg_read_all_stats', 'MEMBER')
               )
             )
-            AND has_function_privilege(
-              CURRENT_USER, 'pg_start_backup(text,bool,bool)', 'EXECUTE')
             AND
             (
-              has_function_privilege(
-                CURRENT_USER, 'pg_stop_backup()', 'EXECUTE')
-              OR has_function_privilege(
-                CURRENT_USER, 'pg_stop_backup(bool,bool)', 'EXECUTE')
+                {start_fun_check}
+            )
+            AND
+            (
+                {stop_fun_check}
             )
             AND has_function_privilege(
               CURRENT_USER, 'pg_switch_wal()', 'EXECUTE')
@@ -597,7 +618,11 @@ class PostgreSQLConnection(PostgreSQL):
           pg_user
         WHERE
           usename = CURRENT_USER
-        """
+        """.format(
+            start_fun_check=start_fun_check,
+            stop_fun_check=stop_fun_check,
+            **self.name_map
+        )
         try:
             cur = self._cursor()
             cur.execute(backup_check_query)
@@ -1077,7 +1102,7 @@ class PostgreSQLConnection(PostgreSQL):
 
     def start_exclusive_backup(self, label):
         """
-        Calls pg_start_backup() on the PostgreSQL server
+        Calls pg_backup_start() on the PostgreSQL server
 
         This method returns a dictionary containing the following data:
 
@@ -1092,18 +1117,20 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             conn = self.connect()
 
-            # Rollback to release the transaction, as the pg_start_backup
+            # Rollback to release the transaction, as the pg_backup_start
             # invocation can last up to PostgreSQL's checkpoint_timeout
             conn.rollback()
 
             # Start an exclusive backup
             cur = conn.cursor(cursor_factory=DictCursor)
-            if self.server_version < 80400:
+            if self.server_version >= 150000:
+                raise PostgresObsoleteFeature("15")
+            elif self.server_version < 80400:
                 cur.execute(
                     "SELECT location, "
                     "({pg_walfile_name_offset}(location)).*, "
                     "now() AS timestamp "
-                    "FROM pg_start_backup(%s) AS location".format(**self.name_map),
+                    "FROM {pg_backup_start}(%s) AS location".format(**self.name_map),
                     (label,),
                 )
             else:
@@ -1111,7 +1138,7 @@ class PostgreSQLConnection(PostgreSQL):
                     "SELECT location, "
                     "({pg_walfile_name_offset}(location)).*, "
                     "now() AS timestamp "
-                    "FROM pg_start_backup(%s,%s) AS location".format(**self.name_map),
+                    "FROM {pg_backup_start}(%s,%s) AS location".format(**self.name_map),
                     (label, self.immediate_checkpoint),
                 )
 
@@ -1123,13 +1150,15 @@ class PostgreSQLConnection(PostgreSQL):
 
             return start_row
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "pg_start_backup(): %s" % force_str(e).strip()
+            msg = (
+                "{pg_backup_start}(): %s".format(**self.name_map) % force_str(e).strip()
+            )
             _logger.debug(msg)
             raise PostgresException(msg)
 
     def start_concurrent_backup(self, label):
         """
-        Calls pg_start_backup on the PostgreSQL server using the
+        Calls pg_backup_start on the PostgreSQL server using the
         API introduced with version 9.6
 
         This method returns a dictionary containing the following data:
@@ -1144,18 +1173,26 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             conn = self.connect()
 
-            # Rollback to release the transaction, as the pg_start_backup
+            # Rollback to release the transaction, as the pg_backup_start
             # invocation can last up to PostgreSQL's checkpoint_timeout
             conn.rollback()
 
             # Start the backup using the api introduced in postgres 9.6
             cur = conn.cursor(cursor_factory=DictCursor)
+            if self.server_version >= 150000:
+                pg_backup_args = "%s, %s"
+            else:
+                # PostgreSQLs below 15 have a boolean parameter to specify
+                # not to use exclusive backup
+                pg_backup_args = "%s, %s, FALSE"
             cur.execute(
                 "SELECT location, "
                 "(SELECT timeline_id "
                 "FROM pg_control_checkpoint()) AS timeline, "
                 "now() AS timestamp "
-                "FROM pg_start_backup(%s, %s, FALSE) AS location",
+                "FROM {pg_backup_start}({pg_backup_args}) AS location".format(
+                    pg_backup_args=pg_backup_args, **self.name_map
+                ),
                 (label, self.immediate_checkpoint),
             )
             start_row = cur.fetchone()
@@ -1166,13 +1203,15 @@ class PostgreSQLConnection(PostgreSQL):
 
             return start_row
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "pg_start_backup command: %s" % (force_str(e).strip(),)
+            msg = "{pg_backup_start} command: %s".format(**self.name_map) % (
+                force_str(e).strip(),
+            )
             _logger.debug(msg)
             raise PostgresException(msg)
 
     def stop_exclusive_backup(self):
         """
-        Calls pg_stop_backup() on the PostgreSQL server
+        Calls pg_backup_stop() on the PostgreSQL server
 
         This method returns a dictionary containing the following data:
 
@@ -1186,32 +1225,36 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             conn = self.connect()
 
-            # Rollback to release the transaction, as the pg_stop_backup
+            # Rollback to release the transaction, as the pg_backup_stop
             # invocation could will wait until the current WAL file is shipped
             conn.rollback()
 
             # Stop the backup
             cur = conn.cursor(cursor_factory=DictCursor)
+
+            if self.server_version >= 150000:
+                raise PostgresObsoleteFeature("15")
+
             cur.execute(
                 "SELECT location, "
                 "({pg_walfile_name_offset}(location)).*, "
                 "now() AS timestamp "
-                "FROM pg_stop_backup() AS location".format(**self.name_map)
+                "FROM {pg_backup_stop}() AS location".format(**self.name_map)
             )
 
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "Error issuing pg_stop_backup command: %s" % force_str(e).strip()
+            msg = "Error issuing {pg_backup_stop} command: %s" % force_str(e).strip()
             _logger.debug(msg)
             raise PostgresException(
                 "Cannot terminate exclusive backup. "
-                "You might have to manually execute pg_stop_backup "
-                "on your PostgreSQL server"
+                "You might have to manually execute {pg_backup_stop} "
+                "on your PostgreSQL server".format(**self.name_map)
             )
 
     def stop_concurrent_backup(self):
         """
-        Calls pg_stop_backup on the PostgreSQL server using the
+        Calls pg_backup_stop on the PostgreSQL server using the
         API introduced with version 9.6
 
         This method returns a dictionary containing the following data:
@@ -1226,9 +1269,22 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             conn = self.connect()
 
-            # Rollback to release the transaction, as the pg_stop_backup
+            # Rollback to release the transaction, as the pg_backup_stop
             # invocation could will wait until the current WAL file is shipped
             conn.rollback()
+
+            if self.server_version >= 150000:
+                # The pg_backup_stop function accepts one argument, a boolean
+                # wait_for_archive indicating whether PostgreSQL should wait
+                # until all required WALs are archived. This is not set so that
+                # we get the default behaviour which is to wait for the wals.
+                pg_backup_args = ""
+            else:
+                # For PostgreSQLs below 15 the function accepts two arguments -
+                # a boolean to indicate exclusive or concurrent backup and the
+                # wait_for_archive boolean. We set exclusive to FALSE and leave
+                # wait_for_archive unset as with PG >= 15.
+                pg_backup_args = "FALSE"
 
             # Stop the backup  using the api introduced with version 9.6
             cur = conn.cursor(cursor_factory=DictCursor)
@@ -1239,12 +1295,17 @@ class PostgreSQLConnection(PostgreSQL):
                 "FROM pg_control_checkpoint(), pg_control_recovery()"
                 ") AS timeline, "
                 "end_row.labelfile AS backup_label, "
-                "now() AS timestamp FROM pg_stop_backup(FALSE) AS end_row"
+                "now() AS timestamp FROM {pg_backup_stop}({pg_backup_args}) AS end_row".format(
+                    pg_backup_args=pg_backup_args, **self.name_map
+                )
             )
 
             return cur.fetchone()
         except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "Error issuing pg_stop_backup command: %s" % force_str(e).strip()
+            msg = (
+                "Error issuing {pg_backup_stop} command: %s".format(**self.name_map)
+                % force_str(e).strip()
+            )
             _logger.debug(msg)
             raise PostgresException(msg)
 
