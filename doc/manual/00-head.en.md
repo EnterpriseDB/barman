@@ -1,6 +1,6 @@
 % Barman Manual
 % EnterpriseDB UK Limited
-% March 9, 2022 (2.19)
+% May 6, 2022 (2.404)
 
 **Barman** (Backup and Recovery Manager) is an open-source administration tool for disaster recovery of PostgreSQL servers written in Python. It allows your organisation to perform remote backups of multiple servers in business critical environments to reduce risk and help DBAs during the recovery phase.
 

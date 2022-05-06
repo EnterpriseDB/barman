@@ -1,6 +1,6 @@
-% BARMAN-WAL-ARCHIVE(1) Barman User manuals | Version 2.19
+% BARMAN-WAL-ARCHIVE(1) Barman User manuals | Version 2.404
 % EnterpriseDB <https://www.enterprisedb.com>
-% March 9, 2022
+% May 6, 2022
 
 # NAME
 
