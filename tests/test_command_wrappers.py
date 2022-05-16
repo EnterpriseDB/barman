@@ -1028,6 +1028,8 @@ class TestPgBaseBackup(object):
     Simple class for testing of the PgBaseBackup obj
     """
 
+    pg_basebackup_path = "/usr/bin/pg_basebackup"
+
     def test_init_simple(self, which):
         """
         Test class build
@@ -1036,7 +1038,7 @@ class TestPgBaseBackup(object):
         connection_mock.get_connection_string.return_value = "test_conn"
         pgbasebackup = command_wrappers.PgBaseBackup(
             destination="/fake/path",
-            command="/usr/bin/pg_basebackup",
+            command=self.pg_basebackup_path,
             connection=connection_mock,
             version="9.3",
             app_name="fake_app_name",
@@ -1047,7 +1049,7 @@ class TestPgBaseBackup(object):
             "--no-password",
             "--pgdata=/fake/path",
         ]
-        assert pgbasebackup.cmd == "/usr/bin/pg_basebackup"
+        assert pgbasebackup.cmd == self.pg_basebackup_path
         assert pgbasebackup.check is True
         assert pgbasebackup.close_fds is True
         assert pgbasebackup.allowed_retval == (0,)
@@ -1061,7 +1063,7 @@ class TestPgBaseBackup(object):
         }
         pgbasebackup = command_wrappers.PgBaseBackup(
             destination="/fake/target",
-            command="/usr/bin/pg_basebackup",
+            command=self.pg_basebackup_path,
             connection=connection_mock,
             version="9.2",
             app_name="fake_app_name",
@@ -1161,7 +1163,7 @@ class TestPgBaseBackup(object):
         connection_mock.get_connection_string.return_value = "fake_connstring"
         cmd = command_wrappers.PgBaseBackup(
             destination="/fake/target",
-            command="/usr/bin/pg_basebackup",
+            command=self.pg_basebackup_path,
             connection=connection_mock,
             version="9.4",
             app_name="fake_app_name",
@@ -1170,7 +1172,7 @@ class TestPgBaseBackup(object):
 
         popen.assert_called_with(
             [
-                "/usr/bin/pg_basebackup",
+                self.pg_basebackup_path,
                 "--dbname=fake_connstring",
                 "-v",
                 "--no-password",
@@ -1192,6 +1194,55 @@ class TestPgBaseBackup(object):
         assert cmd.err is None
         assert ("PgBaseBackup", INFO, out) in caplog.record_tuples
         assert ("PgBaseBackup", WARNING, err) in caplog.record_tuples
+
+    @pytest.mark.parametrize(
+        ("compression", "expected_args", "unexpected_args"),
+        [
+            # If no compression is provided then no compression args are expected
+            (None, [], ["--gzip", "--compress", "--format"]),
+            # If gzip compression is provided with no level then we expect only
+            # the --gzip and --format=tar arguments
+            (
+                mock.Mock(type="gzip", level=None),
+                ["--gzip", "--format=tar"],
+                ["--compress"],
+            ),
+            # If gzip compression is provided with level then we expect the --gzip,
+            # --format=tar and --compress=level arguments
+            (
+                mock.Mock(type="gzip", level=5),
+                ["--gzip", "--format=tar", "--compress=5"],
+                [],
+            ),
+        ],
+    )
+    def test_compression_gzip(self, compression, expected_args, unexpected_args):
+        """
+        Verifies the expected pg_basebackup options are added for the specified
+        compression. Only cares whether the correct arguments are created and does
+        not verify the behaviour of the command itself for this is covered by other
+        tests.
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = "fake_connstring"
+
+        # GIVEN a PgBaseBackup command initialised with the specified compression
+        # WHEN the wrapper is instantiated
+        cmd = command_wrappers.PgBaseBackup(
+            destination="/fake/target",
+            command=self.pg_basebackup_path,
+            connection=connection_mock,
+            version="14",
+            app_name="test_app_name",
+            compression=compression,
+        )
+
+        # THEN all expected arguments are present
+        assert all(arg in cmd.args for arg in expected_args)
+
+        # AND no unexpected arguments are preset
+        for expected_arg in unexpected_args:
+            assert not any(expected_arg == arg.split("=")[0] for arg in cmd.args)
 
 
 # noinspection PyMethodMayBeStatic

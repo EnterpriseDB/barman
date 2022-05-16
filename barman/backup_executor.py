@@ -32,6 +32,7 @@ import logging
 import os
 import re
 import shutil
+from tarfile import TarFile
 from abc import ABCMeta, abstractmethod
 from functools import partial
 
@@ -40,9 +41,11 @@ from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
 from barman.command_wrappers import PgBaseBackup
+from barman.compression import get_pg_basebackup_compression
 from barman.config import BackupOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
+    BackupException,
     CommandFailedException,
     DataTransferFailure,
     FsOperationFailed,
@@ -232,8 +235,11 @@ class PostgresBackupExecutor(BackupExecutor):
             assigned to the executor
         """
         super(PostgresBackupExecutor, self).__init__(backup_manager, "postgres")
+        self.backup_compression = get_pg_basebackup_compression(self.server)
         self.validate_configuration()
-        self.strategy = PostgresBackupStrategy(self.server.postgres, self.config.name)
+        self.strategy = PostgresBackupStrategy(
+            self.server.postgres, self.config.name, self.backup_compression
+        )
 
     def validate_configuration(self):
         """
@@ -306,6 +312,10 @@ class PostgresBackupExecutor(BackupExecutor):
                     "pg_basebackup version (current: %s, required: 9.4)"
                     % remote_status["pg_basebackup_version"]
                 )
+
+        # validate compression options
+        if self.backup_compression:
+            self.backup_compression.validate(self.server)
 
     def backup(self, backup_info):
         """
@@ -570,6 +580,7 @@ class PostgresBackupExecutor(BackupExecutor):
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
             retry_handler=partial(self._retry_handler, dest_dirs),
+            compression=self.backup_compression,
         )
 
         # Do the actual copy
@@ -1104,6 +1115,15 @@ class RsyncBackupExecutor(FsBackupExecutor):
             assigned to the strategy
         """
         super(RsyncBackupExecutor, self).__init__(backup_manager, "rsync", local_mode)
+        self.validate_configuration()
+
+    def validate_configuration(self):
+        # Verify that backup_compression is not set
+        if self.server.config.backup_compression:
+            self.server.config.disabled = True
+            self.server.config.msg_list.append(
+                "backup_compression option is not supported by rsync backup_method"
+            )
 
     def backup_copy(self, backup_info):
         """
@@ -1527,7 +1547,8 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         label_path = os.path.join(backup_info.get_data_directory(), "backup_label")
         output.debug("Reading backup label: %s" % label_path)
         with open(label_path, "r") as f:
-            backup_info.set_attribute("backup_label", f.read())
+            backup_label = f.read()
+        backup_info.set_attribute("backup_label", backup_label)
 
 
 class PostgresBackupStrategy(BackupStrategy):
@@ -1538,6 +1559,19 @@ class PostgresBackupStrategy(BackupStrategy):
     executing pre e post backup operations during a physical backup executed
     using pg_basebackup.
     """
+
+    def __init__(self, postgres, server_name, backup_compression=None):
+        """
+        Constructor
+
+        :param barman.postgres.PostgreSQLConnection postgres: the PostgreSQL
+            connection
+        :param str server_name: The name of the server
+        :param barman.compression.PgBaseBackupCompression backup_compression:
+            the pg_basebackup compression options used for this backup
+        """
+        super(PostgresBackupStrategy, self).__init__(postgres, server_name)
+        self.backup_compression = backup_compression
 
     def check(self, check_strategy):
         """
@@ -1572,6 +1606,9 @@ class PostgresBackupStrategy(BackupStrategy):
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
+        if self.backup_compression:
+            backup_info.set_attribute("compression", self.backup_compression.type)
+
         self._read_backup_label(backup_info)
         self._backup_info_from_backup_label(backup_info)
 
@@ -1592,6 +1629,40 @@ class PostgresBackupStrategy(BackupStrategy):
         except PostgresIsInRecovery:
             # Skip switching XLOG if a standby server
             pass
+
+    def _read_compressed_backup_label(self, backup_info):
+        """
+        Read the contents of a backup_label file from a compressed archive.
+
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
+        """
+        basename = os.path.join(backup_info.get_data_directory(), "base.tar")
+        with self.backup_compression.open(basename) as f:
+            self.tar = TarFile.open(fileobj=f)
+            for member in self.tar:
+                if member.name == "backup_label":
+                    backup_label_fileobj = self.tar.extractfile(member)
+                    return backup_label_fileobj.read().decode("utf-8")
+            raise BackupException(
+                "Could not find backup_label in %s"
+                % self.backup_compression.with_suffix(basename)
+            )
+
+    def _read_backup_label(self, backup_info):
+        """
+        Read the backup_label file.
+
+        Transparently handles the fact that the backup_label file may be in a
+        compressed tarball.
+
+        :param barman.infofile.LocalBackupInfo backup_info: backup information
+        """
+        self.current_action = "reading the backup label"
+        if backup_info.compression is not None:
+            backup_label = self._read_compressed_backup_label(backup_info)
+            backup_info.set_attribute("backup_label", backup_label)
+        else:
+            super(PostgresBackupStrategy, self)._read_backup_label(backup_info)
 
 
 class ExclusiveBackupStrategy(BackupStrategy):

@@ -26,12 +26,16 @@ import gzip
 import logging
 import shutil
 import sys
-from abc import ABCMeta, abstractmethod
-from contextlib import closing
+from abc import ABCMeta, abstractmethod, abstractproperty
+from contextlib import closing, contextmanager
 
 import barman.infofile
 from barman.command_wrappers import Command
-from barman.exceptions import CommandFailedException, CompressionIncompatibility
+from barman.exceptions import (
+    CommandFailedException,
+    CompressionException,
+    CompressionIncompatibility,
+)
 from barman.utils import force_str, with_metaclass
 
 _logger = logging.getLogger(__name__)
@@ -402,3 +406,101 @@ compression_registry = {
 
 #: The longest string needed to identify a compression schema
 MAGIC_MAX_LENGTH = max(len(x.MAGIC or "") for x in compression_registry.values())
+
+
+def get_pg_basebackup_compression(server):
+    """
+    Factory method which returns an instantiated PgBaseBackupCompression subclass
+    for the backup_compression option in config for the supplied server.
+
+    :param barman.server.Server server: the server for which the
+      PgBaseBackupCompression should be constructed
+    """
+    if server.config.backup_compression is None:
+        return
+    try:
+        return {"gzip": GZipPgBaseBackupCompression}[server.config.backup_compression](
+            server.config
+        )
+    except KeyError:
+        raise CompressionException(
+            "Barman does not support pg_basebackup compression: %s"
+            % server.config.backup_compression
+        )
+
+
+class PgBaseBackupCompression(with_metaclass(ABCMeta, object)):
+    """
+    Represents the pg_basebackup compression options and provides functionality
+    required by the backup process which depends on those options.
+    """
+
+    def __init__(self, config):
+        """
+        Constructor for the PgBaseBackupCompression abstract base class.
+
+        :param barman.config.ServerConfig config: the server configuration
+        """
+        self.type = config.backup_compression
+        self.level = config.backup_compression_level
+
+    @abstractproperty
+    def suffix(self):
+        """The filename suffix expected for this compression"""
+
+    def with_suffix(self, basename):
+        """
+        Append the suffix to the supplied basename.
+
+        :param str basename: The basename (without compression suffix) of the
+          file to be opened.
+        """
+        return ".".join((basename, self.suffix))
+
+    @abstractmethod
+    @contextmanager
+    def open(self, basename):
+        """
+        Open file at path/basename for reading.
+
+        :param str basename: The basename (without compression suffix) of the
+          file to be opened.
+        """
+
+    def validate(self, server):
+        """
+        Validate pg_basebackup compression options.
+
+        :param barman.server.Server server: the server for which the
+          compression options should be validated.
+        """
+        pass
+
+
+class GZipPgBaseBackupCompression(PgBaseBackupCompression):
+    suffix = "gz"
+
+    @contextmanager
+    def open(self, basename):
+        """
+        Open file at path/basename for reading, uncompressing with the GZip algorithm.
+
+        :param str basename: The basename (without compression suffix) of the
+          file to be opened.
+        """
+        yield gzip.open(self.with_suffix(basename), "rb")
+
+    def validate(self, server):
+        """
+        Validate gzip-specific options.
+
+        :param barman.server.Server server: the server for which the
+          compression options should be validated.
+        """
+        super(GZipPgBaseBackupCompression, self).validate(server)
+        if self.level is not None and (self.level < 1 or self.level > 9):
+            server.config.disabled = True
+            server.config.msg_list.append(
+                "backup_compression_level %d unsupported by "
+                "pg_basebackup compression %s" % (self.level, self.type)
+            )

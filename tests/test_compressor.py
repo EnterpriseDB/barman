@@ -17,9 +17,11 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import base64
+import gzip
 import os
 
 import mock
+import pytest
 
 from barman.compression import (
     BZip2Compressor,
@@ -29,7 +31,12 @@ from barman.compression import (
     GZipCompressor,
     PyBZip2Compressor,
     PyGZipCompressor,
+    get_pg_basebackup_compression,
+    GZipPgBaseBackupCompression,
+    PgBaseBackupCompression,
 )
+from barman.exceptions import CompressionException
+from testing_helpers import build_mocked_server
 
 # Filename patterns used by the tests
 ZIP_FILE = "%s/zipfile.zip"
@@ -323,3 +330,193 @@ class TestCustomCompressor(object):
         validate = compressor.validate(b"\x28\xb5\x2f\xfd\x00\x00\x00")
 
         assert validate is True
+
+
+class TestPgBaseBackupCompression(object):
+    """
+    Test the classes used to encapsulate implementation details of backups taken
+    with pg_basebackup compression.
+    """
+
+    @pytest.mark.parametrize(
+        ("compression", "expected_class"),
+        [
+            # A value of None for backup_compression should result in a NoneType
+            (None, type(None)),
+            # A value of gzip for backup_compression should result in a
+            # GZipPgBaseBackupCompression
+            ("gzip", GZipPgBaseBackupCompression),
+        ],
+    )
+    def test_get_pg_basebackup_compression(self, compression, expected_class):
+        """
+        Verifies that get_pg_basebackup_compression returns an instance of the
+        correct class for the compression specified in the server config.
+        """
+        server = build_mocked_server(
+            global_conf={"backup_method": "postgres", "backup_compression": compression}
+        )
+        compression = get_pg_basebackup_compression(server)
+        assert type(compression) == expected_class
+
+    def test_get_pg_basebackup_compression_not_supported(self):
+        """
+        Verifies that get_pg_basebackup_compression raises an exception if it is
+        asked for a compression we do not support.
+        In practice such errors would be caught at config validation time however
+        this exception will make debugging easier in the event that a validation bug
+        allows an unsupported compression through.
+        """
+        server = build_mocked_server(global_conf={"backup_method": "postgres"})
+        # Set backup_compression directly so that config validation doesn't catch it
+        server.config.backup_compression = "rle"
+        with pytest.raises(CompressionException) as exc:
+            get_pg_basebackup_compression(server)
+
+        assert "Barman does not support pg_basebackup compression: rle" in str(
+            exc.value
+        )
+
+    def test_with_suffix(self):
+        """Verifies with_suffix returns expected result."""
+        # GIVEN a concrete PgBaseBackupCompression which defines its suffix
+        class BasicPgBaseBackupCompression(PgBaseBackupCompression):
+            suffix = "basic"
+
+            def open(self, _base):
+                pass
+
+        # WHEN it is instantiated
+        basic_compression = BasicPgBaseBackupCompression(mock.Mock())
+
+        # THEN with_suffix appends the suffix
+        assert basic_compression.with_suffix("append_to_this") == "append_to_this.basic"
+
+    def test_validate(self):
+        """
+        Verifies PgBaseBackupCompression.validate behaviour.
+        Currently this will always pass because there is no general validation.
+        """
+        # GIVEN a concrete PgBaseBackupCompression which defines its suffix
+        class BasicPgBaseBackupCompression(PgBaseBackupCompression):
+            suffix = "basic"
+
+            def open(self, _base):
+                pass
+
+        basic_compression = BasicPgBaseBackupCompression(mock.Mock())
+        # AND a server with compression enabled
+        server = build_mocked_server(
+            global_conf={"backup_method": "postgres", "backup_compression": "gzip"}
+        )
+
+        # WHEN validate is called
+        basic_compression.validate(server)
+
+        # THEN the server is not disabled
+        assert not server.config.disabled
+
+        # AND no errors are added to the server's list
+        assert len(server.config.msg_list) == 0
+
+
+class TestGZipPgBaseBackupCompression(object):
+    """
+    Test the gzip pg_basebackup implementation details.
+    """
+
+    @pytest.mark.parametrize(
+        ("compression_options", "expected_errors"),
+        [
+            ({"backup_compression": "gzip", "backup_compression_level": 1}, []),
+            ({"backup_compression": "gzip", "backup_compression_level": 9}, []),
+            (
+                {"backup_compression": "gzip", "backup_compression_level": 0},
+                [
+                    "backup_compression_level 0 unsupported by pg_basebackup compression gzip"
+                ],
+            ),
+            (
+                {"backup_compression": "gzip", "backup_compression_level": 10},
+                [
+                    "backup_compression_level 10 unsupported by pg_basebackup compression gzip"
+                ],
+            ),
+        ],
+    )
+    def test_validate(self, compression_options, expected_errors):
+        """Verifies supported config options pass validation."""
+        # GIVEN a server with the specified compression options
+        compression_options["backup_method"] = "postgres"
+        server = build_mocked_server(global_conf=compression_options)
+        # AND a GZipPgBaseBackupCompression for that server
+        backup_compression = GZipPgBaseBackupCompression(server.config)
+
+        # WHEN the compression is validated
+        backup_compression.validate(server)
+
+        # THEN if no errors are expected the server is not disabled
+        if len(expected_errors) == 0:
+            assert not server.config.disabled
+            # AND no errors are added to the server's list
+            assert len(server.config.msg_list) == 0
+        # OR the server is disabled
+        else:
+            assert server.config.disabled
+            # AND the expected errors are added to the server's list
+            assert len(server.config.msg_list) == len(expected_errors)
+
+    def test_open(self, tmpdir):
+        """
+        Verifies open returns a readable file-like object when passed a path to
+        a gzip-compressed file.
+        """
+        # GIVEN a server with the specified compression options
+        server = build_mocked_server(
+            global_conf={
+                "backup_method": "postgres",
+                "backup_compression": "gzip",
+            }
+        )
+        # AND a GZipPgBaseBackupCompression for that server
+        backup_compression = GZipPgBaseBackupCompression(server.config)
+        # AND a gzip-compressed file on disk containing specified content
+        file_content = "expected file content".encode("utf-8")
+        file_path = str(tmpdir.join("compressed_file"))
+
+        with gzip.open(".".join((file_path, "gz")), mode="wb") as gz:
+            gz.write(file_content)
+
+        # WHEN open is called on that file
+        with backup_compression.open(file_path) as compressed_file:
+            # THEN a readable stream containing the contents is returned
+            content = compressed_file.read()
+
+        # AND the content matches the expected file content
+        assert content == file_content
+
+    def test_open_not_found(self):
+        """
+        Verifies an exception is thrown if open is called on a file which does
+        not exist.
+        """
+        # GIVEN a server with the specified compression options
+        server = build_mocked_server(
+            global_conf={
+                "backup_method": "postgres",
+                "backup_compression": "gzip",
+            }
+        )
+        # AND a GZipPgBaseBackupCompression for that server
+        backup_compression = GZipPgBaseBackupCompression(server.config)
+        # AND a path which points to nowhere
+        file_path = "/path/to/nowhere/one/would/reasonably/expect"
+
+        # WHEN open is called on that file
+        # THEN an exception is raised
+        with pytest.raises(Exception) as exc:
+            with backup_compression.open(file_path):
+                pass
+
+        # AND the exception message refers to the full path
+        assert ".".join((file_path, "gz")) in str(exc.value)
