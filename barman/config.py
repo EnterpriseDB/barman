@@ -70,6 +70,9 @@ BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync"]
 
 CREATE_SLOT_VALUES = ["manual", "auto"]
 
+# Config values relating to pg_basebackup compression
+BASEBACKUP_COMPRESSIONS = ["gzip"]
+
 
 class CsvOption(set):
 
@@ -287,6 +290,24 @@ def parse_reuse_backup(value):
     )
 
 
+def parse_backup_compression(value):
+    """
+    Parse a string to a valid backup_compression value.
+
+    Valid values are contained in compression.basebackup_compressions list
+
+    :param str value: backup_compression value
+    :raises ValueError: if the value is invalid
+    """
+    if value is None:
+        return None
+    if value.lower() in BASEBACKUP_COMPRESSIONS:
+        return value.lower()
+    raise ValueError(
+        "Invalid value (must be one in: '%s')" % ("', '".join(BASEBACKUP_COMPRESSIONS))
+    )
+
+
 def parse_backup_method(value):
     """
     Parse a string to a valid backup_method value.
@@ -354,6 +375,8 @@ class ServerConfig(object):
         "active",
         "archiver",
         "archiver_batch_size",
+        "backup_compression",
+        "backup_compression_level",
         "backup_directory",
         "backup_method",
         "backup_options",
@@ -423,6 +446,8 @@ class ServerConfig(object):
     BARMAN_KEYS = [
         "archiver",
         "archiver_batch_size",
+        "backup_compression",
+        "backup_compression_level",
         "backup_method",
         "backup_options",
         "bandwidth_limit",
@@ -519,6 +544,8 @@ class ServerConfig(object):
         "active": parse_boolean,
         "archiver": parse_boolean,
         "archiver_batch_size": int,
+        "backup_compression": parse_backup_compression,
+        "backup_compression_level": int,
         "backup_method": parse_backup_method,
         "backup_options": BackupOptions,
         "basebackup_retry_sleep": int,

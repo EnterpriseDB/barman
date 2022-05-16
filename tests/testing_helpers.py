@@ -236,6 +236,8 @@ def build_config_dictionary(config_keys=None):
         "archiver": True,
         "archiver_batch_size": 0,
         "config": None,
+        "backup_compression": None,
+        "backup_compression_level": None,
         "backup_directory": "/some/barman/home/main",
         "backup_options": BackupOptions("", "", ""),
         "bandwidth_limit": None,

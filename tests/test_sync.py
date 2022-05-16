@@ -73,6 +73,7 @@ EXPECTED_MINIMAL = {
             "copy_stats": None,
             "xlog_segment_size": 16777216,
             "systemid": None,
+            "compression": None,
         }
     },
     "config": {},

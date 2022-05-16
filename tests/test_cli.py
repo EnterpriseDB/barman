@@ -560,6 +560,7 @@ class TestCli(object):
             primary_ssh_command=None,
             disabled=False,
             barman_lock_directory="/path/to/lockdir",
+            backup_compression=None,
         )
         server = Server(mock_config)
         mock_server_list = {server_name: server}
