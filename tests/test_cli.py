@@ -959,3 +959,30 @@ class TestBackupCli(object):
         mock_get_server_list.return_value[
             self.test_server_name
         ].backup.assert_not_called()
+
+    @patch("barman.cli.manage_server_command")
+    @patch("barman.cli.get_server_list")
+    def test_compression_level(
+        self, mock_get_server_list, _mock_manage_server_command, mock_args
+    ):
+        """Verify compression level is set on the server"""
+        # GIVEN a server with backup_method = postgres
+        mock_server = MagicMock()
+        mock_server.config.backup_method = "postgres"
+        # mock_server.config.backup_method = "postgres"
+        mock_get_server_list.return_value = {mock_args.server_name: mock_server}
+
+        # WHEN barman backup is called with a supported compression
+        mock_args.compression_type = "gzip"
+        # AND a compression level is specified
+        mock_args.compression_level = 9
+        with pytest.raises(SystemExit) as exc:
+            backup(mock_args)
+
+        # THEN the backup_compression_level server config property is set
+        assert 9 == mock_server.config.backup_compression_level
+
+        # AND the backup method of the server is called
+        mock_get_server_list.return_value[
+            self.test_server_name
+        ].backup.assert_called_once()

@@ -892,6 +892,7 @@ class PgBaseBackup(PostgreSQLClient):
         immediate=False,
         check=True,
         compression=None,
+        compression_level=None,
         args=None,
         **kwargs
     ):
@@ -910,6 +911,7 @@ class PgBaseBackup(PostgreSQLClient):
         :param bool check: check if the return value is in the list of
           allowed values of the Command obj
         :param str compression: the type of compression to use
+        :param int compression_level: the compression level to use
         :param List[str] args: additional arguments
         """
         PostgreSQLClient.__init__(
@@ -955,6 +957,13 @@ class PgBaseBackup(PostgreSQLClient):
             # be used
             self.args.append("--format=tar")
             self.args.append("--%s" % compression)
+        # Allow compression_level to be set even if compression is not in order
+        # to match pg_basebackup behaviour, which will automatically use gzip if
+        # only the level is specified
+        if compression_level is not None:
+            if not compression:
+                self.args.append("--format=tar")
+            self.args.append("--compress=%d" % compression_level)
 
         # Manage additional args
         if args:

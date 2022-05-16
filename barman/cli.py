@@ -433,6 +433,14 @@ def backup_completer(prefix, parsed_args, **kwargs):
             default=None,
             choices=BASEBACKUP_COMPRESSIONS,
         ),
+        argument(
+            "--compression-level",
+            help="the compression level to use when compressing the backup "
+            "(only supported with backup_method = postgres)",
+            dest="compression_level",
+            default=None,
+            type=check_non_negative,
+        ),
     ]
 )
 def backup(args):
@@ -467,6 +475,8 @@ def backup(args):
                 )
                 output.close_and_exit()
             server.config.backup_compression = args.compression_type
+        if args.compression_level is not None:
+            server.config.backup_compression_level = args.compression_level
         with closing(server):
             server.backup(wait=args.wait, wait_timeout=args.wait_timeout)
     output.close_and_exit()
