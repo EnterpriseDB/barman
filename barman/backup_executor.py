@@ -570,6 +570,7 @@ class PostgresBackupExecutor(BackupExecutor):
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
             retry_handler=partial(self._retry_handler, dest_dirs),
+            compression=self.config.backup_compression,
         )
 
         # Do the actual copy

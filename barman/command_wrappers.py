@@ -891,6 +891,7 @@ class PgBaseBackup(PostgreSQLClient):
         tbs_mapping=None,
         immediate=False,
         check=True,
+        compression=None,
         args=None,
         **kwargs
     ):
@@ -908,6 +909,7 @@ class PgBaseBackup(PostgreSQLClient):
         :param bool immediate: fast checkpoint identifier for pg_basebackup
         :param bool check: check if the return value is in the list of
           allowed values of the Command obj
+        :param str compression: the type of compression to use
         :param List[str] args: additional arguments
         """
         PostgreSQLClient.__init__(
@@ -946,6 +948,13 @@ class PgBaseBackup(PostgreSQLClient):
         # Immediate checkpoint
         if immediate:
             self.args.append("--checkpoint=fast")
+
+        # Add any supplied compression arguments
+        if compression is not None:
+            # The tar format is required by pg_basebackup if compression is to
+            # be used
+            self.args.append("--format=tar")
+            self.args.append("--%s" % compression)
 
         # Manage additional args
         if args:
