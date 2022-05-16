@@ -579,6 +579,15 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 self.server, backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
             )
             backup_info.set_attribute("systemid", self.server.systemid)
+            if self.server.config.backup_compression is not None:
+                backup_info.set_attribute(
+                    "compression", self.server.config.backup_compression
+                )
+            elif self.server.config.backup_compression_level is not None:
+                # If no compression is specified but compression level is
+                # set then pg_basebackup will use gzip so we explicitly set
+                # it here.
+                backup_info.set_attribute("compression", "gzip")
             backup_info.save()
             self.backup_cache_add(backup_info)
             output.info(

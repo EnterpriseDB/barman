@@ -27,11 +27,13 @@ through Ssh).
 A BackupExecutor is invoked by the BackupManager for backup operations.
 """
 
+from contextlib import contextmanager
 import datetime
 import logging
 import os
 import re
 import shutil
+from tarfile import TarFile
 from abc import ABCMeta, abstractmethod
 from functools import partial
 
@@ -43,6 +45,7 @@ from barman.command_wrappers import PgBaseBackup
 from barman.config import BackupOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
+    BackupException,
     CommandFailedException,
     DataTransferFailure,
     FsOperationFailed,
@@ -1529,7 +1532,8 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         label_path = os.path.join(backup_info.get_data_directory(), "backup_label")
         output.debug("Reading backup label: %s" % label_path)
         with open(label_path, "r") as f:
-            backup_info.set_attribute("backup_label", f.read())
+            backup_label = f.read()
+        backup_info.set_attribute("backup_label", backup_label)
 
 
 class PostgresBackupStrategy(BackupStrategy):
@@ -1594,6 +1598,54 @@ class PostgresBackupStrategy(BackupStrategy):
         except PostgresIsInRecovery:
             # Skip switching XLOG if a standby server
             pass
+
+    @contextmanager
+    def _get_tar_fileobj(self, backup_info):
+        compressions = {
+            "gzip": "gz",
+        }
+        try:
+            tar_filename = "base.tar.%s" % compressions[backup_info.compression]
+        except KeyError:
+            # Any attempt to use an unsupported compression should be caught in
+            # the CLI argument handling so if we get here it is almost certainly
+            # a bug
+            raise BackupException(
+                "Cannot determine file suffix for %s compressed pg_basebackup"
+                % backup_info.compression
+            )
+
+        tar_path = os.path.join(backup_info.get_data_directory(), tar_filename)
+
+        if backup_info.compression == "gzip":
+            yield open(tar_path, "rb")
+
+    def _read_compressed_backup_label(self, backup_info):
+        """
+        Read the contents of a backup_label file from a compressed archive.
+        """
+        with self._get_tar_fileobj(backup_info) as f:
+            self.tar = TarFile.open(fileobj=f)
+            # Assume backup label is member 0 for now - this may not always
+            # be true so obviously this is hack code which gets replaced
+            backup_label_fileobj = self.tar.extractfile(self.tar.members[0])
+            return backup_label_fileobj.read().decode("utf-8")
+
+    def _read_backup_label(self, backup_info):
+        """
+        Read the backup_label file.
+
+        Transparently handles the fact that the backup_label file may be in a
+        compressed tarball.
+
+        :param barman.infofile.LocalBackupInfo  backup_info: backup information
+        """
+        self.current_action = "reading the backup label"
+        if backup_info.compression is not None:
+            backup_label = self._read_compressed_backup_label(backup_info)
+            backup_info.set_attribute("backup_label", backup_label)
+        else:
+            super(PostgresBackupStrategy, self)._read_backup_label(backup_info)
 
 
 class ExclusiveBackupStrategy(BackupStrategy):
