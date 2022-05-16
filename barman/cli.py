@@ -37,7 +37,11 @@ import barman.config
 import barman.diagnose
 from barman import output
 from barman.annotations import KeepManager
-from barman.config import RecoveryOptions
+from barman.config import (
+    BASEBACKUP_COMPRESSIONS,
+    COMPRESSIBLE_BACKUP_METHODS,
+    RecoveryOptions,
+)
 from barman.exceptions import (
     BadXlogSegmentName,
     RecoveryException,
@@ -421,6 +425,14 @@ def backup_completer(prefix, parsed_args, **kwargs):
             default=None,
             type=check_non_negative,
         ),
+        argument(
+            "--compression",
+            help="the type of compression to apply to the backup "
+            "(only supported with backup_method = postgres)",
+            dest="compression_type",
+            default=None,
+            choices=BASEBACKUP_COMPRESSIONS,
+        ),
     ]
 )
 def backup(args):
@@ -447,6 +459,14 @@ def backup(args):
             server.config.parallel_jobs = args.jobs
         if hasattr(args, "bwlimit"):
             server.config.bandwidth_limit = args.bwlimit
+        if args.compression_type is not None:
+            if server.config.backup_method not in COMPRESSIBLE_BACKUP_METHODS:
+                output.error(
+                    "The compression option is only supported with the following "
+                    "backup methods: %s" % ", ".join(COMPRESSIBLE_BACKUP_METHODS)
+                )
+                output.close_and_exit()
+            server.config.backup_compression = args.compression_type
         with closing(server):
             server.backup(wait=args.wait, wait_timeout=args.wait_timeout)
     output.close_and_exit()

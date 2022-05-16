@@ -29,6 +29,7 @@ from barman import output
 from barman.cli import (
     ArgumentParser,
     argument,
+    backup,
     check_target_action,
     check_wal_archive,
     command,
@@ -894,3 +895,67 @@ class TestShowServersCli(object):
         json_output = json.loads(out)
         assert [self.test_server_name] == list(json_output.keys())
         assert json_output[self.test_server_name]["description"] == expected_description
+
+
+class TestBackupCli(object):
+    """Verify argument handling of the backup command."""
+
+    test_server_name = "test_server"
+
+    @pytest.fixture
+    def mock_args(self):
+        args = Mock()
+        args.server_name = self.test_server_name
+        yield args
+
+    @patch("barman.cli.manage_server_command")
+    @patch("barman.cli.get_server_list")
+    def test_compression_backup_method_postgres(
+        self, mock_get_server_list, _mock_manage_server_command, mock_args
+    ):
+        """Verify compression argument is set on the server"""
+        # GIVEN a server with backup_method = postgres
+        mock_server = MagicMock()
+        mock_server.config.backup_method = "postgres"
+        # mock_server.config.backup_method = "postgres"
+        mock_get_server_list.return_value = {mock_args.server_name: mock_server}
+
+        # WHEN barman backup is called with a supported compression
+        mock_args.compression_type = "gzip"
+        with pytest.raises(SystemExit) as exc:
+            backup(mock_args)
+
+        # THEN the backup_compression server config property is set
+        assert "gzip" == mock_server.config.backup_compression
+
+        # AND the backup method of the server is called
+        mock_get_server_list.return_value[
+            self.test_server_name
+        ].backup.assert_called_once()
+
+    @patch("barman.cli.manage_server_command")
+    @patch("barman.cli.get_server_list")
+    def test_compression_backup_method_rsync(
+        self, mock_get_server_list, _mock_manage_server_command, mock_args, capsys
+    ):
+        # GIVEN a server with backup_method = rsync
+        mock_server = MagicMock()
+        mock_server.config.backup_method = "rsync"
+        mock_get_server_list.return_value = {mock_args.server_name: mock_server}
+
+        # WHEN barman backup is called with a supported compression
+        mock_args.compression_type = "gzip"
+        with pytest.raises(SystemExit) as exc:
+            backup(mock_args)
+
+        # THEN an error message is printed
+        _out, err = capsys.readouterr()
+        assert (
+            "The compression option is only supported with the following "
+            "backup methods: postgres" in err
+        )
+
+        # AND the backup method of the server is not called
+        mock_get_server_list.return_value[
+            self.test_server_name
+        ].backup.assert_not_called()
