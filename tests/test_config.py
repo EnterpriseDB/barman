@@ -26,6 +26,7 @@ from barman.config import (
     BackupOptions,
     Config,
     RecoveryOptions,
+    parse_backup_compression,
     parse_si_suffix,
     parse_slot_name,
     parse_time_interval,
@@ -150,6 +151,8 @@ class TestConfig(object):
         expected = build_config_dictionary(
             {
                 "config": main.config,
+                "backup_compression": None,
+                "backup_compression_level": None,
                 "compression": "gzip",
                 "last_backup_maximum_age": timedelta(1),
                 "last_backup_minimum_size": 1048576,
@@ -176,6 +179,8 @@ class TestConfig(object):
                 "config": web.config,
                 "backup_directory": "/some/barman/home/web",
                 "basebackups_directory": "/some/barman/home/web/base",
+                "backup_compression": None,
+                "backup_compression_level": None,
                 "compression": None,
                 "conninfo": "host=web01 user=postgres port=5432",
                 "description": "Web applications database",
@@ -458,6 +463,26 @@ class TestConfig(object):
 
         with pytest.raises(ValueError):
             parse_slot_name("barman slot name")
+
+    @pytest.mark.parametrize(
+        ("compression", "is_allowed"),
+        (
+            ("gzip", True),
+            ("lz4", False),
+            ("zstd", False),
+            ("lizard", False),
+            ("1", False),
+        ),
+    )
+    def test_parse_backup_compression(self, compression, is_allowed):
+        """
+        Test allowed and disallowed backup_compression values
+        """
+        if is_allowed:
+            assert parse_backup_compression(compression) == compression
+        else:
+            with pytest.raises(ValueError):
+                parse_backup_compression(compression)
 
 
 # noinspection PyMethodMayBeStatic
