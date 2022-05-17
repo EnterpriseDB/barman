@@ -1,0 +1,71 @@
+@startuml
+'https://plantuml.com/class-diagram
+
+class FieldListFile
+class BackupInfo {
+...
+compression
+}
+BackupInfo -up-> FieldListFile
+
+class RecoveryExecutor {
+
+recover()
+}
+
+package "command_wrappers" #DDDDDD {
+  class Command{
+    execute()
+  }
+  class Rsync{
+    from_file_list(self, filelist, src, dst, *args, **kwargs):
+  }
+
+  Rsync -up-> Command
+  RsyncPgData -up-> Rsync
+}
+
+
+
+package "fs" {
+  class UnixLocalCommand{
+    cmd()
+  }
+  class UnixRemoteCommand
+  UnixRemoteCommand -up-> UnixLocalCommand
+  UnixLocalCommand *-left- Command
+}
+
+package "copy_controller" {
+  class RsyncCopyController{
+
+  }
+}
+
+
+'Might be better to use field class (namedtupple one day)'
+abstract class CompressionAlgorithm{
+  name
+  file_extension
+}
+
+class GzipCompressionAlgorithm{
+  name = 'gzip'
+  file_extension = 'gz'
+}
+class ZSTDCompressionAlgorithm
+class LZ4CompressionAlgorithm
+GzipCompressionAlgorithm -up-> CompressionAlgorithm
+ZSTDCompressionAlgorithm -up-> CompressionAlgorithm
+LZ4CompressionAlgorithm -up-> CompressionAlgorithm
+
+
+
+class Compressor {
+  __init(UnixLocalCommand, CompressionAlgorithm)
+  decompress(path, dest, **opts)
+}
+Compressor *-left- CompressionAlgorithm
+Compressor *-down- UnixLocalCommand
+
+@enduml

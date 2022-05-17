@@ -195,6 +195,8 @@ class RecoveryExecutor(object):
         )
 
         # Retrieve the safe_horizon for smart copy
+        # Todo: check that it will not break or intend to restore a backup ...
+        #       it basically should do nothing.
         self._retrieve_safe_horizon(recovery_info, backup_info, dest)
 
         # check destination directory. If doesn't exist create it
@@ -212,6 +214,40 @@ class RecoveryExecutor(object):
         # Copy the base backup
         output.info("Copying the base backup.")
         try:
+            # All this is still work in progress. and need several iterations to get to something realistic
+            # Todo in case of compressed backup
+            if backup_info.compression is not None:
+                # Create a staging directory in PG server (mktmp -d)
+                output.info("Creating tmp dir")
+                tmp_dir_creation_cmd = recovery_info["cmd"].cmd(['mktmp', '-d'])
+                staging_path = tmp_dir_creation_cmd.get_output()
+                # This will copy the compressed backup
+                self._backup_copy(
+                    backup_info,
+                    staging_path,
+                    tablespaces,
+                    remote_command,
+                    recovery_info["safe_horizon"],
+                )
+
+                # Then uncompress
+                # then move to appropriate directory
+                # or uncompress directly to expected directory
+                self._backup_copy_compressed(
+                    backup_info,
+                    dest,
+                    tablespaces,
+                    remote_command,
+                    recovery_info["safe_horizon"],
+                    staging_path
+                )
+                # Copy to pg using rsync?
+
+                # Uncompress
+
+                # _backup_copy from PG server.
+                pass
+            # if no compression, otherwise process as usual
             self._backup_copy(
                 backup_info,
                 dest,
@@ -721,10 +757,10 @@ class RecoveryExecutor(object):
         """
 
         # Set a ':' prefix to remote destinations
-        dest_prefix = ""
-        if remote_command:
-            dest_prefix = ":"
+        # It doesn't feels right to have this kind of feet
+        dest_prefix = ":" if remote_command else ""
 
+        # Todo: in case backup is compressed,
         # Create the copy controller object, specific for rsync,
         # which will drive all the copy operations. Items to be
         # copied are added before executing the copy() method
@@ -802,6 +838,121 @@ class RecoveryExecutor(object):
         except CommandFailedException as e:
             msg = "data transfer failure"
             raise DataTransferFailure.from_command_error("rsync", e, msg)
+
+    def _backup_copy_compressed(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        safe_horizon=None,
+        staging_path=None,
+    ):
+        """
+        Perform the actual copy of the base backup for recovery purposes
+
+        First, it copies one tablespace at a time, then the PGDATA directory.
+
+        Bandwidth limitation, according to configuration, is applied in
+        the process.
+
+        TODO: manage configuration files if outside PGDATA.
+
+        :param barman.infofile.LocalBackupInfo backup_info: the backup
+            to recover
+        :param str dest: the destination directory
+        :param dict[str,str]|None tablespaces: a tablespace
+            name -> location map (for relocation)
+        :param str|None remote_command: default None. The remote command to
+            recover the base backup, in case of remote backup.
+        :param datetime.datetime|None safe_horizon: anything after this time
+            has to be checked with checksum
+        :param str|None staging_path: to be used in a compressed context.
+        """
+
+        # Set a ':' prefix to remote destinations
+        # It doesn't feels right to have this kind of feet
+        dest_prefix = ":" if remote_command else ""
+
+        # Todo: in case backup is compressed,
+        # Create the copy controller object, specific for rsync,
+        # which will drive all the copy operations. Items to be
+        # copied are added before executing the copy() method
+        controller = RsyncCopyController(
+            path=self.server.path,
+            ssh_command=remote_command,
+            network_compression=self.config.network_compression,
+            safe_horizon=safe_horizon,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            workers=self.config.parallel_jobs,
+        )
+
+        # Dictionary for paths to be excluded from rsync
+        exclude_and_protect = []
+
+        # Process every tablespace
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                # By default a tablespace goes in the same location where
+                # it was on the source server when the backup was taken
+                location = tablespace.location
+                # If a relocation has been requested for this tablespace
+                # use the user provided target directory
+                if tablespaces and tablespace.name in tablespaces:
+                    location = tablespaces[tablespace.name]
+
+                # If the tablespace location is inside the data directory,
+                # exclude and protect it from being deleted during
+                # the data directory copy
+                if location.startswith(dest):
+                    exclude_and_protect += [location[len(dest) :]]
+
+                # Exclude and protect the tablespace from being deleted during
+                # the data directory copy
+                exclude_and_protect.append("/pg_tblspc/%s" % tablespace.oid)
+
+                # Add the tablespace directory to the list of objects
+                # to be copied by the controller
+                controller.add_directory(
+                    label=tablespace.name,
+                    src="%s/" % backup_info.get_data_directory(tablespace.oid),
+                    dst=dest_prefix + location,
+                    bwlimit=self.config.get_bwlimit(tablespace),
+                    item_class=controller.TABLESPACE_CLASS,
+                )
+
+        # Add the PGDATA directory to the list of objects to be copied
+        # by the controller
+        controller.add_directory(
+            label="pgdata",
+            src="%s/" % backup_info.get_data_directory(),
+            dst=dest_prefix + dest,
+            bwlimit=self.config.get_bwlimit(),
+            exclude=[
+                "/pg_log/*",
+                "/log/*",
+                "/pg_xlog/*",
+                "/pg_wal/*",
+                "/postmaster.pid",
+                "/recovery.conf",
+                "/tablespace_map",
+            ],
+            exclude_and_protect=exclude_and_protect,
+            item_class=controller.PGDATA_CLASS,
+        )
+
+        # TODO: Manage different location for configuration files
+        # TODO: that were not within the data directory
+
+        # Execute the copy
+        try:
+            controller.copy()
+        # TODO: Improve the exception output
+        except CommandFailedException as e:
+            msg = "data transfer failure"
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
+
 
     def _xlog_copy(self, required_xlog_files, wal_dest, remote_command):
         """

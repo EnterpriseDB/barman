@@ -737,7 +737,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         # Archive every WAL files in the incoming directory of the server
         self.server.archive_wal(verbose=False)
-        # Delegate the recovery operation to a RecoveryExecutor object
+        # Todo Delegate the recovery operation to a RecoveryExecutor object
+        #      add strategy context as parameter there
+        # executor = RecoveryExecutor(self, copy_strategy)
         executor = RecoveryExecutor(self)
 
         # Run the pre_recovery_script if present.

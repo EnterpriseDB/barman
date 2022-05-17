@@ -586,6 +586,17 @@ class Command(object):
         signal.signal(signal_id, _handler)
 
 
+class SSHCommand(Command):
+    """
+    Might be similar to fs.UnixRemoteCommand but with a more specific/simple/generic scope I am hoping it could help
+    SSHCommand should be able to take a Command Object and ssh params to execute it.
+    This way we could create and use Compression commands and either use it with or without SSHCommand
+    """
+
+    def __init__(self):
+        pass
+
+
 class Rsync(Command):
     """
     This class is a wrapper for the rsync system command,
