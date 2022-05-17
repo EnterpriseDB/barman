@@ -1602,10 +1602,7 @@ class PostgresBackupStrategy(BackupStrategy):
 
     @contextmanager
     def _get_tar_fileobj(self, backup_info):
-        compressions = {
-            "gzip": "gz",
-            "lz4": "lz4",
-        }
+        compressions = {"gzip": "gz", "lz4": "lz4", "zstd": "zst"}
         try:
             tar_filename = "base.tar.%s" % compressions[backup_info.compression]
         except KeyError:
@@ -1625,6 +1622,10 @@ class PostgresBackupStrategy(BackupStrategy):
             import lz4.frame
 
             yield lz4.frame.open(tar_path, mode="rb")
+        elif backup_info.compression == "zstd":
+            import pyzstd
+
+            yield pyzstd.open(tar_path, "rb")
 
     def _read_compressed_backup_label(self, backup_info):
         """
