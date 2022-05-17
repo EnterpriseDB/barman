@@ -576,6 +576,7 @@ class PostgresBackupExecutor(BackupExecutor):
             compression=self.config.backup_compression,
             compression_level=self.config.backup_compression_level,
             compression_location=self.config.backup_compression_location,
+            compression_workers=self.config.backup_compression_workers,
         )
 
         # Do the actual copy

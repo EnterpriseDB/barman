@@ -455,6 +455,14 @@ def backup_completer(prefix, parsed_args, **kwargs):
             default=SUPPRESS,
             choices=["client", "server"],
         ),
+        argument(
+            "--compression-workers",
+            help="the number of workers to use when compressing streaming backups "
+            "(only supported with backup_method = postgres)",
+            dest="compression_workers",
+            default=None,
+            type=check_non_negative,
+        ),
     ]
 )
 def backup(args):
@@ -493,6 +501,8 @@ def backup(args):
             server.config.backup_compression_level = args.compression_level
         if hasattr(args, "compression_location"):
             server.config.backup_compression_location = args.compression_location
+        if args.compression_workers is not None:
+            server.config.backup_compression_workers = args.compression_workers
         with closing(server):
             server.backup(wait=args.wait, wait_timeout=args.wait_timeout)
     output.close_and_exit()

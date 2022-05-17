@@ -890,6 +890,7 @@ class PgBaseBackup(PostgreSQLClient):
         compression=None,
         compression_level=None,
         compression_location=None,
+        compression_workers=None,
     ):
         compression_args = []
 
@@ -912,6 +913,8 @@ class PgBaseBackup(PostgreSQLClient):
                 details = []
                 if compression_level:
                     details.append("level=%d" % compression_level)
+                if compression_workers:
+                    details.append("workers=%d" % compression_workers)
                 if details:
                     compress_arg += ":" + ",".join(details)
                 compression_args.append(compress_arg)
@@ -950,6 +953,7 @@ class PgBaseBackup(PostgreSQLClient):
         compression=None,
         compression_level=None,
         compression_location=None,
+        compression_workers=None,
         args=None,
         **kwargs
     ):
@@ -1012,7 +1016,11 @@ class PgBaseBackup(PostgreSQLClient):
         # in another function since they depend on the command version
         self.args.extend(
             self._get_compression_args(
-                version, compression, compression_level, compression_location
+                version,
+                compression,
+                compression_level,
+                compression_location,
+                compression_workers,
             )
         )
 
