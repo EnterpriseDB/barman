@@ -885,7 +885,11 @@ class PgBaseBackup(PostgreSQLClient):
     COMMAND_ALTERNATIVES = ["pg_basebackup"]
 
     def _get_compression_args(
-        self, version=None, compression=None, compression_level=None
+        self,
+        version=None,
+        compression=None,
+        compression_level=None,
+        compression_location=None,
     ):
         compression_args = []
 
@@ -897,9 +901,14 @@ class PgBaseBackup(PostgreSQLClient):
             if version and version >= Version("15"):
                 # Currently we can allow all types of compression with the
                 # pg_basebackup client as only client compression is used.
-                # The server version determines whether we can use server-side
-                # compression however that is not yet supported here.
-                compress_arg = "--compress=%s" % compression
+                compress_arg = "--compress="
+                if compression_location is not None:
+                    # The server version determines whether we can use server-side
+                    # compression. If we don't check it here then pg_basebackup
+                    # will check it and fail reasonably noisily however we could
+                    # check server version here and avoid the pg_basebackup call.
+                    compress_arg += "%s-" % compression_location
+                compress_arg += compression
                 details = []
                 if compression_level:
                     details.append("level=%d" % compression_level)
@@ -940,6 +949,7 @@ class PgBaseBackup(PostgreSQLClient):
         check=True,
         compression=None,
         compression_level=None,
+        compression_location=None,
         args=None,
         **kwargs
     ):
@@ -1001,7 +1011,9 @@ class PgBaseBackup(PostgreSQLClient):
         # Append compression arguments, the exact format of which are determined
         # in another function since they depend on the command version
         self.args.extend(
-            self._get_compression_args(version, compression, compression_level)
+            self._get_compression_args(
+                version, compression, compression_level, compression_location
+            )
         )
 
         # Manage additional args

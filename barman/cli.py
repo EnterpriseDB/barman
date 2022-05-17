@@ -441,6 +441,20 @@ def backup_completer(prefix, parsed_args, **kwargs):
             default=None,
             type=check_non_negative,
         ),
+        argument(
+            "--compression-location",
+            # Until PG 15 is available we do not advertise this option.
+            # Once PG 15 is released the following line can be removed and the
+            # commented out version can be brought in.
+            help=SUPPRESS,
+            # help="whether to compress streaming backups on the client (the "
+            # "Barman server) or the server (the PostgreSQL server) - the default "
+            # "value is `client` and PostgreSQL >= 15 is required for the `server` "
+            # "option (only supported with backup_method = postgres)",
+            dest="compression_location",
+            default=SUPPRESS,
+            choices=["client", "server"],
+        ),
     ]
 )
 def backup(args):
@@ -477,6 +491,8 @@ def backup(args):
             server.config.backup_compression = args.compression_type
         if args.compression_level is not None:
             server.config.backup_compression_level = args.compression_level
+        if hasattr(args, "compression_location"):
+            server.config.backup_compression_location = args.compression_location
         with closing(server):
             server.backup(wait=args.wait, wait_timeout=args.wait_timeout)
     output.close_and_exit()
