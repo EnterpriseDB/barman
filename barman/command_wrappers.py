@@ -36,7 +36,11 @@ import time
 from distutils.version import LooseVersion as Version
 
 import barman.utils
-from barman.exceptions import CommandFailedException, CommandMaxRetryExceeded
+from barman.exceptions import (
+    BackupException,
+    CommandFailedException,
+    CommandMaxRetryExceeded,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -880,6 +884,49 @@ class PgBaseBackup(PostgreSQLClient):
 
     COMMAND_ALTERNATIVES = ["pg_basebackup"]
 
+    def _get_compression_args(
+        self, version=None, compression=None, compression_level=None
+    ):
+        compression_args = []
+
+        # If compression algorithm is specified
+        if compression is not None:
+            # Then we must specify --format=tar
+            compression_args.append("--format=tar")
+            # For clients >= 15 we use the new --compress argument format
+            if version and version >= Version("15"):
+                # Currently we can allow all types of compression with the
+                # pg_basebackup client as only client compression is used.
+                # The server version determines whether we can use server-side
+                # compression however that is not yet supported here.
+                compress_arg = "--compress=%s" % compression
+                details = []
+                if compression_level:
+                    details.append("level=%d" % compression_level)
+                if details:
+                    compress_arg += ":" + ",".join(details)
+                compression_args.append(compress_arg)
+            # For clients below 15 compression we append the compression as an
+            # arg but only if it's gzip, otherwise it's an error
+            else:
+                if compression == "gzip":
+                    compression_args.append("--gzip")
+                    if compression_level:
+                        compression_args.append("--compress=%d" % compression_level)
+                else:
+                    raise BackupException(
+                        "Compression algorithm %s is not supported by pg_basebackup "
+                        "version %s" % (compression, version)
+                    )
+
+        # If no compression algorithm is specified but compression_level is then
+        # we just pass it to the compress argument regardless of the client version
+        elif compression_level is not None:
+            self.args.append("--format=tar")
+            self.args.append("--compress=%d" % compression_level)
+
+        return compression_args
+
     def __init__(
         self,
         connection,
@@ -951,19 +998,11 @@ class PgBaseBackup(PostgreSQLClient):
         if immediate:
             self.args.append("--checkpoint=fast")
 
-        # Add any supplied compression arguments
-        if compression is not None:
-            # The tar format is required by pg_basebackup if compression is to
-            # be used
-            self.args.append("--format=tar")
-            self.args.append("--%s" % compression)
-        # Allow compression_level to be set even if compression is not in order
-        # to match pg_basebackup behaviour, which will automatically use gzip if
-        # only the level is specified
-        if compression_level is not None:
-            if not compression:
-                self.args.append("--format=tar")
-            self.args.append("--compress=%d" % compression_level)
+        # Append compression arguments, the exact format of which are determined
+        # in another function since they depend on the command version
+        self.args.extend(
+            self._get_compression_args(version, compression, compression_level)
+        )
 
         # Manage additional args
         if args:
