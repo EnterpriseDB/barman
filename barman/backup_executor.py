@@ -1603,6 +1603,7 @@ class PostgresBackupStrategy(BackupStrategy):
     def _get_tar_fileobj(self, backup_info):
         compressions = {
             "gzip": "gz",
+            "lz4": "lz4",
         }
         try:
             tar_filename = "base.tar.%s" % compressions[backup_info.compression]
@@ -1619,6 +1620,10 @@ class PostgresBackupStrategy(BackupStrategy):
 
         if backup_info.compression == "gzip":
             yield open(tar_path, "rb")
+        elif backup_info.compression == "lz4":
+            import lz4.frame
+
+            yield lz4.frame.open(tar_path, mode="rb")
 
     def _read_compressed_backup_label(self, backup_info):
         """
