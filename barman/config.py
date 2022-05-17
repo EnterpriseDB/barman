@@ -71,7 +71,7 @@ BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync"]
 CREATE_SLOT_VALUES = ["manual", "auto"]
 
 # Config values relating to pg_basebackup compression
-BASEBACKUP_COMPRESSIONS = ["gzip", "lz4"]
+BASEBACKUP_COMPRESSIONS = ["gzip", "lz4", "zstd"]
 COMPRESSIBLE_BACKUP_METHODS = ["postgres"]
 
 
