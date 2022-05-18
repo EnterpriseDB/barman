@@ -122,7 +122,7 @@ The following Barman features depend on PostgreSQL client binaries:
 * [Streaming backup](#streaming-backup) with `backup_method = postgres` (requires `pg_basebackup`)
 * [Streaming WAL archiving](#wal-streaming) with `streaming_archiver = on` (requires
   `pg_receivewal` or `pg_receivexlog`)
-* [Verifying backups](#verify) with `barman verfy-backup` (requires `pg_verifybackup`)
+* [Verifying backups](#verify) with `barman verify-backup` (requires `pg_verifybackup`)
 
 These binaries are installed with the PostgreSQL client packages and can be
 found in the following locations:
