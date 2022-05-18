@@ -1611,7 +1611,7 @@ class PostgresBackupStrategy(BackupStrategy):
         Read the contents of a backup_label file from a compressed archive.
         """
         tar_path = os.path.join(backup_info.get_data_directory(), "base.tar")
-        with self.compression_manager.compressor.open(tar_path) as f:
+        with self.compression_manager.open(tar_path) as f:
             self.tar = TarFile.open(fileobj=f)
             # Assume backup label is member 0 for now - this may not always
             # be true so obviously this is hack code which gets replaced

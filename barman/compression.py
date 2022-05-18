@@ -416,7 +416,6 @@ class BackupCompressionManager(object):
         # Config has not been overridden with args at this point so just maintain
         # a reference to it
         self.config = config
-        self._compressor = None
 
     @property
     def compression(self):
@@ -427,21 +426,10 @@ class BackupCompressionManager(object):
             # set then pg_basebackup will use gzip
             return "gzip"
 
-    @property
-    def compressor(self):
-        if self._compressor is not None:
-            return self._compressor
-        else:
-            self._compressor = self._create_compressor()
-            return self._compressor
-
-    def _create_compressor(self):
+    @contextmanager
+    def open(self, path):
         try:
-            return {
-                "gzip": BackupCompressorGzip,
-                "lz4": BackupCompressorLz4,
-                "zstd": BackupCompressorZstd,
-            }[self.compression]()
+            suffix = {"gzip": "gz", "lz4": "lz4", "zstd": "zst"}[self.compression]
         except KeyError:
             # Any attempt to use an unsupported compression should be caught in
             # the CLI argument handling so if we get here it is almost certainly
@@ -450,6 +438,17 @@ class BackupCompressionManager(object):
                 "Barman does not support requested pg_basebackup compression: %s"
                 % self.compression
             )
+        full_path = "%s.%s" % (path, suffix)
+        if self.compression == "gzip":
+            yield open(full_path, "rb")
+        elif self.compression == "lz4":
+            import lz4.frame
+
+            yield lz4.frame.open(full_path, mode="rb")
+        elif self.compression == "zst":
+            import pyzstd
+
+            yield pyzstd.open(full_path, "rb")
 
     def get_pg_basebackup_args(
         self,
@@ -499,36 +498,3 @@ class BackupCompressionManager(object):
                     )
 
         return compression_args
-
-
-class BackupCompressor(object):
-    def full_path(self, path):
-        return "%s.%s" % (path, self.ext)
-
-
-class BackupCompressorGzip(BackupCompressor):
-    ext = "gz"
-
-    @contextmanager
-    def open(self, path):
-        yield open(self.full_path(path), "rb")
-
-
-class BackupCompressorLz4(BackupCompressor):
-    ext = "lz4"
-
-    @contextmanager
-    def open(self, path):
-        import lz4.frame
-
-        yield lz4.frame.open(self.full_path(path), mode="rb")
-
-
-class BackupCompressorZstd(BackupCompressor):
-    ext = "zst"
-
-    @contextmanager
-    def open(self, path):
-        import pyzstd
-
-        yield pyzstd.open(self.full_path(path), "rb")
