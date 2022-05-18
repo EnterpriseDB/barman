@@ -402,3 +402,22 @@ compression_registry = {
 
 #: The longest string needed to identify a compression schema
 MAGIC_MAX_LENGTH = max(len(x.MAGIC or "") for x in compression_registry.values())
+
+# Everything above concerns WAL compression.
+# Everything that follows concerns backup compression
+class BackupCompressionManager(object):
+    # Do not inherit for now because we're just a different thing
+    def __init__(self, config):
+        # Config has not been overridden with args at this point so just maintain
+        # a reference to it
+        self.config = config
+
+    @property
+    def compression(self):
+        if self.config.backup_compression is not None:
+            return self.config.backup_compression
+        elif self.config.backup_compression_level is not None:
+            # If no compression is specified but compression level is
+            # set then pg_basebackup will use gzip
+            return "gzip"
+

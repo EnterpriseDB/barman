@@ -38,7 +38,7 @@ from barman.backup_executor import (
     PostgresBackupExecutor,
     RsyncBackupExecutor,
 )
-from barman.compression import CompressionManager
+from barman.compression import BackupCompressionManager, CompressionManager
 from barman.config import BackupOptions
 from barman.exceptions import (
     AbortedRetryHookScript,
@@ -79,6 +79,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         self.config = server.config
         self._backup_cache = None
         self.compression_manager = CompressionManager(self.config, server.path)
+        self.backup_compression_manager = BackupCompressionManager(self.config)
         self.executor = None
         try:
             if server.passive_node:
@@ -579,15 +580,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 self.server, backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
             )
             backup_info.set_attribute("systemid", self.server.systemid)
-            if self.server.config.backup_compression is not None:
-                backup_info.set_attribute(
-                    "compression", self.server.config.backup_compression
-                )
-            elif self.server.config.backup_compression_level is not None:
-                # If no compression is specified but compression level is
-                # set then pg_basebackup will use gzip so we explicitly set
-                # it here.
-                backup_info.set_attribute("compression", "gzip")
+            backup_info.set_attribute(
+                "compression", self.backup_compression_manager.compression
+            )
             backup_info.save()
             self.backup_cache_add(backup_info)
             output.info(
