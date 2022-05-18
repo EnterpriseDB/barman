@@ -28,6 +28,7 @@ import shutil
 import sys
 from abc import ABCMeta, abstractmethod
 from contextlib import closing, contextmanager
+from distutils.version import LooseVersion as Version
 
 import barman.infofile
 from barman.command_wrappers import Command
@@ -449,6 +450,55 @@ class BackupCompressionManager(object):
                 "Barman does not support requested pg_basebackup compression: %s"
                 % self.compression
             )
+
+    def get_pg_basebackup_args(
+        self,
+        version=None,
+    ):
+        compression_args = []
+
+        # If compression algorithm is specified
+        if self.compression is not None:
+            # Then we must specify --format=tar
+            compression_args.append("--format=tar")
+            # For clients >= 15 we use the new --compress argument format
+            if version and version >= Version("15"):
+                # Currently we can allow all types of compression with the
+                # pg_basebackup client as only client compression is used.
+                compress_arg = "--compress="
+                if self.config.backup_compression_location is not None:
+                    # The server version determines whether we can use server-side
+                    # compression. If we don't check it here then pg_basebackup
+                    # will check it and fail reasonably noisily however we could
+                    # check server version here and avoid the pg_basebackup call.
+                    compress_arg += "%s-" % self.config.backup_compression_location
+                compress_arg += self.compression
+                details = []
+                if self.config.backup_compression_level:
+                    details.append("level=%d" % self.config.backup_compression_level)
+                if self.config.backup_compression_workers:
+                    details.append(
+                        "workers=%d" % self.config.backup_compression_workers
+                    )
+                if details:
+                    compress_arg += ":" + ",".join(details)
+                compression_args.append(compress_arg)
+            # For clients below 15 compression we append the compression as an
+            # arg but only if it's gzip, otherwise it's an error
+            else:
+                if self.compression == "gzip":
+                    compression_args.append("--gzip")
+                    if self.config.backup_compression_level:
+                        compression_args.append(
+                            "--compress=%d" % self.config.backup_compression_level
+                        )
+                else:
+                    raise BackupException(
+                        "Compression algorithm %s is not supported by pg_basebackup "
+                        "version %s" % (self.compression, version)
+                    )
+
+        return compression_args
 
 
 class BackupCompressor(object):
