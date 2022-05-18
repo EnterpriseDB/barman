@@ -236,7 +236,11 @@ class PostgresBackupExecutor(BackupExecutor):
         """
         super(PostgresBackupExecutor, self).__init__(backup_manager, "postgres")
         self.validate_configuration()
-        self.strategy = PostgresBackupStrategy(self.server.postgres, self.config.name)
+        self.strategy = PostgresBackupStrategy(
+            self.server.postgres,
+            self.config.name,
+            backup_manager.backup_compression_manager,
+        )
 
     def validate_configuration(self):
         """
@@ -1547,6 +1551,10 @@ class PostgresBackupStrategy(BackupStrategy):
     using pg_basebackup.
     """
 
+    def __init__(self, postgres, server_name, compression_manager):
+        super(PostgresBackupStrategy, self).__init__(postgres, server_name)
+        self.compression_manager = compression_manager
+
     def check(self, check_strategy):
         """
         Perform additional checks for the Postgres backup strategy
@@ -1601,38 +1609,12 @@ class PostgresBackupStrategy(BackupStrategy):
             # Skip switching XLOG if a standby server
             pass
 
-    @contextmanager
-    def _get_tar_fileobj(self, backup_info):
-        compressions = {"gzip": "gz", "lz4": "lz4", "zstd": "zst"}
-        try:
-            tar_filename = "base.tar.%s" % compressions[backup_info.compression]
-        except KeyError:
-            # Any attempt to use an unsupported compression should be caught in
-            # the CLI argument handling so if we get here it is almost certainly
-            # a bug
-            raise BackupException(
-                "Cannot determine file suffix for %s compressed pg_basebackup"
-                % backup_info.compression
-            )
-
-        tar_path = os.path.join(backup_info.get_data_directory(), tar_filename)
-
-        if backup_info.compression == "gzip":
-            yield open(tar_path, "rb")
-        elif backup_info.compression == "lz4":
-            import lz4.frame
-
-            yield lz4.frame.open(tar_path, mode="rb")
-        elif backup_info.compression == "zstd":
-            import pyzstd
-
-            yield pyzstd.open(tar_path, "rb")
-
     def _read_compressed_backup_label(self, backup_info):
         """
         Read the contents of a backup_label file from a compressed archive.
         """
-        with self._get_tar_fileobj(backup_info) as f:
+        tar_path = os.path.join(backup_info.get_data_directory(), "base.tar")
+        with self.compression_manager.compressor.open(tar_path) as f:
             self.tar = TarFile.open(fileobj=f)
             # Assume backup label is member 0 for now - this may not always
             # be true so obviously this is hack code which gets replaced

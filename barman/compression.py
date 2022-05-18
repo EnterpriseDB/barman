@@ -27,11 +27,15 @@ import logging
 import shutil
 import sys
 from abc import ABCMeta, abstractmethod
-from contextlib import closing
+from contextlib import closing, contextmanager
 
 import barman.infofile
 from barman.command_wrappers import Command
-from barman.exceptions import CommandFailedException, CompressionIncompatibility
+from barman.exceptions import (
+    BackupException,
+    CommandFailedException,
+    CompressionIncompatibility,
+)
 from barman.utils import force_str, with_metaclass
 
 _logger = logging.getLogger(__name__)
@@ -411,6 +415,7 @@ class BackupCompressionManager(object):
         # Config has not been overridden with args at this point so just maintain
         # a reference to it
         self.config = config
+        self._compressor = None
 
     @property
     def compression(self):
@@ -421,3 +426,59 @@ class BackupCompressionManager(object):
             # set then pg_basebackup will use gzip
             return "gzip"
 
+    @property
+    def compressor(self):
+        if self._compressor is not None:
+            return self._compressor
+        else:
+            self._compressor = self._create_compressor()
+            return self._compressor
+
+    def _create_compressor(self):
+        try:
+            return {
+                "gzip": BackupCompressorGzip,
+                "lz4": BackupCompressorLz4,
+                "zstd": BackupCompressorZstd,
+            }[self.compression]()
+        except KeyError:
+            # Any attempt to use an unsupported compression should be caught in
+            # the CLI argument handling so if we get here it is almost certainly
+            # a bug
+            raise BackupException(
+                "Barman does not support requested pg_basebackup compression: %s"
+                % self.compression
+            )
+
+
+class BackupCompressor(object):
+    def full_path(self, path):
+        return "%s.%s" % (path, self.ext)
+
+
+class BackupCompressorGzip(BackupCompressor):
+    ext = "gz"
+
+    @contextmanager
+    def open(self, path):
+        yield open(self.full_path(path), "rb")
+
+
+class BackupCompressorLz4(BackupCompressor):
+    ext = "lz4"
+
+    @contextmanager
+    def open(self, path):
+        import lz4.frame
+
+        yield lz4.frame.open(self.full_path(path), mode="rb")
+
+
+class BackupCompressorZstd(BackupCompressor):
+    ext = "zst"
+
+    @contextmanager
+    def open(self, path):
+        import pyzstd
+
+        yield pyzstd.open(self.full_path(path), "rb")
