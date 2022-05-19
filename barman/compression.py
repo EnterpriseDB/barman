@@ -27,6 +27,7 @@ import logging
 import shutil
 from abc import ABCMeta, abstractmethod, abstractproperty
 from contextlib import closing, contextmanager
+from distutils.version import LooseVersion as Version
 
 import barman.infofile
 from barman.command_wrappers import Command
@@ -432,6 +433,7 @@ class PgBaseBackupCompression(with_metaclass(ABCMeta, object)):
         """
         self.type = config.backup_compression
         self.level = config.backup_compression_level
+        self.location = self.config.backup_compression_location
 
     @abstractproperty
     def suffix(self):
@@ -456,14 +458,29 @@ class PgBaseBackupCompression(with_metaclass(ABCMeta, object)):
           file to be opened.
         """
 
-    def validate(self, server):
+    def validate(self, server, remote_status):
         """
         Validate pg_basebackup compression options.
 
         :param barman.server.Server server: the server for which the
           compression options should be validated.
+        :param dict remote_status: the status of the pg_basebackup command
         """
-        pass
+        if self.location is not None and self.location == "server":
+            # "backup_location = server" requires pg_basebackup >= 15
+            if remote_status["pg_basebackup_version"] < Version("15"):
+                server.config.disabled = True
+                server.config.msg_list.append(
+                    "backup_compression_location = server requires "
+                    "pg_basebackup 15 or greater"
+                )
+            # "backup_location = server" requires PostgreSQL >= 15
+            if server.postgres.server_version < 150000:
+                server.config.disabled = True
+                server.config.msg_list.append(
+                    "backup_compression_location = server requires "
+                    "PostgreSQL 15 or greater"
+                )
 
 
 class GZipPgBaseBackupCompression(PgBaseBackupCompression):
@@ -479,14 +496,15 @@ class GZipPgBaseBackupCompression(PgBaseBackupCompression):
         """
         yield gzip.open(self.with_suffix(basename), "rb")
 
-    def validate(self, server):
+    def validate(self, server, remote_status):
         """
         Validate gzip-specific options.
 
         :param barman.server.Server server: the server for which the
           compression options should be validated.
+        :param dict remote_status: the status of the pg_basebackup command
         """
-        super(GZipPgBaseBackupCompression, self).validate(server)
+        super(GZipPgBaseBackupCompression, self).validate(server, remote_status)
         if self.level is not None and (self.level < 1 or self.level > 9):
             server.config.disabled = True
             server.config.msg_list.append(

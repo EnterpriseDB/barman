@@ -428,10 +428,71 @@ class TestPgBaseBackupCompression(object):
         # THEN with_suffix appends the suffix
         assert basic_compression.with_suffix("append_to_this") == "append_to_this.basic"
 
-    def test_validate(self):
+    @pytest.mark.parametrize(
+        ("client_version", "server_version", "compression_options", "expected_errors"),
+        [
+            # For pg_basebackup < 15 backup_location = client is allowed for any server
+            # version because it is the only option supported by the client
+            (
+                "14",
+                140000,
+                {"backup_compression": "gzip", "backup_compression_location": "client"},
+                [],
+            ),
+            (
+                "14",
+                150000,
+                {"backup_compression": "gzip", "backup_compression_location": "client"},
+                [],
+            ),
+            # backup_location = server is not allowed for pg_basebackup < 15 regardless
+            # of server version
+            (
+                "14",
+                140000,
+                {"backup_compression": "gzip", "backup_compression_location": "server"},
+                [
+                    "backup_compression_location = server requires pg_basebackup 15 or greater",
+                    "backup_compression_location = server requires PostgreSQL 15 or greater",
+                ],
+            ),
+            (
+                "14",
+                150000,
+                {"backup_compression": "gzip", "backup_compression_location": "server"},
+                [
+                    "backup_compression_location = server requires pg_basebackup 15 or greater",
+                ],
+            ),
+            # For pg_basebackup >= 15 and PG < 15, backup_location = client is allowed
+            # implicitly because it is the only available option supported by the server
+            (
+                "15",
+                140000,
+                {"backup_compression": "gzip", "backup_compression_location": "client"},
+                [],
+            ),
+            # For pg_basebackup >= 15 and PG >= 15, both client and server are allowed
+            # because they are both supported on the client and the server
+            (
+                "15",
+                150000,
+                {"backup_compression": "gzip", "backup_compression_location": "client"},
+                [],
+            ),
+            (
+                "15",
+                150000,
+                {"backup_compression": "gzip", "backup_compression_location": "server"},
+                [],
+            ),
+        ],
+    )
+    def test_validate(
+        self, client_version, server_version, compression_options, expected_errors
+    ):
         """
         Verifies PgBaseBackupCompression.validate behaviour.
-        Currently this will always pass because there is no general validation.
         """
         # GIVEN a concrete PgBaseBackupCompression which defines its suffix
         class BasicPgBaseBackupCompression(PgBaseBackupCompression):
@@ -440,20 +501,31 @@ class TestPgBaseBackupCompression(object):
             def open(self, _base):
                 pass
 
-        basic_compression = BasicPgBaseBackupCompression(mock.Mock())
         # AND a server with compression enabled
-        server = build_mocked_server(
-            global_conf={"backup_method": "postgres", "backup_compression": "gzip"}
-        )
+        server_options = {"backup_method": "postgres"}
+        server_options.update(compression_options)
+        server = build_mocked_server(global_conf=server_options)
+        # AND the server is of the specified version
+        server.postgres.server_version = server_version
+        # AND the remote status reports the pg_basebackup version
+        remote_status = {"pg_basebackup_version": client_version}
+        # AND the PgBaseBackupCompression is created from the server config
+        basic_compression = BasicPgBaseBackupCompression(server.config)
 
         # WHEN validate is called
-        basic_compression.validate(server)
+        basic_compression.validate(server, remote_status)
 
-        # THEN the server is not disabled
-        assert not server.config.disabled
-
-        # AND no errors are added to the server's list
-        assert len(server.config.msg_list) == 0
+        # THEN if no errors are expected, the server is not disabled
+        if len(expected_errors) == 0:
+            assert not server.config.disabled
+            # AND there are no messages in the msg_list
+            assert len(server.config.msg_list) == 0
+        # OR if errors are expected, the server is disabled
+        else:
+            assert server.config.disabled
+            # AND the expected errors are in the server's list
+            assert len(server.config.msg_list) == len(expected_errors)
+            assert sorted(server.config.msg_list) == sorted(expected_errors)
 
 
 class TestGZipPgBaseBackupCompression(object):
@@ -487,9 +559,11 @@ class TestGZipPgBaseBackupCompression(object):
         server = build_mocked_server(global_conf=compression_options)
         # AND a GZipPgBaseBackupCompression for that server
         backup_compression = GZipPgBaseBackupCompression(server.config)
+        # AND a remote_status object
+        remote_status = mock.Mock()
 
         # WHEN the compression is validated
-        backup_compression.validate(server)
+        backup_compression.validate(server, remote_status)
 
         # THEN if no errors are expected the server is not disabled
         if len(expected_errors) == 0:

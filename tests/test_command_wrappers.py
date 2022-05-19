@@ -1253,7 +1253,7 @@ class TestPgBaseBackup(object):
             # --compress=gzip and --format=tar arguments.
             # We do not expect the PG<15 --gzip style option.
             (
-                mock.Mock(type="gzip", level=None),
+                mock.Mock(type="gzip", level=None, location=None),
                 ["--compress=gzip", "--format=tar"],
                 ["--gzip"],
             ),
@@ -1261,8 +1261,20 @@ class TestPgBaseBackup(object):
             # --compress=gzip:level=5 and --format=tar arguments.
             # We do not expect the PG<15 --gzip style option.
             (
-                mock.Mock(type="gzip", level=5),
+                mock.Mock(type="gzip", level=5, location=None),
                 ["--compress=gzip:level=5", "--format=tar"],
+                ["--gzip"],
+            ),
+            # If compression location is specified we expect to see it
+            # prefixing the compression algorithm.
+            (
+                mock.Mock(type="gzip", level=5, location="client"),
+                ["--compress=client-gzip:level=5", "--format=tar"],
+                ["--gzip"],
+            ),
+            (
+                mock.Mock(type="gzip", level=5, location="server"),
+                ["--compress=server-gzip:level=5", "--format=tar"],
                 ["--gzip"],
             ),
         ],
