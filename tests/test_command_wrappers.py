@@ -1244,6 +1244,56 @@ class TestPgBaseBackup(object):
         for expected_arg in unexpected_args:
             assert not any(expected_arg == arg.split("=")[0] for arg in cmd.args)
 
+    @pytest.mark.parametrize(
+        ("compression", "expected_args", "unexpected_args"),
+        [
+            # If no compression is provided then no compression args are expected
+            (None, [], ["--gzip", "--compress", "--format"]),
+            # If gzip compression is provided with no level then we expect
+            # --compress=gzip and --format=tar arguments.
+            # We do not expect the PG<15 --gzip style option.
+            (
+                mock.Mock(type="gzip", level=None),
+                ["--compress=gzip", "--format=tar"],
+                ["--gzip"],
+            ),
+            # If gzip compression is provided with level then we expect
+            # --compress=gzip:level=5 and --format=tar arguments.
+            # We do not expect the PG<15 --gzip style option.
+            (
+                mock.Mock(type="gzip", level=5),
+                ["--compress=gzip:level=5", "--format=tar"],
+                ["--gzip"],
+            ),
+        ],
+    )
+    def test_compression_gzip_version_gte_15(
+        self, compression, expected_args, unexpected_args
+    ):
+        """
+        Verifies the expected pg_basebackup options are added for pg_basebackup>=15.
+        """
+        connection_mock = mock.MagicMock()
+        connection_mock.get_connection_string.return_value = "fake_connstring"
+
+        # GIVEN a PgBaseBackup command initialised with the specified compression
+        # WHEN the wrapper is instantiated
+        cmd = command_wrappers.PgBaseBackup(
+            destination="/fake/target",
+            command=self.pg_basebackup_path,
+            connection=connection_mock,
+            version="15",
+            app_name="test_app_name",
+            compression=compression,
+        )
+
+        # THEN all expected arguments are present
+        assert all(arg in cmd.args for arg in expected_args)
+
+        # AND no unexpected arguments are preset
+        for expected_arg in unexpected_args:
+            assert not any(expected_arg == arg.split("=")[0] for arg in cmd.args)
+
 
 # noinspection PyMethodMayBeStatic
 class TestReceiveXlog(object):
