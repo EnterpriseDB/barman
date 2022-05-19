@@ -976,6 +976,8 @@ class PgBaseBackup(PostgreSQLClient):
             # For clients >= 15 we use the new --compress argument format
             if version and version >= Version("15"):
                 compress_arg = "--compress="
+                if compression.location is not None:
+                    compress_arg += "%s-" % compression.location
                 compress_arg += compression.type
                 if compression.level:
                     compress_arg += ":level=%d" % compression.level
