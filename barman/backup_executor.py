@@ -295,6 +295,7 @@ class PostgresBackupExecutor(BackupExecutor):
                 "postgres backup_method"
             )
 
+        remote_status = None
         # bandwidth_limit option is supported by pg_basebackup executable
         # starting from Postgres 9.4
         if self.server.config.bandwidth_limit:
@@ -315,7 +316,9 @@ class PostgresBackupExecutor(BackupExecutor):
 
         # validate compression options
         if self.backup_compression:
-            self.backup_compression.validate(self.server)
+            if remote_status is None:
+                remote_status = self.fetch_remote_status()
+            self.backup_compression.validate(self.server, remote_status)
 
     def backup(self, backup_info):
         """

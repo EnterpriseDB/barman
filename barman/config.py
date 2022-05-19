@@ -307,6 +307,21 @@ def parse_backup_compression(value):
         "Invalid value (must be one in: '%s')" % ("', '".join(BASEBACKUP_COMPRESSIONS))
     )
 
+def parse_backup_compression_location(value):
+    """
+    Parse a string to a valid backup_compression location value.
+
+    Valid values are "client" and "server"
+
+    :param str value: backup_compression_location value
+    :raises ValueError: if the value is invalid
+    """
+    if value is None:
+        return None
+    if value.lower() in ("client", "server"):
+        return value.lower()
+    raise ValueError("Invalid value (must be either `client` or `server`)")
+
 
 def parse_backup_method(value):
     """
@@ -377,6 +392,7 @@ class ServerConfig(object):
         "archiver_batch_size",
         "backup_compression",
         "backup_compression_level",
+        "backup_compression_location",
         "backup_directory",
         "backup_method",
         "backup_options",
@@ -448,6 +464,7 @@ class ServerConfig(object):
         "archiver_batch_size",
         "backup_compression",
         "backup_compression_level",
+        "backup_compression_location",
         "backup_method",
         "backup_options",
         "bandwidth_limit",
@@ -508,6 +525,7 @@ class ServerConfig(object):
         "active": "true",
         "archiver": "off",
         "archiver_batch_size": "0",
+        "backup_compression_location": "client",
         "backup_directory": "%(barman_home)s/%(name)s",
         "backup_method": "rsync",
         "backup_options": "",
@@ -546,6 +564,7 @@ class ServerConfig(object):
         "archiver_batch_size": int,
         "backup_compression": parse_backup_compression,
         "backup_compression_level": int,
+        "backup_compression_location": parse_backup_compression_location,
         "backup_method": parse_backup_method,
         "backup_options": BackupOptions,
         "basebackup_retry_sleep": int,
