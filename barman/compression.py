@@ -432,8 +432,9 @@ class PgBaseBackupCompression(with_metaclass(ABCMeta, object)):
         :param barman.config.ServerConfig config: the server configuration
         """
         self.type = config.backup_compression
+        self.format = config.backup_compression_format
         self.level = config.backup_compression_level
-        self.location = self.config.backup_compression_location
+        self.location = config.backup_compression_location
 
     @abstractproperty
     def suffix(self):
@@ -481,6 +482,14 @@ class PgBaseBackupCompression(with_metaclass(ABCMeta, object)):
                     "backup_compression_location = server requires "
                     "PostgreSQL 15 or greater"
                 )
+
+        # plain backup format is only allowed when compression is on the server
+        if self.format == "plain" and self.location != "server":
+            server.config.disabled = True
+            server.config.msg_list.append(
+                "backup_compression_format plain is not compatible with "
+                "backup_compression_location %s" % self.location
+            )
 
 
 class GZipPgBaseBackupCompression(PgBaseBackupCompression):

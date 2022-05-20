@@ -486,6 +486,52 @@ class TestPgBaseBackupCompression(object):
                 {"backup_compression": "gzip", "backup_compression_location": "server"},
                 [],
             ),
+            # backup_compression_format = tar is allowed regardless of compression location
+            (
+                "15",
+                150000,
+                {
+                    "backup_compression": "gzip",
+                    "backup_compression_location": "client",
+                    "backup_compression_format": "tar",
+                },
+                [],
+            ),
+            (
+                "15",
+                150000,
+                {
+                    "backup_compression": "gzip",
+                    "backup_compression_location": "server",
+                    "backup_compression_format": "tar",
+                },
+                [],
+            ),
+            # backup_compression_format = plain is allowed if compression location = server
+            (
+                "15",
+                150000,
+                {
+                    "backup_compression": "gzip",
+                    "backup_compression_location": "server",
+                    "backup_compression_format": "plain",
+                },
+                [],
+            ),
+            # backup_compression_format = plain is not allowed if compression is
+            # performed on the client
+            (
+                "15",
+                150000,
+                {
+                    "backup_compression": "gzip",
+                    "backup_compression_location": "client",
+                    "backup_compression_format": "plain",
+                },
+                [
+                    "backup_compression_format plain is not compatible with backup_compression_location client"
+                ],
+            ),
         ],
     )
     def test_validate(

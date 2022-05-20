@@ -27,6 +27,7 @@ from barman.config import (
     Config,
     RecoveryOptions,
     parse_backup_compression,
+    parse_backup_compression_format,
     parse_backup_compression_location,
     parse_si_suffix,
     parse_slot_name,
@@ -153,6 +154,7 @@ class TestConfig(object):
             {
                 "config": main.config,
                 "backup_compression": None,
+                "backup_compression_format": "tar",
                 "backup_compression_level": None,
                 "backup_compression_location": "client",
                 "compression": "gzip",
@@ -182,6 +184,7 @@ class TestConfig(object):
                 "backup_directory": "/some/barman/home/web",
                 "basebackups_directory": "/some/barman/home/web/base",
                 "backup_compression": None,
+                "backup_compression_format": "tar",
                 "backup_compression_level": None,
                 "backup_compression_location": "client",
                 "compression": None,
@@ -505,6 +508,25 @@ class TestConfig(object):
         else:
             with pytest.raises(ValueError):
                 parse_backup_compression(location)
+
+    @pytest.mark.parametrize(
+        ("format", "is_allowed"),
+        (
+            ("tar", True),
+            ("plain", True),
+            ("lizard", False),
+            ("1", False),
+        ),
+    )
+    def test_parse_backup_compression_format(self, format, is_allowed):
+        """
+        Test allowed and disallowed backup_compression_format values
+        """
+        if is_allowed:
+            assert parse_backup_compression_format(format) == format
+        else:
+            with pytest.raises(ValueError):
+                parse_backup_compression(format)
 
 
 # noinspection PyMethodMayBeStatic
