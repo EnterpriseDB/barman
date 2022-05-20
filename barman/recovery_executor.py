@@ -219,7 +219,7 @@ class RecoveryExecutor(object):
             if backup_info.compression is not None:
                 # Create a staging directory in PG server (mktmp -d)
                 output.info("Creating tmp dir")
-                tmp_dir_creation_cmd = recovery_info["cmd"].cmd(['mktmp', '-d'])
+                tmp_dir_creation_cmd = recovery_info["cmd"].cmd(["mktmp", "-d"])
                 staging_path = tmp_dir_creation_cmd.get_output()
                 # This will copy the compressed backup
                 self._backup_copy(
@@ -239,7 +239,7 @@ class RecoveryExecutor(object):
                     tablespaces,
                     remote_command,
                     recovery_info["safe_horizon"],
-                    staging_path
+                    staging_path,
                 )
                 # Copy to pg using rsync?
 
@@ -952,7 +952,6 @@ class RecoveryExecutor(object):
         except CommandFailedException as e:
             msg = "data transfer failure"
             raise DataTransferFailure.from_command_error("rsync", e, msg)
-
 
     def _xlog_copy(self, required_xlog_files, wal_dest, remote_command):
         """
