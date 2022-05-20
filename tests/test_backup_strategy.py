@@ -51,8 +51,13 @@ class TestPostgresBackupStrategy(object):
     """
 
     @pytest.mark.parametrize(
-        "compression",
-        (None, "gzip"),
+        ("compression", "format", "should_set_backup_info"),
+        [
+            (None, "tar", False),
+            (None, "plain", False),
+            ("gzip", "tar", True),
+            ("gzip", "plain", False),
+        ],
     )
     @mock.patch("barman.backup_executor.PostgresBackupStrategy._read_backup_label")
     @mock.patch(
@@ -67,16 +72,19 @@ class TestPostgresBackupStrategy(object):
         _mock_backup_info_from_backup_label,
         _mock_read_backup_label,
         compression,
+        format,
+        should_set_backup_info,
     ):
         """
-        Verifies that the compression is set in backup_info when stopping the
-        backup.
+        Verifies that the compression is set appropriately in backup_info when
+        stopping the backup for the given compression and format.
         """
         # GIVEN a server comfigured for pg_basebackup compression
         server = build_mocked_server(
             global_conf={
                 "backup_method": "postgres",
                 "backup_compression": compression,
+                "backup_compression_format": format,
             }
         )
         # AND a PgBaseBackupCompression for the configured compression
@@ -96,8 +104,14 @@ class TestPostgresBackupStrategy(object):
         strategy.stop_backup(backup_info)
 
         # THEN the compression field of the BackupInfo is set to the
-        # expected compression
-        assert backup_info.compression == compression
+        # expected compression *if* the compression/format combination
+        # is gzip/tar
+        if should_set_backup_info:
+            assert backup_info.compression == compression
+        # OR compression/format is any other combination, compression
+        # field should not be set
+        else:
+            assert backup_info.compression is None
 
     @pytest.mark.parametrize(
         "archive_content",
