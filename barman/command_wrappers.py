@@ -971,8 +971,11 @@ class PgBaseBackup(PostgreSQLClient):
         compression_args = []
 
         if compression is not None:
-            # Format is always tar until client/server compression is supported
-            compression_args.append("--format=tar")
+            if compression.format is not None:
+                compression_format = compression.format
+            else:
+                compression_format = "tar"
+            compression_args.append("--format=%s" % compression_format)
             # For clients >= 15 we use the new --compress argument format
             if version and version >= Version("15"):
                 compress_arg = "--compress="

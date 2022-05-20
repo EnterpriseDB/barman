@@ -1203,14 +1203,14 @@ class TestPgBaseBackup(object):
             # If gzip compression is provided with no level then we expect only
             # the --gzip and --format=tar arguments
             (
-                mock.Mock(type="gzip", level=None),
+                mock.Mock(type="gzip", format=None, level=None),
                 ["--gzip", "--format=tar"],
                 ["--compress"],
             ),
             # If gzip compression is provided with level then we expect the --gzip,
             # --format=tar and --compress=level arguments
             (
-                mock.Mock(type="gzip", level=5),
+                mock.Mock(type="gzip", format=None, level=5),
                 ["--gzip", "--format=tar", "--compress=5"],
                 [],
             ),
@@ -1253,7 +1253,7 @@ class TestPgBaseBackup(object):
             # --compress=gzip and --format=tar arguments.
             # We do not expect the PG<15 --gzip style option.
             (
-                mock.Mock(type="gzip", level=None, location=None),
+                mock.Mock(type="gzip", format=None, level=None, location=None),
                 ["--compress=gzip", "--format=tar"],
                 ["--gzip"],
             ),
@@ -1261,20 +1261,32 @@ class TestPgBaseBackup(object):
             # --compress=gzip:level=5 and --format=tar arguments.
             # We do not expect the PG<15 --gzip style option.
             (
-                mock.Mock(type="gzip", level=5, location=None),
+                mock.Mock(type="gzip", format=None, level=5, location=None),
                 ["--compress=gzip:level=5", "--format=tar"],
                 ["--gzip"],
             ),
             # If compression location is specified we expect to see it
             # prefixing the compression algorithm.
             (
-                mock.Mock(type="gzip", level=5, location="client"),
+                mock.Mock(type="gzip", format=None, level=5, location="client"),
                 ["--compress=client-gzip:level=5", "--format=tar"],
                 ["--gzip"],
             ),
             (
-                mock.Mock(type="gzip", level=5, location="server"),
+                mock.Mock(type="gzip", format=None, level=5, location="server"),
                 ["--compress=server-gzip:level=5", "--format=tar"],
+                ["--gzip"],
+            ),
+            # If compression format is specified it should be used as the --format
+            # value
+            (
+                mock.Mock(type="gzip", format="tar", level=None, location="server"),
+                ["--compress=server-gzip", "--format=tar"],
+                ["--gzip"],
+            ),
+            (
+                mock.Mock(type="gzip", format="plain", level=None, location="server"),
+                ["--compress=server-gzip", "--format=plain"],
                 ["--gzip"],
             ),
         ],
