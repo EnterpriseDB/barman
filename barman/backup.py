@@ -50,7 +50,7 @@ from barman.exceptions import (
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
 from barman.lockfile import ServerBackupSyncLock
-from barman.recovery_executor import RecoveryExecutor
+from barman.recovery_executor import RecoveryExecutor, TarballRecoveryExecutor
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (
     force_str,
@@ -729,7 +729,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Archive every WAL files in the incoming directory of the server
         self.server.archive_wal(verbose=False)
         # Delegate the recovery operation to a RecoveryExecutor object
-        executor = RecoveryExecutor(self)
+        executor = TarballRecoveryExecutor(self)
 
         # Run the pre_recovery_script if present.
         script = HookScriptRunner(self, "recovery_script", "pre")
