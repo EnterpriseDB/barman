@@ -218,6 +218,7 @@ class RecoveryExecutor(object):
                 tablespaces,
                 remote_command,
                 recovery_info["safe_horizon"],
+                recovery_info["cmd"],
             )
         except DataTransferFailure as e:
             output.error("Failure copying base backup: %s", e)
@@ -698,6 +699,9 @@ class RecoveryExecutor(object):
         tablespaces=None,
         remote_command=None,
         safe_horizon=None,
+        # This does nothing here but the TarballRecoveryExecutor needs it so
+        # for this wip draft we just add it here as well
+        cmd=None,
     ):
         """
         Perform the actual copy of the base backup for recovery purposes
@@ -1336,3 +1340,106 @@ class RecoveryExecutor(object):
                     )
 
         return clashes
+
+
+class TarballRecoveryExecutor(RecoveryExecutor):
+    """
+    A specialised recovery method for compressed backups.
+    Inheritence is not necessarily the best thing here since the two RecoveryExecutor
+    classes only differ by this one method, and the same will be true for future
+    RecoveryExecutors (i.e. ones which handle encryption).
+    Nevertheless for a wip "make it work" effort this will do.
+    """
+
+    def _backup_copy(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        safe_horizon=None,
+        cmd=None,
+    ):
+        # Set a ':' prefix to remote destinations
+        dest_prefix = ""
+        if remote_command:
+            dest_prefix = ":"
+
+        # Instead of adding the `data` directory and `tablespaces` to a copy
+        # controller we instead want to copy just the tarballs to a staging
+        # location via the copy controller and then untar into place.
+
+        # Create the staging area
+        staging_dir = "/tmp/.barman-staging-{backup_id}".format(
+            backup_id=backup_info.backup_id
+        )
+        cmd.create_dir_if_not_exists(staging_dir)
+
+        # Create the copy controller object, specific for rsync.
+        # Network compression is always disabled because we are copying
+        # data which has already been compressed.
+        controller = RsyncCopyController(
+            path=self.server.path,
+            ssh_command=remote_command,
+            network_compression=False,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            workers=self.config.parallel_jobs,
+        )
+
+        # We'd want to read the compression type from the backup.info but
+        # we'll just assume gzip for now
+        compression_type = "gzip"
+        compression_ext = ".tar.gz"
+
+        # Add the tarballs to the controller
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                tablespace_file = "%s%s" % (tablespace.oid, compression_ext)
+                tablespace_path = "%s/%s" % (
+                    backup_info.get_data_directory(),
+                    tablespace_file,
+                )
+                controller.add_file(
+                    label=tablespace.name,
+                    src=tablespace_path,
+                    dst="%s/%s" % (dest_prefix + staging_dir, tablespace_file),
+                    item_class=controller.TABLESPACE_CLASS,
+                )
+        base_file = "base%s" % compression_ext
+        base_path = "%s/%s" % (
+            backup_info.get_data_directory(),
+            base_file,
+        )
+        controller.add_file(
+            label="pgdata",
+            src=base_path,
+            dst="%s/%s" % (dest_prefix + staging_dir, base_file),
+            item_class=controller.PGDATA_CLASS,
+        )
+
+        # Execute the copy
+        try:
+            controller.copy()
+        except CommandFailedException as e:
+            msg = "data transfer failure"
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
+
+        # Untar the results files to their intended location
+        # When zstd and lz4 are supported this will need to be a little more
+        # sophisticated
+        for tablespace in backup_info.tablespaces:
+            # By default a tablespace goes in the same location where
+            # it was on the source server when the backup was taken
+            tablespace_dst_path = tablespace.location
+            # If a relocation has been requested for this tablespace
+            # use the user provided target directory
+            if tablespaces and tablespace.name in tablespaces:
+                tablespace_dst_path = tablespaces[tablespace.name]
+            tablespace_file = "%s%s" % (tablespace.oid, compression_ext)
+            tablespace_src_path = "%s/%s" % (staging_dir, tablespace_file)
+            cmd.untar(tablespace_src_path, tablespace_dst_path)
+            print(cmd.get_last_output())
+        base_src_path = "%s/%s" % (staging_dir, base_file)
+        cmd.untar(base_src_path, dest)
+        print(cmd.get_last_output())

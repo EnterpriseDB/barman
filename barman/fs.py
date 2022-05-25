@@ -40,6 +40,14 @@ class UnixLocalCommand(object):
         """
         return self.internal_cmd(full_command_quote(cmd_name, args))
 
+    def untar(self, src, dst):
+        """
+        Arguably this doesn't belong here because it isn't strictly a file
+        system operation but it needs to take advantage of the same
+        local/remote support so this is where it is for now.
+        """
+        self.cmd("tar", args=["xfz", src, "--directory", dst])
+
     def get_last_output(self):
         """
         Return the output and the error strings from the last executed command
