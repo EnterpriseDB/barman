@@ -273,6 +273,7 @@ def build_config_dictionary(config_keys=None):
         "streaming_backup_name": "barman_streaming_backup",
         "pre_backup_retry_script": None,
         "recovery_options": set(),
+        "recovery_staging_path": None,
         "retention_policy": None,
         "retention_policy_mode": "auto",
         "reuse_backup": None,

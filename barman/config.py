@@ -358,6 +358,12 @@ def parse_backup_method(value):
     )
 
 
+def parse_recovery_staging_path(value):
+    if value is None or os.path.isabs(value):
+        return value
+    raise ValueError("Invalid value : '%s' (must be an absolute path)" % value)
+
+
 def parse_slot_name(value):
     """
     Replication slot names may only contain lower case letters, numbers,
@@ -460,6 +466,7 @@ class ServerConfig(object):
         "pre_wal_delete_retry_script",
         "primary_ssh_command",
         "recovery_options",
+        "recovery_staging_path",
         "create_slot",
         "retention_policy",
         "retention_policy_mode",
@@ -527,6 +534,7 @@ class ServerConfig(object):
         "pre_wal_delete_retry_script",
         "primary_ssh_command",
         "recovery_options",
+        "recovery_staging_path",
         "create_slot",
         "retention_policy",
         "retention_policy_mode",
@@ -599,6 +607,7 @@ class ServerConfig(object):
         "network_compression": parse_boolean,
         "parallel_jobs": int,
         "recovery_options": RecoveryOptions,
+        "recovery_staging_path": parse_recovery_staging_path,
         "create_slot": parse_create_slot,
         "reuse_backup": parse_reuse_backup,
         "streaming_archiver": parse_boolean,

@@ -217,6 +217,13 @@ class TestUnixLocalCommand(object):
             call("test '-d' 'test dir'"),
         ]
 
+    def test_get_file_mode(self, tmpdir):
+        incoming_dir = tmpdir.mkdir("some_dir")
+        print(incoming_dir.strpath)
+        cm = UnixLocalCommand()
+        print(cm.get_file_mode(incoming_dir.strpath))
+        assert "755" == cm.get_file_mode(incoming_dir.strpath)
+
     @patch("barman.fs.Command")
     def test_check_write_permission(self, command_mock):
         command_instance = command_mock.return_value

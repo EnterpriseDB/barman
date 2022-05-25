@@ -30,10 +30,11 @@ from barman.config import (
     parse_backup_compression_format,
     parse_backup_compression_location,
     parse_si_suffix,
+    parse_recovery_staging_path,
     parse_slot_name,
     parse_time_interval,
 )
-from testing_helpers import build_config_dictionary, build_config_from_dicts
+import testing_helpers
 
 try:
     from cStringIO import StringIO
@@ -150,7 +151,7 @@ class TestConfig(object):
 
         main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": main.config,
                 "backup_compression": None,
@@ -178,7 +179,7 @@ class TestConfig(object):
 
         web = c.get_server("web")
         # create the expected dictionary
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": web.config,
                 "backup_directory": "/some/barman/home/web",
@@ -229,7 +230,7 @@ class TestConfig(object):
         main = c.get_server("main")
 
         # create the expected dictionary
-        expected = build_config_dictionary({"config": main.config})
+        expected = testing_helpers.build_config_dictionary({"config": main.config})
         assert main.__dict__ == expected
 
     def test_parse_time_interval(self):
@@ -276,14 +277,14 @@ class TestConfig(object):
 
         # test case 1
         # primary_ssh_command set only for server main
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf=None,
             main_conf={
                 "primary_ssh_command": "barman@backup1.nowhere",
             },
         )
         main = c.get_server("main")
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": c,
                 "primary_ssh_command": "barman@backup1.nowhere",
@@ -293,14 +294,14 @@ class TestConfig(object):
 
         # test case 2
         # primary_ssh_command set only globally
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf={
                 "primary_ssh_command": "barman@backup2.nowhere",
             },
             main_conf=None,
         )
         main = c.get_server("main")
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": c,
                 "primary_ssh_command": "barman@backup2.nowhere",
@@ -310,7 +311,7 @@ class TestConfig(object):
 
         # test case 3
         # primary_ssh_command set both globally and on server main
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf={
                 "primary_ssh_command": "barman@backup3.nowhere",
             },
@@ -319,7 +320,7 @@ class TestConfig(object):
             },
         )
         main = c.get_server("main")
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": c,
                 "primary_ssh_command": "barman@backup4.nowhere",
@@ -362,7 +363,7 @@ class TestConfig(object):
         # Build a configuration with conflicts:
         # basebackups_directory = /some/barman/home/main/wals
         # wals_directory = /some/barman/home/main/wals
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             main_conf={
                 "archiver": "on",
                 "basebackups_directory": "/some/barman/home/main/wals",
@@ -371,7 +372,7 @@ class TestConfig(object):
         )
         main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": main.config,
                 "disabled": True,
@@ -391,7 +392,7 @@ class TestConfig(object):
         Test for the presence of conflicting paths in configuration between all
         the servers
         """
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf=None,
             main_conf={
                 "backup_directory": "/some/barman/home/main",
@@ -420,7 +421,7 @@ class TestConfig(object):
         wals_dir = tmpdir.join("wal")
         wals_dir.mksymlinkto(incoming_dir.strpath)
 
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf=None,
             main_conf={
                 "basebackups_directory": incoming_dir.strpath,
@@ -442,6 +443,15 @@ class TestConfig(object):
             if "(symlink to: " in msg:
                 symlink += 1
         assert symlink == 1
+
+    def test_parse_recovery_staging_path(self):
+        """
+        Test the parse_recovery_staging_path method
+        """
+        assert parse_recovery_staging_path(None) is None
+        assert parse_recovery_staging_path("/any/path") == "/any/path"
+        with pytest.raises(ValueError):
+            parse_recovery_staging_path("here/it/is")
 
     def test_parse_slot_name(self):
         """
@@ -546,7 +556,7 @@ class TestCsvParsing(object):
         configuration parser to fall back to the global value.
         """
         # add backup_options configuration to minimal configuration string
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf={
                 "archiver": "on",
                 "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
@@ -556,7 +566,7 @@ class TestCsvParsing(object):
         main = c.get_server("main")
 
         # create the expected dictionary
-        expected = build_config_dictionary({"config": main.config})
+        expected = testing_helpers.build_config_dictionary({"config": main.config})
 
         assert main.__dict__ == expected
 
@@ -581,12 +591,12 @@ class TestCsvParsing(object):
             BackupOptions.CONCURRENT_BACKUP,
         )
         # add backup_options to minimal configuration string
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf={"archiver": "on", "backup_options": conflict}, main_conf=None
         )
         main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary({"config": main.config})
+        expected = testing_helpers.build_config_dictionary({"config": main.config})
         assert main.__dict__ == expected
         # use the mocked output class to verify the presence of the warning
         # for a bad configuration parameter
@@ -612,7 +622,7 @@ class TestCsvParsing(object):
         'exclusive_backup' value
         """
         # add backup_options to minimal configuration string
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf={
                 "archiver": "on",
                 "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
@@ -622,7 +632,7 @@ class TestCsvParsing(object):
         main = c.get_server("main")
 
         # create the expected dictionary
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": main.config,
                 "backup_options": set([BackupOptions.EXCLUSIVE_BACKUP]),
@@ -658,7 +668,7 @@ class TestCsvParsing(object):
             "none_of_your_business",
         )
         # add backup_options to minimal configuration string
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf={
                 "archiver": "on",
                 "backup_options": BackupOptions.CONCURRENT_BACKUP,
@@ -667,7 +677,7 @@ class TestCsvParsing(object):
         )
         main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": main.config,
                 "backup_options": set(["concurrent_backup"]),
@@ -693,7 +703,7 @@ class TestCsvParsing(object):
         Simple test for concurrent_backup option parsing
         """
         # add backup_options to minimal configuration string
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf={
                 "archiver": "on",
                 "backup_options": BackupOptions.CONCURRENT_BACKUP,
@@ -702,7 +712,7 @@ class TestCsvParsing(object):
         )
         main = c.get_server("main")
         # create the expected dictionary
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": main.config,
                 "backup_options": set(["concurrent_backup"]),
@@ -750,12 +760,12 @@ class TestCsvParsing(object):
         expected: recovery_options = empty RecoveryOptions obj
         """
         # Build configuration with empty recovery_options
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf={"archiver": "on", "recovery_options": ""}, main_conf=None
         )
         main = c.get_server("main")
 
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": c,
                 "recovery_options": RecoveryOptions("", "", ""),
@@ -764,13 +774,13 @@ class TestCsvParsing(object):
         assert main.__dict__ == expected
 
         # Build configuration with recovery_options set to get-wal
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             global_conf={"archiver": "on", "recovery_options": "get-wal"},
             main_conf=None,
         )
         main = c.get_server("main")
 
-        expected = build_config_dictionary(
+        expected = testing_helpers.build_config_dictionary(
             {
                 "config": c,
                 "recovery_options": RecoveryOptions("get-wal", "", ""),
@@ -802,7 +812,7 @@ class TestCsvParsing(object):
         """
         # build a configuration with a a server and a global unknown vale. then
         # add them to the minimal configuration.
-        c = build_config_from_dicts(
+        c = testing_helpers.build_config_from_dicts(
             {"test_global_option": "invalid_value"},
             {"test_server_option": "invalid_value"},
         )

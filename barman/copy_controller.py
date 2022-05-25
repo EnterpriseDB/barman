@@ -411,7 +411,7 @@ class RsyncCopyController(object):
             )
         )
 
-    def add_file(self, label, src, dst, item_class=None, optional=False):
+    def add_file(self, label, src, dst, item_class=None, optional=False, bwlimit=None):
         """
         Add a file that we want to copy
 
@@ -423,6 +423,7 @@ class RsyncCopyController(object):
             what the object to be copied is.
         :param bool optional: Whether a failure copying this object should be
             treated as a fatal failure.
+        :param bwlimit: bandwidth limit to be enforced. (KiB)
         """
         self.item_list.append(
             _RsyncCopyItem(
@@ -430,7 +431,7 @@ class RsyncCopyController(object):
                 src=src,
                 dst=dst,
                 is_directory=False,
-                bwlimit=None,
+                bwlimit=bwlimit,
                 reuse=None,
                 item_class=item_class,
                 optional=optional,
