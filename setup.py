@@ -103,7 +103,11 @@ setup(
         "snappy": [
             "python-snappy == 0.6.0"
         ],  # version is limited py python2.7 see issue #529
-        "google": ["google-cloud-storage"],
+        "google": [
+            "google-cloud-storage",
+            # python 3.5 support was dropped in 3.18
+            "protobuf<3.18",
+        ],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[
