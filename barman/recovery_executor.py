@@ -1441,5 +1441,5 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             cmd.untar(tablespace_src_path, tablespace_dst_path)
             print(cmd.get_last_output())
         base_src_path = "%s/%s" % (staging_dir, base_file)
-        cmd.untar(base_src_path, dest)
+        cmd.untar(base_src_path, dest, exclude=["recovery.conf", "tablespace_map"])
         print(cmd.get_last_output())
