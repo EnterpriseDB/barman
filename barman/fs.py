@@ -40,24 +40,22 @@ class UnixLocalCommand(object):
         """
         return self.internal_cmd(full_command_quote(cmd_name, args))
 
-    def untar(self, src, dst):
+    def untar(self, src, dst, exclude=None):
         """
         Arguably this doesn't belong here because it isn't strictly a file
         system operation but it needs to take advantage of the same
         local/remote support so this is where it is for now.
         """
+        if exclude is not None:
+            exclude_args = []
+            for name in exclude:
+                exclude_args.append("--exclude")
+                exclude_args.append(name)
+        else:
+            exclude_args = []
         self.cmd(
             "tar",
-            args=[
-                "xfz",
-                src,
-                "--directory",
-                dst,
-                "--exclude",
-                "recovery.conf",
-                "--exclude",
-                "tablespace_map",
-            ],
+            args=["xfz", src, "--directory", dst, *exclude_args],
         )
 
     def get_last_output(self):
