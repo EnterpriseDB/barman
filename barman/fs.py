@@ -46,7 +46,19 @@ class UnixLocalCommand(object):
         system operation but it needs to take advantage of the same
         local/remote support so this is where it is for now.
         """
-        self.cmd("tar", args=["xfz", src, "--directory", dst])
+        self.cmd(
+            "tar",
+            args=[
+                "xfz",
+                src,
+                "--directory",
+                dst,
+                "--exclude",
+                "recovery.conf",
+                "--exclude",
+                "tablespace_map",
+            ],
+        )
 
     def get_last_output(self):
         """
