@@ -40,7 +40,7 @@ class UnixLocalCommand(object):
         """
         return self.internal_cmd(full_command_quote(cmd_name, args))
 
-    def untar(self, src, dst, exclude=None):
+    def untar(self, src, dst, exclude=None, include=None):
         """
         Arguably this doesn't belong here because it isn't strictly a file
         system operation but it needs to take advantage of the same
@@ -53,10 +53,30 @@ class UnixLocalCommand(object):
                 exclude_args.append(name)
         else:
             exclude_args = []
+        if include is None:
+            include_args = []
+        else:
+            include_args = include
         self.cmd(
             "tar",
-            args=["xfz", src, "--directory", dst, *exclude_args],
+            args=["xfz", src, "--directory", dst, *exclude_args, *include_args],
         )
+
+    def list_tar(self, tar_path, names=None):
+        """
+        List the specified names if they are present in the tar file
+        """
+        if names is None:
+            names = []
+        res = self.cmd("tar", args=["tfz", tar_path, *names])
+        output = self.get_last_output()
+        if res != 0:
+            raise FsOperationFailed(
+                "Could not determine presence of files "
+                "in tarball at path: %s, output: %s" % (tar_path, output)
+            )
+        out, err = output
+        return out.strip().split("\n")
 
     def get_last_output(self):
         """
