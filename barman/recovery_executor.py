@@ -218,7 +218,7 @@ class RecoveryExecutor(object):
                 tablespaces,
                 remote_command,
                 recovery_info["safe_horizon"],
-                recovery_info["cmd"],
+                recovery_info,
             )
         except DataTransferFailure as e:
             output.error("Failure copying base backup: %s", e)
@@ -701,7 +701,9 @@ class RecoveryExecutor(object):
         safe_horizon=None,
         # This does nothing here but the TarballRecoveryExecutor needs it so
         # for this wip draft we just add it here as well
-        cmd=None,
+        # Also, given safe_horizon also comes from recovery_info, we could
+        # avoid passing that explicitly too
+        recovery_info=None,
     ):
         """
         Perform the actual copy of the base backup for recovery purposes
@@ -1120,6 +1122,38 @@ class RecoveryExecutor(object):
                 )
                 output.close_and_exit()
 
+    def _conf_files_exist(self, conf_files, backup_info, recovery_info):
+        """
+        Determine whether the conf files in the supplied list exist in the backup
+        represented by backup_info.
+
+        Returns a map of conf_file:exists.
+        """
+        exists = {}
+        for conf_file in conf_files:
+            source_path = os.path.join(backup_info.get_data_directory(), conf_file)
+            exists[conf_file] = os.path.exists(source_path)
+        return exists
+
+    def _copy_conf_files_to_tempdir(
+        self, backup_info, recovery_info, remote_command=None
+    ):
+        """
+        Copy conf files from the backup location to a temporary directory so that
+        they can be checked and mangled.
+
+        Returns a list of the paths to the temporary conf files.
+        """
+        conf_file_paths = []
+        for conf_file in recovery_info["configuration_files"]:
+            conf_file_path = os.path.join(recovery_info["tempdir"], conf_file)
+            shutil.copy2(
+                os.path.join(backup_info.get_data_directory(), conf_file),
+                conf_file_path,
+            )
+            conf_file_paths.append(conf_file_path)
+        return conf_file_paths
+
     def _map_temporary_config_files(self, recovery_info, backup_info, remote_command):
         """
         Map configuration files, by filling the 'temporary_configuration_files'
@@ -1142,32 +1176,30 @@ class RecoveryExecutor(object):
         # `pg_ident.conf` which is an optional file.
         hardcoded_files = ["pg_hba.conf", "pg_ident.conf"]
         conf_files = recovery_info["configuration_files"] + hardcoded_files
-        for conf_file in conf_files:
-            source_path = os.path.join(backup_info.get_data_directory(), conf_file)
-            if not os.path.exists(source_path):
+        conf_files_exist = self._conf_files_exist(
+            conf_files, backup_info, recovery_info
+        )
+
+        for conf_file, exists in conf_files_exist.items():
+            if not exists:
                 recovery_info["results"]["missing_files"].append(conf_file)
                 # Remove the file from the list of configuration files
                 if conf_file in recovery_info["configuration_files"]:
                     recovery_info["configuration_files"].remove(conf_file)
 
-        for conf_file in recovery_info["configuration_files"]:
-            if remote_command:
-                # If the recovery is remote, copy the postgresql.conf
-                # file in a temp dir
-                # Otherwise we can modify the postgresql.conf file
-                # in the destination directory.
-                conf_file_path = os.path.join(recovery_info["tempdir"], conf_file)
-                shutil.copy2(
-                    os.path.join(backup_info.get_data_directory(), conf_file),
-                    conf_file_path,
-                )
-            else:
-                # Otherwise use the local destination path.
-                conf_file_path = os.path.join(
-                    recovery_info["destination_path"], conf_file
-                )
-
-            recovery_info["temporary_configuration_files"].append(conf_file_path)
+        conf_file_paths = []
+        if remote_command:
+            # If the recovery is remote, copy the postgresql.conf
+            # file in a temp dir
+            conf_file_paths = self._copy_conf_files_to_tempdir(
+                backup_info, recovery_info, remote_command
+            )
+        else:
+            conf_file_paths = [
+                os.path.join(recovery_info["destination_path"], conf_file)
+                for conf_file in recovery_info["configuration_files"]
+            ]
+        recovery_info["temporary_configuration_files"].extend(conf_file_paths)
 
         if backup_info.version >= 120000:
             # Make sure 'postgresql.auto.conf' file exists in
@@ -1358,8 +1390,9 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         tablespaces=None,
         remote_command=None,
         safe_horizon=None,
-        cmd=None,
+        recovery_info=None,
     ):
+        cmd = recovery_info["cmd"]
         # Set a ':' prefix to remote destinations
         dest_prefix = ""
         if remote_command:
@@ -1374,6 +1407,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             backup_id=backup_info.backup_id
         )
         cmd.create_dir_if_not_exists(staging_dir)
+        recovery_info["staging_dir"] = staging_dir
 
         # Create the copy controller object, specific for rsync.
         # Network compression is always disabled because we are copying
@@ -1443,3 +1477,53 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         base_src_path = "%s/%s" % (staging_dir, base_file)
         cmd.untar(base_src_path, dest, exclude=["recovery.conf", "tablespace_map"])
         print(cmd.get_last_output())
+
+    def _conf_files_exist(self, conf_files, backup_info, recovery_info):
+        """
+        Determine whether the conf files in the supplied list exist in the backup
+        represented by backup_info.
+
+        Returns a map of conf_file:exists.
+        """
+        exists = {}
+        conf_files_in_tar = recovery_info["cmd"].list_tar(
+            os.path.join(recovery_info["staging_dir"], "base.tar.gz"), conf_files
+        )
+
+        for conf_file in conf_files:
+            exists[conf_file] = conf_file in conf_files_in_tar
+        return exists
+
+    def _copy_conf_files_to_tempdir(self, backup_info, recovery_info, remote_command):
+        """
+        Copy conf files from the backup location to a temporary directory so that
+        they can be checked and mangled.
+
+        Returns a list of the paths to the temporary conf files.
+        """
+        conf_file_paths = []
+        recovery_info["cmd"].untar(
+            "%s/%s" % (recovery_info["staging_dir"], "base.tar.gz"),
+            recovery_info["staging_dir"],
+            include=recovery_info["configuration_files"],
+        )
+        rsync = RsyncPgData(
+            path=self.server.path,
+            ssh=remote_command,
+            bwlimit=self.config.bandwidth_limit,
+            network_compression=self.config.network_compression,
+        )
+
+        rsync.from_file_list(
+            recovery_info["configuration_files"],
+            ":" + recovery_info["staging_dir"],
+            recovery_info["tempdir"],
+        )
+
+        conf_file_paths.extend(
+            [
+                os.path.join(recovery_info["tempdir"], conf_file)
+                for conf_file in recovery_info["configuration_files"]
+            ]
+        )
+        return conf_file_paths
