@@ -425,6 +425,12 @@ See the Backup ID shortcuts section below for available shortcuts.
 .TP
 .B \-\-target\-tli \f[I]TARGET_TLI\f[]
 Recover the specified timeline.
+The special values \f[C]current\f[] and \f[C]latest\f[] can be used in
+addition to a numeric timeline ID.
+The default behaviour for PostgreSQL versions >= 12 is to recover to the
+\f[C]latest\f[] timeline in the WAL archive.
+The default for PostgreSQL versions < 12 is to recover along the
+timeline which was current when the backup was taken.
 .RS
 .RE
 .TP
