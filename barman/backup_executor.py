@@ -1749,8 +1749,8 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        pg_version = self.postgres.server_version
         self.current_action = "issuing stop backup command"
+        pg_version = self.postgres.server_version
         if pg_version >= 90600:
             # On 9.6+ execute native concurrent stop backup
             self.current_action += " (native concurrent)"
