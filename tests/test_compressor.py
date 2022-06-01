@@ -73,18 +73,25 @@ class TestCompressionManager(object):
 
         assert comp_manager.get_default_compressor().MAGIC == b"\x28\xb5\x2f\xfd"
 
+        # verify unidentified_compression is not set
+        assert comp_manager.unidentified_compression is None
+
     def test_get_compressor_custom_nomagic(self):
         # prepare mock obj
         config_mock = mock.Mock()
         config_mock.compression = "custom"
         config_mock.custom_compression_filter = "test_custom_compression_filter"
         config_mock.custom_decompression_filter = "test_custom_decompression_filter"
+        config_mock.custom_compression_magic = None
 
         # check custom compression method creation
         comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.get_default_compressor() is not None
 
         assert comp_manager.get_default_compressor().MAGIC is None
+
+        # verify unidentified_compression is set
+        assert comp_manager.unidentified_compression == "custom"
 
     def test_get_compressor_gzip(self):
         # prepare mock obj

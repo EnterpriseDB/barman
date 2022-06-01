@@ -46,9 +46,15 @@ class CompressionManager(object):
         self.path = path
         self.unidentified_compression = None
 
-        # If Barman is set to use the custom compression, it assumes that
-        # every unidentified file is custom compressed
-        if self.config.compression == "custom":
+        # If Barman is set to use the custom compression and no magic is
+        # configured, it assumes that every unidentified file is custom
+        # compressed. If custom_compression_magic is set then this assumption
+        # cannot be made because the custom_compression_magic should allow
+        # the compression to be identified.
+        if (
+            self.config.compression == "custom"
+            and self.config.custom_compression_magic is None
+        ):
             self.unidentified_compression = self.config.compression
 
     def check(self, compression=None):
