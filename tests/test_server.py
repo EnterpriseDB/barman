@@ -271,8 +271,8 @@ class TestServer(object):
                     create_fake_info_file("00000001.history", 42, 43),
                     create_fake_info_file("000000020000000000000003", 42, 43),
                     create_fake_info_file("00000002.history", 42, 43),
-                    create_fake_info_file("000000030000000000000005", 42, 43),
-                    create_fake_info_file("00000003.history", 42, 43),
+                    create_fake_info_file("0000000A0000000000000005", 42, 43),
+                    create_fake_info_file("0000000A.history", 42, 43),
                 ],
                 # AND target_tli values None, 2 and current
                 (None, 2, "current"),
@@ -290,8 +290,8 @@ class TestServer(object):
                     create_fake_info_file("000000020000000000000003", 42, 43),
                     create_fake_info_file("000000020000000000000010", 42, 43),
                     create_fake_info_file("00000002.history", 42, 43),
-                    create_fake_info_file("000000030000000000000005", 42, 43),
-                    create_fake_info_file("00000003.history", 42, 43),
+                    create_fake_info_file("0000000A0000000000000005", 42, 43),
+                    create_fake_info_file("0000000A.history", 42, 43),
                 ],
                 # AND target_tli values None, 2 and current
                 (None, 2, "current"),
@@ -310,8 +310,8 @@ class TestServer(object):
                     create_fake_info_file("000000020000000000000005", 42, 45),
                     create_fake_info_file("000000020000000000000010", 42, 46),
                     create_fake_info_file("00000002.history", 42, 44),
-                    create_fake_info_file("000000030000000000000005", 42, 47),
-                    create_fake_info_file("00000003.history", 42, 47),
+                    create_fake_info_file("0000000A0000000000000005", 42, 47),
+                    create_fake_info_file("0000000A.history", 42, 47),
                 ],
                 # AND target_tli values None, 2 and current
                 (None, 2, "current"),
@@ -332,15 +332,15 @@ class TestServer(object):
                     create_fake_info_file("000000020000000000000003", 42, 43),
                     create_fake_info_file("000000020000000000000010", 42, 43),
                     create_fake_info_file("00000002.history", 42, 43),
-                    create_fake_info_file("000000030000000000000005", 42, 43),
-                    create_fake_info_file("00000003.history", 42, 43),
+                    create_fake_info_file("0000000A0000000000000005", 42, 43),
+                    create_fake_info_file("0000000A.history", 42, 43),
                 ],
-                # AND target_tli values of 3 and latest
-                (3, "latest"),
+                # AND target_tli values of 10 and latest
+                (10, "latest"),
                 # AND no target_time
                 None,
                 # WHEN get_required_xlog_files runs for a backup on tli 2
-                # all WALs on timelines 2 and 3 are returned along with all history
+                # all WALs on timelines 2 and 10 are returned along with all history
                 # files.
                 [1, 2, 3, 4, 5, 6],
             ),

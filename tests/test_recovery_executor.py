@@ -463,9 +463,9 @@ class TestRecoveryExecutor(object):
             # WHEN target_tli is current we expect no target timeline in the output
             # AND we expect that `is_pitr` is not set
             ("current", False, None),
-            # WHEN target_tli is latest we expect target timeline 4 in the output
+            # WHEN target_tli is latest we expect target timeline 10 in the output
             # AND we expect that `is_pitr` is set
-            ("latest", True, 4),
+            ("latest", True, 10),
         ],
     )
     @mock.patch("barman.backup.BackupManager.get_latest_archived_wals_info")
@@ -492,9 +492,12 @@ class TestRecoveryExecutor(object):
 
         # AND WALs in the archive for timelines 2, 3 and 4
         mock_get_latest_archived_wals_info.return_value = {
-            2: WalFileInfo(),
-            3: WalFileInfo(),
-            4: WalFileInfo(),
+            "00000001": WalFileInfo(),
+            "00000002": WalFileInfo(),
+            "00000003": WalFileInfo(),
+            # We deliberately use a latest timeline represented by a hexadecimal
+            # value in the WAL name to verify it is handled correctly
+            "0000000A": WalFileInfo(),
         }
 
         # WHEN _set_pitr_targets is called with the provided target_tli

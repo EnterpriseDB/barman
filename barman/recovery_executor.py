@@ -465,7 +465,7 @@ class RecoveryExecutor(object):
                 calculated_target_tli = backup_info.timeline
             elif target_tli == "latest":
                 valid_timelines = self.backup_manager.get_latest_archived_wals_info()
-                calculated_target_tli = int(max(valid_timelines.keys()))
+                calculated_target_tli = int(max(valid_timelines.keys()), 16)
             elif not target_tli.isdigit():
                 raise ValueError("%s is not a valid timeline keyword" % target_tli)
 
