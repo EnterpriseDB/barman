@@ -4,7 +4,12 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
     See the [Backup ID shortcuts](#shortcuts) section below for available shortcuts.
 
     --target-tli *TARGET_TLI*
-    :   Recover the specified timeline.
+    :   Recover the specified timeline. The special values `current` and
+        `latest` can be used in addition to a numeric timeline ID.
+        The default behaviour for PostgreSQL versions >= 12 is to recover
+        to the `latest` timeline in the WAL archive. The default for
+        PostgreSQL versions < 12 is to recover along the timeline which
+        was current when the backup was taken.
 
     --target-time *TARGET_TIME*
     :   Recover to the specified time.

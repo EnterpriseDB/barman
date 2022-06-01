@@ -259,10 +259,14 @@ the following mutually exclusive options:
 You can use the `--exclusive` option to specify whether to stop immediately
 before or immediately after the recovery target.
 
-Barman allows you to specify a target timeline for recovery,
-using the `target-tli` option. The notion of timeline goes beyond the scope of
-this document; you can find more details in the PostgreSQL documentation,
-as mentioned in the _"Before you start"_ section.
+Barman allows you to specify a target timeline for recovery
+using the `--target-tli` option. This can be set to a numeric timeline ID
+or one of the special values `latest` (to recover to the most recent timeline
+in the WAL archive) and `current` (to recover to the timeline which was current
+when the backup was taken). If this option is omitted then PostgreSQL versions 12
+and above will recover to the `latest` timeline and PostgreSQL versions below 12
+will recover to the `current` timeline. You can find more details about timelines
+in the PostgreSQL documentation as mentioned in the _"Before you start"_ section.
 
 Barman 2.4 introduces support for `--target-action` option, accepting
 the following values:
