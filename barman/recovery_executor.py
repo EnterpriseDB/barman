@@ -1528,3 +1528,14 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             ]
         )
         return conf_file_paths
+
+
+def recovery_executor_factory(backup_manager, compression=None):
+    """
+    Method in charge of building adequate RecoveryExecutor depending on the context
+    :return: RecoveryExecutor instance
+    """
+    if compression is None:
+        return RecoveryExecutor(backup_manager)
+
+    return TarballRecoveryExecutor(backup_manager)
