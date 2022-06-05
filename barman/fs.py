@@ -19,6 +19,7 @@
 import logging
 import re
 
+from barman import output
 from barman.command_wrappers import Command, full_command_quote
 from barman.exceptions import FsOperationFailed
 
@@ -348,6 +349,27 @@ class UnixRemoteCommand(UnixLocalCommand):
                 "Connection failed using '%s %s' return code %s"
                 % (ssh_command, " ".join(ssh_options), ret)
             )
+
+
+def unix_command_factory(remote_command=None, path=None):
+    """
+    Function in charge of instantiating a Unix Command.
+    Todo: All Unix Command creation should use this method in the future to help decrease code complexity
+    :param remote_command:
+    :param path:
+    :return: UnixRemoteCommand
+    """
+    if remote_command:
+        try:
+            return UnixRemoteCommand(remote_command, path=path)
+        except FsOperationFailed:
+            output.error(
+                "Unable to connect to the target host using the command '%s'",
+                remote_command,
+            )
+            output.close_and_exit()
+    else:
+        return UnixLocalCommand()
 
 
 def path_allowed(exclude, include, path, is_dir):

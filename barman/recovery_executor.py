@@ -22,6 +22,7 @@ This module contains the methods necessary to perform a recovery
 
 from __future__ import print_function
 
+from abc import ABCMeta, abstractmethod, abstractproperty
 import collections
 import datetime
 import logging
@@ -49,9 +50,9 @@ from barman.exceptions import (
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
 )
-from barman.fs import UnixLocalCommand, UnixRemoteCommand
+from barman.fs import unix_command_factory
 from barman.infofile import BackupInfo, LocalBackupInfo
-from barman.utils import force_str, mkpath
+from barman.utils import force_str, mkpath, with_metaclass
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -366,7 +367,7 @@ class RecoveryExecutor(object):
         self.temp_dirs.append(tempdir)
 
         recovery_info = {
-            "cmd": None,
+            "cmd": unix_command_factory(remote_command, self.server.path),
             "recovery_dest": "local",
             "rsync": None,
             "configuration_files": [],
@@ -408,21 +409,6 @@ class RecoveryExecutor(object):
                 bwlimit=self.config.bandwidth_limit,
                 network_compression=self.config.network_compression,
             )
-
-            try:
-                # create a UnixRemoteCommand obj if is a remote recovery
-                recovery_info["cmd"] = UnixRemoteCommand(
-                    remote_command, path=self.server.path
-                )
-            except FsOperationFailed:
-                output.error(
-                    "Unable to connect to the target host using the command '%s'",
-                    remote_command,
-                )
-                output.close_and_exit()
-        else:
-            # if is a local recovery create a UnixLocalCommand
-            recovery_info["cmd"] = UnixLocalCommand()
 
         return recovery_info
 
@@ -1383,6 +1369,17 @@ class TarballRecoveryExecutor(RecoveryExecutor):
     Nevertheless for a wip "make it work" effort this will do.
     """
 
+    def __init__(self, backup_manager, compression):
+        """
+        Constructor
+
+        :param barman.backup.BackupManager backup_manager: the BackupManager
+            owner of the executor
+        :param compression Compression.
+        """
+        super(TarballRecoveryExecutor, self).__init__(backup_manager)
+        self.compression = compression
+
     def _backup_copy(
         self,
         backup_info,
@@ -1392,7 +1389,6 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         safe_horizon=None,
         recovery_info=None,
     ):
-        cmd = recovery_info["cmd"]
         # Set a ':' prefix to remote destinations
         dest_prefix = ""
         if remote_command:
@@ -1406,7 +1402,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         staging_dir = "/tmp/.barman-staging-{backup_id}".format(
             backup_id=backup_info.backup_id
         )
-        cmd.create_dir_if_not_exists(staging_dir)
+        recovery_info["cmd"].create_dir_if_not_exists(staging_dir)
         recovery_info["staging_dir"] = staging_dir
 
         # Create the copy controller object, specific for rsync.
@@ -1421,15 +1417,10 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             workers=self.config.parallel_jobs,
         )
 
-        # We'd want to read the compression type from the backup.info but
-        # we'll just assume gzip for now
-        compression_type = "gzip"
-        compression_ext = ".tar.gz"
-
         # Add the tarballs to the controller
         if backup_info.tablespaces:
             for tablespace in backup_info.tablespaces:
-                tablespace_file = "%s%s" % (tablespace.oid, compression_ext)
+                tablespace_file = "%s.%s" % (tablespace.oid, self.compression.file_extension)
                 tablespace_path = "%s/%s" % (
                     backup_info.get_data_directory(),
                     tablespace_file,
@@ -1440,7 +1431,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
                     dst="%s/%s" % (dest_prefix + staging_dir, tablespace_file),
                     item_class=controller.TABLESPACE_CLASS,
                 )
-        base_file = "base%s" % compression_ext
+        base_file = "base.%s" % self.compression.file_extension
         base_path = "%s/%s" % (
             backup_info.get_data_directory(),
             base_file,
@@ -1471,13 +1462,13 @@ class TarballRecoveryExecutor(RecoveryExecutor):
                 # use the user provided target directory
                 if tablespaces and tablespace.name in tablespaces:
                     tablespace_dst_path = tablespaces[tablespace.name]
-                tablespace_file = "%s%s" % (tablespace.oid, compression_ext)
+                tablespace_file = "%s.%s" % (tablespace.oid, self.compression.file_extension)
                 tablespace_src_path = "%s/%s" % (staging_dir, tablespace_file)
-                cmd.untar(tablespace_src_path, tablespace_dst_path)
-                print(cmd.get_last_output())
+                output = self.compression.uncompress(tablespace_src_path, tablespace_dst_path)
+                print(output)
         base_src_path = "%s/%s" % (staging_dir, base_file)
-        cmd.untar(base_src_path, dest, exclude=["recovery.conf", "tablespace_map"])
-        print(cmd.get_last_output())
+        output = self.compression.uncompress(base_src_path, dest, exclude=["recovery.conf", "tablespace_map"])
+        print(output)
 
     def _conf_files_exist(self, conf_files, backup_info, recovery_info):
         """
@@ -1487,10 +1478,9 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         Returns a map of conf_file:exists.
         """
         exists = {}
-        conf_files_in_tar = recovery_info["cmd"].list_tar(
-            os.path.join(recovery_info["staging_dir"], "base.tar.gz"), conf_files
+        conf_files_in_tar = self.compression.list_compressed_files(
+            os.path.join(recovery_info["staging_dir"], "base.%s" % self.compression.file_extension), conf_files
         )
-
         for conf_file in conf_files:
             exists[conf_file] = conf_file in conf_files_in_tar
         return exists
@@ -1503,11 +1493,11 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         Returns a list of the paths to the temporary conf files.
         """
         conf_file_paths = []
-        recovery_info["cmd"].untar(
-            "%s/%s" % (recovery_info["staging_dir"], "base.tar.gz"),
+        self.compression.uncompress("%s/%s" % (recovery_info["staging_dir"], "base.%s" % self.compression.file_extension),
             recovery_info["staging_dir"],
-            include=recovery_info["configuration_files"],
+            include_args=recovery_info["configuration_files"],
         )
+
         rsync = RsyncPgData(
             path=self.server.path,
             ssh=remote_command,
@@ -1530,12 +1520,95 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         return conf_file_paths
 
 
-def recovery_executor_factory(backup_manager, compression=None):
+def recovery_executor_factory(backup_manager, command, compression=None):
     """
     Method in charge of building adequate RecoveryExecutor depending on the context
+    :param: backup_manager
+    :param: command barman.fs.UnixLocalCommand
     :return: RecoveryExecutor instance
     """
     if compression is None:
         return RecoveryExecutor(backup_manager)
+    if compression == GZipCompression.name:
+        return TarballRecoveryExecutor(backup_manager, GZipCompression(command))
 
-    return TarballRecoveryExecutor(backup_manager)
+    raise AttributeError("Unexpected compression format: %s" % compression)
+
+
+class Compression (with_metaclass(ABCMeta, object)):
+    """
+    Class meant to manage compression action using external program with linux command
+    """
+    @abstractproperty
+    def name(self):
+        """
+
+        :return:
+        """
+
+    @abstractproperty
+    def file_extension(self):
+        """
+
+        :return:
+        """
+
+    @abstractmethod
+    def uncompress(self, src, dst, exclude=[], include_args=[]):
+        """
+
+        :param src:
+        :param dst:
+        :param exclude:
+        :param include_args:
+        :return:
+        """
+
+    @abstractmethod
+    def list_compressed_files(self, tar_path, names=[]):
+        """
+        List the specified names if they are present in the tar file
+        returns the list of existing names actually present in tar file
+        :param tar_path:
+        :param names:
+        :return:
+        """
+
+
+class GZipCompression(Compression):
+    name = "gzip"
+    file_extension = "tar.gz"
+
+    def __init__(self, command):
+        """
+
+        :param command: barman.fs.UnixLocalCommand
+        """
+        self.command = command
+
+    def uncompress(self, src, dst, exclude=[], include_args=[]):
+        exclude_args = []
+        for name in exclude:
+            exclude_args.append("--exclude")
+            exclude_args.append(name)
+
+        self.command.cmd(
+            "tar",
+            args=["xfz", src, "--directory", dst, *exclude_args, *include_args],
+        )
+        return self.command.get_last_output()
+
+    def list_compressed_files(self, tar_path, names=[]):
+        if not names:
+            return []
+        res = self.command.cmd("tar", args=["tfz", tar_path])
+        output = self.command.get_last_output()
+        if res != 0:
+            raise FsOperationFailed(
+                "Could not determine presence of files "
+                "in tarball at path: %s, output: %s" % (tar_path, output)
+            )
+        out, err = output
+        file_list = out.strip().split("\n")
+        found_elements = [name for name in names if name in file_list]
+        return found_elements
