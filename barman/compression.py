@@ -25,7 +25,6 @@ import bz2
 import gzip
 import logging
 import shutil
-import sys
 from abc import ABCMeta, abstractmethod
 from contextlib import closing
 
@@ -46,16 +45,28 @@ class CompressionManager(object):
         self.path = path
         self.unidentified_compression = None
 
-        # If Barman is set to use the custom compression and no magic is
-        # configured, it assumes that every unidentified file is custom
-        # compressed. If custom_compression_magic is set then this assumption
-        # cannot be made because the custom_compression_magic should allow
-        # the compression to be identified.
-        if (
-            self.config.compression == "custom"
-            and self.config.custom_compression_magic is None
-        ):
-            self.unidentified_compression = self.config.compression
+        if self.config.compression == "custom":
+            # If Barman is set to use the custom compression and no magic is
+            # configured, it assumes that every unidentified file is custom
+            # compressed.
+            if self.config.custom_compression_magic is None:
+                self.unidentified_compression = self.config.compression
+            # If custom_compression_magic is set then we should not assume
+            # unidentified files are custom compressed and should rely on the
+            # magic for identification instead.
+            elif type(config.custom_compression_magic) == str:
+                # Since we know the custom compression magic we can now add it
+                # to the class property.
+                compression_registry["custom"].MAGIC = binascii.unhexlify(
+                    config.custom_compression_magic[2:]
+                )
+
+        # Set the longest string needed to identify a compression schema.
+        # This happens at instantiation time because we need to include the
+        # custom_compression_magic from the config (if set).
+        self.MAGIC_MAX_LENGTH = max(
+            len(x.MAGIC or "") for x in compression_registry.values()
+        )
 
     def check(self, compression=None):
         """
@@ -115,18 +126,9 @@ class CompressionManager(object):
         # compression algorithm (e.g. what to do when gzip is detected?
         # should we use gzip or pigz?)
         with open(filename, "rb") as f:
-            file_start = f.read(MAGIC_MAX_LENGTH)
+            file_start = f.read(self.MAGIC_MAX_LENGTH)
         for file_type, cls in sorted(compression_registry.items()):
-            if file_type == "custom":
-                try:
-                    compressor = self.get_compressor(file_type)
-                    if compressor.validate(file_start):
-                        return file_type
-                except CompressionIncompatibility:
-                    # ignore exceptions that might happen when creating
-                    # a custom compressor
-                    pass
-            elif cls.validate(file_start):
+            if cls.validate(file_start):
                 return file_type
         return None
 
@@ -372,25 +374,9 @@ class CustomCompressor(CommandCompressor):
         ):
             raise CompressionIncompatibility("custom_decompression_filter")
 
-        if type(config.custom_compression_magic) == str:
-            self.MAGIC = binascii.unhexlify(config.custom_compression_magic[2:])
-
-            # increase the MAGIC_MAX_LENGTH
-            sys.modules[__name__].MAGIC_MAX_LENGTH = max(
-                MAGIC_MAX_LENGTH, len(self.MAGIC)
-            )
-
         super(CustomCompressor, self).__init__(config, compression, path)
         self._compress = self._build_command(config.custom_compression_filter)
         self._decompress = self._build_command(config.custom_decompression_filter)
-
-    def validate(self, file_start):
-        """
-        An instance version of the validate class method.
-        This is needed because it is not possible to determine what the first bytes
-        should be for a custom compressor until the compressor object is created.
-        """
-        return self.MAGIC and file_start.startswith(self.MAGIC)
 
 
 # a dictionary mapping all supported compression schema
@@ -405,6 +391,3 @@ compression_registry = {
     "pybzip2": PyBZip2Compressor,
     "custom": CustomCompressor,
 }
-
-#: The longest string needed to identify a compression schema
-MAGIC_MAX_LENGTH = max(len(x.MAGIC or "") for x in compression_registry.values())
