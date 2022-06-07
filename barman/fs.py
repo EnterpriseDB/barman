@@ -41,41 +41,6 @@ class UnixLocalCommand(object):
         """
         return self.internal_cmd(full_command_quote(cmd_name, args))
 
-    def untar(self, src, dst, exclude=None, include_args=None):
-        """
-        Arguably this doesn't belong here because it isn't strictly a file
-        system operation but it needs to take advantage of the same
-        local/remote support so this is where it is for now.
-        """
-        exclude_args = [] if exclude is None else exclude
-        for name in exclude:
-            exclude_args.append("--exclude")
-            exclude_args.append(name)
-        include_args = [] if include_args is None else include_args
-        self.cmd(
-            "tar",
-            args=["xfz", src, "--directory", dst, *exclude_args, *include_args],
-        )
-
-    def list_tar(self, tar_path, names=None):
-        """
-        List the specified names if they are present in the tar file
-        returns the list of existing names actually present in tar file
-        """
-        if names is None:
-            return []
-        res = self.cmd("tar", args=["tfz", tar_path])
-        output = self.get_last_output()
-        if res != 0:
-            raise FsOperationFailed(
-                "Could not determine presence of files "
-                "in tarball at path: %s, output: %s" % (tar_path, output)
-            )
-        out, err = output
-        file_list = out.strip().split("\n")
-        found_elements = [name for name in names if name in file_list]
-        return found_elements
-
     def get_last_output(self):
         """
         Return the output and the error strings from the last executed command
