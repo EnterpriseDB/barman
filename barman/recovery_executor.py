@@ -1420,7 +1420,10 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         # Add the tarballs to the controller
         if backup_info.tablespaces:
             for tablespace in backup_info.tablespaces:
-                tablespace_file = "%s.%s" % (tablespace.oid, self.compression.file_extension)
+                tablespace_file = "%s.%s" % (
+                    tablespace.oid,
+                    self.compression.file_extension,
+                )
                 tablespace_path = "%s/%s" % (
                     backup_info.get_data_directory(),
                     tablespace_file,
@@ -1462,12 +1465,19 @@ class TarballRecoveryExecutor(RecoveryExecutor):
                 # use the user provided target directory
                 if tablespaces and tablespace.name in tablespaces:
                     tablespace_dst_path = tablespaces[tablespace.name]
-                tablespace_file = "%s.%s" % (tablespace.oid, self.compression.file_extension)
+                tablespace_file = "%s.%s" % (
+                    tablespace.oid,
+                    self.compression.file_extension,
+                )
                 tablespace_src_path = "%s/%s" % (staging_dir, tablespace_file)
-                output = self.compression.uncompress(tablespace_src_path, tablespace_dst_path)
+                output = self.compression.uncompress(
+                    tablespace_src_path, tablespace_dst_path
+                )
                 print(output)
         base_src_path = "%s/%s" % (staging_dir, base_file)
-        output = self.compression.uncompress(base_src_path, dest, exclude=["recovery.conf", "tablespace_map"])
+        output = self.compression.uncompress(
+            base_src_path, dest, exclude=["recovery.conf", "tablespace_map"]
+        )
         print(output)
 
     def _conf_files_exist(self, conf_files, backup_info, recovery_info):
@@ -1479,7 +1489,11 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         """
         exists = {}
         conf_files_in_tar = self.compression.list_compressed_files(
-            os.path.join(recovery_info["staging_dir"], "base.%s" % self.compression.file_extension), conf_files
+            os.path.join(
+                recovery_info["staging_dir"],
+                "base.%s" % self.compression.file_extension,
+            ),
+            conf_files,
         )
         for conf_file in conf_files:
             exists[conf_file] = conf_file in conf_files_in_tar
@@ -1493,7 +1507,12 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         Returns a list of the paths to the temporary conf files.
         """
         conf_file_paths = []
-        self.compression.uncompress("%s/%s" % (recovery_info["staging_dir"], "base.%s" % self.compression.file_extension),
+        self.compression.uncompress(
+            "%s/%s"
+            % (
+                recovery_info["staging_dir"],
+                "base.%s" % self.compression.file_extension,
+            ),
             recovery_info["staging_dir"],
             include_args=recovery_info["configuration_files"],
         )
@@ -1535,10 +1554,11 @@ def recovery_executor_factory(backup_manager, command, compression=None):
     raise AttributeError("Unexpected compression format: %s" % compression)
 
 
-class Compression (with_metaclass(ABCMeta, object)):
+class Compression(with_metaclass(ABCMeta, object)):
     """
     Class meant to manage compression action using external program with linux command
     """
+
     @abstractproperty
     def name(self):
         """
