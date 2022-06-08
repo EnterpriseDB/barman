@@ -7,3 +7,6 @@ pytest
 mock
 pytest-timeout==1.4.2
 py
+# msrest is a transitive dependency of azure-storage-blob and
+# is broken on python 2 for versions >= 0.7.0
+msrest<0.7.0
