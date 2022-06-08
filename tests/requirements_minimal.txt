@@ -9,3 +9,6 @@ mock
 pytest-timeout==1.4.2
 argcomplete
 python-dateutil==1.5
+# msrest is a transitive dependency of azure-storage-blob and
+# is broken on python 2 for versions >= 0.7.0
+msrest<0.7.0
