@@ -557,21 +557,21 @@ class TestBarmanEncoderV2(object):
     @pytest.mark.skipif(
         sys.version_info < (3, 6), reason="Requires Python 3.6 or higher"
     )
-    def test_datetime_object_v3(self):
+    def test_datetime_object_from_py36(self):
         dt = datetime(2015, 1, 10, 12, 34, 56)
 
         # Test date without tzinfo. should raise an exception
         with pytest.raises(ValueError):
             json.dumps(dt, cls=barman.utils.BarmanEncoderV2)
         dttz = dt.astimezone()
-        tz_str = datetime.now().astimezone().isoformat()[-6:]
+        tz_str = dttz.isoformat()[-6:]
         assert re.match(r"^[\+-][0-1][0-9]:[0-6][0-9]$", tz_str)
         assert json.dumps(
             dttz, cls=barman.utils.BarmanEncoderV2
         ) == '"2015-01-10T12:34:56{}"'.format(tz_str)
 
     @pytest.mark.skipif(sys.version_info >= (3, 6), reason="Requires Python 2 or 3.5")
-    def test_datetime_object_v2(self):
+    def test_datetime_object_before_py36(self):
         dt = datetime(2015, 1, 10, 12, 34, 56)
 
         # Test date without tzinfo. should raise an exception
@@ -579,7 +579,7 @@ class TestBarmanEncoderV2(object):
             json.dumps(dt, cls=barman.utils.BarmanEncoderV2)
 
         dttz = dt.replace(tzinfo=tz.tzlocal())
-        tz_str = datetime.now(tz=tz.tzlocal()).isoformat()[-6:]
+        tz_str = dttz.isoformat()[-6:]
         assert re.match(r"^[\+-][0-1][0-9]:[0-6][0-9]$", tz_str)
         assert json.dumps(
             dttz, cls=barman.utils.BarmanEncoderV2
