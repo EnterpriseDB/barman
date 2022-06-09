@@ -35,7 +35,11 @@ from barman.exceptions import (
     RecoveryTargetActionException,
 )
 from barman.infofile import BackupInfo, WalFileInfo
-from barman.recovery_executor import Assertion, RecoveryExecutor
+from barman.recovery_executor import (
+    Assertion,
+    RecoveryExecutor,
+    ConfigurationFileMangeler,
+)
 
 
 # noinspection PyMethodMayBeStatic
@@ -1285,3 +1289,15 @@ class TestRecoveryExecutor(object):
                 )
             ]
         )
+
+
+class TestConfigurationFileMangeler:
+    def test_simple_file_mangeling(self, tmpdir):
+        a_file = tmpdir.join("some_file")
+        file_content = "this is \n a very useful\t content.\nrecovery_target=something"
+        a_file.write(file_content, ensure=True)
+        cfm = ConfigurationFileMangeler()
+        mangeled = cfm.mangle_options(a_file.strpath)
+        content = a_file.read()
+        assert len(mangeled) == 1
+        assert "#BARMAN#recovery_target=something" in content
