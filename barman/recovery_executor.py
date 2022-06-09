@@ -71,25 +71,6 @@ class RecoveryExecutor(object):
     Class responsible of recovery operations
     """
 
-    # Potentially dangerous options list, which need to be revised by the user
-    # after a recovery
-    DANGEROUS_OPTIONS = [
-        "data_directory",
-        "config_file",
-        "hba_file",
-        "ident_file",
-        "external_pid_file",
-        "ssl_cert_file",
-        "ssl_key_file",
-        "ssl_ca_file",
-        "ssl_crl_file",
-        "unix_socket_directory",
-        "unix_socket_directories",
-        "include",
-        "include_dir",
-        "include_if_exists",
-    ]
-
     def __init__(self, backup_manager):
         """
         Constructor
@@ -1198,6 +1179,7 @@ class RecoveryExecutor(object):
         """
         results = recovery_info["results"]
         config_mangeler = ConfigurationFileMangeler()
+        validator = ConfigIssueDetection()
         # Check for dangerous options inside every config file
         for conf_file in recovery_info["temporary_configuration_files"]:
 
@@ -1212,7 +1194,7 @@ class RecoveryExecutor(object):
             )
 
             # Identify dangerous options and warn users about their presence
-            results["warnings"] += self._pg_config_detect_possible_issues(conf_file)
+            results["warnings"] += validator.detect_issues(conf_file)
 
     def _copy_temporary_config_files(self, dest, remote_command, recovery_info):
         """
@@ -1248,35 +1230,6 @@ class RecoveryExecutor(object):
         for temp_dir in self.temp_dirs:
             shutil.rmtree(temp_dir, ignore_errors=True)
         self.temp_dirs = []
-
-    def _pg_config_detect_possible_issues(self, filename):
-        """
-        This method looks for any possible issue with PostgreSQL
-        location options such as data_directory, config_file, etc.
-        It returns a dictionary with the dangerous options that
-        have been found.
-
-        :param filename: the Postgres configuration file
-        """
-
-        clashes = []
-
-        with open(filename) as f:
-            content = f.readlines()
-
-        # Read line by line and identify dangerous options
-        for l_number, line in enumerate(content):
-            rm = PG_CONF_SETTING_RE.match(line)
-            if rm:
-                key = rm.group(1)
-                if key in self.DANGEROUS_OPTIONS:
-                    clashes.append(
-                        Assertion._make(
-                            [os.path.basename(f.name), l_number, key, rm.group(2)]
-                        )
-                    )
-
-        return clashes
 
 
 class TarballRecoveryExecutor(RecoveryExecutor):
@@ -1636,3 +1589,54 @@ class ConfigurationFileMangeler:
             os.unlink(orig_filename)
 
         return mangled
+
+
+class ConfigIssueDetection:
+    # Potentially dangerous options list, which need to be revised by the user
+    # after a recovery
+    DANGEROUS_OPTIONS = [
+        "data_directory",
+        "config_file",
+        "hba_file",
+        "ident_file",
+        "external_pid_file",
+        "ssl_cert_file",
+        "ssl_key_file",
+        "ssl_ca_file",
+        "ssl_crl_file",
+        "unix_socket_directory",
+        "unix_socket_directories",
+        "include",
+        "include_dir",
+        "include_if_exists",
+    ]
+
+    def detect_issues(self, filename):
+        """
+        This method looks for any possible issue with PostgreSQL
+        location options such as data_directory, config_file, etc.
+        It returns a dictionary with the dangerous options that
+        have been found.
+
+        :param filename str: the Postgres configuration file
+        :return clashes [Assertion]
+        """
+
+        clashes = []
+
+        with open(filename) as f:
+            content = f.readlines()
+
+        # Read line by line and identify dangerous options
+        for l_number, line in enumerate(content):
+            rm = PG_CONF_SETTING_RE.match(line)
+            if rm:
+                key = rm.group(1)
+                if key in self.DANGEROUS_OPTIONS:
+                    clashes.append(
+                        Assertion._make(
+                            [os.path.basename(f.name), l_number, key, rm.group(2)]
+                        )
+                    )
+
+        return clashes
