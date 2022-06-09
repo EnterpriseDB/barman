@@ -49,13 +49,15 @@ class UnixLocalCommand(object):
         """
         return self.internal_cmd.out, self.internal_cmd.err
 
-    def create_dir_if_not_exists(self, dir_path):
+    def create_dir_if_not_exists(self, dir_path, mode=None):
         """
         This method recursively creates a directory if not exists
 
         If the path exists and is not a directory raise an exception.
 
         :param str dir_path: full path for the directory
+        :param mode str|None: Specify the mode to use for creation. Not used If teh directory already exists.
+        :returns Bool: False if the directory already exists True if the directory is created
         """
         _logger.debug("Create directory %s if it does not exists" % dir_path)
         exists = self.exists(dir_path)
@@ -67,7 +69,10 @@ class UnixLocalCommand(object):
                 return False
         else:
             # Make parent directories if needed
-            mkdir_ret = self.cmd("mkdir", args=["-p", dir_path])
+            args = ["-p", dir_path]
+            if mode is not None:
+                args.extend(["-m", mode])
+            mkdir_ret = self.cmd("mkdir", args=args)
             if mkdir_ret == 0:
                 return True
             else:
@@ -322,11 +327,13 @@ def unix_command_factory(remote_command=None, path=None):
     Todo: All Unix Command creation should use this method in the future to help decrease code complexity
     :param remote_command:
     :param path:
-    :return: UnixRemoteCommand
+    :return: UnixLocalCommand
     """
     if remote_command:
         try:
-            return UnixRemoteCommand(remote_command, path=path)
+            cmd = UnixRemoteCommand(remote_command, path=path)
+            logging.debug("Created a UnixRemoteCommand")
+            return cmd
         except FsOperationFailed:
             output.error(
                 "Unable to connect to the target host using the command '%s'",
@@ -334,7 +341,9 @@ def unix_command_factory(remote_command=None, path=None):
             )
             output.close_and_exit()
     else:
-        return UnixLocalCommand()
+        cmd = UnixLocalCommand()
+        logging.debug("Created a UnixLocalCommand")
+        return cmd
 
 
 def path_allowed(exclude, include, path, is_dir):

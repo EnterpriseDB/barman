@@ -165,7 +165,7 @@ class RecoveryExecutor(object):
 
         # check destination directory. If doesn't exist create it
         try:
-            recovery_info["cmd"].create_dir_if_not_exists(dest)
+            recovery_info["cmd"].create_dir_if_not_exists(dest, mode="700")
         except FsOperationFailed as e:
             output.error("unable to initialise destination directory '%s': %s", dest, e)
             output.close_and_exit()
@@ -1274,7 +1274,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         staging_dir = "/tmp/.barman-staging-{backup_id}".format(
             backup_id=backup_info.backup_id
         )
-        recovery_info["cmd"].create_dir_if_not_exists(staging_dir)
+        recovery_info["cmd"].create_dir_if_not_exists(staging_dir, mode="700")
         recovery_info["staging_dir"] = staging_dir
 
         # Create the copy controller object, specific for rsync.
@@ -1342,15 +1342,15 @@ class TarballRecoveryExecutor(RecoveryExecutor):
                     self.compression.file_extension,
                 )
                 tablespace_src_path = "%s/%s" % (staging_dir, tablespace_file)
-                output = self.compression.uncompress(
+                cmd_output = self.compression.uncompress(
                     tablespace_src_path, tablespace_dst_path
                 )
-                print(output)
+                print(cmd_output)
         base_src_path = "%s/%s" % (staging_dir, base_file)
-        output = self.compression.uncompress(
+        cmd_output = self.compression.uncompress(
             base_src_path, dest, exclude=["recovery.conf", "tablespace_map"]
         )
-        print(output)
+        print(cmd_output)
 
     def _conf_files_exist(self, conf_files, backup_info, recovery_info):
         """
@@ -1494,13 +1494,13 @@ class GZipCompression(Compression):
         if not names:
             return []
         res = self.command.cmd("tar", args=["tfz", tar_path])
-        output = self.command.get_last_output()
+        cmd_output = self.command.get_last_output()
         if res != 0:
             raise FsOperationFailed(
                 "Could not determine presence of files "
-                "in tarball at path: %s, output: %s" % (tar_path, output)
+                "in tarball at path: %s, output: %s" % (tar_path, cmd_output)
             )
-        out, err = output
+        out, err = cmd_output
         file_list = out.strip().split("\n")
         found_elements = [name for name in names if name in file_list]
         return found_elements
