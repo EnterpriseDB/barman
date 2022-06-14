@@ -26,9 +26,9 @@ backup_method = rsync
 ; Incremental backup support: possible values are None (default), link or copy
 ;reuse_backup = link
 ; Identify the standard behavior for backup operations: possible values are
-; exclusive_backup (default), concurrent_backup
+; exclusive_backup, concurrent_backup (default)
 ; concurrent_backup is the preferred method with PostgreSQL >= 9.6
-backup_options = exclusive_backup
+backup_options = concurrent_backup
 
 ; Number of parallel workers to perform file copy during backup and recover
 ;parallel_jobs = 1

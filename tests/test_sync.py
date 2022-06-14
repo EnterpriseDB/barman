@@ -65,7 +65,7 @@ EXPECTED_MINIMAL = {
                 ["tbs2", 16405, "/another/location"],
             ],
             "begin_wal": "000000010000000000000002",
-            "mode": "rsync-exclusive",
+            "mode": "rsync-concurrent",
             "error": None,
             "begin_offset": 40,
             "backup_label": None,

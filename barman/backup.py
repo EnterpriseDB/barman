@@ -484,12 +484,11 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             # If there is a next backup then all unused WALs up to the begin_wal
             # of the next backup can be removed.
             # If there is no next backup then there are no remaining backups so:
-            #   - In the case of exclusive backup (default), remove all unused
-            #     WAL files.
-            #   - In the case of concurrent backup, removes only unused WAL files
-            #     prior to the start of the backup being deleted, as they
-            #     might be useful to any concurrent backup started immediately
-            #     after.
+            #   - In the case of exclusive backup, remove all unused WAL files.
+            #   - In the case of concurrent backup (the default), removes only
+            #     unused WAL files prior to the start of the backup being deleted,
+            #     as they might be useful to any concurrent backup started
+            #     immediately after.
             remove_until = None  # means to remove all WAL files
             if next_backup:
                 remove_until = next_backup
