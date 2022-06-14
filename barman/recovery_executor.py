@@ -1462,18 +1462,19 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         # Untar the results files to their intended location
         # When zstd and lz4 are supported this will need to be a little more
         # sophisticated
-        for tablespace in backup_info.tablespaces:
-            # By default a tablespace goes in the same location where
-            # it was on the source server when the backup was taken
-            tablespace_dst_path = tablespace.location
-            # If a relocation has been requested for this tablespace
-            # use the user provided target directory
-            if tablespaces and tablespace.name in tablespaces:
-                tablespace_dst_path = tablespaces[tablespace.name]
-            tablespace_file = "%s%s" % (tablespace.oid, compression_ext)
-            tablespace_src_path = "%s/%s" % (staging_dir, tablespace_file)
-            cmd.untar(tablespace_src_path, tablespace_dst_path)
-            print(cmd.get_last_output())
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                # By default a tablespace goes in the same location where
+                # it was on the source server when the backup was taken
+                tablespace_dst_path = tablespace.location
+                # If a relocation has been requested for this tablespace
+                # use the user provided target directory
+                if tablespaces and tablespace.name in tablespaces:
+                    tablespace_dst_path = tablespaces[tablespace.name]
+                tablespace_file = "%s%s" % (tablespace.oid, compression_ext)
+                tablespace_src_path = "%s/%s" % (staging_dir, tablespace_file)
+                cmd.untar(tablespace_src_path, tablespace_dst_path)
+                print(cmd.get_last_output())
         base_src_path = "%s/%s" % (staging_dir, base_file)
         cmd.untar(base_src_path, dest, exclude=["recovery.conf", "tablespace_map"])
         print(cmd.get_last_output())
