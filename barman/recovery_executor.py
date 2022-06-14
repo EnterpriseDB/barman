@@ -1479,14 +1479,18 @@ class GZipCompression(Compression):
         self.command = command
 
     def uncompress(self, src, dst, exclude=None, include_args=None):
-        exclude_args = [] if exclude is None else exclude
+        exclude = [] if exclude is None else exclude
+        exclude_args = []
         for name in exclude:
             exclude_args.append("--exclude")
             exclude_args.append(name)
         include_args = [] if include_args is None else include_args
+        args = ["xfz", src, "--directory", dst]
+        args.extend(exclude_args)
+        args.extend(include_args)
         self.command.cmd(
             "tar",
-            args=["xfz", src, "--directory", dst, *exclude_args, *include_args],
+            args=args,
         )
         return self.command.get_last_output()
 

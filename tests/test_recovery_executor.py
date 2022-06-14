@@ -151,10 +151,11 @@ class TestRecoveryExecutor(object):
             tempdir.join("postgresql.auto.conf").computehash()
             == postgresql_auto_local.computehash()
         )
-        assert recovery_info["results"]["missing_files"] == [
-            "pg_hba.conf",
-            "pg_ident.conf",
-        ]
+        assert len(recovery_info["results"]["missing_files"]) == 2
+        assert (
+            "pg_hba.conf"
+            and "pg_ident.conf" in recovery_info["results"]["missing_files"]
+        )
 
     @mock.patch("barman.recovery_executor.RsyncPgData")
     def test_setup(self, rsync_mock):
@@ -1051,7 +1052,7 @@ class TestRecoveryExecutor(object):
 
     @mock.patch("barman.recovery_executor.RsyncCopyController")
     @mock.patch("barman.recovery_executor.RsyncPgData")
-    @mock.patch("barman.recovery_executor.UnixRemoteCommand")
+    @mock.patch("barman.recovery_executor.unix_command_factory")
     def test_recovery(
         self, remote_cmd_mock, rsync_pg_mock, copy_controller_mock, tmpdir
     ):
@@ -1223,7 +1224,7 @@ class TestRecoveryExecutor(object):
             with closing(executor):
                 executor.recover(backup_info, destination, standby_mode=True)
 
-    @mock.patch("barman.recovery_executor.UnixRemoteCommand")
+    @mock.patch("barman.recovery_executor.unix_command_factory")
     @mock.patch("barman.recovery_executor.RsyncPgData")
     @mock.patch("barman.recovery_executor.output")
     @mock.patch("barman.recovery_executor.RsyncCopyController")
@@ -1234,7 +1235,7 @@ class TestRecoveryExecutor(object):
         rsync_copy_controller_mock,
         output_mock,
         rsync_pgdata_mock,
-        unix_remote_command_mock,
+        unix_command_factory,
         tmpdir,
     ):
 
