@@ -397,7 +397,7 @@ class TestBackupInfo(object):
         # build a backup manager with a rsync executor (exclusive)
         backup_manager = build_backup_manager()
         # check the result of the mode property
-        assert backup_manager.executor.mode == "rsync-exclusive"
+        assert backup_manager.executor.mode == "rsync-concurrent"
         # build a backup manager with a postgres executor
         #  (strategy without mode)
         backup_manager = build_backup_manager(global_conf={"backup_method": "postgres"})

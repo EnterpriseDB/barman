@@ -712,16 +712,11 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         concurrent_backup = BackupOptions.CONCURRENT_BACKUP in backup_options
         exclusive_backup = BackupOptions.EXCLUSIVE_BACKUP in backup_options
         if not concurrent_backup and not exclusive_backup:
-            self.config.backup_options.add(BackupOptions.EXCLUSIVE_BACKUP)
+            self.config.backup_options.add(BackupOptions.CONCURRENT_BACKUP)
             output.warning(
                 "No backup strategy set for server '%s' "
-                "(using default 'exclusive_backup').",
+                "(using default 'concurrent_backup').",
                 self.config.name,
-            )
-            output.warning(
-                "The default backup strategy will change "
-                "to 'concurrent_backup' in the future. "
-                "Explicitly set 'backup_options' to silence this warning."
             )
 
         # Depending on the backup options value, create the proper strategy

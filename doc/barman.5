@@ -122,19 +122,19 @@ It is a comma\-separated list of values that accepts the following
 options:
 .RS
 .IP \[bu] 2
-\f[C]exclusive_backup\f[] (default when
-\f[C]backup_method\ =\ rsync\f[]): \f[C]barman\ backup\f[] executes
-backup operations using the standard exclusive backup approach
-(technically through \f[C]pg_start_backup\f[] and
-\f[C]pg_stop_backup\f[])
-.IP \[bu] 2
-\f[C]concurrent_backup\f[] (default when
-\f[C]backup_method\ =\ postgres\f[]): if using PostgreSQL 9.2, 9.3, 9.4,
-and 9.5, Barman requires the \f[C]pgespresso\f[] module to be installed
-on the PostgreSQL server and can be used to perform a backup from a
+\f[C]concurrent_backup\f[] (default): \f[C]barman\ backup\f[] executes
+backup operations using concurrent backup which is the recommended
+backup approach for PostgreSQL versions >= 9.6 and uses the PostgreSQL
+API.
+If using PostgreSQL 9.2, 9.3, 9.4, or 9.5, Barman requires the
+\f[C]pgespresso\f[] module to be installed on the PostgreSQL server.
+\f[C]concurrent_backup\f[] can also be used to perform a backup from a
 standby server.
-Starting from PostgreSQL 9.6, Barman uses the new PostgreSQL API to
-perform backups from a standby server.
+.IP \[bu] 2
+\f[C]exclusive_backup\f[] (PostgreSQL versions older than 15 only):
+\f[C]barman\ backup\f[] executes backup operations using the deprecated
+exclusive backup approach (technically through \f[C]pg_start_backup\f[]
+and \f[C]pg_stop_backup\f[])
 .IP \[bu] 2
 \f[C]external_configuration\f[]: if present, any warning regarding
 external configuration files is suppressed during the execution of a
