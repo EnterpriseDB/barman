@@ -1296,7 +1296,7 @@ class CloudBackupUploader(with_metaclass(ABCMeta)):
         """
         Coordinate the upload of a Backup to cloud storage
 
-        Any necessary coordination, such as calling pg_start_backup in PostgreSQL,
+        Any necessary coordination, such as calling pg_backup_start in PostgreSQL,
         should happen here.
         """
 

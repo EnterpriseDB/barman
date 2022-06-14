@@ -1417,7 +1417,7 @@ class BackupStrategy(with_metaclass(ABCMeta, object)):
         :param barman.infofile.BackupInfo backup_info: object
         representing a
             backup
-        :param DictCursor start_info: the result of the pg_start_backup
+        :param DictCursor start_info: the result of the pg_backup_start
         command
         """
         backup_info.set_attribute("status", BackupInfo.STARTED)
