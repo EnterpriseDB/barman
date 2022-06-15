@@ -20,7 +20,6 @@ import argparse
 
 import csv
 import logging
-from enum import Enum
 
 import barman
 from barman.utils import force_str
@@ -57,7 +56,7 @@ class GeneralErrorExit(SystemExit):
         super(GeneralErrorExit, self).__init__(4)
 
 
-class UrlArgumentType(Enum):
+class UrlArgumentType(object):
     source = "source"
     destination = "destination"
 
@@ -114,12 +113,12 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
         add_help=False,
     )
     parser.add_argument(
-        "%s_url" % source_or_destination.value,
+        "%s_url" % source_or_destination,
         help=(
             "URL of the cloud %s, such as a bucket in AWS S3."
             " For example: `s3://bucket/path/to/folder`."
         )
-        % source_or_destination.value,
+        % source_or_destination,
     )
     parser.add_argument(
         "server_name", help="the name of the server as configured in Barman."
