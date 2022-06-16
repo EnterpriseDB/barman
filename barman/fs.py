@@ -18,10 +18,13 @@
 
 import logging
 import re
+import shutil
+from abc import ABCMeta, abstractmethod
 
 from barman import output
 from barman.command_wrappers import Command, full_command_quote
 from barman.exceptions import FsOperationFailed
+from barman.utils import with_metaclass
 
 _logger = logging.getLogger(__name__)
 
@@ -457,3 +460,40 @@ def _translate_to_regexp(pattern):
         else:
             res = res + re.escape(c)
     return r"(?s)%s\Z" % res
+
+
+class PathDeletionCommand(with_metaclass(ABCMeta, object)):
+    """
+    Stand-alone object that will execute delete operation on a self contained path
+    """
+
+    @abstractmethod
+    def delete(self):
+        """
+        Will delete the actual path
+        """
+
+
+class LocalLibPathDeletionCommand(PathDeletionCommand):
+    def __init__(self, path):
+        """
+        :param path: str
+        """
+        self.path = path
+
+    def delete(self):
+        shutil.rmtree(self.path, ignore_errors=True)
+
+
+class UnixCommandPathDeletionCommand(PathDeletionCommand):
+    def __init__(self, path, unix_command):
+        """
+
+        :param path:
+        :param unix_command UnixLocalCommand:
+        """
+        self.path = path
+        self.command = unix_command
+
+    def delete(self):
+        self.command.delete_if_exists(self.path)

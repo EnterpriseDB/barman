@@ -1052,7 +1052,7 @@ class TestRecoveryExecutor(object):
 
     @mock.patch("barman.recovery_executor.RsyncCopyController")
     @mock.patch("barman.recovery_executor.RsyncPgData")
-    @mock.patch("barman.recovery_executor.unix_command_factory")
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
     def test_recovery(
         self, remote_cmd_mock, rsync_pg_mock, copy_controller_mock, tmpdir
     ):
@@ -1224,7 +1224,7 @@ class TestRecoveryExecutor(object):
             with closing(executor):
                 executor.recover(backup_info, destination, standby_mode=True)
 
-    @mock.patch("barman.recovery_executor.unix_command_factory")
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
     @mock.patch("barman.recovery_executor.RsyncPgData")
     @mock.patch("barman.recovery_executor.output")
     @mock.patch("barman.recovery_executor.RsyncCopyController")

@@ -50,7 +50,7 @@ from barman.exceptions import (
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
 )
-from barman.fs import unix_command_factory
+import barman.fs as fs
 from barman.infofile import BackupInfo, LocalBackupInfo
 from barman.utils import force_str, mkpath, with_metaclass
 
@@ -329,10 +329,10 @@ class RecoveryExecutor(object):
             wal_dest = os.path.join(dest, "pg_wal")
 
         tempdir = tempfile.mkdtemp(prefix="barman_recovery-")
-        self.temp_dirs.append(tempdir)
+        self.temp_dirs.append(fs.LocalLibPathDeletionCommand(tempdir))
 
         recovery_info = {
-            "cmd": unix_command_factory(remote_command, self.server.path),
+            "cmd": fs.unix_command_factory(remote_command, self.server.path),
             "recovery_dest": "local",
             "rsync": None,
             "configuration_files": [],
@@ -1228,7 +1228,7 @@ class RecoveryExecutor(object):
         """
         # Remove the temporary directories
         for temp_dir in self.temp_dirs:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            temp_dir.delete()
         self.temp_dirs = []
 
 
@@ -1271,11 +1271,15 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         # location via the copy controller and then untar into place.
 
         # Create the staging area
-        staging_dir = "/tmp/.barman-staging-{backup_id}".format(
-            backup_id=backup_info.backup_id
+        staging_dir = os.path.join(
+            self.config.recovery_staging_path,
+            "barman-stating-{}-{}".format(self.config.name, backup_info.backup_id),
         )
         recovery_info["cmd"].create_dir_if_not_exists(staging_dir, mode="700")
         recovery_info["staging_dir"] = staging_dir
+        self.temp_dirs.append(
+            fs.UnixCommandPathDeletionCommand(staging_dir, recovery_info["cmd"])
+        )
 
         # Create the copy controller object, specific for rsync.
         # Network compression is always disabled because we are copying
