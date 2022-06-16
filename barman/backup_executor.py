@@ -1641,7 +1641,7 @@ class PostgresBackupStrategy(BackupStrategy):
         """
         basename = os.path.join(backup_info.get_data_directory(), "base.tar")
         with self.backup_compression.open(basename) as f:
-            self.tar = TarFile.open(fileobj=f)
+            self.tar = TarFile.open(fileobj=f, mode="r|")
             for member in self.tar:
                 if member.name == "backup_label":
                     backup_label_fileobj = self.tar.extractfile(member)
