@@ -314,6 +314,37 @@ behaviour defined by `recovery_options`. Use `--get-wal` with `barman recover`
 to enable the fetching of WALs from the Barman server, alternatively use
 `--no-get-wal` to disable it.
 
+### Recovering compressed backups
+
+If a backup has been compressed using the `backup_compression` option
+then `barman recover` is able to uncompress the backup on recovery. This
+is a multi-step process:
+
+1. The compressed backup files are copied to a staging directory on the
+   local or remote server using Rsync.
+2. The compressed files are uncompressed to the target directory.
+3. Config files which need special handling by Barman are extracted in
+   the staging directory, analysed or edited as required, and copied to
+   the recovery destination using Rsync.
+4. The staging directory for the backup is removed.
+
+Because barman does not know anything about the environment in which it
+will be deployed it relies on the `recovery_staging_path` option in order
+to choose a suitable location for the staging directory.
+
+If you are using the `backup_compression` option you *must* therefore
+either set `recovery_staging_path` in the global/server config *or* use
+the `--recovery-staging-path` option with the `barman recover` command. If
+you do neither of these things and attempt to recover a compressed backup
+then Barman will fail rather than try to guess a suitable location.
+
+The staging directory is only removed on successful completion of the
+recovery. This allows subsequent recovery attempts to avoid transferring
+any compressed files which have previously been transferred. Should you
+ever wish to remove the staging directory manually then the naming scheme
+is: `${recovery_staging_path}/barman-staging-${server_name}-${backup_id}`.
+
+
 ## `show-backup`
 
 You can retrieve all the available information for a particular backup of
