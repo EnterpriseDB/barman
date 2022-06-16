@@ -544,8 +544,6 @@ class ServerConfig(object):
         "active": "true",
         "archiver": "off",
         "archiver_batch_size": "0",
-        "backup_compression_format": "tar",
-        "backup_compression_location": "client",
         "backup_directory": "%(barman_home)s/%(name)s",
         "backup_method": "rsync",
         "backup_options": "",

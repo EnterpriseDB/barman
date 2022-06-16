@@ -1604,7 +1604,7 @@ class PostgresBackupStrategy(BackupStrategy):
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
-        if self.backup_compression and self.backup_compression.format == "tar":
+        if self.backup_compression and self.backup_compression.format != "plain":
             backup_info.set_attribute("compression", self.backup_compression.type)
 
         self._read_backup_label(backup_info)
