@@ -442,7 +442,11 @@ def backup(args):
         if args.retry_times is not None:
             server.config.basebackup_retry_times = args.retry_times
         if hasattr(args, "immediate_checkpoint"):
+            # As well as overriding the immediate_checkpoint value in the config
+            # we must also update the immediate_checkpoint attribute on the
+            # postgres connection because it has already been set from the config
             server.config.immediate_checkpoint = args.immediate_checkpoint
+            server.postgres.immediate_checkpoint = args.immediate_checkpoint
         if args.jobs is not None:
             server.config.parallel_jobs = args.jobs
         if hasattr(args, "bwlimit"):

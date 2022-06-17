@@ -29,6 +29,7 @@ from barman import output
 from barman.cli import (
     ArgumentParser,
     argument,
+    backup,
     check_target_action,
     check_wal_archive,
     command,
@@ -596,6 +597,64 @@ class TestCli(object):
         # Every other value is an error
         with pytest.raises(ArgumentTypeError):
             check_target_action("invalid_target_action")
+
+    @pytest.mark.parametrize(
+        ("config_value", "arg_value", "expected_value"),
+        [
+            # If args is not set then we expect the config value to be set
+            (False, None, False),
+            (True, None, True),
+            # If args is False then it should override the config value
+            (False, False, False),
+            (True, False, False),
+            # If args is True then it should override the config value
+            (False, True, True),
+            (True, True, True),
+        ],
+    )
+    @patch("barman.server.Server.backup")
+    @patch("barman.cli.get_server_list")
+    def test_backup_immediate_checkpoint(
+        self,
+        mock_get_server_list,
+        _mock_server_backup,
+        config_value,
+        arg_value,
+        expected_value,
+        capsys,
+    ):
+        """
+        Verifies that the immediate_checkpoint flag is set on the postgres
+        connection.
+        """
+        # GIVEN a server with immediate_checkpoint set in the config
+        server_name = "test server"
+        mock_config = MagicMock(
+            name=server_name,
+            immediate_checkpoint=config_value,
+            retention_policy=None,
+            primary_ssh_command=None,
+            disabled=False,
+            barman_lock_directory="/path/to/lockdir",
+        )
+        server = Server(mock_config)
+        mock_server_list = {server_name: server}
+        mock_get_server_list.return_value = mock_server_list
+
+        # WHEN backup is called with the immediate_checkpoint arg
+        mock_args = Mock(server_name=server_name)
+        if arg_value is not None:
+            mock_args.immediate_checkpoint = arg_value
+        else:
+            # OR WHEN backup is called with no immediate_checkpoint arg
+            del mock_args.immediate_checkpoint
+        with pytest.raises(SystemExit):
+            backup(mock_args)
+
+        # THEN the config and the postgres connection have the expected
+        # value for the config/arg combination
+        assert server.config.immediate_checkpoint is expected_value
+        assert server.postgres.immediate_checkpoint is expected_value
 
 
 class TestKeepCli(object):
