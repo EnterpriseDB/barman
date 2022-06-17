@@ -153,7 +153,7 @@ class TestRecoveryExecutor(object):
         )
         assert len(recovery_info["results"]["missing_files"]) == 2
         assert (
-            "pg_hba.conf"
+            "pg_hba.conf" in recovery_info["results"]["missing_files"]
             and "pg_ident.conf" in recovery_info["results"]["missing_files"]
         )
 

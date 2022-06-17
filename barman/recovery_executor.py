@@ -1237,6 +1237,8 @@ class TarballRecoveryExecutor(RecoveryExecutor):
     Nevertheless for a wip "make it work" effort this will do.
     """
 
+    BASE_TARBALL_NAME = "base"
+
     def __init__(self, backup_manager, compression):
         """
         Constructor
@@ -1309,7 +1311,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
                     dst="%s/%s" % (dest_prefix + staging_dir, tablespace_file),
                     item_class=controller.TABLESPACE_CLASS,
                 )
-        base_file = "base.%s" % self.compression.file_extension
+        base_file = "%s.%s" % (self.BASE_TARBALL_NAME, self.compression.file_extension)
         base_path = "%s/%s" % (
             backup_info.get_data_directory(),
             base_file,
@@ -1377,7 +1379,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         conf_files_in_tar = self.compression.list_compressed_files(
             os.path.join(
                 recovery_info["staging_dir"],
-                "base.%s" % self.compression.file_extension,
+                "%s.%s" % (self.BASE_TARBALL_NAME, self.compression.file_extension),
             ),
             conf_files,
         )
@@ -1385,7 +1387,9 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             exists[conf_file] = conf_file in conf_files_in_tar
         return exists
 
-    def _copy_conf_files_to_tempdir(self, backup_info, recovery_info, remote_command):
+    def _copy_conf_files_to_tempdir(
+        self, backup_info, recovery_info, remote_command=None
+    ):
         """
         Copy conf files from the backup location to a temporary directory so that
         they can be checked and mangled.
@@ -1397,7 +1401,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             "%s/%s"
             % (
                 recovery_info["staging_dir"],
-                "base.%s" % self.compression.file_extension,
+                "%s.%s" % (self.BASE_TARBALL_NAME, self.compression.file_extension),
             ),
             recovery_info["staging_dir"],
             include_args=recovery_info["configuration_files"],
@@ -1528,7 +1532,7 @@ class ConfigurationFileMangeler:
 
     # List of options that, if present, need to be forced to a specific value
     # during recovery, to avoid data losses
-    MANGLE_OPTIONS = {
+    OPTIONS_TO_MANGLE = {
         # Dangerous options
         "archive_command": "false",
         # Recovery options that may interfere with recovery targets
@@ -1576,8 +1580,8 @@ class ConfigurationFileMangeler:
                 rm = PG_CONF_SETTING_RE.match(line.decode("utf-8"))
                 if rm:
                     key = rm.group(1)
-                    if key in self.MANGLE_OPTIONS:
-                        value = self.MANGLE_OPTIONS[key]
+                    if key in self.OPTIONS_TO_MANGLE:
+                        value = self.OPTIONS_TO_MANGLE[key]
                         f.write("#BARMAN#".encode("utf-8") + line)
                         # If value is None, simply comment the old line
                         if value is not None:
