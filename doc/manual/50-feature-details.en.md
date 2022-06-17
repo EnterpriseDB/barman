@@ -184,20 +184,19 @@ documentation][pg_basebackup-documentation].
 ### Concurrent Backup and backup from a standby
 
 Normally, during backup operations, Barman uses PostgreSQL native
-functions `pg_start_backup` and `pg_stop_backup` for _exclusive
-backup_. These operations are not allowed on a read-only standby
-server.
-
-Barman is also capable of performing backups of PostgreSQL from 9.2 or
-greater database servers in a **concurrent way**, primarily through
-the `backup_options` configuration parameter.[^ABOUT_CONCURRENT_BACKUP]
+functions `pg_start_backup` and `pg_stop_backup` for _concurrent
+backup_.[^ABOUT_CONCURRENT_BACKUP] This is the recommended way of
+taking backups for PostgreSQL 9.6 and above (though note the
+functions have been renamed to `pg_backup_start` and `pg_backup_stop`
+in the PostgreSQL 15 beta).
 
 [^ABOUT_CONCURRENT_BACKUP]:
   Concurrent backup is a technology that has been available in
   PostgreSQL since version 9.2, through the _streaming replication
   protocol_ (for example, using a tool like `pg_basebackup`).
 
-This introduces a new architecture scenario with Barman: **backup from
+As well as being the recommended backup approach, concurrent backup
+also allows the following architecture scenario with Barman: **backup from
 a standby server**, using `rsync`.
 
 > **IMPORTANT:** **Concurrent backup** requires users of PostgreSQL
@@ -209,14 +208,9 @@ a standby server**, using `rsync`.
 > `pgespresso` extension to perform concurrent backups from this
 > version of PostgreSQL.
 
-By default, `backup_options` is transparently set to
-`exclusive_backup` for backwards compatibility reasons.
-Users of PostgreSQL 9.6 and later versions should set `backup_options`
-to `concurrent_backup`.
-
-> **IMPORTANT:** When PostgreSQL 9.5 is declared EOL by the Community,
-> Barman will by default set `backup_options` to `concurrent_backup`.
-> Support for `pgespresso` will be ceased then.
+By default, `backup_options` is transparently set to `concurrent_backup`.
+If exclusive backup is required for PostgreSQL servers older than version
+15 then users should set `backup_options` to `exclusive_backup`.
 
 When `backup_options` is set to `concurrent_backup`, Barman activates
 the _concurrent backup mode_ for a server and follows these two simple

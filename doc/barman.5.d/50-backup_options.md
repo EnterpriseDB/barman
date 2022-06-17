@@ -3,16 +3,17 @@ backup_options
     for backups. It is a comma-separated list of values that accepts the
     following options:
 
-    * `exclusive_backup` (default when `backup_method = rsync`):
-      `barman backup` executes backup operations using the standard
+    * `concurrent_backup` (default):
+      `barman backup` executes backup operations using concurrent
+      backup which is the recommended backup approach for PostgreSQL
+      versions >= 9.6 and uses the PostgreSQL API. If using PostgreSQL
+      9.2, 9.3, 9.4, or 9.5, Barman requires the `pgespresso` module to
+      be installed on the PostgreSQL server. `concurrent_backup` can
+      also be used to perform a backup from a standby server.
+    * `exclusive_backup` (PostgreSQL versions older than 15 only):
+      `barman backup` executes backup operations using the deprecated
       exclusive backup approach (technically through `pg_start_backup`
       and `pg_stop_backup`)
-    * `concurrent_backup` (default when `backup_method = postgres`):
-      if using PostgreSQL 9.2, 9.3, 9.4, and 9.5, Barman requires the
-      `pgespresso` module to be installed on the PostgreSQL server
-      and can be used to perform a backup from a standby server.
-      Starting from PostgreSQL 9.6, Barman uses the new PostgreSQL API to
-      perform backups from a standby server.
     * `external_configuration`: if present, any warning regarding
       external configuration files is suppressed during the execution
       of a backup.
