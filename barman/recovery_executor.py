@@ -1519,7 +1519,7 @@ class GZipCompression(Compression):
     def list_compressed_files(self, tar_path, names=None):
         if names is None:
             return []
-        res = self.command.cmd("tar", args=["tfz", tar_path])
+        res = self.command.cmd("tar", args=["tfz", tar_path, *names])
         cmd_output = self.command.get_last_output()
         if res != 0:
             raise FsOperationFailed(
