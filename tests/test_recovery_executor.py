@@ -37,6 +37,7 @@ from barman.exceptions import (
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.recovery_executor import (
     Assertion,
+    GZipCompression,
     RecoveryExecutor,
     TarballRecoveryExecutor,
     ConfigurationFileMangeler,
@@ -1328,6 +1329,116 @@ class TestRecoveryExecutorFactory(object):
                 mock_backup_manager, mock_command, compression
             )
             assert type(executor) is expected_executor
+
+
+class TestGZipCompression(object):
+    # None for src
+    # None for dst
+    # badly formed exclude / include
+    @pytest.mark.parametrize(
+        ("src", "dst", "exclude", "include", "expected_error"),
+        [
+            # Simple src, dest case should cause the correct command to be called
+            ("/path/to/source", "/path/to/dest", None, None, None),
+            # Empty strings and None values for src or dst should raise an error
+            ("", "/path/to/dest", None, None, ValueError),
+            (None, "/path/to/dest", None, None, ValueError),
+            ("/path/to/src", "", None, None, ValueError),
+            ("/path/to/src", None, None, None, ValueError),
+            # Exclude arguments should be appended
+            (
+                "/path/to/source",
+                "/path/to/dest",
+                ["/path/to/exclude", "/another/path/to/exclude"],
+                None,
+                None,
+            ),
+            # Include arguments should be appended
+            (
+                "/path/to/source",
+                "/path/to/dest",
+                None,
+                ["path/to/include", "/another/path/to/include"],
+                None,
+            ),
+            # Both include and exclude arguments should be appended
+            (
+                "/path/to/source",
+                "/path/to/dest",
+                ["/path/to/exclude", "/another/path/to/exclude"],
+                ["path/to/include", "/another/path/to/include"],
+                None,
+            ),
+        ],
+    )
+    def test_uncompress(self, src, dst, exclude, include, expected_error):
+        # GIVEN a GZipCompression object
+        command = mock.Mock()
+        gzip_compression = GZipCompression(command)
+
+        # WHEN uncompress is called with the source and destination
+        # THEN the command is called once
+        # AND if we expect an error, that error is raised
+        if expected_error is not None:
+            with pytest.raises(ValueError):
+                gzip_compression.uncompress(
+                    src, dst, exclude=exclude, include_args=include
+                )
+            # THEN command.cmd was not called
+            command.cmd.assert_not_called()
+        # OR if we don't expect an error
+        else:
+            gzip_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            # THEN command.cmd was called
+            assert command.cmd.called_once()
+            # AND the first argument was "tar"
+            assert command.cmd.call_args_list[0][0][0] == "tar"
+            # AND the basic arguments are present
+            assert command.cmd.call_args_list[0][1]["args"][:4] == [
+                "xfz",
+                src,
+                "--directory",
+                dst,
+            ]
+            # AND if we expected exclude args they are present
+            remaining_args = " ".join(command.cmd.call_args_list[0][1]["args"][4:])
+            if exclude is not None:
+                for exclude_arg in exclude:
+                    assert "--exclude %s" % exclude_arg in remaining_args
+            # AND if we expected include args they are present
+            if include is not None:
+                for include_arg in include:
+                    assert include_arg in remaining_args
+
+    @pytest.mark.parametrize("names", [None, ["foo"], ["foo", "bar"]])
+    def test_list_files(self, names):
+        # GIVEN a GZipCompression object and a mock command which will return
+        # two filenames
+        command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = (names and "\n".join(names) or "", "")
+        gzip_compression = GZipCompression(command)
+
+        # WHEN list_compressed_files is called for a path
+        tar_path = "/path/to/file"
+        files_listed = gzip_compression.list_compressed_files(tar_path, names=names)
+
+        # THEN if names was None an empty list is returned
+        if names is None:
+            assert files_listed == []
+        else:
+            # OR if there are names, command.cmd was called
+            assert command.cmd.called_once()
+            # AND the first argument was "tar"
+            assert command.cmd.call_args_list[0][0][0] == "tar"
+            # AND the basic arguments are present
+            assert command.cmd.call_args_list[0][1]["args"][:2] == ["tfz", tar_path]
+            # AND any names are present in the remaining args
+            if names:
+                for name in names:
+                    assert name in command.cmd.call_args_list[0][1]["args"][2:]
+            # AND the returned list contains the two files
+            assert files_listed == names
 
 
 class TestConfigurationFileMangeler:
