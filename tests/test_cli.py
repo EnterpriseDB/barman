@@ -635,6 +635,7 @@ class TestCli(object):
             retention_policy=None,
             primary_ssh_command=None,
             disabled=False,
+            backup_compression=None,
             barman_lock_directory="/path/to/lockdir",
         )
         server = Server(mock_config)
