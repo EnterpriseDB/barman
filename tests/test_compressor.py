@@ -27,6 +27,7 @@ from barman.compression import (
     BZip2Compressor,
     CommandCompressor,
     CompressionManager,
+    Compressor,
     CustomCompressor,
     GZipCompressor,
     PyBZip2Compressor,
@@ -66,32 +67,67 @@ class TestCompressionManager(object):
         comp_manager = CompressionManager(config_mock, None)
         assert comp_manager.check("test_compression") is False
 
-    def test_get_compressor_custom(self):
-        # prepare mock obj
+    @pytest.fixture(scope="function")
+    def _reset_custom_compressor(self):
+        """
+        A function-scoped fixture which explicitly sets the MAGIC class property
+        of the CustomCompressor to None in order to reset the class to its initial
+        state so as to prevent side effects between unit tests.
+        """
+        CustomCompressor.MAGIC = None
+
+    def test_get_compressor_custom(self, _reset_custom_compressor):
+        # GIVEN a Barman config which specifies custom compression
         config_mock = mock.Mock()
         config_mock.compression = "custom"
-        config_mock.custom_compression_magic = "0x28b52ffd"
         config_mock.custom_compression_filter = "test_custom_compression_filter"
         config_mock.custom_decompression_filter = "test_custom_decompression_filter"
+        # AND the custom compression magic bytes are set
+        config_mock.custom_compression_magic = "0x28b52ffd"
 
-        # check custom compression method creation
+        # WHEN the compression manager is created
         comp_manager = CompressionManager(config_mock, None)
+
+        # THEN a default compressor can be obtained
         assert comp_manager.get_default_compressor() is not None
 
+        # AND the magic bytes of the compressor match those in the config
         assert comp_manager.get_default_compressor().MAGIC == b"\x28\xb5\x2f\xfd"
 
-    def test_get_compressor_custom_nomagic(self):
-        # prepare mock obj
+        # AND unidentified_compression is set to None as there is no need
+        # to make the legacy assumption that unidentified compression means
+        # custom compression
+        assert comp_manager.unidentified_compression is None
+
+        # AND the value of MAGIC_MAX_LENGTH equals the length of the magic bytes
+        assert comp_manager.MAGIC_MAX_LENGTH == 4
+
+    def test_get_compressor_custom_nomagic(self, _reset_custom_compressor):
+        # GIVEN a Barman config which specifies custom compression
         config_mock = mock.Mock()
         config_mock.compression = "custom"
         config_mock.custom_compression_filter = "test_custom_compression_filter"
         config_mock.custom_decompression_filter = "test_custom_decompression_filter"
+        # AND no magic bytes are set
+        config_mock.custom_compression_magic = None
 
-        # check custom compression method creation
+        # WHEN the compression manager is created
         comp_manager = CompressionManager(config_mock, None)
+
+        # THEN a default compressor can be obtained
         assert comp_manager.get_default_compressor() is not None
 
+        # AND the magic bytes of the compressor are None
         assert comp_manager.get_default_compressor().MAGIC is None
+
+        # AND unidentified_compression is set to "custom" as this assumption
+        # is the legacy way of identifying custom compression, used when magic
+        # bytes is not set
+        assert comp_manager.unidentified_compression == "custom"
+
+        # AND the value of MAGIC_MAX_LENGTH equals the max length of the default
+        # compressions
+        assert comp_manager.MAGIC_MAX_LENGTH == 3
 
     def test_get_compressor_gzip(self):
         # prepare mock obj
@@ -150,6 +186,29 @@ class TestCompressionManager(object):
         # check custom compression method creation
         compression_zip = comp_manager.identify_compression(zip_tmp_file.strpath)
         assert compression_zip == "gzip"
+
+
+class TestCompressor(object):
+    """Test the class methods of the base class for the compressors"""
+
+    @pytest.mark.parametrize(
+        ("magic", "bytes_to_validate", "is_valid"),
+        [
+            (b"\x42\x5a\x68", b"\x42\x5a\x68", True),
+            (b"\x42\x5a\x68", b"\x42\x5a\x68\xff\x12\x00", True),
+            (b"\x42\x5a\x68", b"\x42\x5b\x68\xff\x12\x00", False),
+            (b"\x42", b"\x42\x5b\x68\xff\x12\x00", True),
+            (b"\x42", b"", False),
+        ],
+    )
+    def test_validate(self, magic, bytes_to_validate, is_valid):
+        """Verifies the validate class method behaviour"""
+        # GIVEN a Compressor class with a specific MAGIC
+        Compressor.MAGIC = magic
+
+        # WHEN validate is called with a string of bytes starting with the MAGIC
+        # THEN validate returns True
+        assert Compressor.validate(bytes_to_validate) is is_valid
 
 
 # noinspection PyMethodMayBeStatic
@@ -307,29 +366,6 @@ class TestCustomCompressor(object):
             'barman_command(){ dummy_decompression_filter > "$2" < "$1";}; '
             "barman_command"
         )
-
-    def test_validate(self):
-        config_mock = mock.Mock()
-        config_mock.custom_compression_filter = "dummy_compression_filter"
-        config_mock.custom_decompression_filter = "dummy_decompression_filter"
-
-        compressor = CustomCompressor(config=config_mock, compression="custom")
-
-        validate = compressor.validate("custom")
-
-        assert validate is None
-
-    def test_validate_with_magic(self):
-        config_mock = mock.Mock()
-        config_mock.custom_compression_filter = "dummy_compression_filter"
-        config_mock.custom_decompression_filter = "dummy_decompression_filter"
-        config_mock.custom_compression_magic = "0x28b52ffd"
-
-        compressor = CustomCompressor(config=config_mock, compression="custom")
-
-        validate = compressor.validate(b"\x28\xb5\x2f\xfd\x00\x00\x00")
-
-        assert validate is True
 
 
 class TestPgBaseBackupCompression(object):
