@@ -37,7 +37,7 @@ import barman.config
 import barman.diagnose
 from barman import output
 from barman.annotations import KeepManager
-from barman.config import RecoveryOptions
+from barman.config import RecoveryOptions, parse_recovery_staging_path
 from barman.exceptions import (
     BadXlogSegmentName,
     RecoveryException,
@@ -709,6 +709,17 @@ def rebuild_xlogdb(args):
             default=SUPPRESS,
             help="Enable standby mode when starting the recovered PostgreSQL instance",
         ),
+        argument(
+            "--recovery-staging-path",
+            dest="recovery_staging_path",
+            help=(
+                "A path to a location on the recovery host where compressed backup "
+                "files will be staged during the recovery. This location must have "
+                "enough available space to temporarily hold the full compressed "
+                "backup. This option is *required* when recovering from a compressed "
+                "backup."
+            ),
+        ),
     ]
 )
 def recover(args):
@@ -727,6 +738,31 @@ def recover(args):
             server.config.name,
         )
         output.close_and_exit()
+
+    # If the backup to be recovered is compressed then there are additional
+    # checks to be carried out
+    if backup_id.compression is not None:
+        # Set the recovery staging path from the cli if it is set
+        if args.recovery_staging_path is not None:
+            recovery_staging_path = parse_recovery_staging_path(
+                args.recovery_staging_path
+            )
+            server.config.recovery_staging_path = recovery_staging_path
+        # If the backup is compressed but there is no recovery_staging_path
+        # then this is an error - the user *must* tell barman where recovery
+        # data can be staged.
+        if server.config.recovery_staging_path is None:
+            output.error(
+                "Cannot recover from backup '%s' of server '%s': "
+                "backup is compressed with %s compression but no recovery "
+                "staging path is provided. Either set recovery_staging_path "
+                "in the Barman config or use the --recovery-staging-path "
+                "argument.",
+                args.backup_id,
+                server.config.name,
+                backup_id.compression,
+            )
+            output.close_and_exit()
 
     # decode the tablespace relocation rules
     tablespaces = {}

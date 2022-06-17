@@ -359,9 +359,7 @@ def parse_backup_method(value):
 
 
 def parse_recovery_staging_path(value):
-    if value is None:
-        return "/tmp"
-    if os.path.isabs(value):
+    if os.path.isabs(value) or value is None:
         return value
     raise ValueError("Invalid value : '%s' (must be an absolute path)" % value)
 
@@ -570,7 +568,6 @@ class ServerConfig(object):
         "network_compression": "false",
         "parallel_jobs": "1",
         "recovery_options": "",
-        "recovery_staging_path": "/tmp",
         "create_slot": "manual",
         "retention_policy_mode": "auto",
         "streaming_archiver": "off",
