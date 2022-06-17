@@ -1275,6 +1275,9 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             self.config.recovery_staging_path,
             "barman-stating-{}-{}".format(self.config.name, backup_info.backup_id),
         )
+        output.info(
+            "Staging compressed backup files on the recovery host in: %s", staging_dir
+        )
         recovery_info["cmd"].create_dir_if_not_exists(staging_dir, mode="700")
         recovery_info["staging_dir"] = staging_dir
         self.temp_dirs.append(
