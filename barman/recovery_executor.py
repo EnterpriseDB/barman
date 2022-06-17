@@ -1497,6 +1497,10 @@ class GZipCompression(Compression):
         self.command = command
 
     def uncompress(self, src, dst, exclude=None, include_args=None):
+        if src is None or src == "":
+            raise ValueError("Source path should be a string")
+        if dst is None or dst == "":
+            raise ValueError("Destination path should be a string")
         exclude = [] if exclude is None else exclude
         exclude_args = []
         for name in exclude:
