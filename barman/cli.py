@@ -744,9 +744,13 @@ def recover(args):
     if backup_id.compression is not None:
         # Set the recovery staging path from the cli if it is set
         if args.recovery_staging_path is not None:
-            recovery_staging_path = parse_recovery_staging_path(
-                args.recovery_staging_path
-            )
+            try:
+                recovery_staging_path = parse_recovery_staging_path(
+                    args.recovery_staging_path
+                )
+            except ValueError as exc:
+                output.error("Cannot parse recovery staging path: %s", str(exc))
+                output.close_and_exit()
             server.config.recovery_staging_path = recovery_staging_path
         # If the backup is compressed but there is no recovery_staging_path
         # then this is an error - the user *must* tell barman where recovery
