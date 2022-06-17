@@ -38,7 +38,9 @@ from barman.infofile import BackupInfo, WalFileInfo
 from barman.recovery_executor import (
     Assertion,
     RecoveryExecutor,
+    TarballRecoveryExecutor,
     ConfigurationFileMangeler,
+    recovery_executor_factory,
 )
 
 
@@ -1293,6 +1295,39 @@ class TestRecoveryExecutor(object):
                 )
             ]
         )
+
+
+class TestRecoveryExecutorFactory(object):
+    @pytest.mark.parametrize(
+        ("compression", "expected_executor", "should_error"),
+        [
+            # No compression should return RecoveryExecutor
+            (None, RecoveryExecutor, False),
+            # Supported compression should return TarballRecoveryExecutor
+            ("gzip", TarballRecoveryExecutor, False),
+            # Unrecognised compression should cause an error
+            ("snappy", None, True),
+        ],
+    )
+    def test_recovery_executor_factory(
+        self, compression, expected_executor, should_error
+    ):
+        mock_backup_manager = mock.Mock()
+        mock_command = mock.Mock()
+
+        # WHEN recovery_executor_factory is called with the specified compression
+        # THEN if an error is expected we see an error
+        if should_error:
+            with pytest.raises(AttributeError):
+                recovery_executor_factory(
+                    mock_backup_manager, mock_command, compression
+                )
+        # OR the expected type of recovery executor is returned
+        else:
+            executor = recovery_executor_factory(
+                mock_backup_manager, mock_command, compression
+            )
+            assert type(executor) is expected_executor
 
 
 class TestConfigurationFileMangeler:
