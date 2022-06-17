@@ -300,6 +300,7 @@ class TestCli(object):
         backup_info = Mock()
         backup_info.status = BackupInfo.DONE
         backup_info.tablespaces = []
+        backup_info.compression = None
         return backup_info
 
     @pytest.fixture

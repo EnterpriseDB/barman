@@ -173,7 +173,6 @@ class TestConfig(object):
                 "custom_decompression_filter": "bzip2 -c -d",
                 "backup_method": "rsync",
                 "max_incoming_wals_queue": None,
-                "recovery_staging_path": "/tmp",
             }
         )
         assert main.__dict__ == expected
@@ -208,7 +207,6 @@ class TestConfig(object):
                 "streaming_wals_directory": "/some/barman/home/web/streaming",
                 "errors_directory": "/some/barman/home/web/errors",
                 "max_incoming_wals_queue": None,
-                "recovery_staging_path": "/tmp",
             }
         )
         assert web.__dict__ == expected
@@ -450,7 +448,7 @@ class TestConfig(object):
         """
         Test the parse_recovery_staging_path method
         """
-        assert parse_recovery_staging_path(None) == "/tmp"
+        assert parse_recovery_staging_path(None) == None
         assert parse_recovery_staging_path("/any/path") == "/any/path"
         with pytest.raises(ValueError):
             parse_recovery_staging_path("here/it/is")

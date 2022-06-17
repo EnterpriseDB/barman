@@ -359,7 +359,7 @@ def parse_backup_method(value):
 
 
 def parse_recovery_staging_path(value):
-    if os.path.isabs(value) or value is None:
+    if value is None or os.path.isabs(value):
         return value
     raise ValueError("Invalid value : '%s' (must be an absolute path)" % value)
 
