@@ -59,8 +59,10 @@ class UnixLocalCommand(object):
         If the path exists and is not a directory raise an exception.
 
         :param str dir_path: full path for the directory
-        :param mode str|None: Specify the mode to use for creation. Not used If teh directory already exists.
-        :returns Bool: False if the directory already exists True if the directory is created
+        :param mode str|None: Specify the mode to use for creation. Not used
+            if the directory already exists.
+        :returns bool: False if the directory already exists True if the
+            directory is created.
         """
         _logger.debug("Create directory %s if it does not exists" % dir_path)
         exists = self.exists(dir_path)
@@ -327,7 +329,7 @@ class UnixRemoteCommand(UnixLocalCommand):
 def unix_command_factory(remote_command=None, path=None):
     """
     Function in charge of instantiating a Unix Command.
-    Todo: All Unix Command creation should use this method in the future to help decrease code complexity
+
     :param remote_command:
     :param path:
     :return: UnixLocalCommand

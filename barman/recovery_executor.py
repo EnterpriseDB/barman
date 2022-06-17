@@ -650,10 +650,6 @@ class RecoveryExecutor(object):
         tablespaces=None,
         remote_command=None,
         safe_horizon=None,
-        # This does nothing here but the TarballRecoveryExecutor needs it so
-        # for this wip draft we just add it here as well
-        # Also, given safe_horizon also comes from recovery_info, we could
-        # avoid passing that explicitly too
         recovery_info=None,
     ):
         """
@@ -1273,7 +1269,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         # Create the staging area
         staging_dir = os.path.join(
             self.config.recovery_staging_path,
-            "barman-stating-{}-{}".format(self.config.name, backup_info.backup_id),
+            "barman-staging-{}-{}".format(self.config.name, backup_info.backup_id),
         )
         output.info(
             "Staging compressed backup files on the recovery host in: %s", staging_dir
@@ -1349,15 +1345,26 @@ class TarballRecoveryExecutor(RecoveryExecutor):
                     self.compression.file_extension,
                 )
                 tablespace_src_path = "%s/%s" % (staging_dir, tablespace_file)
+                _logger.debug(
+                    "Uncompressing tablespace %s from %s to %s",
+                    tablespace.name,
+                    tablespace_src_path,
+                    tablespace_dst_path,
+                )
                 cmd_output = self.compression.uncompress(
                     tablespace_src_path, tablespace_dst_path
                 )
-                print(cmd_output)
+                _logger.debug(
+                    "Uncompression output for tablespace %s: %s",
+                    tablespace.name,
+                    cmd_output,
+                )
         base_src_path = "%s/%s" % (staging_dir, base_file)
+        _logger.debug("Uncompressing base tarball from %s to %s.", base_src_path, dest)
         cmd_output = self.compression.uncompress(
             base_src_path, dest, exclude=["recovery.conf", "tablespace_map"]
         )
-        print(cmd_output)
+        _logger.debug("Uncompression output for base tarball: %s", cmd_output)
 
     def _conf_files_exist(self, conf_files, backup_info, recovery_info):
         """
