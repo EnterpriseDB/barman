@@ -96,6 +96,47 @@ Global/Server.
 .RS
 .RE
 .TP
+.B backup_compression
+The compression to be used during the backup process.
+Only supported when \f[C]backup_method\ =\ postgres\f[].
+Can either be unset or \f[C]gzip\f[].
+If unset then no compression will be used during the backup.
+Global/Server.
+.RS
+.RE
+.TP
+.B backup_compression_format
+The format pg_basebackup should use when writing compressed backups to
+disk.
+Can be set to either \f[C]plain\f[] or \f[C]tar\f[].
+If unset then a default of \f[C]tar\f[] is assumed.
+The value \f[C]plain\f[] can only be used if the server is running
+PostgreSQL 15 or later \f[I]and\f[] if
+\f[C]backup_compression_location\f[] is \f[C]server\f[].
+Only supported when \f[C]backup_method\ =\ postgres\f[].
+Global/Server.
+.RS
+.RE
+.TP
+.B backup_compression_level
+An integer value representing the compression level to use when
+compressing backups.
+Allowed values depend on the compression algorithm specified by
+\f[C]backup_compression\f[].
+Only supported when \f[C]backup_method\ =\ postgres\f[].
+Global/Server.
+.RS
+.RE
+.TP
+.B backup_compression_location
+The location (either \f[C]client\f[] or \f[C]server\f[]) where
+compression should be performed during the backup.
+The value \f[C]server\f[] is only allowed if the server is running
+PostgreSQL 15 or later.
+Global/Server.
+.RS
+.RE
+.TP
 .B backup_directory
 Directory where backup data for a server will be placed.
 Server.
@@ -586,6 +627,24 @@ Currently only supports \f[C]get\-wal\f[].
 uses the \f[C]barman\ get\-wal\f[] command to fetch WAL files directly
 from Barman\[aq]s archive of WALs.
 Comma separated list of values, default empty.
+Global/Server.
+.RS
+.RE
+.TP
+.B recovery_staging_path
+A path to a location on the recovery host (either the barman server or a
+remote host if \-\-remote\-ssh\-command is also used) where files for a
+compressed backup will be staged before being uncompressed to the
+destination directory.
+Backups will be staged in their own directory within the staging path
+according to the following naming convention:
+"barman\-staging\-SERVER_NAME\-BACKUP_ID".
+The staging directory within the staging path will be removed upon
+successful recovery, otherwise it will be left in place so that
+subsequent recovery attempts can avoid transferring files which have
+already been transferred.
+This option is \f[I]required\f[] when recovering from compressed backups
+and has no effect otherwise.
 Global/Server.
 .RS
 .RE

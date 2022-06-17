@@ -18,9 +18,13 @@
 
 import logging
 import re
+import shutil
+from abc import ABCMeta, abstractmethod
 
+from barman import output
 from barman.command_wrappers import Command, full_command_quote
 from barman.exceptions import FsOperationFailed
+from barman.utils import with_metaclass
 
 _logger = logging.getLogger(__name__)
 
@@ -48,13 +52,17 @@ class UnixLocalCommand(object):
         """
         return self.internal_cmd.out, self.internal_cmd.err
 
-    def create_dir_if_not_exists(self, dir_path):
+    def create_dir_if_not_exists(self, dir_path, mode=None):
         """
         This method recursively creates a directory if not exists
 
         If the path exists and is not a directory raise an exception.
 
         :param str dir_path: full path for the directory
+        :param mode str|None: Specify the mode to use for creation. Not used
+            if the directory already exists.
+        :returns bool: False if the directory already exists True if the
+            directory is created.
         """
         _logger.debug("Create directory %s if it does not exists" % dir_path)
         exists = self.exists(dir_path)
@@ -66,7 +74,10 @@ class UnixLocalCommand(object):
                 return False
         else:
             # Make parent directories if needed
-            mkdir_ret = self.cmd("mkdir", args=["-p", dir_path])
+            args = ["-p", dir_path]
+            if mode is not None:
+                args.extend(["-m", mode])
+            mkdir_ret = self.cmd("mkdir", args=args)
             if mkdir_ret == 0:
                 return True
             else:
@@ -315,6 +326,31 @@ class UnixRemoteCommand(UnixLocalCommand):
             )
 
 
+def unix_command_factory(remote_command=None, path=None):
+    """
+    Function in charge of instantiating a Unix Command.
+
+    :param remote_command:
+    :param path:
+    :return: UnixLocalCommand
+    """
+    if remote_command:
+        try:
+            cmd = UnixRemoteCommand(remote_command, path=path)
+            logging.debug("Created a UnixRemoteCommand")
+            return cmd
+        except FsOperationFailed:
+            output.error(
+                "Unable to connect to the target host using the command '%s'",
+                remote_command,
+            )
+            output.close_and_exit()
+    else:
+        cmd = UnixLocalCommand()
+        logging.debug("Created a UnixLocalCommand")
+        return cmd
+
+
 def path_allowed(exclude, include, path, is_dir):
     """
     Filter files based on include/exclude lists.
@@ -426,3 +462,40 @@ def _translate_to_regexp(pattern):
         else:
             res = res + re.escape(c)
     return r"(?s)%s\Z" % res
+
+
+class PathDeletionCommand(with_metaclass(ABCMeta, object)):
+    """
+    Stand-alone object that will execute delete operation on a self contained path
+    """
+
+    @abstractmethod
+    def delete(self):
+        """
+        Will delete the actual path
+        """
+
+
+class LocalLibPathDeletionCommand(PathDeletionCommand):
+    def __init__(self, path):
+        """
+        :param path: str
+        """
+        self.path = path
+
+    def delete(self):
+        shutil.rmtree(self.path, ignore_errors=True)
+
+
+class UnixCommandPathDeletionCommand(PathDeletionCommand):
+    def __init__(self, path, unix_command):
+        """
+
+        :param path:
+        :param unix_command UnixLocalCommand:
+        """
+        self.path = path
+        self.command = unix_command
+
+    def delete(self):
+        self.command.delete_if_exists(self.path)

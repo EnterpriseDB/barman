@@ -891,6 +891,7 @@ class PgBaseBackup(PostgreSQLClient):
         tbs_mapping=None,
         immediate=False,
         check=True,
+        compression=None,
         args=None,
         **kwargs
     ):
@@ -908,6 +909,8 @@ class PgBaseBackup(PostgreSQLClient):
         :param bool immediate: fast checkpoint identifier for pg_basebackup
         :param bool check: check if the return value is in the list of
           allowed values of the Command obj
+        :param barman.compression.PgBaseBackupCompression compression:
+          the pg_basebackup compression options used for this backup
         :param List[str] args: additional arguments
         """
         PostgreSQLClient.__init__(
@@ -947,9 +950,48 @@ class PgBaseBackup(PostgreSQLClient):
         if immediate:
             self.args.append("--checkpoint=fast")
 
+        # Append compression arguments, the exact format of which are determined
+        # in another function since they depend on the command version
+        self.args.extend(self._get_compression_args(version, compression))
+
         # Manage additional args
         if args:
             self.args += args
+
+    def _get_compression_args(self, version, compression):
+        """
+        Determine compression related arguments for pg_basebackup from the supplied
+        compression options in the format required by the pg_basebackup version.
+
+        :param Version version: The pg_basebackup version for which the arguments
+          should be formatted.
+        :param barman.compression.PgBaseBackupCompression compression:
+          the pg_basebackup compression options used for this backup
+        """
+        compression_args = []
+
+        if compression is not None:
+            if compression.format is not None:
+                compression_format = compression.format
+            else:
+                compression_format = "tar"
+            compression_args.append("--format=%s" % compression_format)
+            # For clients >= 15 we use the new --compress argument format
+            if version and version >= Version("15"):
+                compress_arg = "--compress="
+                if compression.location is not None:
+                    compress_arg += "%s-" % compression.location
+                compress_arg += compression.type
+                if compression.level:
+                    compress_arg += ":level=%d" % compression.level
+                compression_args.append(compress_arg)
+            # For clients < 15 we use the old style argument format
+            else:
+                compression_args.append("--%s" % compression.type)
+                if compression.level:
+                    compression_args.append("--compress=%d" % compression.level)
+
+        return compression_args
 
 
 class PgReceiveXlog(PostgreSQLClient):

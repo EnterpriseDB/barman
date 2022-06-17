@@ -22,6 +22,7 @@ This module contains the methods necessary to perform a recovery
 
 from __future__ import print_function
 
+from abc import ABCMeta, abstractmethod, abstractproperty
 import collections
 import datetime
 import logging
@@ -49,9 +50,9 @@ from barman.exceptions import (
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
 )
-from barman.fs import UnixLocalCommand, UnixRemoteCommand
+import barman.fs as fs
 from barman.infofile import BackupInfo, LocalBackupInfo
-from barman.utils import force_str, mkpath
+from barman.utils import force_str, mkpath, with_metaclass
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -69,41 +70,6 @@ class RecoveryExecutor(object):
     """
     Class responsible of recovery operations
     """
-
-    # Potentially dangerous options list, which need to be revised by the user
-    # after a recovery
-    DANGEROUS_OPTIONS = [
-        "data_directory",
-        "config_file",
-        "hba_file",
-        "ident_file",
-        "external_pid_file",
-        "ssl_cert_file",
-        "ssl_key_file",
-        "ssl_ca_file",
-        "ssl_crl_file",
-        "unix_socket_directory",
-        "unix_socket_directories",
-        "include",
-        "include_dir",
-        "include_if_exists",
-    ]
-
-    # List of options that, if present, need to be forced to a specific value
-    # during recovery, to avoid data losses
-    MANGLE_OPTIONS = {
-        # Dangerous options
-        "archive_command": "false",
-        # Recovery options that may interfere with recovery targets
-        "recovery_target": None,
-        "recovery_target_name": None,
-        "recovery_target_time": None,
-        "recovery_target_xid": None,
-        "recovery_target_lsn": None,
-        "recovery_target_inclusive": None,
-        "recovery_target_timeline": None,
-        "recovery_target_action": None,
-    }
 
     def __init__(self, backup_manager):
         """
@@ -199,7 +165,7 @@ class RecoveryExecutor(object):
 
         # check destination directory. If doesn't exist create it
         try:
-            recovery_info["cmd"].create_dir_if_not_exists(dest)
+            recovery_info["cmd"].create_dir_if_not_exists(dest, mode="700")
         except FsOperationFailed as e:
             output.error("unable to initialise destination directory '%s': %s", dest, e)
             output.close_and_exit()
@@ -218,6 +184,7 @@ class RecoveryExecutor(object):
                 tablespaces,
                 remote_command,
                 recovery_info["safe_horizon"],
+                recovery_info,
             )
         except DataTransferFailure as e:
             output.error("Failure copying base backup: %s", e)
@@ -362,10 +329,10 @@ class RecoveryExecutor(object):
             wal_dest = os.path.join(dest, "pg_wal")
 
         tempdir = tempfile.mkdtemp(prefix="barman_recovery-")
-        self.temp_dirs.append(tempdir)
+        self.temp_dirs.append(fs.LocalLibPathDeletionCommand(tempdir))
 
         recovery_info = {
-            "cmd": None,
+            "cmd": fs.unix_command_factory(remote_command, self.server.path),
             "recovery_dest": "local",
             "rsync": None,
             "configuration_files": [],
@@ -407,21 +374,6 @@ class RecoveryExecutor(object):
                 bwlimit=self.config.bandwidth_limit,
                 network_compression=self.config.network_compression,
             )
-
-            try:
-                # create a UnixRemoteCommand obj if is a remote recovery
-                recovery_info["cmd"] = UnixRemoteCommand(
-                    remote_command, path=self.server.path
-                )
-            except FsOperationFailed:
-                output.error(
-                    "Unable to connect to the target host using the command '%s'",
-                    remote_command,
-                )
-                output.close_and_exit()
-        else:
-            # if is a local recovery create a UnixLocalCommand
-            recovery_info["cmd"] = UnixLocalCommand()
 
         return recovery_info
 
@@ -698,6 +650,7 @@ class RecoveryExecutor(object):
         tablespaces=None,
         remote_command=None,
         safe_horizon=None,
+        recovery_info=None,
     ):
         """
         Perform the actual copy of the base backup for recovery purposes
@@ -1116,6 +1069,38 @@ class RecoveryExecutor(object):
                 )
                 output.close_and_exit()
 
+    def _conf_files_exist(self, conf_files, backup_info, recovery_info):
+        """
+        Determine whether the conf files in the supplied list exist in the backup
+        represented by backup_info.
+
+        Returns a map of conf_file:exists.
+        """
+        exists = {}
+        for conf_file in conf_files:
+            source_path = os.path.join(backup_info.get_data_directory(), conf_file)
+            exists[conf_file] = os.path.exists(source_path)
+        return exists
+
+    def _copy_conf_files_to_tempdir(
+        self, backup_info, recovery_info, remote_command=None
+    ):
+        """
+        Copy conf files from the backup location to a temporary directory so that
+        they can be checked and mangled.
+
+        Returns a list of the paths to the temporary conf files.
+        """
+        conf_file_paths = []
+        for conf_file in recovery_info["configuration_files"]:
+            conf_file_path = os.path.join(recovery_info["tempdir"], conf_file)
+            shutil.copy2(
+                os.path.join(backup_info.get_data_directory(), conf_file),
+                conf_file_path,
+            )
+            conf_file_paths.append(conf_file_path)
+        return conf_file_paths
+
     def _map_temporary_config_files(self, recovery_info, backup_info, remote_command):
         """
         Map configuration files, by filling the 'temporary_configuration_files'
@@ -1138,32 +1123,30 @@ class RecoveryExecutor(object):
         # `pg_ident.conf` which is an optional file.
         hardcoded_files = ["pg_hba.conf", "pg_ident.conf"]
         conf_files = recovery_info["configuration_files"] + hardcoded_files
-        for conf_file in conf_files:
-            source_path = os.path.join(backup_info.get_data_directory(), conf_file)
-            if not os.path.exists(source_path):
+        conf_files_exist = self._conf_files_exist(
+            conf_files, backup_info, recovery_info
+        )
+
+        for conf_file, exists in conf_files_exist.items():
+            if not exists:
                 recovery_info["results"]["missing_files"].append(conf_file)
                 # Remove the file from the list of configuration files
                 if conf_file in recovery_info["configuration_files"]:
                     recovery_info["configuration_files"].remove(conf_file)
 
-        for conf_file in recovery_info["configuration_files"]:
-            if remote_command:
-                # If the recovery is remote, copy the postgresql.conf
-                # file in a temp dir
-                # Otherwise we can modify the postgresql.conf file
-                # in the destination directory.
-                conf_file_path = os.path.join(recovery_info["tempdir"], conf_file)
-                shutil.copy2(
-                    os.path.join(backup_info.get_data_directory(), conf_file),
-                    conf_file_path,
-                )
-            else:
-                # Otherwise use the local destination path.
-                conf_file_path = os.path.join(
-                    recovery_info["destination_path"], conf_file
-                )
-
-            recovery_info["temporary_configuration_files"].append(conf_file_path)
+        conf_file_paths = []
+        if remote_command:
+            # If the recovery is remote, copy the postgresql.conf
+            # file in a temp dir
+            conf_file_paths = self._copy_conf_files_to_tempdir(
+                backup_info, recovery_info, remote_command
+            )
+        else:
+            conf_file_paths = [
+                os.path.join(recovery_info["destination_path"], conf_file)
+                for conf_file in recovery_info["configuration_files"]
+            ]
+        recovery_info["temporary_configuration_files"].extend(conf_file_paths)
 
         if backup_info.version >= 120000:
             # Make sure 'postgresql.auto.conf' file exists in
@@ -1191,6 +1174,8 @@ class RecoveryExecutor(object):
         :param dict recovery_info: dictionary holding all recovery parameters
         """
         results = recovery_info["results"]
+        config_mangeler = ConfigurationFileMangeler()
+        validator = ConfigIssueDetection()
         # Check for dangerous options inside every config file
         for conf_file in recovery_info["temporary_configuration_files"]:
 
@@ -1200,11 +1185,12 @@ class RecoveryExecutor(object):
 
             # Identify and comment out dangerous options, replacing them with
             # the appropriate values
-            results["changes"] += self._pg_config_mangle(
-                conf_file, self.MANGLE_OPTIONS, "%s.origin" % conf_file, append_lines
+            results["changes"] += config_mangeler.mangle_options(
+                conf_file, "%s.origin" % conf_file, append_lines
             )
+
             # Identify dangerous options and warn users about their presence
-            results["warnings"] += self._pg_config_detect_possible_issues(conf_file)
+            results["warnings"] += validator.detect_issues(conf_file)
 
     def _copy_temporary_config_files(self, dest, remote_command, recovery_info):
         """
@@ -1238,12 +1224,293 @@ class RecoveryExecutor(object):
         """
         # Remove the temporary directories
         for temp_dir in self.temp_dirs:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            temp_dir.delete()
         self.temp_dirs = []
 
-    def _pg_config_mangle(
-        self, filename, settings, backup_filename=None, append_lines=None
+
+class TarballRecoveryExecutor(RecoveryExecutor):
+    """
+    A specialised recovery method for compressed backups.
+    Inheritence is not necessarily the best thing here since the two RecoveryExecutor
+    classes only differ by this one method, and the same will be true for future
+    RecoveryExecutors (i.e. ones which handle encryption).
+    Nevertheless for a wip "make it work" effort this will do.
+    """
+
+    BASE_TARBALL_NAME = "base"
+
+    def __init__(self, backup_manager, compression):
+        """
+        Constructor
+
+        :param barman.backup.BackupManager backup_manager: the BackupManager
+            owner of the executor
+        :param compression Compression.
+        """
+        super(TarballRecoveryExecutor, self).__init__(backup_manager)
+        self.compression = compression
+
+    def _backup_copy(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        safe_horizon=None,
+        recovery_info=None,
     ):
+        # Set a ':' prefix to remote destinations
+        dest_prefix = ""
+        if remote_command:
+            dest_prefix = ":"
+
+        # Instead of adding the `data` directory and `tablespaces` to a copy
+        # controller we instead want to copy just the tarballs to a staging
+        # location via the copy controller and then untar into place.
+
+        # Create the staging area
+        staging_dir = os.path.join(
+            self.config.recovery_staging_path,
+            "barman-staging-{}-{}".format(self.config.name, backup_info.backup_id),
+        )
+        output.info(
+            "Staging compressed backup files on the recovery host in: %s", staging_dir
+        )
+        recovery_info["cmd"].create_dir_if_not_exists(staging_dir, mode="700")
+        recovery_info["staging_dir"] = staging_dir
+        self.temp_dirs.append(
+            fs.UnixCommandPathDeletionCommand(staging_dir, recovery_info["cmd"])
+        )
+
+        # Create the copy controller object, specific for rsync.
+        # Network compression is always disabled because we are copying
+        # data which has already been compressed.
+        controller = RsyncCopyController(
+            path=self.server.path,
+            ssh_command=remote_command,
+            network_compression=False,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            workers=self.config.parallel_jobs,
+        )
+
+        # Add the tarballs to the controller
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                tablespace_file = "%s.%s" % (
+                    tablespace.oid,
+                    self.compression.file_extension,
+                )
+                tablespace_path = "%s/%s" % (
+                    backup_info.get_data_directory(),
+                    tablespace_file,
+                )
+                controller.add_file(
+                    label=tablespace.name,
+                    src=tablespace_path,
+                    dst="%s/%s" % (dest_prefix + staging_dir, tablespace_file),
+                    item_class=controller.TABLESPACE_CLASS,
+                )
+        base_file = "%s.%s" % (self.BASE_TARBALL_NAME, self.compression.file_extension)
+        base_path = "%s/%s" % (
+            backup_info.get_data_directory(),
+            base_file,
+        )
+        controller.add_file(
+            label="pgdata",
+            src=base_path,
+            dst="%s/%s" % (dest_prefix + staging_dir, base_file),
+            item_class=controller.PGDATA_CLASS,
+        )
+
+        # Execute the copy
+        try:
+            controller.copy()
+        except CommandFailedException as e:
+            msg = "data transfer failure"
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
+
+        # Untar the results files to their intended location
+        # When zstd and lz4 are supported this will need to be a little more
+        # sophisticated
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                # By default a tablespace goes in the same location where
+                # it was on the source server when the backup was taken
+                tablespace_dst_path = tablespace.location
+                # If a relocation has been requested for this tablespace
+                # use the user provided target directory
+                if tablespaces and tablespace.name in tablespaces:
+                    tablespace_dst_path = tablespaces[tablespace.name]
+                tablespace_file = "%s.%s" % (
+                    tablespace.oid,
+                    self.compression.file_extension,
+                )
+                tablespace_src_path = "%s/%s" % (staging_dir, tablespace_file)
+                _logger.debug(
+                    "Uncompressing tablespace %s from %s to %s",
+                    tablespace.name,
+                    tablespace_src_path,
+                    tablespace_dst_path,
+                )
+                cmd_output = self.compression.uncompress(
+                    tablespace_src_path, tablespace_dst_path
+                )
+                _logger.debug(
+                    "Uncompression output for tablespace %s: %s",
+                    tablespace.name,
+                    cmd_output,
+                )
+        base_src_path = "%s/%s" % (staging_dir, base_file)
+        _logger.debug("Uncompressing base tarball from %s to %s.", base_src_path, dest)
+        cmd_output = self.compression.uncompress(
+            base_src_path, dest, exclude=["recovery.conf", "tablespace_map"]
+        )
+        _logger.debug("Uncompression output for base tarball: %s", cmd_output)
+
+    def _conf_files_exist(self, conf_files, backup_info, recovery_info):
+        """
+        Determine whether the conf files in the supplied list exist in the backup
+        represented by backup_info.
+
+        Returns a map of conf_file:exists.
+        """
+        exists = {}
+        for conf_file in conf_files:
+            source_path = os.path.join(recovery_info["destination_path"], conf_file)
+            exists[conf_file] = recovery_info["cmd"].exists(source_path)
+        return exists
+
+    def _copy_conf_files_to_tempdir(
+        self, backup_info, recovery_info, remote_command=None
+    ):
+        """
+        Copy conf files from the backup location to a temporary directory so that
+        they can be checked and mangled.
+
+        Returns a list of the paths to the temporary conf files.
+        """
+        conf_file_paths = []
+
+        rsync = RsyncPgData(
+            path=self.server.path,
+            ssh=remote_command,
+            bwlimit=self.config.bandwidth_limit,
+            network_compression=self.config.network_compression,
+        )
+
+        rsync.from_file_list(
+            recovery_info["configuration_files"],
+            ":" + recovery_info["destination_path"],
+            recovery_info["tempdir"],
+        )
+
+        conf_file_paths.extend(
+            [
+                os.path.join(recovery_info["tempdir"], conf_file)
+                for conf_file in recovery_info["configuration_files"]
+            ]
+        )
+        return conf_file_paths
+
+
+def recovery_executor_factory(backup_manager, command, compression=None):
+    """
+    Method in charge of building adequate RecoveryExecutor depending on the context
+    :param: backup_manager
+    :param: command barman.fs.UnixLocalCommand
+    :return: RecoveryExecutor instance
+    """
+    if compression is None:
+        return RecoveryExecutor(backup_manager)
+    if compression == GZipCompression.name:
+        return TarballRecoveryExecutor(backup_manager, GZipCompression(command))
+
+    raise AttributeError("Unexpected compression format: %s" % compression)
+
+
+class Compression(with_metaclass(ABCMeta, object)):
+    """
+    Class meant to manage compression action using external program with linux command
+    """
+
+    @abstractproperty
+    def name(self):
+        """
+
+        :return:
+        """
+
+    @abstractproperty
+    def file_extension(self):
+        """
+
+        :return:
+        """
+
+    @abstractmethod
+    def uncompress(self, src, dst, exclude=[], include_args=[]):
+        """
+
+        :param src:
+        :param dst:
+        :param exclude:
+        :param include_args:
+        :return:
+        """
+
+
+class GZipCompression(Compression):
+    name = "gzip"
+    file_extension = "tar.gz"
+
+    def __init__(self, command):
+        """
+
+        :param command: barman.fs.UnixLocalCommand
+        """
+        self.command = command
+
+    def uncompress(self, src, dst, exclude=None, include_args=None):
+        if src is None or src == "":
+            raise ValueError("Source path should be a string")
+        if dst is None or dst == "":
+            raise ValueError("Destination path should be a string")
+        exclude = [] if exclude is None else exclude
+        exclude_args = []
+        for name in exclude:
+            exclude_args.append("--exclude")
+            exclude_args.append(name)
+        include_args = [] if include_args is None else include_args
+        args = ["xfz", src, "--directory", dst]
+        args.extend(exclude_args)
+        args.extend(include_args)
+        self.command.cmd(
+            "tar",
+            args=args,
+        )
+        return self.command.get_last_output()
+
+
+class ConfigurationFileMangeler:
+
+    # List of options that, if present, need to be forced to a specific value
+    # during recovery, to avoid data losses
+    OPTIONS_TO_MANGLE = {
+        # Dangerous options
+        "archive_command": "false",
+        # Recovery options that may interfere with recovery targets
+        "recovery_target": None,
+        "recovery_target_name": None,
+        "recovery_target_time": None,
+        "recovery_target_xid": None,
+        "recovery_target_lsn": None,
+        "recovery_target_inclusive": None,
+        "recovery_target_timeline": None,
+        "recovery_target_action": None,
+    }
+
+    def mangle_options(self, filename, backup_filename=None, append_lines=None):
         """
         This method modifies the given PostgreSQL configuration file,
         commenting out the given settings, and adding the ones generated by
@@ -1252,8 +1519,9 @@ class RecoveryExecutor(object):
         If backup_filename is passed, keep a backup copy.
 
         :param filename: the PostgreSQL configuration file
-        :param settings: dictionary of settings to be mangled
         :param backup_filename: config file backup copy. Default is None.
+        :param append_lines: Additional lines to add to the config file
+        :return [Assertion]
         """
         # Read the full content of the file in memory
         with open(filename, "rb") as f:
@@ -1276,8 +1544,8 @@ class RecoveryExecutor(object):
                 rm = PG_CONF_SETTING_RE.match(line.decode("utf-8"))
                 if rm:
                     key = rm.group(1)
-                    if key in settings:
-                        value = settings[key]
+                    if key in self.OPTIONS_TO_MANGLE:
+                        value = self.OPTIONS_TO_MANGLE[key]
                         f.write("#BARMAN#".encode("utf-8") + line)
                         # If value is None, simply comment the old line
                         if value is not None:
@@ -1308,14 +1576,36 @@ class RecoveryExecutor(object):
 
         return mangled
 
-    def _pg_config_detect_possible_issues(self, filename):
+
+class ConfigIssueDetection:
+    # Potentially dangerous options list, which need to be revised by the user
+    # after a recovery
+    DANGEROUS_OPTIONS = [
+        "data_directory",
+        "config_file",
+        "hba_file",
+        "ident_file",
+        "external_pid_file",
+        "ssl_cert_file",
+        "ssl_key_file",
+        "ssl_ca_file",
+        "ssl_crl_file",
+        "unix_socket_directory",
+        "unix_socket_directories",
+        "include",
+        "include_dir",
+        "include_if_exists",
+    ]
+
+    def detect_issues(self, filename):
         """
         This method looks for any possible issue with PostgreSQL
         location options such as data_directory, config_file, etc.
         It returns a dictionary with the dangerous options that
         have been found.
 
-        :param filename: the Postgres configuration file
+        :param filename str: the Postgres configuration file
+        :return clashes [Assertion]
         """
 
         clashes = []

@@ -35,7 +35,14 @@ from barman.exceptions import (
     RecoveryTargetActionException,
 )
 from barman.infofile import BackupInfo, WalFileInfo
-from barman.recovery_executor import Assertion, RecoveryExecutor
+from barman.recovery_executor import (
+    Assertion,
+    GZipCompression,
+    RecoveryExecutor,
+    TarballRecoveryExecutor,
+    ConfigurationFileMangeler,
+    recovery_executor_factory,
+)
 
 
 # noinspection PyMethodMayBeStatic
@@ -147,10 +154,11 @@ class TestRecoveryExecutor(object):
             tempdir.join("postgresql.auto.conf").computehash()
             == postgresql_auto_local.computehash()
         )
-        assert recovery_info["results"]["missing_files"] == [
-            "pg_hba.conf",
-            "pg_ident.conf",
-        ]
+        assert len(recovery_info["results"]["missing_files"]) == 2
+        assert (
+            "pg_hba.conf" in recovery_info["results"]["missing_files"]
+            and "pg_ident.conf" in recovery_info["results"]["missing_files"]
+        )
 
     @mock.patch("barman.recovery_executor.RsyncPgData")
     def test_setup(self, rsync_mock):
@@ -1047,7 +1055,7 @@ class TestRecoveryExecutor(object):
 
     @mock.patch("barman.recovery_executor.RsyncCopyController")
     @mock.patch("barman.recovery_executor.RsyncPgData")
-    @mock.patch("barman.recovery_executor.UnixRemoteCommand")
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
     def test_recovery(
         self, remote_cmd_mock, rsync_pg_mock, copy_controller_mock, tmpdir
     ):
@@ -1219,7 +1227,7 @@ class TestRecoveryExecutor(object):
             with closing(executor):
                 executor.recover(backup_info, destination, standby_mode=True)
 
-    @mock.patch("barman.recovery_executor.UnixRemoteCommand")
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
     @mock.patch("barman.recovery_executor.RsyncPgData")
     @mock.patch("barman.recovery_executor.output")
     @mock.patch("barman.recovery_executor.RsyncCopyController")
@@ -1230,7 +1238,7 @@ class TestRecoveryExecutor(object):
         rsync_copy_controller_mock,
         output_mock,
         rsync_pgdata_mock,
-        unix_remote_command_mock,
+        unix_command_factory,
         tmpdir,
     ):
 
@@ -1288,3 +1296,128 @@ class TestRecoveryExecutor(object):
                 )
             ]
         )
+
+
+class TestRecoveryExecutorFactory(object):
+    @pytest.mark.parametrize(
+        ("compression", "expected_executor", "should_error"),
+        [
+            # No compression should return RecoveryExecutor
+            (None, RecoveryExecutor, False),
+            # Supported compression should return TarballRecoveryExecutor
+            ("gzip", TarballRecoveryExecutor, False),
+            # Unrecognised compression should cause an error
+            ("snappy", None, True),
+        ],
+    )
+    def test_recovery_executor_factory(
+        self, compression, expected_executor, should_error
+    ):
+        mock_backup_manager = mock.Mock()
+        mock_command = mock.Mock()
+
+        # WHEN recovery_executor_factory is called with the specified compression
+        # THEN if an error is expected we see an error
+        if should_error:
+            with pytest.raises(AttributeError):
+                recovery_executor_factory(
+                    mock_backup_manager, mock_command, compression
+                )
+        # OR the expected type of recovery executor is returned
+        else:
+            executor = recovery_executor_factory(
+                mock_backup_manager, mock_command, compression
+            )
+            assert type(executor) is expected_executor
+
+
+class TestGZipCompression(object):
+    # None for src
+    # None for dst
+    # badly formed exclude / include
+    @pytest.mark.parametrize(
+        ("src", "dst", "exclude", "include", "expected_error"),
+        [
+            # Simple src, dest case should cause the correct command to be called
+            ("/path/to/source", "/path/to/dest", None, None, None),
+            # Empty strings and None values for src or dst should raise an error
+            ("", "/path/to/dest", None, None, ValueError),
+            (None, "/path/to/dest", None, None, ValueError),
+            ("/path/to/src", "", None, None, ValueError),
+            ("/path/to/src", None, None, None, ValueError),
+            # Exclude arguments should be appended
+            (
+                "/path/to/source",
+                "/path/to/dest",
+                ["/path/to/exclude", "/another/path/to/exclude"],
+                None,
+                None,
+            ),
+            # Include arguments should be appended
+            (
+                "/path/to/source",
+                "/path/to/dest",
+                None,
+                ["path/to/include", "/another/path/to/include"],
+                None,
+            ),
+            # Both include and exclude arguments should be appended
+            (
+                "/path/to/source",
+                "/path/to/dest",
+                ["/path/to/exclude", "/another/path/to/exclude"],
+                ["path/to/include", "/another/path/to/include"],
+                None,
+            ),
+        ],
+    )
+    def test_uncompress(self, src, dst, exclude, include, expected_error):
+        # GIVEN a GZipCompression object
+        command = mock.Mock()
+        gzip_compression = GZipCompression(command)
+
+        # WHEN uncompress is called with the source and destination
+        # THEN the command is called once
+        # AND if we expect an error, that error is raised
+        if expected_error is not None:
+            with pytest.raises(ValueError):
+                gzip_compression.uncompress(
+                    src, dst, exclude=exclude, include_args=include
+                )
+            # THEN command.cmd was not called
+            command.cmd.assert_not_called()
+        # OR if we don't expect an error
+        else:
+            gzip_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            # THEN command.cmd was called
+            assert command.cmd.called_once()
+            # AND the first argument was "tar"
+            assert command.cmd.call_args_list[0][0][0] == "tar"
+            # AND the basic arguments are present
+            assert command.cmd.call_args_list[0][1]["args"][:4] == [
+                "xfz",
+                src,
+                "--directory",
+                dst,
+            ]
+            # AND if we expected exclude args they are present
+            remaining_args = " ".join(command.cmd.call_args_list[0][1]["args"][4:])
+            if exclude is not None:
+                for exclude_arg in exclude:
+                    assert "--exclude %s" % exclude_arg in remaining_args
+            # AND if we expected include args they are present
+            if include is not None:
+                for include_arg in include:
+                    assert include_arg in remaining_args
+
+
+class TestConfigurationFileMangeler:
+    def test_simple_file_mangeling(self, tmpdir):
+        a_file = tmpdir.join("some_file")
+        file_content = "this is \n a very useful\t content.\nrecovery_target=something"
+        a_file.write(file_content, ensure=True)
+        cfm = ConfigurationFileMangeler()
+        mangeled = cfm.mangle_options(a_file.strpath)
+        content = a_file.read()
+        assert len(mangeled) == 1
+        assert "#BARMAN#recovery_target=something" in content

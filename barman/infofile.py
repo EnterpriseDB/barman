@@ -471,6 +471,7 @@ class BackupInfo(FieldListFile):
         "xlog_segment_size", load=int, default=xlog.DEFAULT_XLOG_SEG_SIZE
     )
     systemid = Field("systemid")
+    compression = Field("compression")
 
     __slots__ = "backup_id", "backup_version"
 
