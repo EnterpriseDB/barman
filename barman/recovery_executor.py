@@ -1376,15 +1376,9 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         Returns a map of conf_file:exists.
         """
         exists = {}
-        conf_files_in_tar = self.compression.list_compressed_files(
-            os.path.join(
-                recovery_info["staging_dir"],
-                "%s.%s" % (self.BASE_TARBALL_NAME, self.compression.file_extension),
-            ),
-            conf_files,
-        )
         for conf_file in conf_files:
-            exists[conf_file] = conf_file in conf_files_in_tar
+            source_path = os.path.join(recovery_info["destination_path"], conf_file)
+            exists[conf_file] = recovery_info["cmd"].exists(source_path)
         return exists
 
     def _copy_conf_files_to_tempdir(
@@ -1397,15 +1391,6 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         Returns a list of the paths to the temporary conf files.
         """
         conf_file_paths = []
-        self.compression.uncompress(
-            "%s/%s"
-            % (
-                recovery_info["staging_dir"],
-                "%s.%s" % (self.BASE_TARBALL_NAME, self.compression.file_extension),
-            ),
-            recovery_info["staging_dir"],
-            include_args=recovery_info["configuration_files"],
-        )
 
         rsync = RsyncPgData(
             path=self.server.path,
@@ -1416,7 +1401,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
 
         rsync.from_file_list(
             recovery_info["configuration_files"],
-            ":" + recovery_info["staging_dir"],
+            ":" + recovery_info["destination_path"],
             recovery_info["tempdir"],
         )
 
@@ -1474,16 +1459,6 @@ class Compression(with_metaclass(ABCMeta, object)):
         :return:
         """
 
-    @abstractmethod
-    def list_compressed_files(self, tar_path, names=[]):
-        """
-        List the specified names if they are present in the tar file
-        returns the list of existing names actually present in tar file
-        :param tar_path:
-        :param names:
-        :return:
-        """
-
 
 class GZipCompression(Compression):
     name = "gzip"
@@ -1515,21 +1490,6 @@ class GZipCompression(Compression):
             args=args,
         )
         return self.command.get_last_output()
-
-    def list_compressed_files(self, tar_path, names=None):
-        if names is None:
-            return []
-        res = self.command.cmd("tar", args=["tfz", tar_path, *names])
-        cmd_output = self.command.get_last_output()
-        if res != 0:
-            raise FsOperationFailed(
-                "Could not determine presence of files "
-                "in tarball at path: %s, output: %s" % (tar_path, cmd_output)
-            )
-        out, err = cmd_output
-        file_list = out.strip().split("\n")
-        found_elements = [name for name in names if name in file_list]
-        return found_elements
 
 
 class ConfigurationFileMangeler:
