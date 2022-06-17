@@ -448,7 +448,7 @@ class TestConfig(object):
         """
         Test the parse_recovery_staging_path method
         """
-        assert parse_recovery_staging_path(None) == None
+        assert parse_recovery_staging_path(None) is None
         assert parse_recovery_staging_path("/any/path") == "/any/path"
         with pytest.raises(ValueError):
             parse_recovery_staging_path("here/it/is")
