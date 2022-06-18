@@ -271,10 +271,10 @@ class TestPostgres(object):
         # check the correct invocation of the execute method
         cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT location, "
-            "(pg_xlogfile_name_offset(location)).*, "
+            "SELECT end_row.lsn AS location, "
+            "(pg_xlogfile_name_offset(end_row.lsn)).*, "
             "now() AS timestamp "
-            "FROM pg_stop_backup(TRUE, FALSE) AS location"
+            "FROM pg_stop_backup(TRUE, FALSE) AS end_row"
         )
 
         # Test call on master, PostgreSQL 10
@@ -285,10 +285,10 @@ class TestPostgres(object):
         # check the correct invocation of the execute method
         cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.execute.assert_called_once_with(
-            "SELECT location, "
-            "(pg_walfile_name_offset(location)).*, "
+            "SELECT end_row.lsn AS location, "
+            "(pg_walfile_name_offset(end_row.lsn)).*, "
             "now() AS timestamp "
-            "FROM pg_stop_backup(TRUE, FALSE) AS location"
+            "FROM pg_stop_backup(TRUE, FALSE) AS end_row"
         )
 
         # Test call on PostgreSQL 15
