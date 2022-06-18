@@ -1240,10 +1240,10 @@ class PostgreSQLConnection(PostgreSQL):
             # want to wait for the required WALs to be archived. This is because
             # barman will do its own waiting at a later stage of the backup process.
             cur.execute(
-                "SELECT location, "
-                "({pg_walfile_name_offset}(location)).*, "
+                "SELECT end_row.lsn AS location, "
+                "({pg_walfile_name_offset}(end_row.lsn)).*, "
                 "now() AS timestamp "
-                "FROM {pg_backup_stop}(TRUE, FALSE) AS location".format(**self.name_map)
+                "FROM {pg_backup_stop}(TRUE, FALSE) AS end_row".format(**self.name_map)
             )
 
             return cur.fetchone()
