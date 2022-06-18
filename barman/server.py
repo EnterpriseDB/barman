@@ -2024,7 +2024,11 @@ class Server(RemoteStatusMixin):
                     suffix=".uncompressed",
                 )
                 # decompress wal file
-                wal_compressor.decompress(source_file, uncompressed_file.name)
+                try:
+                    wal_compressor.decompress(source_file, uncompressed_file.name)
+                except CommandFailedException as exc:
+                    output.error("Error decompressing WAL: %s", str(exc))
+                    return
                 source_file = uncompressed_file.name
 
             # If output compression is required compress the source

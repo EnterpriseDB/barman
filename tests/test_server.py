@@ -27,11 +27,12 @@ import dateutil.tz
 from io import BytesIO
 
 import pytest
-from mock import MagicMock, PropertyMock, patch
+from mock import MagicMock, Mock, PropertyMock, patch
 from psycopg2.tz import FixedOffsetTimezone
 
 from barman import output
 from barman.exceptions import (
+    CommandFailedException,
     LockFileBusy,
     LockFilePermissionDenied,
     PostgresDuplicateReplicationSlot,
@@ -1620,6 +1621,41 @@ class TestServer(object):
         # Doing the same thing with a wal file should also not raise an
         # error
         server.wait_for_wal(wal_file="00000001000000EF000000AB", archive_timeout=0.1)
+
+    @patch("barman.server.NamedTemporaryFile")
+    @patch("barman.backup.CompressionManager")
+    def test_get_wal_sendfile_uncompress_fail(
+        self, mock_compression_manager, _mock_named_temporary_file, capsys
+    ):
+        """Verify CommandFailedException uncompressing WAL is handled"""
+        # GIVEN a server
+        server = build_real_server()
+        # AND no existing errors in the output
+        output.error_occurred = False
+        # AND a mock compressor which raises CommandFailedException
+        mock_compressor = Mock()
+        mock_compressor.decompress.side_effect = CommandFailedException(
+            "an error happened"
+        )
+        # Make sure the two compressors used by get_wal_sendfile are different mocks
+        mock_compression_manager.return_value.get_compressor.side_effect = [
+            mock_compressor,
+            Mock(),
+        ]
+        mock_wal_info = Mock()
+        mock_compression_manager.return_value.get_wal_file_info.return_value = (
+            mock_wal_info
+        )
+
+        # WHEN get_wal_sendfile is called
+        server.get_wal_sendfile("test_wal_file", "some compression", "/path/to/dest")
+
+        # THEN output indicates an error
+        assert output.error_occurred
+
+        # AND the expected message is in the output
+        _out, err = capsys.readouterr()
+        assert "ERROR: Error decompressing WAL: an error happened" in err
 
     @pytest.mark.parametrize(
         "mode, success, error_msg",
