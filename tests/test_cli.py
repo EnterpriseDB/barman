@@ -35,14 +35,13 @@ from barman.cli import (
     command,
     get_server,
     get_server_list,
-    get_wal,
     manage_server_command,
     OrderedHelpFormatter,
     recover,
     keep,
     show_servers,
 )
-from barman.exceptions import CommandFailedException, WalArchiveContentError
+from barman.exceptions import WalArchiveContentError
 from barman.infofile import BackupInfo
 from barman.server import Server
 from testing_helpers import build_config_dictionary, build_config_from_dicts
