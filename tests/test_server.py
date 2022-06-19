@@ -480,7 +480,7 @@ class TestServer(object):
         Test management of pg_stat_archiver view output in show command
 
         :param MagicMock remote_mock: mock the Server.get_remote_status method
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
 
         """
         stats = {
@@ -530,7 +530,7 @@ class TestServer(object):
 
         :param MagicMock remote_mock: mock the
             FileWalArchiver.get_remote_status method
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
         """
 
         archiver_remote_status = {
@@ -587,7 +587,7 @@ class TestServer(object):
         Test management of check_postgres view output
 
         :param postgres_mock: mock get_remote_status function
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
         """
         postgres_mock.return_value = {"server_txt_version": None}
         # Create server
@@ -1264,7 +1264,7 @@ class TestServer(object):
         Test management of pg_stat_archiver view output
 
         :param MagicMock connect_mock: mock the database connection
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
 
         """
 

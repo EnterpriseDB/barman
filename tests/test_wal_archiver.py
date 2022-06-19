@@ -74,7 +74,7 @@ class TestFileWalArchiver(object):
         Test management of check_postgres view output
 
         :param remote_mock: mock get_remote_status function
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
         """
         # Create a backup_manager
         backup_manager = build_backup_manager()
@@ -916,7 +916,7 @@ class TestStreamingWalArchiver(object):
         Test management of check_postgres view output
 
         :param remote_mock: mock get_remote_status function
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
         """
         # Create a backup_manager
         backup_manager = build_backup_manager()
