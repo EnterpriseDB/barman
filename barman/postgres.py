@@ -1359,7 +1359,7 @@ class PostgreSQLConnection(PostgreSQL):
          * timestamp
 
         :param str backup_label: backup label as returned
-            by pgespress_start_backup
+            by pgespresso_start_backup
         :rtype: psycopg2.extras.DictRow
         """
         try:
