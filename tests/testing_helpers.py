@@ -367,7 +367,7 @@ def build_backup_manager(
 
     The compression_manager member is mocked
 
-    :param barman.server.Server|None server: Optionsl Server object
+    :param barman.server.Server|None server: Optional Server object
     :rtype: barman.backup.BackupManager
     """
     if server is None:
