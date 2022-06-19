@@ -888,7 +888,7 @@ class TestS3CloudInterface(object):
     )
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_extract_tar(self, boto_mock, compression, file_ext, tmpdir):
-        """Verifies that cloud_interface.exrtact_tar decompresses correctly."""
+        """Verifies that cloud_interface.extract_tar decompresses correctly."""
         # GIVEN A tar file containing a single file containing a string
         content = "this is an arbitrary string"
         content_filename = "an_arbitrary_filename"
