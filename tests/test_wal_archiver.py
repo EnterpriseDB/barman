@@ -353,7 +353,7 @@ class TestFileWalArchiver(object):
         """
         Return a mock compression registry which omits the native gzip commands.
         This allows test_archive_wal to use a real compression manager without
-        introducing a dependency on compresion programs available in the shell.
+        introducing a dependency on compression programs available in the shell.
         """
         registry = barman.compression.compression_registry.copy()
         registry.pop("gzip")
