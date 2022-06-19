@@ -1254,7 +1254,7 @@ class TestAzureCloudInterface(object):
     def test_upload_fileobj_with_encryption_scope(
         self, container_client_mock, mock_fileobj
     ):
-        """Test encrption scope is passed to upload_blob"""
+        """Test encryption scope is passed to upload_blob"""
         encryption_scope = "test_encryption_scope"
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob",
