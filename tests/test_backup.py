@@ -333,7 +333,7 @@ class TestBackup(object):
         assert os.path.exists(wal_history_file03.strpath)
         assert os.path.exists(wal_history_file04.strpath)
 
-        # Test 7: simulate an error deleting the the backup.
+        # Test 7: simulate an error deleting the backup.
         with patch(
             "barman.backup.BackupManager.delete_backup_data"
         ) as mock_delete_data:

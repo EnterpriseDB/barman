@@ -1312,7 +1312,7 @@ class CloudBackupUploader(with_metaclass(ABCMeta)):
 
 class CloudBackupUploaderBarman(CloudBackupUploader):
     """
-    A cloud storage upload client for a pre-existing backup on the Barman server.
+    A cloud storage upload client for a preexisting backup on the Barman server.
     """
 
     def __init__(
@@ -1620,7 +1620,7 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
 
     def __init__(self, cloud_interface, server_name):
         """
-        Object responsible for retrievin backup catalog from cloud storage
+        Object responsible for retrieving backup catalog from cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup

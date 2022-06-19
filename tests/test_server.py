@@ -481,7 +481,7 @@ class TestServer(object):
         Test management of pg_stat_archiver view output in show command
 
         :param MagicMock remote_mock: mock the Server.get_remote_status method
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
 
         """
         stats = {
@@ -531,7 +531,7 @@ class TestServer(object):
 
         :param MagicMock remote_mock: mock the
             FileWalArchiver.get_remote_status method
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
         """
 
         archiver_remote_status = {
@@ -588,7 +588,7 @@ class TestServer(object):
         Test management of check_postgres view output
 
         :param postgres_mock: mock get_remote_status function
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
         """
         postgres_mock.return_value = {"server_txt_version": None}
         # Create server
@@ -1185,7 +1185,7 @@ class TestServer(object):
             # write something
             fxlogdb.write("00000000000000000000")
 
-        # Utility function to generare fake WALs
+        # Utility function to generate fake WALs
         def write_wal(target_dir, wal_number, partial=False):
             wal_name = "%s/0000000000000000%08d" % (target_dir, wal_number)
             if partial:
@@ -1265,7 +1265,7 @@ class TestServer(object):
         Test management of pg_stat_archiver view output
 
         :param MagicMock connect_mock: mock the database connection
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
 
         """
 
@@ -1771,7 +1771,7 @@ class TestServer(object):
         if mode != "sum_mismatch":
             md5.write("%s *%s\n" % (wal.computehash("md5"), wal.basename))
         else:
-            # put an incorrect checksum in hte file
+            # put an incorrect checksum in the file
             md5.write("%s *%s\n" % (hashlib.md5().hexdigest(), wal.basename))
         if mode != "sum_absent":
             tar.add(md5.strpath, md5.basename)

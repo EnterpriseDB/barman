@@ -110,7 +110,7 @@ class TestProcessManager(object):
     def test_kill(self, kill_mock, tmpdir):
         """
         Test the Kill method from the ProjectManager class.
-        Mocks the os.kill used inside the the kill method
+        Mocks the os.kill used inside the kill method
         """
         config = build_config_from_dicts({"barman_lock_directory": tmpdir.strpath})
         config.name = "main"

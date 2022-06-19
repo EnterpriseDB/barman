@@ -324,7 +324,7 @@ If you are using already barman-cloud-wal-archive or barman-cloud-backup
 installed via RPM/Apt package and you are upgrading your system, you
 must install the barman-cli-cloud package. All cloud related tools are
 now part of the barman-cli-cloud package, including
-barman-cloud-wal-archive and barman-cloud-backup that were previosly
+barman-cloud-wal-archive and barman-cloud-backup that were previously
 shipped with barman-cli. The reason is complex dependency management of
 the boto3 library, which is a requirement for the cloud utilities.
 
@@ -544,29 +544,29 @@ Version 2.4 - 25 May 2018
 
 Relevant bug fixes:
 
--   Fix remote get_file_content method (Github #151), preventing
+-   Fix remote get_file_content method (GitHub #151), preventing
     incremental recovery from happening
 
--   Unicode issues with command (Github #143 and #150)
+-   Unicode issues with command (GitHub #143 and #150)
 
--   Add --wal-method=none when pg_basebackup >= 10 (Github #133)
+-   Add --wal-method=none when pg_basebackup >= 10 (GitHub #133)
 
 Minor bug fixes:
 
--   Stop process manager module from ovewriting lock files content
+-   Stop process manager module from overwriting lock files content
 
 -   Relax the rules for rsync output parsing
 
 -   Ignore vanished files in streaming directory
 
--   Case insensitive slot names (Github #170)
+-   Case insensitive slot names (GitHub #170)
 
 -   Make DataTransferFailure.from_command_error() more resilient
-    (Github #86)
+    (GitHub #86)
 
--   Rename command() to barman_command() (Github #118)
+-   Rename command() to barman_command() (GitHub #118)
 
--   Initialise synchronous standby names list if not set (Github #111)
+-   Initialise synchronous standby names list if not set (GitHub #111)
 
 -   Correct placeholders ordering (GitHub #138)
 
@@ -576,7 +576,7 @@ Minor bug fixes:
 
 -   Fix exception when calling is_power_of_two(None)
 
--   Downgraded sync standby names messages to debug (Github #89)
+-   Downgraded sync standby names messages to debug (GitHub #89)
 
 Version 2.3 - 5 Sep 2017
 

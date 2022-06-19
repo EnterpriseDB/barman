@@ -74,7 +74,7 @@ class TestFileWalArchiver(object):
         Test management of check_postgres view output
 
         :param remote_mock: mock get_remote_status function
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
         """
         # Create a backup_manager
         backup_manager = build_backup_manager()
@@ -353,7 +353,7 @@ class TestFileWalArchiver(object):
         """
         Return a mock compression registry which omits the native gzip commands.
         This allows test_archive_wal to use a real compression manager without
-        introducing a dependency on compresion programs avaiable in the shell.
+        introducing a dependency on compression programs available in the shell.
         """
         registry = barman.compression.compression_registry.copy()
         registry.pop("gzip")
@@ -916,7 +916,7 @@ class TestStreamingWalArchiver(object):
         Test management of check_postgres view output
 
         :param remote_mock: mock get_remote_status function
-        :param capsys: retrieve output from consolle
+        :param capsys: retrieve output from console
         """
         # Create a backup_manager
         backup_manager = build_backup_manager()

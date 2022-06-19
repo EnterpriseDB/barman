@@ -343,7 +343,7 @@ class StreamingConnection(PostgreSQL):
                 result["streaming_supported"] = False
                 return result
             result["streaming_supported"] = True
-            # Execute a IDENTIFY_SYSYEM to check the connection
+            # Execute a IDENTIFY_SYSTEM to check the connection
             cursor = self._cursor()
             cursor.execute("IDENTIFY_SYSTEM")
             row = cursor.fetchone()
@@ -1359,7 +1359,7 @@ class PostgreSQLConnection(PostgreSQL):
          * timestamp
 
         :param str backup_label: backup label as returned
-            by pgespress_start_backup
+            by pgespresso_start_backup
         :rtype: psycopg2.extras.DictRow
         """
         try:
