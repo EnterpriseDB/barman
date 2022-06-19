@@ -201,7 +201,7 @@ class AnnotationManagerCloud(AnnotationManager):
                 and (backup_id, key) not in self.annotation_cache
             ):
                 return None
-        # We either know there's an annotation or we havn't used the cache so read
+        # We either know there's an annotation or we haven't used the cache so read
         # it from the cloud
         annotation_path = self._get_annotation_path(backup_id, key)
         annotation_fileobj = self.cloud_interface.remote_open(annotation_path)
