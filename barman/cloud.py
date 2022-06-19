@@ -1312,7 +1312,7 @@ class CloudBackupUploader(with_metaclass(ABCMeta)):
 
 class CloudBackupUploaderBarman(CloudBackupUploader):
     """
-    A cloud storage upload client for a pre-existing backup on the Barman server.
+    A cloud storage upload client for a preexisting backup on the Barman server.
     """
 
     def __init__(
