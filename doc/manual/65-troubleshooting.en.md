@@ -32,7 +32,7 @@ https://groups.google.com/group/pgbarman
 or the IRC channel on freenode:
 irc://irc.freenode.net/barman
 
-In the event you discover a bug, you can open a ticket using Github:
+In the event you discover a bug, you can open a ticket using GitHub:
 https://github.com/EnterpriseDB/barman/issues
 
 EnterpriseDB provides professional support for Barman, including 24/7 service.
@@ -46,7 +46,7 @@ not bug free.
 If you discover a bug, please follow this procedure:
 
 - execute the `barman diagnose` command
-- file a bug through the Github issue tracker, by attaching the
+- file a bug through the GitHub issue tracker, by attaching the
   output obtained by the diagnostics command above (`barman
   diagnose`)
 
