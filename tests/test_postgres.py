@@ -68,7 +68,7 @@ class TestPostgres(object):
     @patch("barman.postgres.psycopg2.connect")
     def test_connect_and_close(self, pg_connect_mock):
         """
-        Check pg_connect method beaviour on error
+        Check pg_connect method behaviour on error
         """
         # Setup server
         server = build_real_server()
@@ -144,7 +144,7 @@ class TestPostgres(object):
     @patch("barman.postgres.psycopg2.connect")
     def test_connect_error(self, connect_mock):
         """
-        Check pg_connect method beaviour on error
+        Check pg_connect method behaviour on error
         """
         # Setup temp dir and server
         server = build_real_server()
