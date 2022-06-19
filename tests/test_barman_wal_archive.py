@@ -366,7 +366,7 @@ class TestChecksumTarFile(object):
         src.seek(0)
 
         if mode and mode > 0:
-            # Require more bytes thant available. Make sure to get an exception
+            # Require more bytes than available. Make sure to get an exception
             with pytest.raises(IOError):
                 walarchive.md5copyfileobj(src, dst, size + mode)
         else:
