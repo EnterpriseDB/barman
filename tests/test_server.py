@@ -1184,7 +1184,7 @@ class TestServer(object):
             # write something
             fxlogdb.write("00000000000000000000")
 
-        # Utility function to generare fake WALs
+        # Utility function to generate fake WALs
         def write_wal(target_dir, wal_number, partial=False):
             wal_name = "%s/0000000000000000%08d" % (target_dir, wal_number)
             if partial:
