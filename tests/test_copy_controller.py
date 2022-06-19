@@ -544,7 +544,7 @@ class TestRsyncCopyController(object):
         file_list = []
         total_size = 0
         for i in range(1001):
-            # We are using a prime number to get a non-correlable distribution
+            # We are using a prime number to get a non-correlatable distribution
             # of file sizes in the buckets
             size = 1048583 * i
             file_list.append(_FileItem("drwxrwxrwt", size, filedate, "tmp%08d" % i))
