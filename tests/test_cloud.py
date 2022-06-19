@@ -532,7 +532,7 @@ class TestS3CloudInterface(object):
         bucket_mock = s3_mock.Bucket
         # Expect a call for bucket obj creation
         bucket_mock.assert_called_once_with(cloud_interface.bucket_name)
-        # Expect the create() metod of the bucket object to be called
+        # Expect the create() method of the bucket object to be called
         bucket_mock.return_value.create.assert_called_once()
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
