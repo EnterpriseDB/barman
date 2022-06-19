@@ -104,7 +104,7 @@ def _compression_helper(src, compression):
 
 class TestCloudInterface(object):
     """
-    Tests of the asychronous upload infrastructure in CloudInterface.
+    Tests of the asynchronous upload infrastructure in CloudInterface.
     S3CloudInterface is used as we cannot instantiate a CloudInterface directly
     however we do not verify any backend specific functionality of S3CloudInterface,
     only the asynchronous infrastructure is tested.
