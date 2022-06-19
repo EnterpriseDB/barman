@@ -1620,7 +1620,7 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
 
     def __init__(self, cloud_interface, server_name):
         """
-        Object responsible for retrievin backup catalog from cloud storage
+        Object responsible for retrieving backup catalog from cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
