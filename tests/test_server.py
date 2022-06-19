@@ -1735,7 +1735,7 @@ class TestServer(object):
         if mode != "sum_mismatch":
             md5.write("%s *%s\n" % (wal.computehash("md5"), wal.basename))
         else:
-            # put an incorrect checksum in hte file
+            # put an incorrect checksum in the file
             md5.write("%s *%s\n" % (hashlib.md5().hexdigest(), wal.basename))
         if mode != "sum_absent":
             tar.add(md5.strpath, md5.basename)

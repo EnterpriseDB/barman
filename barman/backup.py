@@ -874,7 +874,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 os.removedirs(os.path.dirname(wal_info.fullpath(self.server)))
             except OSError:
                 # This is not an error condition
-                # We always try to remove the the trailing directories,
+                # We always try to remove the trailing directories,
                 # this means that hashdir is not empty.
                 pass
         except OSError as e:

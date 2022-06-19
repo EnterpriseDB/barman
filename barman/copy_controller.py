@@ -992,7 +992,7 @@ class RsyncCopyController(object):
     def _copy(self, rsync, src, dst, file_list, checksum=False):
         """
         The method execute the call to rsync, using as source a
-        a list of files, and adding the the checksum option if required by the
+        a list of files, and adding the checksum option if required by the
         caller.
 
         :param Rsync rsync: the Rsync object used to retrieve the list of files
