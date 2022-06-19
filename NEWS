@@ -256,7 +256,7 @@ If you are using already barman-cloud-wal-archive or barman-cloud-backup
 installed via RPM/Apt package and you are upgrading your system, you
 must install the barman-cli-cloud package. All cloud related tools are
 now part of the barman-cli-cloud package, including
-barman-cloud-wal-archive and barman-cloud-backup that were previosly
+barman-cloud-wal-archive and barman-cloud-backup that were previously
 shipped with barman-cli. The reason is complex dependency management of
 the boto3 library, which is a requirement for the cloud utilities.
 
