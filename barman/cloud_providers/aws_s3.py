@@ -140,7 +140,7 @@ class S3CloudInterface(CloudInterface):
         Return a dict containing ExtraArgs to be passed to certain boto3 calls
 
         Because some boto3 calls accept `ExtraArgs: {}` and others do not, we
-        return a nexted dict which can be expanded with `**` in the boto3 call.
+        return a nested dict which can be expanded with `**` in the boto3 call.
         """
         additional_args = {}
         if self.encryption:
