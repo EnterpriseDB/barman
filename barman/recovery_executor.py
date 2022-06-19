@@ -263,7 +263,7 @@ class RecoveryExecutor(object):
 
             required_xlog_files = ()  # Makes static analysers happy
             try:
-                # TODO: Stop early if taget-immediate
+                # TODO: Stop early if target-immediate
                 # Retrieve a list of required log files
                 required_xlog_files = tuple(
                     self.server.get_required_xlog_files(
