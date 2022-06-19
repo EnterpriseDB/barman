@@ -485,7 +485,7 @@ Relevant bug fixes:
 
 Minor bug fixes:
 
--   Stop process manager module from ovewriting lock files content
+-   Stop process manager module from overwriting lock files content
 
 -   Relax the rules for rsync output parsing
 
