@@ -2043,7 +2043,7 @@ class TestGoogleCloudInterface(TestCase):
         container_client_mock = service_client_mock.bucket.return_value
         container_client_mock.blob.return_value = mock_blob
 
-        # Create Object and call upload_filobj
+        # Create Object and call upload_fileobj
         cloud_interface = GoogleCloudInterface(
             "https://console.cloud.google.com/storage/browser/barman-test/test/path/to/my/"
         )
