@@ -150,7 +150,7 @@ Barman goes through thousands of automated tests for each
 supported PostgreSQL version and on each supported Linux distribution.
 
 Also, **every version is back compatible** with previous ones.
-Thefore, upgrading Barman normally requires a simple update of packages
+Therefore, upgrading Barman normally requires a simple update of packages
 using `yum update` or `apt update`.
 
 There have been, however, the following exceptions in our development
