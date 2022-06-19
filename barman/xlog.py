@@ -478,7 +478,7 @@ def decode_history_file(wal_info, comp_manager):
 def _validate_timeline(timeline):
     """Check that timeline is a valid timeline value."""
     try:
-        # Explicitly check the type becauase python 2 will allow < to be used
+        # Explicitly check the type because python 2 will allow < to be used
         # between strings and ints
         if type(timeline) is not int or timeline < 1:
             raise ValueError()
