@@ -1486,11 +1486,14 @@ class GZipCompression(Compression):
         args = ["xfz", src, "--directory", dst]
         args.extend(exclude_args)
         args.extend(include_args)
-        self.command.cmd(
-            "tar",
-            args=args,
-        )
-        return self.command.get_last_output()
+        ret = self.command.cmd("tar", args=args)
+        out, err = self.command.get_last_output()
+        if ret != 0:
+            raise CommandFailedException(
+                "Error decompressiong %s into %s: %s" % (src, dst, err)
+            )
+        else:
+            return self.command.get_last_output()
 
 
 class ConfigurationFileMangeler:

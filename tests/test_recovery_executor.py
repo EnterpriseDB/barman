@@ -1410,6 +1410,23 @@ class TestGZipCompression(object):
                 for include_arg in include:
                     assert include_arg in remaining_args
 
+    def test_tar_failure_raises_exception(self):
+        """Verify a nonzero return code from tar raises an exception"""
+        # GIVEN a GZipCompression object
+        # AND a tar command which returns status 2 and an error
+        command = mock.Mock()
+        command.cmd.return_value = 2
+        command.get_last_output.return_value = ("", "some error")
+        gzip_compression = GZipCompression(command)
+
+        # WHEN uncompress is called
+        # THEN a CommandFailedException is raised
+        with pytest.raises(CommandFailedException) as exc:
+            gzip_compression.uncompress("/path/to/src", "/path/to/dst")
+
+        # AND the exception message contains the command stderr
+        assert "some error" in str(exc.value)
+
 
 class TestConfigurationFileMangeler:
     def test_simple_file_mangeling(self, tmpdir):
