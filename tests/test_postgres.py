@@ -274,7 +274,7 @@ class TestPostgres(object):
             "SELECT location, "
             "(pg_xlogfile_name_offset(location)).*, "
             "now() AS timestamp "
-            "FROM pg_stop_backup(TRUE, FALSE) AS location"
+            "FROM pg_stop_backup() AS location"
         )
 
         # Test call on master, PostgreSQL 10
@@ -288,7 +288,7 @@ class TestPostgres(object):
             "SELECT location, "
             "(pg_walfile_name_offset(location)).*, "
             "now() AS timestamp "
-            "FROM pg_stop_backup(TRUE, FALSE) AS location"
+            "FROM pg_stop_backup() AS location"
         )
 
         # Test call on PostgreSQL 15
@@ -309,7 +309,7 @@ class TestPostgres(object):
 
     @pytest.mark.parametrize(
         ("server_version", "expected_stop_call"),
-        [(140000, "pg_stop_backup(FALSE, FALSE)"), (150000, "pg_backup_stop(FALSE)")],
+        [(140000, "pg_stop_backup(FALSE)"), (150000, "pg_backup_stop()")],
     )
     @patch("barman.postgres.PostgreSQLConnection.connect")
     def test_stop_concurrent_backup(self, conn, server_version, expected_stop_call):

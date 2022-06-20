@@ -1235,15 +1235,11 @@ class PostgreSQLConnection(PostgreSQL):
             if self.server_version >= 150000:
                 raise PostgresObsoleteFeature("15")
 
-            # Call pg_stop_backup with TRUE, FALSE.
-            # TRUE indicates exclusive backup and FALSE tells PostgreSQL we do not
-            # want to wait for the required WALs to be archived. This is because
-            # barman will do its own waiting at a later stage of the backup process.
             cur.execute(
                 "SELECT location, "
                 "({pg_walfile_name_offset}(location)).*, "
                 "now() AS timestamp "
-                "FROM {pg_backup_stop}(TRUE, FALSE) AS location".format(**self.name_map)
+                "FROM {pg_backup_stop}() AS location".format(**self.name_map)
             )
 
             return cur.fetchone()
@@ -1280,16 +1276,15 @@ class PostgreSQLConnection(PostgreSQL):
             if self.server_version >= 150000:
                 # The pg_backup_stop function accepts one argument, a boolean
                 # wait_for_archive indicating whether PostgreSQL should wait
-                # until all required WALs are archived. This is set to FALSE
-                # because barman will do its own waiting for those WALs and
-                # there is no need for PostgreSQL to also wait.
-                pg_backup_args = "FALSE"
+                # until all required WALs are archived. This is not set so that
+                # we get the default behaviour which is to wait for the wals.
+                pg_backup_args = ""
             else:
                 # For PostgreSQLs below 15 the function accepts two arguments -
                 # a boolean to indicate exclusive or concurrent backup and the
-                # wait_for_archive boolean. We set exclusive to FALSE and set
-                # wait_for_archive to FALSE as with PG >= 15.
-                pg_backup_args = "FALSE, FALSE"
+                # wait_for_archive boolean. We set exclusive to FALSE and leave
+                # wait_for_archive unset as with PG >= 15.
+                pg_backup_args = "FALSE"
 
             # Stop the backup  using the api introduced with version 9.6
             cur = conn.cursor(cursor_factory=DictCursor)
