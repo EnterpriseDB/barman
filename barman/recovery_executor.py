@@ -1277,6 +1277,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             "Staging compressed backup files on the recovery host in: %s", staging_dir
         )
         recovery_info["cmd"].create_dir_if_not_exists(staging_dir, mode="700")
+        recovery_info["cmd"].validate_file_mode(staging_dir, mode="700")
         recovery_info["staging_dir"] = staging_dir
         self.temp_dirs.append(
             fs.UnixCommandPathDeletionCommand(staging_dir, recovery_info["cmd"])

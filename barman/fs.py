@@ -65,13 +65,8 @@ class UnixLocalCommand(object):
             directory is created.
         """
         _logger.debug("Create directory %s if it does not exists" % dir_path)
-        exists = self.exists(dir_path)
-        if exists:
-            is_dir = self.cmd("test", args=["-d", dir_path])
-            if is_dir != 0:
-                raise FsOperationFailed("A file with the same name already exists")
-            else:
-                return False
+        if self.check_directory_exists(dir_path):
+            False
         else:
             # Make parent directories if needed
             args = ["-p", dir_path]
@@ -125,6 +120,45 @@ class UnixLocalCommand(object):
                 return True
         else:
             return False
+
+    def get_file_mode(self, path):
+        """
+        Should check that
+        :param dir_path:
+        :param mode:
+        :return: mode
+        """
+        if not self.exists(path):
+            raise FsOperationFailed("Following path does not exist: %s" % path)
+        args = ["-c", "%a", path]
+        if self.is_osx():
+            print("is osx")
+            args = ["-f", "%Lp", path]
+        cmd_ret = self.cmd("stat", args=args)
+        if cmd_ret != 0:
+            raise FsOperationFailed("Failed to get file mode for %s: %s" % (path, self.internal_cmd.err))
+        return self.internal_cmd.out.strip()
+
+    def is_osx(self):
+        """
+        Identify whether is is a Linux or Darwin system
+        :return: True is it is osx os
+        """
+        self.cmd("uname", args=['-s'])
+        if self.internal_cmd.out.strip() == "Darwin":
+            return True
+        return False
+
+    def validate_file_mode(self, path, mode):
+        """
+        Validate the file or dir has the expected mode. Raises an exception otherwise.
+        :param path: str
+        :param mode: str (700, 750, ...)
+        :return:
+        """
+        path_mode = self.get_file_mode(path)
+        if path_mode != mode:
+            FsOperationFailed("Following file %s does not have expected access right %s. Got %s instead" % (path, mode, path_mode))
 
     def check_write_permission(self, dir_path):
         """
