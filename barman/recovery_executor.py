@@ -1311,6 +1311,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
                     src=tablespace_path,
                     dst="%s/%s" % (dest_prefix + staging_dir, tablespace_file),
                     item_class=controller.TABLESPACE_CLASS,
+                    bwlimit=self.config.get_bwlimit(tablespace),
                 )
         base_file = "%s.%s" % (self.BASE_TARBALL_NAME, self.compression.file_extension)
         base_path = "%s/%s" % (
@@ -1322,6 +1323,7 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             src=base_path,
             dst="%s/%s" % (dest_prefix + staging_dir, base_file),
             item_class=controller.PGDATA_CLASS,
+            bwlimit=self.config.get_bwlimit(),
         )
 
         # Execute the copy
