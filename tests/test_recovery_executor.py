@@ -1298,6 +1298,97 @@ class TestRecoveryExecutor(object):
         )
 
 
+class TestTarballRecoveryExecutor(object):
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
+    @mock.patch("barman.recovery_executor.RsyncCopyController")
+    def test_recover_backup_copy(
+        self, copy_controller_mock, command_factory_mock, tmpdir
+    ):
+        # GIVEN a basic folder/files structure
+        dest = tmpdir.mkdir("destination")
+        barman_home = "/some/barman/home"
+        server = testing_helpers.build_real_server(
+            main_conf={"recovery_staging_path": "/wherever"}
+        )
+        backup_id = "111111"
+        staging_dir = "/wherever/barman-staging-main-%s" % backup_id
+        tablespace_oid = 16387
+        tablespace_name = "tbs1"
+        tablespace_location = "/path/to/tablespace"
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id=backup_id,
+            server=server,
+            tablespaces=[(tablespace_name, tablespace_oid, tablespace_location)],
+        )
+        # AND a TarballRecoveryExecutor with compression
+        compression = mock.Mock(name="gzip", file_extension="tar.gz")
+        executor = TarballRecoveryExecutor(server.backup_manager, compression)
+        # AND a mock command which always completes successfully
+        command = command_factory_mock.return_value
+        recovery_info = {"cmd": command}
+        # AND bandwidth limits
+        executor.config.tablespace_bandwidth_limit = {"tbs1": ""}
+        executor.config.bandwidth_limit = 10
+
+        # WHEN _backup_copy is called
+        executor._backup_copy(
+            backup_info, dest.strpath, recovery_info=recovery_info, tablespaces=None
+        )
+
+        # THEN the expected calls were made to the copy controller
+        assert copy_controller_mock.mock_calls == [
+            mock.call(
+                network_compression=False,
+                path=None,
+                ssh_command=None,
+                retry_sleep=30,
+                retry_times=0,
+                workers=1,
+            ),
+            mock.call().add_file(
+                bwlimit="",
+                src="%s/main/base/%s/data/%s.tar.gz"
+                % (barman_home, backup_id, tablespace_oid),
+                dst="%s/%s.tar.gz" % (staging_dir, tablespace_oid),
+                item_class=copy_controller_mock.return_value.TABLESPACE_CLASS,
+                label=tablespace_name,
+            ),
+            mock.call().add_file(
+                bwlimit=10,
+                src="%s/main/base/%s/data/base.tar.gz" % (barman_home, backup_id),
+                dst="%s/base.tar.gz" % staging_dir,
+                item_class=copy_controller_mock.return_value.PGDATA_CLASS,
+                label="pgdata",
+            ),
+            mock.call().copy(),
+        ]
+
+        # AND the expected calls were made to the command
+        assert command.mock_calls == [
+            mock.call.create_dir_if_not_exists(
+                staging_dir,
+                mode="700",
+            ),
+            mock.call.validate_file_mode(
+                staging_dir,
+                mode="700",
+            ),
+        ]
+
+        # AND the expected calls were made to the compression object
+        assert compression.mock_calls == [
+            mock.call.uncompress(
+                "%s/%s.tar.gz" % (staging_dir, tablespace_oid),
+                tablespace_location,
+            ),
+            mock.call.uncompress(
+                "%s/base.tar.gz" % staging_dir,
+                dest.strpath,
+                exclude=["recovery.conf", "tablespace_map"],
+            ),
+        ]
+
+
 class TestRecoveryExecutorFactory(object):
     @pytest.mark.parametrize(
         ("compression", "expected_executor", "should_error"),
