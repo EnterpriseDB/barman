@@ -66,7 +66,7 @@ class UnixLocalCommand(object):
         """
         _logger.debug("Create directory %s if it does not exists" % dir_path)
         if self.check_directory_exists(dir_path):
-            False
+            return False
         else:
             # Make parent directories if needed
             args = ["-p", dir_path]
