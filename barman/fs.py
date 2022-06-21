@@ -136,7 +136,9 @@ class UnixLocalCommand(object):
             args = ["-f", "%Lp", path]
         cmd_ret = self.cmd("stat", args=args)
         if cmd_ret != 0:
-            raise FsOperationFailed("Failed to get file mode for %s: %s" % (path, self.internal_cmd.err))
+            raise FsOperationFailed(
+                "Failed to get file mode for %s: %s" % (path, self.internal_cmd.err)
+            )
         return self.internal_cmd.out.strip()
 
     def is_osx(self):
@@ -144,7 +146,7 @@ class UnixLocalCommand(object):
         Identify whether is is a Linux or Darwin system
         :return: True is it is osx os
         """
-        self.cmd("uname", args=['-s'])
+        self.cmd("uname", args=["-s"])
         if self.internal_cmd.out.strip() == "Darwin":
             return True
         return False
@@ -158,7 +160,10 @@ class UnixLocalCommand(object):
         """
         path_mode = self.get_file_mode(path)
         if path_mode != mode:
-            FsOperationFailed("Following file %s does not have expected access right %s. Got %s instead" % (path, mode, path_mode))
+            FsOperationFailed(
+                "Following file %s does not have expected access right %s. Got %s instead"
+                % (path, mode, path_mode)
+            )
 
     def check_write_permission(self, dir_path):
         """
