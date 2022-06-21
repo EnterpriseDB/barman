@@ -1465,6 +1465,8 @@ class TestGZipCompression(object):
     def test_uncompress(self, src, dst, exclude, include, expected_error):
         # GIVEN a GZipCompression object
         command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = ("all good", "")
         gzip_compression = GZipCompression(command)
 
         # WHEN uncompress is called with the source and destination
