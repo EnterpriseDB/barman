@@ -122,14 +122,13 @@ to `false`.
 
 ### Backup Compression
 
-Barman can take advantage of the support for compression built into
-pg_basebackup in order to compress the base backup data during the
-backup process. This can be enabled by using the `backup_compression`
-config option (global/per server):
+Barman can use the compression features of pg_basebackup in order to
+compress the backup data during the backup process. This can be enabled
+using the `backup_compression` config option (global/per server):
 
 > **IMPORTANT:** the `backup_compression` and other options discussed
-> in this section option are not available with the `rsync` or
-> `local-rsync` backup methods.
+> in this section are not available with the `rsync` or `local-rsync`
+> backup methods.
 
 ``` ini
 backup_compression = gzip

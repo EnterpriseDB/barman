@@ -323,8 +323,8 @@ is a multi-step process:
 1. The compressed backup files are copied to a staging directory on the
    local or remote server using Rsync.
 2. The compressed files are uncompressed to the target directory.
-3. Config files which need special handling by Barman are extracted in
-   the staging directory, analysed or edited as required, and copied to
+3. Config files which need special handling by Barman are copied from the
+   recovery destination, analysed or edited as required, and copied back to
    the recovery destination using Rsync.
 4. The staging directory for the backup is removed.
 
@@ -337,13 +337,6 @@ either set `recovery_staging_path` in the global/server config *or* use
 the `--recovery-staging-path` option with the `barman recover` command. If
 you do neither of these things and attempt to recover a compressed backup
 then Barman will fail rather than try to guess a suitable location.
-
-The staging directory is only removed on successful completion of the
-recovery. This allows subsequent recovery attempts to avoid transferring
-any compressed files which have previously been transferred. Should you
-ever wish to remove the staging directory manually then the naming scheme
-is: `${recovery_staging_path}/barman-staging-${server_name}-${backup_id}`.
-
 
 ## `show-backup`
 

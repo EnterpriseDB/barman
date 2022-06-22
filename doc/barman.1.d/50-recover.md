@@ -93,8 +93,6 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         the destination directory. Backups will be staged in their own directory
         within the staging path according to the following naming convention:
         "barman-staging-SERVER_NAME-BACKUP_ID". The staging directory within
-        the staging path will be removed upon successful recovery, otherwise
-        it will be left in place so that subsequent recovery attempts can avoid
-        transferring files which have already been transferred. This option is
-        *required* when recovering from compressed backups and has no effect
-        otherwise.
+        the staging path will be removed at the end of the recovery process.
+        This option is *required* when recovering from compressed backups and
+        has no effect otherwise.
