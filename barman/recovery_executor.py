@@ -1334,8 +1334,6 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             raise DataTransferFailure.from_command_error("rsync", e, msg)
 
         # Untar the results files to their intended location
-        # When zstd and lz4 are supported this will need to be a little more
-        # sophisticated
         if backup_info.tablespaces:
             for tablespace in backup_info.tablespaces:
                 # By default a tablespace goes in the same location where

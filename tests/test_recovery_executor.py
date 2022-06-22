@@ -1423,9 +1423,6 @@ class TestRecoveryExecutorFactory(object):
 
 
 class TestGZipCompression(object):
-    # None for src
-    # None for dst
-    # badly formed exclude / include
     @pytest.mark.parametrize(
         ("src", "dst", "exclude", "include", "expected_error"),
         [
