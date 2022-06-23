@@ -33,6 +33,7 @@
   [azure-storage-blob]: https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python
   [azure-storage-auth]: https://docs.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters
   [pg_basebackup-documentation]: https://www.postgresql.org/docs/current/app-pgbasebackup.html
+  [pg-backup-api]: https://github.com/EnterpriseDB/pg-backup-api
 
 
   [3]: https://github.com/EnterpriseDB/barman

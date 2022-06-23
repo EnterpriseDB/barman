@@ -150,11 +150,43 @@ Barman goes through thousands of automated tests for each
 supported PostgreSQL version and on each supported Linux distribution.
 
 Also, **every version is back compatible** with previous ones.
-Thefore, upgrading Barman normally requires a simple update of packages
+Therefore, upgrading Barman normally requires a simple update of packages
 using `yum update` or `apt update`.
 
 There have been, however, the following exceptions in our development
 history, which required some small changes to the configuration.
+
+## Upgrading to Barman 3.0.0
+
+### Default backup approach for Rsync backups is now concurrent
+
+Barman will now use concurrent backups if neither `concurrent_backup`
+nor `exclusive_backup` are specified in `backup_options`. This
+differs from previous Barman versions where the default was to
+use exclusive backup.
+
+If you require exclusive backups you will now need to add
+`exclusive_backup` to `backup_options` in the Barman configuration.
+
+Note that exclusive backups are not supported at all when running
+against PostgreSQL 15.
+
+### Metadata changes
+
+A new field named `compression` will be added to the metadata stored
+in the `backup.info` file for all backups taken with version 3.0.0.
+This is used when recovering from backups taken using the built-in
+compression functionality of `pg_basebackup`.
+
+The presence of this field means that earlier versions of Barman are
+not able to read backups taken with Barman 3.0.0. This means that if
+you downgrade from Barman 3.0.0 to an earlier version you will have
+to either manually remove any backups taken with 3.0.0 or edit the
+`backup.info` file of each backup to remove the `compression` field.
+
+The same metadata change affects [pg-backup-api][pg-backup-api] so
+if you are using pg-backup-api you will need to update it to version
+0.2.0.
 
 ## Upgrading from Barman 2.10
 

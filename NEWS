@@ -1,5 +1,67 @@
 Barman News - History of user-visible changes
 
+Version 3.0.0 - 23 June 2022
+
+- BREAKING CHANGE: PostgreSQL versions 9.6 and earlier are no longer
+  supported. If you are using one of these versions you will need to
+  use an earlier version of Barman.
+
+- BREAKING CHANGE: The default backup mode for Rsync backups is now
+  concurrent rather than exclusive. Exclusive backups have been
+  deprecated since PostgreSQL 9.6 and have been removed in PostgreSQL
+  15. If you are running Barman against PostgreSQL versions earlier
+  than 15 and want to use exclusive backups you will now need to set
+  `exclusive_backup` in `backup_options`.
+
+- BREAKING CHANGE: The backup metadata stored in the `backup.info` file
+  for each backup has an extra field. This means that earlier versions
+  of Barman will not work in the presence of any backups taken with
+  3.0.0. Additionally, users of pg-backup-api will need to upgrade it
+  to version 0.2.0 so that pg-backup-api can work with the updated
+  metadata.
+
+- Backups taken with `backup_method = postgres` can now be compressed
+  by pg_basebackup by setting the `backup_compression` config option.
+  Additional options are provided to control the compression level,
+  the backup format and whether the pg_basebackup client or the
+  PostgreSQL server applies the compression. NOTE: Recovery of these
+  backups requires Barman to stage the compressed files on the recovery
+  server in a location specified by the `recovery_staging_path` option.
+
+- Add support for PostgreSQL 15. Exclusive backups are not supported
+  by PostgreSQL 15 therefore Barman configurations for PostgreSQL 15
+  servers are not allowed to specify `exclusive_backup` in
+  `backup_options`.
+
+- Various documentation improvements.
+
+- Use custom_compression_magic, if set, when identifying compressed
+  WAL files. This allows Barman to correctly identify uncompressed
+  WALs (such as `*.partial` files in the `streaming` directory) and
+  return them instead of attempting to decompress them.
+
+- Bug fixes:
+
+    - Fix an ordering bug which caused Barman to log the message
+      "Backup failed issuing start backup command." while handling a
+      failure in the stop backup command.
+
+    - Fix a bug which prevented recovery using `--target-tli` when
+      timelines greater than 9 were present, due to hexadecimal values
+      from WAL segment names being parsed as base 10 integers.
+
+    - Fix an import error which occurs when using barman cloud with
+      certain python2 installations due to issues with the enum34
+      dependency.
+
+    - Fix a bug where Barman would not read more than three bytes from
+      a compressed WAL when attempting to identify the magic bytes. This
+      means that any custom compressed WALs using magic longer than three
+      bytes are now decompressed correctly.
+
+    - Fix a bug which caused the `--immediate-checkpoint` flag to be
+      ignored during backups with `backup_method = rsync`.
+
 Version 2.19 - 9 March 2022
 
 - Change `barman diagnose` output date format to ISO8601.
