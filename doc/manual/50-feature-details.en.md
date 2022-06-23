@@ -120,6 +120,66 @@ network transfers (for both backup and recovery). By default it is set
 to `false`.
 
 
+### Backup Compression
+
+Barman can use the compression features of pg_basebackup in order to
+compress the backup data during the backup process. This can be enabled
+using the `backup_compression` config option (global/per server):
+
+> **IMPORTANT:** the `backup_compression` and other options discussed
+> in this section are not available with the `rsync` or `local-rsync`
+> backup methods.
+
+``` ini
+backup_compression = gzip
+```
+
+Setting this option will cause pg_basebackup to compress the backup
+using the specified compression algorithm. Currently only the `gzip`
+algorithm is supported in Barman.
+
+> **IMPORTANT:** If you are using `backup_compression` you must also
+> set `recovery_staging_path` so that `barman recover` is able to
+> recover the compressed backups. See the [Recovering compressed backups](#recovering-compressed-backups)
+> section for more information.
+
+The compression level can be specified using the
+`backup_compression_level` option. This should be set to an integer
+value supported by the compression algorithm specified in
+`backup_compression`.
+
+When using Barman with PostgreSQL version 15 or later it is possible
+to specify for compression to happen on the server (i.e. PostgreSQL
+will compress the backup) or on the client (i.e. pg_basebackup
+will compress the backup). This can be achieved using the
+`backup_compression_location` option:
+
+> **IMPORTANT:** the `backup_compression_location` option is only
+> available when running against PostgreSQL 15 or later.
+
+``` ini
+backup_compression_location = server|client
+```
+
+Using `backup_compression_location = server` should reduce the network
+bandwidth required by the backup at the cost of moving the compression
+work onto the PostgreSQL server.
+
+When `backup_compression_location` is set to `server` then an
+additional option, `backup_compression_format`, can be set to `plain`
+in order to have pg_basebackup uncompress the data before writing it
+to disk:
+
+``` ini
+backup_compression_format = plain|tar
+```
+
+If `backup_compression_format` is unset or has the value `tar` then
+the backup will be written to disk as compressed tarballs. A description
+of both the `plain` and `tar` formats can be found in the [pg_basebackup
+documentation][pg_basebackup-documentation].
+
+
 ### Concurrent Backup and backup from a standby
 
 Normally, during backup operations, Barman uses PostgreSQL native

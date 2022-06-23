@@ -301,6 +301,7 @@ class TestCli(object):
         backup_info = Mock()
         backup_info.status = BackupInfo.DONE
         backup_info.tablespaces = []
+        backup_info.compression = None
         return backup_info
 
     @pytest.fixture
@@ -511,6 +512,81 @@ class TestCli(object):
         _out, err = capsys.readouterr()
         assert "" == err
 
+    @pytest.mark.parametrize(
+        (
+            "backup_is_compressed",
+            "recovery_staging_path_arg",
+            "recovery_staging_path_config",
+            "expected_recovery_staging_path",
+            "should_error",
+        ),
+        [
+            # If a backup is not compressed then recovery_staging_path is ignored
+            (False, None, None, None, False),
+            # If a backup is compressed and no recovery_staging_path is provided
+            # we expect an error
+            (True, None, None, None, True),
+            # If a backup is compressed and an argument is provided then it should
+            # be set in the config
+            (True, "/from/arg", None, "/from/arg", False),
+            # If a backup is compressed and a bad argument is provided then it should
+            # error
+            (True, "from/arg", None, None, True),
+            # If a backup is compressed and a config value is set then it should
+            # be set in the config
+            (True, None, "/from/conf", "/from/conf", False),
+            # If a backup is compressed and both arg and config are set then arg
+            # takes precedence
+            (True, "/from/arg", "/from/conf", "/from/arg", False),
+        ],
+    )
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_recover_recovery_staging_path(
+        self,
+        get_server_mock,
+        parse_backup_id_mock,
+        mock_backup_info,
+        mock_recover_args,
+        backup_is_compressed,
+        recovery_staging_path_arg,
+        recovery_staging_path_config,
+        expected_recovery_staging_path,
+        should_error,
+        monkeypatch,
+        capsys,
+    ):
+        # GIVEN a backup
+        parse_backup_id_mock.return_value = mock_backup_info
+        # AND the backup has the specified compression
+        mock_backup_info.compression = backup_is_compressed and "gzip" or None
+        # AND a configuration with the specified recovery_staging_path
+        config = build_config_from_dicts(
+            global_conf={"recovery_staging_path": recovery_staging_path_config},
+        )
+        server = config.get_server("main")
+        get_server_mock.return_value.config = server
+        monkeypatch.setattr(
+            barman,
+            "__config__",
+            (config,),
+        )
+        # WHEN recover is called with the specified --recovery-staging-path
+        mock_recover_args.recovery_staging_path = recovery_staging_path_arg
+
+        # WITH a barman recover command
+        with pytest.raises(SystemExit):
+            recover(mock_recover_args)
+
+        # THEN if we expected an error the error was observed
+        _, err = capsys.readouterr()
+        if should_error:
+            assert len(err) > 0
+        else:
+            # AND if we expected success, the server config recovery staging
+            # path matches expectations
+            assert server.recovery_staging_path == expected_recovery_staging_path
+
     def test_check_target_action(self):
         # The following ones must work
         assert None is check_target_action(None)
@@ -560,6 +636,7 @@ class TestCli(object):
             primary_ssh_command=None,
             disabled=False,
             barman_lock_directory="/path/to/lockdir",
+            backup_compression=None,
         )
         server = Server(mock_config)
         mock_server_list = {server_name: server}

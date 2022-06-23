@@ -47,10 +47,11 @@ from barman.exceptions import (
     UnknownBackupIdException,
     CommandFailedException,
 )
+from barman.fs import unix_command_factory
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
 from barman.lockfile import ServerBackupSyncLock
-from barman.recovery_executor import RecoveryExecutor
+from barman.recovery_executor import recovery_executor_factory
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (
     force_str,
@@ -728,8 +729,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Archive every WAL files in the incoming directory of the server
         self.server.archive_wal(verbose=False)
         # Delegate the recovery operation to a RecoveryExecutor object
-        executor = RecoveryExecutor(self)
 
+        command = unix_command_factory(remote_command, self.server.path)
+        executor = recovery_executor_factory(self, command, backup_info.compression)
         # Run the pre_recovery_script if present.
         script = HookScriptRunner(self, "recovery_script", "pre")
         script.env_from_recover(

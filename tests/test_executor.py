@@ -548,6 +548,24 @@ class TestRsyncBackupExecutor(object):
         # check for the presence of the warning in the stderr
         assert ("WARNING: The usage of include directives is not supported") not in err
 
+    def test_validate_config_compression(self):
+        # GIVEN a server with backup_method = rysnc and backup_method = gzip
+        server = build_mocked_server(
+            global_conf={"backup_method": "rsync", "backup_compression": "gzip"}
+        )
+
+        # WHEN an RsyncBackupExecutor is created
+        RsyncBackupExecutor(server.backup_manager)
+
+        # THEN the server is disabled
+        assert server.config.disabled
+        # AND the server config has a single error message
+        assert len(server.config.msg_list) == 1
+        assert (
+            "backup_compression option is not supported by rsync backup_method"
+            in server.config.msg_list[0]
+        )
+
 
 # noinspection PyMethodMayBeStatic
 class TestStrategy(object):
@@ -1109,6 +1127,7 @@ class TestPostgresBackupExecutor(object):
                 retry_sleep=30,
                 retry_handler=mock.ANY,
                 path=mock.ANY,
+                compression=None,
             ),
             mock.call()(),
         ]
@@ -1143,6 +1162,7 @@ class TestPostgresBackupExecutor(object):
                 retry_sleep=30,
                 retry_handler=mock.ANY,
                 path=mock.ANY,
+                compression=None,
             ),
             mock.call()(),
         ]
@@ -1176,6 +1196,7 @@ class TestPostgresBackupExecutor(object):
                 retry_sleep=30,
                 retry_handler=mock.ANY,
                 path=mock.ANY,
+                compression=None,
             ),
             mock.call()(),
         ]
@@ -1204,6 +1225,7 @@ class TestPostgresBackupExecutor(object):
                 retry_sleep=30,
                 retry_handler=mock.ANY,
                 path=mock.ANY,
+                compression=None,
             ),
             mock.call()(),
         ]
@@ -1266,3 +1288,48 @@ class TestPostgresBackupExecutor(object):
         assert backup_info.begin_wal is None
         assert backup_info.begin_offset is None
         assert backup_info.begin_time == start_time
+
+    def test_backup_compression_gzip(self):
+        """
+        Checks that a backup_compression object is created if the backup_compression
+        option is set.
+        """
+        # GIVEN a server with backup_method postgres and backup_compression gzip
+        server = build_mocked_server(
+            global_conf={"backup_method": "postgres", "backup_compression": "gzip"}
+        )
+        # WHEN a PostgresBackupExecutor is created
+        executor = PostgresBackupExecutor(server.backup_manager)
+        # THEN a PgBaseBackupCompression is created with type == "gzip"
+        assert executor.backup_compression.type == "gzip"
+
+    def test_no_backup_compression(self):
+        """
+        Checks that backup_compression is None if the backup_compression option is
+        not set.
+        """
+        # GIVEN a server with backup_method postgres and no backup_compression
+        server = build_mocked_server(global_conf={"backup_method": "postgres"})
+        # WHEN a PostgresBackupExecutor is created
+        executor = PostgresBackupExecutor(server.backup_manager)
+        # THEN the backup_compression attribute of the executor is None
+        assert executor.backup_compression is None
+
+    @patch("barman.compression.GZipPgBaseBackupCompression")
+    def test_validate_config_compression(self, mock_gzip_pgbb_compression):
+        """
+        Checks that the validate_config method validates compression options.
+        We do not care about the details of the validation here, we only care
+        that it is called.
+        """
+        # GIVEN a server with backup_method postgres and backup_compression gzip
+        server = build_mocked_server(
+            global_conf={"backup_method": "postgres", "backup_compression": "gzip"}
+        )
+        # WHEN a PostgresBackupExecutor is created
+        PostgresBackupExecutor(server.backup_manager)
+        # THEN the validate method of the executor's PgBaseBackupCompression object
+        # is called
+        mock_gzip_pgbb_compression.return_value.validate.assert_called_once()
+        # AND the server config message list has no errors
+        assert len(server.config.msg_list) == 0
