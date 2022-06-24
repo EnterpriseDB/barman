@@ -17,12 +17,12 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import base64
-import gzip
 import os
 
 import mock
 import pytest
-
+import tarfile
+import io
 from barman.compression import (
     BZip2Compressor,
     CommandCompressor,
@@ -33,17 +33,37 @@ from barman.compression import (
     PyBZip2Compressor,
     PyGZipCompressor,
     get_pg_basebackup_compression,
-    GZipPgBaseBackupCompression,
     PgBaseBackupCompression,
+    PgBaseBackupCompressionOption,
+    GZipPgBaseBackupCompressionOption,
+    GZipCompression,
 )
-from barman.exceptions import CompressionException
-from testing_helpers import build_mocked_server
+from barman.exceptions import (
+    CompressionException,
+    FileNotFoundException,
+    CommandFailedException,
+)
+from testing_helpers import build_mocked_server, get_compression_config
 
 # Filename patterns used by the tests
 ZIP_FILE = "%s/zipfile.zip"
 ZIP_FILE_UNCOMPRESSED = "%s/zipfile.uncompressed"
 BZIP2_FILE = "%s/bzipfile.bz2"
 BZIP2_FILE_UNCOMPRESSED = "%s/bzipfile.uncompressed"
+
+
+def _tar_file(items):
+    """Helper to create an in-memory tar file with multiple files."""
+    tar_fileobj = io.BytesIO()
+    tf = tarfile.TarFile.open(mode="w|", fileobj=tar_fileobj)
+    for item_name, item_bytes in items:
+        ti = tarfile.TarInfo(name=item_name)
+        content_as_bytes = item_bytes.encode("utf-8")
+        ti.size = len(content_as_bytes)
+        tf.addfile(ti, io.BytesIO(content_as_bytes))
+    tf.close()
+    tar_fileobj.seek(0)
+    return tar_fileobj
 
 
 # noinspection PyMethodMayBeStatic
@@ -375,16 +395,32 @@ class TestPgBaseBackupCompression(object):
     """
 
     @pytest.mark.parametrize(
-        ("compression", "expected_class"),
+        (
+            "compression",
+            "expected_class",
+            "expected_option_class",
+            "expected_compression_class",
+        ),
         [
             # A value of None for backup_compression should result in a NoneType
-            (None, type(None)),
+            (None, type(None), None, None),
             # A value of gzip for backup_compression should result in a
-            # GZipPgBaseBackupCompression
-            ("gzip", GZipPgBaseBackupCompression),
+            # PgBaseBackupCompression with appropriate attributes
+            (
+                "gzip",
+                PgBaseBackupCompression,
+                GZipPgBaseBackupCompressionOption,
+                GZipCompression,
+            ),
         ],
     )
-    def test_get_pg_basebackup_compression(self, compression, expected_class):
+    def test_get_pg_basebackup_compression(
+        self,
+        compression,
+        expected_class,
+        expected_option_class,
+        expected_compression_class,
+    ):
         """
         Verifies that get_pg_basebackup_compression returns an instance of the
         correct class for the compression specified in the server config.
@@ -392,8 +428,14 @@ class TestPgBaseBackupCompression(object):
         server = build_mocked_server(
             global_conf={"backup_method": "postgres", "backup_compression": compression}
         )
-        compression = get_pg_basebackup_compression(server)
-        assert type(compression) == expected_class
+        base_backup_compression = get_pg_basebackup_compression(server)
+
+        assert type(base_backup_compression) == expected_class
+        if base_backup_compression is not None:
+            assert type(base_backup_compression.options) == expected_option_class
+            assert (
+                type(base_backup_compression.compression) == expected_compression_class
+            )
 
     def test_get_pg_basebackup_compression_not_supported(self):
         """
@@ -415,19 +457,19 @@ class TestPgBaseBackupCompression(object):
 
     def test_with_suffix(self):
         """Verifies with_suffix returns expected result."""
-        # GIVEN a concrete PgBaseBackupCompression which defines its suffix
-        class BasicPgBaseBackupCompression(PgBaseBackupCompression):
-            suffix = "basic"
+        # GIVEN a PgBaseBackupCompression instance
+        compression_mock = mock.Mock()
+        compression_mock.file_extension = "tar.gz"
+        base_backup_compression = PgBaseBackupCompression(
+            mock.Mock(), mock.Mock(), compression_mock
+        )
 
-            def open(self, _base):
-                pass
+        # THEN with_suffix calls compression with_suffix method
+        full_archive_name = base_backup_compression.with_suffix("append_to_this")
+        assert full_archive_name == "append_to_this.tar.gz"
 
-        # WHEN it is instantiated
-        basic_compression = BasicPgBaseBackupCompression(mock.Mock())
 
-        # THEN with_suffix appends the suffix
-        assert basic_compression.with_suffix("append_to_this") == "append_to_this.basic"
-
+class TestPgBaseBackupCompressionOption:
     @pytest.mark.parametrize(
         ("client_version", "server_version", "compression_options", "expected_errors"),
         [
@@ -537,48 +579,20 @@ class TestPgBaseBackupCompression(object):
     def test_validate(
         self, client_version, server_version, compression_options, expected_errors
     ):
-        """
-        Verifies PgBaseBackupCompression.validate behaviour.
-        """
-        # GIVEN a concrete PgBaseBackupCompression which defines its suffix
-        class BasicPgBaseBackupCompression(PgBaseBackupCompression):
-            suffix = "basic"
-
-            def open(self, _base):
-                pass
-
-        # AND a server with compression enabled
-        server_options = {"backup_method": "postgres"}
-        server_options.update(compression_options)
-        server = build_mocked_server(global_conf=server_options)
-        # AND the server is of the specified version
-        server.postgres.server_version = server_version
+        # GIVEN a PgBaseBackupCompressionOption with specific options
+        compression_config = get_compression_config(compression_options)
+        compression_option = PgBaseBackupCompressionOption(compression_config)
         # AND the remote status reports the pg_basebackup version
         remote_status = {"pg_basebackup_version": client_version}
-        # AND the PgBaseBackupCompression is created from the server config
-        basic_compression = BasicPgBaseBackupCompression(server.config)
 
         # WHEN validate is called
-        basic_compression.validate(server, remote_status)
-
-        # THEN if no errors are expected, the server is not disabled
-        if len(expected_errors) == 0:
-            assert not server.config.disabled
-            # AND there are no messages in the msg_list
-            assert len(server.config.msg_list) == 0
-        # OR if errors are expected, the server is disabled
-        else:
-            assert server.config.disabled
-            # AND the expected errors are in the server's list
-            assert len(server.config.msg_list) == len(expected_errors)
-            assert sorted(server.config.msg_list) == sorted(expected_errors)
+        validation_issues = compression_option.validate(server_version, remote_status)
+        # Then the expected errors are in the returned list if any
+        assert len(validation_issues) == len(expected_errors)
+        assert sorted(validation_issues) == sorted(expected_errors)
 
 
-class TestGZipPgBaseBackupCompression(object):
-    """
-    Test the gzip pg_basebackup implementation details.
-    """
-
+class TestGZipPgBaseBackupCompressionOption(object):
     @pytest.mark.parametrize(
         ("compression_options", "expected_errors"),
         [
@@ -600,79 +614,208 @@ class TestGZipPgBaseBackupCompression(object):
     )
     def test_validate(self, compression_options, expected_errors):
         """Verifies supported config options pass validation."""
-        # GIVEN a server with the specified compression options
-        compression_options["backup_method"] = "postgres"
-        server = build_mocked_server(global_conf=compression_options)
-        # AND a GZipPgBaseBackupCompression for that server
-        backup_compression = GZipPgBaseBackupCompression(server.config)
+        # GIVEN compression options
+        compression_config = get_compression_config(compression_options)
+        compression_option = GZipPgBaseBackupCompressionOption(compression_config)
         # AND a remote_status object
         remote_status = mock.Mock()
-
+        # AND a Server version
+        server_version = mock.Mock()
         # WHEN the compression is validated
-        backup_compression.validate(server, remote_status)
+        validation_issues = compression_option.validate(server_version, remote_status)
+        # THEN issues should match expected ones if any
+        assert len(validation_issues) == len(expected_errors)
 
-        # THEN if no errors are expected the server is not disabled
-        if len(expected_errors) == 0:
-            assert not server.config.disabled
-            # AND no errors are added to the server's list
-            assert len(server.config.msg_list) == 0
-        # OR the server is disabled
+
+class TestGZipCompression(object):
+    @pytest.mark.parametrize(
+        ("src", "dst", "exclude", "include", "expected_error"),
+        [
+            # Simple src, dest case should cause the correct command to be called
+            ("/path/to/source", "/path/to/dest", None, None, None),
+            # Empty strings and None values for src or dst should raise an error
+            ("", "/path/to/dest", None, None, ValueError),
+            (None, "/path/to/dest", None, None, ValueError),
+            ("/path/to/src", "", None, None, ValueError),
+            ("/path/to/src", None, None, None, ValueError),
+            # Exclude arguments should be appended
+            (
+                "/path/to/source",
+                "/path/to/dest",
+                ["/path/to/exclude", "/another/path/to/exclude"],
+                None,
+                None,
+            ),
+            # Include arguments should be appended
+            (
+                "/path/to/source",
+                "/path/to/dest",
+                None,
+                ["path/to/include", "/another/path/to/include"],
+                None,
+            ),
+            # Both include and exclude arguments should be appended
+            (
+                "/path/to/source",
+                "/path/to/dest",
+                ["/path/to/exclude", "/another/path/to/exclude"],
+                ["path/to/include", "/another/path/to/include"],
+                None,
+            ),
+        ],
+    )
+    def test_uncompress(self, src, dst, exclude, include, expected_error):
+        # GIVEN a GZipCompression object
+        command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = ("all good", "")
+        gzip_compression = GZipCompression(command)
+
+        # WHEN uncompress is called with the source and destination
+        # THEN the command is called once
+        # AND if we expect an error, that error is raised
+        if expected_error is not None:
+            with pytest.raises(ValueError):
+                gzip_compression.uncompress(
+                    src, dst, exclude=exclude, include_args=include
+                )
+            # THEN command.cmd was not called
+            command.cmd.assert_not_called()
+        # OR if we don't expect an error
         else:
-            assert server.config.disabled
-            # AND the expected errors are added to the server's list
-            assert len(server.config.msg_list) == len(expected_errors)
+            gzip_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            # THEN command.cmd was called
+            assert command.cmd.called_once()
+            # AND the first argument was "tar"
+            assert command.cmd.call_args_list[0][0][0] == "tar"
+            # AND the basic arguments are present
+            assert command.cmd.call_args_list[0][1]["args"][:4] == [
+                "xzf",
+                src,
+                "--directory",
+                dst,
+            ]
+            # AND if we expected exclude args they are present
+            remaining_args = " ".join(command.cmd.call_args_list[0][1]["args"][4:])
+            if exclude is not None:
+                for exclude_arg in exclude:
+                    assert "--exclude %s" % exclude_arg in remaining_args
+            # AND if we expected include args they are present
+            if include is not None:
+                for include_arg in include:
+                    assert include_arg in remaining_args
 
-    def test_open(self, tmpdir):
-        """
-        Verifies open returns a readable file-like object when passed a path to
-        a gzip-compressed file.
-        """
-        # GIVEN a server with the specified compression options
-        server = build_mocked_server(
-            global_conf={
-                "backup_method": "postgres",
-                "backup_compression": "gzip",
-            }
+    def test_tar_failure_raises_exception(self):
+        """Verify a nonzero return code from tar raises an exception"""
+        # GIVEN a GZipCompression object
+        # AND a tar command which returns status 2 and an error
+        command = mock.Mock()
+        command.cmd.return_value = 2
+        command.get_last_output.return_value = ("", "some error")
+        gzip_compression = GZipCompression(command)
+
+        # WHEN uncompress is called
+        # THEN a CommandFailedException is raised
+        with pytest.raises(CommandFailedException) as exc:
+            gzip_compression.uncompress("/path/to/src", "/path/to/dst")
+
+        # AND the exception message contains the command stderr
+        assert "some error" in str(exc.value)
+
+    def test_get_file_content(self, tmpdir):
+        # Given a tar.gz compressed archive on disk containing specified files
+        base_path = tmpdir.mkdir("base")
+        label_file_name = "label"
+        label_file = base_path.join(label_file_name)
+        file_label_content = "expected file label content"
+        with open(label_file.strpath, "w") as f:
+            f.write(file_label_content)
+
+        file_other = base_path.join("other_file")
+        file_other_content = "expected file other content"
+        with open(file_other.strpath, "w") as f:
+            f.write(file_other_content)
+
+        create_targz_archive("base.tar.gz", "base", tmpdir.strpath)
+        os.remove(label_file.strpath)
+        os.remove(file_other.strpath)
+        os.rmdir(base_path.join().strpath)
+
+        # AND a Mock Command
+        command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = (file_label_content, "")
+        # THEN getting a specific file content format the archive with a GZipCompression instance
+        gz_compression = GZipCompression(command)
+        read_content = gz_compression.get_file_content(
+            "base/" + label_file_name, base_path.join().strpath
         )
-        # AND a GZipPgBaseBackupCompression for that server
-        backup_compression = GZipPgBaseBackupCompression(server.config)
-        # AND a gzip-compressed file on disk containing specified content
-        file_content = "expected file content".encode("utf-8")
-        file_path = str(tmpdir.join("compressed_file"))
+        # SHOULD retrieve the expected content
+        assert file_label_content == read_content
 
-        with gzip.open(".".join((file_path, "gz")), mode="wb") as gz:
-            gz.write(file_content)
+        # AND command.cmd was called
+        args = [
+            "-xzf",
+            base_path.join().strpath + ".tar.gz",
+            "-O",
+            "base/" + label_file_name,
+            "--occurrence",
+        ]
 
-        # WHEN open is called on that file
-        with backup_compression.open(file_path) as compressed_file:
-            # THEN a readable stream containing the contents is returned
-            content = compressed_file.read()
+        command.cmd.assert_called_once()
+        command.cmd.assert_called_once_with("tar", args=args)
 
-        # AND the content matches the expected file content
-        assert content == file_content
-
-    def test_open_not_found(self):
+    def test_get_file_content_file_not_found(self, tmpdir):
         """
-        Verifies an exception is thrown if open is called on a file which does
+        Verifies an exception is thrown if get_file_content is called on a file which does
         not exist.
         """
-        # GIVEN a server with the specified compression options
-        server = build_mocked_server(
-            global_conf={
-                "backup_method": "postgres",
-                "backup_compression": "gzip",
-            }
+        # Given a tar.gz compressed archive on disk containing specified files
+        base_path = tmpdir.mkdir("base")
+        missing_file_name = "label"
+
+        file_other = base_path.join("other_file")
+        file_other_content = "expected file other content"
+        with open(file_other.strpath, "w") as f:
+            f.write(file_other_content)
+
+        create_targz_archive("base.tar.gz", "base", tmpdir.strpath)
+        os.remove(file_other.strpath)
+        os.rmdir(base_path.join().strpath)
+
+        # AND a Mock Command that simulates tar response in case of missing file.
+        command = mock.Mock()
+        command.cmd.return_value = 1
+        expected_exception_message = (
+            "tar: base/%s: Not found in archive\n"
+            "tar: Error exit delayed from previous errors.\n"
+            "archive name: %s.tar.gz"
+            % (
+                missing_file_name,
+                base_path.join().strpath,
+            )
         )
-        # AND a GZipPgBaseBackupCompression for that server
-        backup_compression = GZipPgBaseBackupCompression(server.config)
-        # AND a path which points to nowhere
-        file_path = "/path/to/nowhere/one/would/reasonably/expect"
+        tar_error_message = (
+            "tar: base/%s: Not found in archive\n"
+            "tar: Error exit delayed from previous errors.\n" % missing_file_name
+        )
+        command.get_last_output.return_value = (
+            "",
+            tar_error_message,
+        )
+        # AND getting a specific file content format the archive with a GZipCompression instance
+        gz_compression = GZipCompression(command)
 
-        # WHEN open is called on that file
-        # THEN an exception is raised
-        with pytest.raises(Exception) as exc:
-            with backup_compression.open(file_path):
-                pass
+        # THEN getting missing file content
+        # SHOULD Raise an exception
+        with pytest.raises(FileNotFoundException) as exc:
+            gz_compression.get_file_content(
+                "base/" + missing_file_name, base_path.join().strpath
+            )
+        assert expected_exception_message == str(exc.value)
 
-        # AND the exception message refers to the full path
-        assert ".".join((file_path, "gz")) in str(exc.value)
+
+def create_targz_archive(archive_name, folder_dir, common_path):
+    os.chdir(common_path)
+    with tarfile.open(archive_name, "w:gz") as tar:
+        tar.add(folder_dir)
