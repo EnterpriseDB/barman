@@ -539,6 +539,35 @@ class TestConfig(object):
                 parse_backup_compression(format)
 
 
+class TestServerConfig(object):
+    def test_update_msg_list_and_disable_server(self):
+        c = testing_helpers.build_config_from_dicts(
+            global_conf={
+                "archiver": "on",
+                "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
+            },
+            main_conf={"backup_options": ""},
+        )
+        main = c.get_server("main")
+        assert main.disabled is False
+        msg1 = "An issue occurred"
+        main.update_msg_list_and_disable_server(msg1)
+
+        assert main.disabled is True
+        assert main.msg_list == [msg1]
+
+        msg2 = "This config is not valid"
+        main.update_msg_list_and_disable_server(msg2)
+        assert main.msg_list == [msg1, msg2]
+        assert main.disabled is True
+
+        msg3 = "error wrong path"
+        msg4 = "No idea"
+        main.update_msg_list_and_disable_server([msg3, msg4])
+        assert main.msg_list == [msg1, msg2, msg3, msg4]
+        assert main.disabled is True
+
+
 # noinspection PyMethodMayBeStatic
 class TestCsvParsing(object):
     """

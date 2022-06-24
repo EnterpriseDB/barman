@@ -724,6 +724,19 @@ class ServerConfig(object):
 
         return bwlimit
 
+    def update_msg_list_and_disable_server(self, msg_list):
+        """
+        Will take care of upgrading msg_list
+        :param msg_list: str|list can be either a string or a list of strings
+        """
+        if not msg_list:
+            return
+        if type(msg_list) is not list:
+            msg_list = [msg_list]
+
+        self.msg_list.extend(msg_list)
+        self.disabled = True
+
 
 class Config(object):
     """This class represents the barman configuration.

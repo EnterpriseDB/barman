@@ -79,13 +79,14 @@ class TestRemoteGetWal(object):
         ) in err
 
     @mock.patch("barman.clients.walrestore.RemoteGetWal")
-    def test_ssh_connectivity_error(self, remote_get_wal_mock, capsys):
+    def test_ssh_connectivity_error(self, remote_get_wal_mock, capsys, tmpdir):
         """Verifies exit status is 2 when ssh connectivity fails."""
         mock_ssh_process = remote_get_wal_mock.return_value
         mock_ssh_process.returncode = 255
 
+        dest_path = tmpdir.join("dummy_dest").strpath
         with pytest.raises(SystemExit) as exc:
-            walrestore.main(["a.host", "a-server", "dummy_wal", "dummy_dest"])
+            walrestore.main(["a.host", "a-server", "dummy_wal", dest_path])
 
         assert exc.value.code == 2
         out, err = capsys.readouterr()
@@ -93,13 +94,14 @@ class TestRemoteGetWal(object):
         assert ("ERROR: Connection problem with ssh\n") in err
 
     @mock.patch("barman.clients.walrestore.RemoteGetWal")
-    def test_ssh_exit_code_is_passed_through(self, remote_get_wal_mock, capsys):
+    def test_ssh_exit_code_is_passed_through(self, remote_get_wal_mock, capsys, tmpdir):
         """Verifies non-255 SSH exit codes are passed through."""
         mock_ssh_process = remote_get_wal_mock.return_value
         mock_ssh_process.returncode = 1
 
+        dest_path = tmpdir.join("dummy_dest").strpath
         with pytest.raises(SystemExit) as exc:
-            walrestore.main(["a.host", "a-server", "dummy_wal", "dummy_dest"])
+            walrestore.main(["a.host", "a-server", "dummy_wal", dest_path])
 
         assert exc.value.code == 1
         out, err = capsys.readouterr()

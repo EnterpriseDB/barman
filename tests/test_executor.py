@@ -1301,7 +1301,7 @@ class TestPostgresBackupExecutor(object):
         # WHEN a PostgresBackupExecutor is created
         executor = PostgresBackupExecutor(server.backup_manager)
         # THEN a PgBaseBackupCompression is created with type == "gzip"
-        assert executor.backup_compression.type == "gzip"
+        assert executor.backup_compression.config.type == "gzip"
 
     def test_no_backup_compression(self):
         """
@@ -1315,8 +1315,8 @@ class TestPostgresBackupExecutor(object):
         # THEN the backup_compression attribute of the executor is None
         assert executor.backup_compression is None
 
-    @patch("barman.compression.GZipPgBaseBackupCompression")
-    def test_validate_config_compression(self, mock_gzip_pgbb_compression):
+    @patch("barman.compression.PgBaseBackupCompression")
+    def test_validate_config_compression(self, mock_pgbb_compression):
         """
         Checks that the validate_config method validates compression options.
         We do not care about the details of the validation here, we only care
@@ -1326,10 +1326,12 @@ class TestPostgresBackupExecutor(object):
         server = build_mocked_server(
             global_conf={"backup_method": "postgres", "backup_compression": "gzip"}
         )
+        # WITH a valid compression configuration
+        mock_pgbb_compression.return_value.validate.return_value = []
         # WHEN a PostgresBackupExecutor is created
         PostgresBackupExecutor(server.backup_manager)
         # THEN the validate method of the executor's PgBaseBackupCompression object
         # is called
-        mock_gzip_pgbb_compression.return_value.validate.assert_called_once()
+        mock_pgbb_compression.return_value.validate.assert_called_once()
         # AND the server config message list has no errors
         assert len(server.config.msg_list) == 0

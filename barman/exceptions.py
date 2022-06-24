@@ -188,6 +188,12 @@ class CompressionIncompatibility(CompressionException):
     """
 
 
+class FileNotFoundException(CompressionException):
+    """
+    Exception for file not found in archive
+    """
+
+
 class FsOperationFailed(CommandException):
     """
     Exception which represents a failed execution of a command on FS
