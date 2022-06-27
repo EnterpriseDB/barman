@@ -1,5 +1,11 @@
 Barman News - History of user-visible changes
 
+Version 3.0.1 - 27 June 2022
+
+- Bug fixes:
+
+    - Fix package signing issue in PyPI (same sources as 3.0.0)
+
 Version 3.0.0 - 23 June 2022
 
 - BREAKING CHANGE: PostgreSQL versions 9.6 and earlier are no longer
