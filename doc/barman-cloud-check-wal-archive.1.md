@@ -1,6 +1,6 @@
-% BARMAN-CLOUD-CHECK-WAL-ARCHIVE(1) Barman User manuals | Version 3.0.0
+% BARMAN-CLOUD-CHECK-WAL-ARCHIVE(1) Barman User manuals | Version 3.0.1
 % EnterpriseDB <https://www.enterprisedb.com>
-% June 23, 2022
+% June 27, 2022
 
 # NAME
 
