@@ -167,6 +167,26 @@ class TestServer(object):
             "'slot_name' options to be properly configured" in server.config.msg_list
         )
 
+    def test_primary_init(self):
+        """Verify standby properties do not exist when no primary_conninfo is set"""
+        # GIVEN a server with a default config
+        cfg = build_config_from_dicts().get_server("main")
+        # WHEN the server is instantiated
+        server = Server(cfg)
+        # THEN the postgres connection has no primary connection
+        assert not hasattr(server.postgres, "primary")
+
+    def test_standby_init(self):
+        """Verify standby properties exist when primary_conninfo is set"""
+        # GIVEN a server with primary_conninfo set
+        cfg = build_config_from_dicts(
+            main_conf={"primary_conninfo": "db=primary"},
+        ).get_server("main")
+        # WHEN the server is instantiated
+        server = Server(cfg)
+        # THEN the postgres connection has a primary connection
+        assert server.postgres.primary is not None
+
     def test_check_config_missing(self, tmpdir):
         """
         Verify the check method can be called on an empty configuration

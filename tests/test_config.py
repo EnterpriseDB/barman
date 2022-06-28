@@ -174,6 +174,7 @@ class TestConfig(object):
                 "custom_decompression_filter": "bzip2 -c -d",
                 "backup_method": "rsync",
                 "max_incoming_wals_queue": None,
+                "primary_conninfo": None,
             }
         )
         assert main.__dict__ == expected
@@ -209,6 +210,7 @@ class TestConfig(object):
                 "streaming_wals_directory": "/some/barman/home/web/streaming",
                 "errors_directory": "/some/barman/home/web/errors",
                 "max_incoming_wals_queue": None,
+                "primary_conninfo": None,
             }
         )
         assert web.__dict__ == expected

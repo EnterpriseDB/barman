@@ -17,10 +17,16 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+from multiprocessing import Queue
+
+try:
+    from queue import Queue as SyncQueue
+except ImportError:
+    from Queue import Queue as SyncQueue
 
 import psycopg2
 import pytest
-from mock import PropertyMock, call, patch
+from mock import Mock, PropertyMock, call, patch
 from psycopg2.errorcodes import DUPLICATE_OBJECT, UNDEFINED_OBJECT
 
 from barman.exceptions import (
@@ -34,7 +40,7 @@ from barman.exceptions import (
     PostgresSuperuserRequired,
     PostgresUnsupportedFeature,
 )
-from barman.postgres import PostgreSQLConnection
+from barman.postgres import PostgreSQLConnection, StandbyPostgreSQLConnection
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 from testing_helpers import build_real_server
 
@@ -2081,3 +2087,134 @@ class TestStreamingConnection(object):
             )
 
         server.streaming.close()
+
+
+class TestStandbyPostgreSQLConnection(object):
+    @patch("barman.postgres.PostgreSQLConnection")
+    @patch("barman.postgres.super")
+    def test_close(self, mock_super, mock_psql_conn):
+        """Verify that close calls close on both the standby and the primary"""
+        # GIVEN a connection to a standby PostgreSQL instance
+        mock_standby_conn = mock_super.return_value
+        mock_standby_conn.close = Mock()
+        mock_primary_conn = mock_psql_conn.return_value
+        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+
+        # WHEN the connection is closed
+        standby.close()
+
+        # THEN the connection to the standby is closed
+        mock_standby_conn.close.assert_called_once_with()
+
+        # AND the connection to the primary is closed
+        mock_primary_conn.close.assert_called_once_with()
+
+    @patch("barman.postgres.PostgreSQLConnection")
+    @patch("barman.postgres.super")
+    def test_switch_wal(self, mock_super, mock_psql_conn):
+        """Verify that switch_wal executes a WAL switch via the primary conn"""
+        # GIVEN a connection to a standby PostgreSQL instance
+        mock_standby_conn = mock_super.return_value
+        mock_standby_conn.switch_wal = Mock()
+        mock_primary_conn = mock_psql_conn.return_value
+        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+
+        # WHEN switch_wal is called
+        standby.switch_wal()
+
+        # THEN switch_wal is called on the connection to the primary
+        mock_primary_conn.switch_wal.assert_called_once_with()
+
+        # AND switch_wal is not called on the connection to the standby
+        mock_standby_conn.switch_wal.assert_not_called()
+
+    @patch("barman.postgres.PostgreSQLConnection")
+    @patch("barman.postgres.super")
+    def test_switch_wal_in_background(self, _mock_super, mock_psql_conn):
+        """Verify switch_wal_in_background runs until times are exceeded"""
+        # GIVEN a connection to a standby PostgreSQL instance
+        mock_primary_conn = mock_psql_conn.return_value
+        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+
+        # WHEN switch_wal_in_background is called with times=2
+        times = 2
+        standby.switch_wal_in_background(Queue(), times, 0)
+
+        # THEN switch_wal is called on the primary exactly two times
+        assert mock_primary_conn.switch_wal.call_count == times
+
+    @patch("barman.postgres.PostgreSQLConnection")
+    @patch("barman.postgres.super")
+    def test_switch_wal_in_background_short_circuits(self, _mock_super, mock_psql_conn):
+        """Verify switch_wal_in_background runs until times are exceeded"""
+        # GIVEN a connection to a standby PostgreSQL instance
+        mock_primary_conn = mock_psql_conn.return_value
+        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+        # AND a queue where the first message is the request to stop
+        queue = Queue()
+        queue.put(True)
+
+        # WHEN switch_wal_in_background is called with times=2
+        times = 2
+        standby.switch_wal_in_background(queue, times, 0)
+
+        # THEN switch_wal is never called
+        assert mock_primary_conn.switch_wal.call_count == 0
+
+    @patch("barman.postgres.PostgreSQLConnection")
+    @patch("barman.postgres.super")
+    def test_switch_wal_in_background_stops_when_asked(
+        self, _mock_super, mock_psql_conn
+    ):
+        """Verify switch_wal_in_background runs until times are exceeded"""
+        # GIVEN a connection to a standby PostgreSQL instance
+        mock_primary_conn = mock_psql_conn.return_value
+        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+        # AND a queue where the second message is the request to stop
+        # Note: We use a synchronous Queue rather than the multiprocessing
+        # version so that the behaviour of the function under test is deterministic.
+        queue = SyncQueue()
+        queue.put(False)
+        queue.put(True)
+
+        # WHEN switch_wal_in_background is called with times=2
+        times = 2
+        standby.switch_wal_in_background(queue, times, 0)
+
+        # THEN switch_wal is called on the primary exactly once
+        assert mock_primary_conn.switch_wal.call_count == 1
+
+    @pytest.mark.parametrize(
+        "stop_fun", ("stop_concurrent_backup", "stop_exclusive_backup")
+    )
+    @patch("barman.postgres.Queue")
+    @patch("barman.postgres.Process")
+    @patch("barman.postgres.PostgreSQLConnection")
+    @patch("barman.postgres.super")
+    def test_stop_backup(
+        self, mock_super, mock_psql_conn, mock_process, mock_queue, stop_fun
+    ):
+        """Verify stop_{concurrent,exclusive}_backup calls correct functions"""
+        # GIVEN a connection to a standby PostgreSQL instance
+        mock_standby_conn = mock_super.return_value
+        setattr(mock_standby_conn, stop_fun, Mock())
+        mock_done_q = mock_queue.return_value
+        mock_primary_conn = mock_psql_conn.return_value
+        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+
+        # WHEN stop_concurrent_backup is called
+        getattr(standby, stop_fun)()
+
+        # THEN stop_concurrent_backup is called on the standby exactly once
+        assert getattr(mock_standby_conn, stop_fun).call_count == 1
+
+        # AND Process is called with the switch_wal_in_background target
+        mock_process.assert_called_once_with(
+            target=standby.switch_wal_in_background, args=(mock_done_q,)
+        )
+        # AND the process was started and joined
+        mock_process.return_value.start.assert_called_once()
+        mock_process.return_value.join.assert_called_once()
+
+        # AND mock_done_q.put is called exactly once with the argument True
+        mock_done_q.put.assert_called_once_with(True)
