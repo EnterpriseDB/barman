@@ -103,6 +103,23 @@ def _make_google_cloud_interface(config, cloud_interface_kwargs):
     cloud_interface_kwargs["jobs"] = 1
     return GoogleCloudInterface(**cloud_interface_kwargs)
 
+def _make_networker_interface(config, cloud_interface_kwargs):
+    """
+    :param config: Not used yet
+    :param cloud_interface_kwargs: common parameters
+    :return: NetworkerInterface
+    """
+    from barman.cloud_providers.networker_storage import NetworkerInterface
+
+    cloud_interface_kwargs["jobs"] = 1
+    _update_kwargs(
+        cloud_interface_kwargs,
+        config,
+        (
+            "server_name",
+        ),
+    )
+    return NetworkerInterface(**cloud_interface_kwargs)
 
 def get_cloud_interface(config):
     """
@@ -122,8 +139,9 @@ def get_cloud_interface(config):
     elif config.cloud_provider == "azure-blob-storage":
         return _make_azure_cloud_interface(config, cloud_interface_kwargs)
     elif config.cloud_provider == "google-cloud-storage":
-
         return _make_google_cloud_interface(config, cloud_interface_kwargs)
+    elif config.cloud_provider == "networker-storage":
+        return _make_networker_interface(config, cloud_interface_kwargs)
     else:
         raise CloudProviderUnsupported(
             "Unsupported cloud provider: %s" % config.cloud_provider

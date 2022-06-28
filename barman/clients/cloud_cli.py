@@ -152,8 +152,8 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
     parser.add_argument(
         "--cloud-provider",
         help="The cloud provider to use as a storage backend",
-        choices=["aws-s3", "azure-blob-storage", "google-cloud-storage"],
-        default="aws-s3",
+        choices=["aws-s3", "azure-blob-storage", "google-cloud-storage", "networker-storage"],
+        default="networker-storage",
     )
     s3_arguments = parser.add_argument_group(
         "Extra options for the aws-s3 cloud provider"
