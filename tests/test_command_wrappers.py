@@ -452,6 +452,37 @@ class TestCommand(object):
         assert cmd.out == out
         assert cmd.err == err
 
+    def test_get_output_handlers(self, popen, pipe_processor_loop):
+        """Verify that command out/err handlers are called during get_output"""
+        # GIVEN a command which outputs to stdout and stderr
+        command = "command"
+        ret = 0
+        out = "out"
+        err = "err"
+        stdin = "in"
+        # AND a mocked pipe which provides the specified output
+        _mock_pipe(popen, pipe_processor_loop, ret, out, err)
+
+        # WHEN the command is called with a custom out and err handlers
+        out_handler = mock.Mock()
+        err_handler = mock.Mock()
+        cmd = command_wrappers.Command(
+            command, out_handler=out_handler, err_handler=err_handler
+        )
+        # AND get_output is called on the command
+        result = cmd.get_output(stdin=stdin)
+
+        # THEN the custom out_handler and err_handler functions were called
+        out_handler.assert_called_with(out)
+        err_handler.assert_called_with(err)
+
+        # AND the out/err members of the command contain stdout and stderr
+        assert cmd.out == out
+        assert cmd.err == err
+
+        # AND the stdout and stderr output are returned in the result
+        assert result == (out, err)
+
     def test_execute_invocation(self, popen, pipe_processor_loop, caplog):
         # See all logs
         caplog.set_level(0)
