@@ -123,7 +123,7 @@ If using `--cloud-provider=azure-blob-storage`:
 If using `--cloud-provider=google-cloud-storage`
 * google-cloud-storage 
 
-If using '--cloud-provider=networker-storage'
+If using `--cloud-provider=networker-storage`
 * Networker Client and Extended Client Software from DellEMC
 * Client Registration on Networker Server
 
