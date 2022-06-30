@@ -55,7 +55,7 @@ WAL_PATH
 -t, --test
 :    test connectivity to the cloud destination and exit
 
---cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
+--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage,networker-storage}
 :    the cloud provider to which the backup should be uploaded
 
 -P, --profile
@@ -104,6 +104,10 @@ If using `--cloud-provider=azure-blob-storage`:
 
 If using `--cloud-provider=google-cloud-storage`
 * google-cloud-storage 
+
+If using '--cloud-provider=networker-storage'
+* Networker Client and Extended Client Software from DellEMC
+* Client Registration on Networker Server
 
 # EXIT STATUS
 

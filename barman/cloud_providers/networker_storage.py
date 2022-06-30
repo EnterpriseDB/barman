@@ -82,7 +82,7 @@ class NetworkerInterface(CloudInterface):
         if 'restore' in command:
            shutil.rmtree(os.path.join(BASE_DIR,self.path,self.server_name), ignore_errors=True)
         if (os.path.isdir(BASE_DIR + BASE_DIR)):
-           shutil.rmtree(BASE_DIR + BASE_DIR)
+           shutil.rmtree(BASE_DIR + BASE_DIR, ignore_errors=True)
 
     @staticmethod
     def _parse_url(url):
@@ -200,7 +200,10 @@ class NetworkerInterface(CloudInterface):
         if cp.returncode > 0 or not cp.stdout:
            logging.debug("Key: {} does not exist".format(key))
            return None
-        cp = subprocess.run(['recover','-s', self.bucket_name, '-d', BASE_DIR, '-a',
+        cmd = ['recover']
+        if os.geteuid() != 0:
+           cmd = ['sudo', 'recover']
+        cp = subprocess.run(cmd + ['-s', self.bucket_name, '-d', BASE_DIR, '-a',
                              '-S', cp.stdout.rstrip()], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, encoding='utf-8')
         blob_reader = None
         for s_line in cp.stdout.splitlines():
@@ -239,7 +242,10 @@ class NetworkerInterface(CloudInterface):
         if cp.returncode > 0 or not cp.stdout:
            logging.debug("Key: {} does not exist".format(key))
            return None
-        cp = subprocess.run(['recover','-s', self.bucket_name, '-d', BASE_DIR, '-a',
+        cmd = ['recover']
+        if os.geteuid() != 0:
+           cmd = ['sudo', 'recover']
+        cp = subprocess.run(cmd + ['-s', self.bucket_name, '-d', BASE_DIR, '-a', '-iY',
                              '-S', cp.stdout.rstrip()], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, encoding='utf-8')
         blob_reader = None
         for s_line in cp.stdout.splitlines():
@@ -352,10 +358,10 @@ class NetworkerInterface(CloudInterface):
         Delete the objects at the specified paths
         :param List[str] paths:
         """
-        client = prefix.replace(self.path + '/', "")
-        client = client.split('/')[0]
         failures = {}
         for path in list(set(paths)):
+            client = path.replace(self.path + '/', "")
+            client = client.split('/')[0]
             cp = subprocess.run(['mminfo', '-s', self.bucket_name, '-r', 'ssid', 
                              '-q', 'client=' + client + ',name=' + path], stdout=subprocess.PIPE,encoding='utf-8')
             if cp.returncode > 0 or not cp.stdout:

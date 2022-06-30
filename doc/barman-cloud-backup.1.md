@@ -91,7 +91,7 @@ SERVER_NAME
 -S MAX_ARCHIVE_SIZE, --max-archive-size MAX_ARCHIVE_SIZE
 :    maximum size of an archive when uploading to cloud storage (default: 100GB)
 
---cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
+--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage,networker-storage}
 :    the cloud provider to which the backup should be uploaded
 
 --tags KEY1,VALUE1 KEY2,VALUE2 ...
@@ -156,6 +156,10 @@ If using `--cloud-provider=azure-blob-storage`:
 
 If using `--cloud-provider=google-cloud-storage`
 * google-cloud-storage 
+
+If using '--cloud-provider=networker-storage'
+* Networker Client and Extended Client Software from DellEMC
+* Client Registration on Networker Server
 
 # EXIT STATUS
 

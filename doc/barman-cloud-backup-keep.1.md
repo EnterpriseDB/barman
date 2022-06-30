@@ -73,7 +73,7 @@ BACKUP_ID
     status and make it available for deletion, either directly or by
     retention policy.
 
---cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
+--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage,networker-storage}
 :    the cloud provider to which the backup should be uploaded
 
 -P, --profile
@@ -122,6 +122,16 @@ If using `--cloud-provider=azure-blob-storage`:
 
 If using `--cloud-provider=google-cloud-storage`
 * google-cloud-storage 
+
+If using '--cloud-provider=networker-storage'
+* Networker Client and Extended Client Software from DellEMC
+* Client Registration on Networker Server
+
+* This command has no bearing when using networker-storage. Because Networker is a fully featured
+  Backup Software and has it's own retention policy handling. Additionally Networker Backup Expiration
+  cannot be disabled. Networker provides a completely separate command set, storage pools and handling
+  for archiving. Therefore the decision for long time archiving has to be made when creating the backup
+  and cannot be reversed later.
 
 # EXIT STATUS
 

@@ -48,6 +48,7 @@ Supported cloud providers are:
 * AWS S3 (or any S3 compatible object store)
 * Azure Blob Storage
 * Google Cloud Storage (Rest API)
+* Networker Backup Software
 
 These utilities are distributed in the `barman-cli-cloud` RPM/Debian package,
 and can be installed alongside the PostgreSQL server:
@@ -87,6 +88,9 @@ in order to authenticate via Azure Active Directory.
 > provider you wish to use - either: [boto3][boto3] or
 > [azure-storage-blob][azure-storage-blob] and (optionally)
 > [azure-identity][azure-identity]
+
+For Networker the PostgreSQL has to be configured as a backup client.
+The Networker Client and Extended Software packages have to be installed.
 
 ## Installation
 
@@ -143,6 +147,7 @@ and WALs. This can be set to one of the following:
 * `aws-s3` [DEFAULT]: AWS S3 or S3-compatible object store.
 * `azure-blob-storage`: Azure Blob Storage service.
 * `google-cloud-storage`: Google Cloud Storage service.
+* `networker-storage`: Networker Backup Software
 
 
 ## Specificity by provider
@@ -187,5 +192,46 @@ Some details are specific to all barman cloud commands:
   or
   https://console.cloud.google.com/storage/browser/BUCKET_NAME/path
   ```
+### Networker Storage
 
-  
+#### Setup
+Copy the necessary software packages to the PostgreSQL Server. Install the Client Software as follows
+```bash
+dnf -y install lgtoclnt lgtoxtdclnt lgtoman sudo
+```
+
+The barman storage module needs the mminfo, recover and nsrmm networker commands.
+
+The system user for the PostgreSQL Database has to be enabled in sudoers. Because some of the
+networker functions can only be performed as root. This restriction is hard-coded into the software.
+In General, all recover operations need root permissions. So listing or restoring data operations
+are best run as root. When run as a normal user, the module tries to elevate itself to root by
+using sudo.
+
+This is especially important, when configuring the PostgreSQL `restore_command`. eg.
+```
+restore_command = "sudo barman-cloud-wal-restore --cloud-provider=networker-storage nw:/..."
+```
+
+The module uses the directory `/nsr/cache/cloudboost/barman` as a local staging location. It will
+create this directory if it doesn't exist. Assuming that `/nsr/cache/cloudboost` was created by
+the networker client. Older clients may not, so check for it's existence and create it yourself
+if necessary. eg. by
+```bash
+mkdir -m 0777 -p /nsr/cache/cloudboost/barman
+```
+
+If you have an `/etc/sudoers.d` directory, create a file barman.conf in it. With the following content.
+If not append the line to the `/etc/sudoers` file. This assumes that your user is named `postgres`.
+```
+postgres   ALL=(ALL)       NOPASSWD: ALL
+```
+
+#### Usage
+Specific Parameters for all of the barman cloud commands:
+* Select the Networker Storage Provider by `--cloud-provider=networker-storage`
+* `SOURCE_URL` has to be in the following format.
+  ```
+  nw://<Networker Server Name>/<Media Pool>
+  ```
+
