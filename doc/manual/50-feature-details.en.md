@@ -198,18 +198,9 @@ As well as being the recommended backup approach, concurrent backup
 also allows the following architecture scenario with Barman: **backup from
 a standby server**, using `rsync`.
 
-> **IMPORTANT:** **Concurrent backup** requires users of PostgreSQL
-> 9.2, 9.3, 9.4, and 9.5 to install the `pgespresso` open source
-> extension on every PostgreSQL server of the cluster. For more
-> detailed information and the source code, please visit the
-> [pgespresso extension website][9].  Barman supports the new API
-> introduced in PostgreSQL 9.6. This removes the requirement of the
-> `pgespresso` extension to perform concurrent backups from this
-> version of PostgreSQL.
-
-By default, `backup_options` is transparently set to `concurrent_backup`.
-If exclusive backup is required for PostgreSQL servers older than version
-15 then users should set `backup_options` to `exclusive_backup`.
+By default, `backup_options` is set to `concurrent_backup`. If exclusive
+backup is required for PostgreSQL servers older than version 15 then users
+should set `backup_options` to `exclusive_backup`.
 
 When `backup_options` is set to `concurrent_backup`, Barman activates
 the _concurrent backup mode_ for a server and follows these two simple
@@ -217,11 +208,7 @@ rules:
 
 - `ssh_command` must point to the destination Postgres server
 - `conninfo` must point to a database on the destination Postgres
-  database.  Using PostgreSQL 9.2, 9.3, 9.4, and 9.5, `pgespresso`
-  must be correctly installed through `CREATE EXTENSION`. Using 9.6 or
-  greater, concurrent backups are executed through the Postgres native
-  API (which requires an active connection from the start to the stop
-  of the backup).
+  database.
 
 > **IMPORTANT:** In case of a concurrent backup, currently Barman
 > cannot determine whether the closing WAL file of a full backup has
@@ -237,33 +224,32 @@ rules:
 
 #### Current limitations on backup from standby
 
-Barman currently requires that backup data (base backups and WAL files)
-come from one server only. Therefore, in case of backup from a
-standby, you should point to the standby server:
+Barman currently requires that WAL files and backup data come from the
+same PostgreSQL server. When taking backups from a standby it is therefore
+important to point the following Barman [configuration options][config-options]
+to the standby server:
 
 - `conninfo`
-- `streaming_conninfo`, if you use `postgres` as `backup_method` and/or rely on WAL streaming
-- `ssh_command`, if you use `rsync` as `backup_method`
+- `streaming_conninfo` (when using `backup_method = postgres` or `streaming_archiver = on`)
+- `ssh_command` (when using `backup_method = rsync`)
 
-> **IMPORTANT:** From Barman 2.8, backup from a standby is supported
-> only for PostgreSQL 9.4 or higher (versions 9.4 and 9.5 require
-> `pgespresso`). Support for 9.2 and 9.3 is deprecated.
+In the case that the standby is promoted to primary the backups and WALs will
+continue to be valid however you may wish to update the Barman configuration
+so that it uses the new standby for taking backups and receiving WALs.
 
-The recommended and simplest way is to setup WAL streaming
-with replication slots directly from the standby, which requires
-PostgreSQL 9.4. This means:
+WALs can be obtained from the standby using either WAL streaming or WAL
+archiving. To use WAL streaming follow the instructions in the
+[WAL streaming](#wal-streaming) section.
 
-* configure `streaming_archiver = on`, as described in the "WAL streaming"
-  section, including "Replication slots"
-* disable `archiver = on`
+To use WAL archiving from the standby follow the instructions in the [WAL archiving via archive_command](#wal-archiving-via-archive_command) section
+*and additionally* set `archive_mode = always` in the PostgreSQL config on
+the standby server.
 
-Alternatively, from PostgreSQL 9.5 you can decide to archive from the
-standby only using `archive_command` with `archive_mode = always` and
-by disabling WAL streaming.
-
-> **NOTE:** Unfortunately, it is not currently possible to enable both WAL archiving
-> and streaming from the standby due to the way Barman performs WAL duplication
-> checks and [an undocumented behaviours in all versions of PostgreSQL](https://www.postgresql.org/message-id/20170316170513.1429.77904@wrigleys.postgresql.org).
+> **NOTE:** With PostgreSQL 10 and earlier Barman cannot handle WAL streaming
+> and WAL archiving being enabled at the same time - you must therefore disable
+> WAL archiving if using WAL streaming and vice versa. This is because it is possible
+> for WALs produced by PostgreSQL 10 and earlier to be logically equivalent but differ
+> at the binary level, causing Barman to fail to detect that two WALs are identical.
 
 ### Immediate checkpoint
 

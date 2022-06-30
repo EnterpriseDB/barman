@@ -34,6 +34,7 @@
   [azure-storage-auth]: https://docs.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters
   [pg_basebackup-documentation]: https://www.postgresql.org/docs/current/app-pgbasebackup.html
   [pg-backup-api]: https://github.com/EnterpriseDB/pg-backup-api
+  [config-options]: https://docs.pgbarman.org/barman.5.html#options
 
 
   [3]: https://github.com/EnterpriseDB/barman
