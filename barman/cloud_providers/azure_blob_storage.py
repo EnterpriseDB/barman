@@ -138,7 +138,7 @@ class AzureCloudInterface(CloudInterface):
         max_single_put_size=DEFAULT_MAX_SINGLE_PUT_SIZE,
     ):
         """
-        Create a new Azure Blob Storage interface given the supplied acccount url
+        Create a new Azure Blob Storage interface given the supplied account url
 
         :param str url: Full URL of the cloud destination/source
         :param int jobs: How many sub-processes to use for asynchronous

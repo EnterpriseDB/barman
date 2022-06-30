@@ -157,7 +157,7 @@ Other non-zero codes
 Barman has been extensively tested, and is currently being used in several
 production environments. However, we cannot exclude the presence of bugs.
 
-Any bug can be reported via the Github issue tracker.
+Any bug can be reported via the GitHub issue tracker.
 
 # RESOURCES
 

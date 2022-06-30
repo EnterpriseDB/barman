@@ -188,7 +188,7 @@ class TestSync(object):
             "000000010000000000000005\t16777216\t1406019330.84\tNone\n"
         )
 
-        # Build a server, replacing some function to use the the tmpdir objects
+        # Build a server, replacing some function to use the tmpdir objects
         server = build_real_server()
         server.xlogdb = lambda: tmp_path.open()
         server.get_available_backups = lambda: {

@@ -104,7 +104,7 @@ def _compression_helper(src, compression):
 
 class TestCloudInterface(object):
     """
-    Tests of the asychronous upload infrastructure in CloudInterface.
+    Tests of the asynchronous upload infrastructure in CloudInterface.
     S3CloudInterface is used as we cannot instantiate a CloudInterface directly
     however we do not verify any backend specific functionality of S3CloudInterface,
     only the asynchronous infrastructure is tested.
@@ -532,7 +532,7 @@ class TestS3CloudInterface(object):
         bucket_mock = s3_mock.Bucket
         # Expect a call for bucket obj creation
         bucket_mock.assert_called_once_with(cloud_interface.bucket_name)
-        # Expect the create() metod of the bucket object to be called
+        # Expect the create() method of the bucket object to be called
         bucket_mock.return_value.create.assert_called_once()
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
@@ -888,7 +888,7 @@ class TestS3CloudInterface(object):
     )
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_extract_tar(self, boto_mock, compression, file_ext, tmpdir):
-        """Verifies that cloud_interface.exrtact_tar decompresses correctly."""
+        """Verifies that cloud_interface.extract_tar decompresses correctly."""
         # GIVEN A tar file containing a single file containing a string
         content = "this is an arbitrary string"
         content_filename = "an_arbitrary_filename"
@@ -1254,7 +1254,7 @@ class TestAzureCloudInterface(object):
     def test_upload_fileobj_with_encryption_scope(
         self, container_client_mock, mock_fileobj
     ):
-        """Test encrption scope is passed to upload_blob"""
+        """Test encryption scope is passed to upload_blob"""
         encryption_scope = "test_encryption_scope"
         cloud_interface = AzureCloudInterface(
             "https://storageaccount.blob.core.windows.net/container/path/to/blob",
@@ -2043,7 +2043,7 @@ class TestGoogleCloudInterface(TestCase):
         container_client_mock = service_client_mock.bucket.return_value
         container_client_mock.blob.return_value = mock_blob
 
-        # Create Object and call upload_filobj
+        # Create Object and call upload_fileobj
         cloud_interface = GoogleCloudInterface(
             "https://console.cloud.google.com/storage/browser/barman-test/test/path/to/my/"
         )

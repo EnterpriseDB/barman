@@ -165,7 +165,7 @@ class CloudBackupDownloader(object):
         # We must download and restore a bunch of .tar files that contain PGDATA
         # and each tablespace. First, we determine a target directory to extract
         # each tar file into and record these in copy_jobs. For each tablespace,
-        # the location may be overriden by `--tablespace name:/new/location` on
+        # the location may be overridden by `--tablespace name:/new/location` on
         # the command-line; and we must also add an entry to link_jobs to create
         # a symlink from $PGDATA/pg_tblspc/oid to the correct location after the
         # downloads.

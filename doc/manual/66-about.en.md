@@ -45,7 +45,7 @@ We also require that any contributions provide a copyright assignment
 and a disclaimer of any work-for-hire ownership claims from the employer
 of the developer.
 
-You can use Github's pull requests system for this purpose.
+You can use GitHub's pull requests system for this purpose.
 
 ## Authors
 

@@ -92,7 +92,7 @@ class ProcessManager(object):
                     if pid:
                         self.process_list.append(ProcessInfo(pid, config.name, task))
                     # In any case, we found a match, so we must stop iterating
-                    # over the task types and handle the the next path
+                    # over the task types and handle the next path
                     break
 
     def list(self, task_filter=None):

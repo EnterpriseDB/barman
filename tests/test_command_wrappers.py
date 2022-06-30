@@ -859,7 +859,7 @@ class TestRsync(object):
         with pytest.raises(CommandFailedException):
             command_wrappers.Rsync("/invalid/path/rsync")
         # Force the which method to return false, simulating rsync command not
-        # present in system PATH. Expect a CommandFailedExceptiomn
+        # present in system PATH. Expect a CommandFailedException
         with mock.patch("barman.utils.which") as mock_which:
             mock_which.return_value = False
             with pytest.raises(CommandFailedException):

@@ -68,7 +68,7 @@ class TestPostgres(object):
     @patch("barman.postgres.psycopg2.connect")
     def test_connect_and_close(self, pg_connect_mock):
         """
-        Check pg_connect method beaviour on error
+        Check pg_connect method behaviour on error
         """
         # Setup server
         server = build_real_server()
@@ -144,7 +144,7 @@ class TestPostgres(object):
     @patch("barman.postgres.psycopg2.connect")
     def test_connect_error(self, connect_mock):
         """
-        Check pg_connect method beaviour on error
+        Check pg_connect method behaviour on error
         """
         # Setup temp dir and server
         server = build_real_server()
@@ -973,7 +973,7 @@ class TestPostgres(object):
             "data_directory": "a directory",
             "wal_level": "a wal_level value",
             "hot_standby": "a hot_standby value",
-            "max_wal_senders": "a max_wal_senderse value",
+            "max_wal_senders": "a max_wal_senders value",
             "data_checksums": "a data_checksums",
             "max_replication_slots": "a max_replication_slots value",
             "wal_compression": "a wal_compression value",
@@ -1004,7 +1004,7 @@ class TestPostgres(object):
             "checkpoint_timeout": 600,
             "wal_keep_segments": "a wal_keep_segments value",
             "hot_standby": "a hot_standby value",
-            "max_wal_senders": "a max_wal_senderse value",
+            "max_wal_senders": "a max_wal_senders value",
             "data_checksums": "a data_checksums",
             "max_replication_slots": "a max_replication_slots value",
             "wal_compression": "a wal_compression value",
@@ -1034,7 +1034,7 @@ class TestPostgres(object):
             "checkpoint_timeout": 600,
             "wal_keep_segments": "a wal_keep_segments value",
             "hot_standby": "a hot_standby value",
-            "max_wal_senders": "a max_wal_senderse value",
+            "max_wal_senders": "a max_wal_senders value",
             "data_checksums": "a data_checksums",
             "max_replication_slots": "a max_replication_slots value",
             "wal_compression": "a wal_compression value",
@@ -1064,7 +1064,7 @@ class TestPostgres(object):
             "checkpoint_timeout": 600,
             "wal_keep_size": "a wal_keep_size value",
             "hot_standby": "a hot_standby value",
-            "max_wal_senders": "a max_wal_senderse value",
+            "max_wal_senders": "a max_wal_senders value",
             "data_checksums": "a data_checksums",
             "max_replication_slots": "a max_replication_slots value",
             "wal_compression": "a wal_compression value",

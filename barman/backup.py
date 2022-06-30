@@ -406,7 +406,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         :param backup: the backup to delete
         :param bool skip_wal_cleanup_if_standalone: By default we will skip removing
-          WALs if the oldest backups are standalong archival backups (i.e. they have
+          WALs if the oldest backups are standalone archival backups (i.e. they have
           a keep annotation of "standalone"). If this function is being called in the
           context of a retention policy however, it is safe to set
           skip_wal_cleanup_if_standalone to False and clean up WALs associated with those
@@ -875,7 +875,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 os.removedirs(os.path.dirname(wal_info.fullpath(self.server)))
             except OSError:
                 # This is not an error condition
-                # We always try to remove the the trailing directories,
+                # We always try to remove the trailing directories,
                 # this means that hashdir is not empty.
                 pass
         except OSError as e:
