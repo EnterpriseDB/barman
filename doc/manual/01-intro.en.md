@@ -41,7 +41,7 @@ Our mission with Barman is to promote a culture of disaster recovery that:
 - relies on education and training on strong theoretical and practical concepts of PostgreSQL's crash recovery, backup, Point-In-Time-Recovery, and replication for your team members
 - promotes testing your backups (only a backup that is tested can be considered to be valid), either manually or automatically (be creative with Barman's hook scripts!)
 - fosters regular practice of recovery procedures, by all members of your devops team (yes, developers too, not just system administrators and DBAs)
-- solicites to regularly scheduled drills and disaster recovery simulations with the team every 3-6 months
+- solicits to regularly scheduled drills and disaster recovery simulations with the team every 3-6 months
 - relies on continuous monitoring of PostgreSQL and Barman, and that is able to promptly identify any anomalies
 
 Moreover, do everything you can to prepare yourself and your team for when the disaster happens (yes, *when*), because when it happens:

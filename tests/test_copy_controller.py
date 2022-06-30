@@ -544,7 +544,7 @@ class TestRsyncCopyController(object):
         file_list = []
         total_size = 0
         for i in range(1001):
-            # We are using a prime number to get a non-correlable distribution
+            # We are using a prime number to get a non-correlatable distribution
             # of file sizes in the buckets
             size = 1048583 * i
             file_list.append(_FileItem("drwxrwxrwt", size, filedate, "tmp%08d" % i))
@@ -1277,7 +1277,7 @@ class TestRsyncCopyController(object):
 
         # We cannot check the actual result because it is not predictable,
         # so we check that every value is present and is a number and it is
-        # greather than 0
+        # greater than 0
         assert result.get("analysis_time") > 0
         assert "analysis_time_per_item" in result
         for tbs in ("pgdata", "tbs1", "tbs2"):

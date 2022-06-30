@@ -51,7 +51,7 @@ class GoogleCloudInterface(CloudInterface):
     # <<Within the JSON API, there is an unrelated type of upload also called a "multipart upload".>>
     MAX_CHUNKS_PER_FILE = 1
 
-    # Since there is only on chunk  min size is teh same as max archive size
+    # Since there is only on chunk  min size is the same as max archive size
     MIN_CHUNK_SIZE = 1 << 40
 
     # https://cloud.google.com/storage/docs/json_api/v1/objects/insert

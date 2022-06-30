@@ -194,7 +194,7 @@ class CommandCompressor(Compressor):
 
     def compress(self, src, dst):
         """
-        Compress using the specific command defined in the sublcass
+        Compress using the specific command defined in the subclass
 
         :param src: source file to compress
         :param dst: destination of the decompression
@@ -203,7 +203,7 @@ class CommandCompressor(Compressor):
 
     def decompress(self, src, dst):
         """
-        Decompress using the specific command defined in the sublcass
+        Decompress using the specific command defined in the subclass
 
         :param src: source file to decompress
         :param dst: destination of the decompression
@@ -231,7 +231,7 @@ class InternalCompressor(Compressor):
 
     def compress(self, src, dst):
         """
-        Compress using the object defined in the sublcass
+        Compress using the object defined in the subclass
 
         :param src: source file to compress
         :param dst: destination of the decompression
@@ -247,7 +247,7 @@ class InternalCompressor(Compressor):
 
     def decompress(self, src, dst):
         """
-        Decompress using the object defined in the sublcass
+        Decompress using the object defined in the subclass
 
         :param src: source file to decompress
         :param dst: destination of the decompression

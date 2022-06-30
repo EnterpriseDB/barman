@@ -1306,7 +1306,7 @@ class TestCloudBackupDelete(object):
             backup_metadata,
             [oldest_backup_id],
             # AND we expect the WALs on the other timeline to have been cleaned up
-            # when that backup was deleted, along with elegible WALs on the deleted
+            # when that backup was deleted, along with eligible WALs on the deleted
             # backup's timeline
             wals={
                 oldest_backup_id: [
@@ -1900,7 +1900,7 @@ class TestCloudBackupDelete(object):
             backup_metadata,
             out_of_policy_backup_ids,
             # AND we expect the WALs for each backup to have been cleaned up after each
-            # backup deleteion
+            # backup deletion
             wals={
                 out_of_policy_backup_ids[0]: [
                     "wals/000000010000000000000075.gz",
