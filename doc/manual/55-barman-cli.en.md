@@ -89,7 +89,7 @@ in order to authenticate via Azure Active Directory.
 > [azure-storage-blob][azure-storage-blob] and (optionally)
 > [azure-identity][azure-identity]
 
-For Networker the PostgreSQL has to be configured as a backup client.
+For Networker the PostgreSQL server has to be configured as a backup client.
 The Networker Client and Extended Software packages have to be installed.
 
 ## Installation
@@ -200,23 +200,23 @@ Copy the necessary software packages to the PostgreSQL Server. Install the Clien
 dnf -y install lgtoclnt lgtoxtdclnt lgtoman sudo
 ```
 
-The barman storage module needs the mminfo, recover and nsrmm networker commands.
+The barman storage module needs the **mminfo**, **recover** and **nsrmm** networker commands.
 
 The system user for the PostgreSQL Database has to be enabled in sudoers. Because some of the
-networker functions can only be performed as root. This restriction is hard-coded into the software.
-In General, all recover operations need root permissions. So listing or restoring data operations
-are best run as root. When run as a normal user, the module tries to elevate itself to root by
+networker functions can only be performed as `root`. This restriction is hard-coded into the software.
+In General, all recover operations need `root` permissions. So listing or restoring data operations
+are best run as `root`. When run as a normal user, the module tries to elevate itself to `root` by
 using sudo.
 
-This is especially important, when configuring the PostgreSQL `restore_command`. eg.
+This is especially important, when configuring the PostgreSQL `restore_command`. e.g.
 ```
-restore_command = "sudo barman-cloud-wal-restore --cloud-provider=networker-storage nw:/..."
+restore_command = "sudo barman-cloud-wal-restore --cloud-provider=networker-storage nw://..."
 ```
 
 The module uses the directory `/nsr/cache/cloudboost/barman` as a local staging location. It will
 create this directory if it doesn't exist. Assuming that `/nsr/cache/cloudboost` was created by
-the networker client. Older clients may not, so check for it's existence and create it yourself
-if necessary. eg. by
+the networker client. Older clients may not. So check for it's existence and create it yourself
+if necessary. e.g. by
 ```bash
 mkdir -m 0777 -p /nsr/cache/cloudboost/barman
 ```
