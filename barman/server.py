@@ -847,6 +847,62 @@ class Server(RemoteStatusMixin):
                             % (self.config.slot_name, slot_status),
                         )
 
+        if self.config.primary_conninfo is not None:
+            self._check_standby(check_strategy)
+
+    def _check_standby(self, check_strategy):
+        """
+        Perform checks specific to a primary/standby configuration.
+
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the results of the various checks.
+        """
+        # Check that standby is standby
+        check_strategy.init_check("PostgreSQL server is standby")
+        is_in_recovery = self.postgres.is_in_recovery
+        if is_in_recovery:
+            check_strategy.result(self.config.name, True)
+        else:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint=(
+                    "conninfo should point to a standby server if "
+                    "primary_conninfo is set"
+                ),
+            )
+
+        # Check that primary is not standby
+        check_strategy.init_check("Primary server is not a standby")
+        primary_is_in_recovery = self.postgres.primary.is_in_recovery
+        if not primary_is_in_recovery:
+            check_strategy.result(self.config.name, True)
+        else:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint=(
+                    "primary_conninfo should point to a primary server, "
+                    "not a standby"
+                ),
+            )
+
+        # Check that system ID is the same for both
+        check_strategy.init_check("Primary and standby have same system ID")
+        standby_id = self.postgres.get_systemid()
+        primary_id = self.postgres.primary.get_systemid()
+        if standby_id == primary_id:
+            check_strategy.result(self.config.name, True)
+        else:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint=(
+                    "primary_conninfo and conninfo should point to primary and "
+                    "standby servers which share the same system identifier"
+                ),
+            )
+
     def _make_directories(self):
         """
         Make backup directories in case they do not exist

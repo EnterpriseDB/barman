@@ -666,6 +666,95 @@ class TestServer(object):
             "than 'minimal')\n"
         )
 
+    @pytest.mark.parametrize(
+        (
+            "primary_conninfo",
+            "primary_in_recovery",
+            "standby_in_recovery",
+            "primary_systemid",
+            "standby_systemid",
+            "expected_msg",
+        ),
+        (
+            # No primary_conninfo so check should always pass
+            (None, None, None, None, None, None),
+            # primary_conninfo set, primary is primary, standby is standby and
+            # both primary and standby have same systemid - should pass
+            ("db=primary", False, True, "fake_id", "fake_id", None),
+            # Primary is a standby so check should fail
+            (
+                "db=primary",
+                True,
+                True,
+                "fake_id",
+                "fake_id",
+                "primary_conninfo should point to a primary server, not a standby",
+            ),
+            # Standby is a primary so check should fail
+            (
+                "db=primary",
+                False,
+                False,
+                "fake_id",
+                "fake_id",
+                "conninfo should point to a standby server if primary_conninfo is set",
+            ),
+            # systemid values do not match so check should fail
+            (
+                "db=primary",
+                False,
+                True,
+                "fake_id_primary",
+                "fake_id_standby",
+                (
+                    "primary_conninfo and conninfo should point to primary and "
+                    "standby servers which share the same system identifier"
+                ),
+            ),
+        ),
+    )
+    @patch("barman.server.StandbyPostgreSQLConnection")
+    @patch("barman.server.PostgreSQLConnection")
+    @patch("barman.server.Server.get_remote_status")
+    def test_check_standby(
+        self,
+        _mock_remote_status,
+        _pgconn_mock,
+        _standby_pgconn_mock,
+        primary_conninfo,
+        primary_in_recovery,
+        standby_in_recovery,
+        primary_systemid,
+        standby_systemid,
+        expected_msg,
+        capsys,
+    ):
+        """Verify standby-specific postgres checks."""
+        # GIVEN a PostgreSQL server with the specified primary_conninfo
+        server = build_real_server(main_conf={"primary_conninfo": primary_conninfo})
+        strategy = CheckOutputStrategy()
+        # AND if there is a primary server it has the specified in_recovery state
+        # and systemid
+        if primary_conninfo is not None:
+            server.postgres.primary.is_in_recovery = primary_in_recovery
+            server.postgres.primary.get_systemid.return_value = primary_systemid
+        # AND the standby server has the specified in_recovery state and systemid
+        server.postgres.is_in_recovery = standby_in_recovery
+        server.postgres.get_systemid.return_value = standby_systemid
+
+        # WHEN check_postgres runs
+        server.check_postgres(strategy)
+        out, _err = capsys.readouterr()
+
+        if expected_msg is not None:
+            # THEN if we expected an error we see the expected error
+            assert expected_msg in out
+            # AND the has_error status of the strategy is True
+            assert strategy.has_error is True
+        else:
+            # OR if we didn't expect an error the has_error status is False
+            assert strategy.has_error is False
+
     @patch("barman.server.Server.get_remote_status")
     def test_check_replication_slot(self, postgres_mock, capsys):
         """
