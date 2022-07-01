@@ -234,4 +234,18 @@ Specific Parameters for all of the barman cloud commands:
   ```
   nw://<Networker Server Name>/<Media Pool>
   ```
+Specific Parameters for the barman backup cloud commands:
+* Parameters for the Networker `save` command can be specified through the barman `--tags "nwargs, ..."`
+  Parameter. e.g.
+  ```
+  --tags "nwargs,-y ${RETENTION_TIME} -w ${BROWSE_TIME} -L"
+  ```
+  This can be useful because networker has it's own retention policies and management. So although
+  old backups can be removed by `barman-cloud-backup-delete`, networker will do the same and may even
+  already have done it.
 
+`barman-cloud-backup-keep` has no impact when using networker as a storage provider. Regular Networker
+backups will always expire. Networker uses a complete separate command set and storage pools for this.
+The decision for archiving has to be made when creating the backup and cannot be reversed later. In
+addition, networker archivals are intentionally left out of the browse index. The barman module uses
+the index as storage for the backup keys. Therefore archival is not supported at all with networker.

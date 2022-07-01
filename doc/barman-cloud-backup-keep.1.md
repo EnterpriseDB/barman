@@ -127,7 +127,7 @@ If using `--cloud-provider=networker-storage`
 * Networker Client and Extended Client Software from DellEMC
 * Client Registration on Networker Server
 
-* This command has no bearing when using networker-storage. Because Networker is a fully featured
+* This command has no bearing when using `networker-storage`. Because Networker is a fully featured
   Backup Software and has it's own retention policy handling. Additionally Networker Backup Expiration
   cannot be disabled. Networker provides a completely separate command set, storage pools and handling
   for archiving. Therefore the decision for long time archiving has to be made when creating the backup
