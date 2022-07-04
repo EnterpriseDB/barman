@@ -35,6 +35,7 @@ from barman.utils import (
     human_readable_timedelta,
     pretty_size,
     redact_passwords,
+    timestamp,
 )
 from barman.xlog import diff_lsn
 
@@ -1299,7 +1300,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             output.update(
                 dict(
-                    end_time_timestamp=backup_info.end_time.strftime("%s"),
+                    end_time_timestamp=str(int(timestamp(backup_info.end_time))),
                     end_time=backup_info.end_time.ctime(),
                     size_bytes=backup_size,
                     wal_size_bytes=wal_size,
@@ -1387,9 +1388,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 )
             output["base_backup_information"].update(
                 dict(
-                    begin_time_timestamp=data["begin_time"].strftime("%s"),
+                    begin_time_timestamp=str(int(timestamp(data["begin_time"]))),
                     begin_time=data["begin_time"].isoformat(sep=" "),
-                    end_time_timestamp=data["end_time"].strftime("%s"),
+                    end_time_timestamp=str(int(timestamp(data["end_time"]))),
                     end_time=data["end_time"].isoformat(sep=" "),
                 )
             )
