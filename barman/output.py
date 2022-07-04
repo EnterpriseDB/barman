@@ -28,6 +28,8 @@ import json
 import logging
 import sys
 
+from dateutil import tz
+
 from barman.infofile import BackupInfo
 from barman.utils import (
     BarmanEncoder,
@@ -582,10 +584,9 @@ class ConsoleOutputWriter(object):
             "Recovery completed (start time: %s, elapsed time: %s)",
             results["recovery_start_time"],
             human_readable_timedelta(
-                datetime.datetime.now() - results["recovery_start_time"]
+                datetime.datetime.now(tz.tzlocal()) - results["recovery_start_time"]
             ),
         )
-        self.info("")
         self.info("Your PostgreSQL server has been successfully prepared for recovery!")
 
     def _record_check(self, server_name, check, status, hint, perfdata):
@@ -1225,14 +1226,14 @@ class JsonOutputWriter(ConsoleOutputWriter):
         self.json_output.update(
             {
                 "recovery_start_time": results["recovery_start_time"].isoformat(" "),
-                "recovery_start_time_timestamp": results[
-                    "recovery_start_time"
-                ].strftime("%s"),
+                "recovery_start_time_timestamp": str(
+                    int(timestamp(results["recovery_start_time"]))
+                ),
                 "recovery_elapsed_time": human_readable_timedelta(
-                    datetime.datetime.now() - results["recovery_start_time"]
+                    datetime.datetime.now(tz.tzlocal()) - results["recovery_start_time"]
                 ),
                 "recovery_elapsed_time_seconds": (
-                    datetime.datetime.now() - results["recovery_start_time"]
+                    datetime.datetime.now(tz.tzlocal()) - results["recovery_start_time"]
                 ).total_seconds(),
             }
         )

@@ -351,7 +351,7 @@ class RecoveryExecutor(object):
             "delete_barman_wal": False,
             "missing_files": [],
             "get_wal": False,
-            "recovery_start_time": datetime.datetime.now(),
+            "recovery_start_time": datetime.datetime.now(dateutil.tz.tzlocal()),
         }
         recovery_info["results"] = results
 
