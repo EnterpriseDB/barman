@@ -21,6 +21,9 @@ import json
 import mock
 import pytest
 
+from datetime import datetime
+from dateutil import tz
+
 from barman import output
 from barman.infofile import BackupInfo
 from barman.utils import BarmanEncoder, pretty_size
@@ -1262,6 +1265,12 @@ class TestConsoleWriter(object):
 
 # noinspection PyMethodMayBeStatic
 class TestJsonWriter(object):
+    # Fixed start and end timestamps for backup/recovery timestamps
+    begin_time = datetime(2022, 7, 4, 9, 15, 35, tzinfo=tz.tzutc())
+    begin_epoch = "1656926135"
+    end_time = datetime(2022, 7, 4, 9, 22, 37, tzinfo=tz.tzutc())
+    end_epoch = "1656926557"
+
     def test_debug(self, capsys):
         writer = output.JsonOutputWriter(debug=True)
 
@@ -1666,9 +1675,10 @@ class TestJsonWriter(object):
         assert writer.minimal
         assert server_name in json_output
 
+    @mock.patch.dict("os.environ", {"TZ": "US/Eastern"})
     def test_result_list_backup(self, capsys):
         # mock the backup info
-        bi = build_test_backup_info()
+        bi = build_test_backup_info(begin_time=self.begin_time, end_time=self.end_time)
         backup_size = 12345
         wal_size = 54321
         retention_status = "test status"
@@ -1701,6 +1711,7 @@ class TestJsonWriter(object):
         backup = find_by_attr(json_output[bi.server_name], "backup_id", bi.backup_id)
         assert bi.backup_id == backup["backup_id"]
         assert str(bi.end_time.ctime()) == backup["end_time"]
+        assert self.end_epoch == backup["end_time_timestamp"]
         for name, _, location in bi.tablespaces:
             tablespace = find_by_attr(backup["tablespaces"], "name", name)
             assert name == tablespace["name"]
@@ -1724,11 +1735,15 @@ class TestJsonWriter(object):
         assert bi.backup_id == backup["backup_id"]
         assert bi.status == backup["status"]
 
+    @mock.patch.dict("os.environ", {"TZ": "US/Eastern"})
     def test_result_show_backup(self, capsys):
         # mock the backup ext info
         wal_per_second = 0.01
         ext_info = mock_backup_ext_info(
-            status=BackupInfo.DONE, wals_per_second=wal_per_second
+            status=BackupInfo.DONE,
+            wals_per_second=wal_per_second,
+            begin_time=self.begin_time,
+            end_time=self.end_time,
         )
         server_name = ext_info["server_name"]
 
@@ -1746,6 +1761,8 @@ class TestJsonWriter(object):
         assert ext_info["backup_id"] == json_output[server_name]["backup_id"]
         assert ext_info["status"] == json_output[server_name]["status"]
         assert str(ext_info["end_time"]) == base_information["end_time"]
+        assert self.end_epoch == base_information["end_time_timestamp"]
+        assert self.begin_epoch == base_information["begin_time_timestamp"]
 
         for name, _, location in ext_info["tablespaces"]:
             tablespace = find_by_attr(
@@ -1783,6 +1800,26 @@ class TestJsonWriter(object):
         assert "base_backup_information" not in json_output[server_name]
         assert msg == json_output[server_name]["error"]
         assert err == ""
+
+    @mock.patch.dict("os.environ", {"TZ": "US/Eastern"})
+    def test_result_recovery(self, capsys):
+        recovery_info = {
+            "changes": [],
+            "warnings": [],
+            "missing_files": [],
+            "delete_barman_wal": False,
+            "get_wal": False,
+            "recovery_start_time": self.begin_time,
+        }
+
+        writer = output.JsonOutputWriter()
+        writer.result_recovery(recovery_info)
+        writer.close()
+
+        (out, err) = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert self.begin_epoch == json_output["recovery_start_time_timestamp"]
 
     def test_init_status(self, capsys):
         writer = output.JsonOutputWriter()
