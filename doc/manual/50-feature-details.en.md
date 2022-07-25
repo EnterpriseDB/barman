@@ -212,7 +212,7 @@ documentation][pg_basebackup-documentation].
 | zstd | plain | **tar, zstd** | None | 
 | zstd |  tar  | **tar, zstd** | **tar, zstd** |
 
-### Concurrent Backup and backup from a standby
+### Concurrent backup
 
 Normally, during backup operations, Barman uses PostgreSQL native
 functions `pg_start_backup` and `pg_stop_backup` for _concurrent
@@ -254,20 +254,35 @@ rules:
 > From Barman 2.10, you can use the `--wait` option with `barman backup`
 > command.
 
-#### Current limitations on backup from standby
+### Concurrent backup of a standby
 
-Barman currently requires that WAL files and backup data come from the
-same PostgreSQL server. When taking backups from a standby it is therefore
-important to point the following Barman [configuration options][config-options]
-to the standby server:
+If backing up a standby then the following [configuration options][config-options]
+should point to the standby server:
 
 - `conninfo`
 - `streaming_conninfo` (when using `backup_method = postgres` or `streaming_archiver = on`)
 - `ssh_command` (when using `backup_method = rsync`)
 
-In the case that the standby is promoted to primary the backups and WALs will
-continue to be valid however you may wish to update the Barman configuration
-so that it uses the new standby for taking backups and receiving WALs.
+The following config option should point to the primary server:
+
+- `primary_conninfo`
+
+Barman will use `primary_conninfo` to switch to a new WAL on the primary
+so that the concurrent backup against the standby can complete without
+having to wait for a WAL switch to occur naturally.
+
+> **NOTE:** It is especially important that `primary_conninfo` is
+> set if the standby is to be backed up when there is little or no write
+> traffic on the primary. If `primary_conninfo` is not set then the
+> backup will still run however it will wait at the stop backup stage
+> until the current WAL semgent on the primary is newer than the latest
+> WAL required by the backup.
+
+Barman currently requires that WAL files and backup data come from the
+same PostgreSQL server. In the case that the standby is promoted to primary
+the backups and WALs will continue to be valid however you may wish to update
+the Barman configuration so that it uses the new standby for taking backups and
+receiving WALs.
 
 WALs can be obtained from the standby using either WAL streaming or WAL
 archiving. To use WAL streaming follow the instructions in the
@@ -278,10 +293,11 @@ To use WAL archiving from the standby follow the instructions in the [WAL archiv
 the standby server.
 
 > **NOTE:** With PostgreSQL 10 and earlier Barman cannot handle WAL streaming
-> and WAL archiving being enabled at the same time - you must therefore disable
-> WAL archiving if using WAL streaming and vice versa. This is because it is possible
-> for WALs produced by PostgreSQL 10 and earlier to be logically equivalent but differ
-> at the binary level, causing Barman to fail to detect that two WALs are identical.
+> and WAL archiving being enabled at the same time on a standby. You must therefore
+> disable WAL archiving if using WAL streaming and vice versa. This is because it is
+> possible for WALs produced by PostgreSQL 10 and earlier to be logically equivalent
+> but differ at the binary level, causing Barman to fail to detect that two WALs are
+> identical.
 
 ### Immediate checkpoint
 

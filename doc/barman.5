@@ -609,6 +609,30 @@ Global/Server.
 .RS
 .RE
 .TP
+.B primary_conninfo
+The connection string used by Barman to connect to the primary Postgres
+server during backup of a standby Postgres server.
+Barman will use this connection to carry out any required WAL switches
+on the primary during the backup of the standby.
+This allows backups to complete even when
+\f[C]archive_mode\ =\ always\f[] is set on the standby and write traffic
+to the primary is not sufficient to trigger a natural WAL switch.
+.RS
+.PP
+If primary_conninfo is set then it \f[I]must\f[] be pointing to a
+primary Postgres instance and conninfo \f[I]must\f[] be pointing to a
+standby Postgres instance.
+Furthermore both instances must share the same systemid.
+If these conditions are not met then \f[C]barman\ check\f[] will fail.
+.PP
+The primary_conninfo value must be a libpq connection string; consult
+the PostgreSQL
+manual (https://www.postgresql.org/docs/current/static/libpq-connect.html#LIBPQ-CONNSTRING)
+for more information.
+Commonly used keys are: host, hostaddr, port, dbname, user, password.
+Server.
+.RE
+.TP
 .B primary_ssh_command
 Parameter that identifies a Barman server as \f[C]passive\f[].
 In a passive node, the source of a backup server is a Barman
