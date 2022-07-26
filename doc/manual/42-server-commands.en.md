@@ -158,6 +158,9 @@ restore_command = 'barman-wal-restore -U barman backup SERVER %f %p'
 
 Since it uses SSH to communicate with the Barman server, SSH key authentication
 is required for the `postgres` user to login as `barman` on the backup server.
+If a port other than the SSH default of 22 should be used then the `--port`
+option can be added to specify the port that should be used for the SSH
+connection.
 
 You can check that `barman-wal-restore` can connect to the Barman server,
 and that the required PostgreSQL server is configured in Barman to send

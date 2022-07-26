@@ -48,6 +48,9 @@ WAL_PATH
 :    the user used for the ssh connection to the Barman server. Defaults
      to 'barman'.
 
+--port *PORT*
+:    the port used for the ssh connection to the Barman server.
+
 -c *CONFIG*, --config *CONFIG*
 :    configuration file on the Barman server
 
