@@ -1332,6 +1332,13 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             item_class=controller.PGDATA_CLASS,
             bwlimit=self.config.get_bwlimit(),
         )
+        controller.add_file(
+            label="pgdata",
+            src=os.path.join(backup_info.get_data_directory(), "backup_manifest"),
+            dst=os.path.join(dest_prefix + dest, "backup_manifest"),
+            item_class=controller.PGDATA_CLASS,
+            bwlimit=self.config.get_bwlimit(),
+        )
 
         # Execute the copy
         try:

@@ -1404,6 +1404,13 @@ class TestTarballRecoveryExecutor(object):
                 item_class=copy_controller_mock.return_value.PGDATA_CLASS,
                 label="pgdata",
             ),
+            mock.call().add_file(
+                bwlimit=10,
+                src="%s/main/base/%s/data/backup_manifest" % (barman_home, backup_id),
+                dst="%s/backup_manifest" % dest,
+                item_class=copy_controller_mock.return_value.PGDATA_CLASS,
+                label="pgdata",
+            ),
             mock.call().copy(),
         ]
 
