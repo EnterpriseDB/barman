@@ -52,6 +52,22 @@ class UnixLocalCommand(object):
         """
         return self.internal_cmd.out, self.internal_cmd.err
 
+    def move(self, source_path, dest_path):
+        """
+        Move a file from source_path to dest_path.
+
+        :param str source_path: full path to the source file.
+        :param str dest_path: full path to the destination file.
+        :returns bool: True if the move completed successfully,
+            False otherwise.
+        """
+        _logger.debug("Moving %s to %s" % (source_path, dest_path))
+        mv_ret = self.cmd("mv", args=[source_path, dest_path])
+        if mv_ret == 0:
+            return True
+        else:
+            raise FsOperationFailed("mv execution failed")
+
     def create_dir_if_not_exists(self, dir_path, mode=None):
         """
         This method recursively creates a directory if not exists
