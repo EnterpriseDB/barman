@@ -50,6 +50,9 @@ WAL_DEST
 :    the user used for the ssh connection to the Barman server. Defaults
      to 'barman'.
 
+--port *PORT*
+:    the port used for the ssh connection to the Barman server.
+
 -s *SECONDS*, --sleep *SECONDS*
 :    sleep for SECONDS after a failure of get-wal request. Defaults
      to 0 (nowait).

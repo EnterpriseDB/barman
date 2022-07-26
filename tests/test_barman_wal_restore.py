@@ -78,6 +78,36 @@ class TestRemoteGetWal(object):
             "exit status 255"
         ) in err
 
+    @mock.patch("barman.clients.walrestore.subprocess.Popen")
+    def test_ssh_port(self, popen_mock):
+        # WHEN barman-wal-restore is called with the --port option
+        with pytest.raises(SystemExit):
+            walrestore.main(
+                [
+                    "test_host",
+                    "test_server",
+                    "test_wal",
+                    "test_wal_dest",
+                    "--port",
+                    "8888",
+                ]
+            )
+
+        # THEN the ssh command is called with the -p option
+        popen_mock.assert_called_once_with(
+            [
+                "ssh",
+                "-p",
+                "8888",
+                "-q",
+                "-T",
+                "barman@test_host",
+                "barman",
+                "get-wal 'test_server' 'test_wal'",
+            ],
+            stdout=mock.ANY,
+        )
+
     @mock.patch("barman.clients.walrestore.RemoteGetWal")
     def test_ssh_connectivity_error(self, remote_get_wal_mock, capsys, tmpdir):
         """Verifies exit status is 2 when ssh connectivity fails."""

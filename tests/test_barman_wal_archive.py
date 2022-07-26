@@ -98,6 +98,45 @@ class TestMain(object):
         assert second_content == "%s *000000080000ABFF000000C1\n" % source_hash
         assert tar.next() is None
 
+    @mock.patch("barman.clients.walarchive.subprocess.Popen")
+    def test_ssh_port(self, popen_mock, tmpdir):
+        # GIVEN a WAL file on disk
+        source = tmpdir.join("wal_dir/000000080000ABFF000000C1")
+        source.write("something", ensure=True)
+        # AND a fake pipe
+        input_mock, _output_mock = pipe_helper()
+        popen_mock.return_value.stdin = input_mock
+        popen_mock.return_value.returncode = 0
+
+        # WHEN barman-wal-archive is called with a custom port option
+        walarchive.main(
+            [
+                "-U",
+                "user",
+                "--port",
+                "8888",
+                "test_host",
+                "test_server",
+                source.strpath,
+            ]
+        )
+
+        # THEN the ssh command is called with the -p option
+        popen_mock.assert_called_once_with(
+            [
+                "ssh",
+                "-p",
+                "8888",
+                "-q",
+                "-T",
+                "user@test_host",
+                "barman",
+                "put-wal",
+                "test_server",
+            ],
+            stdin=subprocess.PIPE,
+        )
+
     @mock.patch("barman.clients.walarchive.RemotePutWal")
     def test_error_dir(self, rpw_mock, tmpdir, capsys):
 
@@ -209,6 +248,7 @@ class TestRemotePutWal(object):
             config=None,
             server_name="this-server",
             test=False,
+            port=None,
         )
         source_file = tmpdir.join("test-source/000000010000000000000001")
         source_file.write("test-content", ensure=True)
@@ -262,6 +302,7 @@ class TestRemotePutWal(object):
             config=None,
             server_name="this-server",
             test=False,
+            port=None,
         )
         source_file = tmpdir.join("test-source/000000010000000000000001")
         source_file.write("test-content", ensure=True)
