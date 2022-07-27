@@ -33,6 +33,7 @@ from barman.cli import (
     check_target_action,
     check_wal_archive,
     command,
+    generate_manifest,
     get_server,
     get_server_list,
     manage_server_command,
@@ -656,6 +657,30 @@ class TestCli(object):
         # value for the config/arg combination
         assert server.config.immediate_checkpoint is expected_value
         assert server.postgres.immediate_checkpoint is expected_value
+
+    @patch("barman.cli.BackupManifest")
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_generate_manifest(
+        self, _mock_get_server, _mock_parse_backup_id, _mock_backup_manifest, capsys
+    ):
+        """Verify expected log message is received on success."""
+        # GIVEN a backup for a server
+        args = Mock()
+        args.server_name = "test_server"
+        args.backup_id = "test_backup_id"
+
+        # WHEN a backup manifest is successfully created
+        with pytest.raises(SystemExit):
+            generate_manifest(args)
+
+        # THEN the expected message is in the logs
+        out, _err = capsys.readouterr()
+        assert (
+            "Backup manifest for backup %s successfully generated for server %s"
+            % (args.backup_id, args.server_name)
+            in out
+        )
 
 
 class TestKeepCli(object):
