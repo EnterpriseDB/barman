@@ -584,6 +584,7 @@ class DecompressingStreamingIO(RawIOBase):
         return return_bytes
 
 
+# TODO rename this to CloudObjectInterface or CloudStorageInterface or something
 class CloudInterface(with_metaclass(ABCMeta)):
     """
     Abstract base class which provides the interface between barman and cloud
@@ -1861,3 +1862,14 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     raise SystemExit(1)
 
         return backup_files
+
+
+class CloudSnapshotInterface(with_metaclass(ABCMeta)):
+    """Define a common interface for dealing with cloud snapshots."""
+
+    def __init__(self, project):
+        self.project = project
+
+    @abstractmethod
+    def take_snapshot(self, backup_info, disk_zone, disk_name):
+        """Take a snapshot of a disk in the cloud."""

@@ -472,6 +472,7 @@ class BackupInfo(FieldListFile):
     )
     systemid = Field("systemid")
     compression = Field("compression")
+    snapshot_gce_project = Field("snapshot_gce_project")
 
     __slots__ = "backup_id", "backup_version"
 

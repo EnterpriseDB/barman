@@ -37,6 +37,7 @@ from barman.backup_executor import (
     PassiveBackupExecutor,
     PostgresBackupExecutor,
     RsyncBackupExecutor,
+    SnapshotBackupExecutor,
 )
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
@@ -88,6 +89,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 self.executor = PostgresBackupExecutor(self)
             elif self.config.backup_method == "local-rsync":
                 self.executor = RsyncBackupExecutor(self, local_mode=True)
+            elif self.config.backup_method == "snapshot":
+                self.executor = SnapshotBackupExecutor(self)
             else:
                 self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:
