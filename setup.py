@@ -105,6 +105,7 @@ setup(
         ],  # version is limited py python2.7 see issue #529
         "google": [
             "google-cloud-storage",
+            "google-cloud-compute",
         ],
     },
     platforms=["Linux", "Mac OS X"],

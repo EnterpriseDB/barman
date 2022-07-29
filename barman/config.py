@@ -66,7 +66,7 @@ _SI_SUFFIX_RE = re.compile(r"""(\d+)\s*(k|Ki|M|Mi|G|Gi|T|Ti)?\s*$""")
 REUSE_BACKUP_VALUES = ("copy", "link", "off")
 
 # Possible copy methods for backups (must be all lowercase)
-BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync"]
+BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync", "snapshot"]
 
 CREATE_SLOT_VALUES = ["manual", "auto"]
 
@@ -474,6 +474,10 @@ class ServerConfig(object):
         "retention_policy_mode",
         "reuse_backup",
         "slot_name",
+        "snapshot_gce_disk_name",
+        "snapshot_gce_disk_zone",
+        "snapshot_gce_project",
+        "snapshot_provider",
         "ssh_command",
         "streaming_archiver",
         "streaming_archiver_batch_size",
@@ -543,6 +547,8 @@ class ServerConfig(object):
         "retention_policy_mode",
         "reuse_backup",
         "slot_name",
+        "snapshot_gce_project",
+        "snapshot_provider",
         "streaming_archiver",
         "streaming_archiver_batch_size",
         "streaming_archiver_name",

@@ -16,16 +16,21 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import datetime
 import logging
 import os
 
+from barman.backup_executor import SnapshotBackupExecutor
 from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
     CloudInterface,
     CloudProviderError,
+    CloudSnapshotInterface,
     DecompressingStreamingIO,
     DEFAULT_DELIMITER,
 )
+from barman.fs import UnixLocalCommand
+from barman.utils import total_seconds
 
 try:
     # Python 3.x
@@ -35,7 +40,7 @@ except ImportError:
     from urlparse import urlparse
 
 try:
-    from google.cloud import storage
+    from google.cloud import compute, storage
     from google.api_core.exceptions import GoogleAPIError, Conflict
 except ImportError:
     raise SystemExit("Missing required python module: google-cloud-storage")
@@ -333,3 +338,40 @@ class GoogleCloudInterface(CloudInterface):
         if failures:
             logging.error(failures)
             raise CloudProviderError()
+
+
+class GceCloudSnapshotInterface(CloudSnapshotInterface):
+    def __init__(self, project):
+        super(GceCloudSnapshotInterface, self).__init__(project)
+        self.client = compute.SnapshotsClient()
+
+    def take_snapshot(self, backup_info, disk_zone, disk_name):
+        # Start the snapshot
+        snapshot_name = "%s-%s" % (
+            backup_info.server_name.lower(),
+            backup_info.backup_id.lower(),
+        )
+        # TODO log starting snapshot
+        resp = self.client.insert(
+            {
+                "project": self.project,
+                "snapshot_resource": {
+                    "name": snapshot_name,
+                    "source_disk": "projects/%s/zones/%s/disks/%s"
+                    % (
+                        self.project,
+                        disk_zone,
+                        disk_name,
+                    ),
+                },
+            }
+        )
+
+        ## Wait until done AKA resp.done() == True
+        ## Can just call resp.result() for this
+        # TODO log waiting for snapshot
+        resp.result()
+        assert resp.done()
+        # TODO log done
+        # Add snapshot metadata to BackupInfo
+        backup_info.snapshot_gce_project = self.project

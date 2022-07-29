@@ -1389,6 +1389,156 @@ class RsyncBackupExecutor(FsBackupExecutor):
         return path
 
 
+# TODO basically duplicating FsBackupExecutor here apart from the stuff
+# concerning local mode and some rsync references in messages.
+# Even the checks are going to be useful because both ssh and postgres
+# connections are needed (ssh technically not but it will be needed for
+# verifying things in the check function, like whether PGDATA is actually
+# mounted on the disk we have in config).
+# Either way there is an obvious refactor here.
+class SnapshotBackupExecutor(BackupExecutor):
+    """Backup executor which uses snapshots to take the backup."""
+
+    def __init__(
+        self, backup_manager, snapshot_interface, snapshot_disk_zone, snapshot_disk_name
+    ):
+        super(SnapshotBackupExecutor, self).__init__(backup_manager)
+        self.snapshot_interface = snapshot_interface
+        self.snapshot_disk_zone = snapshot_disk_zone
+        self.snapshot_disk_name = snapshot_disk_name
+
+        # TODO BEGIN common code with FsBackupExecutor
+        backup_options = self.config.backup_options
+        concurrent_backup = BackupOptions.CONCURRENT_BACKUP in backup_options
+        exclusive_backup = BackupOptions.EXCLUSIVE_BACKUP in backup_options
+        if not concurrent_backup and not exclusive_backup:
+            self.config.backup_options.add(BackupOptions.CONCURRENT_BACKUP)
+            output.warning(
+                "No backup strategy set for server '%s' "
+                "(using default 'concurrent_backup').",
+                self.config.name,
+            )
+
+        # Depending on the backup options value, create the proper strategy
+        if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
+            # Concurrent backup strategy
+            self.strategy = LocalConcurrentBackupStrategy(
+                self.server.postgres, self.config.name
+            )
+        else:
+            # Exclusive backup strategy
+            self.strategy = ExclusiveBackupStrategy(
+                self.server.postgres, self.config.name
+            )
+        # TODO END common code with FsBackupExecutor
+
+    # TODO this function is duplicated from FsBackupExecutor
+    def _update_action_from_strategy(self):
+        """
+        Update the executor's current action with the one of the strategy.
+        This is used during exception handling to let the caller know
+        where the failure occurred.
+        """
+
+        action = getattr(self.strategy, "current_action", None)
+        if action:
+            self.current_action = action
+
+    def backup_copy(self, backup_info):
+        """Actually take a snapshot here"""
+        # Start the snapshot
+        self.copy_start_time = datetime.datetime.now()
+
+        self.snapshot_interface.take_snapshot(
+            backup_info,
+            self.snapshot_disk_zone,
+            self.snapshot_disk_name,
+        )
+
+        self.copy_end_time = datetime.datetime.now()
+        # Store statistics about the copy
+        copy_time = total_seconds(self.copy_end_time - self.copy_start_time)
+        backup_info.copy_stats = {
+            "copy_time": copy_time,
+            "total_time": copy_time,
+        }
+
+        # Create data dir so backup_label can be written
+        cmd = UnixLocalCommand(path=self.server.path)
+        cmd.create_dir_if_not_exists(backup_info.get_data_directory())
+
+    def backup(self, backup_info):
+        """
+        This entire method comes from FsBackupExecutor.
+        It is quite indepedent even of Fs details so there should probably be
+        a class above FsBackupExecutor just called ExternalBackupExecutor or something
+        which is used for any non-postgres backup method - it would contain this outer
+        loop.
+        """
+        # TODO BEGIN common code with FsBackupExecutor
+        # Start the backup, all the subsequent code must be wrapped in a
+        # try except block which finally issues a stop_backup command
+        try:
+            self.strategy.start_backup(backup_info)
+        except BaseException:
+            self._update_action_from_strategy()
+            raise
+
+        try:
+            # save any metadata changed by start_backup() call
+            # This must be inside the try-except, because it could fail
+            backup_info.save()
+
+            if backup_info.begin_wal is not None:
+                output.info(
+                    "Backup start at LSN: %s (%s, %08X)",
+                    backup_info.begin_xlog,
+                    backup_info.begin_wal,
+                    backup_info.begin_offset,
+                )
+            else:
+                output.info("Backup start at LSN: %s", backup_info.begin_xlog)
+
+            # If this is the first backup, purge eventually unused WAL files
+            self._purge_unused_wal_files(backup_info)
+
+            # Start the copy
+            self.current_action = "copying files"
+            self._start_backup_copy_message(backup_info)
+            self.backup_copy(backup_info)
+            self._stop_backup_copy_message(backup_info)
+
+            # Try again to purge eventually unused WAL files. At this point
+            # the begin_wal value is surely known. Doing it twice is safe
+            # because this function is useful only during the first backup.
+            self._purge_unused_wal_files(backup_info)
+        except BaseException as exc:
+            # we do not need to do anything here besides re-raising the
+            # exception. It will be handled in the external try block.
+            import pdb
+
+            pdb.set_trace()
+            output.error("The backup has failed %s", self.current_action)
+            raise
+        else:
+            self.current_action = "issuing stop of the backup"
+        finally:
+            output.info("Asking PostgreSQL server to finalize the backup.")
+            try:
+                self.strategy.stop_backup(backup_info)
+            except BaseException:
+                self._update_action_from_strategy()
+                raise
+        # TODO END common code with FsBackupExecutor
+
+    def check(self, check_strategy):
+        # Snapshot specific checks would happen here.
+        # For GCE this would be something like:
+        # - The disk is mounted on the host.
+        # - PGDATA is on that disk.
+        pass
+
+
 class BackupStrategy(with_metaclass(ABCMeta, object)):
     """
     Abstract base class for a strategy to be used by a backup executor.

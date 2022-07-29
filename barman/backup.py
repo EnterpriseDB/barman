@@ -37,6 +37,7 @@ from barman.backup_executor import (
     PassiveBackupExecutor,
     PostgresBackupExecutor,
     RsyncBackupExecutor,
+    SnapshotBackupExecutor,
 )
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
@@ -88,6 +89,19 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 self.executor = PostgresBackupExecutor(self)
             elif self.config.backup_method == "local-rsync":
                 self.executor = RsyncBackupExecutor(self, local_mode=True)
+            elif self.config.backup_method == "snapshot":
+                if self.config.snapshot_provider == "gce":
+                    # TODO factory method candidate
+                    from barman.cloud_providers.google_cloud_storage import (
+                        GceCloudSnapshotInterface,
+                    )
+
+                    self.executor = SnapshotBackupExecutor(
+                        self,
+                        GceCloudSnapshotInterface(self.config.snapshot_gce_project),
+                        self.config.snapshot_gce_disk_zone,
+                        self.config.snapshot_gce_disk_name,
+                    )
             else:
                 self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:
