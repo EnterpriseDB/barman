@@ -38,6 +38,7 @@ from barman.cli import (
     get_server_list,
     manage_server_command,
     OrderedHelpFormatter,
+    receive_wal,
     recover,
     keep,
     show_servers,
@@ -119,6 +120,27 @@ class TestCli(object):
         out, err = capsys.readouterr()
         assert err
         assert "ERROR: Conflicting path:" in err
+
+    def test_get_server_inactive(self, monkeypatch):
+        """
+        Test that get_server correctly handles inactive servers.
+        """
+        # GIVEN an inactive server
+        args = Mock()
+        monkeypatch.setattr(
+            barman, "__config__", build_config_from_dicts(main_conf={"active": "false"})
+        )
+
+        # WHEN get_server is called with skip_inactive=True
+        # THEN a SystemExit is raised
+        args.server_name = "main"
+        with pytest.raises(SystemExit):
+            get_server(args, skip_inactive=True)
+
+        # AND WHEN get_server is called with skip_inactive=False
+        # THEN a server is returned
+        args.server_name = "main"
+        assert get_server(args, skip_inactive=False) is not None
 
     def test_manage_server_command(self, monkeypatch, capsys):
         """
@@ -681,6 +703,59 @@ class TestCli(object):
             % (args.backup_id, args.server_name)
             in out
         )
+
+    @pytest.mark.parametrize(
+        ("option", "server_fun"),
+        (
+            # If no options are used then receive-wal should not run.
+            (None, "receive_wal"),
+            # If any option is set then receive-wal should run.
+            ("create_slot", "create_physical_repslot"),
+            ("drop_slot", "drop_repslot"),
+            ("reset", "receive_wal"),
+            ("stop", "kill"),
+        ),
+    )
+    @patch("barman.cli.get_server_list")
+    def test_receive_wal_inactive_server(
+        self,
+        mock_get_server_list,
+        option,
+        server_fun,
+    ):
+        """Verify appropriate options work with inactive servers."""
+        # GIVEN an inactive server
+        test_server_name = "an_arbitrary_server_name"
+        config = MagicMock()
+        config.active = False
+        config.disabled = False
+        config.retention_policy = None
+        config.last_backup_maximum_age = None
+        server = Mock(config=config)
+        mock_server_list = {test_server_name: server}
+        mock_get_server_list.return_value = mock_server_list
+
+        # AND a set of args with the specified receive-wal option
+        args = Mock(
+            server_name=test_server_name,
+            create_slot=None,
+            drop_slot=None,
+            reset=None,
+            stop=None,
+        )
+        if option is not None:
+            setattr(args, option, True)
+
+        # WHEN receive_wal is called against the inactive server
+        with pytest.raises(SystemExit):
+            receive_wal(args)
+
+        if option is not None:
+            # THEN the expected server function was called
+            getattr(server, server_fun).assert_called_once()
+        else:
+            # OR if there were no options, the expected function was not called
+            getattr(server, server_fun).assert_not_called()
 
 
 class TestKeepCli(object):
