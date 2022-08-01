@@ -2,6 +2,9 @@
 
 # Installation
 
+Official packages for Barman are distributed by EnterpriseDB through repositories
+listed on the [Barman downloads page][barman-downloads].
+
 > **IMPORTANT:**
 > The recommended way to install Barman is by using the available
 > packages for your GNU/Linux distribution.
