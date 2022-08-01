@@ -34,9 +34,6 @@ yum install barman
 > By doing this, you solely rely on
 > EnterpriseDB repositories for package management of Barman software.
 
-For historical reasons, EnterpriseDB keeps maintaining package distribution of
-Barman through [Sourceforge.net][3].
-
 ## Installation on Debian/Ubuntu using packages
 
 Barman can be installed on Debian and Ubuntu Linux systems using

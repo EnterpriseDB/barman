@@ -36,7 +36,6 @@
   [pg-backup-api]: https://github.com/EnterpriseDB/pg-backup-api
 
 
-  [3]: https://github.com/EnterpriseDB/barman
   [8]: https://en.wikipedia.org/wiki/Hard_link
   [9]: https://github.com/2ndquadrant-it/pgespresso
   [11]: https://www.pgbarman.org/
