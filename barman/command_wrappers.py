@@ -1200,6 +1200,8 @@ def shell_quote(arg):
     # a backslash, and then start another string using a quote character.
 
     assert arg is not None
+    if arg == "|":
+        return arg
     return "'%s'" % arg.replace("'", "'\\''")
 
 

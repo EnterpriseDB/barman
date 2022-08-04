@@ -1293,6 +1293,17 @@ class TestPgBaseBackup(object):
                 ["--compress=server-gzip", "--format=plain"],
                 ["--gzip"],
             ),
+            # lz4 tests
+            (
+                mock.Mock(type="lz4", format="tar", level=None, location="server"),
+                ["--compress=server-lz4", "--format=tar"],
+                [],
+            ),
+            (
+                mock.Mock(type="lz4", format="tar", level=7, location="server"),
+                ["--compress=server-lz4:level=7", "--format=tar"],
+                [],
+            ),
         ],
     )
     def test_compression_gzip_version_gte_15(
