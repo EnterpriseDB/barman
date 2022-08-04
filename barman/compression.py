@@ -467,12 +467,20 @@ def get_pg_basebackup_compression(server):
         server.config.backup_compression_location,
     )
 
-    if server.config.backup_compression == "gzip":
+    if server.config.backup_compression == GZipCompression.name:
         # Create PgBaseBackupCompressionOption
         base_backup_compression_option = GZipPgBaseBackupCompressionOption(
             pg_base_backup_cfg
         )
         compression = GZipCompression(unix_command_factory())
+        return PgBaseBackupCompression(
+            pg_base_backup_cfg, base_backup_compression_option, compression
+        )
+    if server.config.backup_compression == LZ4Compression.name:
+        base_backup_compression_option = LZ4PgBaseBackupCompressionOption(
+            pg_base_backup_cfg
+        )
+        compression = LZ4Compression(unix_command_factory())
         return PgBaseBackupCompression(
             pg_base_backup_cfg, base_backup_compression_option, compression
         )
@@ -557,6 +565,36 @@ class GZipPgBaseBackupCompressionOption(PgBaseBackupCompressionOption):
         )
         if self.config.level is not None and (
             self.config.level < 1 or self.config.level > 9
+        ):
+            issues.append(
+                "backup_compression_level %d unsupported by "
+                "pg_basebackup compression %s" % (self.config.level, self.config.type)
+            )
+        return issues
+
+
+class LZ4PgBaseBackupCompressionOption(PgBaseBackupCompressionOption):
+    def validate(self, pg_server_version, remote_status):
+        """
+        Validate lz4-specific options.
+
+        :param pg_server_version int: the server for which the
+          compression options should be validated.
+        :param dict remote_status: the status of the pg_basebackup command
+        :return List: List of Issues (str) or empty list
+        """
+        issues = super(LZ4PgBaseBackupCompressionOption, self).validate(
+            pg_server_version, remote_status
+        )
+        # "backup_location = server" requires pg_basebackup >= 15
+        if remote_status["pg_basebackup_version"] < Version("15"):
+            issues.append(
+                "backup_compression = %s requires "
+                "pg_basebackup 15 or greater" % self.config.type
+            )
+
+        if self.config.level is not None and (
+            self.config.level < 1 or self.config.level > 12
         ):
             issues.append(
                 "backup_compression_level %d unsupported by "
@@ -674,7 +712,7 @@ class GZipCompression(Compression):
     def uncompress(self, src, dst, exclude=None, include_args=None):
         """
 
-        :param src: should specify if compression extension is included or not
+        :param src: source file path without compression extension
         :param dst: destination path
         :param exclude: list of filepath in the archive to exclude from the extraction
         :param include_args: list of filepath in the archive to extract.
@@ -690,7 +728,7 @@ class GZipCompression(Compression):
             exclude_args.append("--exclude")
             exclude_args.append(name)
         include_args = [] if include_args is None else include_args
-        args = ["xzf", src, "--directory", dst]
+        args = ["-xzf", src, "--directory", dst]
         args.extend(exclude_args)
         args.extend(include_args)
         ret = self.command.cmd("tar", args=args)
@@ -711,6 +749,81 @@ class GZipCompression(Compression):
         """
         full_archive_name = "%s.%s" % (archive, self.file_extension)
         args = ["-xzf", full_archive_name, "-O", filename, "--occurrence"]
+        ret = self.command.cmd("tar", args=args)
+        out, err = self.command.get_last_output()
+        if ret != 0:
+            if "Not found in archive" in err:
+                raise FileNotFoundException(
+                    err + "archive name: %s" % full_archive_name
+                )
+            else:
+                raise CommandFailedException(
+                    "Error reading %s into archive %s: (%s)"
+                    % (filename, full_archive_name, err)
+                )
+        else:
+            return out
+
+
+class LZ4Compression(Compression):
+    name = "lz4"
+    file_extension = "tar.lz4"
+
+    def __init__(self, command):
+        """
+
+        :param command: barman.fs.UnixLocalCommand
+        """
+        self.command = command
+
+    def uncompress(self, src, dst, exclude=None, include_args=None):
+        """
+
+        :param src: source file path without compression extension
+        :param dst: destination path
+        :param exclude: list of filepath in the archive to exclude from the extraction
+        :param include_args: list of filepath in the archive to extract.
+        :return:
+        """
+        if src is None or src == "":
+            raise ValueError("Source path should be a string")
+        if dst is None or dst == "":
+            raise ValueError("Destination path should be a string")
+        exclude = [] if exclude is None else exclude
+        exclude_args = []
+        for name in exclude:
+            exclude_args.append("--exclude")
+            exclude_args.append(name)
+        include_args = [] if include_args is None else include_args
+        args = ["--use-compress-program", "lz4", "-xf", src, "--directory", dst]
+        args.extend(exclude_args)
+        args.extend(include_args)
+        ret = self.command.cmd("tar", args=args)
+        out, err = self.command.get_last_output()
+        if ret != 0:
+            raise CommandFailedException(
+                "Error decompressing %s into %s: %s" % (src, dst, err)
+            )
+        else:
+            return self.command.get_last_output()
+
+    def get_file_content(self, filename, archive):
+        """
+
+        :param filename: str file to search for in the archive (requires its full path within the archive)
+        :param archive: str archive path/name without extension
+        :return: string content
+        """
+        full_archive_name = "%s.%s" % (archive, self.file_extension)
+        args = [
+            "--use-compress-program",
+            "lz4",
+            "-xf",
+            full_archive_name,
+            "-O",
+            filename,
+            "--occurrence",
+        ]
         ret = self.command.cmd("tar", args=args)
         out, err = self.command.get_last_output()
         if ret != 0:
