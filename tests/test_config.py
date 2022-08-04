@@ -484,7 +484,7 @@ class TestConfig(object):
         ("compression", "is_allowed"),
         (
             ("gzip", True),
-            ("lz4", False),
+            ("lz4", True),
             ("zstd", False),
             ("lizard", False),
             ("1", False),

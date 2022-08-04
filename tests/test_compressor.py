@@ -37,6 +37,8 @@ from barman.compression import (
     PgBaseBackupCompressionOption,
     GZipPgBaseBackupCompressionOption,
     GZipCompression,
+    LZ4PgBaseBackupCompressionOption,
+    LZ4Compression,
 )
 from barman.exceptions import (
     CompressionException,
@@ -412,6 +414,13 @@ class TestPgBaseBackupCompression(object):
                 GZipPgBaseBackupCompressionOption,
                 GZipCompression,
             ),
+            # Test lz4 scenario
+            (
+                "lz4",
+                PgBaseBackupCompression,
+                LZ4PgBaseBackupCompressionOption,
+                LZ4Compression,
+            ),
         ],
     )
     def test_get_pg_basebackup_compression(
@@ -625,45 +634,108 @@ class TestGZipPgBaseBackupCompressionOption(object):
         validation_issues = compression_option.validate(server_version, remote_status)
         # THEN issues should match expected ones if any
         assert len(validation_issues) == len(expected_errors)
+        assert sorted(validation_issues) == sorted(expected_errors)
 
 
-class TestGZipCompression(object):
+class TestLZ4PgBaseBackupCompressionOption(object):
     @pytest.mark.parametrize(
-        ("src", "dst", "exclude", "include", "expected_error"),
+        ("client_version", "server_version", "compression_options", "expected_errors"),
         [
-            # Simple src, dest case should cause the correct command to be called
-            ("/path/to/source", "/path/to/dest", None, None, None),
-            # Empty strings and None values for src or dst should raise an error
-            ("", "/path/to/dest", None, None, ValueError),
-            (None, "/path/to/dest", None, None, ValueError),
-            ("/path/to/src", "", None, None, ValueError),
-            ("/path/to/src", None, None, None, ValueError),
-            # Exclude arguments should be appended
             (
-                "/path/to/source",
-                "/path/to/dest",
-                ["/path/to/exclude", "/another/path/to/exclude"],
-                None,
-                None,
+                "15",
+                15000,
+                {"backup_compression": "lz4", "backup_compression_level": 1},
+                [],
             ),
-            # Include arguments should be appended
             (
-                "/path/to/source",
-                "/path/to/dest",
-                None,
-                ["path/to/include", "/another/path/to/include"],
-                None,
+                "15",
+                14000,
+                {"backup_compression": "lz4", "backup_compression_level": 9},
+                [],
             ),
-            # Both include and exclude arguments should be appended
             (
-                "/path/to/source",
-                "/path/to/dest",
-                ["/path/to/exclude", "/another/path/to/exclude"],
-                ["path/to/include", "/another/path/to/include"],
-                None,
+                "15",
+                15000,
+                {"backup_compression": "lz4", "backup_compression_level": 0},
+                [
+                    "backup_compression_level 0 unsupported by pg_basebackup compression lz4"
+                ],
+            ),
+            (
+                "15",
+                15000,
+                {"backup_compression": "lz4", "backup_compression_level": 13},
+                [
+                    "backup_compression_level 13 unsupported by pg_basebackup compression lz4"
+                ],
+            ),
+            (
+                "14",
+                15000,
+                {"backup_compression": "lz4", "backup_compression_level": 14},
+                [
+                    "backup_compression = lz4 requires pg_basebackup 15 or greater",
+                    "backup_compression_level 14 unsupported by pg_basebackup compression lz4",
+                ],
             ),
         ],
     )
+    def test_validate(
+        self, client_version, server_version, compression_options, expected_errors
+    ):
+        """Verifies supported config options pass validation."""
+        # GIVEN compression options
+        compression_config = get_compression_config(compression_options)
+        compression_option = LZ4PgBaseBackupCompressionOption(compression_config)
+        # AND a remote_status object
+        remote_status = {"pg_basebackup_version": client_version}
+        # WHEN the compression is validated
+        validation_issues = compression_option.validate(server_version, remote_status)
+        # THEN issues should match expected ones if any
+        assert len(validation_issues) == len(expected_errors)
+        assert sorted(validation_issues) == sorted(expected_errors)
+
+
+COMMON_UNCOMPRESS_ARGS = (
+    ("src", "dst", "exclude", "include", "expected_error"),
+    [
+        # Simple src, dest case should cause the correct command to be called
+        ("/path/to/source", "/path/to/dest", None, None, None),
+        # Empty strings and None values for src or dst should raise an error
+        ("", "/path/to/dest", None, None, ValueError),
+        (None, "/path/to/dest", None, None, ValueError),
+        ("/path/to/src", "", None, None, ValueError),
+        ("/path/to/src", None, None, None, ValueError),
+        # Exclude arguments should be appended
+        (
+            "/path/to/source",
+            "/path/to/dest",
+            ["/path/to/exclude", "/another/path/to/exclude"],
+            None,
+            None,
+        ),
+        # Include arguments should be appended
+        (
+            "/path/to/source",
+            "/path/to/dest",
+            None,
+            ["path/to/include", "/another/path/to/include"],
+            None,
+        ),
+        # Both include and exclude arguments should be appended
+        (
+            "/path/to/source",
+            "/path/to/dest",
+            ["/path/to/exclude", "/another/path/to/exclude"],
+            ["path/to/include", "/another/path/to/include"],
+            None,
+        ),
+    ],
+)
+
+
+class TestGZipCompression(object):
+    @pytest.mark.parametrize(*COMMON_UNCOMPRESS_ARGS)
     def test_uncompress(self, src, dst, exclude, include, expected_error):
         # GIVEN a GZipCompression object
         command = mock.Mock()
@@ -690,7 +762,7 @@ class TestGZipCompression(object):
             assert command.cmd.call_args_list[0][0][0] == "tar"
             # AND the basic arguments are present
             assert command.cmd.call_args_list[0][1]["args"][:4] == [
-                "xzf",
+                "-xzf",
                 src,
                 "--directory",
                 dst,
@@ -722,24 +794,12 @@ class TestGZipCompression(object):
         # AND the exception message contains the command stderr
         assert "some error" in str(exc.value)
 
-    def test_get_file_content(self, tmpdir):
+    def test_get_file_content(self):
         # Given a tar.gz compressed archive on disk containing specified files
-        base_path = tmpdir.mkdir("base")
+        archive_path = "/path/to/archive"
         label_file_name = "label"
-        label_file = base_path.join(label_file_name)
+        label_file_path_in_archive = os.path.join("label/file/path", label_file_name)
         file_label_content = "expected file label content"
-        with open(label_file.strpath, "w") as f:
-            f.write(file_label_content)
-
-        file_other = base_path.join("other_file")
-        file_other_content = "expected file other content"
-        with open(file_other.strpath, "w") as f:
-            f.write(file_other_content)
-
-        create_targz_archive("base.tar.gz", "base", tmpdir.strpath)
-        os.remove(label_file.strpath)
-        os.remove(file_other.strpath)
-        os.rmdir(base_path.join().strpath)
 
         # AND a Mock Command
         command = mock.Mock()
@@ -748,7 +808,7 @@ class TestGZipCompression(object):
         # THEN getting a specific file content format the archive with a GZipCompression instance
         gz_compression = GZipCompression(command)
         read_content = gz_compression.get_file_content(
-            "base/" + label_file_name, base_path.join().strpath
+            label_file_path_in_archive, archive_path
         )
         # SHOULD retrieve the expected content
         assert file_label_content == read_content
@@ -756,32 +816,24 @@ class TestGZipCompression(object):
         # AND command.cmd was called
         args = [
             "-xzf",
-            base_path.join().strpath + ".tar.gz",
+            archive_path + ".tar.gz",
             "-O",
-            "base/" + label_file_name,
+            label_file_path_in_archive,
             "--occurrence",
         ]
 
         command.cmd.assert_called_once()
         command.cmd.assert_called_once_with("tar", args=args)
 
-    def test_get_file_content_file_not_found(self, tmpdir):
+    def test_get_file_content_file_not_found(self):
         """
         Verifies an exception is thrown if get_file_content is called on a file which does
         not exist.
         """
         # Given a tar.gz compressed archive on disk containing specified files
-        base_path = tmpdir.mkdir("base")
+        archive_path = "/path/to/archive"
         missing_file_name = "label"
-
-        file_other = base_path.join("other_file")
-        file_other_content = "expected file other content"
-        with open(file_other.strpath, "w") as f:
-            f.write(file_other_content)
-
-        create_targz_archive("base.tar.gz", "base", tmpdir.strpath)
-        os.remove(file_other.strpath)
-        os.rmdir(base_path.join().strpath)
+        label_file_path_in_archive = os.path.join("label/file/path", missing_file_name)
 
         # AND a Mock Command that simulates tar response in case of missing file.
         command = mock.Mock()
@@ -792,7 +844,7 @@ class TestGZipCompression(object):
             "archive name: %s.tar.gz"
             % (
                 missing_file_name,
-                base_path.join().strpath,
+                archive_path,
             )
         )
         tar_error_message = (
@@ -809,13 +861,146 @@ class TestGZipCompression(object):
         # THEN getting missing file content
         # SHOULD Raise an exception
         with pytest.raises(FileNotFoundException) as exc:
-            gz_compression.get_file_content(
-                "base/" + missing_file_name, base_path.join().strpath
-            )
+            gz_compression.get_file_content(label_file_path_in_archive, archive_path)
         assert expected_exception_message == str(exc.value)
 
 
-def create_targz_archive(archive_name, folder_dir, common_path):
-    os.chdir(common_path)
-    with tarfile.open(archive_name, "w:gz") as tar:
-        tar.add(folder_dir)
+class TestLZ4Compression(object):
+    @pytest.mark.parametrize(*COMMON_UNCOMPRESS_ARGS)
+    def test_uncompress(self, src, dst, exclude, include, expected_error):
+        # GIVEN a LZ4Compression object
+        command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = ("all good", "")
+        lz4_compression = LZ4Compression(command)
+
+        # WHEN uncompress is called with the source and destination
+        # THEN the command is called once
+        # AND if we expect an error, that error is raised
+        if expected_error is not None:
+            with pytest.raises(ValueError):
+                lz4_compression.uncompress(
+                    src, dst, exclude=exclude, include_args=include
+                )
+            # THEN command.cmd was not called
+            command.cmd.assert_not_called()
+        # OR if we don't expect an error
+        else:
+            lz4_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            # THEN command.cmd was called
+            assert command.cmd.called_once()
+            # AND the first argument was "tar"
+            assert command.cmd.call_args_list[0][0][0] == "tar"
+            # AND the basic arguments are present
+            common_args = command.cmd.call_args_list[0][1]["args"][:6]
+            specific_args = command.cmd.call_args_list[0][1]["args"][6:]
+            assert common_args == [
+                "--use-compress-program",
+                "lz4",
+                "-xf",
+                src,
+                "--directory",
+                dst,
+            ]
+            # AND if we expected exclude args they are present
+            remaining_args = " ".join(specific_args)
+            if exclude is not None:
+                for exclude_arg in exclude:
+                    assert "--exclude %s" % exclude_arg in remaining_args
+            # AND if we expected include args they are present
+            if include is not None:
+                for include_arg in include:
+                    assert include_arg in remaining_args
+
+    def test_tar_failure_raises_exception(self):
+        """Verify a nonzero return code from tar raises an exception"""
+        # GIVEN a LZ4Compression object
+        # AND a tar command which returns status 2 and an error
+        command = mock.Mock()
+        command.cmd.return_value = 2
+        command.get_last_output.return_value = ("", "some error")
+        lz4_compression = LZ4Compression(command)
+
+        # WHEN uncompress is called
+        # THEN a CommandFailedException is raised
+        with pytest.raises(CommandFailedException) as exc:
+            lz4_compression.uncompress("/path/to/src", "/path/to/dst")
+
+        # AND the exception message contains the command stderr
+        assert "some error" in str(exc.value)
+
+    def test_get_file_content(self):
+        """
+        Cannot create a tar.lz4 to actually test this without
+        :param tmpdir:
+        :return:
+        """
+        # Given a tar.lz4 compressed archive on disk containing specified files
+        archive_path = "/path/to/archive"
+        label_file_name = "label"
+        label_file_path_in_archive = os.path.join("label/file/path", label_file_name)
+        file_label_content = "expected file label content"
+
+        # AND a Mock Command
+        command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = (file_label_content, "")
+        # THEN getting a specific file content format the archive with a LZ4Compression instance
+        lz4_compression = LZ4Compression(command)
+        read_content = lz4_compression.get_file_content(
+            label_file_path_in_archive, archive_path
+        )
+        # SHOULD retrieve the expected content
+        assert file_label_content == read_content
+
+        # AND command.cmd was called
+        args = [
+            "--use-compress-program",
+            "lz4",
+            "-xf",
+            archive_path + ".tar.lz4",
+            "-O",
+            label_file_path_in_archive,
+            "--occurrence",
+        ]
+        command.cmd.assert_called_once()
+        command.cmd.assert_called_once_with("tar", args=args)
+
+    def test_get_file_content_file_not_found(self):
+        """
+        Verifies an exception is thrown if get_file_content is called on a file which does
+        not exist.
+        """
+        # Given a tar.gz compressed archive on disk containing specified files (or missing in that case)
+        archive_path = "/path/to/archive"
+        missing_file_name = "label"
+        label_file_path_in_archive = os.path.join("label/file/path", missing_file_name)
+
+        # AND a Mock Command that simulates tar response in case of missing file.
+        command = mock.Mock()
+        command.cmd.return_value = 1
+        expected_exception_message = (
+            "tar: base/%s: Not found in archive\n"
+            "tar: Error exit delayed from previous errors.\n"
+            "archive name: %s.tar.lz4"
+            % (
+                missing_file_name,
+                archive_path,
+            )
+        )
+        tar_error_message = (
+            "tar: base/%s: Not found in archive\n"
+            "tar: Error exit delayed from previous errors.\n" % missing_file_name
+        )
+        command.get_last_output.return_value = (
+            "",
+            tar_error_message,
+        )
+        # AND getting a specific file content format the archive with a LZ4Compression instance
+        lz4_compression = LZ4Compression(command)
+
+        # THEN getting missing file content
+        # SHOULD Raise an exception
+        with pytest.raises(FileNotFoundException) as exc:
+            lz4_compression.get_file_content(label_file_path_in_archive, archive_path)
+        assert expected_exception_message == str(exc.value)
