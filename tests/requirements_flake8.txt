@@ -1,4 +1,4 @@
-flake8
+flake8==4.0.1
 flake8-mock
 flake8-string-format
 flake8-copyright
