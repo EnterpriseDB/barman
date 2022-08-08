@@ -132,17 +132,31 @@ using the `backup_compression` config option (global/per server):
 #### Compression algorithms 
 Setting this option will cause pg_basebackup to compress the backup
 using the specified compression algorithm. Currently, supported 
-algorithm in Barman are: `gzip` and `lz4`.
+algorithm in Barman are: `gzip` `lz4` and `zstd`.
 
 ``` ini
-backup_compression = gzip|lz4
+backup_compression = gzip|lz4|zstd
 ```
-> **Note:** `lz4` is only available with PostgreSQL version 15 or higher.
+> **Note:** `lz4` and `zstd` are only available with PostgreSQL version 15 or higher.
+
+> **Note:** `zstd` version must be 1.4.4 or higher.
+
 
 > **IMPORTANT:** If you are using `backup_compression` you must also
 > set `recovery_staging_path` so that `barman recover` is able to
 > recover the compressed backups. See the [Recovering compressed backups](#recovering-compressed-backups)
 > section for more information.
+
+#### Compression workers
+This optional parameter allows compression using multiple threads to increase compression speed (default being 0). 
+
+```ini
+backup_compression_workers = 2
+```
+
+> **Note:** This option is only available with `zstd` compression.
+ 
+> **Note:** `zstd` version must be 1.5.0 or higher. Or 1.4.4 or higher compiled with multithreading option.
 
 #### Compression level
 The compression level can be specified using the
@@ -195,6 +209,8 @@ documentation][pg_basebackup-documentation].
 | gzip |  tar  | **tar** | **tar** | 
 | lz4 | plain | **tar, lz4** | None | 
 | lz4 |  tar  | **tar, lz4** | **tar, lz4** |
+| zstd | plain | **tar, zstd** | None | 
+| zstd |  tar  | **tar, zstd** | **tar, zstd** |
 
 ### Concurrent Backup and backup from a standby
 

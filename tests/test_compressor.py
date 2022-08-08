@@ -39,6 +39,8 @@ from barman.compression import (
     GZipCompression,
     LZ4PgBaseBackupCompressionOption,
     LZ4Compression,
+    ZSTDPgBaseBackupCompressionOption,
+    ZSTDCompression,
 )
 from barman.exceptions import (
     CompressionException,
@@ -421,6 +423,13 @@ class TestPgBaseBackupCompression(object):
                 LZ4PgBaseBackupCompressionOption,
                 LZ4Compression,
             ),
+            # Test zstd scenario
+            (
+                "zstd",
+                PgBaseBackupCompression,
+                ZSTDPgBaseBackupCompressionOption,
+                ZSTDCompression,
+            ),
         ],
     )
     def test_get_pg_basebackup_compression(
@@ -619,6 +628,14 @@ class TestGZipPgBaseBackupCompressionOption(object):
                     "backup_compression_level 10 unsupported by pg_basebackup compression gzip"
                 ],
             ),
+            (
+                {
+                    "backup_compression": "gzip",
+                    "backup_compression_level": 9,
+                    "backup_compression_workers": 3,
+                },
+                ["backup_compression_workers is not compatible with compression gzip"],
+            ),
         ],
     )
     def test_validate(self, compression_options, expected_errors):
@@ -678,6 +695,16 @@ class TestLZ4PgBaseBackupCompressionOption(object):
                     "backup_compression_level 14 unsupported by pg_basebackup compression lz4",
                 ],
             ),
+            (
+                "15",
+                14000,
+                {
+                    "backup_compression": "lz4",
+                    "backup_compression_level": 9,
+                    "backup_compression_workers": 2,
+                },
+                ["backup_compression_workers is not compatible with compression lz4"],
+            ),
         ],
     )
     def test_validate(
@@ -687,6 +714,89 @@ class TestLZ4PgBaseBackupCompressionOption(object):
         # GIVEN compression options
         compression_config = get_compression_config(compression_options)
         compression_option = LZ4PgBaseBackupCompressionOption(compression_config)
+        # AND a remote_status object
+        remote_status = {"pg_basebackup_version": client_version}
+        # WHEN the compression is validated
+        validation_issues = compression_option.validate(server_version, remote_status)
+        # THEN issues should match expected ones if any
+        assert len(validation_issues) == len(expected_errors)
+        assert sorted(validation_issues) == sorted(expected_errors)
+
+
+class TestZSTDPgBaseBackupCompressionOption(object):
+    @pytest.mark.parametrize(
+        ("client_version", "server_version", "compression_options", "expected_errors"),
+        [
+            (
+                "15",
+                15000,
+                {"backup_compression": "zstd", "backup_compression_level": 1},
+                [],
+            ),
+            (
+                "15",
+                14000,
+                {"backup_compression": "zstd", "backup_compression_level": 22},
+                [],
+            ),
+            (
+                "15",
+                14000,
+                {
+                    "backup_compression": "zstd",
+                    "backup_compression_level": 22,
+                    "backup_compression_workers": 0,
+                },
+                [],
+            ),
+            (
+                "15",
+                15000,
+                {"backup_compression": "zstd", "backup_compression_level": 0},
+                [
+                    "backup_compression_level 0 unsupported by pg_basebackup compression zstd"
+                ],
+            ),
+            (
+                "15",
+                15000,
+                {"backup_compression": "zstd", "backup_compression_level": 23},
+                [
+                    "backup_compression_level 23 unsupported by pg_basebackup compression zstd"
+                ],
+            ),
+            (
+                "14",
+                15000,
+                {"backup_compression": "zstd", "backup_compression_level": 23},
+                [
+                    "backup_compression = zstd requires pg_basebackup 15 or greater",
+                    "backup_compression_level 23 unsupported by pg_basebackup compression zstd",
+                ],
+            ),
+            (
+                "14",
+                15000,
+                {
+                    "backup_compression": "zstd",
+                    "backup_compression_level": 23,
+                    "backup_compression_workers": -1,
+                },
+                [
+                    "backup_compression = zstd requires pg_basebackup 15 or greater",
+                    "backup_compression_level 23 unsupported by pg_basebackup compression zstd",
+                    "backup_compression_workers should be a positive integer: '-1' is invalid",
+                ],
+            ),
+        ],
+    )
+    def test_validate(
+        self, client_version, server_version, compression_options, expected_errors
+    ):
+        """Verifies supported config options pass validation."""
+        # GIVEN compression options
+        compression_config = get_compression_config(compression_options)
+        compression_option = ZSTDPgBaseBackupCompressionOption(compression_config)
         # AND a remote_status object
         remote_status = {"pg_basebackup_version": client_version}
         # WHEN the compression is validated
@@ -971,7 +1081,7 @@ class TestLZ4Compression(object):
         Verifies an exception is thrown if get_file_content is called on a file which does
         not exist.
         """
-        # Given a tar.gz compressed archive on disk containing specified files (or missing in that case)
+        # Given a tar.lz4 compressed archive on disk containing specified files (or missing in that case)
         archive_path = "/path/to/archive"
         missing_file_name = "label"
         label_file_path_in_archive = os.path.join("label/file/path", missing_file_name)
@@ -1003,4 +1113,145 @@ class TestLZ4Compression(object):
         # SHOULD Raise an exception
         with pytest.raises(FileNotFoundException) as exc:
             lz4_compression.get_file_content(label_file_path_in_archive, archive_path)
+        assert expected_exception_message == str(exc.value)
+
+
+class TestZSTDCompression(object):
+    @pytest.mark.parametrize(*COMMON_UNCOMPRESS_ARGS)
+    def test_uncompress(self, src, dst, exclude, include, expected_error):
+        # GIVEN a ZSTDCompression object
+        command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = ("all good", "")
+        zstd_compression = ZSTDCompression(command)
+
+        # WHEN uncompress is called with the source and destination
+        # THEN the command is called once
+        # AND if we expect an error, that error is raised
+        if expected_error is not None:
+            with pytest.raises(ValueError):
+                zstd_compression.uncompress(
+                    src, dst, exclude=exclude, include_args=include
+                )
+            # THEN command.cmd was not called
+            command.cmd.assert_not_called()
+        # OR if we don't expect an error
+        else:
+            zstd_compression.uncompress(src, dst, exclude=exclude, include_args=include)
+            # THEN command.cmd was called
+            assert command.cmd.called_once()
+            # AND the first argument was "tar"
+            assert command.cmd.call_args_list[0][0][0] == "tar"
+            # AND the basic arguments are present
+            common_args = command.cmd.call_args_list[0][1]["args"][:6]
+            specific_args = command.cmd.call_args_list[0][1]["args"][6:]
+            assert common_args == [
+                "--use-compress-program",
+                "zstd",
+                "-xf",
+                src,
+                "--directory",
+                dst,
+            ]
+            # AND if we expected exclude args they are present
+            remaining_args = " ".join(specific_args)
+            if exclude is not None:
+                for exclude_arg in exclude:
+                    assert "--exclude %s" % exclude_arg in remaining_args
+            # AND if we expected include args they are present
+            if include is not None:
+                for include_arg in include:
+                    assert include_arg in remaining_args
+
+    def test_tar_failure_raises_exception(self):
+        """Verify a nonzero return code from tar raises an exception"""
+        # GIVEN a ZSTDCompression object
+        # AND a tar command which returns status 2 and an error
+        command = mock.Mock()
+        command.cmd.return_value = 2
+        command.get_last_output.return_value = ("", "some error")
+        zstd_compression = ZSTDCompression(command)
+
+        # WHEN uncompress is called
+        # THEN a CommandFailedException is raised
+        with pytest.raises(CommandFailedException) as exc:
+            zstd_compression.uncompress("/path/to/src", "/path/to/dst")
+
+        # AND the exception message contains the command stderr
+        assert "some error" in str(exc.value)
+
+    def test_get_file_content(self):
+        """
+        Cannot create a tar.zst to actually test this without installing dependency. So we fake it
+        :param tmpdir:
+        :return:
+        """
+        # Given a tar.zst compressed archive on disk containing specified files
+        archive_path = "/path/to/archive"
+        label_file_name = "label"
+        label_file_path_in_archive = os.path.join("label/file/path", label_file_name)
+        file_label_content = "expected file label content"
+
+        # AND a Mock Command
+        command = mock.Mock()
+        command.cmd.return_value = 0
+        command.get_last_output.return_value = (file_label_content, "")
+        # THEN getting a specific file content format the archive with a ZSTDCompression instance
+        zstd_compression = ZSTDCompression(command)
+        read_content = zstd_compression.get_file_content(
+            label_file_path_in_archive, archive_path
+        )
+        # SHOULD retrieve the expected content
+        assert file_label_content == read_content
+
+        # AND command.cmd was called
+        args = [
+            "--use-compress-program",
+            "zstd",
+            "-xf",
+            archive_path + ".tar.zst",
+            "-O",
+            label_file_path_in_archive,
+            "--occurrence",
+        ]
+        command.cmd.assert_called_once()
+        command.cmd.assert_called_once_with("tar", args=args)
+
+    def test_get_file_content_file_not_found(self):
+        """
+        Verifies an exception is thrown if get_file_content is called on a file which does
+        not exist.
+        """
+        # Given a tar.zst compressed archive on disk containing specified files (or missing in that case)
+        archive_path = "/path/to/archive"
+        missing_file_name = "label"
+        label_file_path_in_archive = os.path.join("label/file/path", missing_file_name)
+
+        # AND a Mock Command that simulates tar response in case of missing file.
+        command = mock.Mock()
+        command.cmd.return_value = 1
+        expected_exception_message = (
+            "tar: base/%s: Not found in archive\n"
+            "tar: Error exit delayed from previous errors.\n"
+            "archive name: %s.tar.zst"
+            % (
+                missing_file_name,
+                archive_path,
+            )
+        )
+        tar_error_message = (
+            "tar: base/%s: Not found in archive\n"
+            "tar: Error exit delayed from previous errors.\n" % missing_file_name
+        )
+        command.get_last_output.return_value = (
+            "",
+            tar_error_message,
+        )
+        # AND getting a specific file content format the archive with a ZSTDCompression instance
+        zstd_compression = ZSTDCompression(command)
+
+        # THEN getting missing file content
+        # SHOULD Raise an exception
+        with pytest.raises(FileNotFoundException) as exc:
+            zstd_compression.get_file_content(label_file_path_in_archive, archive_path)
         assert expected_exception_message == str(exc.value)

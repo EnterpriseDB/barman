@@ -241,6 +241,7 @@ def build_config_dictionary(config_keys=None):
         "backup_compression_format": None,
         "backup_compression_level": None,
         "backup_compression_location": None,
+        "backup_compression_workers": None,
         "backup_directory": "/some/barman/home/main",
         "backup_options": BackupOptions("", "", ""),
         "bandwidth_limit": None,
@@ -328,6 +329,7 @@ def get_compression_config(compression_options):
         "backup_compression_format": None,
         "backup_compression_level": None,
         "backup_compression_location": None,
+        "backup_compression_workers": None,
     }
     options.update(compression_options)
     return PgBaseBackupCompressionConfig(
@@ -335,6 +337,7 @@ def get_compression_config(compression_options):
         options["backup_compression_format"],
         options["backup_compression_level"],
         options["backup_compression_location"],
+        options["backup_compression_workers"],
     )
 
 
