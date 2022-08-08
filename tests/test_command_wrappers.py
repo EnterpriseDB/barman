@@ -1257,7 +1257,9 @@ class TestPgBaseBackup(object):
             # --compress=gzip and --format=tar arguments.
             # We do not expect the PG<15 --gzip style option.
             (
-                mock.Mock(type="gzip", format=None, level=None, location=None),
+                mock.Mock(
+                    type="gzip", format=None, level=None, location=None, workers=None
+                ),
                 ["--compress=gzip", "--format=tar"],
                 ["--gzip"],
             ),
@@ -1265,48 +1267,93 @@ class TestPgBaseBackup(object):
             # --compress=gzip:level=5 and --format=tar arguments.
             # We do not expect the PG<15 --gzip style option.
             (
-                mock.Mock(type="gzip", format=None, level=5, location=None),
+                mock.Mock(
+                    type="gzip", format=None, level=5, location=None, workers=None
+                ),
                 ["--compress=gzip:level=5", "--format=tar"],
                 ["--gzip"],
             ),
             # If compression location is specified we expect to see it
             # prefixing the compression algorithm.
             (
-                mock.Mock(type="gzip", format=None, level=5, location="client"),
+                mock.Mock(
+                    type="gzip", format=None, level=5, location="client", workers=None
+                ),
                 ["--compress=client-gzip:level=5", "--format=tar"],
                 ["--gzip"],
             ),
             (
-                mock.Mock(type="gzip", format=None, level=5, location="server"),
+                mock.Mock(
+                    type="gzip", format=None, level=5, location="server", workers=None
+                ),
                 ["--compress=server-gzip:level=5", "--format=tar"],
                 ["--gzip"],
             ),
             # If compression format is specified it should be used as the --format
             # value
             (
-                mock.Mock(type="gzip", format="tar", level=None, location="server"),
+                mock.Mock(
+                    type="gzip",
+                    format="tar",
+                    level=None,
+                    location="server",
+                    workers=None,
+                ),
                 ["--compress=server-gzip", "--format=tar"],
                 ["--gzip"],
             ),
             (
-                mock.Mock(type="gzip", format="plain", level=None, location="server"),
+                mock.Mock(
+                    type="gzip",
+                    format="plain",
+                    level=None,
+                    location="server",
+                    workers=None,
+                ),
                 ["--compress=server-gzip", "--format=plain"],
                 ["--gzip"],
             ),
             # lz4 tests
             (
-                mock.Mock(type="lz4", format="tar", level=None, location="server"),
+                mock.Mock(
+                    type="lz4",
+                    format="tar",
+                    level=None,
+                    location="server",
+                    workers=None,
+                ),
                 ["--compress=server-lz4", "--format=tar"],
                 [],
             ),
             (
-                mock.Mock(type="lz4", format="tar", level=7, location="server"),
+                mock.Mock(
+                    type="lz4", format="tar", level=7, location="server", workers=None
+                ),
                 ["--compress=server-lz4:level=7", "--format=tar"],
+                [],
+            ),
+            # zstd tests
+            (
+                mock.Mock(
+                    type="zstd",
+                    format="plain",
+                    level=None,
+                    location="server",
+                    workers=None,
+                ),
+                ["--compress=server-zstd", "--format=plain"],
+                [],
+            ),
+            (
+                mock.Mock(
+                    type="zstd", format="tar", level=7, location="server", workers=3
+                ),
+                ["--compress=server-zstd:level=7,workers=3", "--format=tar"],
                 [],
             ),
         ],
     )
-    def test_compression_gzip_version_gte_15(
+    def test_compression_algo_version_gte_15(
         self, compression_config, expected_args, unexpected_args
     ):
         """

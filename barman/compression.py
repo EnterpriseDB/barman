@@ -465,6 +465,7 @@ def get_pg_basebackup_compression(server):
         server.config.backup_compression_format,
         server.config.backup_compression_level,
         server.config.backup_compression_location,
+        server.config.backup_compression_workers,
     )
 
     if server.config.backup_compression == GZipCompression.name:
@@ -484,6 +485,14 @@ def get_pg_basebackup_compression(server):
         return PgBaseBackupCompression(
             pg_base_backup_cfg, base_backup_compression_option, compression
         )
+    if server.config.backup_compression == ZSTDCompression.name:
+        base_backup_compression_option = ZSTDPgBaseBackupCompressionOption(
+            pg_base_backup_cfg
+        )
+        compression = ZSTDCompression(unix_command_factory())
+        return PgBaseBackupCompression(
+            pg_base_backup_cfg, base_backup_compression_option, compression
+        )
     # We got to the point where the compression is not handled
     raise CompressionException(
         "Barman does not support pg_basebackup compression: %s"
@@ -500,11 +509,13 @@ class PgBaseBackupCompressionConfig(object):
         backup_compression_format,
         backup_compression_level,
         backup_compression_location,
+        backup_compression_workers,
     ):
         self.type = backup_compression
         self.format = backup_compression_format
         self.level = backup_compression_level
         self.location = backup_compression_location
+        self.workers = backup_compression_workers
 
 
 class PgBaseBackupCompressionOption(object):
@@ -570,6 +581,11 @@ class GZipPgBaseBackupCompressionOption(PgBaseBackupCompressionOption):
                 "backup_compression_level %d unsupported by "
                 "pg_basebackup compression %s" % (self.config.level, self.config.type)
             )
+        if self.config.workers is not None:
+            issues.append(
+                "backup_compression_workers is not compatible with compression %s"
+                % self.config.type
+            )
         return issues
 
 
@@ -586,7 +602,7 @@ class LZ4PgBaseBackupCompressionOption(PgBaseBackupCompressionOption):
         issues = super(LZ4PgBaseBackupCompressionOption, self).validate(
             pg_server_version, remote_status
         )
-        # "backup_location = server" requires pg_basebackup >= 15
+        # "lz4" compression requires pg_basebackup >= 15
         if remote_status["pg_basebackup_version"] < Version("15"):
             issues.append(
                 "backup_compression = %s requires "
@@ -600,6 +616,49 @@ class LZ4PgBaseBackupCompressionOption(PgBaseBackupCompressionOption):
                 "backup_compression_level %d unsupported by "
                 "pg_basebackup compression %s" % (self.config.level, self.config.type)
             )
+        if self.config.workers is not None:
+            issues.append(
+                "backup_compression_workers is not compatible with compression %s"
+                % self.config.type
+            )
+        return issues
+
+
+class ZSTDPgBaseBackupCompressionOption(PgBaseBackupCompressionOption):
+    def validate(self, pg_server_version, remote_status):
+        """
+        Validate zstd-specific options.
+
+        :param pg_server_version int: the server for which the
+          compression options should be validated.
+        :param dict remote_status: the status of the pg_basebackup command
+        :return List: List of Issues (str) or empty list
+        """
+        issues = super(ZSTDPgBaseBackupCompressionOption, self).validate(
+            pg_server_version, remote_status
+        )
+        # "zstd" compression requires pg_basebackup >= 15
+        if remote_status["pg_basebackup_version"] < Version("15"):
+            issues.append(
+                "backup_compression = %s requires "
+                "pg_basebackup 15 or greater" % self.config.type
+            )
+
+        if self.config.level is not None and (
+            self.config.level < 1 or self.config.level > 22
+        ):
+            issues.append(
+                "backup_compression_level %d unsupported by "
+                "pg_basebackup compression %s" % (self.config.level, self.config.type)
+            )
+        if self.config.workers is not None and (
+            type(self.config.workers) is not int or self.config.workers < 0
+        ):
+            issues.append(
+                "backup_compression_workers should be a positive integer: '%s' is invalid"
+                % self.config.workers
+            )
+
         return issues
 
 
@@ -818,6 +877,81 @@ class LZ4Compression(Compression):
         args = [
             "--use-compress-program",
             "lz4",
+            "-xf",
+            full_archive_name,
+            "-O",
+            filename,
+            "--occurrence",
+        ]
+        ret = self.command.cmd("tar", args=args)
+        out, err = self.command.get_last_output()
+        if ret != 0:
+            if "Not found in archive" in err:
+                raise FileNotFoundException(
+                    err + "archive name: %s" % full_archive_name
+                )
+            else:
+                raise CommandFailedException(
+                    "Error reading %s into archive %s: (%s)"
+                    % (filename, full_archive_name, err)
+                )
+        else:
+            return out
+
+
+class ZSTDCompression(Compression):
+    name = "zstd"
+    file_extension = "tar.zst"
+
+    def __init__(self, command):
+        """
+
+        :param command: barman.fs.UnixLocalCommand
+        """
+        self.command = command
+
+    def uncompress(self, src, dst, exclude=None, include_args=None):
+        """
+
+        :param src: source file path without compression extension
+        :param dst: destination path
+        :param exclude: list of filepath in the archive to exclude from the extraction
+        :param include_args: list of filepath in the archive to extract.
+        :return:
+        """
+        if src is None or src == "":
+            raise ValueError("Source path should be a string")
+        if dst is None or dst == "":
+            raise ValueError("Destination path should be a string")
+        exclude = [] if exclude is None else exclude
+        exclude_args = []
+        for name in exclude:
+            exclude_args.append("--exclude")
+            exclude_args.append(name)
+        include_args = [] if include_args is None else include_args
+        args = ["--use-compress-program", "zstd", "-xf", src, "--directory", dst]
+        args.extend(exclude_args)
+        args.extend(include_args)
+        ret = self.command.cmd("tar", args=args)
+        out, err = self.command.get_last_output()
+        if ret != 0:
+            raise CommandFailedException(
+                "Error decompressing %s into %s: %s" % (src, dst, err)
+            )
+        else:
+            return self.command.get_last_output()
+
+    def get_file_content(self, filename, archive):
+        """
+
+        :param filename: str file to search for in the archive (requires its full path within the archive)
+        :param archive: str archive path/name without extension
+        :return: string content
+        """
+        full_archive_name = "%s.%s" % (archive, self.file_extension)
+        args = [
+            "--use-compress-program",
+            "zstd",
             "-xf",
             full_archive_name,
             "-O",

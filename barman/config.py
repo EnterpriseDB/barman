@@ -71,7 +71,7 @@ BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync"]
 CREATE_SLOT_VALUES = ["manual", "auto"]
 
 # Config values relating to pg_basebackup compression
-BASEBACKUP_COMPRESSIONS = ["gzip", "lz4"]
+BASEBACKUP_COMPRESSIONS = ["gzip", "lz4", "zstd"]
 
 
 class CsvOption(set):
@@ -417,6 +417,7 @@ class ServerConfig(object):
         "backup_compression_format",
         "backup_compression_level",
         "backup_compression_location",
+        "backup_compression_workers",
         "backup_directory",
         "backup_method",
         "backup_options",
@@ -491,6 +492,7 @@ class ServerConfig(object):
         "backup_compression_format",
         "backup_compression_level",
         "backup_compression_location",
+        "backup_compression_workers",
         "backup_method",
         "backup_options",
         "bandwidth_limit",
@@ -592,6 +594,7 @@ class ServerConfig(object):
         "backup_compression_format": parse_backup_compression_format,
         "backup_compression_level": int,
         "backup_compression_location": parse_backup_compression_location,
+        "backup_compression_workers": int,
         "backup_method": parse_backup_method,
         "backup_options": BackupOptions,
         "basebackup_retry_sleep": int,
