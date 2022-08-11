@@ -398,3 +398,9 @@ class InvalidRetentionPolicy(BarmanException):
     """
     Exception raised when a retention policy cannot be parsed.
     """
+
+
+class BackupManifestException(BarmanException):
+    """
+    Exception raised when there is a problem with the backup manifest.
+    """

@@ -1226,6 +1226,51 @@ class TestRecoveryExecutor(object):
             with closing(executor):
                 executor.recover(backup_info, destination, standby_mode=True)
 
+    @pytest.mark.parametrize("manifest_exists", (False, True))
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
+    def test_recover_rename_manifest(
+        self, command_factory_mock, manifest_exists, tmpdir
+    ):
+        # GIVEN a backup_manifest file which exists according to manifest_exists
+        command = command_factory_mock.return_value
+
+        def mock_exists(filename):
+            if filename.endswith("backup_manifest"):
+                return manifest_exists
+            else:
+                return MagicMock()
+
+        command.exists.side_effect = mock_exists
+
+        # AND a mock recovery environment
+        backup_info = testing_helpers.build_test_backup_info()
+        backup_manager = testing_helpers.build_backup_manager()
+        executor = RecoveryExecutor(backup_manager)
+        backup_info.version = 90300
+        destination = tmpdir.mkdir("destination").strpath
+
+        executor._prepare_tablespaces = MagicMock()
+        executor._backup_copy = MagicMock()
+        executor._xlog_copy = MagicMock()
+        executor._generate_recovery_conf = MagicMock()
+
+        # WHEN recover is called
+        with closing(executor):
+            executor.recover(backup_info, destination, standby_mode=None)
+
+        if manifest_exists:
+            # THEN if the manifest exists it is renamed
+            assert (
+                (
+                    "%s/backup_manifest" % destination,
+                    "%s/backup_manifest.%s" % (destination, backup_info.backup_id),
+                ),
+                {},
+            ) in command.move.call_args_list
+        else:
+            # OR if it does not exist, no attempt is made to rename it
+            command.move.assert_not_called()
+
     @mock.patch("barman.recovery_executor.fs.unix_command_factory")
     @mock.patch("barman.recovery_executor.RsyncPgData")
     @mock.patch("barman.recovery_executor.output")
@@ -1356,6 +1401,13 @@ class TestTarballRecoveryExecutor(object):
                 bwlimit=10,
                 src="%s/main/base/%s/data/base.tar.gz" % (barman_home, backup_id),
                 dst="%s/base.tar.gz" % staging_dir,
+                item_class=copy_controller_mock.return_value.PGDATA_CLASS,
+                label="pgdata",
+            ),
+            mock.call().add_file(
+                bwlimit=10,
+                src="%s/main/base/%s/data/backup_manifest" % (barman_home, backup_id),
+                dst="%s/backup_manifest" % dest,
                 item_class=copy_controller_mock.return_value.PGDATA_CLASS,
                 label="pgdata",
             ),

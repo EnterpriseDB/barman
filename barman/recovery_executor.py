@@ -203,6 +203,13 @@ class RecoveryExecutor(object):
         else:
             backup_info.save(os.path.join(dest, ".barman-recover.info"))
 
+        # Rename the backup_manifest file by adding a backup ID suffix
+        if recovery_info["cmd"].exists(os.path.join(dest, "backup_manifest")):
+            recovery_info["cmd"].move(
+                os.path.join(dest, "backup_manifest"),
+                os.path.join(dest, "backup_manifest.%s" % backup_info.backup_id),
+            )
+
         # Standby mode is not available for PostgreSQL older than 9.0
         if backup_info.version < 90000 and standby_mode:
             raise RecoveryStandbyModeException(
@@ -1322,6 +1329,13 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             label="pgdata",
             src=base_path,
             dst="%s/%s" % (dest_prefix + staging_dir, base_file),
+            item_class=controller.PGDATA_CLASS,
+            bwlimit=self.config.get_bwlimit(),
+        )
+        controller.add_file(
+            label="pgdata",
+            src=os.path.join(backup_info.get_data_directory(), "backup_manifest"),
+            dst=os.path.join(dest_prefix + dest, "backup_manifest"),
             item_class=controller.PGDATA_CLASS,
             bwlimit=self.config.get_bwlimit(),
         )

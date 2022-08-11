@@ -1524,7 +1524,10 @@ def generate_manifest(args):
     )
     backup_manifest.create_backup_manifest()
 
-    output.info("Backup %s is valid on server %s" % (args.backup_id, args.server_name))
+    output.info(
+        "Backup manifest for backup %s successfully generated for server %s"
+        % (args.backup_id, args.server_name)
+    )
     output.close_and_exit()
 
 

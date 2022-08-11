@@ -16,11 +16,10 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
-import logging
 import os
 import json
 
-from barman import output
+from barman.exceptions import BackupManifestException
 
 
 class BackupManifest:
@@ -46,13 +45,8 @@ class BackupManifest:
         """
 
         if self.file_manager.file_exist(self._get_manifest_file_path()):
-            msg = (
-                "File %s already exists. Skip file creation."
-                % self._get_manifest_file_path()
-            )
-            logging.info(msg)
-            output.info(msg)
-            return
+            msg = "File %s already exists." % self._get_manifest_file_path()
+            raise BackupManifestException(msg)
         self._create_files_metadata()
         str_manifest = self._get_manifest_str()
         # Create checksum from string without last '}' and ',' instead
