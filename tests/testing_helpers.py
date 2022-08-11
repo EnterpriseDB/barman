@@ -25,6 +25,7 @@ from dateutil import tz
 
 from barman.backup import BackupManager
 from barman.config import BackupOptions, Config
+from barman.compression import PgBaseBackupCompressionConfig
 from barman.infofile import BackupInfo, LocalBackupInfo, Tablespace, WalFileInfo
 from barman.server import Server
 from barman.utils import mkpath
@@ -314,6 +315,27 @@ def build_config_dictionary(config_keys=None):
     if config_keys is not None:
         base_config.update(config_keys)
     return base_config
+
+
+def get_compression_config(compression_options):
+    """
+    Generates a default base backup compression option updated with options to overwrite.
+    :param compression_options: dict with options to overwrite
+    :return: PgBaseBackupCompressionConfig
+    """
+    options = {
+        "backup_compression": None,
+        "backup_compression_format": None,
+        "backup_compression_level": None,
+        "backup_compression_location": None,
+    }
+    options.update(compression_options)
+    return PgBaseBackupCompressionConfig(
+        options["backup_compression"],
+        options["backup_compression_format"],
+        options["backup_compression_level"],
+        options["backup_compression_location"],
+    )
 
 
 def build_real_server(global_conf=None, main_conf=None):

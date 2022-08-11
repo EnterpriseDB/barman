@@ -270,8 +270,7 @@ class Server(RemoteStatusMixin):
                 )
             # If the PostgreSQLConnection creation fails, disable the Server
             except ConninfoException as e:
-                self.config.disabled = True
-                self.config.msg_list.append(
+                self.config.update_msg_list_and_disable_server(
                     "PostgreSQL connection: " + force_str(e).strip()
                 )
 
@@ -287,8 +286,7 @@ class Server(RemoteStatusMixin):
                     self.streaming = StreamingConnection(config.streaming_conninfo)
                 # If the StreamingConnection creation fails, disable the server
                 except ConninfoException as e:
-                    self.config.disabled = True
-                    self.config.msg_list.append(
+                    self.config.update_msg_list_and_disable_server(
                         "Streaming connection: " + force_str(e).strip()
                     )
 
@@ -306,8 +304,7 @@ class Server(RemoteStatusMixin):
                 # disable the server
                 except AttributeError as e:
                     _logger.debug(e)
-                    self.config.disabled = True
-                    self.config.msg_list.append(
+                    self.config.update_msg_list_and_disable_server(
                         "Unable to initialise the streaming archiver"
                     )
 
@@ -320,11 +317,11 @@ class Server(RemoteStatusMixin):
             # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
             # # At least one of the available archive modes should be enabled
             # if len(self.archivers) < 1:
-            #     self.config.disabled = True
-            #     self.config.msg_list.append(
+            #     self.config.update_msg_list_and_disable_server(
             #         "No archiver enabled for server '%s'. "
             #         "Please turn on 'archiver', 'streaming_archiver' or both"
-            #         % config.name)
+            #         % config.name
+            #     )
             # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
 
             # Sanity check: if file based archiver is disabled, and only
@@ -335,8 +332,7 @@ class Server(RemoteStatusMixin):
                 and self.config.streaming_archiver
                 and self.config.slot_name is None
             ):
-                self.config.disabled = True
-                self.config.msg_list.append(
+                self.config.update_msg_list_and_disable_server(
                     "Streaming-only archiver requires 'streaming_conninfo' "
                     "and 'slot_name' options to be properly configured"
                 )
@@ -376,8 +372,7 @@ class Server(RemoteStatusMixin):
                     self.archivers.append(FileWalArchiver(self.backup_manager))
                 except AttributeError as e:
                     _logger.debug(e)
-                    self.config.disabled = True
-                    self.config.msg_list.append(
+                    self.config.update_msg_list_and_disable_server(
                         "Unable to initialise the file based archiver"
                     )
 

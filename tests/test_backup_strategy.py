@@ -24,11 +24,15 @@ from io import BytesIO
 from tarfile import TarFile, TarInfo
 
 from barman.backup_executor import PostgresBackupStrategy
-from barman.compression import GZipPgBaseBackupCompression
+from barman.compression import (
+    PgBaseBackupCompression,
+    GZipPgBaseBackupCompressionOption,
+)
+from barman.exceptions import FileNotFoundException
 from barman.exceptions import BackupException
 from barman.infofile import LocalBackupInfo
 
-from testing_helpers import build_mocked_server
+from testing_helpers import build_mocked_server, get_compression_config
 
 
 def _tar_file(items):
@@ -79,17 +83,20 @@ class TestPostgresBackupStrategy(object):
         Verifies that the compression is set appropriately in backup_info when
         stopping the backup for the given compression and format.
         """
-        # GIVEN a server comfigured for pg_basebackup compression
-        server = build_mocked_server(
-            global_conf={
-                "backup_method": "postgres",
-                "backup_compression": compression,
-                "backup_compression_format": format,
-            }
-        )
+        # GIVEN a server configured for pg_basebackup compression
+        compression_options = {
+            "backup_method": "postgres",
+            "backup_compression": compression,
+            "backup_compression_format": format,
+        }
+        server = build_mocked_server(global_conf=compression_options)
+        compression_config = get_compression_config(compression_options)
+        compression_option = GZipPgBaseBackupCompressionOption(compression_config)
         # AND a PgBaseBackupCompression for the configured compression
         if compression is not None:
-            backup_compression = GZipPgBaseBackupCompression(server.config)
+            backup_compression = PgBaseBackupCompression(
+                compression_config, compression_option, mock.Mock()
+            )
         else:
             backup_compression = None
         # AND a BackupInfo representing an ongoing backup
@@ -113,31 +120,10 @@ class TestPostgresBackupStrategy(object):
         else:
             assert backup_info.compression is None
 
-    @pytest.mark.parametrize(
-        "archive_content",
-        [
-            [
-                (
-                    "backup_label",
-                    "mock_backup_label_content",
-                )
-            ],
-            [
-                ("some_other_file", "some_other_content"),
-                (
-                    "backup_label",
-                    "mock_backup_label_content",
-                ),
-            ],
-        ],
-    )
-    def test_read_backup_label_from_compressed_backup(
-        self,
-        archive_content,
-    ):
+    def test_read_backup_label_from_compressed_backup(self):
         """
         Verifies that the backup_label can be read from the backup archive
-        when PgBaseBackupCompression.open returns a readable file-like object.
+        when PgBaseBackupCompression.read_file_from_archive returns backup_label content.
         """
         expected_backup_label = "mock_backup_label_content"
         backup_archive_path = "/path/to/backup/archive"
@@ -145,9 +131,9 @@ class TestPostgresBackupStrategy(object):
         # GIVEN a (mock) PgBaseBackupCompression for the configured compression
         backup_compression = mock.Mock()
         backup_compression.type = "gzip"
-        # AND the PgBaseBackupCompression returns a file-like object containing the
-        # backup archive
-        backup_compression.open.return_value = _tar_file(archive_content)
+        # AND the PgBaseBackupCompression returns backup_label content
+        backup_compression.get_file_content.return_value = expected_backup_label
+
         # AND a BackupInfo representing an ongoing backup
         backup_info = mock.Mock()
         backup_info.compression = "gzip"
@@ -167,26 +153,15 @@ class TestPostgresBackupStrategy(object):
         )
 
         # AND PgBaseBackupCompression.open was called with the correct path
-        backup_compression.open.assert_called_once_with(
-            os.path.join(backup_archive_path, "/path/to/backup/archive", "base.tar")
+        backup_compression.get_file_content.assert_called_once_with(
+            "backup_label",
+            os.path.join(backup_archive_path, "/path/to/backup/archive", "base"),
         )
 
-    @pytest.mark.parametrize(
-        "archive_content",
-        [
-            [],
-            [
-                ("some_other_file", "some_other_content"),
-            ],
-        ],
-    )
-    def test_read_backup_label_from_compressed_backup_not_found(
-        self,
-        archive_content,
-    ):
+    def test_read_backup_label_from_compressed_backup_not_found(self):
         """
         Verifies that an exception is raised if the backup_label cannot be found
-        when PgBaseBackupCompression returns a readable file-like object.
+        when PgBaseBackupCompression.read_file_from_archive raises an exception.
         """
         backup_archive_path = "/path/to/backup/archive"
 
@@ -196,9 +171,8 @@ class TestPostgresBackupStrategy(object):
         backup_compression.with_suffix.return_value = os.path.join(
             backup_archive_path, "base.tar.gz"
         )
-        # AND the PgBaseBackupCompression returns a file-like object containing the
-        # backup archive
-        backup_compression.open.return_value = _tar_file(archive_content)
+        # AND the PgBaseBackupCompression raises an exception when trying to read file
+        backup_compression.get_file_content.side_effect = FileNotFoundException()
         # AND a BackupInfo representing an ongoing backup
         backup_info = mock.Mock()
         backup_info.compression = "gzip"

@@ -26,15 +26,17 @@ import gzip
 import logging
 import shutil
 from abc import ABCMeta, abstractmethod, abstractproperty
-from contextlib import closing, contextmanager
+from contextlib import closing
 from distutils.version import LooseVersion as Version
 
 import barman.infofile
 from barman.command_wrappers import Command
+from barman.fs import unix_command_factory
 from barman.exceptions import (
     CommandFailedException,
     CompressionException,
     CompressionIncompatibility,
+    FileNotFoundException,
 )
 from barman.utils import force_str, with_metaclass
 
@@ -44,7 +46,9 @@ _logger = logging.getLogger(__name__)
 class CompressionManager(object):
     def __init__(self, config, path):
         """
-        Compression manager
+
+        :param config: barman.config.ServerConfig
+        :param path: str
         """
         self.config = config
         self.path = path
@@ -146,6 +150,12 @@ class Compressor(with_metaclass(ABCMeta, object)):
     MAGIC = None
 
     def __init__(self, config, compression, path=None):
+        """
+
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
         self.config = config
         self.compression = compression
         self.path = path
@@ -187,6 +197,11 @@ class CommandCompressor(Compressor):
     """
 
     def __init__(self, config, compression, path=None):
+        """
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
         super(CommandCompressor, self).__init__(config, compression, path)
 
         self._compress = None
@@ -288,6 +303,12 @@ class GZipCompressor(CommandCompressor):
     MAGIC = b"\x1f\x8b\x08"
 
     def __init__(self, config, compression, path=None):
+        """
+
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
         super(GZipCompressor, self).__init__(config, compression, path)
         self._compress = self._build_command("gzip -c")
         self._decompress = self._build_command("gzip -c -d")
@@ -301,6 +322,12 @@ class PyGZipCompressor(InternalCompressor):
     MAGIC = b"\x1f\x8b\x08"
 
     def __init__(self, config, compression, path=None):
+        """
+
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
         super(PyGZipCompressor, self).__init__(config, compression, path)
 
         # Default compression level used in system gzip utility
@@ -324,6 +351,12 @@ class PigzCompressor(CommandCompressor):
     MAGIC = b"\x1f\x8b\x08"
 
     def __init__(self, config, compression, path=None):
+        """
+
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
         super(PigzCompressor, self).__init__(config, compression, path)
         self._compress = self._build_command("pigz -c")
         self._decompress = self._build_command("pigz -c -d")
@@ -337,6 +370,12 @@ class BZip2Compressor(CommandCompressor):
     MAGIC = b"\x42\x5a\x68"
 
     def __init__(self, config, compression, path=None):
+        """
+
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
         super(BZip2Compressor, self).__init__(config, compression, path)
         self._compress = self._build_command("bzip2 -c")
         self._decompress = self._build_command("bzip2 -c -d")
@@ -350,6 +389,12 @@ class PyBZip2Compressor(InternalCompressor):
     MAGIC = b"\x42\x5a\x68"
 
     def __init__(self, config, compression, path=None):
+        """
+
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
         super(PyBZip2Compressor, self).__init__(config, compression, path)
 
         # Default compression level used in system gzip utility
@@ -368,6 +413,12 @@ class CustomCompressor(CommandCompressor):
     """
 
     def __init__(self, config, compression, path=None):
+        """
+
+        :param config: barman.config.ServerConfig
+        :param compression: str compression name
+        :param path: str|None
+        """
         if (
             config.custom_compression_filter is None
             or type(config.custom_compression_filter) != str
@@ -405,40 +456,177 @@ def get_pg_basebackup_compression(server):
 
     :param barman.server.Server server: the server for which the
       PgBaseBackupCompression should be constructed
+    :return GZipPgBaseBackupCompression
     """
     if server.config.backup_compression is None:
         return
-    try:
-        return {"gzip": GZipPgBaseBackupCompression}[server.config.backup_compression](
-            server.config
+    pg_base_backup_cfg = PgBaseBackupCompressionConfig(
+        server.config.backup_compression,
+        server.config.backup_compression_format,
+        server.config.backup_compression_level,
+        server.config.backup_compression_location,
+    )
+
+    if server.config.backup_compression == GZipCompression.name:
+        # Create PgBaseBackupCompressionOption
+        base_backup_compression_option = GZipPgBaseBackupCompressionOption(
+            pg_base_backup_cfg
         )
-    except KeyError:
-        raise CompressionException(
-            "Barman does not support pg_basebackup compression: %s"
-            % server.config.backup_compression
+        compression = GZipCompression(unix_command_factory())
+        return PgBaseBackupCompression(
+            pg_base_backup_cfg, base_backup_compression_option, compression
         )
+    if server.config.backup_compression == LZ4Compression.name:
+        base_backup_compression_option = LZ4PgBaseBackupCompressionOption(
+            pg_base_backup_cfg
+        )
+        compression = LZ4Compression(unix_command_factory())
+        return PgBaseBackupCompression(
+            pg_base_backup_cfg, base_backup_compression_option, compression
+        )
+    # We got to the point where the compression is not handled
+    raise CompressionException(
+        "Barman does not support pg_basebackup compression: %s"
+        % server.config.backup_compression
+    )
 
 
-class PgBaseBackupCompression(with_metaclass(ABCMeta, object)):
+class PgBaseBackupCompressionConfig(object):
+    """Should become a dataclass"""
+
+    def __init__(
+        self,
+        backup_compression,
+        backup_compression_format,
+        backup_compression_level,
+        backup_compression_location,
+    ):
+        self.type = backup_compression
+        self.format = backup_compression_format
+        self.level = backup_compression_level
+        self.location = backup_compression_location
+
+
+class PgBaseBackupCompressionOption(object):
+    """This class is in charge of validating pg_basebackup compression options"""
+
+    def __init__(self, pg_base_backup_config):
+        """
+
+        :param pg_base_backup_config: PgBaseBackupCompressionConfig
+        """
+        self.config = pg_base_backup_config
+
+    def validate(self, pg_server_version, remote_status):
+        """
+        Validate pg_basebackup compression options.
+
+        :param pg_server_version int: the server for which the
+          compression options should be validated.
+        :param dict remote_status: the status of the pg_basebackup command
+        :return List: List of Issues (str) or empty list
+        """
+        issues = []
+        if self.config.location is not None and self.config.location == "server":
+            # "backup_location = server" requires pg_basebackup >= 15
+            if remote_status["pg_basebackup_version"] < Version("15"):
+                issues.append(
+                    "backup_compression_location = server requires "
+                    "pg_basebackup 15 or greater"
+                )
+            # "backup_location = server" requires PostgreSQL >= 15
+            if pg_server_version < 150000:
+                issues.append(
+                    "backup_compression_location = server requires "
+                    "PostgreSQL 15 or greater"
+                )
+
+        # plain backup format is only allowed when compression is on the server
+        if self.config.format == "plain" and self.config.location != "server":
+            issues.append(
+                "backup_compression_format plain is not compatible with "
+                "backup_compression_location %s" % self.config.location
+            )
+        return issues
+
+
+class GZipPgBaseBackupCompressionOption(PgBaseBackupCompressionOption):
+    def validate(self, pg_server_version, remote_status):
+        """
+        Validate gzip-specific options.
+
+        :param pg_server_version int: the server for which the
+          compression options should be validated.
+        :param dict remote_status: the status of the pg_basebackup command
+        :return List: List of Issues (str) or empty list
+        """
+        issues = super(GZipPgBaseBackupCompressionOption, self).validate(
+            pg_server_version, remote_status
+        )
+        if self.config.level is not None and (
+            self.config.level < 1 or self.config.level > 9
+        ):
+            issues.append(
+                "backup_compression_level %d unsupported by "
+                "pg_basebackup compression %s" % (self.config.level, self.config.type)
+            )
+        return issues
+
+
+class LZ4PgBaseBackupCompressionOption(PgBaseBackupCompressionOption):
+    def validate(self, pg_server_version, remote_status):
+        """
+        Validate lz4-specific options.
+
+        :param pg_server_version int: the server for which the
+          compression options should be validated.
+        :param dict remote_status: the status of the pg_basebackup command
+        :return List: List of Issues (str) or empty list
+        """
+        issues = super(LZ4PgBaseBackupCompressionOption, self).validate(
+            pg_server_version, remote_status
+        )
+        # "backup_location = server" requires pg_basebackup >= 15
+        if remote_status["pg_basebackup_version"] < Version("15"):
+            issues.append(
+                "backup_compression = %s requires "
+                "pg_basebackup 15 or greater" % self.config.type
+            )
+
+        if self.config.level is not None and (
+            self.config.level < 1 or self.config.level > 12
+        ):
+            issues.append(
+                "backup_compression_level %d unsupported by "
+                "pg_basebackup compression %s" % (self.config.level, self.config.type)
+            )
+        return issues
+
+
+class PgBaseBackupCompression(object):
     """
     Represents the pg_basebackup compression options and provides functionality
     required by the backup process which depends on those options.
+    This is a facade that interacts with appropriate classes
     """
 
-    def __init__(self, config):
+    def __init__(
+        self,
+        pg_basebackup_compression_cfg,
+        pg_basebackup_compression_option,
+        compression,
+    ):
         """
-        Constructor for the PgBaseBackupCompression abstract base class.
+        Constructor for the PgBaseBackupCompression facade that handles base_backup class related.
 
-        :param barman.config.ServerConfig config: the server configuration
+        :param pg_basebackup_compression_cfg PgBaseBackupCompressionConfig: pg_basebackup compression  configuration
+        :param pg_basebackup_compression_option PgBaseBackupCompressionOption:
+        :param compression Compression:
+
         """
-        self.type = config.backup_compression
-        self.format = config.backup_compression_format
-        self.level = config.backup_compression_level
-        self.location = config.backup_compression_location
-
-    @abstractproperty
-    def suffix(self):
-        """The filename suffix expected for this compression"""
+        self.config = pg_basebackup_compression_cfg
+        self.options = pg_basebackup_compression_option
+        self.compression = compression
 
     def with_suffix(self, basename):
         """
@@ -447,76 +635,206 @@ class PgBaseBackupCompression(with_metaclass(ABCMeta, object)):
         :param str basename: The basename (without compression suffix) of the
           file to be opened.
         """
-        return ".".join((basename, self.suffix))
+        return "%s.%s" % (basename, self.compression.file_extension)
 
-    @abstractmethod
-    @contextmanager
-    def open(self, basename):
+    def get_file_content(self, filename, archive):
         """
-        Open file at path/basename for reading.
-
-        :param str basename: The basename (without compression suffix) of the
-          file to be opened.
+        Returns archive specific file content
+        :param filename: str
+        :param archive: str
+        :return: str
         """
+        return self.compression.get_file_content(filename, archive)
 
-    def validate(self, server, remote_status):
+    def validate(self, pg_server_version, remote_status):
         """
         Validate pg_basebackup compression options.
 
-        :param barman.server.Server server: the server for which the
+        :param pg_server_version int: the server for which the
           compression options should be validated.
         :param dict remote_status: the status of the pg_basebackup command
+        :return List: List of Issues (str) or empty list
         """
-        if self.location is not None and self.location == "server":
-            # "backup_location = server" requires pg_basebackup >= 15
-            if remote_status["pg_basebackup_version"] < Version("15"):
-                server.config.disabled = True
-                server.config.msg_list.append(
-                    "backup_compression_location = server requires "
-                    "pg_basebackup 15 or greater"
-                )
-            # "backup_location = server" requires PostgreSQL >= 15
-            if server.postgres.server_version < 150000:
-                server.config.disabled = True
-                server.config.msg_list.append(
-                    "backup_compression_location = server requires "
-                    "PostgreSQL 15 or greater"
-                )
+        return self.options.validate(pg_server_version, remote_status)
 
-        # plain backup format is only allowed when compression is on the server
-        if self.format == "plain" and self.location != "server":
-            server.config.disabled = True
-            server.config.msg_list.append(
-                "backup_compression_format plain is not compatible with "
-                "backup_compression_location %s" % self.location
+
+class Compression(with_metaclass(ABCMeta, object)):
+    """
+    Abstract class meant to represent compression interface
+    """
+
+    @abstractproperty
+    def name(self):
+        """
+
+        :return:
+        """
+
+    @abstractproperty
+    def file_extension(self):
+        """
+
+        :return:
+        """
+
+    @abstractmethod
+    def uncompress(self, src, dst, exclude=None, include_args=None):
+        """
+
+        :param src: source file path without compression extension
+        :param dst: destination path
+        :param exclude: list of filepath in the archive to exclude from the extraction
+        :param include_args: list of filepath in the archive to extract.
+        :return:
+        """
+
+    @abstractmethod
+    def get_file_content(self, filename, archive):
+        """
+
+        :param filename: str file to search for in the archive (requires its full path within the archive)
+        :param archive: str archive path/name without extension
+        :return: string content
+        """
+
+
+class GZipCompression(Compression):
+    name = "gzip"
+    file_extension = "tar.gz"
+
+    def __init__(self, command):
+        """
+
+        :param command: barman.fs.UnixLocalCommand
+        """
+        self.command = command
+
+    def uncompress(self, src, dst, exclude=None, include_args=None):
+        """
+
+        :param src: source file path without compression extension
+        :param dst: destination path
+        :param exclude: list of filepath in the archive to exclude from the extraction
+        :param include_args: list of filepath in the archive to extract.
+        :return:
+        """
+        if src is None or src == "":
+            raise ValueError("Source path should be a string")
+        if dst is None or dst == "":
+            raise ValueError("Destination path should be a string")
+        exclude = [] if exclude is None else exclude
+        exclude_args = []
+        for name in exclude:
+            exclude_args.append("--exclude")
+            exclude_args.append(name)
+        include_args = [] if include_args is None else include_args
+        args = ["-xzf", src, "--directory", dst]
+        args.extend(exclude_args)
+        args.extend(include_args)
+        ret = self.command.cmd("tar", args=args)
+        out, err = self.command.get_last_output()
+        if ret != 0:
+            raise CommandFailedException(
+                "Error decompressing %s into %s: %s" % (src, dst, err)
             )
+        else:
+            return self.command.get_last_output()
 
-
-class GZipPgBaseBackupCompression(PgBaseBackupCompression):
-    suffix = "gz"
-
-    @contextmanager
-    def open(self, basename):
+    def get_file_content(self, filename, archive):
         """
-        Open file at path/basename for reading, uncompressing with the GZip algorithm.
 
-        :param str basename: The basename (without compression suffix) of the
-          file to be opened.
+        :param filename: str file to search for in the archive (requires its full path within the archive)
+        :param archive: str archive path/name without extension
+        :return: string content
         """
-        yield gzip.open(self.with_suffix(basename), "rb")
+        full_archive_name = "%s.%s" % (archive, self.file_extension)
+        args = ["-xzf", full_archive_name, "-O", filename, "--occurrence"]
+        ret = self.command.cmd("tar", args=args)
+        out, err = self.command.get_last_output()
+        if ret != 0:
+            if "Not found in archive" in err:
+                raise FileNotFoundException(
+                    err + "archive name: %s" % full_archive_name
+                )
+            else:
+                raise CommandFailedException(
+                    "Error reading %s into archive %s: (%s)"
+                    % (filename, full_archive_name, err)
+                )
+        else:
+            return out
 
-    def validate(self, server, remote_status):
-        """
-        Validate gzip-specific options.
 
-        :param barman.server.Server server: the server for which the
-          compression options should be validated.
-        :param dict remote_status: the status of the pg_basebackup command
+class LZ4Compression(Compression):
+    name = "lz4"
+    file_extension = "tar.lz4"
+
+    def __init__(self, command):
         """
-        super(GZipPgBaseBackupCompression, self).validate(server, remote_status)
-        if self.level is not None and (self.level < 1 or self.level > 9):
-            server.config.disabled = True
-            server.config.msg_list.append(
-                "backup_compression_level %d unsupported by "
-                "pg_basebackup compression %s" % (self.level, self.type)
+
+        :param command: barman.fs.UnixLocalCommand
+        """
+        self.command = command
+
+    def uncompress(self, src, dst, exclude=None, include_args=None):
+        """
+
+        :param src: source file path without compression extension
+        :param dst: destination path
+        :param exclude: list of filepath in the archive to exclude from the extraction
+        :param include_args: list of filepath in the archive to extract.
+        :return:
+        """
+        if src is None or src == "":
+            raise ValueError("Source path should be a string")
+        if dst is None or dst == "":
+            raise ValueError("Destination path should be a string")
+        exclude = [] if exclude is None else exclude
+        exclude_args = []
+        for name in exclude:
+            exclude_args.append("--exclude")
+            exclude_args.append(name)
+        include_args = [] if include_args is None else include_args
+        args = ["--use-compress-program", "lz4", "-xf", src, "--directory", dst]
+        args.extend(exclude_args)
+        args.extend(include_args)
+        ret = self.command.cmd("tar", args=args)
+        out, err = self.command.get_last_output()
+        if ret != 0:
+            raise CommandFailedException(
+                "Error decompressing %s into %s: %s" % (src, dst, err)
             )
+        else:
+            return self.command.get_last_output()
+
+    def get_file_content(self, filename, archive):
+        """
+
+        :param filename: str file to search for in the archive (requires its full path within the archive)
+        :param archive: str archive path/name without extension
+        :return: string content
+        """
+        full_archive_name = "%s.%s" % (archive, self.file_extension)
+        args = [
+            "--use-compress-program",
+            "lz4",
+            "-xf",
+            full_archive_name,
+            "-O",
+            filename,
+            "--occurrence",
+        ]
+        ret = self.command.cmd("tar", args=args)
+        out, err = self.command.get_last_output()
+        if ret != 0:
+            if "Not found in archive" in err:
+                raise FileNotFoundException(
+                    err + "archive name: %s" % full_archive_name
+                )
+            else:
+                raise CommandFailedException(
+                    "Error reading %s into archive %s: (%s)"
+                    % (filename, full_archive_name, err)
+                )
+        else:
+            return out

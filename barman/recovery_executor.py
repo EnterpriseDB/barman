@@ -22,7 +22,6 @@ This module contains the methods necessary to perform a recovery
 
 from __future__ import print_function
 
-from abc import ABCMeta, abstractmethod, abstractproperty
 import collections
 import datetime
 import logging
@@ -50,9 +49,10 @@ from barman.exceptions import (
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
 )
+from barman.compression import GZipCompression, LZ4Compression
 import barman.fs as fs
 from barman.infofile import BackupInfo, LocalBackupInfo
-from barman.utils import force_str, mkpath, with_metaclass
+from barman.utils import force_str, mkpath
 
 # generic logger for this module
 _logger = logging.getLogger(__name__)
@@ -1426,74 +1426,10 @@ def recovery_executor_factory(backup_manager, command, compression=None):
         return RecoveryExecutor(backup_manager)
     if compression == GZipCompression.name:
         return TarballRecoveryExecutor(backup_manager, GZipCompression(command))
+    if compression == LZ4Compression.name:
+        return TarballRecoveryExecutor(backup_manager, LZ4Compression(command))
 
     raise AttributeError("Unexpected compression format: %s" % compression)
-
-
-class Compression(with_metaclass(ABCMeta, object)):
-    """
-    Class meant to manage compression action using external program with linux command
-    """
-
-    @abstractproperty
-    def name(self):
-        """
-
-        :return:
-        """
-
-    @abstractproperty
-    def file_extension(self):
-        """
-
-        :return:
-        """
-
-    @abstractmethod
-    def uncompress(self, src, dst, exclude=[], include_args=[]):
-        """
-
-        :param src:
-        :param dst:
-        :param exclude:
-        :param include_args:
-        :return:
-        """
-
-
-class GZipCompression(Compression):
-    name = "gzip"
-    file_extension = "tar.gz"
-
-    def __init__(self, command):
-        """
-
-        :param command: barman.fs.UnixLocalCommand
-        """
-        self.command = command
-
-    def uncompress(self, src, dst, exclude=None, include_args=None):
-        if src is None or src == "":
-            raise ValueError("Source path should be a string")
-        if dst is None or dst == "":
-            raise ValueError("Destination path should be a string")
-        exclude = [] if exclude is None else exclude
-        exclude_args = []
-        for name in exclude:
-            exclude_args.append("--exclude")
-            exclude_args.append(name)
-        include_args = [] if include_args is None else include_args
-        args = ["xfz", src, "--directory", dst]
-        args.extend(exclude_args)
-        args.extend(include_args)
-        ret = self.command.cmd("tar", args=args)
-        out, err = self.command.get_last_output()
-        if ret != 0:
-            raise CommandFailedException(
-                "Error decompressing %s into %s: %s" % (src, dst, err)
-            )
-        else:
-            return self.command.get_last_output()
 
 
 class ConfigurationFileMangeler:

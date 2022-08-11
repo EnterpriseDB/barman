@@ -1196,7 +1196,7 @@ class TestPgBaseBackup(object):
         assert ("PgBaseBackup", WARNING, err) in caplog.record_tuples
 
     @pytest.mark.parametrize(
-        ("compression", "expected_args", "unexpected_args"),
+        ("compression_config", "expected_args", "unexpected_args"),
         [
             # If no compression is provided then no compression args are expected
             (None, [], ["--gzip", "--compress", "--format"]),
@@ -1216,7 +1216,7 @@ class TestPgBaseBackup(object):
             ),
         ],
     )
-    def test_compression_gzip(self, compression, expected_args, unexpected_args):
+    def test_compression_gzip(self, compression_config, expected_args, unexpected_args):
         """
         Verifies the expected pg_basebackup options are added for the specified
         compression. Only cares whether the correct arguments are created and does
@@ -1225,6 +1225,10 @@ class TestPgBaseBackup(object):
         """
         connection_mock = mock.MagicMock()
         connection_mock.get_connection_string.return_value = "fake_connstring"
+        compression_mock = None
+        if compression_config is not None:
+            compression_mock = mock.MagicMock()
+            compression_mock.config = compression_config
 
         # GIVEN a PgBaseBackup command initialised with the specified compression
         # WHEN the wrapper is instantiated
@@ -1234,7 +1238,7 @@ class TestPgBaseBackup(object):
             connection=connection_mock,
             version="14",
             app_name="test_app_name",
-            compression=compression,
+            compression=compression_mock,
         )
 
         # THEN all expected arguments are present
@@ -1245,7 +1249,7 @@ class TestPgBaseBackup(object):
             assert not any(expected_arg == arg.split("=")[0] for arg in cmd.args)
 
     @pytest.mark.parametrize(
-        ("compression", "expected_args", "unexpected_args"),
+        ("compression_config", "expected_args", "unexpected_args"),
         [
             # If no compression is provided then no compression args are expected
             (None, [], ["--gzip", "--compress", "--format"]),
@@ -1289,16 +1293,31 @@ class TestPgBaseBackup(object):
                 ["--compress=server-gzip", "--format=plain"],
                 ["--gzip"],
             ),
+            # lz4 tests
+            (
+                mock.Mock(type="lz4", format="tar", level=None, location="server"),
+                ["--compress=server-lz4", "--format=tar"],
+                [],
+            ),
+            (
+                mock.Mock(type="lz4", format="tar", level=7, location="server"),
+                ["--compress=server-lz4:level=7", "--format=tar"],
+                [],
+            ),
         ],
     )
     def test_compression_gzip_version_gte_15(
-        self, compression, expected_args, unexpected_args
+        self, compression_config, expected_args, unexpected_args
     ):
         """
         Verifies the expected pg_basebackup options are added for pg_basebackup>=15.
         """
         connection_mock = mock.MagicMock()
         connection_mock.get_connection_string.return_value = "fake_connstring"
+        compression_mock = None
+        if compression_config is not None:
+            compression_mock = mock.MagicMock()
+            compression_mock.config = compression_config
 
         # GIVEN a PgBaseBackup command initialised with the specified compression
         # WHEN the wrapper is instantiated
@@ -1308,7 +1327,7 @@ class TestPgBaseBackup(object):
             connection=connection_mock,
             version="15",
             app_name="test_app_name",
-            compression=compression,
+            compression=compression_mock,
         )
 
         # THEN all expected arguments are present

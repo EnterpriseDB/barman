@@ -91,8 +91,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             else:
                 self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:
-            self.config.disabled = True
-            self.config.msg_list.append(force_str(e).strip())
+            self.config.update_msg_list_and_disable_server(force_str(e).strip())
 
     @property
     def mode(self):

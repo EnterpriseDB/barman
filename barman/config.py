@@ -71,7 +71,7 @@ BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync"]
 CREATE_SLOT_VALUES = ["manual", "auto"]
 
 # Config values relating to pg_basebackup compression
-BASEBACKUP_COMPRESSIONS = ["gzip"]
+BASEBACKUP_COMPRESSIONS = ["gzip", "lz4"]
 
 
 class CsvOption(set):
@@ -723,6 +723,19 @@ class ServerConfig(object):
                 bwlimit = tbl_bw_limit[tablespace.name]
 
         return bwlimit
+
+    def update_msg_list_and_disable_server(self, msg_list):
+        """
+        Will take care of upgrading msg_list
+        :param msg_list: str|list can be either a string or a list of strings
+        """
+        if not msg_list:
+            return
+        if type(msg_list) is not list:
+            msg_list = [msg_list]
+
+        self.msg_list.extend(msg_list)
+        self.disabled = True
 
 
 class Config(object):

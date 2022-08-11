@@ -971,26 +971,25 @@ class PgBaseBackup(PostgreSQLClient):
         compression_args = []
 
         if compression is not None:
-            if compression.format is not None:
-                compression_format = compression.format
+            if compression.config.format is not None:
+                compression_format = compression.config.format
             else:
                 compression_format = "tar"
             compression_args.append("--format=%s" % compression_format)
             # For clients >= 15 we use the new --compress argument format
             if version and version >= Version("15"):
                 compress_arg = "--compress="
-                if compression.location is not None:
-                    compress_arg += "%s-" % compression.location
-                compress_arg += compression.type
-                if compression.level:
-                    compress_arg += ":level=%d" % compression.level
+                if compression.config.location is not None:
+                    compress_arg += "%s-" % compression.config.location
+                compress_arg += compression.config.type
+                if compression.config.level:
+                    compress_arg += ":level=%d" % compression.config.level
                 compression_args.append(compress_arg)
             # For clients < 15 we use the old style argument format
             else:
-                compression_args.append("--%s" % compression.type)
-                if compression.level:
-                    compression_args.append("--compress=%d" % compression.level)
-
+                compression_args.append("--%s" % compression.config.type)
+                if compression.config.level:
+                    compression_args.append("--compress=%d" % compression.config.level)
         return compression_args
 
 
@@ -1201,6 +1200,8 @@ def shell_quote(arg):
     # a backslash, and then start another string using a quote character.
 
     assert arg is not None
+    if arg == "|":
+        return arg
     return "'%s'" % arg.replace("'", "'\\''")
 
 

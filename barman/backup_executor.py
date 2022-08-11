@@ -32,7 +32,6 @@ import logging
 import os
 import re
 import shutil
-from tarfile import TarFile
 from abc import ABCMeta, abstractmethod
 from functools import partial
 
@@ -52,6 +51,7 @@ from barman.exceptions import (
     PostgresConnectionError,
     PostgresIsInRecovery,
     SshCommandException,
+    FileNotFoundException,
 )
 from barman.fs import UnixLocalCommand, UnixRemoteCommand
 from barman.infofile import BackupInfo
@@ -269,9 +269,8 @@ class PostgresBackupExecutor(BackupExecutor):
         # Forbid tablespace_bandwidth_limit option.
         # It works only with rsync based backups.
         if self.config.tablespace_bandwidth_limit:
-            self.server.config.disabled = True
             # Report the error in the configuration errors message list
-            self.server.config.msg_list.append(
+            self.server.config.update_msg_list_and_disable_server(
                 "tablespace_bandwidth_limit option is not supported by "
                 "postgres backup_method"
             )
@@ -279,46 +278,57 @@ class PostgresBackupExecutor(BackupExecutor):
         # Forbid reuse_backup option.
         # It works only with rsync based backups.
         if self.config.reuse_backup in ("copy", "link"):
-            self.server.config.disabled = True
             # Report the error in the configuration errors message list
-            self.server.config.msg_list.append(
+            self.server.config.update_msg_list_and_disable_server(
                 "reuse_backup option is not supported by postgres backup_method"
             )
 
         # Forbid network_compression option.
         # It works only with rsync based backups.
         if self.config.network_compression:
-            self.server.config.disabled = True
             # Report the error in the configuration errors message list
-            self.server.config.msg_list.append(
+            self.server.config.update_msg_list_and_disable_server(
                 "network_compression option is not supported by "
                 "postgres backup_method"
             )
 
         remote_status = None
-        # bandwidth_limit option is supported by pg_basebackup executable
-        # starting from Postgres 9.4
-        if self.server.config.bandwidth_limit:
+        if self.server.config.bandwidth_limit or self.backup_compression:
             # This method is invoked too early to have a working streaming
             # connection. So we avoid caching the result by directly
             # invoking fetch_remote_status() instead of get_remote_status()
             remote_status = self.fetch_remote_status()
+
+        # bandwidth_limit option is supported by pg_basebackup executable
+        # starting from Postgres 9.4
+        if (
+            self.server.config.bandwidth_limit
+            and remote_status["pg_basebackup_bwlimit"] is False
+        ):
             # If pg_basebackup is present and it doesn't support bwlimit
             # disable the server.
-            if remote_status["pg_basebackup_bwlimit"] is False:
-                self.server.config.disabled = True
-                # Report the error in the configuration errors message list
-                self.server.config.msg_list.append(
-                    "bandwidth_limit option is not supported by "
-                    "pg_basebackup version (current: %s, required: 9.4)"
-                    % remote_status["pg_basebackup_version"]
-                )
+            # Report the error in the configuration errors message list
+            self.server.config.update_msg_list_and_disable_server(
+                "bandwidth_limit option is not supported by "
+                "pg_basebackup version (current: %s, required: 9.4)"
+                % remote_status["pg_basebackup_version"]
+            )
 
         # validate compression options
         if self.backup_compression:
-            if remote_status is None:
-                remote_status = self.fetch_remote_status()
-            self.backup_compression.validate(self.server, remote_status)
+            self._validate_compression(remote_status)
+
+    def _validate_compression(self, remote_status):
+        """
+        In charge of validating compression options
+        :param remote_status:
+        :return:
+        """
+        issues = self.backup_compression.validate(
+            self.server.postgres.server_version, remote_status
+        )
+        if issues:
+            self.server.config.update_msg_list_and_disable_server(issues)
 
     def backup(self, backup_info):
         """
@@ -1118,8 +1128,7 @@ class RsyncBackupExecutor(FsBackupExecutor):
     def validate_configuration(self):
         # Verify that backup_compression is not set
         if self.server.config.backup_compression:
-            self.server.config.disabled = True
-            self.server.config.msg_list.append(
+            self.server.config.update_msg_list_and_disable_server(
                 "backup_compression option is not supported by rsync backup_method"
             )
 
@@ -1604,8 +1613,10 @@ class PostgresBackupStrategy(BackupStrategy):
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
-        if self.backup_compression and self.backup_compression.format != "plain":
-            backup_info.set_attribute("compression", self.backup_compression.type)
+        if self.backup_compression and self.backup_compression.config.format != "plain":
+            backup_info.set_attribute(
+                "compression", self.backup_compression.config.type
+            )
 
         self._read_backup_label(backup_info)
         self._backup_info_from_backup_label(backup_info)
@@ -1634,13 +1645,10 @@ class PostgresBackupStrategy(BackupStrategy):
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
         """
-        basename = os.path.join(backup_info.get_data_directory(), "base.tar")
-        with self.backup_compression.open(basename) as f:
-            self.tar = TarFile.open(fileobj=f, mode="r|")
-            for member in self.tar:
-                if member.name == "backup_label":
-                    backup_label_fileobj = self.tar.extractfile(member)
-                    return backup_label_fileobj.read().decode("utf-8")
+        basename = os.path.join(backup_info.get_data_directory(), "base")
+        try:
+            return self.backup_compression.get_file_content("backup_label", basename)
+        except FileNotFoundException:
             raise BackupException(
                 "Could not find backup_label in %s"
                 % self.backup_compression.with_suffix(basename)
