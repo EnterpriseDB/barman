@@ -36,6 +36,7 @@ import sys
 from argparse import ArgumentTypeError
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
+from dateutil import tz
 
 from distutils.version import Version
 
@@ -251,6 +252,22 @@ def total_seconds(timedelta):
     else:
         secs = (timedelta.seconds + timedelta.days * 24 * 3600) * 10**6
         return (timedelta.microseconds + secs) / 10.0**6
+
+
+def timestamp(datetime_value):
+    """
+    Compatibility method because datetime.timestamp is not available in Python 2.7.
+
+    :param datetime.datetime datetime_value: A datetime object to be converted
+        into a timestamp.
+    :rtype: float
+    """
+    try:
+        return datetime_value.timestamp()
+    except AttributeError:
+        return total_seconds(
+            datetime_value - datetime.datetime(1970, 1, 1, tzinfo=tz.tzutc())
+        )
 
 
 def which(executable, path=None):
