@@ -37,6 +37,7 @@
   [pg-backup-api]: https://github.com/EnterpriseDB/pg-backup-api
   [config-options]: https://docs.pgbarman.org/barman.5.html#options
   [barman-downloads]: https://pgbarman.org/downloads/
+  [python-2-sunset]: https://www.python.org/doc/sunset-python-2/
 
 
   [8]: https://en.wikipedia.org/wiki/Hard_link

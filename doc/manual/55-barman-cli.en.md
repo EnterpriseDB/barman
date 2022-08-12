@@ -81,8 +81,11 @@ use:
   [azure-identity][azure-identity]
 * Google Cloud Storage: [google-cloud-storage][google-cloud-storage]
 
-**NOTE:** If you are using the Barman cloud utilities with Python 2 then you will
-need to ensure the following version requirements are met:
+**NOTE:** The latest versions of these libraries do not support python 2 due to it
+being [end-of-lfe][python-2-sunset] since Januaray 2020. If you are using the
+Barman cloud utilities on a python 2 system it is recommended you upgrade to python 3.
+If you still want to use the Barman cloud utilities with python 2 then you will need
+to ensure the following version requirements are met for each library:
 
 * `boto3<1.18.0`
 * `azure-storage-blob<12.10.0` and `azure-identity<1.8.0`
