@@ -1,7 +1,9 @@
 backup *SERVER_NAME*
 :   Perform a backup of `SERVER_NAME` using parameters specified in the
     configuration file. Specify `all` as `SERVER_NAME` to perform a backup
-    of all the configured servers.
+    of all the configured servers. You can also specify `SERVER_NAME` multiple
+    times to perform a backup of the specified servers -- e.g. `barman backup
+    SERVER_1_NAME SERVER_2_NAME`.
 
     --immediate-checkpoint
     :   forces the initial checkpoint to be done as quickly as possible.

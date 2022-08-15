@@ -20,8 +20,8 @@ files received from the streaming connection or from the
 
 ## `backup`
 
-The `backup` command takes a full backup (_base backup_) of a given
-server. It has several options that let you override the corresponding
+The `backup` command takes a full backup (_base backup_) of the given
+servers. It has several options that let you override the corresponding
 configuration parameter for the new backup. For more information,
 consult the manual page.
 
@@ -34,6 +34,10 @@ barman backup <server_name>
 > **TIP:**
 > You can use `barman backup all` to sequentially backup all your
 > configured servers.
+
+> **TIP:**
+> You can use `barman backup <server_1_name> <server_2_name>` to sequentially
+> backup both `<server_1_name>` and `<server_2_name>` servers.
 
 Barman 2.10 introduces the `-w`/`--wait` option for the `backup` command.
 When set, Barman temporarily saves the state of the backup to
