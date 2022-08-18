@@ -34,6 +34,7 @@ import dateutil.tz
 from barman import output, xlog
 from barman.annotations import KeepManager, KeepManagerMixin
 from barman.backup_executor import (
+    CloudBackupExecutor,
     PassiveBackupExecutor,
     PostgresBackupExecutor,
     RsyncBackupExecutor,
@@ -88,6 +89,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 self.executor = PostgresBackupExecutor(self)
             elif self.config.backup_method == "local-rsync":
                 self.executor = RsyncBackupExecutor(self, local_mode=True)
+            elif self.config.backup_method == "cloud":
+                self.executor = CloudBackupExecutor(self)
             else:
                 self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:

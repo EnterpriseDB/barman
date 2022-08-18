@@ -1341,6 +1341,13 @@ class RsyncBackupExecutor(FsBackupExecutor):
         return path
 
 
+class CloudBackupExecutor(BackupExecutor):
+    """Backup executor which pushes backups to cloud object stores."""
+
+    def backup(self, backup_info):
+        pass
+
+
 class BackupStrategy(with_metaclass(ABCMeta, object)):
     """
     Abstract base class for a strategy to be used by a backup executor.
