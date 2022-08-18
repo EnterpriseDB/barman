@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
+from barman.config import ServerConfig
 from barman.exceptions import BarmanException
 
 
@@ -104,14 +105,28 @@ def _make_google_cloud_interface(config, cloud_interface_kwargs):
     return GoogleCloudInterface(**cloud_interface_kwargs)
 
 
+class CloudConfig(object):
+    def __init__(self, config):
+        self.source_url = config.cloud_target_url
+        self.endpoint_url = config.cloud_endpoint_url
+        self.cloud_provider = config.cloud_provider
+        self.profile = config.cloud_profile
+
+    def __iter__(self):
+        return iter(("source_url", "endpoint_url"))
+
+
 def get_cloud_interface(config):
     """
     Factory function that creates CloudInterface for the specified cloud_provider
 
-    :param: argparse.Namespace config
+    :param: argparse.Namespace|barman.config.ServerConfig config
     :returns: A CloudInterface for the specified cloud_provider
     :rtype: CloudInterface
     """
+    if isinstance(config, ServerConfig):
+        config = CloudConfig(config)
+
     cloud_interface_kwargs = {
         "url": config.source_url if "source_url" in config else config.destination_url
     }

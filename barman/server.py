@@ -41,6 +41,9 @@ import dateutil.tz
 import barman
 from barman import output, xlog
 from barman.backup import BackupManager, CloudBackupManager, OnPremBackupManager
+from barman.clients.cloud_cli import NetworkErrorExit, OperationErrorExit
+from barman.cloud import CloudBackupCatalog
+from barman.cloud_providers import get_cloud_interface
 from barman.command_wrappers import BarmanSubProcess, Command, Rsync
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
@@ -488,6 +491,33 @@ class CloudServer(Server):
                     False,
                     hint="please set it to a higher level than 'minimal'",
                 )
+
+    # TODO reconcile this with OnPremServer.list_backups
+    # It would ideally also handle retention policies and WALs in the same way
+    # that the OnPremServer function does. We will return to this later.
+    def list_backups(self):
+        cloud_interface = get_cloud_interface(self.config)
+        with closing(cloud_interface):
+            catalog = CloudBackupCatalog(
+                cloud_interface=cloud_interface, server_name=self.config.name
+            )
+
+            if not cloud_interface.test_connectivity():
+                raise NetworkErrorExit()
+
+            if not cloud_interface.bucket_exists:
+                logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
+                raise OperationErrorExit()
+
+            backups = catalog.get_backup_list()
+
+            for key in sorted(backups.keys(), reverse=True):
+                backup = backups[key]
+
+                backup_size = backup.size or 0
+                wal_size = 0
+                rstatus = None
+                output.result("list_backup", backup, backup_size, wal_size, rstatus)
 
 
 class OnPremServer(Server):
