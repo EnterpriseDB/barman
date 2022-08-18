@@ -66,7 +66,7 @@ _SI_SUFFIX_RE = re.compile(r"""(\d+)\s*(k|Ki|M|Mi|G|Gi|T|Ti)?\s*$""")
 REUSE_BACKUP_VALUES = ("copy", "link", "off")
 
 # Possible copy methods for backups (must be all lowercase)
-BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync"]
+BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync", "cloud"]
 
 CREATE_SLOT_VALUES = ["manual", "auto"]
 
