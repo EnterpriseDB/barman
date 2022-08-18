@@ -30,6 +30,7 @@ import shutil
 import sys
 import tarfile
 import time
+from abc import ABCMeta
 from collections import namedtuple
 from contextlib import closing, contextmanager
 from glob import glob
@@ -92,6 +93,7 @@ from barman.utils import (
     mkpath,
     pretty_size,
     timeout,
+    with_metaclass,
 )
 from barman.wal_archiver import FileWalArchiver, StreamingWalArchiver, WalArchiver
 
@@ -226,15 +228,274 @@ class CheckOutputStrategy(CheckStrategy):
         output.result("check", server_name, check, status, hint, perfdata)
 
 
-class Server(RemoteStatusMixin):
+def server_factory(conf):
+    if conf.backup_method == "cloud":
+        return CloudServer(conf)
+    else:
+        return OnPremServer(conf)
+
+
+class Server(with_metaclass(ABCMeta, RemoteStatusMixin)):
+    # the strategy for the management of the results of the various checks
+    _default_check_strategy = CheckOutputStrategy()
+
+    def __init__(self, config):
+        super(Server, self).__init__()
+        self.config = config
+        self.passive_node = False
+
+    def fetch_remote_status(self):
+        """
+        Get the status of the remote server
+
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+
+        :rtype: dict[str, None|str]
+        """
+        result = {}
+        # Merge status for a postgres connection
+        if self.postgres:
+            result.update(self.postgres.get_remote_status())
+        # Merge status defined by the BackupManager
+        result.update(self.backup_manager.get_remote_status())
+        return result
+
+    def _init_retention_policies(self):
+        # Set retention policy mode
+        if self.config.retention_policy_mode != "auto":
+            _logger.warning(
+                'Unsupported retention_policy_mode "%s" for server "%s" '
+                '(fallback to "auto")'
+                % (self.config.retention_policy_mode, self.config.name)
+            )
+            self.config.retention_policy_mode = "auto"
+
+        # If retention_policy is present, enforce them
+        if self.config.retention_policy and not isinstance(
+            self.config.retention_policy, RetentionPolicy
+        ):
+            # Check wal_retention_policy
+            if self.config.wal_retention_policy != "main":
+                _logger.warning(
+                    'Unsupported wal_retention_policy value "%s" '
+                    'for server "%s" (fallback to "main")'
+                    % (self.config.wal_retention_policy, self.config.name)
+                )
+                self.config.wal_retention_policy = "main"
+            # Create retention policy objects
+            try:
+                rp = RetentionPolicyFactory.create(
+                    "retention_policy", self.config.retention_policy, server=self
+                )
+                # Reassign the configuration value (we keep it in one place)
+                self.config.retention_policy = rp
+                _logger.debug(
+                    "Retention policy for server %s: %s"
+                    % (self.config.name, self.config.retention_policy)
+                )
+                try:
+                    rp = RetentionPolicyFactory.create(
+                        "wal_retention_policy",
+                        self.config.wal_retention_policy,
+                        server=self,
+                    )
+                    # Reassign the configuration value
+                    # (we keep it in one place)
+                    self.config.wal_retention_policy = rp
+                    _logger.debug(
+                        "WAL retention policy for server %s: %s"
+                        % (self.config.name, self.config.wal_retention_policy)
+                    )
+                except InvalidRetentionPolicy:
+                    _logger.exception(
+                        'Invalid wal_retention_policy setting "%s" '
+                        'for server "%s" (fallback to "main")'
+                        % (self.config.wal_retention_policy, self.config.name)
+                    )
+                    rp = RetentionPolicyFactory.create(
+                        "wal_retention_policy", "main", server=self
+                    )
+                    self.config.wal_retention_policy = rp
+
+                self.enforce_retention_policies = True
+
+            except InvalidRetentionPolicy:
+                _logger.exception(
+                    'Invalid retention_policy setting "%s" for server "%s"'
+                    % (self.config.retention_policy, self.config.name)
+                )
+
+    def close(self):
+        """
+        Close all the open connections to PostgreSQL
+        """
+        if self.postgres:
+            self.postgres.close()
+
+    def check_retention_policy_settings(self, check_strategy):
+        """
+        Checks retention policy setting
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        check_strategy.init_check("retention policy settings")
+        config = self.config
+        if config.retention_policy and not self.enforce_retention_policies:
+            check_strategy.result(self.config.name, False, hint="see log")
+        else:
+            check_strategy.result(self.config.name, True)
+
+    def check_configuration(self, check_strategy):
+        """
+        Check for error messages in the message list
+        of the server and output eventual errors
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        check_strategy.init_check("configuration")
+        if len(self.config.msg_list):
+            check_strategy.result(self.config.name, False)
+            for conflict_paths in self.config.msg_list:
+                output.info("\t\t%s" % conflict_paths)
+
+
+class CloudServer(Server):
+    # TODO much similarity with OnPremServer
+    def __init__(self, config):
+        super(CloudServer, self).__init__(config)
+        # Initialize the main PostgreSQL connection
+        try:
+            # Check that 'conninfo' option is properly set
+            if config.conninfo is None:
+                raise ConninfoException(
+                    "Missing 'conninfo' parameter for server '%s'" % config.name
+                )
+            self.postgres = PostgreSQLConnection(
+                config.conninfo, config.immediate_checkpoint, config.slot_name
+            )
+        # If the PostgreSQLConnection creation fails, disable the Server
+        except ConninfoException as e:
+            self.config.update_msg_list_and_disable_server(
+                "PostgreSQL connection: " + force_str(e).strip()
+            )
+
+        # Initialize the backup manager
+        self.backup_manager = BackupManager(self)
+
+        # Set minimum redundancy (default 0)
+        try:
+            self.config.minimum_redundancy = int(self.config.minimum_redundancy)
+            if self.config.minimum_redundancy < 0:
+                _logger.warning(
+                    'Negative value of minimum_redundancy "%s" '
+                    'for server "%s" (fallback to "0")'
+                    % (self.config.minimum_redundancy, self.config.name)
+                )
+                self.config.minimum_redundancy = 0
+        except ValueError:
+            _logger.warning(
+                'Invalid minimum_redundancy "%s" for server "%s" '
+                '(fallback to "0")' % (self.config.minimum_redundancy, self.config.name)
+            )
+            self.config.minimum_redundancy = 0
+
+        # Initialise retention policies
+        self._init_retention_policies()
+
+    # TODO much similarity with OnPremServer
+    def check(self, check_strategy=Server._default_check_strategy):
+        """
+        Implements the 'server check' command and makes sure SSH and PostgreSQL
+        connections work properly. It checks also that backup directories exist
+        (and if not, it creates them).
+
+        The check command will time out after a time interval defined by the
+        check_timeout configuration value (default 30 seconds)
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        try:
+            with timeout(self.config.check_timeout):
+                self.check_postgres(check_strategy)
+                # Check retention policies
+                self.check_retention_policy_settings(check_strategy)
+                # Executes the backup manager set of checks
+                self.backup_manager.check(check_strategy)
+                # Check if the msg_list of the server
+                # contains messages and output eventual failures
+                self.check_configuration(check_strategy)
+        except TimeoutError:
+            # The check timed out.
+            # Add a failed entry to the check strategy for this.
+            _logger.debug(
+                "Check command timed out executing '%s' check"
+                % check_strategy.running_check
+            )
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint="barman check command timed out",
+                check="check timeout",
+            )
+
+    # TODO much similarity with OnPremServer
+    def check_postgres(self, check_strategy):
+        """
+        Checks PostgreSQL connection
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        check_strategy.init_check("PostgreSQL")
+        # Take the status of the remote server
+        remote_status = self.get_remote_status()
+        if remote_status.get("server_txt_version"):
+            check_strategy.result(self.config.name, True)
+        else:
+            check_strategy.result(self.config.name, False)
+            return
+
+        # Check for superuser privileges or
+        # privileges needed to perform backups
+        if remote_status.get("has_backup_privileges") is not None:
+            check_strategy.init_check(
+                "superuser or standard user with backup privileges"
+            )
+            if remote_status.get("has_backup_privileges"):
+                check_strategy.result(self.config.name, True)
+            else:
+                check_strategy.result(
+                    self.config.name,
+                    False,
+                    hint="privileges for PostgreSQL backup functions are "
+                    "required (see documentation)",
+                    check="no access to backup functions",
+                )
+
+        # Check wal_level parameter: must be different from 'minimal'
+        # the parameter has been introduced in postgres >= 9.0
+        if "wal_level" in remote_status:
+            check_strategy.init_check("wal_level")
+            if remote_status["wal_level"] != "minimal":
+                check_strategy.result(self.config.name, True)
+            else:
+                check_strategy.result(
+                    self.config.name,
+                    False,
+                    hint="please set it to a higher level than 'minimal'",
+                )
+
+
+class OnPremServer(Server):
     """
     This class represents the PostgreSQL server to backup.
     """
 
     XLOG_DB = "xlog.db"
-
-    # the strategy for the management of the results of the various checks
-    __default_check_strategy = CheckOutputStrategy()
 
     def __init__(self, config):
         """
@@ -242,8 +503,7 @@ class Server(RemoteStatusMixin):
 
         :param barman.config.ServerConfig config: the server configuration
         """
-        super(Server, self).__init__()
-        self.config = config
+        super(OnPremServer, self).__init__(config)
         self.path = self._build_path(self.config.path_prefix)
         self.process_manager = ProcessManager(self.config)
 
@@ -426,71 +686,6 @@ class Server(RemoteStatusMixin):
         # Initialise retention policies
         self._init_retention_policies()
 
-    def _init_retention_policies(self):
-        # Set retention policy mode
-        if self.config.retention_policy_mode != "auto":
-            _logger.warning(
-                'Unsupported retention_policy_mode "%s" for server "%s" '
-                '(fallback to "auto")'
-                % (self.config.retention_policy_mode, self.config.name)
-            )
-            self.config.retention_policy_mode = "auto"
-
-        # If retention_policy is present, enforce them
-        if self.config.retention_policy and not isinstance(
-            self.config.retention_policy, RetentionPolicy
-        ):
-            # Check wal_retention_policy
-            if self.config.wal_retention_policy != "main":
-                _logger.warning(
-                    'Unsupported wal_retention_policy value "%s" '
-                    'for server "%s" (fallback to "main")'
-                    % (self.config.wal_retention_policy, self.config.name)
-                )
-                self.config.wal_retention_policy = "main"
-            # Create retention policy objects
-            try:
-                rp = RetentionPolicyFactory.create(
-                    "retention_policy", self.config.retention_policy, server=self
-                )
-                # Reassign the configuration value (we keep it in one place)
-                self.config.retention_policy = rp
-                _logger.debug(
-                    "Retention policy for server %s: %s"
-                    % (self.config.name, self.config.retention_policy)
-                )
-                try:
-                    rp = RetentionPolicyFactory.create(
-                        "wal_retention_policy",
-                        self.config.wal_retention_policy,
-                        server=self,
-                    )
-                    # Reassign the configuration value
-                    # (we keep it in one place)
-                    self.config.wal_retention_policy = rp
-                    _logger.debug(
-                        "WAL retention policy for server %s: %s"
-                        % (self.config.name, self.config.wal_retention_policy)
-                    )
-                except InvalidRetentionPolicy:
-                    _logger.exception(
-                        'Invalid wal_retention_policy setting "%s" '
-                        'for server "%s" (fallback to "main")'
-                        % (self.config.wal_retention_policy, self.config.name)
-                    )
-                    rp = RetentionPolicyFactory.create(
-                        "wal_retention_policy", "main", server=self
-                    )
-                    self.config.wal_retention_policy = rp
-
-                self.enforce_retention_policies = True
-
-            except InvalidRetentionPolicy:
-                _logger.exception(
-                    'Invalid retention_policy setting "%s" for server "%s"'
-                    % (self.config.retention_policy, self.config.name)
-                )
-
     def get_identity_file_path(self):
         """
         Get the path of the file that should contain the identity
@@ -547,12 +742,11 @@ class Server(RemoteStatusMixin):
         """
         Close all the open connections to PostgreSQL
         """
-        if self.postgres:
-            self.postgres.close()
+        super(OnPremServer, self).close()
         if self.streaming:
             self.streaming.close()
 
-    def check(self, check_strategy=__default_check_strategy):
+    def check(self, check_strategy=Server._default_check_strategy):
         """
         Implements the 'server check' command and makes sure SSH and PostgreSQL
         connections work properly. It checks also that backup directories exist
@@ -857,34 +1051,6 @@ class Server(RemoteStatusMixin):
                 )
             else:
                 check_strategy.result(self.config.name, True)
-
-    def check_configuration(self, check_strategy):
-        """
-        Check for error messages in the message list
-        of the server and output eventual errors
-
-        :param CheckStrategy check_strategy: the strategy for the management
-             of the results of the various checks
-        """
-        check_strategy.init_check("configuration")
-        if len(self.config.msg_list):
-            check_strategy.result(self.config.name, False)
-            for conflict_paths in self.config.msg_list:
-                output.info("\t\t%s" % conflict_paths)
-
-    def check_retention_policy_settings(self, check_strategy):
-        """
-        Checks retention policy setting
-
-        :param CheckStrategy check_strategy: the strategy for the management
-             of the results of the various checks
-        """
-        check_strategy.init_check("retention policy settings")
-        config = self.config
-        if config.retention_policy and not self.enforce_retention_policies:
-            check_strategy.result(self.config.name, False, hint="see log")
-        else:
-            check_strategy.result(self.config.name, True)
 
     def check_backup_validity(self, check_strategy):
         """
@@ -1247,18 +1413,13 @@ class Server(RemoteStatusMixin):
 
         :rtype: dict[str, None|str]
         """
-        result = {}
-        # Merge status for a postgres connection
-        if self.postgres:
-            result.update(self.postgres.get_remote_status())
+        result = super(OnPremServer, self).fetch_remote_status()
         # Merge status for a streaming connection
         if self.streaming:
             result.update(self.streaming.get_remote_status())
         # Merge status for each archiver
         for archiver in self.archivers:
             result.update(archiver.get_remote_status())
-        # Merge status defined by the BackupManager
-        result.update(self.backup_manager.get_remote_status())
         return result
 
     def show(self):

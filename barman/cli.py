@@ -45,7 +45,7 @@ from barman.exceptions import (
     WalArchiveContentError,
 )
 from barman.infofile import BackupInfo, WalFileInfo
-from barman.server import Server
+from barman.server import Server, server_factory
 from barman.utils import (
     BarmanEncoder,
     check_non_negative,
@@ -1854,7 +1854,7 @@ def get_server_list(
             # Unknown server
             server_dict[server] = None
         else:
-            server_object = Server(conf)
+            server_object = server_factory(conf)
             # Skip inactive servers, if requested
             if skip_inactive and not server_object.config.active:
                 output.info("Skipping inactive server '%s'" % conf.name)
