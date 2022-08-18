@@ -40,7 +40,7 @@ import dateutil.tz
 
 import barman
 from barman import output, xlog
-from barman.backup import BackupManager
+from barman.backup import BackupManager, CloudBackupManager, OnPremBackupManager
 from barman.command_wrappers import BarmanSubProcess, Command, Rsync
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
@@ -383,7 +383,7 @@ class CloudServer(Server):
             )
 
         # Initialize the backup manager
-        self.backup_manager = BackupManager(self)
+        self.backup_manager = CloudBackupManager(self)
 
         # Set minimum redundancy (default 0)
         try:
@@ -551,7 +551,7 @@ class OnPremServer(Server):
                     )
 
         # Initialize the backup manager
-        self.backup_manager = BackupManager(self)
+        self.backup_manager = OnPremBackupManager(self)
 
         if not self.passive_node:
             # Initialize the StreamingWalArchiver

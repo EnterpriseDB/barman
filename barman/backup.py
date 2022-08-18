@@ -67,6 +67,45 @@ _logger = logging.getLogger(__name__)
 
 
 class BackupManager(RemoteStatusMixin, KeepManagerMixin):
+    DEFAULT_STATUS_FILTER = BackupInfo.STATUS_COPY_DONE
+
+    def __init__(self, server):
+        super(BackupManager, self).__init__(server=server)
+        self.server = server
+        self.config = server.config
+        self._backup_cache = None
+        self.executor = None
+
+    def fetch_remote_status(self):
+        """
+        Build additional remote status lines defined by the BackupManager.
+
+        This method does not raise any exception in case of errors,
+        but set the missing values to None in the resulting dictionary.
+
+        :rtype: dict[str, None|str]
+        """
+        if self.executor:
+            return self.executor.get_remote_status()
+        else:
+            return {}
+
+
+class CloudBackupManager(BackupManager):
+    def __init__(self, server):
+        super(CloudBackupManager, self).__init__(server=server)
+
+        try:
+            self.executor = CloudBackupExecutor(self)
+        except SshCommandException as e:
+            self.config.update_msg_list_and_disable_server(force_str(e).strip())
+
+    def check(self, strategy):
+        # TODO stuff
+        pass
+
+
+class OnPremBackupManager(BackupManager):
     """Manager of the backup archive for a server"""
 
     DEFAULT_STATUS_FILTER = BackupInfo.STATUS_COPY_DONE
@@ -76,12 +115,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         Constructor
         :param server: barman.server.Server
         """
-        super(BackupManager, self).__init__(server=server)
-        self.server = server
-        self.config = server.config
-        self._backup_cache = None
+        super(OnPremBackupManager, self).__init__(server=server)
         self.compression_manager = CompressionManager(self.config, server.path)
-        self.executor = None
+
         try:
             if server.passive_node:
                 self.executor = PassiveBackupExecutor(self)
@@ -89,8 +125,6 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 self.executor = PostgresBackupExecutor(self)
             elif self.config.backup_method == "local-rsync":
                 self.executor = RsyncBackupExecutor(self, local_mode=True)
-            elif self.config.backup_method == "cloud":
-                self.executor = CloudBackupExecutor(self)
             else:
                 self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:
@@ -1014,20 +1048,6 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Output additional status defined by the BackupExecutor
         if self.executor:
             self.executor.status()
-
-    def fetch_remote_status(self):
-        """
-        Build additional remote status lines defined by the BackupManager.
-
-        This method does not raise any exception in case of errors,
-        but set the missing values to None in the resulting dictionary.
-
-        :rtype: dict[str, None|str]
-        """
-        if self.executor:
-            return self.executor.get_remote_status()
-        else:
-            return {}
 
     def rebuild_xlogdb(self):
         """
