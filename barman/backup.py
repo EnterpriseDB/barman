@@ -127,10 +127,27 @@ class CloudBackupManager(BackupManager):
                 "Starting cloud backup for server %s",
                 self.config.name,
             )
+
+            # Do the backup using the BackupExecutor
+            self.executor.backup(backup_info)
+
+            # NOTE: This is a departure from barman cloud behaviour where the
+            # restore point is created before the backup label is uploaded to the
+            # cloud. Given barman on-prem writes the backup label (during the stop
+            # backup function) and then creates the restore point, it seems ok to
+            # do it for barman cloud too.
+            # Create a restore point after a backup
+            target_name = "barman_%s" % backup_info.backup_id
+            self.server.postgres.create_restore_point(target_name)
+
+            # Free the Postgres connection
+            self.server.postgres.close()
         except BaseException:
-            pass
+            raise
         finally:
-            return backup_info
+            # TODO stuff
+            pass
+        return backup_info
 
     # TODO these should use the CloudBackupCatalog to return the right things
     def get_backup(self, backup_id):

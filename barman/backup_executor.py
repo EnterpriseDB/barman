@@ -28,17 +28,21 @@ A BackupExecutor is invoked by the BackupManager for backup operations.
 """
 
 import datetime
+from io import BytesIO
 import logging
 import os
 import re
 import shutil
 from abc import ABCMeta, abstractmethod
+from contextlib import closing
 from functools import partial
 
 import dateutil.parser
 from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
+from barman.cloud import CloudUploadController
+from barman.cloud_providers import get_cloud_interface
 from barman.command_wrappers import PgBaseBackup
 from barman.compression import get_pg_basebackup_compression
 from barman.config import BackupOptions
@@ -1344,8 +1348,226 @@ class RsyncBackupExecutor(FsBackupExecutor):
 class CloudBackupExecutor(BackupExecutor):
     """Backup executor which pushes backups to cloud object stores."""
 
+    def __init__(self, backup_manager, mode=None):
+        super(CloudBackupExecutor, self).__init__(backup_manager, mode)
+        # NOTE: It's 2022 but sure let's continue supporting exclusive
+        # backup if people really want it.
+        # Apply the default backup strategy
+        backup_options = self.config.backup_options
+        concurrent_backup = BackupOptions.CONCURRENT_BACKUP in backup_options
+        exclusive_backup = BackupOptions.EXCLUSIVE_BACKUP in backup_options
+        if not concurrent_backup and not exclusive_backup:
+            self.config.backup_options.add(BackupOptions.CONCURRENT_BACKUP)
+            output.warning(
+                "No backup strategy set for server '%s' "
+                "(using default 'concurrent_backup').",
+                self.config.name,
+            )
+
+        # Depending on the backup options value, create the proper strategy
+        if BackupOptions.CONCURRENT_BACKUP in self.config.backup_options:
+            # Concurrent backup strategy
+            self.strategy = ConcurrentBackupStrategy(
+                self.server.postgres, self.config.name
+            )
+        else:
+            # Exclusive backup strategy
+            self.strategy = ExclusiveBackupStrategy(
+                self.server.postgres, self.config.name
+            )
+
+    def _create_upload_controller(self, cloud_interface, backup_id):
+        """
+        Create an upload controller from the specified backup_id
+
+        :param str backup_id: The backup identifier
+        :return: The upload controller
+        :rtype: CloudUploadController
+        """
+        key_prefix = os.path.join(
+            cloud_interface.path,
+            self.config.name,
+            "base",
+            backup_id,
+        )
+        return CloudUploadController(
+            cloud_interface,
+            key_prefix,
+            self.config.cloud_max_archive_size,
+            self.config.cloud_compression,
+        )
+
+    def _backup_copy(self, controller, backup_info, pgdata_dir, server_major_version):
+        """
+        Perform the actual copy of the backup uploading it to cloud storage.
+
+        First, it copies one tablespace at a time, then the PGDATA directory,
+        then pg_control.
+
+        Bandwidth limitation, according to configuration, is applied in
+        the process.
+
+        :param barman.cloud.CloudUploadController controller: upload controller
+        :param barman.infofile.BackupInfo backup_info: backup information
+        :param str pgdata_dir: Path to pgdata directory
+        :param str server_major_version: Major version of the postgres server
+          being backed up
+        """
+
+        # Store the start time
+        self.copy_start_time = datetime.datetime.now()
+
+        # List of paths to be excluded by the PGDATA copy
+        exclude = []
+
+        # Process every tablespace
+        if backup_info.tablespaces:
+            for tablespace in backup_info.tablespaces:
+                # If the tablespace location is inside the data directory,
+                # exclude and protect it from being copied twice during
+                # the data directory copy
+                if tablespace.location.startswith(backup_info.pgdata + "/"):
+                    exclude += [tablespace.location[len(backup_info.pgdata) :]]
+
+                # Exclude and protect the tablespace from being copied again
+                # during the data directory copy
+                exclude += ["/pg_tblspc/%s" % tablespace.oid]
+
+                # Copy the tablespace directory.
+                # NOTE: Barman should archive only the content of directory
+                #    "PG_" + PG_MAJORVERSION + "_" + CATALOG_VERSION_NO
+                # but CATALOG_VERSION_NO is not easy to retrieve, so we copy
+                #    "PG_" + PG_MAJORVERSION + "_*"
+                # It could select some spurious directory if a development or
+                # a beta version have been used, but it's good enough for a
+                # production system as it filters out other major versions.
+                controller.upload_directory(
+                    label=tablespace.name,
+                    src=self._get_tablespace_location(tablespace),
+                    dst="%s" % tablespace.oid,
+                    exclude=["/*"] + EXCLUDE_LIST,
+                    include=["/PG_%s_*" % server_major_version],
+                )
+
+        # Copy PGDATA directory (or if that is itself a symlink, just follow it
+        # and copy whatever it points to; we won't store the symlink in the tar
+        # file)
+        if os.path.islink(pgdata_dir):
+            pgdata_dir = os.path.realpath(pgdata_dir)
+        controller.upload_directory(
+            label="pgdata",
+            src=pgdata_dir,
+            dst="data",
+            exclude=PGDATA_EXCLUDE_LIST + EXCLUDE_LIST + exclude,
+        )
+
+        # At last copy pg_control
+        controller.add_file(
+            label="pg_control",
+            src="%s/global/pg_control" % pgdata_dir,
+            dst="data",
+            path="global/pg_control",
+        )
+
+        # Copy configuration files (if not inside PGDATA)
+        external_config_files = backup_info.get_external_config_files()
+        included_config_files = []
+        for config_file in external_config_files:
+            # Add included files to a list, they will be handled later
+            if config_file.file_type == "include":
+                included_config_files.append(config_file)
+                continue
+
+            # If the ident file is missing, it isn't an error condition
+            # for PostgreSQL.
+            # Barman is consistent with this behavior.
+            optional = False
+            if config_file.file_type == "ident_file":
+                optional = True
+
+            # Create the actual copy jobs in the controller
+            controller.add_file(
+                label=config_file.file_type,
+                src=config_file.path,
+                dst="data",
+                path=os.path.basename(config_file.path),
+                optional=optional,
+            )
+
+        # Check for any include directives in PostgreSQL configuration
+        # Currently, include directives are not supported for files that
+        # reside outside PGDATA. These files must be manually backed up.
+        # Barman will emit a warning and list those files
+        if any(included_config_files):
+            msg = (
+                "The usage of include directives is not supported "
+                "for files that reside outside PGDATA.\n"
+                "Please manually backup the following files:\n"
+                "\t%s\n" % "\n\t".join(icf.path for icf in included_config_files)
+            )
+            logging.warning(msg)
+
     def backup(self, backup_info):
-        pass
+        output.info("Starting backup '%s'", backup_info.backup_id)
+        self.strategy.start_backup(backup_info)
+        cloud_interface = get_cloud_interface(self.config)
+        with closing(cloud_interface):
+            controller = self._create_upload_controller(
+                cloud_interface, backup_info.backup_id
+            )
+            try:
+                self._backup_copy(
+                    controller,
+                    backup_info,
+                    backup_info.pgdata,
+                    self.server.postgres.server_major_version,
+                )
+                output.info("Stopping backup '%s'", backup_info.backup_id)
+                self.strategy.stop_backup(backup_info)
+
+                # Eventually, add the backup_label from the backup_info
+                if backup_info.backup_label:
+                    pgdata_stat = os.stat(backup_info.pgdata)
+                    controller.add_fileobj(
+                        label="backup_label",
+                        fileobj=BytesIO(backup_info.backup_label.encode("UTF-8")),
+                        dst="data",
+                        path="backup_label",
+                        uid=pgdata_stat.st_uid,
+                        gid=pgdata_stat.st_gid,
+                    )
+
+                # Closing the controller will finalize all the running uploads
+                controller.close()
+
+                # Store the end time
+                self.copy_end_time = datetime.datetime.now()
+
+                # Store statistics about the copy
+                backup_info.set_attribute("copy_stats", controller.statistics())
+
+                # Set the backup status as DONE
+                backup_info.set_attribute("status", BackupInfo.DONE)
+            except BaseException as exc:
+                # Mark the backup as failed and exit
+                # self.handle_backup_errors("uploading data", exc, backup_info)
+                # raise SystemExit(1)
+                raise
+            finally:
+                try:
+                    with BytesIO() as backup_info_file:
+                        backup_info.save(file_object=backup_info_file)
+                        backup_info_file.seek(0, os.SEEK_SET)
+                        key = os.path.join(controller.key_prefix, "backup.info")
+                        logging.info("Uploading '%s'", key)
+                        cloud_interface.upload_fileobj(backup_info_file, key)
+                except BaseException as exc:
+                    # Mark the backup as failed and exit
+                    # self.handle_backup_errors(
+                    #    "uploading backup.info file", exc, backup_info
+                    # )
+                    # raise SystemExit(1)
+                    raise
 
 
 class BackupStrategy(with_metaclass(ABCMeta, object)):
