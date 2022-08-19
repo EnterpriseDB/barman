@@ -90,6 +90,15 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         else:
             return {}
 
+    @property
+    def mode(self):
+        """
+        Property defining the BackupInfo mode content
+        """
+        if self.executor:
+            return self.executor.mode
+        return None
+
 
 class CloudBackupManager(BackupManager):
     def __init__(self, server):
@@ -103,6 +112,39 @@ class CloudBackupManager(BackupManager):
     def check(self, strategy):
         # TODO stuff
         pass
+
+    def backup(self, wait=False, wait_timeout=None):
+        output.debug("initialising backup information")
+        self.executor.init()
+        backup_info = None
+        try:
+            backup_info = BackupInfo(
+                backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
+                server_name=self.config.name,
+            )
+            backup_info.set_attribute("systemid", self.server.systemid)
+            output.info(
+                "Starting cloud backup for server %s",
+                self.config.name,
+            )
+        except BaseException:
+            pass
+        finally:
+            return backup_info
+
+    # TODO these should use the CloudBackupCatalog to return the right things
+    def get_backup(self, backup_id):
+        return None
+
+    def get_previous_backup(self, backup_id):
+        return None
+
+    def get_next_backup(self, backup_id):
+        return None
+
+    # TODO this should actually remove the WALs from cloud storage
+    def remove_wal_before_backup(self, backup_info):
+        return
 
 
 class OnPremBackupManager(BackupManager):
@@ -129,15 +171,6 @@ class OnPremBackupManager(BackupManager):
                 self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:
             self.config.update_msg_list_and_disable_server(force_str(e).strip())
-
-    @property
-    def mode(self):
-        """
-        Property defining the BackupInfo mode content
-        """
-        if self.executor:
-            return self.executor.mode
-        return None
 
     def get_available_backups(self, status_filter=DEFAULT_STATUS_FILTER):
         """

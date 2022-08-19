@@ -245,7 +245,12 @@ class Server(with_metaclass(ABCMeta, RemoteStatusMixin)):
     def __init__(self, config):
         super(Server, self).__init__()
         self.config = config
+
+        # Only really relevant to OnPremServer but if they don't exist then various functions
+        # fail. Those functions should be factored out a bit so we don't need to include stuff
+        # like this in the superclass.
         self.passive_node = False
+        self.streaming = None
 
     def fetch_remote_status(self):
         """
@@ -363,6 +368,191 @@ class Server(with_metaclass(ABCMeta, RemoteStatusMixin)):
             check_strategy.result(self.config.name, False)
             for conflict_paths in self.config.msg_list:
                 output.info("\t\t%s" % conflict_paths)
+
+    def backup(self, wait=False, wait_timeout=None):
+        """
+        Performs a backup for the server
+        :param bool wait: wait for all the required WAL files to be archived
+        :param int|None wait_timeout: the time, in seconds, the backup
+            will wait for the required WAL files to be archived
+            before timing out
+        """
+        # The 'backup' command is not available on a passive node.
+        # We assume that if we get here the node is not passive
+        assert not self.passive_node
+
+        try:
+            # Default strategy for check in backup is CheckStrategy
+            # This strategy does not print any output - it only logs checks
+            strategy = CheckStrategy()
+            self.check(strategy)
+            if strategy.has_error:
+                output.error(
+                    "Impossible to start the backup. Check the log "
+                    "for more details, or run 'barman check %s'" % self.config.name
+                )
+                return
+            # check required backup directories exist
+            self._make_directories()
+        except OSError as e:
+            output.error("failed to create %s directory: %s", e.filename, e.strerror)
+            return
+
+        # Save the database identity
+        self.write_identity_file()
+
+        # Make sure we are not wasting an precious streaming PostgreSQL
+        # connection that may have been opened by the self.check() call
+        if self.streaming:
+            self.streaming.close()
+
+        try:
+            # lock acquisition and backup execution
+            with ServerBackupLock(self.config.barman_lock_directory, self.config.name):
+                backup_info = self.backup_manager.backup(
+                    wait=wait, wait_timeout=wait_timeout
+                )
+
+            # Archive incoming WALs and update WAL catalogue
+            self.archive_wal(verbose=False)
+
+            # Invoke sanity check of the backup
+            if backup_info.status == BackupInfo.WAITING_FOR_WALS:
+                self.check_backup(backup_info)
+
+            # At this point is safe to remove any remaining WAL file before the
+            # first backup
+            previous_backup = self.get_previous_backup(backup_info.backup_id)
+            if not previous_backup:
+                self.backup_manager.remove_wal_before_backup(backup_info)
+
+            if backup_info.status == BackupInfo.WAITING_FOR_WALS:
+                output.warning(
+                    "IMPORTANT: this backup is classified as "
+                    "WAITING_FOR_WALS, meaning that Barman has not received "
+                    "yet all the required WAL files for the backup "
+                    "consistency.\n"
+                    "This is a common behaviour in concurrent backup "
+                    "scenarios, and Barman automatically set the backup as "
+                    "DONE once all the required WAL files have been "
+                    "archived.\n"
+                    "Hint: execute the backup command with '--wait'"
+                )
+        except LockFileBusy:
+            output.error("Another backup process is running")
+
+        except LockFilePermissionDenied as e:
+            output.error("Permission denied, unable to access '%s'" % e)
+
+    def _make_directories(self):
+        """
+        Make backup directories in case they do not exist
+        """
+        for key in self.config.KEYS:
+            if key.endswith("_directory") and hasattr(self.config, key):
+                val = getattr(self.config, key)
+                if val is not None and not os.path.isdir(val):
+                    # noinspection PyTypeChecker
+                    os.makedirs(val)
+
+    def check_directories(self, check_strategy):
+        """
+        Checks backup directories and creates them if they do not exist
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        check_strategy.init_check("directories")
+        if not self.config.disabled:
+            try:
+                self._make_directories()
+            except OSError as e:
+                check_strategy.result(
+                    self.config.name, False, "%s: %s" % (e.filename, e.strerror)
+                )
+            else:
+                check_strategy.result(self.config.name, True)
+
+    def get_identity_file_path(self):
+        """
+        Get the path of the file that should contain the identity
+        of the cluster
+        :rtype: str
+        """
+        return os.path.join(self.config.backup_directory, "identity.json")
+
+    def write_identity_file(self):
+        """
+        Store the identity of the server if it doesn't already exist.
+        """
+        file_path = self.get_identity_file_path()
+
+        # Do not write the identity if file already exists
+        if os.path.exists(file_path):
+            return
+
+        systemid = self.systemid
+        if systemid:
+            try:
+                with open(file_path, "w") as fp:
+                    json.dump(
+                        {
+                            "systemid": systemid,
+                            "version": self.postgres.server_major_version,
+                        },
+                        fp,
+                        indent=4,
+                        sort_keys=True,
+                    )
+                    fp.write("\n")
+            except IOError:
+                _logger.exception(
+                    'Cannot write system Id file for server "%s"' % (self.config.name)
+                )
+
+    @property
+    def systemid(self):
+        """
+        Get the system identifier, as returned by the PostgreSQL server
+        :return str: the system identifier
+        """
+        status = self.get_remote_status()
+        # Main PostgreSQL connection has higher priority
+        if status.get("postgres_systemid"):
+            return status.get("postgres_systemid")
+        # Fallback: streaming connection
+        return status.get("streaming_systemid")
+
+    def archive_wal(self, verbose=False):
+        pass
+
+    def get_backup(self, backup_id):
+        """
+        Return the backup information for the given backup id.
+
+        If the backup_id is None or backup.info file doesn't exists,
+        it returns None.
+
+        :param str|None backup_id: the ID of the backup to return
+        :rtype: barman.infofile.LocalBackupInfo|None
+        """
+        return self.backup_manager.get_backup(backup_id)
+
+    def get_previous_backup(self, backup_id):
+        """
+        Get the previous backup (if any) from the catalog
+
+        :param backup_id: the backup id from which return the previous
+        """
+        return self.backup_manager.get_previous_backup(backup_id)
+
+    def get_next_backup(self, backup_id):
+        """
+        Get the next backup (if any) from the catalog
+
+        :param backup_id: the backup id from which return the next
+        """
+        return self.backup_manager.get_next_backup(backup_id)
 
 
 class CloudServer(Server):
@@ -543,7 +733,6 @@ class OnPremServer(Server):
 
         self.enforce_retention_policies = False
         self.postgres = None
-        self.streaming = None
         self.archivers = []
 
         # Postgres configuration is available only if node is not passive
@@ -715,43 +904,6 @@ class OnPremServer(Server):
 
         # Initialise retention policies
         self._init_retention_policies()
-
-    def get_identity_file_path(self):
-        """
-        Get the path of the file that should contain the identity
-        of the cluster
-        :rtype: str
-        """
-        return os.path.join(self.config.backup_directory, "identity.json")
-
-    def write_identity_file(self):
-        """
-        Store the identity of the server if it doesn't already exist.
-        """
-        file_path = self.get_identity_file_path()
-
-        # Do not write the identity if file already exists
-        if os.path.exists(file_path):
-            return
-
-        systemid = self.systemid
-        if systemid:
-            try:
-                with open(file_path, "w") as fp:
-                    json.dump(
-                        {
-                            "systemid": systemid,
-                            "version": self.postgres.server_major_version,
-                        },
-                        fp,
-                        indent=4,
-                        sort_keys=True,
-                    )
-                    fp.write("\n")
-            except IOError:
-                _logger.exception(
-                    'Cannot write system Id file for server "%s"' % (self.config.name)
-                )
 
     def read_identity_file(self):
         """
@@ -1052,35 +1204,6 @@ class OnPremServer(Server):
                             "by the current config"
                             % (self.config.slot_name, slot_status),
                         )
-
-    def _make_directories(self):
-        """
-        Make backup directories in case they do not exist
-        """
-        for key in self.config.KEYS:
-            if key.endswith("_directory") and hasattr(self.config, key):
-                val = getattr(self.config, key)
-                if val is not None and not os.path.isdir(val):
-                    # noinspection PyTypeChecker
-                    os.makedirs(val)
-
-    def check_directories(self, check_strategy):
-        """
-        Checks backup directories and creates them if they do not exist
-
-        :param CheckStrategy check_strategy: the strategy for the management
-             of the results of the various checks
-        """
-        check_strategy.init_check("directories")
-        if not self.config.disabled:
-            try:
-                self._make_directories()
-            except OSError as e:
-                check_strategy.result(
-                    self.config.name, False, "%s: %s" % (e.filename, e.strerror)
-                )
-            else:
-                check_strategy.result(self.config.name, True)
 
     def check_backup_validity(self, check_strategy):
         """
@@ -1566,81 +1689,6 @@ class OnPremServer(Server):
             output.error("Permission denied, unable to access '%s'" % e)
             return
 
-    def backup(self, wait=False, wait_timeout=None):
-        """
-        Performs a backup for the server
-        :param bool wait: wait for all the required WAL files to be archived
-        :param int|None wait_timeout: the time, in seconds, the backup
-            will wait for the required WAL files to be archived
-            before timing out
-        """
-        # The 'backup' command is not available on a passive node.
-        # We assume that if we get here the node is not passive
-        assert not self.passive_node
-
-        try:
-            # Default strategy for check in backup is CheckStrategy
-            # This strategy does not print any output - it only logs checks
-            strategy = CheckStrategy()
-            self.check(strategy)
-            if strategy.has_error:
-                output.error(
-                    "Impossible to start the backup. Check the log "
-                    "for more details, or run 'barman check %s'" % self.config.name
-                )
-                return
-            # check required backup directories exist
-            self._make_directories()
-        except OSError as e:
-            output.error("failed to create %s directory: %s", e.filename, e.strerror)
-            return
-
-        # Save the database identity
-        self.write_identity_file()
-
-        # Make sure we are not wasting an precious streaming PostgreSQL
-        # connection that may have been opened by the self.check() call
-        if self.streaming:
-            self.streaming.close()
-
-        try:
-            # lock acquisition and backup execution
-            with ServerBackupLock(self.config.barman_lock_directory, self.config.name):
-                backup_info = self.backup_manager.backup(
-                    wait=wait, wait_timeout=wait_timeout
-                )
-
-            # Archive incoming WALs and update WAL catalogue
-            self.archive_wal(verbose=False)
-
-            # Invoke sanity check of the backup
-            if backup_info.status == BackupInfo.WAITING_FOR_WALS:
-                self.check_backup(backup_info)
-
-            # At this point is safe to remove any remaining WAL file before the
-            # first backup
-            previous_backup = self.get_previous_backup(backup_info.backup_id)
-            if not previous_backup:
-                self.backup_manager.remove_wal_before_backup(backup_info)
-
-            if backup_info.status == BackupInfo.WAITING_FOR_WALS:
-                output.warning(
-                    "IMPORTANT: this backup is classified as "
-                    "WAITING_FOR_WALS, meaning that Barman has not received "
-                    "yet all the required WAL files for the backup "
-                    "consistency.\n"
-                    "This is a common behaviour in concurrent backup "
-                    "scenarios, and Barman automatically set the backup as "
-                    "DONE once all the required WAL files have been "
-                    "archived.\n"
-                    "Hint: execute the backup command with '--wait'"
-                )
-        except LockFileBusy:
-            output.error("Another backup process is running")
-
-        except LockFilePermissionDenied as e:
-            output.error("Permission denied, unable to access '%s'" % e)
-
     def get_available_backups(self, status_filter=BackupManager.DEFAULT_STATUS_FILTER):
         """
         Get a list of available backups
@@ -1701,34 +1749,6 @@ class OnPremServer(Server):
                 ):
                     rstatus = retention_status[backup.backup_id]
             output.result("list_backup", backup, backup_size, wal_size, rstatus)
-
-    def get_backup(self, backup_id):
-        """
-        Return the backup information for the given backup id.
-
-        If the backup_id is None or backup.info file doesn't exists,
-        it returns None.
-
-        :param str|None backup_id: the ID of the backup to return
-        :rtype: barman.infofile.LocalBackupInfo|None
-        """
-        return self.backup_manager.get_backup(backup_id)
-
-    def get_previous_backup(self, backup_id):
-        """
-        Get the previous backup (if any) from the catalog
-
-        :param backup_id: the backup id from which return the previous
-        """
-        return self.backup_manager.get_previous_backup(backup_id)
-
-    def get_next_backup(self, backup_id):
-        """
-        Get the next backup (if any) from the catalog
-
-        :param backup_id: the backup id from which return the next
-        """
-        return self.backup_manager.get_next_backup(backup_id)
 
     def get_required_xlog_files(
         self, backup, target_tli=None, target_time=None, target_xid=None
@@ -2784,19 +2804,6 @@ class OnPremServer(Server):
                     "Another receive-wal process is already running "
                     "for server %s." % self.config.name
                 )
-
-    @property
-    def systemid(self):
-        """
-        Get the system identifier, as returned by the PostgreSQL server
-        :return str: the system identifier
-        """
-        status = self.get_remote_status()
-        # Main PostgreSQL connection has higher priority
-        if status.get("postgres_systemid"):
-            return status.get("postgres_systemid")
-        # Fallback: streaming connection
-        return status.get("streaming_systemid")
 
     @property
     def xlogdb_file_name(self):
