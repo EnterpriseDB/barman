@@ -34,7 +34,6 @@ from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
 
 from barman.annotations import KeepManagerMixinCloud
-from barman.backup_executor import ConcurrentBackupStrategy, ExclusiveBackupStrategy
 from barman.clients import cloud_compression
 from barman.exceptions import BarmanException
 from barman.fs import path_allowed
@@ -1500,10 +1499,13 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
         )
         backup_info.set_attribute("systemid", self.postgres.get_systemid())
         controller = self._create_upload_controller(backup_info.backup_id)
+        # Strategy removed to avoid circular dependency.
+        # This function is being replaced by the CloudBackupExecutor anyway so
+        # it doesn't matter.
         if self.postgres.server_version >= 90600 or self.postgres.has_pgespresso:
-            strategy = ConcurrentBackupStrategy(self.postgres, server_name)
+            strategy = None
         else:
-            strategy = ExclusiveBackupStrategy(self.postgres, server_name)
+            strategy = None
         logging.info("Starting backup '%s'", backup_info.backup_id)
         strategy.start_backup(backup_info)
         try:
