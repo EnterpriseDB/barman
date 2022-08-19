@@ -37,6 +37,9 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
+from barman.clients.cloud_cli import OperationErrorExit
+from barman.cloud import CloudBackupCatalog
+from barman.cloud_providers import get_cloud_interface
 from barman.command_wrappers import RsyncPgData
 from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
@@ -1427,6 +1430,138 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             ]
         )
         return conf_file_paths
+
+
+# TODO there is stuff in RecoveryExecutor we would ideally use, e.g.
+# the config mangling and the pitr options. However it is all coupled
+# with assumptions that there is a local backup directory from which we
+# are recovering.
+class CloudRecoveryExecutor(object):
+    def __init__(self, backup_manager):
+        self.backup_manager = backup_manager
+        self.server = backup_manager.server
+        self.config = backup_manager.config
+
+    def recover(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        target_tli=None,
+        target_time=None,
+        target_xid=None,
+        target_lsn=None,
+        target_name=None,
+        target_immediate=False,
+        exclusive=False,
+        target_action=None,
+        standby_mode=None,
+    ):
+        # Copy the base backup
+        output.info("Copying the base backup.")
+        try:
+            self._backup_copy(
+                backup_info,
+                dest,
+                tablespaces,
+                remote_command,
+            )
+        except DataTransferFailure as e:
+            output.error("Failure copying base backup: %s", e)
+            output.close_and_exit()
+
+        # TODO these results are just fabricated to keep barman happy
+        # but they can be more meaningful
+        return {
+            "results": {
+                "changes": [],
+                "warnings": [],
+                "missing_files": [],
+                "delete_barman_wal": False,
+                "get_wal": False,
+                "recovery_start_time": datetime.datetime.now(dateutil.tz.tzlocal()),
+            }
+        }
+
+    def _backup_copy(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        safe_horizon=None,
+        recovery_info=None,
+    ):
+        cloud_interface = get_cloud_interface(self.config)
+        catalog = CloudBackupCatalog(cloud_interface, self.config.name)
+        backup_files = catalog.get_backup_files(backup_info)
+
+        copy_jobs = []
+        link_jobs = []
+        for oid in backup_files:
+            file_info = backup_files[oid]
+            # PGDATA is restored where requested (destination_dir)
+            if oid is None:
+                target_dir = dest
+            else:
+                for tblspc in backup_info.tablespaces:
+                    if oid == tblspc.oid:
+                        target_dir = tblspc.location
+                        if tblspc.name in tablespaces:
+                            target_dir = os.path.realpath(tablespaces[tblspc.name])
+                        logging.debug(
+                            "Tablespace %s (oid=%s) will be located at %s",
+                            tblspc.name,
+                            oid,
+                            target_dir,
+                        )
+                        link_jobs.append(["%s/pg_tblspc/%s" % (dest, oid), target_dir])
+                        break
+                else:
+                    raise AssertionError(
+                        "The backup file oid '%s' must be present "
+                        "in backupinfo.tablespaces list"
+                    )
+
+            # Validate the destination directory before starting recovery
+            if os.path.exists(target_dir) and os.listdir(target_dir):
+                logging.error(
+                    "Destination %s already exists and it is not empty", target_dir
+                )
+                raise OperationErrorExit()
+            copy_jobs.append([file_info, target_dir])
+            for additional_file in file_info.additional_files:
+                copy_jobs.append([additional_file, target_dir])
+
+        # Now it's time to download the files
+        for file_info, target_dir in copy_jobs:
+            # Download the file
+            logging.debug(
+                "Extracting %s to %s (%s)",
+                file_info.path,
+                target_dir,
+                "decompressing " + file_info.compression
+                if file_info.compression
+                else "no compression",
+            )
+            cloud_interface.extract_tar(file_info.path, target_dir)
+
+        for link, target in link_jobs:
+            os.symlink(target, link)
+
+        # If we did not restore the pg_wal directory from one of the uploaded
+        # backup files, we must recreate it here. (If pg_wal was originally a
+        # symlink, it would not have been uploaded.)
+
+        wal_path = os.path.join(dest, backup_info.wal_directory())
+        if not os.path.exists(wal_path):
+            os.mkdir(wal_path)
+
+        return {}
+
+    def close(self):
+        pass
 
 
 def recovery_executor_factory(backup_manager, command, compression=None):

@@ -39,6 +39,8 @@ from barman.backup_executor import (
     PostgresBackupExecutor,
     RsyncBackupExecutor,
 )
+from barman.cloud import CloudBackupCatalog
+from barman.cloud_providers import get_cloud_interface
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
 from barman.exceptions import (
@@ -52,7 +54,7 @@ from barman.fs import unix_command_factory
 from barman.hooks import HookScriptRunner, RetryHookScriptRunner
 from barman.infofile import BackupInfo, LocalBackupInfo, WalFileInfo
 from barman.lockfile import ServerBackupSyncLock
-from barman.recovery_executor import recovery_executor_factory
+from barman.recovery_executor import CloudRecoveryExecutor, recovery_executor_factory
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import (
     force_str,
@@ -151,7 +153,12 @@ class CloudBackupManager(BackupManager):
 
     # TODO these should use the CloudBackupCatalog to return the right things
     def get_backup(self, backup_id):
-        return None
+        # TODO if we need these here perhaps they should be properties
+        # which are passed to the executor if needed rather than instantiated
+        # in the executor for backups
+        cloud_interface = get_cloud_interface(self.config)
+        catalog = CloudBackupCatalog(cloud_interface, self.config.name)
+        return catalog.get_backup_info(backup_id)
 
     def get_previous_backup(self, backup_id):
         return None
@@ -162,6 +169,23 @@ class CloudBackupManager(BackupManager):
     # TODO this should actually remove the WALs from cloud storage
     def remove_wal_before_backup(self, backup_info):
         return
+
+    def recover(
+        self, backup_info, dest, tablespaces=None, remote_command=None, **kwargs
+    ):
+        executor = CloudRecoveryExecutor(self)
+
+        with closing(executor):
+            recovery_info = executor.recover(
+                backup_info,
+                dest,
+                tablespaces=tablespaces,
+                remote_command=remote_command,
+                **kwargs
+            )
+
+        # Output recovery results
+        output.result("recovery", recovery_info["results"])
 
 
 class OnPremBackupManager(BackupManager):

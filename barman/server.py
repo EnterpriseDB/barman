@@ -554,6 +554,35 @@ class Server(with_metaclass(ABCMeta, RemoteStatusMixin)):
         """
         return self.backup_manager.get_next_backup(backup_id)
 
+    def recover(
+        self, backup_info, dest, tablespaces=None, remote_command=None, **kwargs
+    ):
+        """
+        Performs a recovery of a backup
+
+        :param barman.infofile.LocalBackupInfo backup_info: the backup
+            to recover
+        :param str dest: the destination directory
+        :param dict[str,str]|None tablespaces: a tablespace
+            name -> location map (for relocation)
+        :param str|None remote_command: default None. The remote command to
+            recover the base backup, in case of remote backup.
+        :kwparam str|None target_tli: the target timeline
+        :kwparam str|None target_time: the target time
+        :kwparam str|None target_xid: the target xid
+        :kwparam str|None target_lsn: the target LSN
+        :kwparam str|None target_name: the target name created previously with
+                            pg_create_restore_point() function call
+        :kwparam bool|None target_immediate: end recovery as soon as
+            consistency is reached
+        :kwparam bool exclusive: whether the recovery is exclusive or not
+        :kwparam str|None target_action: the recovery target action
+        :kwparam bool|None standby_mode: the standby mode
+        """
+        return self.backup_manager.recover(
+            backup_info, dest, tablespaces, remote_command, **kwargs
+        )
+
 
 class CloudServer(Server):
     # TODO much similarity with OnPremServer
@@ -1979,35 +2008,6 @@ class OnPremServer(Server):
                 wal_info["wal_until_next_compression_ratio"] = 0.0
 
         return wal_info
-
-    def recover(
-        self, backup_info, dest, tablespaces=None, remote_command=None, **kwargs
-    ):
-        """
-        Performs a recovery of a backup
-
-        :param barman.infofile.LocalBackupInfo backup_info: the backup
-            to recover
-        :param str dest: the destination directory
-        :param dict[str,str]|None tablespaces: a tablespace
-            name -> location map (for relocation)
-        :param str|None remote_command: default None. The remote command to
-            recover the base backup, in case of remote backup.
-        :kwparam str|None target_tli: the target timeline
-        :kwparam str|None target_time: the target time
-        :kwparam str|None target_xid: the target xid
-        :kwparam str|None target_lsn: the target LSN
-        :kwparam str|None target_name: the target name created previously with
-                            pg_create_restore_point() function call
-        :kwparam bool|None target_immediate: end recovery as soon as
-            consistency is reached
-        :kwparam bool exclusive: whether the recovery is exclusive or not
-        :kwparam str|None target_action: the recovery target action
-        :kwparam bool|None standby_mode: the standby mode
-        """
-        return self.backup_manager.recover(
-            backup_info, dest, tablespaces, remote_command, **kwargs
-        )
 
     def get_wal(
         self,
