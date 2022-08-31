@@ -33,6 +33,7 @@ import os
 import re
 import shutil
 from abc import ABCMeta, abstractmethod
+from contextlib import closing
 from functools import partial
 
 import dateutil.parser
@@ -297,7 +298,11 @@ class PostgresBackupExecutor(BackupExecutor):
             # This method is invoked too early to have a working streaming
             # connection. So we avoid caching the result by directly
             # invoking fetch_remote_status() instead of get_remote_status()
-            remote_status = self.fetch_remote_status()
+            # We make the call within a closing context manager so we do not
+            # leave any dangling PostgreSQL connections in cases where no
+            # further server interaction is required.
+            with closing(self.server):
+                remote_status = self.fetch_remote_status()
 
         # bandwidth_limit option is supported by pg_basebackup executable
         # starting from Postgres 9.4

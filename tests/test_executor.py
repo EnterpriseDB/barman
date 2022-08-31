@@ -1315,6 +1315,20 @@ class TestPostgresBackupExecutor(object):
         # THEN the backup_compression attribute of the executor is None
         assert executor.backup_compression is None
 
+    def test_validate_config_bandwidth_limit_closes_server_conn(self):
+        """
+        Checks that the server connection required to verify bwlimit support is
+        not left open after creating the PostgresBackupExecutor.
+        """
+        # GIVEN a server with backup_method postgres and bandwidth_limit
+        server = build_mocked_server(
+            global_conf={"backup_method": "postgres", "bandwidth_limit": "1000"}
+        )
+        # WHEN a PostgresBackupExecutor is created
+        PostgresBackupExecutor(server.backup_manager)
+        # THEN the server's close method was called
+        server.close.assert_called_once()
+
     @patch("barman.compression.PgBaseBackupCompression")
     def test_validate_config_compression(self, mock_pgbb_compression):
         """
@@ -1335,3 +1349,5 @@ class TestPostgresBackupExecutor(object):
         mock_pgbb_compression.return_value.validate.assert_called_once()
         # AND the server config message list has no errors
         assert len(server.config.msg_list) == 0
+        # AND the server's close method was called
+        server.close.assert_called_once()
