@@ -59,18 +59,14 @@ From this point forward, for the sake of simplicity, this guide will assume a ba
 
 ## Streaming backup vs rsync/SSH
 
-Traditionally, Barman has always operated remotely via SSH, taking advantage of `rsync` for physical backup operations. Version 2.0 introduces native support for PostgreSQL's streaming replication protocol for backup operations, via `pg_basebackup`. [^fmatrix]
+Barman is able to take backups using either Rsync, which uses SSH as a transport mechanism, or `pg_basebackup`, which uses PostgreSQL's streaming replication protocol.
 
-  [^fmatrix]: Check in the "Feature matrix" which PostgreSQL versions support streaming replication backups with Barman.
-
-Choosing one of these two methods is a decision you will need to make.
-
-On a general basis, starting from Barman 2.0, backup over streaming replication is the recommended setup for PostgreSQL 9.4 or higher. Moreover, if you do not make use of tablespaces, backup over streaming can be used starting from PostgreSQL 9.2.
+Choosing one of these two methods is a decision you will need to make, however for general usage we recommend using streaming replication for all currently supported versions of PostgreSQL.
 
 > **IMPORTANT:** \newline
-> Because Barman transparently makes use of `pg_basebackup`, features such as incremental backup, parallel backup, deduplication, and network compression are currently not available. In this case, bandwidth limitation has some restrictions - compared to the traditional method via `rsync`.
+> Because Barman transparently makes use of `pg_basebackup`, features such as incremental backup, parallel backup, and deduplication are currently not available. In this case, bandwidth limitation has some restrictions - compared to the traditional method via `rsync`.
 
-Traditional backup via `rsync`/SSH is available for all versions of PostgreSQL starting from 8.3, and it is recommended in all cases where `pg_basebackup` limitations occur (for example, a very large database that can benefit from incremental backup and deduplication).
+Backup using `rsync`/SSH is recommended in all cases where `pg_basebackup` limitations occur (for example, a very large database that can benefit from incremental backup and deduplication).
 
 The reason why we recommend streaming backup is that, based on our experience, it is easier to setup than the traditional one. Also, streaming backup allows you to backup a PostgreSQL server on Windows[^windows], and makes life easier when working with Docker.
 
