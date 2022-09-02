@@ -76,18 +76,25 @@ The reason why we recommend streaming backup is that, based on our experience, i
 
   [^windows]: Backup of a PostgreSQL server on Windows is possible, but it is still experimental because it is not yet part of our continuous integration system. See section _"How to setup a Windows based server"_ for details.
 
-## Standard archiving, WAL streaming ... or both
+## The Barman WAL archive
 
-PostgreSQL's Point-In-Time-Recovery requires that transactional logs, also known as _xlog_ or WAL files, are stored alongside of base backups.
+Recovering a PostgreSQL backup relies on replaying transaction logs (also known as _xlog_ or WAL files). It is therefore essential that WAL files are stored by Barman alongside the base backups so that they are available at recovery time. This can be achieved using either WAL streaming or standard WAL archiving to copy WALs into Barman's WAL archive.
 
-Traditionally, Barman has supported standard WAL file shipping through PostgreSQL's `archive_command` (usually via `rsync`/SSH, now via `barman-wal-archive` from the `barman-cli` package). With this method, WAL files are archived only when PostgreSQL _switches_ to a new WAL file. To keep it simple, this normally happens every 16MB worth of data changes.
+WAL streaming involves streaming WAL files from the PostgreSQL server with `pg_receivewal` using replication slots. WAL streaming is able to reduce the risk of data loss, bringing RPO down to _near zero_ values. It is also possible to add Barman as a synchronous WAL receiver in your PostgreSQL cluster and achieve **zero data loss** (RPO=0).
 
-Barman 1.6.0 introduces streaming of WAL files for PostgreSQL servers 9.2 or higher, as an additional method for transactional log archiving, through `pg_receivewal` (also known as `pg_receivexlog` before PostgreSQL 10). WAL streaming is able to reduce the risk of data loss, bringing RPO down to _near zero_ values.
+Barman also supports standard WAL file archiving which is achieved using PostgreSQL's `archive_command` (either via `rsync`/SSH, or via `barman-wal-archive` from the `barman-cli` package). With this method, WAL files are archived only when PostgreSQL _switches_ to a new WAL file. To keep it simple this normally happens every 16MB worth of data changes.
 
-Barman 2.0 introduces support for replication slots with PostgreSQL servers 9.4 or above, therefore allowing WAL streaming-only configurations. Moreover, you can now add Barman as a synchronous WAL receiver in your PostgreSQL 9.5 (or higher) cluster, and achieve **zero data loss** (RPO=0).
+It is *required* that one of WAL streaming or WAL archiving is configured. It is optionally possible to configure both WAL streaming *and* standard WAL archiving - in such cases Barman will automatically de-duplicate incoming WALs. This provides a fallback mechanism so that WALs are still copied to Barman's archive in the event that WAL streaming fails.
 
-In some cases you have no choice and you are forced to use traditional archiving. In others, you can choose whether to use both or just WAL streaming.
-Unless you have strong reasons not to do it, we recommend to use both channels, for maximum reliability and robustness.
+For general usage we recommend configuring WAL streaming only.
+
+> **NOTE:**
+> Previous versions of Barman recommended that both WAL archiving *and* WAL
+> streaming were used. This was because PostreSQL versions older than 9.4 did
+> not support replication slots and therefore WAL streaming alone could not
+> guarantee all WALs would be safely stored in Barman's WAL archive. Since all
+> supported versions of PostgreSQL now have replication slots it is sufficient
+> to configure only WAL streaming.
 
 ## Two typical scenarios for backups
 
@@ -99,7 +106,7 @@ As mentioned before, we will only worry about the PostgreSQL server (`pg`) and t
 
 ### Scenario 1: Backup via streaming protocol
 
-If you are using PostgreSQL 9.4 or higher, and your database falls under a general use case scenario, you will likely end up deciding on a streaming backup installation - see figure \ref{scenario1-design} below.
+A streaming backup installation is recommended for most use cases - see figure \ref{scenario1-design} below.
 
 <!-- TODO: This way of referencing won't work in HTML -->
 ![Streaming-only backup (Scenario 1)\label{scenario1-design}](../images/barman-architecture-scenario1.png){ width=80% }
@@ -109,29 +116,24 @@ In this scenario, you will need to configure:
 1. a standard connection to PostgreSQL, for management, coordination, and monitoring purposes
 2. a streaming replication connection that will be used by both `pg_basebackup` (for base backup operations) and `pg_receivewal` (for WAL streaming)
 
-This setup, in Barman's terminology, is known as **streaming-only** setup, as it does not require any SSH connection for backup and archiving operations. This is particularly suitable and extremely practical for Docker environments.
+In Barman's terminology this setup is known as **streaming-only** setup as it does not use an SSH connection for backup and archiving operations. This is particularly suitable and extremely practical for Docker environments.
 
-However, as mentioned before, you can configure standard archiving as well and implement a more robust architecture - see figure \ref{scenario1b-design} below.
+As discussed in ["The Barman WAL archive"](#the-barman-wal-archive), you can configure WAL archiving via SSH *in addition to* WAL streaming - see figure \ref{scenario1b-design} below.
 
 ![Streaming backup with WAL archiving (Scenario 1b)\label{scenario1b-design}](../images/barman-architecture-scenario1b.png){ width=80% }
 
-This alternate approach requires:
+WAL archiving via SSH requires:
 
 - an additional SSH connection that allows the `postgres` user on the PostgreSQL server to connect as `barman` user on the Barman server
 - the `archive_command` in PostgreSQL be configured to ship WAL files to Barman
 
-This architecture is available also to PostgreSQL 9.2/9.3 users that do not use tablespaces.
-
-
 ### Scenario 2: Backup via `rsync`/SSH
 
-The _traditional_ setup of `rsync` over SSH is the only available option for:
+An `rsync`/SSH backup installation is required for cases where the following features are required:
 
-- PostgreSQL servers version 8.3, 8.4, 9.0 or 9.1
-- PostgreSQL servers version 9.2 or 9.3 that are using tablespaces
-- incremental backup, parallel backup and deduplication
-- network compression during backups
-- finer control of bandwidth usage, including on a tablespace basis
+- file-level incremental backup
+- parallel backup
+- finer control of bandwidth usage, including on a per-tablespace basis
 
 ![Scenario 2 - Backup via rsync/SSH](../images/barman-architecture-scenario2.png){ width=80% }
 
@@ -141,7 +143,7 @@ In this scenario, you will need to configure:
 2. an SSH connection for base backup operations to be used by `rsync` that allows the `barman` user on the Barman server to connect as `postgres` user on the PostgreSQL server
 3. an SSH connection for WAL archiving to be used by the `archive_command` in PostgreSQL and that allows the `postgres` user on the PostgreSQL server to connect as `barman` user on the Barman server
 
-Starting from PostgreSQL 9.2, you can add a streaming replication connection that is used for WAL streaming and significantly reduce RPO. This more robust implementation is depicted in figure \ref{scenario2b-design}.
+As an alternative to configuring WAL archiving in step 3, you can instead configure WAL streaming as described in [Scenario 1](#scenario-1-backup-via-streaming-protocol). This will use a streaming replication connection instead of `archive_command` and significantly reduce RPO. As with [Scenario 1](#scenario-1-backup-via-streaming-protocol) it is also possible to configure both WAL streaming and WAL archiving as shown in figure \ref{scenario2b-design} below.
 
 ![Backup via rsync/SSH with WAL streaming (Scenario 2b)\label{scenario2b-design}](../images/barman-architecture-scenario2b.png){ width=80% }
 
