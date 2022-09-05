@@ -142,6 +142,10 @@ You must ensure that either:
    server and points to the `bin` directory for the appropriate
    `PG_MAJOR_VERSION`.
 
+The [psql][psql] program is recommended in addition to the above binaries.
+While Barman does not use it directly the documentation provides examples of how it can be used to verify PostgreSQL connections are working as intended.
+The `psql` binary can be found in the PostgreSQL client packages.
+
 # Upgrading Barman
 
 Barman follows the trunk-based development paradigm, and as such
