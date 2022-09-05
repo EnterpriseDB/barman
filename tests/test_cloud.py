@@ -1914,7 +1914,7 @@ class TestGoogleCloudInterface(TestCase):
         logging_mock.warning.assert_called()
 
     @pytest.mark.skipif(
-        sys.version_info < (3, 5), reason="requires python3.5 or higher"
+        sys.version_info < (3, 6), reason="requires python3.6 or higher"
     )
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
     def test_list_bucket(self, gcs_client_mock):
@@ -1979,7 +1979,7 @@ class TestGoogleCloudInterface(TestCase):
                 assert content == test_case["expected"]
 
     @pytest.mark.skipif(
-        sys.version_info < (3, 5), reason="requires python3.5 or higher"
+        sys.version_info < (3, 6), reason="requires python3.6 or higher"
     )
     def test_upload_fileobj_with(self):
         """
@@ -2113,7 +2113,7 @@ class TestGoogleCloudInterface(TestCase):
         container_client_mock.blob.assert_has_calls(mock_calls, any_order=True)
 
     @pytest.mark.skipif(
-        sys.version_info < (3, 5), reason="Requires Python 3.5 or higher"
+        sys.version_info < (3, 6), reason="Requires Python 3.6 or higher"
     )
     @mock.patch("barman.cloud_providers.google_cloud_storage.open")
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage")
