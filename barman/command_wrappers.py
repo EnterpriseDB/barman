@@ -679,7 +679,9 @@ class Rsync(Command):
         """
         if "stdin" in kwargs:
             raise TypeError("from_file_list() doesn't support 'stdin' keyword argument")
-        input_string = ("\n".join(filelist)).encode("UTF-8")
+        # The input string for the rsync --files-from argument must have a
+        # trailing newline for compatibility with certain versions of rsync.
+        input_string = ("\n".join(filelist) + "\n").encode("UTF-8")
         _logger.debug("from_file_list: %r", filelist)
         kwargs["stdin"] = input_string
         self.get_output("--files-from=-", src, dst, *args, **kwargs)
