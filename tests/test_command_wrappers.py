@@ -947,7 +947,7 @@ class TestRsync(object):
             preexec_fn=mock.ANY,
             close_fds=True,
         )
-        pipe.stdin.write.assert_called_with("a\nb\nc".encode("UTF-8"))
+        pipe.stdin.write.assert_called_with("a\nb\nc\n".encode("UTF-8"))
         pipe.stdin.close.assert_called_once_with()
         assert result == ret
         assert cmd.ret == ret
