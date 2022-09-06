@@ -311,6 +311,7 @@ def build_config_dictionary(config_keys=None):
         "parallel_jobs": 1,
         "create_slot": "manual",
         "forward_config_path": False,
+        "primary_conninfo": None,
     }
     # Check for overriding keys
     if config_keys is not None:

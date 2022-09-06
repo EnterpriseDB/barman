@@ -340,11 +340,26 @@ class Command(object):
         """
         out = []
         err = []
+
+        def out_handler(line):
+            out.append(line)
+            if self.out_handler is not None:
+                self.out_handler(line)
+
+        def err_handler(line):
+            err.append(line)
+            if self.err_handler is not None:
+                self.err_handler(line)
+
         # If check is true, it must be handled here
         check = kwargs.pop("check", self.check)
         allowed_retval = kwargs.pop("allowed_retval", self.allowed_retval)
         self.execute(
-            out_handler=out.append, err_handler=err.append, check=False, *args, **kwargs
+            out_handler=out_handler,
+            err_handler=err_handler,
+            check=False,
+            *args,
+            **kwargs
         )
         self.out = "\n".join(out)
         self.err = "\n".join(err)

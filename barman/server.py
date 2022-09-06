@@ -77,7 +77,11 @@ from barman.lockfile import (
     ServerWalSyncLock,
     ServerXLOGDBLock,
 )
-from barman.postgres import PostgreSQLConnection, StreamingConnection
+from barman.postgres import (
+    PostgreSQLConnection,
+    StandbyPostgreSQLConnection,
+    StreamingConnection,
+)
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
 from barman.retention_policies import RetentionPolicyFactory, RetentionPolicy
@@ -258,125 +262,152 @@ class Server(RemoteStatusMixin):
 
         # Postgres configuration is available only if node is not passive
         if not self.passive_node:
-            # Initialize the main PostgreSQL connection
-            try:
-                # Check that 'conninfo' option is properly set
-                if config.conninfo is None:
-                    raise ConninfoException(
-                        "Missing 'conninfo' parameter for server '%s'" % config.name
-                    )
-                self.postgres = PostgreSQLConnection(
-                    config.conninfo, config.immediate_checkpoint, config.slot_name
-                )
-            # If the PostgreSQLConnection creation fails, disable the Server
-            except ConninfoException as e:
-                self.config.update_msg_list_and_disable_server(
-                    "PostgreSQL connection: " + force_str(e).strip()
-                )
-
-            # Initialize the streaming PostgreSQL connection only when
-            # backup_method is postgres or the streaming_archiver is in use
-            if config.backup_method == "postgres" or config.streaming_archiver:
-                try:
-                    if config.streaming_conninfo is None:
-                        raise ConninfoException(
-                            "Missing 'streaming_conninfo' parameter for "
-                            "server '%s'" % config.name
-                        )
-                    self.streaming = StreamingConnection(config.streaming_conninfo)
-                # If the StreamingConnection creation fails, disable the server
-                except ConninfoException as e:
-                    self.config.update_msg_list_and_disable_server(
-                        "Streaming connection: " + force_str(e).strip()
-                    )
+            self._init_postgres(config)
 
         # Initialize the backup manager
         self.backup_manager = BackupManager(self)
 
         if not self.passive_node:
-            # Initialize the StreamingWalArchiver
-            # WARNING: Order of items in self.archivers list is important!
-            # The files will be archived in that order.
-            if self.config.streaming_archiver:
-                try:
-                    self.archivers.append(StreamingWalArchiver(self.backup_manager))
-                # If the StreamingWalArchiver creation fails,
-                # disable the server
-                except AttributeError as e:
-                    _logger.debug(e)
-                    self.config.update_msg_list_and_disable_server(
-                        "Unable to initialise the streaming archiver"
+            self._init_archivers()
+
+        # Set global and tablespace bandwidth limits
+        self._init_bandwidth_limits()
+
+        # Initialize minimum redundancy
+        self._init_minimum_redundancy()
+
+        # Initialise retention policies
+        self._init_retention_policies()
+
+    def _init_postgres(self, config):
+        # Initialize the main PostgreSQL connection
+        try:
+            # Check that 'conninfo' option is properly set
+            if config.conninfo is None:
+                raise ConninfoException(
+                    "Missing 'conninfo' parameter for server '%s'" % config.name
+                )
+            # If primary_conninfo is set then we're connecting to a standby
+            if config.primary_conninfo is not None:
+                # The standby needs a connection to the primary so that it can
+                # perform WAL switches itself when calling pg_backup_stop.
+                primary = PostgreSQLConnection(
+                    config.primary_conninfo,
+                )
+                self.postgres = StandbyPostgreSQLConnection(
+                    config.conninfo,
+                    primary,
+                    config.immediate_checkpoint,
+                    config.slot_name,
+                )
+            else:
+                self.postgres = PostgreSQLConnection(
+                    config.conninfo, config.immediate_checkpoint, config.slot_name
+                )
+        # If the PostgreSQLConnection creation fails, disable the Server
+        except ConninfoException as e:
+            self.config.update_msg_list_and_disable_server(
+                "PostgreSQL connection: " + force_str(e).strip()
+            )
+
+        # Initialize the streaming PostgreSQL connection only when
+        # backup_method is postgres or the streaming_archiver is in use
+        if config.backup_method == "postgres" or config.streaming_archiver:
+            try:
+                if config.streaming_conninfo is None:
+                    raise ConninfoException(
+                        "Missing 'streaming_conninfo' parameter for "
+                        "server '%s'" % config.name
                     )
-
-            # IMPORTANT: The following lines of code have been
-            # temporarily commented in order to make the code
-            # back-compatible after the introduction of 'archiver=off'
-            # as default value in Barman 2.0.
-            # When the back compatibility feature for archiver will be
-            # removed, the following lines need to be decommented.
-            # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
-            # # At least one of the available archive modes should be enabled
-            # if len(self.archivers) < 1:
-            #     self.config.update_msg_list_and_disable_server(
-            #         "No archiver enabled for server '%s'. "
-            #         "Please turn on 'archiver', 'streaming_archiver' or both"
-            #         % config.name
-            #     )
-            # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
-
-            # Sanity check: if file based archiver is disabled, and only
-            # WAL streaming is enabled, a replication slot name must be
-            # configured.
-            if (
-                not self.config.archiver
-                and self.config.streaming_archiver
-                and self.config.slot_name is None
-            ):
+                self.streaming = StreamingConnection(config.streaming_conninfo)
+            # If the StreamingConnection creation fails, disable the server
+            except ConninfoException as e:
                 self.config.update_msg_list_and_disable_server(
-                    "Streaming-only archiver requires 'streaming_conninfo' "
-                    "and 'slot_name' options to be properly configured"
+                    "Streaming connection: " + force_str(e).strip()
                 )
 
-            # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
-            # IMPORTANT: This is a back-compatibility feature that has
-            # been added in Barman 2.0. It highlights a deprecated
-            # behaviour, and helps users during this transition phase.
-            # It forces 'archiver=on' when both archiver and streaming_archiver
-            # are set to 'off' (default values) and displays a warning,
-            # requesting users to explicitly set the value in the
-            # configuration.
-            # When this back-compatibility feature will be removed from Barman
-            # (in a couple of major releases), developers will need to remove
-            # this block completely and reinstate the block of code you find
-            # a few lines below (search for ARCHIVER_OFF_BACKCOMPATIBILITY
-            # throughout the code).
-            if (
-                self.config.archiver is False
-                and self.config.streaming_archiver is False
-            ):
-                output.warning(
-                    "No archiver enabled for server '%s'. "
-                    "Please turn on 'archiver', "
-                    "'streaming_archiver' or both",
-                    self.config.name,
+    def _init_archivers(self):
+        # Initialize the StreamingWalArchiver
+        # WARNING: Order of items in self.archivers list is important!
+        # The files will be archived in that order.
+        if self.config.streaming_archiver:
+            try:
+                self.archivers.append(StreamingWalArchiver(self.backup_manager))
+            # If the StreamingWalArchiver creation fails,
+            # disable the server
+            except AttributeError as e:
+                _logger.debug(e)
+                self.config.update_msg_list_and_disable_server(
+                    "Unable to initialise the streaming archiver"
                 )
-                output.warning("Forcing 'archiver = on'")
-                self.config.archiver = True
-            # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
 
-            # Initialize the FileWalArchiver
-            # WARNING: Order of items in self.archivers list is important!
-            # The files will be archived in that order.
-            if self.config.archiver:
-                try:
-                    self.archivers.append(FileWalArchiver(self.backup_manager))
-                except AttributeError as e:
-                    _logger.debug(e)
-                    self.config.update_msg_list_and_disable_server(
-                        "Unable to initialise the file based archiver"
-                    )
+        # IMPORTANT: The following lines of code have been
+        # temporarily commented in order to make the code
+        # back-compatible after the introduction of 'archiver=off'
+        # as default value in Barman 2.0.
+        # When the back compatibility feature for archiver will be
+        # removed, the following lines need to be decommented.
+        # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
+        # # At least one of the available archive modes should be enabled
+        # if len(self.archivers) < 1:
+        #     self.config.update_msg_list_and_disable_server(
+        #         "No archiver enabled for server '%s'. "
+        #         "Please turn on 'archiver', 'streaming_archiver' or both"
+        #         % config.name
+        #     )
+        # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
 
-        # Set bandwidth_limit
+        # Sanity check: if file based archiver is disabled, and only
+        # WAL streaming is enabled, a replication slot name must be
+        # configured.
+        if (
+            not self.config.archiver
+            and self.config.streaming_archiver
+            and self.config.slot_name is None
+        ):
+            self.config.update_msg_list_and_disable_server(
+                "Streaming-only archiver requires 'streaming_conninfo' "
+                "and 'slot_name' options to be properly configured"
+            )
+
+        # ARCHIVER_OFF_BACKCOMPATIBILITY - START OF CODE
+        # IMPORTANT: This is a back-compatibility feature that has
+        # been added in Barman 2.0. It highlights a deprecated
+        # behaviour, and helps users during this transition phase.
+        # It forces 'archiver=on' when both archiver and streaming_archiver
+        # are set to 'off' (default values) and displays a warning,
+        # requesting users to explicitly set the value in the
+        # configuration.
+        # When this back-compatibility feature will be removed from Barman
+        # (in a couple of major releases), developers will need to remove
+        # this block completely and reinstate the block of code you find
+        # a few lines below (search for ARCHIVER_OFF_BACKCOMPATIBILITY
+        # throughout the code).
+        if self.config.archiver is False and self.config.streaming_archiver is False:
+            output.warning(
+                "No archiver enabled for server '%s'. "
+                "Please turn on 'archiver', "
+                "'streaming_archiver' or both",
+                self.config.name,
+            )
+            output.warning("Forcing 'archiver = on'")
+            self.config.archiver = True
+        # ARCHIVER_OFF_BACKCOMPATIBILITY - END OF CODE
+
+        # Initialize the FileWalArchiver
+        # WARNING: Order of items in self.archivers list is important!
+        # The files will be archived in that order.
+        if self.config.archiver:
+            try:
+                self.archivers.append(FileWalArchiver(self.backup_manager))
+            except AttributeError as e:
+                _logger.debug(e)
+                self.config.update_msg_list_and_disable_server(
+                    "Unable to initialise the file based archiver"
+                )
+
+    def _init_bandwidth_limits(self):
+        # Global bandwidth limits
         if self.config.bandwidth_limit:
             try:
                 self.config.bandwidth_limit = int(self.config.bandwidth_limit)
@@ -388,7 +419,7 @@ class Server(RemoteStatusMixin):
                 )
                 self.config.bandwidth_limit = None
 
-        # set tablespace_bandwidth_limit
+        # Tablespace bandwidth limits
         if self.config.tablespace_bandwidth_limit:
             rules = {}
             for rule in self.config.tablespace_bandwidth_limit.split():
@@ -406,6 +437,7 @@ class Server(RemoteStatusMixin):
             else:
                 self.config.tablespace_bandwidth_limit = None
 
+    def _init_minimum_redundancy(self):
         # Set minimum redundancy (default 0)
         try:
             self.config.minimum_redundancy = int(self.config.minimum_redundancy)
@@ -422,9 +454,6 @@ class Server(RemoteStatusMixin):
                 '(fallback to "0")' % (self.config.minimum_redundancy, self.config.name)
             )
             self.config.minimum_redundancy = 0
-
-        # Initialise retention policies
-        self._init_retention_policies()
 
     def _init_retention_policies(self):
         # Set retention policy mode
@@ -828,6 +857,62 @@ class Server(RemoteStatusMixin):
                             "by the current config"
                             % (self.config.slot_name, slot_status),
                         )
+
+        if self.config.primary_conninfo is not None:
+            self._check_standby(check_strategy)
+
+    def _check_standby(self, check_strategy):
+        """
+        Perform checks specific to a primary/standby configuration.
+
+        :param CheckStrategy check_strategy: The strategy for the management
+            of the results of the various checks.
+        """
+        # Check that standby is standby
+        check_strategy.init_check("PostgreSQL server is standby")
+        is_in_recovery = self.postgres.is_in_recovery
+        if is_in_recovery:
+            check_strategy.result(self.config.name, True)
+        else:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint=(
+                    "conninfo should point to a standby server if "
+                    "primary_conninfo is set"
+                ),
+            )
+
+        # Check that primary is not standby
+        check_strategy.init_check("Primary server is not a standby")
+        primary_is_in_recovery = self.postgres.primary.is_in_recovery
+        if not primary_is_in_recovery:
+            check_strategy.result(self.config.name, True)
+        else:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint=(
+                    "primary_conninfo should point to a primary server, "
+                    "not a standby"
+                ),
+            )
+
+        # Check that system ID is the same for both
+        check_strategy.init_check("Primary and standby have same system ID")
+        standby_id = self.postgres.get_systemid()
+        primary_id = self.postgres.primary.get_systemid()
+        if standby_id == primary_id:
+            check_strategy.result(self.config.name, True)
+        else:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint=(
+                    "primary_conninfo and conninfo should point to primary and "
+                    "standby servers which share the same system identifier"
+                ),
+            )
 
     def _make_directories(self):
         """

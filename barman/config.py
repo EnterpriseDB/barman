@@ -465,6 +465,7 @@ class ServerConfig(object):
         "pre_recovery_script",
         "pre_wal_delete_script",
         "pre_wal_delete_retry_script",
+        "primary_conninfo",
         "primary_ssh_command",
         "recovery_options",
         "recovery_staging_path",
