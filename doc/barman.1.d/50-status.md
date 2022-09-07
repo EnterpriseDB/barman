@@ -8,7 +8,6 @@ Server quagmire:
   Description: The Giggity database
   Passive node: False
   PostgreSQL version: 9.3.9
-  pgespresso extension: Not available
   PostgreSQL Data directory: /srv/postgresql/9.3/data
   PostgreSQL 'archive_command' setting: rsync -a %p barman@backup:/var/lib/barman/quagmire/incoming
   Last archived WAL: 0000000100003103000000AD

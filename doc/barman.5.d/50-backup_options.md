@@ -6,9 +6,7 @@ backup_options
     * `concurrent_backup` (default):
       `barman backup` executes backup operations using concurrent
       backup which is the recommended backup approach for PostgreSQL
-      versions >= 9.6 and uses the PostgreSQL API. If using PostgreSQL
-      9.2, 9.3, 9.4, or 9.5, Barman requires the `pgespresso` module to
-      be installed on the PostgreSQL server. `concurrent_backup` can
+      versions >= 9.6 and uses the PostgreSQL API. `concurrent_backup` can
       also be used to perform a backup from a standby server.
     * `exclusive_backup` (PostgreSQL versions older than 15 only):
       `barman backup` executes backup operations using the deprecated
