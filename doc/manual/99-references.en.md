@@ -42,7 +42,6 @@
 
 
   [8]: https://en.wikipedia.org/wiki/Hard_link
-  [9]: https://github.com/2ndquadrant-it/pgespresso
   [11]: https://www.pgbarman.org/
   [12]: https://www.pgbarman.org/support/
   [13]: https://www.enterprisedb.com/
