@@ -1803,7 +1803,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
     This strategy is responsible for coordinating Barman with PostgreSQL on
     concurrent physical backup operations through concurrent backup
-    PostgreSQL api or the pgespresso extension.
+    PostgreSQL api.
     """
 
     def __init__(self, postgres, server_name):
@@ -1825,21 +1825,19 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
-        check_strategy.init_check("pgespresso extension")
+        check_strategy.init_check("postgres minimal version")
         try:
             # We execute this check only if the postgres connection is non None
             # and the server version is lower than 9.6. On latest PostgreSQL
             # there is a native API for concurrent backups.
-            if self.postgres and self.postgres.server_version < 90600:
-                if self.postgres.has_pgespresso:
-                    check_strategy.result(self.server_name, True)
-                else:
-                    check_strategy.result(
-                        self.server_name,
-                        False,
-                        hint="required for concurrent "
-                        "backups on PostgreSQL %s" % self.postgres.server_major_version,
-                    )
+            if self.postgres and not self.postgres.is_minimal_postgres_version():
+                check_strategy.result(
+                    self.server_name,
+                    False,
+                    hint="unsupported PostgresSQL version %s"
+                    % self.postgres.server_major_version,
+                )
+
         except PostgresConnectionError:
             # Skip the check if the postgres connection doesn't work.
             # We assume that this error condition will be reported by
@@ -1859,15 +1857,12 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         label = "Barman backup %s %s" % (backup_info.server_name, backup_info.backup_id)
 
-        pg_version = self.postgres.server_version
-        if pg_version >= 90600:
-            # On 9.6+ execute native concurrent start backup
-            _logger.debug("Start of native concurrent backup")
-            self._concurrent_start_backup(backup_info, label)
-        else:
-            # On older Postgres use pgespresso
-            _logger.debug("Start of concurrent backup with pgespresso")
-            self._pgespresso_start_backup(backup_info, label)
+        if not self.postgres.is_minimal_postgres_version():
+            _logger.error("Postgres version not supported")
+            raise BackupException("Postgres version not supported")
+        # On 9.6+ execute native concurrent start backup
+        _logger.debug("Start of native concurrent backup")
+        self._concurrent_start_backup(backup_info, label)
 
     def stop_backup(self, backup_info):
         """
@@ -1876,17 +1871,14 @@ class ConcurrentBackupStrategy(BackupStrategy):
         :param barman.infofile.BackupInfo backup_info: backup information
         """
         self.current_action = "issuing stop backup command"
-        pg_version = self.postgres.server_version
-        if pg_version >= 90600:
-            # On 9.6+ execute native concurrent stop backup
-            self.current_action += " (native concurrent)"
-            _logger.debug("Stop of native concurrent backup")
-            self._concurrent_stop_backup(backup_info)
-        else:
-            # On older Postgres use pgespresso
-            self.current_action += " (pgespresso)"
-            _logger.debug("Stop of concurrent backup with pgespresso")
-            self._pgespresso_stop_backup(backup_info)
+        if not self.postgres.is_minimal_postgres_version():
+            _logger.error("Postgres version not supported")
+            raise BackupException("Postgres version not supported")
+
+        # On 9.6+ execute native concurrent stop backup
+        self.current_action += " (native concurrent)"
+        _logger.debug("Stop of native concurrent backup")
+        self._concurrent_stop_backup(backup_info)
 
         # Write backup_label retrieved from postgres connection
         self.current_action = "writing backup label"
@@ -1899,35 +1891,6 @@ class ConcurrentBackupStrategy(BackupStrategy):
         except PostgresIsInRecovery:
             # Skip switching XLOG if a standby server
             pass
-
-    def _pgespresso_start_backup(self, backup_info, label):
-        """
-        Start a concurrent backup using pgespresso
-
-        :param barman.infofile.BackupInfo backup_info: backup information
-        """
-        backup_info.set_attribute("status", BackupInfo.STARTED)
-        start_info = self.postgres.pgespresso_start_backup(label)
-        backup_info.set_attribute("backup_label", start_info["backup_label"])
-        self._backup_info_from_backup_label(backup_info)
-
-    def _pgespresso_stop_backup(self, backup_info):
-        """
-        Stop a concurrent backup using pgespresso
-
-        :param barman.infofile.BackupInfo backup_info: backup information
-        """
-        stop_info = self.postgres.pgespresso_stop_backup(backup_info.backup_label)
-        # Obtain a modifiable copy of stop_info object
-        stop_info = stop_info.copy()
-        # We don't know the exact backup stop location,
-        # so we include the whole segment.
-        stop_info["location"] = xlog.location_from_xlogfile_name_offset(
-            stop_info["end_wal"],
-            self.postgres.xlog_segment_size - 1,
-            self.postgres.xlog_segment_size,
-        )
-        self._backup_info_from_stop_location(backup_info, stop_info)
 
     def _concurrent_start_backup(self, backup_info, label):
         """
@@ -1960,7 +1923,7 @@ class LocalConcurrentBackupStrategy(ConcurrentBackupStrategy):
 
     This strategy is for FsBackupExecutor only and is responsible for
     coordinating Barman with PostgreSQL on concurrent physical backup
-    operations through the pgespresso extension.
+    operations through concurrent backup PostgreSQL api.
     """
 
     # noinspection PyMethodMayBeStatic

@@ -279,6 +279,10 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
             return simplify_version(result)
         return None
 
+    def is_minimal_postgres_version(self):
+        """Checks if postgres version has at least minimal version"""
+        return self.server_version >= 90600
+
 
 class StreamingConnection(PostgreSQL):
     """
@@ -504,27 +508,6 @@ class PostgreSQLConnection(PostgreSQL):
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
                 "Error retrieving PostgreSQL version: %s", force_str(e).strip()
-            )
-            return None
-
-    @property
-    def has_pgespresso(self):
-        """
-        Returns true if the `pgespresso` extension is available
-        """
-        try:
-            # pg_extension is only available from Postgres 9.1+
-            if self.server_version < 90100:
-                return False
-            cur = self._cursor()
-            cur.execute(
-                "SELECT count(*) FROM pg_extension WHERE extname = 'pgespresso'"
-            )
-            q_result = cur.fetchone()[0]
-            return q_result > 0
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            _logger.debug(
-                "Error retrieving pgespresso information: %s", force_str(e).strip()
             )
             return None
 
@@ -880,7 +863,6 @@ class PostgreSQLConnection(PostgreSQL):
             "is_superuser",
             "is_in_recovery",
             "current_xlog",
-            "pgespresso_installed",
             "replication_slot_support",
             "replication_slot",
             "synchronous_standby_names",
@@ -926,7 +908,6 @@ class PostgreSQLConnection(PostgreSQL):
             result["has_backup_privileges"] = self.has_backup_privileges
             result["is_in_recovery"] = self.is_in_recovery
             result["server_txt_version"] = self.server_txt_version
-            result["pgespresso_installed"] = self.has_pgespresso
             current_xlog_info = self.current_xlog_info
             if current_xlog_info:
                 result["current_lsn"] = current_xlog_info["location"]
@@ -1314,81 +1295,6 @@ class PostgreSQLConnection(PostgreSQL):
             )
             _logger.debug(msg)
             raise PostgresException(msg)
-
-    def pgespresso_start_backup(self, label):
-        """
-        Execute a pgespresso_start_backup
-
-        This method returns a dictionary containing the following data:
-
-         * backup_label
-         * timestamp
-
-        :param str label: descriptive string to identify the backup
-        :rtype: psycopg2.extras.DictRow
-        """
-        try:
-            conn = self.connect()
-
-            # Rollback to release the transaction,
-            # as the pgespresso_start_backup invocation can last
-            # up to PostgreSQL's checkpoint_timeout
-            conn.rollback()
-
-            # Start the concurrent backup using pgespresso
-            cur = conn.cursor(cursor_factory=DictCursor)
-            cur.execute(
-                "SELECT pgespresso_start_backup(%s,%s) AS backup_label, "
-                "now() AS timestamp",
-                (label, self.immediate_checkpoint),
-            )
-
-            start_row = cur.fetchone()
-
-            # Rollback to release the transaction, as the connection
-            # is to be retained until the end of backup
-            conn.rollback()
-
-            return start_row
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "pgespresso_start_backup(): %s" % force_str(e).strip()
-            _logger.debug(msg)
-            raise PostgresException(msg)
-
-    def pgespresso_stop_backup(self, backup_label):
-        """
-        Execute a pgespresso_stop_backup
-
-        This method returns a dictionary containing the following data:
-
-         * end_wal
-         * timestamp
-
-        :param str backup_label: backup label as returned
-            by pgespresso_start_backup
-        :rtype: psycopg2.extras.DictRow
-        """
-        try:
-            conn = self.connect()
-            # Issue a rollback to release any unneeded lock
-            conn.rollback()
-            cur = conn.cursor(cursor_factory=DictCursor)
-            cur.execute(
-                "SELECT pgespresso_stop_backup(%s) AS end_wal, now() AS timestamp",
-                (backup_label,),
-            )
-            return cur.fetchone()
-        except (PostgresConnectionError, psycopg2.Error) as e:
-            msg = "Error issuing pgespresso_stop_backup() command: %s" % (
-                force_str(e).strip()
-            )
-            _logger.debug(msg)
-            raise PostgresException(
-                "%s\n"
-                "HINT: You might have to manually execute "
-                "pgespresso_abort_backup() on your PostgreSQL "
-                "server" % msg
-            )
 
     def switch_wal(self):
         """

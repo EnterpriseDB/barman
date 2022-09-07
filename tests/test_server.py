@@ -623,7 +623,6 @@ class TestServer(object):
         postgres_mock.return_value = {
             "current_xlog": None,
             "archive_command": "wal to archive",
-            "pgespresso_installed": None,
             "server_txt_version": "PostgresSQL 9_4",
             "data_directory": "/usr/local/postgres",
             "archive_mode": "on",
@@ -650,7 +649,6 @@ class TestServer(object):
         postgres_mock.return_value = {
             "current_xlog": None,
             "archive_command": None,
-            "pgespresso_installed": None,
             "server_txt_version": "PostgresSQL 9_4",
             "data_directory": "/usr/local/postgres",
             "archive_mode": "on",
@@ -767,7 +765,6 @@ class TestServer(object):
         postgres_mock.return_value = {
             "current_xlog": None,
             "archive_command": "wal to archive",
-            "pgespresso_installed": None,
             "server_txt_version": "9.3.1",
             "data_directory": "/usr/local/postgres",
             "archive_mode": "on",

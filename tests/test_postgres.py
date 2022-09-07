@@ -354,31 +354,6 @@ class TestPostgres(object):
             server.postgres.stop_concurrent_backup()
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
-    def test_pgespresso_stop_backup(self, conn):
-        """
-        Basic test for pgespresso_stop_backup method
-        """
-        # Build a server
-        server = build_real_server()
-
-        # Test 1: Expect no error and the correct call sequence
-        assert server.postgres.pgespresso_stop_backup("test_label")
-
-        cursor_mock = conn.return_value.cursor.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT pgespresso_stop_backup(%s) AS end_wal, now() AS timestamp",
-            ("test_label",),
-        )
-
-        # Test 2: Setup the mock to trigger an exception
-        # expect the method to raise PostgresException
-        conn.reset_mock()
-        cursor_mock.execute.side_effect = psycopg2.Error
-        # Check that the method raises a PostgresException
-        with pytest.raises(PostgresException):
-            server.postgres.pgespresso_stop_backup("test_label")
-
-    @patch("barman.postgres.PostgreSQLConnection.connect")
     def test_start_exclusive_backup(self, conn):
         """
         Simple test for start_exclusive_backup method of
@@ -494,36 +469,16 @@ class TestPostgres(object):
             server.postgres.start_concurrent_backup(label)
         conn.return_value.rollback.assert_called_once_with()
 
+    @pytest.mark.parametrize(
+        ("version", "expected"), [(90600, True), (100000, True), (90500, False)]
+    )
     @patch("barman.postgres.PostgreSQLConnection.connect")
-    def test_pgespresso_start_backup(self, conn):
-        """
-        Simple test for _pgespresso_start_backup method
-        of the RsyncBackupExecutor class
-        """
-        # Build and configure a server
+    def test_is_minimal_postgres_version(self, conn, version, expected):
         server = build_real_server()
-        backup_label = "test label"
 
-        # expect no errors
-        assert server.postgres.pgespresso_start_backup(backup_label)
-
-        cursor_mock = conn.return_value.cursor.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT pgespresso_start_backup(%s,%s) AS backup_label, "
-            "now() AS timestamp",
-            (backup_label, server.config.immediate_checkpoint),
-        )
-        conn.return_value.rollback.assert_has_calls([call(), call()])
-        # reset the mock for the next test
-        conn.reset_mock()
-
-        # Test 2: Setup the mock to trigger an exception
-        # expect the method to return None
-        cursor_mock.execute.side_effect = psycopg2.Error
-        # Check that the method returns None as result
-        with pytest.raises(Exception):
-            server.postgres.pgespresso_start_backup("test_label")
-        conn.return_value.rollback.assert_called_once_with()
+        # conn.return_value.server_version = 90600
+        conn.return_value.server_version = version
+        assert server.postgres.is_minimal_postgres_version() == expected
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
     def test_get_setting(self, conn):
@@ -708,41 +663,6 @@ class TestPostgres(object):
         assert server.postgres.get_configuration_files() == {}
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
-    def test_has_pgespresso(self, conn_mock):
-        """
-        simple test for has_pgespresso property
-        """
-        # Build a server
-        server = build_real_server()
-        cursor_mock = conn_mock.return_value.cursor.return_value
-
-        # Too old
-        conn_mock.return_value.server_version = 90000
-        assert not server.postgres.has_pgespresso
-
-        # Extension present
-        conn_mock.return_value.server_version = 90100
-        cursor_mock.fetchone.return_value = [1]
-        assert server.postgres.has_pgespresso
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT count(*) FROM pg_extension WHERE extname = 'pgespresso'"
-        )
-
-        # Extension not present
-        cursor_mock.fetchone.return_value = [0]
-        assert not server.postgres.has_pgespresso
-
-        # Reset mock
-        conn_mock.reset_mock()
-
-        # Test error management
-        cursor_mock.execute.side_effect = PostgresConnectionError
-        assert server.postgres.has_pgespresso is None
-
-        cursor_mock.execute.side_effect = psycopg2.ProgrammingError
-        assert server.postgres.has_pgespresso is None
-
-    @patch("barman.postgres.PostgreSQLConnection.connect")
     def test_is_in_recovery(self, conn_mock):
         """
         simple test for is_in_recovery property
@@ -919,9 +839,6 @@ class TestPostgres(object):
         new_callable=PropertyMock,
     )
     @patch(
-        "barman.postgres.PostgreSQLConnection.has_pgespresso", new_callable=PropertyMock
-    )
-    @patch(
         "barman.postgres.PostgreSQLConnection.current_xlog_info",
         new_callable=PropertyMock,
     )
@@ -940,7 +857,6 @@ class TestPostgres(object):
         get_configuration_files_mock,
         current_size_mock,
         current_xlog_info,
-        has_pgespresso_mock,
         server_txt_version_mock,
         is_superuser_mock,
         has_backup_privileges_mock,
@@ -962,7 +878,6 @@ class TestPostgres(object):
             "timestamp": datetime.datetime(2016, 3, 30, 17, 4, 20, 271376),
         }
         current_size_mock.return_value = 497354072
-        has_pgespresso_mock.return_value = True
         server_txt_version_mock.return_value = "9.5.0"
         is_in_recovery_mock.return_value = False
         has_backup_privileges_mock.return_value = True
@@ -999,7 +914,6 @@ class TestPostgres(object):
             "current_lsn": "DE/ADBEEF",
             "current_xlog": "00000001000000DE00000000",
             "data_directory": "a directory",
-            "pgespresso_installed": True,
             "server_txt_version": "9.5.0",
             "wal_level": "a wal_level value",
             "current_size": 497354072,
@@ -1029,7 +943,6 @@ class TestPostgres(object):
             "current_lsn": "DE/ADBEEF",
             "current_xlog": "00000001000000DE00000000",
             "data_directory": "a directory",
-            "pgespresso_installed": True,
             "server_txt_version": "9.5.0",
             "wal_level": "a wal_level value",
             "current_size": 497354072,
@@ -1059,7 +972,6 @@ class TestPostgres(object):
             "current_lsn": "DE/ADBEEF",
             "current_xlog": "00000001000000DE00000000",
             "data_directory": "a directory",
-            "pgespresso_installed": True,
             "server_txt_version": "9.5.0",
             "wal_level": "a wal_level value",
             "current_size": 497354072,
@@ -1086,7 +998,6 @@ class TestPostgres(object):
             "is_in_recovery": None,
             "current_xlog": None,
             "data_directory": None,
-            "pgespresso_installed": None,
             "server_txt_version": None,
             "replication_slot_support": None,
             "replication_slot": None,
@@ -1100,7 +1011,6 @@ class TestPostgres(object):
             "is_in_recovery": None,
             "current_xlog": None,
             "data_directory": None,
-            "pgespresso_installed": None,
             "server_txt_version": None,
             "replication_slot_support": None,
             "replication_slot": None,
