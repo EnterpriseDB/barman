@@ -58,6 +58,12 @@ of the PostgreSQL server as configured in Barman and DUMMY is a placeholder
 (`barman-wal-archive` requires an argument for the WAL file name,
 which is ignored).
 
+If everything is configured correctly you should see the following output:
+
+``` bash
+Ready to accept WAL files for the server pg
+```
+
 Since it uses SSH to communicate with the Barman server, SSH key authentication
 is required for the `postgres` user to login as `barman` on the backup server.
 If a port other than the SSH default of 22 should be used then the `--port`

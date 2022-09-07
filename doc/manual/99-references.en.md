@@ -38,6 +38,7 @@
   [config-options]: https://docs.pgbarman.org/barman.5.html#options
   [barman-downloads]: https://pgbarman.org/downloads/
   [python-2-sunset]: https://www.python.org/doc/sunset-python-2/
+  [psql]: https://www.postgresql.org/docs/current/app-psql.html
 
 
   [8]: https://en.wikipedia.org/wiki/Hard_link

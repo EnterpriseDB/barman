@@ -141,6 +141,15 @@ barman@backup$ psql -U streaming_barman -h pg \
   replication=1
 ```
 
+If the connection is working you should see a response containing the system identifier, current timeline ID and current WAL flush location, for example:
+
+```
+      systemid       | timeline |  xlogpos   | dbname
+---------------------+----------+------------+--------
+ 7139870358166741016 |        1 | 1/330000D8 |
+(1 row)
+```
+
 > **IMPORTANT:**
 > Please make sure you are able to connect via streaming replication
 > before going any further.

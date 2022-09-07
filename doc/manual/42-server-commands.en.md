@@ -178,6 +178,13 @@ Where `backup` is the host where Barman is installed, `pg` is the name
 of the PostgreSQL server as configured in Barman and DUMMY is a placeholder
 (`barman-wal-restore` requires two argument for the WAL file name
 and destination directory, which are ignored).
+
+If everything is configured correctly you should see the following output:
+
+``` bash
+Ready to retrieve WAL files from the server pg
+```
+
 For more information on the `barman-wal-restore` command,
 type `man barman-wal-restore` on the PostgreSQL server.
 

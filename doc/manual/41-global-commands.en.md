@@ -54,6 +54,12 @@ barman receive-wal --stop SERVER_NAME
 You might want to check `barman list-servers` to make sure you get all of
 your servers.
 
+> **NOTE:**
+> `barman cron` runs background maintenance tasks only and is not responsible
+> for running scheduled backups. Any regularly scheduled backup jobs you
+> require must be scheduled separately, for example in another cron entry
+> which runs `barman backup all`.
+
 ## `diagnose`
 
 The `diagnose` command creates a JSON report useful for diagnostic and
