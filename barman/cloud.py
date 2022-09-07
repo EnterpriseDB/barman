@@ -1500,7 +1500,7 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
         )
         backup_info.set_attribute("systemid", self.postgres.get_systemid())
         controller = self._create_upload_controller(backup_info.backup_id)
-        if self.postgres.server_version >= 90600 or self.postgres.has_pgespresso:
+        if self.postgres.is_minimal_postgres_version():
             strategy = ConcurrentBackupStrategy(self.postgres, server_name)
         else:
             strategy = ExclusiveBackupStrategy(self.postgres, server_name)

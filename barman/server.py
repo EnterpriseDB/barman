@@ -1212,22 +1212,6 @@ class Server(RemoteStatusMixin):
                 "Cluster state",
                 "in production",
             )
-        if remote_status["pgespresso_installed"]:
-            output.result(
-                "status",
-                self.config.name,
-                "pgespresso",
-                "pgespresso extension",
-                "Available",
-            )
-        else:
-            output.result(
-                "status",
-                self.config.name,
-                "pgespresso",
-                "pgespresso extension",
-                "Not available",
-            )
         if remote_status.get("current_size") is not None:
             output.result(
                 "status",

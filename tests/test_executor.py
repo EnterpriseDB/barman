@@ -32,6 +32,7 @@ from barman.backup_executor import (
 )
 from barman.config import BackupOptions
 from barman.exceptions import (
+    BackupException,
     CommandFailedException,
     DataTransferFailure,
     FsOperationFailed,
@@ -628,9 +629,9 @@ class TestStrategy(object):
             "Barman backup main fake_id"
         )
 
-    def test_pgespresso_start_backup(self):
+    def test_start_backup_for_old_pg(self):
         """
-        Test concurrent backup using pgespresso
+        Test concurrent start backup when postgres version older then 9.6
         """
         # Test: start concurrent backup
         # Build a backup_manager using a mocked server
@@ -638,49 +639,15 @@ class TestStrategy(object):
             main_conf={"backup_options": BackupOptions.CONCURRENT_BACKUP}
         )
         backup_manager = build_backup_manager(server=server)
-        # Mock server.get_pg_setting('data_directory') call
-        backup_manager.server.postgres.get_setting.return_value = "/pg/data"
-        # Mock server.get_pg_configuration_files() call
-        server.postgres.get_configuration_files.return_value = dict(
-            config_file="/etc/postgresql.conf",
-            hba_file="/pg/pg_hba.conf",
-            ident_file="/pg/pg_ident.conf",
-        )
-        # Mock server.get_pg_tablespaces() call
-        tablespaces = [Tablespace._make(("test_tbs", 1234, "/tbs/test"))]
-        server.postgres.get_tablespaces.return_value = tablespaces
-        server.postgres.server_version = 90500
-
-        # Mock executor._pgespresso_start_backup(label) call
-        start_time = datetime.datetime.now(tz.tzlocal()).replace(microsecond=0)
-        server.postgres.pgespresso_start_backup.return_value = {
-            "backup_label": "START WAL LOCATION: 266/4A9C1EF8 "
-            "(file 00000010000002660000004A)\n"
-            "START TIME: %s" % start_time.strftime("%Y-%m-%d %H:%M:%S %Z"),
-        }
+        # Simulate old Postgres version
+        backup_manager.server.postgres.is_minimal_postgres_version.return_value = False
         # Build a test empty backup info
         backup_info = LocalBackupInfo(
             server=backup_manager.server, backup_id="fake_id2"
         )
 
-        backup_manager.executor.strategy.start_backup(backup_info)
-
-        # Check that all the values are correctly saved inside the BackupInfo
-        assert backup_info.pgdata == "/pg/data"
-        assert backup_info.config_file == "/etc/postgresql.conf"
-        assert backup_info.hba_file == "/pg/pg_hba.conf"
-        assert backup_info.ident_file == "/pg/pg_ident.conf"
-        assert backup_info.tablespaces == tablespaces
-        assert backup_info.status == "STARTED"
-        assert backup_info.timeline == 16
-        assert backup_info.begin_xlog == "266/4A9C1EF8"
-        assert backup_info.begin_wal == "00000010000002660000004A"
-        assert backup_info.begin_offset == 10231544
-        assert backup_info.begin_time == start_time
-        # Check that the correct call to pg_start_backup has been made
-        server.postgres.pgespresso_start_backup.assert_called_with(
-            "Barman backup main fake_id2"
-        )
+        with pytest.raises(BackupException):
+            backup_manager.executor.strategy.start_backup(backup_info)
 
     def test_concurrent_start_backup(self):
         """
@@ -760,10 +727,9 @@ class TestStrategy(object):
         assert backup_info.end_offset == 10231544
         assert backup_info.end_time == stop_time
 
-    @patch("barman.backup_executor.LocalConcurrentBackupStrategy._write_backup_label")
-    def test_pgespresso_stop_backup(self, tbs_map_mock):
+    def test_stop_backup_for_old_pg(self):
         """
-        Basic test for the pgespresso_stop_backup method
+        Test concurrent stop backup when postgres version older then 9.6
         """
         # Build a backup info and configure the mocks
         server = build_mocked_server(
@@ -771,21 +737,12 @@ class TestStrategy(object):
         )
         backup_manager = build_backup_manager(server=server)
 
-        # Mock executor._pgespresso_stop_backup(backup_info) call
-        stop_time = datetime.datetime.now()
-        server.postgres.server_version = 90500
-        server.postgres.pgespresso_stop_backup.return_value = {
-            "end_wal": "000000060000A25700000044",
-            "timestamp": stop_time,
-        }
+        # Simulate old postgres version
+        backup_manager.server.postgres.is_minimal_postgres_version.return_value = False
 
         backup_info = build_test_backup_info(timeline=6)
-        backup_manager.executor.strategy.stop_backup(backup_info)
-
-        assert backup_info.end_xlog == "A257/44FFFFFF"
-        assert backup_info.end_wal == "000000060000A25700000044"
-        assert backup_info.end_offset == 0xFFFFFF
-        assert backup_info.end_time == stop_time
+        with pytest.raises(BackupException):
+            backup_manager.executor.strategy.stop_backup(backup_info)
 
     @patch("barman.backup_executor.LocalConcurrentBackupStrategy._write_backup_label")
     def test_concurrent_stop_backup(self, tbs_map_mock):
