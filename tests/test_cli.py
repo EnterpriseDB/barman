@@ -901,16 +901,16 @@ class TestCliHelp(object):
     print_help() output matches our expected output.
     """
 
-    _expected_help_output = """usage: %s [-h] [-t] {another-test-command,test-command} ...
+    _expected_help_output = """usage: %s [-h] [-t] {{another-test-command,test-command}} ...
 
 positional arguments:
-  {another-test-command,test-command}
+  {{another-test-command,test-command}}
     another-test-command
                         Another test docstring also readable in expanded help
     test-command        Test docstring which should be readable in expanded
                         help
 
-optional arguments:
+{options_label}:
   -h, --help            show this help message and exit
   -t, --test-arg        Test command arg
 
@@ -950,10 +950,22 @@ test epilog string
 
     def test_help_output(self, minimal_parser, capsys):
         """Check the help output matches the expected help output"""
+        # GIVEN a minimal help parser
+        # WHEN the help is printed
         minimal_parser.print_help()
+
+        # THEN nothing is printed to stderr
         out, err = capsys.readouterr()
         assert "" == err
-        assert self._expected_help_output == out
+
+        # AND the expected help output is printed to stdout
+        options_label = "options"
+        # WITH the options being prefixed by 'optional arguments' for older versions of
+        # python
+        if sys.version_info < (3, 10):
+            options_label = "optional arguments"
+        expected_output = self._expected_help_output.format(options_label=options_label)
+        assert expected_output == out
 
 
 class TestCheckWalArchiveCli(object):
