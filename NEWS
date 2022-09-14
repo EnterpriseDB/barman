@@ -1,5 +1,58 @@
 Barman News - History of user-visible changes
 
+Version 3.1.0 - 14 September 2022
+
+- Backups taken with `backup_method = postgres` can now be compressed
+  using lz4 and zstd compression by setting `backup_compression = lz4`
+  or `backup_compression = zstd` respectively. These options are only
+  supported with PostgreSQL 15 (beta) or later.
+
+- A new option `backup_compression_workers` is available which sets
+  the number of threads used for parallel compression. This is
+  currently only available with `backup_method = postgres` and
+  `backup_compression = zstd`.
+
+- A new option `primary_conninfo` can be set to avoid the need for
+  backups of standbys to wait for a WAL switch to occur on the primary
+  when finalizing the backup. Barman will use the connection string
+  in `primary_conninfo` to perform WAL switches on the primary when
+  stopping the backup.
+
+- Support for certain Rsync versions patched for CVE-2022-29154 which
+  require a trailing newline in the `--files-from` argument.
+
+- Allow `barman receive-wal` maintenance options (`--stop`, `--reset`,
+  `--drop-slot` and `--create-slot`) to run against inactive servers.
+
+- Add `--port` option to `barman-wal-archive` and `barman-wal-restore`
+  commands so that a custom SSH port can be used without requiring any
+  SSH configuration.
+
+- Various documentation improvements.
+
+- Python 3.5 is no longer supported.
+
+- Bug fixes:
+
+    - Ensure PostgreSQL connections are closed cleanly during the
+      execution of `barman cron`.
+
+    - `barman generate-manifest` now treats pre-existing
+      backup_manifest files as an error condition.
+
+    - backup_manifest files are renamed by appending the backup ID
+      during recovery operations to prevent future backups including
+      an old backup_manifest file.
+
+    - Fix epoch timestamps in json output which were not
+      timezone-aware.
+
+    - The output of `pg_basebackup` is now written to the Barman
+      log file while the backup is in progress.
+
+- We thank barthisrael, elhananjair, kraynopp, lucianobotti, and mxey
+  for their contributions to this release.
+
 Version 3.0.1 - 27 June 2022
 
 - Bug fixes:
