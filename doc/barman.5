@@ -142,6 +142,14 @@ Global/Server.
 .RS
 .RE
 .TP
+.B backup_compression_workers
+The number of compression threads to be used during the backup process.
+Only supported when \f[C]backup_compression\ =\ zstd\f[] is set.
+Default value is 0.
+In this case default compression behavior will be used.
+.RS
+.RE
+.TP
 .B backup_directory
 Directory where backup data for a server will be placed.
 Server.
