@@ -137,10 +137,24 @@ algorithm in Barman are: `gzip` `lz4` and `zstd`.
 ``` ini
 backup_compression = gzip|lz4|zstd
 ```
-> **Note:** `lz4` and `zstd` are only available with PostgreSQL version 15 or higher.
 
-> **Note:** `zstd` version must be 1.4.4 or higher.
+Barman requires the CLI utility for the selected compression algorithm
+to be available on both the Barman server *and* the PostgreSQL server.
+The CLI utility is used to extract the backup label from the compressed
+backup and to decompress the backup on the PostgreSQL server during
+recovery. These can be installed through system packages named `gzip`,
+`lz4` and `zstd` on Debian, Ubuntu, RedHat, CentOS and SLES systems.
 
+> **Note:** On Ubuntu 18.04 (bionic) the `lz4` utility is available in
+> the `liblz4-tool` pacakge.
+
+> **Note:** `zstd` version must be 1.4.4 or higher. The system packages
+> for `zstd` on Debian 10 (buster), Ubuntu 18.04 (bionic) and SLES 12
+> install an earlier version - `backup_compression = zstd` will not
+> work with these packages.
+
+> **Note:** `lz4` and `zstd` are only available with PostgreSQL version
+> 15 or higher.
 
 > **IMPORTANT:** If you are using `backup_compression` you must also
 > set `recovery_staging_path` so that `barman recover` is able to

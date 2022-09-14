@@ -99,8 +99,13 @@ Global/Server.
 .B backup_compression
 The compression to be used during the backup process.
 Only supported when \f[C]backup_method\ =\ postgres\f[].
-Can either be unset or \f[C]gzip\f[].
+Can either be unset or \f[C]gzip\f[],\f[C]lz4\f[] or \f[C]zstd\f[].
 If unset then no compression will be used during the backup.
+Use of this option requires that the CLI application for the specified
+compression algorithm is available on the Barman server (at backup time)
+and the PostgreSQL server (at recovery time).
+Note that the \f[C]lz4\f[] and \f[C]zstd\f[] algorithms require
+PostgreSQL 15 (beta) or later.
 Global/Server.
 .RS
 .RE
