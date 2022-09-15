@@ -20,6 +20,7 @@ import pytest
 import os
 from mock import patch
 from barman.backup_manifest import FileIdentity, BackupManifest
+from barman.exceptions import BackupManifestException
 from barman.utils import SHA256
 
 
@@ -186,5 +187,6 @@ class TestBackupManifest:
     def test_manifest_already_exist(self, file_manager, checksum_algorithm):
         file_manager.file_exist.return_value = True
         backup_manifest = BackupManifest("/path", file_manager, checksum_algorithm)
-        backup_manifest.create_backup_manifest()
+        with pytest.raises(BackupManifestException):
+            backup_manifest.create_backup_manifest()
         file_manager.get_file_list.assert_not_called()

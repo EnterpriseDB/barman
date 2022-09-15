@@ -452,6 +452,37 @@ class TestCommand(object):
         assert cmd.out == out
         assert cmd.err == err
 
+    def test_get_output_handlers(self, popen, pipe_processor_loop):
+        """Verify that command out/err handlers are called during get_output"""
+        # GIVEN a command which outputs to stdout and stderr
+        command = "command"
+        ret = 0
+        out = "out"
+        err = "err"
+        stdin = "in"
+        # AND a mocked pipe which provides the specified output
+        _mock_pipe(popen, pipe_processor_loop, ret, out, err)
+
+        # WHEN the command is called with a custom out and err handlers
+        out_handler = mock.Mock()
+        err_handler = mock.Mock()
+        cmd = command_wrappers.Command(
+            command, out_handler=out_handler, err_handler=err_handler
+        )
+        # AND get_output is called on the command
+        result = cmd.get_output(stdin=stdin)
+
+        # THEN the custom out_handler and err_handler functions were called
+        out_handler.assert_called_with(out)
+        err_handler.assert_called_with(err)
+
+        # AND the out/err members of the command contain stdout and stderr
+        assert cmd.out == out
+        assert cmd.err == err
+
+        # AND the stdout and stderr output are returned in the result
+        assert result == (out, err)
+
     def test_execute_invocation(self, popen, pipe_processor_loop, caplog):
         # See all logs
         caplog.set_level(0)
@@ -947,7 +978,7 @@ class TestRsync(object):
             preexec_fn=mock.ANY,
             close_fds=True,
         )
-        pipe.stdin.write.assert_called_with("a\nb\nc".encode("UTF-8"))
+        pipe.stdin.write.assert_called_with("a\nb\nc\n".encode("UTF-8"))
         pipe.stdin.close.assert_called_once_with()
         assert result == ret
         assert cmd.ret == ret
@@ -1196,7 +1227,7 @@ class TestPgBaseBackup(object):
         assert ("PgBaseBackup", WARNING, err) in caplog.record_tuples
 
     @pytest.mark.parametrize(
-        ("compression", "expected_args", "unexpected_args"),
+        ("compression_config", "expected_args", "unexpected_args"),
         [
             # If no compression is provided then no compression args are expected
             (None, [], ["--gzip", "--compress", "--format"]),
@@ -1216,7 +1247,7 @@ class TestPgBaseBackup(object):
             ),
         ],
     )
-    def test_compression_gzip(self, compression, expected_args, unexpected_args):
+    def test_compression_gzip(self, compression_config, expected_args, unexpected_args):
         """
         Verifies the expected pg_basebackup options are added for the specified
         compression. Only cares whether the correct arguments are created and does
@@ -1225,6 +1256,10 @@ class TestPgBaseBackup(object):
         """
         connection_mock = mock.MagicMock()
         connection_mock.get_connection_string.return_value = "fake_connstring"
+        compression_mock = None
+        if compression_config is not None:
+            compression_mock = mock.MagicMock()
+            compression_mock.config = compression_config
 
         # GIVEN a PgBaseBackup command initialised with the specified compression
         # WHEN the wrapper is instantiated
@@ -1234,7 +1269,7 @@ class TestPgBaseBackup(object):
             connection=connection_mock,
             version="14",
             app_name="test_app_name",
-            compression=compression,
+            compression=compression_mock,
         )
 
         # THEN all expected arguments are present
@@ -1245,7 +1280,7 @@ class TestPgBaseBackup(object):
             assert not any(expected_arg == arg.split("=")[0] for arg in cmd.args)
 
     @pytest.mark.parametrize(
-        ("compression", "expected_args", "unexpected_args"),
+        ("compression_config", "expected_args", "unexpected_args"),
         [
             # If no compression is provided then no compression args are expected
             (None, [], ["--gzip", "--compress", "--format"]),
@@ -1253,7 +1288,9 @@ class TestPgBaseBackup(object):
             # --compress=gzip and --format=tar arguments.
             # We do not expect the PG<15 --gzip style option.
             (
-                mock.Mock(type="gzip", format=None, level=None, location=None),
+                mock.Mock(
+                    type="gzip", format=None, level=None, location=None, workers=None
+                ),
                 ["--compress=gzip", "--format=tar"],
                 ["--gzip"],
             ),
@@ -1261,44 +1298,104 @@ class TestPgBaseBackup(object):
             # --compress=gzip:level=5 and --format=tar arguments.
             # We do not expect the PG<15 --gzip style option.
             (
-                mock.Mock(type="gzip", format=None, level=5, location=None),
+                mock.Mock(
+                    type="gzip", format=None, level=5, location=None, workers=None
+                ),
                 ["--compress=gzip:level=5", "--format=tar"],
                 ["--gzip"],
             ),
             # If compression location is specified we expect to see it
             # prefixing the compression algorithm.
             (
-                mock.Mock(type="gzip", format=None, level=5, location="client"),
+                mock.Mock(
+                    type="gzip", format=None, level=5, location="client", workers=None
+                ),
                 ["--compress=client-gzip:level=5", "--format=tar"],
                 ["--gzip"],
             ),
             (
-                mock.Mock(type="gzip", format=None, level=5, location="server"),
+                mock.Mock(
+                    type="gzip", format=None, level=5, location="server", workers=None
+                ),
                 ["--compress=server-gzip:level=5", "--format=tar"],
                 ["--gzip"],
             ),
             # If compression format is specified it should be used as the --format
             # value
             (
-                mock.Mock(type="gzip", format="tar", level=None, location="server"),
+                mock.Mock(
+                    type="gzip",
+                    format="tar",
+                    level=None,
+                    location="server",
+                    workers=None,
+                ),
                 ["--compress=server-gzip", "--format=tar"],
                 ["--gzip"],
             ),
             (
-                mock.Mock(type="gzip", format="plain", level=None, location="server"),
+                mock.Mock(
+                    type="gzip",
+                    format="plain",
+                    level=None,
+                    location="server",
+                    workers=None,
+                ),
                 ["--compress=server-gzip", "--format=plain"],
                 ["--gzip"],
             ),
+            # lz4 tests
+            (
+                mock.Mock(
+                    type="lz4",
+                    format="tar",
+                    level=None,
+                    location="server",
+                    workers=None,
+                ),
+                ["--compress=server-lz4", "--format=tar"],
+                [],
+            ),
+            (
+                mock.Mock(
+                    type="lz4", format="tar", level=7, location="server", workers=None
+                ),
+                ["--compress=server-lz4:level=7", "--format=tar"],
+                [],
+            ),
+            # zstd tests
+            (
+                mock.Mock(
+                    type="zstd",
+                    format="plain",
+                    level=None,
+                    location="server",
+                    workers=None,
+                ),
+                ["--compress=server-zstd", "--format=plain"],
+                [],
+            ),
+            (
+                mock.Mock(
+                    type="zstd", format="tar", level=7, location="server", workers=3
+                ),
+                ["--compress=server-zstd:level=7,workers=3", "--format=tar"],
+                [],
+            ),
         ],
     )
-    def test_compression_gzip_version_gte_15(
-        self, compression, expected_args, unexpected_args
+    def test_compression_algo_version_gte_15(
+        self, compression_config, expected_args, unexpected_args
     ):
         """
         Verifies the expected pg_basebackup options are added for pg_basebackup>=15.
         """
         connection_mock = mock.MagicMock()
         connection_mock.get_connection_string.return_value = "fake_connstring"
+        compression_mock = None
+        if compression_config is not None:
+            compression_mock = mock.MagicMock()
+            compression_mock.config = compression_config
 
         # GIVEN a PgBaseBackup command initialised with the specified compression
         # WHEN the wrapper is instantiated
@@ -1308,7 +1405,7 @@ class TestPgBaseBackup(object):
             connection=connection_mock,
             version="15",
             app_name="test_app_name",
-            compression=compression,
+            compression=compression_mock,
         )
 
         # THEN all expected arguments are present

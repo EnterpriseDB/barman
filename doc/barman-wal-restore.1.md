@@ -1,6 +1,6 @@
-% BARMAN-WAL-RESTORE(1) Barman User manuals | Version 3.0.1
+% BARMAN-WAL-RESTORE(1) Barman User manuals | Version 3.1.0
 % EnterpriseDB <https://www.enterprisedb.com>
-% June 27, 2022
+% September 14, 2022
 
 # NAME
 
@@ -49,6 +49,9 @@ WAL_DEST
 -U *USER*, --user *USER*
 :    the user used for the ssh connection to the Barman server. Defaults
      to 'barman'.
+
+--port *PORT*
+:    the port used for the ssh connection to the Barman server.
 
 -s *SECONDS*, --sleep *SECONDS*
 :    sleep for SECONDS after a failure of get-wal request. Defaults

@@ -74,6 +74,24 @@ and can be installed alongside the PostgreSQL server:
 - `barman-cloud-restore`: script to be used to restore a backup directly
   taken with `barman-cloud-backup` from cloud storage;
 
+These commands require the appropriate library for the cloud provider you wish to
+use:
+
+* AWS S3: [boto3][boto3]
+* Azure Blob Storage: [azure-storage-blob][azure-storage-blob] and (optionally)
+  [azure-identity][azure-identity]
+* Google Cloud Storage: [google-cloud-storage][google-cloud-storage]
+
+**NOTE:** The latest versions of these libraries do not support python 2 due to it
+being [end-of-lfe][python-2-sunset] since Januaray 2020. If you are using the
+Barman cloud utilities on a python 2 system it is recommended you upgrade to python 3.
+If you still want to use the Barman cloud utilities with python 2 then you will need
+to ensure the following version requirements are met for each library:
+
+* `boto3<1.18.0`
+* `azure-storage-blob<12.10.0` and `azure-identity<1.8.0`
+* `google-cloud-storage<2.0.0`
+
 For information on how to setup credentials for the aws-s3 cloud provider
 please refer to the ["Credentials" section in Boto 3 documentation][boto3creds].
 

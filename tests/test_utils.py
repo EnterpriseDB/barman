@@ -570,7 +570,7 @@ class TestBarmanEncoderV2(object):
             dttz, cls=barman.utils.BarmanEncoderV2
         ) == '"2015-01-10T12:34:56{}"'.format(tz_str)
 
-    @pytest.mark.skipif(sys.version_info >= (3, 6), reason="Requires Python 2 or 3.5")
+    @pytest.mark.skipif(sys.version_info > (2,), reason="Requires Python 2")
     def test_datetime_object_before_py36(self):
         dt = datetime(2015, 1, 10, 12, 34, 56)
 

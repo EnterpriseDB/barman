@@ -121,34 +121,65 @@ to `false`.
 
 
 ### Backup Compression
-
 Barman can use the compression features of pg_basebackup in order to
 compress the backup data during the backup process. This can be enabled
 using the `backup_compression` config option (global/per server):
 
 > **IMPORTANT:** the `backup_compression` and other options discussed
 > in this section are not available with the `rsync` or `local-rsync`
-> backup methods.
+> backup methods. Only with `postgres` backup method.
+
+#### Compression algorithms 
+Setting this option will cause pg_basebackup to compress the backup
+using the specified compression algorithm. Currently, supported 
+algorithm in Barman are: `gzip` `lz4` and `zstd`.
 
 ``` ini
-backup_compression = gzip
+backup_compression = gzip|lz4|zstd
 ```
 
-Setting this option will cause pg_basebackup to compress the backup
-using the specified compression algorithm. Currently only the `gzip`
-algorithm is supported in Barman.
+Barman requires the CLI utility for the selected compression algorithm
+to be available on both the Barman server *and* the PostgreSQL server.
+The CLI utility is used to extract the backup label from the compressed
+backup and to decompress the backup on the PostgreSQL server during
+recovery. These can be installed through system packages named `gzip`,
+`lz4` and `zstd` on Debian, Ubuntu, RedHat, CentOS and SLES systems.
+
+> **Note:** On Ubuntu 18.04 (bionic) the `lz4` utility is available in
+> the `liblz4-tool` pacakge.
+
+> **Note:** `zstd` version must be 1.4.4 or higher. The system packages
+> for `zstd` on Debian 10 (buster), Ubuntu 18.04 (bionic) and SLES 12
+> install an earlier version - `backup_compression = zstd` will not
+> work with these packages.
+
+> **Note:** `lz4` and `zstd` are only available with PostgreSQL version
+> 15 or higher.
 
 > **IMPORTANT:** If you are using `backup_compression` you must also
 > set `recovery_staging_path` so that `barman recover` is able to
 > recover the compressed backups. See the [Recovering compressed backups](#recovering-compressed-backups)
 > section for more information.
 
+#### Compression workers
+This optional parameter allows compression using multiple threads to increase compression speed (default being 0). 
+
+```ini
+backup_compression_workers = 2
+```
+
+> **Note:** This option is only available with `zstd` compression.
+ 
+> **Note:** `zstd` version must be 1.5.0 or higher. Or 1.4.4 or higher compiled with multithreading option.
+
+#### Compression level
 The compression level can be specified using the
 `backup_compression_level` option. This should be set to an integer
 value supported by the compression algorithm specified in
 `backup_compression`.
 
-When using Barman with PostgreSQL version 15 or later it is possible
+#### Compression location
+When using Barman with PostgreSQL version 15 or higher it is possible
 to specify for compression to happen on the server (i.e. PostgreSQL
 will compress the backup) or on the client (i.e. pg_basebackup
 will compress the backup). This can be achieved using the
@@ -170,6 +201,7 @@ additional option, `backup_compression_format`, can be set to `plain`
 in order to have pg_basebackup uncompress the data before writing it
 to disk:
 
+#### Compression format
 ``` ini
 backup_compression_format = plain|tar
 ```
@@ -178,9 +210,23 @@ If `backup_compression_format` is unset or has the value `tar` then
 the backup will be written to disk as compressed tarballs. A description
 of both the `plain` and `tar` formats can be found in the [pg_basebackup
 documentation][pg_basebackup-documentation].
+   
+> **IMPORTANT:** Barman uses external tools to manage compressed backups.
+> Depending on the `backup_compression` and `backup_compression_format`
+> You may need to install one or more tools on the Postgres server and 
+> the Barman server.
+> The following table will help you choose according to your configuration.
 
+| **backup_compression** | **backup_compression_format** | **Postgres server** | **Barman server** | 
+|:---------:|:---------------------:|:-------------------------:|:----------------------:|
+| gzip | plain | **tar** | None | 
+| gzip |  tar  | **tar** | **tar** | 
+| lz4 | plain | **tar, lz4** | None | 
+| lz4 |  tar  | **tar, lz4** | **tar, lz4** |
+| zstd | plain | **tar, zstd** | None | 
+| zstd |  tar  | **tar, zstd** | **tar, zstd** |
 
-### Concurrent Backup and backup from a standby
+### Concurrent backup
 
 Normally, during backup operations, Barman uses PostgreSQL native
 functions `pg_start_backup` and `pg_stop_backup` for _concurrent
@@ -198,18 +244,9 @@ As well as being the recommended backup approach, concurrent backup
 also allows the following architecture scenario with Barman: **backup from
 a standby server**, using `rsync`.
 
-> **IMPORTANT:** **Concurrent backup** requires users of PostgreSQL
-> 9.2, 9.3, 9.4, and 9.5 to install the `pgespresso` open source
-> extension on every PostgreSQL server of the cluster. For more
-> detailed information and the source code, please visit the
-> [pgespresso extension website][9].  Barman supports the new API
-> introduced in PostgreSQL 9.6. This removes the requirement of the
-> `pgespresso` extension to perform concurrent backups from this
-> version of PostgreSQL.
-
-By default, `backup_options` is transparently set to `concurrent_backup`.
-If exclusive backup is required for PostgreSQL servers older than version
-15 then users should set `backup_options` to `exclusive_backup`.
+By default, `backup_options` is set to `concurrent_backup`. If exclusive
+backup is required for PostgreSQL servers older than version 15 then users
+should set `backup_options` to `exclusive_backup`.
 
 When `backup_options` is set to `concurrent_backup`, Barman activates
 the _concurrent backup mode_ for a server and follows these two simple
@@ -217,11 +254,7 @@ rules:
 
 - `ssh_command` must point to the destination Postgres server
 - `conninfo` must point to a database on the destination Postgres
-  database.  Using PostgreSQL 9.2, 9.3, 9.4, and 9.5, `pgespresso`
-  must be correctly installed through `CREATE EXTENSION`. Using 9.6 or
-  greater, concurrent backups are executed through the Postgres native
-  API (which requires an active connection from the start to the stop
-  of the backup).
+  database.
 
 > **IMPORTANT:** In case of a concurrent backup, currently Barman
 > cannot determine whether the closing WAL file of a full backup has
@@ -235,35 +268,50 @@ rules:
 > From Barman 2.10, you can use the `--wait` option with `barman backup`
 > command.
 
-#### Current limitations on backup from standby
+### Concurrent backup of a standby
 
-Barman currently requires that backup data (base backups and WAL files)
-come from one server only. Therefore, in case of backup from a
-standby, you should point to the standby server:
+If backing up a standby then the following [configuration options][config-options]
+should point to the standby server:
 
 - `conninfo`
-- `streaming_conninfo`, if you use `postgres` as `backup_method` and/or rely on WAL streaming
-- `ssh_command`, if you use `rsync` as `backup_method`
+- `streaming_conninfo` (when using `backup_method = postgres` or `streaming_archiver = on`)
+- `ssh_command` (when using `backup_method = rsync`)
 
-> **IMPORTANT:** From Barman 2.8, backup from a standby is supported
-> only for PostgreSQL 9.4 or higher (versions 9.4 and 9.5 require
-> `pgespresso`). Support for 9.2 and 9.3 is deprecated.
+The following config option should point to the primary server:
 
-The recommended and simplest way is to setup WAL streaming
-with replication slots directly from the standby, which requires
-PostgreSQL 9.4. This means:
+- `primary_conninfo`
 
-* configure `streaming_archiver = on`, as described in the "WAL streaming"
-  section, including "Replication slots"
-* disable `archiver = on`
+Barman will use `primary_conninfo` to switch to a new WAL on the primary
+so that the concurrent backup against the standby can complete without
+having to wait for a WAL switch to occur naturally.
 
-Alternatively, from PostgreSQL 9.5 you can decide to archive from the
-standby only using `archive_command` with `archive_mode = always` and
-by disabling WAL streaming.
+> **NOTE:** It is especially important that `primary_conninfo` is
+> set if the standby is to be backed up when there is little or no write
+> traffic on the primary. If `primary_conninfo` is not set then the
+> backup will still run however it will wait at the stop backup stage
+> until the current WAL semgent on the primary is newer than the latest
+> WAL required by the backup.
 
-> **NOTE:** Unfortunately, it is not currently possible to enable both WAL archiving
-> and streaming from the standby due to the way Barman performs WAL duplication
-> checks and [an undocumented behaviours in all versions of PostgreSQL](https://www.postgresql.org/message-id/20170316170513.1429.77904@wrigleys.postgresql.org).
+Barman currently requires that WAL files and backup data come from the
+same PostgreSQL server. In the case that the standby is promoted to primary
+the backups and WALs will continue to be valid however you may wish to update
+the Barman configuration so that it uses the new standby for taking backups and
+receiving WALs.
+
+WALs can be obtained from the standby using either WAL streaming or WAL
+archiving. To use WAL streaming follow the instructions in the
+[WAL streaming](#wal-streaming) section.
+
+To use WAL archiving from the standby follow the instructions in the [WAL archiving via archive_command](#wal-archiving-via-archive_command) section
+*and additionally* set `archive_mode = always` in the PostgreSQL config on
+the standby server.
+
+> **NOTE:** With PostgreSQL 10 and earlier Barman cannot handle WAL streaming
+> and WAL archiving being enabled at the same time on a standby. You must therefore
+> disable WAL archiving if using WAL streaming and vice versa. This is because it is
+> possible for WALs produced by PostgreSQL 10 and earlier to be logically equivalent
+> but differ at the binary level, causing Barman to fail to detect that two WALs are
+> identical.
 
 ### Immediate checkpoint
 

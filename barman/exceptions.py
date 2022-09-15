@@ -188,6 +188,12 @@ class CompressionIncompatibility(CompressionException):
     """
 
 
+class FileNotFoundException(CompressionException):
+    """
+    Exception for file not found in archive
+    """
+
+
 class FsOperationFailed(CommandException):
     """
     Exception which represents a failed execution of a command on FS
@@ -391,4 +397,10 @@ class WalArchiveContentError(BarmanException):
 class InvalidRetentionPolicy(BarmanException):
     """
     Exception raised when a retention policy cannot be parsed.
+    """
+
+
+class BackupManifestException(BarmanException):
+    """
+    Exception raised when there is a problem with the backup manifest.
     """

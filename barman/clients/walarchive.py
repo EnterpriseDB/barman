@@ -89,8 +89,10 @@ def build_ssh_command(config):
     :param argparse.Namespace config: the configuration from command line
     :return list[str]: the ssh command as list of string
     """
-    ssh_command = [
-        "ssh",
+    ssh_command = ["ssh"]
+    if config.port is not None:
+        ssh_command += ["-p", config.port]
+    ssh_command += [
         "-q",  # quiet mode - suppress warnings
         "-T",  # disable pseudo-terminal allocation
         "%s@%s" % (config.user, config.barman_host),
@@ -159,6 +161,10 @@ def parse_arguments(args=None):
         default=DEFAULT_USER,
         help="The user used for the ssh connection to the Barman server. "
         "Defaults to '%(default)s'.",
+    )
+    parser.add_argument(
+        "--port",
+        help="The port used for the ssh connection to the Barman server.",
     )
     parser.add_argument(
         "-c",

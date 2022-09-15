@@ -64,6 +64,22 @@ class TestUnixLocalCommand(object):
         assert err == "err"
 
     @patch("barman.fs.Command")
+    def test_move(self, command_mock):
+        # GIVEN a command which always succeeds
+        command = command_mock.return_value
+        command.return_value = 0
+        ulc = UnixLocalCommand()
+        # AND mock source and destination paths
+        src_path = "/path/to/src"
+        dst_path = "/path/to/dst"
+
+        # WHEN move is called
+        ulc.move(src_path, dst_path)
+
+        # THEN the `mv` command is called with the expected arguments
+        command.assert_called_once_with("mv '%s' '%s'" % (src_path, dst_path))
+
+    @patch("barman.fs.Command")
     def test_dir_if_not_exists(self, command_mock):
         command_instance = command_mock.return_value
 

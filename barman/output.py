@@ -28,6 +28,8 @@ import json
 import logging
 import sys
 
+from dateutil import tz
+
 from barman.infofile import BackupInfo
 from barman.utils import (
     BarmanEncoder,
@@ -35,6 +37,7 @@ from barman.utils import (
     human_readable_timedelta,
     pretty_size,
     redact_passwords,
+    timestamp,
 )
 from barman.xlog import diff_lsn
 
@@ -581,10 +584,9 @@ class ConsoleOutputWriter(object):
             "Recovery completed (start time: %s, elapsed time: %s)",
             results["recovery_start_time"],
             human_readable_timedelta(
-                datetime.datetime.now() - results["recovery_start_time"]
+                datetime.datetime.now(tz.tzlocal()) - results["recovery_start_time"]
             ),
         )
-        self.info("")
         self.info("Your PostgreSQL server has been successfully prepared for recovery!")
 
     def _record_check(self, server_name, check, status, hint, perfdata):
@@ -1224,14 +1226,14 @@ class JsonOutputWriter(ConsoleOutputWriter):
         self.json_output.update(
             {
                 "recovery_start_time": results["recovery_start_time"].isoformat(" "),
-                "recovery_start_time_timestamp": results[
-                    "recovery_start_time"
-                ].strftime("%s"),
+                "recovery_start_time_timestamp": str(
+                    int(timestamp(results["recovery_start_time"]))
+                ),
                 "recovery_elapsed_time": human_readable_timedelta(
-                    datetime.datetime.now() - results["recovery_start_time"]
+                    datetime.datetime.now(tz.tzlocal()) - results["recovery_start_time"]
                 ),
                 "recovery_elapsed_time_seconds": (
-                    datetime.datetime.now() - results["recovery_start_time"]
+                    datetime.datetime.now(tz.tzlocal()) - results["recovery_start_time"]
                 ).total_seconds(),
             }
         )
@@ -1299,7 +1301,7 @@ class JsonOutputWriter(ConsoleOutputWriter):
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             output.update(
                 dict(
-                    end_time_timestamp=backup_info.end_time.strftime("%s"),
+                    end_time_timestamp=str(int(timestamp(backup_info.end_time))),
                     end_time=backup_info.end_time.ctime(),
                     size_bytes=backup_size,
                     wal_size_bytes=wal_size,
@@ -1387,9 +1389,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
                 )
             output["base_backup_information"].update(
                 dict(
-                    begin_time_timestamp=data["begin_time"].strftime("%s"),
+                    begin_time_timestamp=str(int(timestamp(data["begin_time"]))),
                     begin_time=data["begin_time"].isoformat(sep=" "),
-                    end_time_timestamp=data["end_time"].strftime("%s"),
+                    end_time_timestamp=str(int(timestamp(data["end_time"]))),
                     end_time=data["end_time"].isoformat(sep=" "),
                 )
             )

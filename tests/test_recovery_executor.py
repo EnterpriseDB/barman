@@ -37,7 +37,6 @@ from barman.exceptions import (
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.recovery_executor import (
     Assertion,
-    GZipCompression,
     RecoveryExecutor,
     TarballRecoveryExecutor,
     ConfigurationFileMangeler,
@@ -1227,6 +1226,51 @@ class TestRecoveryExecutor(object):
             with closing(executor):
                 executor.recover(backup_info, destination, standby_mode=True)
 
+    @pytest.mark.parametrize("manifest_exists", (False, True))
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
+    def test_recover_rename_manifest(
+        self, command_factory_mock, manifest_exists, tmpdir
+    ):
+        # GIVEN a backup_manifest file which exists according to manifest_exists
+        command = command_factory_mock.return_value
+
+        def mock_exists(filename):
+            if filename.endswith("backup_manifest"):
+                return manifest_exists
+            else:
+                return MagicMock()
+
+        command.exists.side_effect = mock_exists
+
+        # AND a mock recovery environment
+        backup_info = testing_helpers.build_test_backup_info()
+        backup_manager = testing_helpers.build_backup_manager()
+        executor = RecoveryExecutor(backup_manager)
+        backup_info.version = 90300
+        destination = tmpdir.mkdir("destination").strpath
+
+        executor._prepare_tablespaces = MagicMock()
+        executor._backup_copy = MagicMock()
+        executor._xlog_copy = MagicMock()
+        executor._generate_recovery_conf = MagicMock()
+
+        # WHEN recover is called
+        with closing(executor):
+            executor.recover(backup_info, destination, standby_mode=None)
+
+        if manifest_exists:
+            # THEN if the manifest exists it is renamed
+            assert (
+                (
+                    "%s/backup_manifest" % destination,
+                    "%s/backup_manifest.%s" % (destination, backup_info.backup_id),
+                ),
+                {},
+            ) in command.move.call_args_list
+        else:
+            # OR if it does not exist, no attempt is made to rename it
+            command.move.assert_not_called()
+
     @mock.patch("barman.recovery_executor.fs.unix_command_factory")
     @mock.patch("barman.recovery_executor.RsyncPgData")
     @mock.patch("barman.recovery_executor.output")
@@ -1360,6 +1404,13 @@ class TestTarballRecoveryExecutor(object):
                 item_class=copy_controller_mock.return_value.PGDATA_CLASS,
                 label="pgdata",
             ),
+            mock.call().add_file(
+                bwlimit=10,
+                src="%s/main/base/%s/data/backup_manifest" % (barman_home, backup_id),
+                dst="%s/backup_manifest" % dest,
+                item_class=copy_controller_mock.return_value.PGDATA_CLASS,
+                label="pgdata",
+            ),
             mock.call().copy(),
         ]
 
@@ -1420,102 +1471,6 @@ class TestRecoveryExecutorFactory(object):
                 mock_backup_manager, mock_command, compression
             )
             assert type(executor) is expected_executor
-
-
-class TestGZipCompression(object):
-    @pytest.mark.parametrize(
-        ("src", "dst", "exclude", "include", "expected_error"),
-        [
-            # Simple src, dest case should cause the correct command to be called
-            ("/path/to/source", "/path/to/dest", None, None, None),
-            # Empty strings and None values for src or dst should raise an error
-            ("", "/path/to/dest", None, None, ValueError),
-            (None, "/path/to/dest", None, None, ValueError),
-            ("/path/to/src", "", None, None, ValueError),
-            ("/path/to/src", None, None, None, ValueError),
-            # Exclude arguments should be appended
-            (
-                "/path/to/source",
-                "/path/to/dest",
-                ["/path/to/exclude", "/another/path/to/exclude"],
-                None,
-                None,
-            ),
-            # Include arguments should be appended
-            (
-                "/path/to/source",
-                "/path/to/dest",
-                None,
-                ["path/to/include", "/another/path/to/include"],
-                None,
-            ),
-            # Both include and exclude arguments should be appended
-            (
-                "/path/to/source",
-                "/path/to/dest",
-                ["/path/to/exclude", "/another/path/to/exclude"],
-                ["path/to/include", "/another/path/to/include"],
-                None,
-            ),
-        ],
-    )
-    def test_uncompress(self, src, dst, exclude, include, expected_error):
-        # GIVEN a GZipCompression object
-        command = mock.Mock()
-        command.cmd.return_value = 0
-        command.get_last_output.return_value = ("all good", "")
-        gzip_compression = GZipCompression(command)
-
-        # WHEN uncompress is called with the source and destination
-        # THEN the command is called once
-        # AND if we expect an error, that error is raised
-        if expected_error is not None:
-            with pytest.raises(ValueError):
-                gzip_compression.uncompress(
-                    src, dst, exclude=exclude, include_args=include
-                )
-            # THEN command.cmd was not called
-            command.cmd.assert_not_called()
-        # OR if we don't expect an error
-        else:
-            gzip_compression.uncompress(src, dst, exclude=exclude, include_args=include)
-            # THEN command.cmd was called
-            assert command.cmd.called_once()
-            # AND the first argument was "tar"
-            assert command.cmd.call_args_list[0][0][0] == "tar"
-            # AND the basic arguments are present
-            assert command.cmd.call_args_list[0][1]["args"][:4] == [
-                "xfz",
-                src,
-                "--directory",
-                dst,
-            ]
-            # AND if we expected exclude args they are present
-            remaining_args = " ".join(command.cmd.call_args_list[0][1]["args"][4:])
-            if exclude is not None:
-                for exclude_arg in exclude:
-                    assert "--exclude %s" % exclude_arg in remaining_args
-            # AND if we expected include args they are present
-            if include is not None:
-                for include_arg in include:
-                    assert include_arg in remaining_args
-
-    def test_tar_failure_raises_exception(self):
-        """Verify a nonzero return code from tar raises an exception"""
-        # GIVEN a GZipCompression object
-        # AND a tar command which returns status 2 and an error
-        command = mock.Mock()
-        command.cmd.return_value = 2
-        command.get_last_output.return_value = ("", "some error")
-        gzip_compression = GZipCompression(command)
-
-        # WHEN uncompress is called
-        # THEN a CommandFailedException is raised
-        with pytest.raises(CommandFailedException) as exc:
-            gzip_compression.uncompress("/path/to/src", "/path/to/dst")
-
-        # AND the exception message contains the command stderr
-        assert "some error" in str(exc.value)
 
 
 class TestConfigurationFileMangeler:

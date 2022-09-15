@@ -340,11 +340,26 @@ class Command(object):
         """
         out = []
         err = []
+
+        def out_handler(line):
+            out.append(line)
+            if self.out_handler is not None:
+                self.out_handler(line)
+
+        def err_handler(line):
+            err.append(line)
+            if self.err_handler is not None:
+                self.err_handler(line)
+
         # If check is true, it must be handled here
         check = kwargs.pop("check", self.check)
         allowed_retval = kwargs.pop("allowed_retval", self.allowed_retval)
         self.execute(
-            out_handler=out.append, err_handler=err.append, check=False, *args, **kwargs
+            out_handler=out_handler,
+            err_handler=err_handler,
+            check=False,
+            *args,
+            **kwargs
         )
         self.out = "\n".join(out)
         self.err = "\n".join(err)
@@ -679,7 +694,9 @@ class Rsync(Command):
         """
         if "stdin" in kwargs:
             raise TypeError("from_file_list() doesn't support 'stdin' keyword argument")
-        input_string = ("\n".join(filelist)).encode("UTF-8")
+        # The input string for the rsync --files-from argument must have a
+        # trailing newline for compatibility with certain versions of rsync.
+        input_string = ("\n".join(filelist) + "\n").encode("UTF-8")
         _logger.debug("from_file_list: %r", filelist)
         kwargs["stdin"] = input_string
         self.get_output("--files-from=-", src, dst, *args, **kwargs)
@@ -971,26 +988,31 @@ class PgBaseBackup(PostgreSQLClient):
         compression_args = []
 
         if compression is not None:
-            if compression.format is not None:
-                compression_format = compression.format
+            if compression.config.format is not None:
+                compression_format = compression.config.format
             else:
                 compression_format = "tar"
             compression_args.append("--format=%s" % compression_format)
             # For clients >= 15 we use the new --compress argument format
             if version and version >= Version("15"):
                 compress_arg = "--compress="
-                if compression.location is not None:
-                    compress_arg += "%s-" % compression.location
-                compress_arg += compression.type
-                if compression.level:
-                    compress_arg += ":level=%d" % compression.level
+                detail = []
+                if compression.config.location is not None:
+                    compress_arg += "%s-" % compression.config.location
+                compress_arg += compression.config.type
+                if compression.config.level is not None:
+                    detail.append("level=%d" % compression.config.level)
+                if compression.config.workers is not None:
+                    detail.append("workers=%d" % compression.config.workers)
+                if detail:
+                    compress_arg += ":%s" % ",".join(detail)
+
                 compression_args.append(compress_arg)
             # For clients < 15 we use the old style argument format
             else:
-                compression_args.append("--%s" % compression.type)
-                if compression.level:
-                    compression_args.append("--compress=%d" % compression.level)
-
+                compression_args.append("--%s" % compression.config.type)
+                if compression.config.level:
+                    compression_args.append("--compress=%d" % compression.config.level)
         return compression_args
 
 
@@ -1201,6 +1223,8 @@ def shell_quote(arg):
     # a backslash, and then start another string using a quote character.
 
     assert arg is not None
+    if arg == "|":
+        return arg
     return "'%s'" % arg.replace("'", "'\\''")
 
 

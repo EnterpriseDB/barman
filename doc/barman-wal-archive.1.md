@@ -1,6 +1,6 @@
-% BARMAN-WAL-ARCHIVE(1) Barman User manuals | Version 3.0.1
+% BARMAN-WAL-ARCHIVE(1) Barman User manuals | Version 3.1.0
 % EnterpriseDB <https://www.enterprisedb.com>
-% June 27, 2022
+% September 14, 2022
 
 # NAME
 
@@ -47,6 +47,9 @@ WAL_PATH
 -U *USER*, --user *USER*
 :    the user used for the ssh connection to the Barman server. Defaults
      to 'barman'.
+
+--port *PORT*
+:    the port used for the ssh connection to the Barman server.
 
 -c *CONFIG*, --config *CONFIG*
 :    configuration file on the Barman server

@@ -20,8 +20,8 @@ files received from the streaming connection or from the
 
 ## `backup`
 
-The `backup` command takes a full backup (_base backup_) of a given
-server. It has several options that let you override the corresponding
+The `backup` command takes a full backup (_base backup_) of the given
+servers. It has several options that let you override the corresponding
 configuration parameter for the new backup. For more information,
 consult the manual page.
 
@@ -34,6 +34,10 @@ barman backup <server_name>
 > **TIP:**
 > You can use `barman backup all` to sequentially backup all your
 > configured servers.
+
+> **TIP:**
+> You can use `barman backup <server_1_name> <server_2_name>` to sequentially
+> backup both `<server_1_name>` and `<server_2_name>` servers.
 
 Barman 2.10 introduces the `-w`/`--wait` option for the `backup` command.
 When set, Barman temporarily saves the state of the backup to
@@ -158,6 +162,9 @@ restore_command = 'barman-wal-restore -U barman backup SERVER %f %p'
 
 Since it uses SSH to communicate with the Barman server, SSH key authentication
 is required for the `postgres` user to login as `barman` on the backup server.
+If a port other than the SSH default of 22 should be used then the `--port`
+option can be added to specify the port that should be used for the SSH
+connection.
 
 You can check that `barman-wal-restore` can connect to the Barman server,
 and that the required PostgreSQL server is configured in Barman to send
@@ -171,6 +178,13 @@ Where `backup` is the host where Barman is installed, `pg` is the name
 of the PostgreSQL server as configured in Barman and DUMMY is a placeholder
 (`barman-wal-restore` requires two argument for the WAL file name
 and destination directory, which are ignored).
+
+If everything is configured correctly you should see the following output:
+
+``` bash
+Ready to retrieve WAL files from the server pg
+```
+
 For more information on the `barman-wal-restore` command,
 type `man barman-wal-restore` on the PostgreSQL server.
 

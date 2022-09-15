@@ -1420,7 +1420,10 @@ def receive_wal(args):
     The process uses the streaming protocol to receive WAL files
     from the PostgreSQL server.
     """
-    server = get_server(args)
+    should_skip_inactive = not (
+        args.create_slot or args.drop_slot or args.stop or args.reset
+    )
+    server = get_server(args, skip_inactive=should_skip_inactive)
     if args.stop and args.reset:
         output.error("--stop and --reset options are not compatible")
     # If the caller requested to shutdown the receive-wal process deliver the
@@ -1524,7 +1527,10 @@ def generate_manifest(args):
     )
     backup_manifest.create_backup_manifest()
 
-    output.info("Backup %s is valid on server %s" % (args.backup_id, args.server_name))
+    output.info(
+        "Backup manifest for backup %s successfully generated for server %s"
+        % (args.backup_id, args.server_name)
+    )
     output.close_and_exit()
 
 
@@ -1767,7 +1773,12 @@ def get_server(
     # Apply standard validation control and skips
     # the server if inactive or disabled, displaying standard
     # error messages. If on_error_stop (default) exits
-    if not manage_server_command(server, name, inactive_is_error) and on_error_stop:
+    if (
+        not manage_server_command(
+            server, name, inactive_is_error, skip_inactive=skip_inactive
+        )
+        and on_error_stop
+    ):
         output.close_and_exit()
         # The following return statement will never be reached
         # but it is here for clarity

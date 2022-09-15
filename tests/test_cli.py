@@ -33,10 +33,12 @@ from barman.cli import (
     check_target_action,
     check_wal_archive,
     command,
+    generate_manifest,
     get_server,
     get_server_list,
     manage_server_command,
     OrderedHelpFormatter,
+    receive_wal,
     recover,
     keep,
     show_servers,
@@ -118,6 +120,27 @@ class TestCli(object):
         out, err = capsys.readouterr()
         assert err
         assert "ERROR: Conflicting path:" in err
+
+    def test_get_server_inactive(self, monkeypatch):
+        """
+        Test that get_server correctly handles inactive servers.
+        """
+        # GIVEN an inactive server
+        args = Mock()
+        monkeypatch.setattr(
+            barman, "__config__", build_config_from_dicts(main_conf={"active": "false"})
+        )
+
+        # WHEN get_server is called with skip_inactive=True
+        # THEN a SystemExit is raised
+        args.server_name = "main"
+        with pytest.raises(SystemExit):
+            get_server(args, skip_inactive=True)
+
+        # AND WHEN get_server is called with skip_inactive=False
+        # THEN a server is returned
+        args.server_name = "main"
+        assert get_server(args, skip_inactive=False) is not None
 
     def test_manage_server_command(self, monkeypatch, capsys):
         """
@@ -657,6 +680,83 @@ class TestCli(object):
         assert server.config.immediate_checkpoint is expected_value
         assert server.postgres.immediate_checkpoint is expected_value
 
+    @patch("barman.cli.BackupManifest")
+    @patch("barman.cli.parse_backup_id")
+    @patch("barman.cli.get_server")
+    def test_generate_manifest(
+        self, _mock_get_server, _mock_parse_backup_id, _mock_backup_manifest, capsys
+    ):
+        """Verify expected log message is received on success."""
+        # GIVEN a backup for a server
+        args = Mock()
+        args.server_name = "test_server"
+        args.backup_id = "test_backup_id"
+
+        # WHEN a backup manifest is successfully created
+        with pytest.raises(SystemExit):
+            generate_manifest(args)
+
+        # THEN the expected message is in the logs
+        out, _err = capsys.readouterr()
+        assert (
+            "Backup manifest for backup %s successfully generated for server %s"
+            % (args.backup_id, args.server_name)
+            in out
+        )
+
+    @pytest.mark.parametrize(
+        ("option", "server_fun"),
+        (
+            # If no options are used then receive-wal should not run.
+            (None, "receive_wal"),
+            # If any option is set then receive-wal should run.
+            ("create_slot", "create_physical_repslot"),
+            ("drop_slot", "drop_repslot"),
+            ("reset", "receive_wal"),
+            ("stop", "kill"),
+        ),
+    )
+    @patch("barman.cli.get_server_list")
+    def test_receive_wal_inactive_server(
+        self,
+        mock_get_server_list,
+        option,
+        server_fun,
+    ):
+        """Verify appropriate options work with inactive servers."""
+        # GIVEN an inactive server
+        test_server_name = "an_arbitrary_server_name"
+        config = MagicMock()
+        config.active = False
+        config.disabled = False
+        config.retention_policy = None
+        config.last_backup_maximum_age = None
+        server = Mock(config=config)
+        mock_server_list = {test_server_name: server}
+        mock_get_server_list.return_value = mock_server_list
+
+        # AND a set of args with the specified receive-wal option
+        args = Mock(
+            server_name=test_server_name,
+            create_slot=None,
+            drop_slot=None,
+            reset=None,
+            stop=None,
+        )
+        if option is not None:
+            setattr(args, option, True)
+
+        # WHEN receive_wal is called against the inactive server
+        with pytest.raises(SystemExit):
+            receive_wal(args)
+
+        if option is not None:
+            # THEN the expected server function was called
+            getattr(server, server_fun).assert_called_once()
+        else:
+            # OR if there were no options, the expected function was not called
+            getattr(server, server_fun).assert_not_called()
+
 
 class TestKeepCli(object):
     @pytest.fixture
@@ -801,16 +901,16 @@ class TestCliHelp(object):
     print_help() output matches our expected output.
     """
 
-    _expected_help_output = """usage: %s [-h] [-t] {another-test-command,test-command} ...
+    _expected_help_output = """usage: %s [-h] [-t] {{another-test-command,test-command}} ...
 
 positional arguments:
-  {another-test-command,test-command}
+  {{another-test-command,test-command}}
     another-test-command
                         Another test docstring also readable in expanded help
     test-command        Test docstring which should be readable in expanded
                         help
 
-optional arguments:
+{options_label}:
   -h, --help            show this help message and exit
   -t, --test-arg        Test command arg
 
@@ -850,10 +950,22 @@ test epilog string
 
     def test_help_output(self, minimal_parser, capsys):
         """Check the help output matches the expected help output"""
+        # GIVEN a minimal help parser
+        # WHEN the help is printed
         minimal_parser.print_help()
+
+        # THEN nothing is printed to stderr
         out, err = capsys.readouterr()
         assert "" == err
-        assert self._expected_help_output == out
+
+        # AND the expected help output is printed to stdout
+        options_label = "options"
+        # WITH the options being prefixed by 'optional arguments' for older versions of
+        # python
+        if sys.version_info < (3, 10):
+            options_label = "optional arguments"
+        expected_output = self._expected_help_output.format(options_label=options_label)
+        assert expected_output == out
 
 
 class TestCheckWalArchiveCli(object):

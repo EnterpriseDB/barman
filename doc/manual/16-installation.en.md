@@ -2,6 +2,9 @@
 
 # Installation
 
+Official packages for Barman are distributed by EnterpriseDB through repositories
+listed on the [Barman downloads page][barman-downloads].
+
 > **IMPORTANT:**
 > The recommended way to install Barman is by using the available
 > packages for your GNU/Linux distribution.
@@ -33,9 +36,6 @@ yum install barman
    ```
 > By doing this, you solely rely on
 > EnterpriseDB repositories for package management of Barman software.
-
-For historical reasons, EnterpriseDB keeps maintaining package distribution of
-Barman through [Sourceforge.net][3].
 
 ## Installation on Debian/Ubuntu using packages
 
@@ -141,6 +141,10 @@ You must ensure that either:
 2. The [path_prefix](#binary-paths) option is set in the Barman configuration for each
    server and points to the `bin` directory for the appropriate
    `PG_MAJOR_VERSION`.
+
+The [psql][psql] program is recommended in addition to the above binaries.
+While Barman does not use it directly the documentation provides examples of how it can be used to verify PostgreSQL connections are working as intended.
+The `psql` binary can be found in the PostgreSQL client packages.
 
 # Upgrading Barman
 

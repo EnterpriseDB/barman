@@ -23,6 +23,12 @@ This module represents the interface towards a PostgreSQL server.
 import atexit
 import logging
 from abc import ABCMeta
+from multiprocessing import Process, Queue
+
+try:
+    from queue import Empty
+except ImportError:
+    from Queue import Empty
 
 import psycopg2
 from psycopg2.errorcodes import DUPLICATE_OBJECT, OBJECT_IN_USE, UNDEFINED_OBJECT
@@ -1720,3 +1726,153 @@ class PostgreSQLConnection(PostgreSQL):
             server_version = None
 
         return function_name_map(server_version)
+
+
+class StandbyPostgreSQLConnection(PostgreSQLConnection):
+    """
+    A specialised PostgreSQLConnection for standby servers.
+
+    Works almost exactly like a regular PostgreSQLConnection except it requires a
+    primary_conninfo option at creation time which is used to create a connection
+    to the primary for the purposes of forcing a WAL switch during the stop backup
+    process.
+
+    This increases the likelihood that backups against standbys with
+    `archive_mode = always` and low traffic on the primary are able to complete.
+    """
+
+    def __init__(
+        self,
+        conninfo,
+        primary_conn,
+        immediate_checkpoint=False,
+        slot_name=None,
+        application_name="barman",
+    ):
+        """
+        Standby PostgreSQL connection constructor.
+
+        :param str conninfo: Connection information (aka DSN) for the standby.
+        :param barman.postgres.PostgreSQLConnection primary_conn: Connection to the
+            primary.
+        :param bool immediate_checkpoint: Whether to do an immediate checkpoint
+            when a backup is started.
+        :param str|None slot_name: Replication slot name.
+        :param str: The application_name to use for this connection.
+        """
+        super(StandbyPostgreSQLConnection, self).__init__(
+            conninfo,
+            immediate_checkpoint=immediate_checkpoint,
+            slot_name=slot_name,
+            application_name=application_name,
+        )
+        # The standby connection has its own connection object used to talk to the
+        # primary when switching WALs.
+        self.primary = primary_conn
+
+    def close(self):
+        """Close the connection to PostgreSQL."""
+        super(StandbyPostgreSQLConnection, self).close()
+        return self.primary.close()
+
+    def switch_wal(self):
+        """Perform a WAL switch on the primary PostgreSQL instance."""
+        # Instead of calling the superclass switch_wal, which would invoke
+        # pg_switch_wal on the standby, we use our connection to the primary to
+        # switch the WAL directly.
+        return self.primary.switch_wal()
+
+    def switch_wal_in_background(self, done_q, times=10, wait=10):
+        """
+        Perform a pg_switch_wal in a background process.
+
+        This function runs in a child process and is intended to keep calling
+        pg_switch_wal() until it is told to stop or until `times` is exceeded.
+        The parent process will use `done_q` to tell this process to stop.
+
+        :param multiprocessing.Queue done_q: A Queue used by the parent process to
+            communicate with the WAL switching process. A value of `True` on this
+            queue indicates that this function should stop.
+        :param int times: The maximum number of times a WAL switch should be
+            performed.
+        :param int wait: The number of seconds to wait between WAL switches.
+        """
+        # The stop backup call on the standby may have already completed by this
+        # point so check whether we have been told to stop.
+        try:
+            if done_q.get(timeout=1):
+                return
+        except Empty:
+            pass
+        # Start calling pg_switch_wal on the primary until we either read something
+        # from the done queue or we exceed the number of WAL switches we are allowed.
+        for _ in range(0, times):
+            self.switch_wal()
+            # See if we have been told to stop. We use the wait value as our timeout
+            # so that we can exit immediately if we receive a stop message or proceed
+            # to another WAL switch if the wait time is exceeded.
+            try:
+                if done_q.get(timeout=wait):
+                    return
+            except Empty:
+                # An empty queue just means we haven't yet been told to stop
+                pass
+
+    def _start_wal_switch(self):
+        """Start switching WALs in a child process."""
+        # The child process will stop if it reads a value of `True` from this queue.
+        self.done_q = Queue()
+
+        # Create and start the child process before we stop the backup.
+        self.switch_wal_proc = Process(
+            target=self.switch_wal_in_background, args=(self.done_q,)
+        )
+        self.switch_wal_proc.start()
+
+    def _stop_wal_switch(self):
+        """Stop the WAL switching process."""
+        # Stop the child process by adding a `True` to its queue
+        self.done_q.put(True)
+
+        # Make sure the child process closes before we return.
+        self.switch_wal_proc.join()
+
+    def _stop_backup(self, stop_backup_fun):
+        """
+        Stop a backup while also calling pg_switch_wal().
+
+        Starts a child process to call pg_switch_wal() on the primary before attempting
+        to stop the backup on the standby. The WAL switch is intended to allow the
+        pg_backup_stop call to complete when running against a standby with
+        `archive_mode = always`. Once the call to `stop_concurrent_backup` completes
+        the child process is stopped as no further WAL switches are required.
+
+        :param function stop_backup_fun: The function which should be called to stop
+            the backup. This will be a reference to one of the superclass methods
+            stop_concurrent_backup or stop_exclusive_backup.
+        :rtype: psycopg2.extras.DictRow
+        """
+        self._start_wal_switch()
+        stop_info = stop_backup_fun()
+        self._stop_wal_switch()
+        return stop_info
+
+    def stop_concurrent_backup(self):
+        """
+        Stop a concurrent backup on a standby PostgreSQL instance.
+
+        :rtype: psycopg2.extras.DictRow
+        """
+        return self._stop_backup(
+            super(StandbyPostgreSQLConnection, self).stop_concurrent_backup
+        )
+
+    def stop_exclusive_backup(self):
+        """
+        Stop an exclusive backup on a standby PostgreSQL instance.
+
+        :rtype: psycopg2.extras.DictRow
+        """
+        return self._stop_backup(
+            super(StandbyPostgreSQLConnection, self).stop_exclusive_backup
+        )

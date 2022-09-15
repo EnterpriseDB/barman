@@ -158,6 +158,7 @@ class TestConfig(object):
                 "backup_compression_format": None,
                 "backup_compression_level": None,
                 "backup_compression_location": None,
+                "backup_compression_workers": None,
                 "compression": "gzip",
                 "last_backup_maximum_age": timedelta(1),
                 "last_backup_minimum_size": 1048576,
@@ -173,6 +174,7 @@ class TestConfig(object):
                 "custom_decompression_filter": "bzip2 -c -d",
                 "backup_method": "rsync",
                 "max_incoming_wals_queue": None,
+                "primary_conninfo": None,
             }
         )
         assert main.__dict__ == expected
@@ -188,6 +190,7 @@ class TestConfig(object):
                 "backup_compression_format": None,
                 "backup_compression_level": None,
                 "backup_compression_location": None,
+                "backup_compression_workers": None,
                 "compression": None,
                 "conninfo": "host=web01 user=postgres port=5432",
                 "description": "Web applications database",
@@ -207,6 +210,7 @@ class TestConfig(object):
                 "streaming_wals_directory": "/some/barman/home/web/streaming",
                 "errors_directory": "/some/barman/home/web/errors",
                 "max_incoming_wals_queue": None,
+                "primary_conninfo": None,
             }
         )
         assert web.__dict__ == expected
@@ -484,8 +488,8 @@ class TestConfig(object):
         ("compression", "is_allowed"),
         (
             ("gzip", True),
-            ("lz4", False),
-            ("zstd", False),
+            ("lz4", True),
+            ("zstd", True),
             ("lizard", False),
             ("1", False),
         ),
@@ -537,6 +541,35 @@ class TestConfig(object):
         else:
             with pytest.raises(ValueError):
                 parse_backup_compression(format)
+
+
+class TestServerConfig(object):
+    def test_update_msg_list_and_disable_server(self):
+        c = testing_helpers.build_config_from_dicts(
+            global_conf={
+                "archiver": "on",
+                "backup_options": BackupOptions.EXCLUSIVE_BACKUP,
+            },
+            main_conf={"backup_options": ""},
+        )
+        main = c.get_server("main")
+        assert main.disabled is False
+        msg1 = "An issue occurred"
+        main.update_msg_list_and_disable_server(msg1)
+
+        assert main.disabled is True
+        assert main.msg_list == [msg1]
+
+        msg2 = "This config is not valid"
+        main.update_msg_list_and_disable_server(msg2)
+        assert main.msg_list == [msg1, msg2]
+        assert main.disabled is True
+
+        msg3 = "error wrong path"
+        msg4 = "No idea"
+        main.update_msg_list_and_disable_server([msg3, msg4])
+        assert main.msg_list == [msg1, msg2, msg3, msg4]
+        assert main.disabled is True
 
 
 # noinspection PyMethodMayBeStatic

@@ -71,7 +71,7 @@ BACKUP_METHOD_VALUES = ["rsync", "postgres", "local-rsync"]
 CREATE_SLOT_VALUES = ["manual", "auto"]
 
 # Config values relating to pg_basebackup compression
-BASEBACKUP_COMPRESSIONS = ["gzip"]
+BASEBACKUP_COMPRESSIONS = ["gzip", "lz4", "zstd"]
 
 
 class CsvOption(set):
@@ -417,6 +417,7 @@ class ServerConfig(object):
         "backup_compression_format",
         "backup_compression_level",
         "backup_compression_location",
+        "backup_compression_workers",
         "backup_directory",
         "backup_method",
         "backup_options",
@@ -464,6 +465,7 @@ class ServerConfig(object):
         "pre_recovery_script",
         "pre_wal_delete_script",
         "pre_wal_delete_retry_script",
+        "primary_conninfo",
         "primary_ssh_command",
         "recovery_options",
         "recovery_staging_path",
@@ -491,6 +493,7 @@ class ServerConfig(object):
         "backup_compression_format",
         "backup_compression_level",
         "backup_compression_location",
+        "backup_compression_workers",
         "backup_method",
         "backup_options",
         "bandwidth_limit",
@@ -592,6 +595,7 @@ class ServerConfig(object):
         "backup_compression_format": parse_backup_compression_format,
         "backup_compression_level": int,
         "backup_compression_location": parse_backup_compression_location,
+        "backup_compression_workers": int,
         "backup_method": parse_backup_method,
         "backup_options": BackupOptions,
         "basebackup_retry_sleep": int,
@@ -723,6 +727,19 @@ class ServerConfig(object):
                 bwlimit = tbl_bw_limit[tablespace.name]
 
         return bwlimit
+
+    def update_msg_list_and_disable_server(self, msg_list):
+        """
+        Will take care of upgrading msg_list
+        :param msg_list: str|list can be either a string or a list of strings
+        """
+        if not msg_list:
+            return
+        if type(msg_list) is not list:
+            msg_list = [msg_list]
+
+        self.msg_list.extend(msg_list)
+        self.disabled = True
 
 
 class Config(object):

@@ -3,9 +3,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [ master ]
+    branches: [master]
   push:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   linter:
@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.7
-      - name:  Step 3 - Install dependencies
+      - name: Step 3 - Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements-tox.txt
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["2.7", "3.5", "3.6", "3.7", "3.8", "3.9"]
+        python-version: ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10"]
         tox-env: [""]
         include:
           - python-version: "2.7"
@@ -51,6 +51,9 @@ jobs:
           key: ${{matrix.python-version}}-${{ hashFiles('requirements-tox.txt') }}-${{ env.pythonLocation }}
           restore-keys: |
             ${{matrix.python-version}}-${{ hashFiles('requirements-tox.txt') }}-
+      - name: Step 3.5 - Install system deps for extras
+        run: |
+          sudo apt update && sudo apt-get install libsnappy-dev
       - name: Step 4 - Install dependencies to run tox
         if: steps.cache-python-packages.outputs.cache-hit != 'true'
         run: |
@@ -66,5 +69,3 @@ jobs:
           else
             python -m tox -e ${{ matrix.tox-env }}
           fi
-
-

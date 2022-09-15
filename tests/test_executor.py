@@ -17,6 +17,7 @@
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+import logging
 import os
 
 import mock
@@ -1128,6 +1129,7 @@ class TestPostgresBackupExecutor(object):
                 retry_handler=mock.ANY,
                 path=mock.ANY,
                 compression=None,
+                err_handler=mock.ANY,
             ),
             mock.call()(),
         ]
@@ -1163,6 +1165,7 @@ class TestPostgresBackupExecutor(object):
                 retry_handler=mock.ANY,
                 path=mock.ANY,
                 compression=None,
+                err_handler=mock.ANY,
             ),
             mock.call()(),
         ]
@@ -1197,6 +1200,7 @@ class TestPostgresBackupExecutor(object):
                 retry_handler=mock.ANY,
                 path=mock.ANY,
                 compression=None,
+                err_handler=mock.ANY,
             ),
             mock.call()(),
         ]
@@ -1226,6 +1230,7 @@ class TestPostgresBackupExecutor(object):
                 retry_handler=mock.ANY,
                 path=mock.ANY,
                 compression=None,
+                err_handler=mock.ANY,
             ),
             mock.call()(),
         ]
@@ -1301,7 +1306,7 @@ class TestPostgresBackupExecutor(object):
         # WHEN a PostgresBackupExecutor is created
         executor = PostgresBackupExecutor(server.backup_manager)
         # THEN a PgBaseBackupCompression is created with type == "gzip"
-        assert executor.backup_compression.type == "gzip"
+        assert executor.backup_compression.config.type == "gzip"
 
     def test_no_backup_compression(self):
         """
@@ -1315,8 +1320,22 @@ class TestPostgresBackupExecutor(object):
         # THEN the backup_compression attribute of the executor is None
         assert executor.backup_compression is None
 
-    @patch("barman.compression.GZipPgBaseBackupCompression")
-    def test_validate_config_compression(self, mock_gzip_pgbb_compression):
+    def test_validate_config_bandwidth_limit_closes_server_conn(self):
+        """
+        Checks that the server connection required to verify bwlimit support is
+        not left open after creating the PostgresBackupExecutor.
+        """
+        # GIVEN a server with backup_method postgres and bandwidth_limit
+        server = build_mocked_server(
+            global_conf={"backup_method": "postgres", "bandwidth_limit": "1000"}
+        )
+        # WHEN a PostgresBackupExecutor is created
+        PostgresBackupExecutor(server.backup_manager)
+        # THEN the server's close method was called
+        server.close.assert_called_once()
+
+    @patch("barman.compression.PgBaseBackupCompression")
+    def test_validate_config_compression(self, mock_pgbb_compression):
         """
         Checks that the validate_config method validates compression options.
         We do not care about the details of the validation here, we only care
@@ -1326,10 +1345,52 @@ class TestPostgresBackupExecutor(object):
         server = build_mocked_server(
             global_conf={"backup_method": "postgres", "backup_compression": "gzip"}
         )
+        # WITH a valid compression configuration
+        mock_pgbb_compression.return_value.validate.return_value = []
         # WHEN a PostgresBackupExecutor is created
         PostgresBackupExecutor(server.backup_manager)
         # THEN the validate method of the executor's PgBaseBackupCompression object
         # is called
-        mock_gzip_pgbb_compression.return_value.validate.assert_called_once()
+        mock_pgbb_compression.return_value.validate.assert_called_once()
         # AND the server config message list has no errors
         assert len(server.config.msg_list) == 0
+        # AND the server's close method was called
+        server.close.assert_called_once()
+
+    @pytest.mark.parametrize(
+        ("primary_conninfo", "err_line", "expected_wal_switch"),
+        (
+            # No primary_conninfo so we do not expect a WAL switch
+            (None, "regular stderr log", False),
+            (None, "waiting for required WAL segments to be archived", False),
+            # primary_conninfo is set but the log line should not trigger a WAL switch
+            ("db=primary", "regular stderr log", False),
+            # primary_conninfo is set and the log line tells us a WAL switch is
+            # required
+            ("db=primary", "waiting for required WAL segments to be archived", True),
+        ),
+    )
+    def test_err_handler(self, primary_conninfo, err_line, expected_wal_switch, caplog):
+        """Verify behaviour of err_handler."""
+        # GIVEN a server with backup_method postgres
+        # AND the specified primary_conninfo
+        server = build_mocked_server(
+            global_conf={"backup_method": "postgres"},
+            main_conf={"primary_conninfo": primary_conninfo},
+        )
+        # AND a PostgresBackupExecutor
+        executor = PostgresBackupExecutor(server.backup_manager)
+        # AND the err handler for the PgBaseBackup command
+        err_handler = executor._err_handler
+        # AND a log level of INFO
+        caplog.set_level(logging.INFO)
+
+        # WHEN the handler is called with the specified error line
+        err_handler(err_line)
+
+        # THEN the error line is logged at INFO level
+        assert err_line in caplog.text
+
+        # AND if we expected switch_wal to have been called it is called on the primary
+        if expected_wal_switch:
+            server.postgres.switch_wal.assert_called_once()
