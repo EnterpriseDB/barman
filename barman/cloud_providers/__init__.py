@@ -131,3 +131,12 @@ def get_cloud_interface(config):
         raise CloudProviderUnsupported(
             "Unsupported cloud provider: %s" % config.cloud_provider
         )
+
+
+def get_snapshot_interface(config):
+    if config.cloud_provider == "google-cloud-storage":
+        from barman.cloud_providers.google_cloud_storage import (
+            GceCloudSnapshotInterface,
+        )
+
+        return GceCloudSnapshotInterface(config.snapshot_project)

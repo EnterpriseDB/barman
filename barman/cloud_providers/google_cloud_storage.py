@@ -40,7 +40,7 @@ except ImportError:
     from urlparse import urlparse
 
 try:
-    from google.cloud import compute, storage
+    from google.cloud import storage
     from google.api_core.exceptions import GoogleAPIError, Conflict
 except ImportError:
     raise SystemExit("Missing required python module: google-cloud-storage")
@@ -343,6 +343,10 @@ class GoogleCloudInterface(CloudInterface):
 class GceCloudSnapshotInterface(CloudSnapshotInterface):
     def __init__(self, project):
         super(GceCloudSnapshotInterface, self).__init__(project)
+        try:
+            from google.cloud import compute
+        except ImportError:
+            raise SystemExit("Missing required python module: google-cloud-compute")
         self.client = compute.SnapshotsClient()
 
     def take_snapshot(self, backup_info, disk_zone, disk_name):

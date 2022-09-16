@@ -16,6 +16,8 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+import datetime
+from io import BytesIO
 import logging
 import os
 import re
@@ -23,6 +25,7 @@ import tempfile
 from contextlib import closing
 from shutil import rmtree
 
+from barman.backup_executor import ConcurrentBackupStrategy
 from barman.clients.cloud_cli import (
     add_tag_argument,
     create_argument_parser,
@@ -36,12 +39,13 @@ from barman.cloud import (
     CloudBackupUploaderPostgres,
     configure_logging,
 )
-from barman.cloud_providers import get_cloud_interface
+from barman.cloud_providers import get_cloud_interface, get_snapshot_interface
 from barman.exceptions import (
     BarmanException,
     PostgresConnectionError,
     UnrecoverableHookScriptError,
 )
+from barman.infofile import BackupInfo
 from barman.postgres import PostgreSQLConnection
 from barman.utils import check_positive, check_size, force_str
 
@@ -171,10 +175,71 @@ def main(args=None):
                     raise OperationErrorExit()
 
                 with closing(postgres):
-                    uploader = CloudBackupUploaderPostgres(
-                        postgres=postgres, **uploader_kwargs
-                    )
-                    uploader.backup()
+                    # Do snapshot things if asked for
+                    if config.snapshot_project is not None:
+                        snapshot_interface = get_snapshot_interface(config)
+                        # TODO here we want to create a CloudBackupUploaderSnapshot which
+                        # uses snapshot_interface instead of the copying via the cloud
+                        # interface
+                        server_name = "cloud"
+                        backup_info = BackupInfo(
+                            backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
+                            server_name=server_name,
+                        )
+                        backup_info.set_attribute("systemid", postgres.get_systemid())
+                        strategy = ConcurrentBackupStrategy(postgres, server_name)
+                        logging.info("Starting backup '%s'", backup_info.backup_id)
+                        strategy.start_backup(backup_info)
+                        snapshot_interface.take_snapshot(
+                            backup_info,
+                            config.snapshot_disk_zone,
+                            config.snapshot_disk_name,
+                        )
+                        logging.info("Stopping backup '%s'", backup_info.backup_id)
+                        strategy.stop_backup(backup_info)
+
+                        # Create a restore point after a backup
+                        target_name = "barman_%s" % backup_info.backup_id
+                        postgres.create_restore_point(target_name)
+                        postgres.close()
+
+                        # Set the backup status as DONE
+                        backup_info.set_attribute("status", BackupInfo.DONE)
+
+                        # TODO Now upload backup info and backup label
+                        # Wheeeeee such duplication
+                        if backup_info.backup_label:
+                            backup_label_key = os.path.join(
+                                cloud_interface.path,
+                                config.server_name,
+                                "base",
+                                backup_info.backup_id,
+                                "backup_label",
+                            )
+                            cloud_interface.upload_fileobj(
+                                BytesIO(backup_info.backup_label.encode("UTF-8")),
+                                backup_label_key,
+                            )
+                        with BytesIO() as backup_info_file:
+                            backup_info_key = os.path.join(
+                                cloud_interface.path,
+                                config.server_name,
+                                "base",
+                                backup_info.backup_id,
+                                "backup.info",
+                            )
+                            backup_info.save(file_object=backup_info_file)
+                            backup_info_file.seek(0, os.SEEK_SET)
+                            logging.info("Uploading '%s'", backup_info_key)
+                            cloud_interface.upload_fileobj(
+                                backup_info_file, backup_info_key
+                            )
+                    # Otherwise upload everything to the object store
+                    else:
+                        uploader = CloudBackupUploaderPostgres(
+                            postgres=postgres, **uploader_kwargs
+                        )
+                        uploader.backup()
 
     except KeyboardInterrupt as exc:
         logging.error("Barman cloud backup was interrupted by the user")
@@ -272,6 +337,18 @@ def parse_arguments(args=None):
         "--dbname",
         help="Database name or conninfo string for Postgres connection (default: postgres)",
         default="postgres",
+    )
+    parser.add_argument(
+        "--snapshot-project",
+        help="Project under which disk snapshots should be stored",
+    )
+    parser.add_argument(
+        "--snapshot-disk-zone",
+        help="Zone of the disk from which snapshots should be taken",
+    )
+    parser.add_argument(
+        "--snapshot-disk-name",
+        help="Name of the disk from which snapshots should be taken",
     )
     add_tag_argument(
         parser,
