@@ -93,6 +93,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
     """
 
     CHECK_QUERY = "SELECT 1"
+    MINIMAL_VERSION = 90600
 
     def __init__(self, conninfo):
         """
@@ -249,23 +250,42 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
         """
         try:
             conn = self.connect()
-            major = int(conn.server_version / 10000)
-            minor = int(conn.server_version / 100 % 100)
-            patch = int(conn.server_version % 100)
-            if major < 10:
-                return "%d.%d.%d" % (major, minor, patch)
-            if minor != 0:
-                _logger.warning(
-                    "Unexpected non zero minor version %s in %s",
-                    minor,
-                    conn.server_version,
-                )
-            return "%d.%d" % (major, patch)
+            return self.int_version_to_string_version(conn.server_version)
+
         except PostgresConnectionError as e:
             _logger.debug(
                 "Error retrieving PostgreSQL version: %s", force_str(e).strip()
             )
             return None
+
+    @property
+    def minimal_txt_version(self):
+        """
+        Human readable version of PostgreSQL (calculated from server_version)
+
+        :rtype: str|None
+        """
+        return self.int_version_to_string_version(self.MINIMAL_VERSION)
+
+    @staticmethod
+    def int_version_to_string_version(int_version):
+        """
+        takes an int version
+        :param int_version: ex: 10.22 121200 or 130800
+        :return: str  ex 10.22.00 12.12.00  13.8.00
+        """
+        major = int(int_version / 10000)
+        minor = int(int_version / 100 % 100)
+        patch = int(int_version % 100)
+        if major < 10:
+            return "%d.%d.%d" % (major, minor, patch)
+        if minor != 0:
+            _logger.warning(
+                "Unexpected non zero minor version %s in %s",
+                minor,
+                int_version,
+            )
+        return "%d.%d" % (major, patch)
 
     @property
     def server_major_version(self):
@@ -281,7 +301,7 @@ class PostgreSQL(with_metaclass(ABCMeta, RemoteStatusMixin)):
 
     def is_minimal_postgres_version(self):
         """Checks if postgres version has at least minimal version"""
-        return self.server_version >= 90600
+        return self.server_version >= self.MINIMAL_VERSION
 
 
 class StreamingConnection(PostgreSQL):
