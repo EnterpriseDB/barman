@@ -32,11 +32,12 @@ from barman.clients.cloud_cli import (
     UrlArgumentType,
 )
 from barman.cloud import (
+    CloudBackupSnapshot,
     CloudBackupUploaderBarman,
     CloudBackupUploaderPostgres,
     configure_logging,
 )
-from barman.cloud_providers import get_cloud_interface
+from barman.cloud_providers import get_cloud_interface, get_snapshot_interface
 from barman.exceptions import (
     BarmanException,
     PostgresConnectionError,
@@ -171,10 +172,24 @@ def main(args=None):
                     raise OperationErrorExit()
 
                 with closing(postgres):
-                    uploader = CloudBackupUploaderPostgres(
-                        postgres=postgres, **uploader_kwargs
-                    )
-                    uploader.backup()
+                    # Do snapshot things if asked for
+                    if config.snapshot_project is not None:
+                        snapshot_interface = get_snapshot_interface(config)
+                        snapshot_backup = CloudBackupSnapshot(
+                            config.server_name,
+                            cloud_interface,
+                            snapshot_interface,
+                            postgres,
+                            config.snapshot_disk_zone,
+                            config.snapshot_disk_name,
+                        )
+                        snapshot_backup.backup()
+                    # Otherwise upload everything to the object store
+                    else:
+                        uploader = CloudBackupUploaderPostgres(
+                            postgres=postgres, **uploader_kwargs
+                        )
+                        uploader.backup()
 
     except KeyboardInterrupt as exc:
         logging.error("Barman cloud backup was interrupted by the user")
@@ -272,6 +287,18 @@ def parse_arguments(args=None):
         "--dbname",
         help="Database name or conninfo string for Postgres connection (default: postgres)",
         default="postgres",
+    )
+    parser.add_argument(
+        "--snapshot-project",
+        help="Project under which disk snapshots should be stored",
+    )
+    parser.add_argument(
+        "--snapshot-disk-zone",
+        help="Zone of the disk from which snapshots should be taken",
+    )
+    parser.add_argument(
+        "--snapshot-disk-name",
+        help="Name of the disk from which snapshots should be taken",
     )
     add_tag_argument(
         parser,

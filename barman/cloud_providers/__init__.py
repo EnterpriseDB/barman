@@ -133,6 +133,15 @@ def get_cloud_interface(config):
         )
 
 
+def get_snapshot_interface(config):
+    if config.cloud_provider == "google-cloud-storage":
+        from barman.cloud_providers.google_cloud_storage import (
+            GceCloudSnapshotInterface,
+        )
+
+        return GceCloudSnapshotInterface(config.snapshot_project)
+
+
 def get_snapshot_interface_from_server_config(server_config):
     if server_config.snapshot_provider == "gce":
         from barman.cloud_providers.google_cloud_storage import (

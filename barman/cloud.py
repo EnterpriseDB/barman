@@ -1198,7 +1198,20 @@ class CloudInterface(with_metaclass(ABCMeta)):
             )
 
 
-class CloudBackupUploader(with_metaclass(ABCMeta)):
+class CloudBackup(with_metaclass(ABCMeta)):
+    """
+    Abstract base class for cloud backups.
+    """
+
+    def __init__(self, server_name, cloud_interface):
+        self.server_name = server_name
+        self.cloud_interface = cloud_interface
+        # Stats
+        self.copy_start_time = None
+        self.copy_end_time = None
+
+
+class CloudBackupUploader(CloudBackup):
     """
     Abstract base class which provides a client for uploading backups.
 
@@ -1230,14 +1243,9 @@ class CloudBackupUploader(with_metaclass(ABCMeta)):
         :param str compression: Compression algorithm to use
         """
 
+        super(CloudBackupUploader, self).__init__(server_name, cloud_interface)
         self.compression = compression
-        self.server_name = server_name
-        self.cloud_interface = cloud_interface
         self.max_archive_size = max_archive_size
-
-        # Stats
-        self.copy_start_time = None
-        self.copy_end_time = None
 
     def _create_upload_controller(self, backup_id):
         """
@@ -1350,15 +1358,6 @@ class CloudBackupUploader(with_metaclass(ABCMeta)):
         should happen here.
         """
 
-    @abstractmethod
-    def handle_backup_errors(self, action, exc):
-        """
-        Perform appropriate cleanup actions and exit
-
-        :param str action: the upload phase that has failed
-        :param BaseException exc: the exception that caused the failure
-        """
-
 
 class CloudBackupUploaderBarman(CloudBackupUploader):
     """
@@ -1463,7 +1462,140 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         logging.debug("Exception details:", exc_info=exc)
 
 
-class CloudBackupUploaderPostgres(CloudBackupUploader):
+class CloudBackupPostgresMixin(object):
+    """
+    Helper functions for use when backing up a live PostgreSQL server.
+
+    Expects a PostgreSQLConnection object to be available at `self.postgres`.
+    """
+
+    def _get_backup_info(self, server_name):
+        backup_info = BackupInfo(
+            backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
+            server_name=server_name,
+        )
+        backup_info.set_attribute("systemid", self.postgres.get_systemid())
+        return backup_info
+
+    def _check_postgres_version(self):
+        if not self.postgres.is_minimal_postgres_version():
+            raise BackupException(
+                "unsupported PostgresSQL version %s. Expecting %s or above."
+                % (
+                    self.postgres.server_major_version,
+                    self.postgres.minimal_txt_version,
+                )
+            )
+
+    def _create_restore_point(self, backup_info):
+        target_name = "barman_%s" % backup_info.backup_id
+        self.postgres.create_restore_point(target_name)
+
+    def _log_end_of_backup(self, backup_info):
+        logging.info(
+            "Backup end at LSN: %s (%s, %08X)",
+            backup_info.end_xlog,
+            backup_info.end_wal,
+            backup_info.end_offset,
+        )
+        logging.info(
+            "Backup completed (start time: %s, elapsed time: %s)",
+            self.copy_start_time,
+            human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
+        )
+
+    def _upload_backup_info(self, backup_info):
+        with BytesIO() as backup_info_file:
+            key = os.path.join(
+                self.cloud_interface.path,
+                self.server_name,
+                "base",
+                backup_info.backup_id,
+                "backup.info",
+            )
+            backup_info.save(file_object=backup_info_file)
+            backup_info_file.seek(0, os.SEEK_SET)
+            logging.info("Uploading '%s'", key)
+            self.cloud_interface.upload_fileobj(backup_info_file, key)
+
+    def _coordinate_backup(
+        self,
+        backup_info,
+        strategy,
+        backup_fun,
+        upload_backup_label_fun,
+        finalise_upload_fun,
+        add_statistics_fun,
+        upload_backup_info_fun,
+    ):
+        try:
+            self.copy_start_time = datetime.datetime.now()
+            backup_fun()
+            logging.info("Stopping backup '%s'", backup_info.backup_id)
+            strategy.stop_backup(backup_info)
+
+            self._create_restore_point(backup_info)
+
+            # Free the Postgres connection
+            self.postgres.close()
+
+            # Upload backup info and backup label to the object store
+            # We do not want to use the copy controller here since it will upload
+            # into a tarball. This is not what we want for a snapshot backup.
+            upload_backup_label_fun()
+
+            finalise_upload_fun()
+
+            # Store the end time
+            self.copy_end_time = datetime.datetime.now()
+
+            # Store statistics about the copy
+            add_statistics_fun()
+
+            # Set the backup status as DONE
+            backup_info.set_attribute("status", BackupInfo.DONE)
+
+        except BaseException as exc:
+            # Mark the backup as failed and exit
+            self.handle_backup_errors("uploading data", exc, backup_info)
+            raise SystemExit(1)
+        finally:
+            try:
+                upload_backup_info_fun()
+            except BaseException as exc:
+                # Mark the backup as failed and exit
+                self.handle_backup_errors(
+                    "uploading backup.info file", exc, backup_info
+                )
+                raise SystemExit(1)
+
+        self._log_end_of_backup(backup_info)
+
+    def handle_backup_errors(self, action, exc, backup_info):
+        """
+        Mark the backup as failed and exit
+
+        :param str action: the upload phase that has failed
+        :param barman.infofile.BackupInfo backup_info: the backup info file
+        :param BaseException exc: the exception that caused the failure
+        """
+        msg_lines = force_str(exc).strip().splitlines()
+        # If the exception has no attached message use the raw
+        # type name
+        if len(msg_lines) == 0:
+            msg_lines = [type(exc).__name__]
+        if backup_info:
+            # Use only the first line of exception message
+            # in backup_info error field
+            backup_info.set_attribute("status", BackupInfo.FAILED)
+            backup_info.set_attribute(
+                "error", "failure %s (%s)" % (action, msg_lines[0])
+            )
+        logging.error("Backup failed %s (%s)", action, msg_lines[0])
+        logging.debug("Exception details:", exc_info=exc)
+
+
+class CloudBackupUploaderPostgres(CloudBackupUploader, CloudBackupPostgresMixin):
     """
     A cloud storage upload client for a live PostgreSQL server.
     """
@@ -1490,6 +1622,21 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
         PostgreSQL server.
         """
         return tablespace.location
+
+    def _upload_backup_label(self, controller, backup_info):
+        if backup_info.backup_label:
+            pgdata_stat = os.stat(backup_info.pgdata)
+            controller.add_fileobj(
+                label="backup_label",
+                fileobj=BytesIO(backup_info.backup_label.encode("UTF-8")),
+                dst="data",
+                path="backup_label",
+                uid=pgdata_stat.st_uid,
+                gid=pgdata_stat.st_gid,
+            )
+
+    def _add_statistics(self, controller, backup_info):
+        backup_info.set_attribute("copy_stats", controller.statistics())
 
     def _backup_copy(self, controller, backup_info, pgdata_dir, server_major_version):
         """
@@ -1544,121 +1691,106 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
         Upload a Backup to cloud storage directly from a live PostgreSQL server.
         """
         server_name = "cloud"
-        backup_info = BackupInfo(
-            backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
-            server_name=server_name,
-        )
-        backup_info.set_attribute("systemid", self.postgres.get_systemid())
+        backup_info = self._get_backup_info(server_name)
+
         controller = self._create_upload_controller(backup_info.backup_id)
-        if not self.postgres.is_minimal_postgres_version():
-            raise BackupException(
-                "unsupported PostgresSQL version %s. Expecting %s or above."
-                % (
-                    self.postgres.server_major_version,
-                    self.postgres.minimal_txt_version,
-                )
-            )
 
-        strategy = ConcurrentBackupStrategy(self.postgres, server_name)
+        self._check_postgres_version()
 
+        strategy = ConcurrentBackupStrategy(self.postgres, self.server_name)
         logging.info("Starting backup '%s'", backup_info.backup_id)
         strategy.start_backup(backup_info)
-        try:
-            self._backup_copy(
-                controller,
-                backup_info,
-                backup_info.pgdata,
-                self.postgres.server_major_version,
-            )
-            logging.info("Stopping backup '%s'", backup_info.backup_id)
-            strategy.stop_backup(backup_info)
 
-            # Create a restore point after a backup
-            target_name = "barman_%s" % backup_info.backup_id
-            self.postgres.create_restore_point(target_name)
-
-            # Free the Postgres connection
-            self.postgres.close()
-
-            # Eventually, add the backup_label from the backup_info
-            if backup_info.backup_label:
-                pgdata_stat = os.stat(backup_info.pgdata)
-                controller.add_fileobj(
-                    label="backup_label",
-                    fileobj=BytesIO(backup_info.backup_label.encode("UTF-8")),
-                    dst="data",
-                    path="backup_label",
-                    uid=pgdata_stat.st_uid,
-                    gid=pgdata_stat.st_gid,
-                )
-
-            # Closing the controller will finalize all the running uploads
-            controller.close()
-
-            # Store the end time
-            self.copy_end_time = datetime.datetime.now()
-
-            # Store statistics about the copy
-            backup_info.set_attribute("copy_stats", controller.statistics())
-
-            # Set the backup status as DONE
-            backup_info.set_attribute("status", BackupInfo.DONE)
-
-        # Use BaseException instead of Exception to catch events like
-        # KeyboardInterrupt (e.g.: CTRL-C)
-        except BaseException as exc:
-            # Mark the backup as failed and exit
-            self.handle_backup_errors("uploading data", exc, backup_info)
-            raise SystemExit(1)
-        finally:
-            try:
-                with BytesIO() as backup_info_file:
-                    backup_info.save(file_object=backup_info_file)
-                    backup_info_file.seek(0, os.SEEK_SET)
-                    key = os.path.join(controller.key_prefix, "backup.info")
-                    logging.info("Uploading '%s'", key)
-                    self.cloud_interface.upload_fileobj(backup_info_file, key)
-            except BaseException as exc:
-                # Mark the backup as failed and exit
-                self.handle_backup_errors(
-                    "uploading backup.info file", exc, backup_info
-                )
-                raise SystemExit(1)
-
-        logging.info(
-            "Backup end at LSN: %s (%s, %08X)",
-            backup_info.end_xlog,
-            backup_info.end_wal,
-            backup_info.end_offset,
+        backup_fun = partial(
+            self._backup_copy,
+            controller,
+            backup_info,
+            backup_info.pgdata,
+            self.postgres.server_major_version,
         )
-        logging.info(
-            "Backup completed (start time: %s, elapsed time: %s)",
-            self.copy_start_time,
-            human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
+        upload_backup_label_fun = partial(
+            self._upload_backup_label, controller, backup_info
+        )
+        finalise_upload_fun = controller.close
+        upload_backup_info_fun = partial(self._upload_backup_info, backup_info)
+        add_statistics_fun = partial(self._add_statistics, controller, backup_info)
+
+        self._coordinate_backup(
+            backup_info,
+            strategy,
+            backup_fun,
+            upload_backup_label_fun,
+            finalise_upload_fun,
+            add_statistics_fun,
+            upload_backup_info_fun,
         )
 
-    def handle_backup_errors(self, action, exc, backup_info):
-        """
-        Mark the backup as failed and exit
 
-        :param str action: the upload phase that has failed
-        :param barman.infofile.BackupInfo backup_info: the backup info file
-        :param BaseException exc: the exception that caused the failure
+class CloudBackupSnapshot(CloudBackup, CloudBackupPostgresMixin):
+    def __init__(
+        self,
+        server_name,
+        cloud_interface,
+        snapshot_interface,
+        postgres,
+        snapshot_disk_zone,
+        snapshot_disk_name,
+    ):
+        super(CloudBackupSnapshot, self).__init__(server_name, cloud_interface)
+        self.snapshot_interface = snapshot_interface
+        self.postgres = postgres
+        self.snapshot_disk_zone = snapshot_disk_zone
+        self.snapshot_disk_name = snapshot_disk_name
+
+    def _upload_backup_label(self, backup_info):
+        backup_label_key = os.path.join(
+            self.cloud_interface.path,
+            self.server_name,
+            "base",
+            backup_info.backup_id,
+            "backup_label",
+        )
+        self.cloud_interface.upload_fileobj(
+            BytesIO(backup_info.backup_label.encode("UTF-8")),
+            backup_label_key,
+        )
+
+    def _add_statistics(self, backup_info):
+        # TODO add some stats here
+        pass
+
+    def backup(self):
         """
-        msg_lines = force_str(exc).strip().splitlines()
-        # If the exception has no attached message use the raw
-        # type name
-        if len(msg_lines) == 0:
-            msg_lines = [type(exc).__name__]
-        if backup_info:
-            # Use only the first line of exception message
-            # in backup_info error field
-            backup_info.set_attribute("status", BackupInfo.FAILED)
-            backup_info.set_attribute(
-                "error", "failure %s (%s)" % (action, msg_lines[0])
-            )
-        logging.error("Backup failed %s (%s)", action, msg_lines[0])
-        logging.debug("Exception details:", exc_info=exc)
+        Take a backup by creating snapshots of the specified disks.
+        """
+        backup_info = self._get_backup_info(self.server_name)
+
+        self._check_postgres_version()
+
+        strategy = ConcurrentBackupStrategy(self.postgres, self.server_name)
+        logging.info("Starting backup '%s'", backup_info.backup_id)
+        strategy.start_backup(backup_info)
+
+        backup_fun = partial(
+            self.snapshot_interface.take_snapshot,
+            backup_info,
+            self.snapshot_disk_zone,
+            self.snapshot_disk_name,
+        )
+        upload_backup_label_fun = partial(self._upload_backup_label, backup_info)
+        finalise_upload_fun = lambda: None
+        upload_backup_info_fun = partial(self._upload_backup_info, backup_info)
+        add_statistics_fun = partial(self._add_statistics, backup_info)
+
+        self._coordinate_backup(
+            backup_info,
+            strategy,
+            backup_fun,
+            upload_backup_label_fun,
+            finalise_upload_fun,
+            add_statistics_fun,
+            upload_backup_info_fun,
+        )
 
 
 class BackupFileInfo(object):
