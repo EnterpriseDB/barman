@@ -1899,7 +1899,11 @@ class ConcurrentBackupStrategy(BackupStrategy):
         _logger.debug("Stop of native concurrent backup")
         self._concurrent_stop_backup(backup_info)
 
-        # Write backup_label retrieved from postgres connection
+        # Update the current action in preparation for writing the backup label.
+        # NOTE: The actual writing of the backup label happens either in the
+        # specialization of this function in LocalConcurrentBackupStrategy
+        # or out-of-band in a CloudBackupUploader (when ConcurrentBackupStrategy
+        # is used directly when writing to an object store).
         self.current_action = "writing backup label"
 
         # Ask PostgreSQL to switch to another WAL file. This is needed
