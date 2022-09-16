@@ -1902,6 +1902,16 @@ class ConcurrentBackupStrategy(BackupStrategy):
         # Write backup_label retrieved from postgres connection
         self.current_action = "writing backup label"
 
+        # TODO This is super confusiong. We set action "writing backup label"
+        # and then appear to not write the backup label. If that were actually
+        # the case we'd be producing backups no one could ever recover from.
+        # The reason is that Barman uses LocalConcurrentBackupStrategy, which
+        # will write the backup label in its specialization of this function.
+        # Only Barman Cloud uses ConcurrentBackupStrategy directly and it will
+        # then deal with uploading the backup label to cloud storage.
+        # So basically, we're updating the current action on the basis that
+        # whatever code called us is going to do that next.
+
         # Ask PostgreSQL to switch to another WAL file. This is needed
         # to archive the transaction log file containing the backup
         # end position, which is required to recover from the backup.
