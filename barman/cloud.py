@@ -34,9 +34,9 @@ from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
 
 from barman.annotations import KeepManagerMixinCloud
-from barman.backup_executor import ConcurrentBackupStrategy, ExclusiveBackupStrategy
+from barman.backup_executor import ConcurrentBackupStrategy
 from barman.clients import cloud_compression
-from barman.exceptions import BarmanException
+from barman.exceptions import BarmanException, BackupException
 from barman.fs import path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
@@ -1500,10 +1500,17 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
         )
         backup_info.set_attribute("systemid", self.postgres.get_systemid())
         controller = self._create_upload_controller(backup_info.backup_id)
-        if self.postgres.is_minimal_postgres_version():
-            strategy = ConcurrentBackupStrategy(self.postgres, server_name)
-        else:
-            strategy = ExclusiveBackupStrategy(self.postgres, server_name)
+        if not self.postgres.is_minimal_postgres_version():
+            raise BackupException(
+                "unsupported PostgresSQL version %s. Expecting %s or above."
+                % (
+                    self.postgres.server_major_version,
+                    self.postgres.minimal_txt_version,
+                )
+            )
+
+        strategy = ConcurrentBackupStrategy(self.postgres, server_name)
+
         logging.info("Starting backup '%s'", backup_info.backup_id)
         strategy.start_backup(backup_info)
         try:
