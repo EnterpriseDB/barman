@@ -40,7 +40,11 @@ from barman.exceptions import (
     PostgresSuperuserRequired,
     PostgresUnsupportedFeature,
 )
-from barman.postgres import PostgreSQLConnection, StandbyPostgreSQLConnection
+from barman.postgres import (
+    PostgreSQLConnection,
+    StandbyPostgreSQLConnection,
+    PostgreSQL,
+)
 from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 from testing_helpers import build_real_server
 
@@ -217,6 +221,23 @@ class TestPostgres(object):
             "gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-36), 64-bit",
         )
         assert server.postgres.server_txt_version == "10.18"
+
+    @pytest.mark.parametrize(
+        ("int_version", "expected_str_version"),
+        [(90600, "9.6.0"), (102200, "10.0"), (140000, "14.0"), (150000, "15.0")],
+    )
+    def test_int_version_to_string_version(self, int_version, expected_str_version):
+        class VoidPostgreSQL(PostgreSQL):
+            def __init__(self):
+                pass
+
+            def fetch_remote_status(self):
+                pass
+
+        pg = VoidPostgreSQL()
+        str_version = pg.int_version_to_string_version(int_version)
+
+        assert str_version == expected_str_version
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
     @patch(

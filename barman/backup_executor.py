@@ -1828,14 +1828,16 @@ class ConcurrentBackupStrategy(BackupStrategy):
         check_strategy.init_check("postgres minimal version")
         try:
             # We execute this check only if the postgres connection is non None
-            # and the server version is lower than 9.6. On latest PostgreSQL
-            # there is a native API for concurrent backups.
+            # to validate the server version matches at least minimal version
             if self.postgres and not self.postgres.is_minimal_postgres_version():
                 check_strategy.result(
                     self.server_name,
                     False,
-                    hint="unsupported PostgresSQL version %s"
-                    % self.postgres.server_major_version,
+                    hint="unsupported PostgresSQL version %s. Expecting %s or above."
+                    % (
+                        self.postgres.server_major_version,
+                        self.postgres.minimal_txt_version,
+                    ),
                 )
 
         except PostgresConnectionError:
@@ -1872,7 +1874,10 @@ class ConcurrentBackupStrategy(BackupStrategy):
         """
         self.current_action = "issuing stop backup command"
         if not self.postgres.is_minimal_postgres_version():
-            _logger.error("Postgres version not supported")
+            _logger.error(
+                "Postgres version not supported. Minimal version is %s"
+                % self.postgres.minimal_txt_version
+            )
             raise BackupException("Postgres version not supported")
 
         # On 9.6+ execute native concurrent stop backup
