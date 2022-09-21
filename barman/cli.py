@@ -1842,17 +1842,17 @@ def get_server_list(
         # When 'all' is used, it must be the only specified argument
         if args and len(args.server_name) != 1:
             output.error("You cannot use 'all' with other server names")
-        servers = available_servers
+        server_names = available_servers
     else:
         # Put servers in a set, so multiple occurrences are counted only once
-        servers = set(args.server_name)
+        server_names = set(args.server_name)
 
     # Loop through all the requested servers
-    for server in servers:
-        conf = barman.__config__.get_server(server)
+    for server_name in server_names:
+        conf = barman.__config__.get_server(server_name)
         if conf is None:
             # Unknown server
-            server_dict[server] = None
+            server_dict[server_name] = None
         else:
             server_object = Server(conf)
             # Skip inactive servers, if requested
@@ -1867,7 +1867,7 @@ def get_server_list(
             if skip_passive and server_object.passive_node:
                 output.info("Skipping passive server '%s'", conf.name)
                 continue
-            server_dict[server] = server_object
+            server_dict[server_name] = server_object
 
     return server_dict
 
