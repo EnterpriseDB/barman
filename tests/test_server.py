@@ -603,6 +603,23 @@ class TestServer(object):
         )
 
     @patch("barman.server.Server.get_remote_status")
+    def test_check_postgres_too_old(self, postgres_mock, capsys):
+        postgres_mock.return_value = {
+            "server_txt_version": "x.y.z",
+            "version_supported": False,
+        }
+
+        # Create server
+        server = build_real_server()
+        strategy = CheckOutputStrategy()
+        server.check_postgres(strategy)
+        (out, err) = capsys.readouterr()
+        assert (
+            out
+            == "	PostgreSQL: FAILED (unsupported version: PostgreSQL server is too old (x.y.z < 9.6.0))\n"
+        )
+
+    @patch("barman.server.Server.get_remote_status")
     def test_check_postgres(self, postgres_mock, capsys):
         """
         Test management of check_postgres view output
