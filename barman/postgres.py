@@ -361,10 +361,14 @@ class StreamingConnection(PostgreSQL):
                 "streaming_systemid",
                 "timeline",
                 "xlogpos",
+                "version_supported",
             ),
             None,
         )
         try:
+            result["version_supported"] = self.is_minimal_postgres_version()
+            if not self.is_minimal_postgres_version():
+                return result
             # If the server is too old to support `pg_receivexlog`,
             # exit immediately.
             # This needs to be protected by the try/except because
@@ -887,6 +891,7 @@ class PostgreSQLConnection(PostgreSQL):
             "replication_slot",
             "synchronous_standby_names",
             "postgres_systemid",
+            "version_supported",
         ]
         # Initialise the result dictionary setting all the values to None
         result = dict.fromkeys(
@@ -928,6 +933,7 @@ class PostgreSQLConnection(PostgreSQL):
             result["has_backup_privileges"] = self.has_backup_privileges
             result["is_in_recovery"] = self.is_in_recovery
             result["server_txt_version"] = self.server_txt_version
+            result["version_supported"] = self.is_minimal_postgres_version()
             current_xlog_info = self.current_xlog_info
             if current_xlog_info:
                 result["current_lsn"] = current_xlog_info["location"]

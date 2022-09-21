@@ -941,6 +941,7 @@ class TestPostgres(object):
             "replication_slot_support": True,
             "replication_slot": None,
             "synchronous_standby_names": [],
+            "version_supported": False,
             "archive_timeout": 300,
             "checkpoint_timeout": 600,
             "wal_keep_segments": "a wal_keep_segments value",
@@ -955,6 +956,7 @@ class TestPostgres(object):
 
         # Test PostgreSQL 9.6
         conn_mock.return_value.server_version = 90600
+        server_txt_version_mock.return_value = "9.6.0"
         result = server.postgres.fetch_remote_status()
         assert result == {
             "a": "b",
@@ -964,12 +966,13 @@ class TestPostgres(object):
             "current_lsn": "DE/ADBEEF",
             "current_xlog": "00000001000000DE00000000",
             "data_directory": "a directory",
-            "server_txt_version": "9.5.0",
+            "server_txt_version": "9.6.0",
             "wal_level": "a wal_level value",
             "current_size": 497354072,
             "replication_slot_support": True,
             "replication_slot": None,
             "synchronous_standby_names": [],
+            "version_supported": True,
             "archive_timeout": 300,
             "checkpoint_timeout": 600,
             "wal_keep_segments": "a wal_keep_segments value",
@@ -984,6 +987,7 @@ class TestPostgres(object):
 
         # Test PostgreSQL 13
         conn_mock.return_value.server_version = 130000
+        server_txt_version_mock.return_value = "13.0"
         result = server.postgres.fetch_remote_status()
         assert result == {
             "a": "b",
@@ -993,12 +997,13 @@ class TestPostgres(object):
             "current_lsn": "DE/ADBEEF",
             "current_xlog": "00000001000000DE00000000",
             "data_directory": "a directory",
-            "server_txt_version": "9.5.0",
+            "server_txt_version": "13.0",
             "wal_level": "a wal_level value",
             "current_size": 497354072,
             "replication_slot_support": True,
             "replication_slot": None,
             "synchronous_standby_names": [],
+            "version_supported": True,
             "archive_timeout": 300,
             "checkpoint_timeout": 600,
             "wal_keep_size": "a wal_keep_size value",
@@ -1023,6 +1028,7 @@ class TestPostgres(object):
             "replication_slot_support": None,
             "replication_slot": None,
             "synchronous_standby_names": None,
+            "version_supported": None,
             "postgres_systemid": None,
         }
 
@@ -1036,6 +1042,7 @@ class TestPostgres(object):
             "replication_slot_support": None,
             "replication_slot": None,
             "synchronous_standby_names": None,
+            "version_supported": None,
             "postgres_systemid": None,
         }
 
@@ -1893,6 +1900,19 @@ class TestStreamingConnection(object):
             "user=test"
         )
 
+    @pytest.mark.parametrize("server_version", (90100, 90200, 90300, 90500))
+    @patch("barman.postgres.psycopg2.connect")
+    def test_fetch_remote_status_for_unsupported_pg_version(
+        self, conn_mock, server_version
+    ):
+        # Build a server
+        server = build_real_server(
+            main_conf={"streaming_archiver": True, "streaming_conninfo": "dummy=param"}
+        )
+        conn_mock.return_value.server_version = server_version
+        result = server.streaming.fetch_remote_status()
+        assert result["version_supported"] is False
+
     @patch("barman.postgres.psycopg2.connect")
     def test_fetch_remote_status(self, conn_mock):
         """
@@ -1903,23 +1923,19 @@ class TestStreamingConnection(object):
             main_conf={"streaming_archiver": True, "streaming_conninfo": "dummy=param"}
         )
 
-        # Too old PostgreSQL
-        conn_mock.return_value.server_version = 90100
-        result = server.streaming.fetch_remote_status()
-        assert result["streaming_supported"] is False
-        assert result["streaming"] is None
-
         # Working streaming connection
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = PostgreSQL.MINIMAL_VERSION
         cursor_mock = conn_mock.return_value.cursor.return_value
         cursor_mock.fetchone.return_value = ("12345", 1, "DE/ADBEEF")
         result = server.streaming.fetch_remote_status()
+        assert result["version_supported"] is True
         cursor_mock.execute.assert_called_with("IDENTIFY_SYSTEM")
         assert result["streaming_supported"] is True
         assert result["streaming"] is True
 
         # Working non-streaming connection
         conn_mock.reset_mock()
+        conn_mock.return_value.server_version = PostgreSQL.MINIMAL_VERSION
         cursor_mock.execute.side_effect = psycopg2.ProgrammingError
         result = server.streaming.fetch_remote_status()
         cursor_mock.execute.assert_called_with("IDENTIFY_SYSTEM")
@@ -1929,6 +1945,7 @@ class TestStreamingConnection(object):
         # Connection failed
         server.streaming.close()
         conn_mock.reset_mock()
+        conn_mock.return_value.server_version = PostgreSQL.MINIMAL_VERSION
         conn_mock.side_effect = psycopg2.DatabaseError
         result = server.streaming.fetch_remote_status()
         assert result["streaming_supported"] is None

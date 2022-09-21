@@ -81,6 +81,7 @@ from barman.postgres import (
     PostgreSQLConnection,
     StandbyPostgreSQLConnection,
     StreamingConnection,
+    PostgreSQL,
 )
 from barman.process import ProcessManager
 from barman.remote_status import RemoteStatusMixin
@@ -740,12 +741,24 @@ class Server(RemoteStatusMixin):
         check_strategy.init_check("PostgreSQL")
         # Take the status of the remote server
         remote_status = self.get_remote_status()
-        if remote_status.get("server_txt_version"):
-            check_strategy.result(self.config.name, True)
-        else:
+        if not remote_status.get("server_txt_version"):
             check_strategy.result(self.config.name, False)
             return
-
+        # Now we know server version is accessible we can check if it is valid
+        if remote_status.get("version_supported") is False:
+            minimal_txt_version = PostgreSQL.int_version_to_string_version(
+                PostgreSQL.MINIMAL_VERSION
+            )
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint="unsupported version: PostgreSQL server "
+                "is too old (%s < %s)"
+                % (remote_status["server_txt_version"], minimal_txt_version),
+            )
+            return
+        else:
+            check_strategy.result(self.config.name, True)
         # Check for superuser privileges or
         # privileges needed to perform backups
         if remote_status.get("has_backup_privileges") is not None:
