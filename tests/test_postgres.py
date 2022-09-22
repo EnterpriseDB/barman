@@ -251,22 +251,17 @@ class TestPostgres(object):
         is_in_recovery_mock.return_value = False
 
         server = build_real_server()
-        # Test 1: Postgres 9.0 expect None as result
-        conn_mock.return_value.server_version = 90000
-
-        restore_point = server.postgres.create_restore_point("Test_20151026T092241")
-        assert restore_point is None
 
         # Simulate a master connection
         is_in_recovery_mock.return_value = True
 
-        # Test 2: Postgres 9.1 in recovery (standby) expect None as result
-        conn_mock.return_value.server_version = 90100
+        # Test : Postgres 9.6 in recovery (standby) expect None as result
+        conn_mock.return_value.server_version = 90600
 
         restore_point = server.postgres.create_restore_point("Test_20151026T092241")
         assert restore_point is None
 
-        # Test 3: Postgres 9.1 check mock calls
+        # Test : Postgres 9.6 check mock calls
         is_in_recovery_mock.return_value = False
 
         assert server.postgres.create_restore_point("Test_20151026T092241")
@@ -385,7 +380,7 @@ class TestPostgres(object):
         backup_label = "test label"
 
         # Expect no errors
-        conn.return_value.server_version = 90300
+        conn.return_value.server_version = 90600
         assert server.postgres.start_exclusive_backup(backup_label)
 
         # check for the correct call on the execute method
@@ -396,21 +391,6 @@ class TestPostgres(object):
             "now() AS timestamp "
             "FROM pg_start_backup(%s,%s) AS location",
             ("test label", False),
-        )
-        conn.return_value.rollback.assert_has_calls([call(), call()])
-        # reset the mock for the next test
-        conn.reset_mock()
-
-        # 8.3 test
-        conn.return_value.server_version = 80300
-        assert server.postgres.start_exclusive_backup(backup_label)
-        # check for the correct call on the execute method
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT location, "
-            "(pg_xlogfile_name_offset(location)).*, "
-            "now() AS timestamp "
-            "FROM pg_start_backup(%s) AS location",
-            ("test label",),
         )
         conn.return_value.rollback.assert_has_calls([call(), call()])
         # reset the mock for the next test
@@ -565,7 +545,7 @@ class TestPostgres(object):
         cursor_mock = conn.return_value.cursor.return_value
         cursor_mock.fetchall.return_value = [("tbs1", "1234", "/tmp")]
         # Expect no errors
-        conn.return_value.server_version = 90400
+        conn.return_value.server_version = 90600
         tbs = server.postgres.get_tablespaces()
         # check for the correct call on the execute method
         cursor_mock.execute.assert_called_once_with(
@@ -576,17 +556,6 @@ class TestPostgres(object):
         )
         assert tbs == [("tbs1", "1234", "/tmp")]
         conn.reset_mock()
-
-        # 8.3 test
-        conn.return_value.server_version = 80300
-        cursor_mock.fetchall.return_value = [("tbs2", "5234", "/tmp1")]
-        tbs = server.postgres.get_tablespaces()
-        # check for the correct call on the execute method
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT spcname, oid, spclocation "
-            "FROM pg_tablespace WHERE spclocation != ''"
-        )
-        assert tbs == [("tbs2", "5234", "/tmp1")]
 
         conn.reset_mock()
         # test error management
@@ -601,13 +570,13 @@ class TestPostgres(object):
         # Build a server
         server = build_real_server()
         cursor_mock = conn.return_value.cursor.return_value
-        # expect None as result for server version <9.4
-        conn.return_value.server_version = 80300
-        assert server.postgres.get_archiver_stats() is None
+        # # expect None as result for server version <9.4
+        # conn.return_value.server_version = 80300
+        # assert server.postgres.get_archiver_stats() is None
 
         # expect no errors with version >= 9.4
         conn.reset_mock()
-        conn.return_value.server_version = 90400
+        conn.return_value.server_version = 90600
         cursor_mock.fetchone.return_value = {"a": "b"}
         assert server.postgres.get_archiver_stats() == {"a": "b"}
         # check for the correct call on the execute method
@@ -692,12 +661,8 @@ class TestPostgres(object):
         server = build_real_server()
         cursor_mock = conn_mock.return_value.cursor.return_value
 
-        # Too old
-        conn_mock.return_value.server_version = 80400
-        assert not server.postgres.is_in_recovery
-
         # In recovery
-        conn_mock.return_value.server_version = 90100
+        conn_mock.return_value.server_version = 90600
         cursor_mock.fetchone.return_value = [True]
         assert server.postgres.is_in_recovery
         cursor_mock.execute.assert_called_once_with("SELECT pg_is_in_recovery()")
@@ -900,12 +865,14 @@ class TestPostgres(object):
         }
         current_size_mock.return_value = 497354072
         server_txt_version_mock.return_value = "9.5.0"
+        # server_txt_version_mock.return_value = PostgreSQL.int_version_to_string_version(PostgreSQL.MINIMAL_VERSION)
         is_in_recovery_mock.return_value = False
         has_backup_privileges_mock.return_value = True
         is_superuser_mock.return_value = True
         get_configuration_files_mock.return_value = {"a": "b"}
         get_synchronous_standby_names_mock.return_value = []
         conn_mock.return_value.server_version = 90500
+        # conn_mock.return_value.server_version = PostgreSQL.MINIMAL_VERSION
         archive_timeout_mock.return_value = 300
         checkpoint_timeout_mock.return_value = 600
         xlog_segment_size.return_value = 2 << 22
@@ -925,7 +892,9 @@ class TestPostgres(object):
 
         get_setting_mock.side_effect = lambda x: settings.get(x, "unknown")
 
-        # Test PostgreSQL < 9.6
+        # Test PostgreSQL < Minimal
+        conn_mock.return_value.server_version = 90500
+        server_txt_version_mock.return_value = "9.5.0"
         result = server.postgres.fetch_remote_status()
         assert result == {
             "a": "b",
@@ -951,7 +920,7 @@ class TestPostgres(object):
             "max_replication_slots": "a max_replication_slots value",
             "wal_compression": "a wal_compression value",
             "xlog_segment_size": 8388608,
-            "postgres_systemid": None,
+            "postgres_systemid": 6721602258895701769,
         }
 
         # Test PostgreSQL 9.6
@@ -1241,9 +1210,9 @@ class TestPostgres(object):
             "ORDER BY sync_state DESC, sync_priority"
         )
 
-        # 9.5 ALL
+        # 9.6 ALL
         cursor_mock.reset_mock()
-        server_version_mock.return_value = 90500
+        server_version_mock.return_value = 90600
         standby_info = server.postgres.get_replication_stats(
             PostgreSQLConnection.ANY_STREAMING_CLIENT
         )
@@ -1268,258 +1237,10 @@ class TestPostgres(object):
             "ORDER BY sync_state DESC, sync_priority"
         )
 
-        # 9.4 ALL
-        cursor_mock.reset_mock()
-        server_version_mock.return_value = 90400
-        standby_info = server.postgres.get_replication_stats(
-            PostgreSQLConnection.ANY_STREAMING_CLIENT
-        )
-        assert standby_info is cursor_mock.fetchall.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT pid, usesysid, usename, application_name, client_addr, "
-            "client_hostname, client_port, "
-            "backend_start, backend_xmin, state, "
-            "sent_location AS sent_lsn, "
-            "write_location AS write_lsn, "
-            "flush_location AS flush_lsn, "
-            "replay_location AS replay_lsn, "
-            "sync_priority, sync_state, "
-            "pg_is_in_recovery() AS is_in_recovery, "
-            "CASE WHEN pg_is_in_recovery() "
-            "  THEN pg_last_xlog_receive_location() "
-            "  ELSE pg_current_xlog_location() "
-            "END AS current_lsn "
-            "FROM pg_stat_replication r "
-            "ORDER BY sync_state DESC, sync_priority"
-        )
-
-        # 9.4 WALSTREAMER
-        cursor_mock.reset_mock()
-        server_version_mock.return_value = 90400
-        standby_info = server.postgres.get_replication_stats(
-            PostgreSQLConnection.WALSTREAMER
-        )
-        assert standby_info is cursor_mock.fetchall.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT pid, usesysid, usename, application_name, client_addr, "
-            "client_hostname, client_port, "
-            "backend_start, backend_xmin, state, "
-            "sent_location AS sent_lsn, "
-            "write_location AS write_lsn, "
-            "flush_location AS flush_lsn, "
-            "replay_location AS replay_lsn, "
-            "sync_priority, sync_state, "
-            "pg_is_in_recovery() AS is_in_recovery, "
-            "CASE WHEN pg_is_in_recovery() "
-            "  THEN pg_last_xlog_receive_location() "
-            "  ELSE pg_current_xlog_location() "
-            "END AS current_lsn "
-            "FROM pg_stat_replication r "
-            "WHERE replay_location IS NULL "
-            "ORDER BY sync_state DESC, sync_priority"
-        )
-
-        # 9.4 STANDBY
-        cursor_mock.reset_mock()
-        server_version_mock.return_value = 90400
-        standby_info = server.postgres.get_replication_stats(
-            PostgreSQLConnection.STANDBY
-        )
-        assert standby_info is cursor_mock.fetchall.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT pid, usesysid, usename, application_name, client_addr, "
-            "client_hostname, client_port, "
-            "backend_start, backend_xmin, state, "
-            "sent_location AS sent_lsn, "
-            "write_location AS write_lsn, "
-            "flush_location AS flush_lsn, "
-            "replay_location AS replay_lsn, "
-            "sync_priority, sync_state, "
-            "pg_is_in_recovery() AS is_in_recovery, "
-            "CASE WHEN pg_is_in_recovery() "
-            "  THEN pg_last_xlog_receive_location() "
-            "  ELSE pg_current_xlog_location() "
-            "END AS current_lsn "
-            "FROM pg_stat_replication r "
-            "WHERE replay_location IS NOT NULL "
-            "ORDER BY sync_state DESC, sync_priority"
-        )
-
-        # 9.2 ALL
-        cursor_mock.reset_mock()
-        server_version_mock.return_value = 90200
-        standby_info = server.postgres.get_replication_stats(
-            PostgreSQLConnection.ANY_STREAMING_CLIENT
-        )
-        assert standby_info is cursor_mock.fetchall.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT pid, usesysid, usename, application_name, client_addr, "
-            "client_hostname, client_port, backend_start, "
-            "CAST (NULL AS xid) AS backend_xmin, "
-            "state, "
-            "sent_location AS sent_lsn, "
-            "write_location AS write_lsn, "
-            "flush_location AS flush_lsn, "
-            "replay_location AS replay_lsn, "
-            "sync_priority, sync_state, "
-            "pg_is_in_recovery() AS is_in_recovery, "
-            "CASE WHEN pg_is_in_recovery() "
-            "  THEN pg_last_xlog_receive_location() "
-            "  ELSE pg_current_xlog_location() "
-            "END AS current_lsn "
-            "FROM pg_stat_replication r "
-            "ORDER BY sync_state DESC, sync_priority"
-        )
-
-        # 9.2 WALSTREAMER
-        cursor_mock.reset_mock()
-        server_version_mock.return_value = 90200
-        standby_info = server.postgres.get_replication_stats(
-            PostgreSQLConnection.WALSTREAMER
-        )
-        assert standby_info is cursor_mock.fetchall.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT pid, usesysid, usename, application_name, client_addr, "
-            "client_hostname, client_port, backend_start, "
-            "CAST (NULL AS xid) AS backend_xmin, "
-            "state, "
-            "sent_location AS sent_lsn, "
-            "write_location AS write_lsn, "
-            "flush_location AS flush_lsn, "
-            "replay_location AS replay_lsn, "
-            "sync_priority, sync_state, "
-            "pg_is_in_recovery() AS is_in_recovery, "
-            "CASE WHEN pg_is_in_recovery() "
-            "  THEN pg_last_xlog_receive_location() "
-            "  ELSE pg_current_xlog_location() "
-            "END AS current_lsn "
-            "FROM pg_stat_replication r "
-            "WHERE replay_location IS NULL "
-            "ORDER BY sync_state DESC, sync_priority"
-        )
-
-        # 9.2 STANDBY
-        cursor_mock.reset_mock()
-        server_version_mock.return_value = 90200
-        standby_info = server.postgres.get_replication_stats(
-            PostgreSQLConnection.STANDBY
-        )
-        assert standby_info is cursor_mock.fetchall.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT pid, usesysid, usename, application_name, client_addr, "
-            "client_hostname, client_port, backend_start, "
-            "CAST (NULL AS xid) AS backend_xmin, "
-            "state, "
-            "sent_location AS sent_lsn, "
-            "write_location AS write_lsn, "
-            "flush_location AS flush_lsn, "
-            "replay_location AS replay_lsn, "
-            "sync_priority, sync_state, "
-            "pg_is_in_recovery() AS is_in_recovery, "
-            "CASE WHEN pg_is_in_recovery() "
-            "  THEN pg_last_xlog_receive_location() "
-            "  ELSE pg_current_xlog_location() "
-            "END AS current_lsn "
-            "FROM pg_stat_replication r "
-            "WHERE replay_location IS NOT NULL "
-            "ORDER BY sync_state DESC, sync_priority"
-        )
-
-        # 9.1 ALL
-        cursor_mock.reset_mock()
-        server_version_mock.return_value = 90100
-        standby_info = server.postgres.get_replication_stats(
-            PostgreSQLConnection.ANY_STREAMING_CLIENT
-        )
-        assert standby_info is cursor_mock.fetchall.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT procpid AS pid, usesysid, usename, application_name, "
-            "client_addr, client_hostname, client_port, backend_start, "
-            "CAST (NULL AS xid) AS backend_xmin, "
-            "state, "
-            "sent_location AS sent_lsn, "
-            "write_location AS write_lsn, "
-            "flush_location AS flush_lsn, "
-            "replay_location AS replay_lsn, "
-            "sync_priority, sync_state, "
-            "pg_is_in_recovery() AS is_in_recovery, "
-            "CASE WHEN pg_is_in_recovery() "
-            "  THEN pg_last_xlog_receive_location() "
-            "  ELSE pg_current_xlog_location() "
-            "END AS current_lsn "
-            "FROM pg_stat_replication r "
-            "ORDER BY sync_state DESC, sync_priority"
-        )
-
-        # 9.1 WALSTREAMER
-        cursor_mock.reset_mock()
-        server_version_mock.return_value = 90100
-        standby_info = server.postgres.get_replication_stats(
-            PostgreSQLConnection.WALSTREAMER
-        )
-        assert standby_info is cursor_mock.fetchall.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT procpid AS pid, usesysid, usename, application_name, "
-            "client_addr, client_hostname, client_port, backend_start, "
-            "CAST (NULL AS xid) AS backend_xmin, "
-            "state, "
-            "sent_location AS sent_lsn, "
-            "write_location AS write_lsn, "
-            "flush_location AS flush_lsn, "
-            "replay_location AS replay_lsn, "
-            "sync_priority, sync_state, "
-            "pg_is_in_recovery() AS is_in_recovery, "
-            "CASE WHEN pg_is_in_recovery() "
-            "  THEN pg_last_xlog_receive_location() "
-            "  ELSE pg_current_xlog_location() "
-            "END AS current_lsn "
-            "FROM pg_stat_replication r "
-            "WHERE replay_location IS NULL "
-            "ORDER BY sync_state DESC, sync_priority"
-        )
-
-        # 9.1 STANDBY
-        cursor_mock.reset_mock()
-        server_version_mock.return_value = 90100
-        standby_info = server.postgres.get_replication_stats(
-            PostgreSQLConnection.STANDBY
-        )
-        assert standby_info is cursor_mock.fetchall.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT procpid AS pid, usesysid, usename, application_name, "
-            "client_addr, client_hostname, client_port, backend_start, "
-            "CAST (NULL AS xid) AS backend_xmin, "
-            "state, "
-            "sent_location AS sent_lsn, "
-            "write_location AS write_lsn, "
-            "flush_location AS flush_lsn, "
-            "replay_location AS replay_lsn, "
-            "sync_priority, sync_state, "
-            "pg_is_in_recovery() AS is_in_recovery, "
-            "CASE WHEN pg_is_in_recovery() "
-            "  THEN pg_last_xlog_receive_location() "
-            "  ELSE pg_current_xlog_location() "
-            "END AS current_lsn "
-            "FROM pg_stat_replication r "
-            "WHERE replay_location IS NOT NULL "
-            "ORDER BY sync_state DESC, sync_priority"
-        )
-
         cursor_mock.reset_mock()
         # Missing required permissions
         has_backup_privileges_mock.return_value = False
         with pytest.raises(BackupFunctionsAccessRequired):
-            server.postgres.get_replication_stats(
-                PostgreSQLConnection.ANY_STREAMING_CLIENT
-            )
-        # Check for the right invocation
-        assert not cursor_mock.execute.called
-
-        cursor_mock.reset_mock()
-        # Too old version (9.0)
-        has_backup_privileges_mock.return_value = True
-        server_version_mock.return_value = 90000
-        with pytest.raises(PostgresUnsupportedFeature):
             server.postgres.get_replication_stats(
                 PostgreSQLConnection.ANY_STREAMING_CLIENT
             )
@@ -1686,24 +1407,6 @@ class TestPostgres(object):
         cursor_mock.execute.assert_has_calls(execute_calls)
 
     @patch("barman.postgres.PostgreSQLConnection.connect")
-    def test_xlog_segment_size_83(self, conn_mock):
-        """
-        If you use PostgreSQL 8.3 you can't change the WAL segment size even
-        at compilation level. Barman shouldn't ask the server for this data,
-        as this will result in an error
-        """
-
-        # Build a server
-        server = build_real_server()
-        conn_mock.return_value.server_version = 80300
-        cursor_mock = conn_mock.return_value.cursor.return_value
-
-        result = server.postgres.xlog_segment_size
-        assert result == DEFAULT_XLOG_SEG_SIZE
-
-        cursor_mock.execute.assert_not_called()
-
-    @patch("barman.postgres.PostgreSQLConnection.connect")
     def test_name_map(self, conn_mock):
         """
         Test the `name_map` behaviour
@@ -1719,9 +1422,9 @@ class TestPostgres(object):
         map_10 = server.postgres.name_map
         assert map_10
 
-        conn_mock.return_value.server_version = 90300
-        map_93 = server.postgres.name_map
-        assert map_93
+        conn_mock.return_value.server_version = 90600
+        map_96 = server.postgres.name_map
+        assert map_96
 
         conn_mock.side_effect = PostgresConnectionError
         map_error = server.postgres.name_map
@@ -1735,7 +1438,7 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90600
         assert server.postgres.name_map["pg_switch_wal"] == "pg_switch_xlog"
 
         conn_mock.return_value.server_version = 100000
@@ -1749,7 +1452,7 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90600
         assert server.postgres.name_map["pg_walfile_name"] == "pg_xlogfile_name"
 
         conn_mock.return_value.server_version = 100000
@@ -1763,7 +1466,7 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90600
         assert (
             server.postgres.name_map["pg_walfile_name_offset"]
             == "pg_xlogfile_name_offset"
@@ -1783,7 +1486,7 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90600
         assert server.postgres.name_map["pg_wal"] == "pg_xlog"
 
         conn_mock.return_value.server_version = 100000
@@ -1797,7 +1500,7 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90600
         assert (
             server.postgres.name_map["pg_last_wal_replay_lsn"]
             == "pg_last_xlog_replay_location"
@@ -1817,7 +1520,7 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90600
         assert (
             server.postgres.name_map["pg_current_wal_lsn"] == "pg_current_xlog_location"
         )
@@ -1833,7 +1536,7 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90600
         assert (
             server.postgres.name_map["pg_current_wal_insert_lsn"]
             == "pg_current_xlog_insert_location"
@@ -1853,7 +1556,7 @@ class TestPostgres(object):
         """
         server = build_real_server()
 
-        conn_mock.return_value.server_version = 90300
+        conn_mock.return_value.server_version = 90600
         assert (
             server.postgres.name_map["pg_last_wal_receive_lsn"]
             == "pg_last_xlog_receive_location"

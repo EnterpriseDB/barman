@@ -366,16 +366,12 @@ class StreamingConnection(PostgreSQL):
             None,
         )
         try:
+            # This needs to be protected by the try/except because
+            # `self.is_minimal_postgres_version` can raise a PostgresConnectionError
             result["version_supported"] = self.is_minimal_postgres_version()
             if not self.is_minimal_postgres_version():
                 return result
-            # If the server is too old to support `pg_receivexlog`,
-            # exit immediately.
-            # This needs to be protected by the try/except because
-            # `self.server_version` can raise a PostgresConnectionError
-            if self.server_version < 90200:
-                result["streaming_supported"] = False
-                return result
+            # streaming is always supported
             result["streaming_supported"] = True
             # Execute a IDENTIFY_SYSTEM to check the connection
             cursor = self._cursor()
@@ -490,9 +486,7 @@ class PostgreSQLConnection(PostgreSQL):
             return self._conn
 
         self._conn = super(PostgreSQLConnection, self).connect()
-        server_version = self._conn.server_version
-        use_app_name = "application_name" in self.conn_parameters
-        if server_version >= 90000 and not use_app_name:
+        if "application_name" not in self.conn_parameters:
             try:
                 cur = self._conn.cursor()
                 # Do not use parameter substitution with SET
@@ -541,9 +535,10 @@ class PostgreSQLConnection(PostgreSQL):
         Returns true if PostgreSQL server is in recovery mode (hot standby)
         """
         try:
-            # pg_is_in_recovery is only available from Postgres 9.0+
-            if self.server_version < 90000:
-                return False
+            # # pg_is_in_recovery is only available from Postgres 9.0+
+            # # Todo: remove
+            # if self.server_version < 90000:
+            #     return False
             cur = self._cursor()
             cur.execute("SELECT pg_is_in_recovery()")
             return cur.fetchone()[0]
@@ -716,11 +711,6 @@ class PostgreSQLConnection(PostgreSQL):
         :return: The wal size (In bytes)
         """
 
-        # Prior to PostgreSQL 8.4, the wal segment size was not configurable,
-        # even in compilation
-        if self.server_version < 80400:
-            return DEFAULT_XLOG_SEG_SIZE
-
         try:
             cur = self._cursor(cursor_factory=DictCursor)
             # We can't use the `get_setting` method here, because it
@@ -835,9 +825,6 @@ class PostgreSQLConnection(PostgreSQL):
             pg_stat_archiver or None
         """
         try:
-            # pg_stat_archiver is only available from Postgres 9.4+
-            if self.server_version < 90400:
-                return None
             cur = self._cursor(cursor_factory=DictCursor)
             # Select from pg_stat_archiver statistics view,
             # retrieving statistics about WAL archiver process activity,
@@ -900,25 +887,27 @@ class PostgreSQLConnection(PostgreSQL):
         try:
             # Retrieve wal_level, hot_standby and max_wal_senders
             # only if version is >= 9.0
-            if self.server_version >= 90000:
-                pg_settings.append("wal_level")
-                pg_settings.append("hot_standby")
-                pg_settings.append("max_wal_senders")
-                # Retrieve wal_keep_segments from version 9.0 onwards, until
-                # version 13.0, where it was renamed to wal_keep_size
-                if self.server_version < 130000:
-                    pg_settings.append("wal_keep_segments")
-                else:
-                    pg_settings.append("wal_keep_size")
+            pg_settings.extend(
+                [
+                    "wal_level",
+                    "hot_standby",
+                    "max_wal_senders",
+                ]
+            )
+            # Retrieve wal_keep_segments from version 9.0 onwards, until
+            # version 13.0, where it was renamed to wal_keep_size
+            if self.server_version < 130000:
+                pg_settings.append("wal_keep_segments")
+            else:
+                pg_settings.append("wal_keep_size")
 
-            if self.server_version >= 90300:
-                pg_settings.append("data_checksums")
-
-            if self.server_version >= 90400:
-                pg_settings.append("max_replication_slots")
-
-            if self.server_version >= 90500:
-                pg_settings.append("wal_compression")
+            pg_settings.extend(
+                [
+                    "data_checksums",
+                    "max_replication_slots",
+                    "wal_compression",
+                ]
+            )
 
             # retrieves superuser settings
             if self.has_backup_privileges:
@@ -949,23 +938,13 @@ class PostgreSQLConnection(PostgreSQL):
             result.update(self.get_configuration_files())
 
             # Retrieve the replication_slot status
-            result["replication_slot_support"] = False
-            if self.server_version >= 90400:
-                result["replication_slot_support"] = True
-                if self.slot_name is not None:
-                    result["replication_slot"] = self.get_replication_slot(
-                        self.slot_name
-                    )
+            result["replication_slot_support"] = True
+            if self.slot_name is not None:
+                result["replication_slot"] = self.get_replication_slot(self.slot_name)
 
             # Retrieve the list of synchronous standby names
-            result["synchronous_standby_names"] = []
-            if self.server_version >= 90100:
-                result[
-                    "synchronous_standby_names"
-                ] = self.get_synchronous_standby_names()
-
-            if self.server_version >= 90600:
-                result["postgres_systemid"] = self.get_systemid()
+            result["synchronous_standby_names"] = self.get_synchronous_standby_names()
+            result["postgres_systemid"] = self.get_systemid()
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.warning(
                 "Error retrieving PostgreSQL status: %s", force_str(e).strip()
@@ -976,9 +955,6 @@ class PostgreSQLConnection(PostgreSQL):
         """
         Get a Postgres instance systemid
         """
-        if self.server_version < 90600:
-            return
-
         try:
             cur = self._cursor()
             cur.execute("SELECT system_identifier::text FROM pg_control_system()")
@@ -1013,18 +989,14 @@ class PostgreSQLConnection(PostgreSQL):
         """
         try:
             cur = self._cursor()
-            if self.server_version >= 90200:
-                cur.execute(
-                    "SELECT spcname, oid, "
-                    "pg_tablespace_location(oid) AS spclocation "
-                    "FROM pg_tablespace "
-                    "WHERE pg_tablespace_location(oid) != ''"
-                )
-            else:
-                cur.execute(
-                    "SELECT spcname, oid, spclocation "
-                    "FROM pg_tablespace WHERE spclocation != ''"
-                )
+
+            cur.execute(
+                "SELECT spcname, oid, "
+                "pg_tablespace_location(oid) AS spclocation "
+                "FROM pg_tablespace "
+                "WHERE pg_tablespace_location(oid) != ''"
+            )
+
             # Generate a list of tablespace objects
             return [Tablespace._make(item) for item in cur.fetchall()]
         except (PostgresConnectionError, psycopg2.Error) as e:
@@ -1053,21 +1025,20 @@ class PostgreSQLConnection(PostgreSQL):
                 self.configuration_files[cname] = cpath
 
             # Retrieve additional configuration files
-            # If PostgreSQL is older than 8.4 disable this check
-            if self.server_version >= 80400:
-                cur.execute(
-                    "SELECT DISTINCT sourcefile AS included_file "
-                    "FROM pg_settings "
-                    "WHERE sourcefile IS NOT NULL "
-                    "AND sourcefile NOT IN "
-                    "(SELECT setting FROM pg_settings "
-                    "WHERE name = 'config_file') "
-                    "ORDER BY 1"
-                )
-                # Extract the values from the containing single element tuples
-                included_files = [included_file for included_file, in cur.fetchall()]
-                if len(included_files) > 0:
-                    self.configuration_files["included_files"] = included_files
+
+            cur.execute(
+                "SELECT DISTINCT sourcefile AS included_file "
+                "FROM pg_settings "
+                "WHERE sourcefile IS NOT NULL "
+                "AND sourcefile NOT IN "
+                "(SELECT setting FROM pg_settings "
+                "WHERE name = 'config_file') "
+                "ORDER BY 1"
+            )
+            # Extract the values from the containing single element tuples
+            included_files = [included_file for included_file, in cur.fetchall()]
+            if len(included_files) > 0:
+                self.configuration_files["included_files"] = included_files
 
         except (PostgresConnectionError, psycopg2.Error) as e:
             _logger.debug(
@@ -1093,9 +1064,6 @@ class PostgreSQLConnection(PostgreSQL):
         :returns: the restore point LSN
         :rtype: str|None
         """
-        if self.server_version < 90100:
-            return None
-
         # Not possible if on a standby
         # Called inside the pg_connect context to reuse the connection
         if self.is_in_recovery:
@@ -1138,14 +1106,6 @@ class PostgreSQLConnection(PostgreSQL):
             cur = conn.cursor(cursor_factory=DictCursor)
             if self.server_version >= 150000:
                 raise PostgresObsoleteFeature("15")
-            elif self.server_version < 80400:
-                cur.execute(
-                    "SELECT location, "
-                    "({pg_walfile_name_offset}(location)).*, "
-                    "now() AS timestamp "
-                    "FROM {pg_backup_start}(%s) AS location".format(**self.name_map),
-                    (label,),
-                )
             else:
                 cur.execute(
                     "SELECT location, "
@@ -1430,9 +1390,6 @@ class PostgreSQLConnection(PostgreSQL):
             # - sync_state
             #
 
-            if self.server_version < 90100:
-                raise PostgresUnsupportedFeature("9.1")
-
             from_repslot = ""
             where_clauses = []
             if self.server_version >= 100000:
@@ -1443,7 +1400,7 @@ class PostgreSQLConnection(PostgreSQL):
                     "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
                 )
                 where_clauses += ["(rs.slot_type IS NULL OR rs.slot_type = 'physical')"]
-            elif self.server_version >= 90500:
+            else :
                 # PostgreSQL 9.5/9.6
                 what = (
                     "pid, "
@@ -1469,66 +1426,6 @@ class PostgreSQLConnection(PostgreSQL):
                     "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
                 )
                 where_clauses += ["(rs.slot_type IS NULL OR rs.slot_type = 'physical')"]
-            elif self.server_version >= 90400:
-                # PostgreSQL 9.4
-                what = (
-                    "pid, "
-                    "usesysid, "
-                    "usename, "
-                    "application_name, "
-                    "client_addr, "
-                    "client_hostname, "
-                    "client_port, "
-                    "backend_start, "
-                    "backend_xmin, "
-                    "state, "
-                    "sent_location AS sent_lsn, "
-                    "write_location AS write_lsn, "
-                    "flush_location AS flush_lsn, "
-                    "replay_location AS replay_lsn, "
-                    "sync_priority, "
-                    "sync_state"
-                )
-            elif self.server_version >= 90200:
-                # PostgreSQL 9.2/9.3
-                what = (
-                    "pid, "
-                    "usesysid, "
-                    "usename, "
-                    "application_name, "
-                    "client_addr, "
-                    "client_hostname, "
-                    "client_port, "
-                    "backend_start, "
-                    "CAST (NULL AS xid) AS backend_xmin, "
-                    "state, "
-                    "sent_location AS sent_lsn, "
-                    "write_location AS write_lsn, "
-                    "flush_location AS flush_lsn, "
-                    "replay_location AS replay_lsn, "
-                    "sync_priority, "
-                    "sync_state"
-                )
-            else:
-                # PostgreSQL 9.1
-                what = (
-                    "procpid AS pid, "
-                    "usesysid, "
-                    "usename, "
-                    "application_name, "
-                    "client_addr, "
-                    "client_hostname, "
-                    "client_port, "
-                    "backend_start, "
-                    "CAST (NULL AS xid) AS backend_xmin, "
-                    "state, "
-                    "sent_location AS sent_lsn, "
-                    "write_location AS write_lsn, "
-                    "flush_location AS flush_lsn, "
-                    "replay_location AS replay_lsn, "
-                    "sync_priority, "
-                    "sync_state"
-                )
 
             # Streaming client
             if client_type == self.STANDBY:
