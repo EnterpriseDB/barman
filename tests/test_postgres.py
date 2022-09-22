@@ -45,7 +45,6 @@ from barman.postgres import (
     StandbyPostgreSQLConnection,
     PostgreSQL,
 )
-from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 from testing_helpers import build_real_server
 
 

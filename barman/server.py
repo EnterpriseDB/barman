@@ -815,8 +815,7 @@ class Server(RemoteStatusMixin):
                         False,
                         hint="replication slot '%s' doesn't exist. "
                         "Please execute 'barman receive-wal "
-                        "--create-slot %s'"
-                        % (self.config.slot_name, self.config.name),
+                        "--create-slot %s'" % (self.config.slot_name, self.config.name),
                     )
                 else:
                     # The slot is present but not initialised

@@ -1820,14 +1820,14 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
     def check(self, check_strategy):
         """
-        Perform additional checks for ConcurrentBackupStrategy
+        Checks that Postgres is at least minimal version
 
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
         """
         check_strategy.init_check("postgres minimal version")
         try:
-            # We execute this check only if the postgres connection is non None
+            # We execute this check only if the postgres connection is not None
             # to validate the server version matches at least minimal version
             if self.postgres and not self.postgres.is_minimal_postgres_version():
                 check_strategy.result(
@@ -1872,7 +1872,7 @@ class ConcurrentBackupStrategy(BackupStrategy):
 
         :param barman.infofile.BackupInfo backup_info: backup information
         """
-        self.current_action = "issuing stop backup command"
+        self.current_action = "issuing stop backup command (native concurrent)"
         if not self.postgres.is_minimal_postgres_version():
             _logger.error(
                 "Postgres version not supported. Minimal version is %s"
@@ -1880,8 +1880,6 @@ class ConcurrentBackupStrategy(BackupStrategy):
             )
             raise BackupException("Postgres version not supported")
 
-        # On 9.6+ execute native concurrent stop backup
-        self.current_action += " (native concurrent)"
         _logger.debug("Stop of native concurrent backup")
         self._concurrent_stop_backup(backup_info)
 

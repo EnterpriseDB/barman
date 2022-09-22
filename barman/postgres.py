@@ -54,7 +54,6 @@ from barman.infofile import Tablespace
 from barman.postgres_plumbing import function_name_map
 from barman.remote_status import RemoteStatusMixin
 from barman.utils import force_str, simplify_version, with_metaclass
-from barman.xlog import DEFAULT_XLOG_SEG_SIZE
 
 # This is necessary because the CONFIGURATION_LIMIT_EXCEEDED constant
 # has been added in psycopg2 2.5, but Barman supports version 2.4.2+ so
@@ -1400,7 +1399,7 @@ class PostgreSQLConnection(PostgreSQL):
                     "LEFT JOIN pg_replication_slots rs ON (r.pid = rs.active_pid) "
                 )
                 where_clauses += ["(rs.slot_type IS NULL OR rs.slot_type = 'physical')"]
-            else :
+            else:
                 # PostgreSQL 9.5/9.6
                 what = (
                     "pid, "
