@@ -784,8 +784,6 @@ class Server(RemoteStatusMixin):
             # add its status to the output of the check
             if remote_status["streaming_supported"] is None:
                 hint = remote_status["connection_error"]
-            elif not remote_status["streaming_supported"]:
-                hint = "Streaming connection not supported for PostgreSQL < 9.2"
             check_strategy.result(
                 self.config.name, remote_status.get("streaming"), hint=hint
             )
@@ -809,45 +807,36 @@ class Server(RemoteStatusMixin):
             slot = remote_status["replication_slot"]
             # The streaming_archiver is enabled
             if self.config.streaming_archiver is True:
-                # Error if PostgreSQL is too old
-                if not remote_status["replication_slot_support"]:
+                # Replication slots are supported
+                # The slot is not present
+                if slot is None:
                     check_strategy.result(
                         self.config.name,
                         False,
-                        hint="slot_name parameter set but PostgreSQL server "
-                        "is too old (%s < 9.4)" % remote_status["server_txt_version"],
+                        hint="replication slot '%s' doesn't exist. "
+                        "Please execute 'barman receive-wal "
+                        "--create-slot %s'"
+                        % (self.config.slot_name, self.config.name),
                     )
-                # Replication slots are supported
                 else:
-                    # The slot is not present
-                    if slot is None:
+                    # The slot is present but not initialised
+                    if slot.restart_lsn is None:
                         check_strategy.result(
                             self.config.name,
                             False,
-                            hint="replication slot '%s' doesn't exist. "
-                            "Please execute 'barman receive-wal "
-                            "--create-slot %s'"
-                            % (self.config.slot_name, self.config.name),
+                            hint="slot '%s' not initialised: is "
+                            "'receive-wal' running?" % self.config.slot_name,
+                        )
+                    # The slot is present but not active
+                    elif slot.active is False:
+                        check_strategy.result(
+                            self.config.name,
+                            False,
+                            hint="slot '%s' not active: is "
+                            "'receive-wal' running?" % self.config.slot_name,
                         )
                     else:
-                        # The slot is present but not initialised
-                        if slot.restart_lsn is None:
-                            check_strategy.result(
-                                self.config.name,
-                                False,
-                                hint="slot '%s' not initialised: is "
-                                "'receive-wal' running?" % self.config.slot_name,
-                            )
-                        # The slot is present but not active
-                        elif slot.active is False:
-                            check_strategy.result(
-                                self.config.name,
-                                False,
-                                hint="slot '%s' not active: is "
-                                "'receive-wal' running?" % self.config.slot_name,
-                            )
-                        else:
-                            check_strategy.result(self.config.name, True)
+                        check_strategy.result(self.config.name, True)
             else:
                 # If the streaming_archiver is disabled and the slot_name
                 # option is present in the configuration, we check that
