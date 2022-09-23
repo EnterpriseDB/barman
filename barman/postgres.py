@@ -534,10 +534,6 @@ class PostgreSQLConnection(PostgreSQL):
         Returns true if PostgreSQL server is in recovery mode (hot standby)
         """
         try:
-            # # pg_is_in_recovery is only available from Postgres 9.0+
-            # # Todo: remove
-            # if self.server_version < 90000:
-            #     return False
             cur = self._cursor()
             cur.execute("SELECT pg_is_in_recovery()")
             return cur.fetchone()[0]
@@ -891,6 +887,9 @@ class PostgreSQLConnection(PostgreSQL):
                     "wal_level",
                     "hot_standby",
                     "max_wal_senders",
+                    "data_checksums",
+                    "max_replication_slots",
+                    "wal_compression",
                 ]
             )
             # Retrieve wal_keep_segments from version 9.0 onwards, until
@@ -899,14 +898,6 @@ class PostgreSQLConnection(PostgreSQL):
                 pg_settings.append("wal_keep_segments")
             else:
                 pg_settings.append("wal_keep_size")
-
-            pg_settings.extend(
-                [
-                    "data_checksums",
-                    "max_replication_slots",
-                    "wal_compression",
-                ]
-            )
 
             # retrieves superuser settings
             if self.has_backup_privileges:
