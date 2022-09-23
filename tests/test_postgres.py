@@ -569,9 +569,6 @@ class TestPostgres(object):
         # Build a server
         server = build_real_server()
         cursor_mock = conn.return_value.cursor.return_value
-        # # expect None as result for server version <9.4
-        # conn.return_value.server_version = 80300
-        # assert server.postgres.get_archiver_stats() is None
 
         # expect no errors with version >= 9.4
         conn.reset_mock()
@@ -864,14 +861,12 @@ class TestPostgres(object):
         }
         current_size_mock.return_value = 497354072
         server_txt_version_mock.return_value = "9.5.0"
-        # server_txt_version_mock.return_value = PostgreSQL.int_version_to_string_version(PostgreSQL.MINIMAL_VERSION)
         is_in_recovery_mock.return_value = False
         has_backup_privileges_mock.return_value = True
         is_superuser_mock.return_value = True
         get_configuration_files_mock.return_value = {"a": "b"}
         get_synchronous_standby_names_mock.return_value = []
         conn_mock.return_value.server_version = 90500
-        # conn_mock.return_value.server_version = PostgreSQL.MINIMAL_VERSION
         archive_timeout_mock.return_value = 300
         checkpoint_timeout_mock.return_value = 600
         xlog_segment_size.return_value = 2 << 22
