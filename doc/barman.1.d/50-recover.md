@@ -25,7 +25,7 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
 
     --target-name *TARGET_NAME*
     :   Recover to the named restore point previously created with
-        the `pg_create_restore_point(name)` (for PostgreSQL 9.1 and above users).
+        the `pg_create_restore_point(name)`.
 
     --target-immediate
     :   Recover ends when a consistent state is reached (end of the base
@@ -36,8 +36,7 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
 
     --target-action *ACTION*
     :   Trigger the specified action once the recovery target is reached.
-        Possible actions are: `pause` (PostgreSQL 9.1 and above),
-        `shutdown` (PostgreSQL 9.5 and above) and `promote` (ditto).
+        Possible actions are: `pause`, `shutdown` and `promote`.
         This option requires a target to be defined, with one of the
         above options.
 

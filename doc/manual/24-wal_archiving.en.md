@@ -13,10 +13,8 @@ This can be done in two ways, both requiring a SSH connection:
 
 See sections below for more details.
 
-> **IMPORTANT:** PostgreSQL 9.5 introduced support for WAL file
-> archiving using `archive_command` from a standby. Read the
-> "Concurrent Backup and backup from a standby" section for more
-> detailed information on how Barman supports this feature.
+> **IMPORTANT:** Read the "Concurrent Backup and backup from a standby"
+> section for more detailed information on how Barman supports this feature.
 
 
 ### WAL archiving via `barman-wal-archive`
