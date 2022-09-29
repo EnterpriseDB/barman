@@ -81,9 +81,8 @@ maximum number of kilobytes per second. By default it is set to 0,
 meaning no limit.
 
 > **IMPORTANT:** the `bandwidth_limit` option is supported with the
-> `postgres` backup method for Postgres 9.4 and above, but the
-> `tablespace_bandwidth_limit` option is available only if you use
-> `rsync`
+> `postgres` backup method, but the `tablespace_bandwidth_limit` option
+> is available only if you use `rsync`.
 
 In case you have several tablespaces and you prefer to limit the I/O
 workload of your backup procedures on one or more tablespaces, you can
@@ -236,8 +235,7 @@ functions have been renamed to `pg_backup_start` and `pg_backup_stop`
 in the PostgreSQL 15 beta).
 
 [^ABOUT_CONCURRENT_BACKUP]:
-  Concurrent backup is a technology that has been available in
-  PostgreSQL since version 9.2, through the _streaming replication
+  Concurrent backup is a technology that uses the _streaming replication
   protocol_ (for example, using a tool like `pg_basebackup`).
 
 As well as being the recommended backup approach, concurrent backup
@@ -403,9 +401,6 @@ values:
 > archive-wal` to fork a new process.
 
 ### Synchronous WAL streaming
-
-> **IMPORTANT:** This feature is available only from PostgreSQL 9.5
-> and above.
 
 Barman can also reduce the Recovery Point Objective to zero, by
 collecting the transaction WAL files like a synchronous standby server

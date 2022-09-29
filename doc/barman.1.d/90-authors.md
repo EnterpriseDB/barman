@@ -3,7 +3,7 @@
 Barman maintainers (in alphabetical order):
 
 * Abhijit Menon-Sen
-* Jane Threefoot
+* Didier Michel
 * Michael Wallace
 
 Past contributors (in alphabetical order):
@@ -16,6 +16,7 @@ Past contributors (in alphabetical order):
 * Gianni Ciolli (QA/testing)
 * Giulio Calacoci (developer)
 * Giuseppe Broccolo (developer)
+* Jane Threefoot (developer)
 * Jonathan Battiato (QA/testing)
 * Leonardo Cecchi (developer)
 * Marco Nenciarini (project leader)

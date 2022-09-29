@@ -9,8 +9,8 @@
     - psycopg2 >= 2.4.2
     - python-dateutil
     - setuptools
-- PostgreSQL >= 8.3
-- rsync >= 3.0.4 (optional for PostgreSQL >= 9.2)
+- PostgreSQL >= 10
+- rsync >= 3.0.4 (optional)
 
 > **IMPORTANT:**
 > Users of RedHat Enterprise Linux, CentOS and Scientific Linux are
@@ -19,7 +19,8 @@
 
 > **NOTE:**
 > Support for Python 2.6 and 2.7 is deprecated and will be discontinued in future releases.
-> Support for PostgreSQL < 9.4 is deprecated and will be discontinued in future releases.
+> Support for PostgreSQL <= 9.5 is discontinued
+> Support for PostgreSQL < 9.6 is deprecated and will be discontinued in future releases.
 
 ## Requirements for backup
 

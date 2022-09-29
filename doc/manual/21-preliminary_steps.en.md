@@ -13,9 +13,8 @@ undertake before setting up your PostgreSQL server in Barman.
 ### PostgreSQL connection
 
 You need to make sure that the `backup` server can connect to
-the PostgreSQL server on `pg` as superuser or, from PostgreSQL 10 or higher,
-that the correct set of privileges are granted to the user that connects to
-the database.
+the PostgreSQL server on `pg` as superuser or, that the correct set of 
+privileges are granted to the user that connects to the database.
 
 You can create a specific superuser in PostgreSQL, named `barman`, as follows:
 
@@ -74,17 +73,16 @@ barman@backup$ psql -c 'SELECT version()' -U barman -h pg postgres
 ```
 
 Write down the above information (user name, host name and database
-name) and keep it for later.  You will need it with in the `conninfo`
+name) and keep it for later. You will need it with in the `conninfo`
 option for your server configuration, like in this example:
 
 ``` ini
 [pg]
 ; ...
-conninfo = host=pg user=barman dbname=postgres
+conninfo = host=pg user=barman dbname=postgres application_name=myapp
 ```
 
-> **NOTE:** Barman honours the `application_name` connection option
-> for PostgreSQL servers 9.0 or higher.
+> **NOTE:** `application_name` is optional.
 
 
 ### PostgreSQL WAL archiving and replication
@@ -105,14 +103,8 @@ that all the useful information necessary for a backup to be coherent
 are included in the transaction log file.
 
 ``` ini
-wal_level = 'replica'
+wal_level = 'replica'|'logical'
 ```
-
-For PostgreSQL 9.4 or higher, `wal_level` can also be set to `logical`,
-in case logical decoding is needed.
-
-For PostgreSQL versions older than 9.6, `wal_level` must be set to
-`hot_standby`.
 
 Restart the PostgreSQL server for the configuration to be refreshed.
 
