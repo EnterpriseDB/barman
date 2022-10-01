@@ -48,6 +48,7 @@ Supported cloud providers are:
 * AWS S3 (or any S3 compatible object store)
 * Azure Blob Storage
 * Google Cloud Storage (Rest API)
+* Networker Backup Software
 
 These utilities are distributed in the `barman-cli-cloud` RPM/Debian package,
 and can be installed alongside the PostgreSQL server:
@@ -100,6 +101,14 @@ The following environment variables are supported: `AZURE_STORAGE_CONNECTION_STR
 `AZURE_STORAGE_KEY` and `AZURE_STORAGE_SAS_TOKEN`. You can also use the
 `--credential` option to specify either `azure-cli` or `managed-identity` credentials
 in order to authenticate via Azure Active Directory.
+
+> **WARNING:** Cloud utilities require the appropriate library for the cloud
+> provider you wish to use - either: [boto3][boto3] or
+> [azure-storage-blob][azure-storage-blob] and (optionally)
+> [azure-identity][azure-identity]
+
+For Networker the PostgreSQL server has to be configured as a backup client.
+The Networker Client and Extended Software packages have to be installed.
 
 ## Installation
 
@@ -156,6 +165,7 @@ and WALs. This can be set to one of the following:
 * `aws-s3` [DEFAULT]: AWS S3 or S3-compatible object store.
 * `azure-blob-storage`: Azure Blob Storage service.
 * `google-cloud-storage`: Google Cloud Storage service.
+* `networker-storage`: Networker Backup Software
 
 
 ## Specificity by provider
@@ -200,5 +210,60 @@ Some details are specific to all barman cloud commands:
   or
   https://console.cloud.google.com/storage/browser/BUCKET_NAME/path
   ```
+### Networker Storage
 
-  
+#### Setup
+Copy the necessary software packages to the PostgreSQL Server. Install the Client Software as follows
+```bash
+dnf -y install lgtoclnt lgtoxtdclnt lgtoman sudo
+```
+
+The barman storage module needs the **mminfo**, **recover** and **nsrmm** networker commands.
+
+The system user for the PostgreSQL Database has to be enabled in sudoers. Because some of the
+networker functions can only be performed as `root`. This restriction is hard-coded into the software.
+In General, all recover operations need `root` permissions. So listing or restoring data operations
+are best run as `root`. When run as a normal user, the module tries to elevate itself to `root` by
+using sudo.
+
+This is especially important, when configuring the PostgreSQL `restore_command`. e.g.
+```
+restore_command = "sudo barman-cloud-wal-restore --cloud-provider=networker-storage nw://..."
+```
+
+The module uses the directory `/nsr/cache/cloudboost/barman` as a local staging location. It will
+create this directory if it doesn't exist. Assuming that `/nsr/cache/cloudboost` was created by
+the networker client. Older clients may not. So check for it's existence and create it yourself
+if necessary. e.g. by
+```bash
+mkdir -m 0777 -p /nsr/cache/cloudboost/barman
+```
+
+If you have an `/etc/sudoers.d` directory, create a file barman.conf in it. With the following content.
+If not append the line to the `/etc/sudoers` file. This assumes that your user is named `postgres`.
+```
+postgres   ALL=(ALL)       NOPASSWD: ALL
+```
+
+#### Usage
+Specific Parameters for all of the barman cloud commands:
+* Select the Networker Storage Provider by `--cloud-provider=networker-storage`
+* `SOURCE_URL` has to be in the following format.
+  ```
+  nw://<Networker Server Name>/<Media Pool>
+  ```
+Specific Parameters for the barman backup cloud commands:
+* Parameters for the Networker `save` command can be specified through the barman `--tags "nwargs, ..."`
+  Parameter. e.g.
+  ```
+  --tags "nwargs,-y ${RETENTION_TIME} -w ${BROWSE_TIME} -L"
+  ```
+  This can be useful because networker has it's own retention policies and management. So although
+  old backups can be removed by `barman-cloud-backup-delete`, networker will do the same and may even
+  already have done it.
+
+`barman-cloud-backup-keep` has no impact when using networker as a storage provider. Regular Networker
+backups will always expire. Networker uses a complete separate command set and storage pools for this.
+The decision for archiving has to be made when creating the backup and cannot be reversed later. In
+addition, networker archivals are intentionally left out of the browse index. The barman module uses
+the index as storage for the backup keys. Therefore archival is not supported at all with networker.
