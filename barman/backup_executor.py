@@ -329,11 +329,26 @@ class PostgresBackupExecutor(BackupExecutor):
         :param remote_status:
         :return:
         """
-        issues = self.backup_compression.validate(
-            self.server.postgres.server_version, remote_status
-        )
-        if issues:
-            self.server.config.update_msg_list_and_disable_server(issues)
+        try:
+            issues = self.backup_compression.validate(
+                self.server.postgres.server_version, remote_status
+            )
+            if issues:
+                self.server.config.update_msg_list_and_disable_server(issues)
+        except PostgresConnectionError as exc:
+            # If we can't validate the compression settings due to a connection error
+            # it should not block whatever Barman is trying to do *unless* it is
+            # doing a backup, in which case the pre-backup check will catch the
+            # connection error and fail accordingly.
+            # This is important because if the server is unavailable Barman
+            # commands such as `recover` and `list-backups` must not break.
+            _logger.warning(
+                (
+                    "Could not validate compression due to a problem "
+                    "with the PostgreSQL connection: %s"
+                ),
+                exc,
+            )
 
     def backup(self, backup_info):
         """

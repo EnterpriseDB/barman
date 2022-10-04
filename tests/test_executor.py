@@ -23,7 +23,7 @@ import os
 import mock
 import pytest
 from dateutil import tz
-from mock import Mock, patch
+from mock import Mock, PropertyMock, patch
 
 from barman.backup_executor import (
     ExclusiveBackupStrategy,
@@ -35,6 +35,7 @@ from barman.exceptions import (
     CommandFailedException,
     DataTransferFailure,
     FsOperationFailed,
+    PostgresConnectionError,
     SshCommandException,
 )
 from barman.infofile import BackupInfo, LocalBackupInfo, Tablespace
@@ -1356,6 +1357,29 @@ class TestPostgresBackupExecutor(object):
         assert len(server.config.msg_list) == 0
         # AND the server's close method was called
         server.close.assert_called_once()
+
+    def test_postgres_connection_error_validating_compression(self, caplog):
+        """
+        Checks that a PostgresConnectionError raised during compression
+        validation does not cause a server to be disabled.
+        """
+        # GIVEN a server with backup_method postgres and backup_compression gzip
+        server = build_mocked_server(
+            global_conf={"backup_method": "postgres", "backup_compression": "gzip"}
+        )
+        # WHEN a PostgresConnectionError is thrown when determining the server version
+        # during the creation of a PostgresBackupExecutor
+        type(server.postgres).server_version = PropertyMock(
+            side_effect=PostgresConnectionError
+        )
+        PostgresBackupExecutor(server.backup_manager)
+        # THEN the server config message list has no errors
+        assert len(server.config.msg_list) == 0
+        # AND the expected message is logged
+        assert (
+            "Could not validate compression due to a problem with the PostgreSQL "
+            "connection"
+        ) in caplog.text
 
     @pytest.mark.parametrize(
         ("primary_conninfo", "err_line", "expected_wal_switch"),
