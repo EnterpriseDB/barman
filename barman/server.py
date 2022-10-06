@@ -1661,21 +1661,6 @@ class Server(RemoteStatusMixin):
                 if xlog.is_history_file(wal_info.name):
                     yield wal_info
 
-        # Finally, check the `streaming` directory to see if there are any
-        # relevant .partial files
-        file_names = sorted(
-            glob(os.path.join(self.config.streaming_wals_directory, "*"))
-        )
-        for file_name in file_names:
-            if xlog.is_partial_file(file_name):
-                # We have a partial file - do we need it?
-                if os.path.basename(file_name) < begin:
-                    continue
-                tli, _, _ = xlog.decode_segment_name(file_name)
-                if tli > calculated_target_tli:
-                    continue
-                yield WalFileInfo.from_file(file_name, compression=None)
-
     # TODO: merge with the previous
     def get_wal_until_next_backup(self, backup, include_history=False):
         """

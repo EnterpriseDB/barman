@@ -824,6 +824,7 @@ class RecoveryExecutor(object):
         for prefix in sorted(xlogs):
             batch_len = len(xlogs[prefix])
             partial_count += batch_len
+            source_dir = os.path.join(self.config.wals_directory, prefix)
             _logger.info(
                 "Starting copy of %s WAL files %s/%s from %s to %s",
                 batch_len,
@@ -836,14 +837,7 @@ class RecoveryExecutor(object):
             # compression check and decompression for each WAL files
             if compressors:
                 for segment in xlogs[prefix]:
-                    if xlog.is_partial_file(segment.name):
-                        source_dir = self.config.streaming_wals_directory
-                        dst_file = os.path.join(
-                            wal_decompression_dest, segment.name.strip(".partial")
-                        )
-                    else:
-                        source_dir = os.path.join(self.config.wals_directory, prefix)
-                        dst_file = os.path.join(wal_decompression_dest, segment.name)
+                    dst_file = os.path.join(wal_decompression_dest, segment.name)
                     if segment.compression is not None:
                         compressors[segment.compression].decompress(
                             os.path.join(source_dir, segment.name), dst_file
@@ -854,10 +848,7 @@ class RecoveryExecutor(object):
                     try:
                         # Transfer the WAL files
                         rsync.from_file_list(
-                            list(
-                                segment.name.strip(".partial")
-                                for segment in xlogs[prefix]
-                            ),
+                            list(segment.name for segment in xlogs[prefix]),
                             wal_decompression_dest,
                             wal_dest,
                         )
@@ -870,9 +861,7 @@ class RecoveryExecutor(object):
 
                     # Cleanup files after the transfer
                     for segment in xlogs[prefix]:
-                        file_name = os.path.join(
-                            wal_decompression_dest, segment.name.strip(".partial")
-                        )
+                        file_name = os.path.join(wal_decompression_dest, segment.name)
                         try:
                             os.unlink(file_name)
                         except OSError as e:
