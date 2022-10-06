@@ -1621,6 +1621,12 @@ class Server(RemoteStatusMixin):
         begin = backup.begin_wal
         end = backup.end_wal
 
+        # This flag is set to False if we find a WAL in the archive which is more
+        # recent than the requested time, since in such cases we already have all
+        # the WALs we need. In any other case we will need the .partial file in
+        # order to minimise the RPO.
+        should_find_partial_files = True
+
         # Calculate the integer value of TLI if a keyword is provided
         calculated_target_tli = target_tli
         if target_tli and type(target_tli) is str:
@@ -1654,12 +1660,31 @@ class Server(RemoteStatusMixin):
                 if wal_info.name > end:
                     end = wal_info.name
                     if target_time and wal_info.time > target_time:
+                        # We found a WAL after the target time so we do not need to
+                        # look for partial files
+                        should_find_partial_files = False
                         break
             # return all the remaining history files
             for line in fxlogdb:
                 wal_info = WalFileInfo.from_xlogdb_line(line)
                 if xlog.is_history_file(wal_info.name):
                     yield wal_info
+
+        # Finally, check the `streaming` directory to see if there are any
+        # relevant .partial files
+        if should_find_partial_files:
+            file_names = sorted(
+                glob(os.path.join(self.config.streaming_wals_directory, "*"))
+            )
+            for file_name in file_names:
+                if xlog.is_partial_file(file_name):
+                    # We have a partial file - do we need it?
+                    if os.path.basename(file_name) < begin:
+                        continue
+                    tli, _, _ = xlog.decode_segment_name(file_name)
+                    if tli > calculated_target_tli:
+                        continue
+                    yield WalFileInfo.from_file(file_name, compression=None)
 
     # TODO: merge with the previous
     def get_wal_until_next_backup(self, backup, include_history=False):

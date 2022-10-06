@@ -774,6 +774,9 @@ class RecoveryExecutor(object):
         """
         # List of required WAL files partitioned by containing directory
         xlogs = collections.defaultdict(list)
+        # Keep a separate list of partial xlogs because we must treat these
+        # differently to the archived xlogs
+        partial_xlogs = []
         # add '/' suffix to ensure it is a directory
         wal_dest = "%s/" % wal_dest
         # Map of every compressor used with any WAL file in the archive,
@@ -782,16 +785,21 @@ class RecoveryExecutor(object):
         compression_manager = self.backup_manager.compression_manager
         # Fill xlogs and compressors maps from required_xlog_files
         for wal_info in required_xlog_files:
-            hashdir = xlog.hash_dir(wal_info.name)
-            xlogs[hashdir].append(wal_info)
-            # If a compressor is required, make sure it exists in the cache
-            if (
-                wal_info.compression is not None
-                and wal_info.compression not in compressors
-            ):
-                compressors[wal_info.compression] = compression_manager.get_compressor(
-                    compression=wal_info.compression
-                )
+            if xlog.is_partial_file(wal_info.name):
+                partial_xlogs.append(wal_info)
+            else:
+                hashdir = xlog.hash_dir(wal_info.name)
+                xlogs[hashdir].append(wal_info)
+                # If a compressor is required, make sure it exists in the cache
+                if (
+                    wal_info.compression is not None
+                    and wal_info.compression not in compressors
+                ):
+                    compressors[
+                        wal_info.compression
+                    ] = compression_manager.get_compressor(
+                        compression=wal_info.compression
+                    )
 
         rsync = RsyncPgData(
             path=self.server.path,
@@ -881,6 +889,36 @@ class RecoveryExecutor(object):
                         "to directory '%s'" % (wal_dest[1:],)
                     )
                     raise DataTransferFailure.from_command_error("rsync", e, msg)
+
+        # Now copy any .partial files we need to care about
+        if partial_xlogs:
+            _logger.info("Copying .partial WAL files from streaming directory.")
+            partial_staging_dir = tempfile.mkdtemp(prefix="barman_wal-partial-")
+            for segment in partial_xlogs:
+                src_file = os.path.join(
+                    self.config.streaming_wals_directory, segment.name
+                )
+                dst_file = os.path.join(
+                    partial_staging_dir, segment.name.rstrip(".partial")
+                )
+                shutil.copy2(src_file, dst_file)
+            # Transfer the WAL files
+            rsync.from_file_list(
+                list(segment.name.rstrip(".partial") for segment in partial_xlogs),
+                partial_staging_dir,
+                wal_dest,
+            )
+            # Cleanup files after the transfer
+            for segment in partial_xlogs:
+                file_name = os.path.join(
+                    partial_staging_dir, segment.name.rstrip(".partial")
+                )
+                try:
+                    os.unlink(file_name)
+                except OSError as e:
+                    output.warning(
+                        "Error removing temporary file '%s': %s", file_name, e
+                    )
 
         _logger.info("Finished copying %s WAL files.", total_wals)
 
