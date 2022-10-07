@@ -1676,6 +1676,7 @@ class Server(RemoteStatusMixin):
             file_names = sorted(
                 glob(os.path.join(self.config.streaming_wals_directory, "*"))
             )
+            required_partial_files = []
             for file_name in file_names:
                 if xlog.is_partial_file(file_name):
                     # We have a partial file - do we need it?
@@ -1684,7 +1685,14 @@ class Server(RemoteStatusMixin):
                     tli, _, _ = xlog.decode_segment_name(file_name)
                     if tli > calculated_target_tli:
                         continue
-                    yield WalFileInfo.from_file(file_name, compression=None)
+                    required_partial_files.append(file_name)
+            if required_partial_files:
+                # If there is more than one `.partial` file then we use the most recent
+                # for recovery. The older `.partial` files will be moved into the Barman
+                # WAL archive by the archiver process next time it runs.
+                yield WalFileInfo.from_file(
+                    required_partial_files[-1], compression=None
+                )
 
     # TODO: merge with the previous
     def get_wal_until_next_backup(self, backup, include_history=False):
