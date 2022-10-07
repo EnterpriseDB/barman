@@ -853,29 +853,12 @@ class RecoveryExecutor(object):
                     else:
                         shutil.copy2(os.path.join(source_dir, segment.name), dst_file)
                 if remote_command:
-                    try:
-                        # Transfer the WAL files
-                        rsync.from_file_list(
-                            list(segment.name for segment in xlogs[prefix]),
-                            wal_decompression_dest,
-                            wal_dest,
-                        )
-                    except CommandFailedException as e:
-                        msg = (
-                            "data transfer failure while copying WAL files "
-                            "to directory '%s'"
-                        ) % (wal_dest[1:],)
-                        raise DataTransferFailure.from_command_error("rsync", e, msg)
-
-                    # Cleanup files after the transfer
-                    for segment in xlogs[prefix]:
-                        file_name = os.path.join(wal_decompression_dest, segment.name)
-                        try:
-                            os.unlink(file_name)
-                        except OSError as e:
-                            output.warning(
-                                "Error removing temporary file '%s': %s", file_name, e
-                            )
+                    self._rsync_move_files(
+                        rsync,
+                        list(segment.name for segment in xlogs[prefix]),
+                        wal_decompression_dest,
+                        wal_dest,
+                    )
             else:
                 try:
                     rsync.from_file_list(
@@ -894,6 +877,8 @@ class RecoveryExecutor(object):
         if partial_xlogs:
             _logger.info("Copying .partial WAL files from streaming directory.")
             partial_staging_dir = tempfile.mkdtemp(prefix="barman_wal-partial-")
+            # Stage a copy of the .partial file with its final name so that Rsync can
+            # copy the file to its final destination.
             for segment in partial_xlogs:
                 src_file = os.path.join(
                     self.config.streaming_wals_directory, segment.name
@@ -902,30 +887,13 @@ class RecoveryExecutor(object):
                     partial_staging_dir, segment.name.rstrip(".partial")
                 )
                 shutil.copy2(src_file, dst_file)
-            try:
-                # Transfer the WAL files
-                rsync.from_file_list(
-                    list(segment.name.rstrip(".partial") for segment in partial_xlogs),
-                    partial_staging_dir,
-                    wal_dest,
-                )
-            except CommandFailedException as e:
-                msg = (
-                    "data transfer failure while copying WAL files "
-                    "to directory '%s'" % (wal_dest[1:],)
-                )
-                raise DataTransferFailure.from_command_error("rsync", e, msg)
-            # Cleanup files after the transfer
-            for segment in partial_xlogs:
-                file_name = os.path.join(
-                    partial_staging_dir, segment.name.rstrip(".partial")
-                )
-                try:
-                    os.unlink(file_name)
-                except OSError as e:
-                    output.warning(
-                        "Error removing temporary file '%s': %s", file_name, e
-                    )
+            # Move the renamed files to the final destination
+            self._rsync_move_files(
+                rsync,
+                list(segment.name.rstrip(".partial") for segment in partial_xlogs),
+                partial_staging_dir,
+                wal_dest,
+            )
             # Cleanup staging dir
             shutil.rmtree(partial_staging_dir)
 
@@ -936,6 +904,32 @@ class RecoveryExecutor(object):
         # remote recovery
         if wal_decompression_dest and wal_decompression_dest != wal_dest:
             shutil.rmtree(wal_decompression_dest)
+
+    def _rsync_move_files(self, rsync, file_list, src_dir, dst_dir):
+        """
+        Helper function which copies the given file list to dst_dir and removes them
+        from the src_dir.
+        """
+        try:
+            # Transfer the WAL files
+            rsync.from_file_list(
+                file_list,
+                src_dir,
+                dst_dir,
+            )
+        except CommandFailedException as e:
+            msg = (
+                "data transfer failure while copying WAL files "
+                "to directory '%s'" % (dst_dir,)
+            )
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
+        # Cleanup files after the transfer
+        for basename in file_list:
+            file_name = os.path.join(src_dir, basename)
+            try:
+                os.unlink(file_name)
+            except OSError as e:
+                output.warning("Error removing temporary file '%s': %s", file_name, e)
 
     def _generate_archive_status(
         self, recovery_info, remote_command, required_xlog_files
