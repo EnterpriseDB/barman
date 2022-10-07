@@ -1683,7 +1683,7 @@ class Server(RemoteStatusMixin):
                     if os.path.basename(file_name) < begin:
                         continue
                     tli, _, _ = xlog.decode_segment_name(file_name)
-                    if tli > calculated_target_tli:
+                    if tli > calculated_target_tli or tli < calculated_target_tli:
                         continue
                     required_partial_files.append(file_name)
             if required_partial_files:
