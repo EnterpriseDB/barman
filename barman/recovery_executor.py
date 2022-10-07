@@ -902,12 +902,19 @@ class RecoveryExecutor(object):
                     partial_staging_dir, segment.name.rstrip(".partial")
                 )
                 shutil.copy2(src_file, dst_file)
-            # Transfer the WAL files
-            rsync.from_file_list(
-                list(segment.name.rstrip(".partial") for segment in partial_xlogs),
-                partial_staging_dir,
-                wal_dest,
-            )
+            try:
+                # Transfer the WAL files
+                rsync.from_file_list(
+                    list(segment.name.rstrip(".partial") for segment in partial_xlogs),
+                    partial_staging_dir,
+                    wal_dest,
+                )
+            except CommandFailedException as e:
+                msg = (
+                    "data transfer failure while copying WAL files "
+                    "to directory '%s'" % (wal_dest[1:],)
+                )
+                raise DataTransferFailure.from_command_error("rsync", e, msg)
             # Cleanup files after the transfer
             for segment in partial_xlogs:
                 file_name = os.path.join(
