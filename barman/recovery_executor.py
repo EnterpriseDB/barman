@@ -926,6 +926,8 @@ class RecoveryExecutor(object):
                     output.warning(
                         "Error removing temporary file '%s': %s", file_name, e
                     )
+            # Cleanup staging dir
+            shutil.rmtree(partial_staging_dir)
 
         _logger.info("Finished copying %s WAL files.", total_wals)
 
