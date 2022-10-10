@@ -785,9 +785,27 @@ class RecoveryExecutor(object):
         compression_manager = self.backup_manager.compression_manager
         # Fill xlogs and compressors maps from required_xlog_files
         for wal_info in required_xlog_files:
-            if xlog.is_partial_file(wal_info.name):
+            if (
+                xlog.is_partial_file(wal_info.name)
+                and hasattr(wal_info, "orig_filename")
+                and (
+                    os.path.dirname(wal_info.orig_filename)
+                    == self.config.streaming_wals_directory
+                )
+            ):
+                # If a .partial file is in the `streaming` directory then add it to a
+                # separate list so it can be renamed and transferred in a separate
+                # Rsync operation.
                 partial_xlogs.append(wal_info)
             else:
+                if xlog.is_partial_file(wal_info.name):
+                    # If a .partial file is in the main WAL archive then either a
+                    # standby was promoted or a primary was recovered from a backup.
+                    # In either case we do not attempt to handle it and instead warn
+                    # the user.
+                    output.warning(
+                        ".partial WAL file '%s' found in WAL archive", wal_info.name
+                    )
                 hashdir = xlog.hash_dir(wal_info.name)
                 xlogs[hashdir].append(wal_info)
                 # If a compressor is required, make sure it exists in the cache
