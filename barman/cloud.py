@@ -645,7 +645,7 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
         pass
 
-    def __init__(self, url, jobs=2, tags=None):
+    def __init__(self, url, jobs=2, tags=None, delete_batch_size=None):
         """
         Base constructor
 
@@ -654,9 +654,21 @@ class CloudInterface(with_metaclass(ABCMeta)):
           uploading, defaults to 2.
         :param List[tuple] tags: List of tags as k,v tuples to be added to all
           uploaded objects
+        :param int|None delete_batch_size: the maximum number of objects to be
+          deleted in a single request
         """
         self.url = url
         self.tags = tags
+
+        # We use the maximum allowed batch size by default.
+        self.delete_batch_size = self.MAX_DELETE_BATCH_SIZE
+        if delete_batch_size is not None:
+            # If a specific batch size is requested we clamp it between 1 and the
+            # maximum allowed batch size.
+            self.delete_batch_size = max(
+                1,
+                min(delete_batch_size, self.MAX_DELETE_BATCH_SIZE),
+            )
 
         # The worker process and the shared queue are created only when
         # needed
@@ -1169,12 +1181,10 @@ class CloudInterface(with_metaclass(ABCMeta)):
 
         :param List[str] paths:
         """
-        batch_size = self.MAX_DELETE_BATCH_SIZE
-
         errors = False
-        for i in range_fun(0, len(paths), batch_size):
+        for i in range_fun(0, len(paths), self.delete_batch_size):
             try:
-                self._delete_objects_batch(paths[i : i + batch_size])
+                self._delete_objects_batch(paths[i : i + self.delete_batch_size])
             except CloudProviderError:
                 # Don't let one error stop us from trying to delete any remaining
                 # batches.

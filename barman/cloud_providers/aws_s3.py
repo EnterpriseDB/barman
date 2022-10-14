@@ -95,6 +95,7 @@ class S3CloudInterface(CloudInterface):
         profile_name=None,
         endpoint_url=None,
         tags=None,
+        delete_batch_size=None,
     ):
         """
         Create a new S3 interface given the S3 destination url and the profile
@@ -107,11 +108,14 @@ class S3CloudInterface(CloudInterface):
         :param str profile_name: Amazon auth profile identifier
         :param str endpoint_url: override default endpoint detection strategy
           with this one
+        :param int|None delete_batch_size: the maximum number of objects to be
+          deleted in a single request
         """
         super(S3CloudInterface, self).__init__(
             url=url,
             jobs=jobs,
             tags=tags,
+            delete_batch_size=delete_batch_size,
         )
         self.profile_name = profile_name
         self.encryption = encryption

@@ -115,7 +115,9 @@ def get_cloud_interface(config):
     cloud_interface_kwargs = {
         "url": config.source_url if "source_url" in config else config.destination_url
     }
-    _update_kwargs(cloud_interface_kwargs, config, ("jobs", "tags"))
+    _update_kwargs(
+        cloud_interface_kwargs, config, ("jobs", "tags", "delete_batch_size")
+    )
 
     if config.cloud_provider == "aws-s3":
         return _make_s3_cloud_interface(config, cloud_interface_kwargs)
