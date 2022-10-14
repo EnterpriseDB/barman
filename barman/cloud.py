@@ -45,6 +45,7 @@ from barman.utils import (
     force_str,
     human_readable_timedelta,
     pretty_size,
+    range_fun,
     total_seconds,
     with_metaclass,
 )
@@ -635,6 +636,15 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
         pass
 
+    @abstractproperty
+    def MAX_DELETE_BATCH_SIZE(self):
+        """
+        The maximum number of objects which can be deleted in a single batch.
+
+        :type: int
+        """
+        pass
+
     def __init__(self, url, jobs=2, tags=None):
         """
         Base constructor
@@ -1140,12 +1150,41 @@ class CloudInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
+    def _delete_objects_batch(self, paths):
+        """
+        Delete a single batch of objects
+
+        :param List[str] paths:
+        """
+        if len(paths) > self.MAX_DELETE_BATCH_SIZE:
+            raise ValueError("Max batch size exceeded")
+
     def delete_objects(self, paths):
         """
         Delete the objects at the specified paths
 
+        Deletes the objects defined by the supplied list of paths in batches
+        specified by either batch_size or MAX_DELETE_BATCH_SIZE, whichever is
+        lowest.
+
         :param List[str] paths:
         """
+        batch_size = self.MAX_DELETE_BATCH_SIZE
+
+        errors = False
+        for i in range_fun(0, len(paths), batch_size):
+            try:
+                self._delete_objects_batch(paths[i : i + batch_size])
+            except CloudProviderError:
+                # Don't let one error stop us from trying to delete any remaining
+                # batches.
+                errors = True
+
+        if errors:
+            raise CloudProviderError(
+                "Error from cloud provider while deleting objects - "
+                "please check the command output."
+            )
 
 
 class CloudBackupUploader(with_metaclass(ABCMeta)):
