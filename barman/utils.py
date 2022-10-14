@@ -270,6 +270,19 @@ def timestamp(datetime_value):
         )
 
 
+def range_fun(*args, **kwargs):
+    """
+    Compatibility method required while we still support Python 2.7.
+
+    This can be removed when Python 2.7 support is dropped and calling code can
+    reference `range` directly.
+    """
+    try:
+        return xrange(*args, **kwargs)
+    except NameError:
+        return range(*args, **kwargs)
+
+
 def which(executable, path=None):
     """
     This method is useful to find if a executable is present into the

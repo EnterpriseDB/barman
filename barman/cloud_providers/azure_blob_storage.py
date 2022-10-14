@@ -106,6 +106,8 @@ class AzureCloudInterface(CloudInterface):
     # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
     MAX_ARCHIVE_SIZE = 1 << 40
 
+    MAX_DELETE_BATCH_SIZE = 256
+
     # The size of each chunk in a single object upload when the size of the
     # object exceeds max_single_put_size. We default to 2MB in order to
     # allow the default max_concurrency of 8 to be achieved when uploading
@@ -451,12 +453,14 @@ class AzureCloudInterface(CloudInterface):
         blob_client.commit_block_list([], **self._extra_upload_args)
         blob_client.delete_blob()
 
-    def delete_objects(self, paths):
+    def _delete_objects_batch(self, paths):
         """
         Delete the objects at the specified paths
 
         :param List[str] paths:
         """
+        super(AzureCloudInterface, self)._delete_objects_batch(paths)
+
         try:
             # If paths is empty because the files have already been deleted then
             # delete_blobs will return successfully so we just call it with whatever
@@ -490,7 +494,4 @@ class AzureCloudInterface(CloudInterface):
                 )
 
         if errors:
-            raise CloudProviderError(
-                "Error from cloud provider while deleting objects - "
-                "please check the Barman logs"
-            )
+            raise CloudProviderError()
