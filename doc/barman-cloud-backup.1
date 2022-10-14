@@ -147,6 +147,12 @@ endpoint
 .RS
 .RE
 .TP
+.B \[en]read\-timeout \f[I]TIMEOUT\f[]
+the time in seconds until a timeout is raised when waiting to read from
+a connection to AWS S3 (defaults to 60 seconds)
+.RS
+.RE
+.TP
 .B \-e, \[en]encryption
 the encryption algorithm used when storing the uploaded data in S3
 Allowed values: `AES256'|`aws:kms'
