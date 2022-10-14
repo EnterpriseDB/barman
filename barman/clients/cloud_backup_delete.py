@@ -323,6 +323,15 @@ def parse_arguments(args=None):
         action="store_true",
         help="Find the objects which need to be deleted but do not delete them",
     )
+    parser.add_argument(
+        "--batch-size",
+        dest="delete_batch_size",
+        type=int,
+        help="The maximum number of objects to be deleted in a single request to the "
+        "cloud provider. If unset then the maximum allowed batch size for the "
+        "specified cloud provider will be used (1000 for aws-s3, 256 for "
+        "azure-blob-storage and 100 for google-cloud-storage).",
+    )
     return parser.parse_args(args=args)
 
 

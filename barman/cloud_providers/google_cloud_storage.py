@@ -67,7 +67,7 @@ class GoogleCloudInterface(CloudInterface):
 
     MAX_DELETE_BATCH_SIZE = 100
 
-    def __init__(self, url, jobs=1, tags=None):
+    def __init__(self, url, jobs=1, tags=None, delete_batch_size=None):
         """
         Create a new Google cloud Storage interface given the supplied account url
 
@@ -76,12 +76,15 @@ class GoogleCloudInterface(CloudInterface):
           uploading, defaults to 1.
         :param List[tuple] tags: List of tags as k,v tuples to be added to all
           uploaded objects
+        :param int|None delete_batch_size: the maximum number of objects to be
+          deleted in a single request
         """
         self.bucket_name, self.path = self._parse_url(url)
         super(GoogleCloudInterface, self).__init__(
             url=url,
             jobs=jobs,
             tags=tags,
+            delete_batch_size=delete_batch_size,
         )
         self.bucket_exists = None
         self._reinit_session()

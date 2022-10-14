@@ -135,6 +135,7 @@ class AzureCloudInterface(CloudInterface):
         encryption_scope=None,
         credential=None,
         tags=None,
+        delete_batch_size=None,
         max_block_size=DEFAULT_MAX_BLOCK_SIZE,
         max_concurrency=DEFAULT_MAX_CONCURRENCY,
         max_single_put_size=DEFAULT_MAX_SINGLE_PUT_SIZE,
@@ -145,11 +146,14 @@ class AzureCloudInterface(CloudInterface):
         :param str url: Full URL of the cloud destination/source
         :param int jobs: How many sub-processes to use for asynchronous
           uploading, defaults to 2.
+        :param int|None delete_batch_size: the maximum number of objects to be
+          deleted in a single request
         """
         super(AzureCloudInterface, self).__init__(
             url=url,
             jobs=jobs,
             tags=tags,
+            delete_batch_size=delete_batch_size,
         )
         self.encryption_scope = encryption_scope
         self.credential = credential

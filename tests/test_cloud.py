@@ -790,31 +790,66 @@ class TestS3CloudInterface(object):
         # method so we verify it was not called
         s3_client.delete_objects.assert_not_called()
 
+    @pytest.mark.parametrize(
+        ("total_objects", "requested_batch_size", "expected_batch_size"),
+        (
+            # A batch size of 0 should be treated as 1
+            (10, 0, 1),
+            # Batch sizes less than the maximum batch size should be honoured
+            (10, 1, 1),
+            (100, 10, 10),
+            # A batch size which exceeds the maximum batch size of 1000 should
+            # be limited to the maximum batch size
+            (2000, 1001, 1000),
+            # A batch size of None should be treated as the maximum batch size
+            (2000, None, 1000),
+        ),
+    )
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    def test_delete_objects_multiple_batches(self, boto_mock):
+    def test_delete_objects_multiple_batches(
+        self, boto_mock, total_objects, requested_batch_size, expected_batch_size
+    ):
         """
-        Tests that deletions of more than 1000 objects are split into multiple requests
-        (necessary due to s3/boto3 limitations)
+        Tests that deletions are split into multiple requests according to the
+        requested batch size and the maximum allowed batch size for the cloud
+        provider (1000 for AWS S3).
         """
-        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", encryption=None)
+        # GIVEN an S3CloudInterface with the requested delete_batch_size
+        cloud_interface = S3CloudInterface(
+            "s3://bucket/path/to/dir",
+            encryption=None,
+            delete_batch_size=requested_batch_size,
+        )
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         s3_client = s3_mock.meta.client
 
-        mock_keys = ["path/to/object/%s" % i for i in range(1001)]
+        # AND a list of object keys to delete
+        mock_keys = ["path/to/object/%s" % i for i in range(total_objects)]
+
+        # WHEN the objects are deleted via the cloud interface
         cloud_interface.delete_objects(mock_keys)
 
-        assert s3_client.delete_objects.call_args_list[0] == mock.call(
-            Bucket="bucket",
-            Delete={
-                "Quiet": True,
-                "Objects": [{"Key": key} for key in mock_keys[:1000]],
-            },
-        )
-        assert s3_client.delete_objects.call_args_list[1] == mock.call(
-            Bucket="bucket",
-            Delete={"Quiet": True, "Objects": [{"Key": mock_keys[1000]}]},
-        )
+        # THEN the total number of requests is equivalent to the expected number of
+        # batches
+        total_requests = int(round(total_objects / expected_batch_size))
+        assert len(s3_client.delete_objects.call_args_list) == total_requests
+
+        # AND each batch contains the expected object keys
+        for i in range(0, total_requests):
+            req_index = i * expected_batch_size
+            assert s3_client.delete_objects.call_args_list[i] == mock.call(
+                Bucket="bucket",
+                Delete={
+                    "Quiet": True,
+                    "Objects": [
+                        {"Key": key}
+                        for key in mock_keys[
+                            req_index : req_index + expected_batch_size
+                        ]
+                    ],
+                },
+            )
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_delete_objects_partial_failure(self, boto_mock, caplog):
@@ -1540,6 +1575,62 @@ class TestAzureCloudInterface(object):
         # the cloud provider SDK when given an empty list.
         container_client.delete_blobs.assert_not_called()
 
+    @pytest.mark.parametrize(
+        ("total_objects", "requested_batch_size", "expected_batch_size"),
+        (
+            # A batch size of 0 should be treated as 1
+            (10, 0, 1),
+            # Batch sizes less than the maximum batch size should be honoured
+            (10, 1, 1),
+            (100, 10, 10),
+            # A batch size which exceeds the maximum batch size of 256 should
+            # be limited to the maximum batch size
+            (1024, 1001, 256),
+            # A batch size of None should be treated as the maximum batch size
+            (1024, None, 256),
+        ),
+    )
+    @mock.patch.dict(
+        os.environ, {"AZURE_STORAGE_CONNECTION_STRING": "connection_string"}
+    )
+    @mock.patch("barman.cloud_providers.azure_blob_storage.ContainerClient")
+    def test_delete_objects_multiple_batches(
+        self,
+        container_client_mock,
+        total_objects,
+        requested_batch_size,
+        expected_batch_size,
+    ):
+        """
+        Tests that deletions are split into multiple requests according to the
+        requested batch size and the maximum allowed batch size for the cloud
+        provider (256 for Azure Blob Storage).
+        """
+        # GIVEN an AzureCloudInterface with the requested delete_batch_size
+        cloud_interface = AzureCloudInterface(
+            "https://storageaccount.blob.core.windows.net/container/path/to/blob",
+            delete_batch_size=requested_batch_size,
+        )
+        container_client = container_client_mock.from_connection_string.return_value
+
+        # AND a list of object keys to delete
+        mock_keys = ["path/to/object/%s" % i for i in range(total_objects)]
+
+        # WHEN the objects are deleted via the cloud interface
+        cloud_interface.delete_objects(mock_keys)
+
+        # THEN the total number of requests is equivalent to the expected number of
+        # batches
+        total_requests = int(round(total_objects / expected_batch_size))
+        assert len(container_client.delete_blobs.call_args_list) == total_requests
+
+        # AND each batch contains the expected object keys
+        for i in range(0, total_requests):
+            req_index = i * expected_batch_size
+            assert container_client.delete_blobs.call_args_list[i] == mock.call(
+                *mock_keys[req_index : req_index + expected_batch_size]
+            )
+
     def _create_mock_HttpResponse(self, status_code, url):
         """Helper function for partial failure tests."""
         htr = mock.Mock()
@@ -2169,6 +2260,61 @@ class TestGoogleCloudInterface(TestCase):
                             opened_dest_file,
                             test_case["compression"],
                         )
+
+
+class TestGoogleCloudInterfaceParametrized(object):
+    """
+    Tests which verify backend-specific behaviour of GoogleCloudInterface
+    and use parametrized tests (these do not work with subclasses of TestCase).
+    """
+
+    @pytest.mark.parametrize(
+        ("total_objects", "requested_batch_size", "expected_batch_size"),
+        (
+            # A batch size of 0 should be treated as 1
+            (10, 0, 1),
+            # Batch sizes less than the maximum batch size should be honoured
+            (10, 1, 1),
+            (50, 10, 10),
+            # A batch size which exceeds the maximum batch size of 100 should
+            # be limited to the maximum batch size
+            (1000, 101, 100),
+            # A batch size of None should be treated as the maximum batch size
+            (1000, None, 100),
+        ),
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_delete_objects_multiple_batches(
+        self, gcs_client_mock, total_objects, requested_batch_size, expected_batch_size
+    ):
+        """
+        Tests that deletions are split into multiple requests according to the
+        requested batch size and the maximum allowed batch size for the cloud
+        provider (100 for Google Cloud Storage).
+        """
+        # GIVEN a list of object keys to delete
+        mock_keys = ["path/to/object/%s" % i for i in range(total_objects)]
+        mock_blobs = [mock.MagicMock() for _ in mock_keys]
+
+        # AND a GoogleCloudInterface with the requested delete_batch_size value
+        service_client_mock = gcs_client_mock.return_value
+        container_client_mock = service_client_mock.bucket.return_value
+        container_client_mock.blob.side_effect = mock_blobs
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/path/to/object/",
+            delete_batch_size=requested_batch_size,
+        )
+
+        # WHEN the objects are deleted via the cloud interface
+        cloud_interface.delete_objects(mock_keys)
+
+        # THEN delete was called on each blob
+        for mock_blob in mock_blobs:
+            mock_blob.delete.assert_called_once()
+
+        # AND the batch context manager was called the expected number of times
+        number_of_batches = int(round(total_objects / expected_batch_size))
+        assert service_client_mock.batch.call_count == number_of_batches
 
 
 class TestGetCloudInterface(object):
