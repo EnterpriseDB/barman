@@ -135,6 +135,12 @@ service which is to be used to encrypt the data in Azure
 .RS
 .RE
 .TP
+.B \[en]read\-timeout \f[I]TIMEOUT\f[]
+the time in seconds until a timeout is raised when waiting to read from
+a connection to AWS S3 (defaults to 60 seconds)
+.RS
+.RE
+.TP
 .B \[en]credential {azure\-cli,managed\-identity}
 optionally specify the type of credential to use when authenticating
 with Azure Blob Storage.

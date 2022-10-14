@@ -39,6 +39,7 @@ except ImportError:
 
 try:
     import boto3
+    from botocore.config import Config
     from botocore.exceptions import ClientError, EndpointConnectionError
 except ImportError:
     raise SystemExit("Missing required python module: boto3")
@@ -96,6 +97,7 @@ class S3CloudInterface(CloudInterface):
         endpoint_url=None,
         tags=None,
         delete_batch_size=None,
+        read_timeout=None,
     ):
         """
         Create a new S3 interface given the S3 destination url and the profile
@@ -110,6 +112,8 @@ class S3CloudInterface(CloudInterface):
           with this one
         :param int|None delete_batch_size: the maximum number of objects to be
           deleted in a single request
+        :param int|None read_timeout: the time in seconds until a timeout is
+          raised when waiting to read from a connection
         """
         super(S3CloudInterface, self).__init__(
             url=url,
@@ -120,6 +124,7 @@ class S3CloudInterface(CloudInterface):
         self.profile_name = profile_name
         self.encryption = encryption
         self.endpoint_url = endpoint_url
+        self.read_timeout = read_timeout
 
         # Extract information from the destination URL
         parsed_url = urlparse(url)
@@ -137,8 +142,13 @@ class S3CloudInterface(CloudInterface):
         """
         Create a new session
         """
+        config_kwargs = {}
+        if self.read_timeout is not None:
+            config_kwargs["read_timeout"] = self.read_timeout
+        config = Config(**config_kwargs)
+
         session = boto3.Session(profile_name=self.profile_name)
-        self.s3 = session.resource("s3", endpoint_url=self.endpoint_url)
+        self.s3 = session.resource("s3", endpoint_url=self.endpoint_url, config=config)
 
     @property
     def _extra_upload_args(self):

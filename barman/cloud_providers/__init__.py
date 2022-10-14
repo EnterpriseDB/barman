@@ -49,6 +49,7 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
         {
             "profile_name": config.profile,
             "endpoint_url": config.endpoint_url,
+            "read_timeout": config.read_timeout,
         }
     )
     if "encryption" in config:

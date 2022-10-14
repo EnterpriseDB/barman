@@ -167,6 +167,12 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
         "--profile",
         help="profile name (e.g. INI section in AWS credentials file)",
     )
+    s3_arguments.add_argument(
+        "--read-timeout",
+        type=int,
+        help="the time in seconds until a timeout is raised when waiting to "
+        "read from a connection (defaults to 60 seconds)",
+    )
     azure_arguments = parser.add_argument_group(
         "Extra options for the azure-blob-storage cloud provider"
     )

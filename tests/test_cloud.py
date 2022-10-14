@@ -449,18 +449,60 @@ class TestS3CloudInterface(object):
     Tests which verify backend-specific behaviour of S3CloudInterface.
     """
 
+    @mock.patch("barman.cloud_providers.aws_s3.Config")
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    def test_uploader_minimal(self, boto_mock):
+    def test_uploader_minimal(self, boto_mock, config_mock):
+        # GIVEN an s3 bucket url
+        bucket_url = "s3://bucket/path/to/dir"
+
+        # WHEN an S3CloudInterface with minimal arguments is created
+        cloud_interface = S3CloudInterface(url=bucket_url, encryption=None)
+
+        # THEN the cloud interface bucket_name is set correctly
+        assert cloud_interface.bucket_name == "bucket"
+        # AND the cloud interface path is set correctly
+        assert cloud_interface.path == "path/to/dir"
+        # AND no profile name is passed to the boto3 Session
+        boto_mock.Session.assert_called_once_with(profile_name=None)
+        # AND a Config is created with empty arguments
+        config_mock.assert_called_once_with()
+        # AND the boto3 resource is created with no specified endpoint_url
+        # and the created Config object
+        session_mock = boto_mock.Session.return_value
+        session_mock.resource.assert_called_once_with(
+            "s3",
+            endpoint_url=None,
+            config=config_mock.return_value,
+        )
+        # AND the s3 property of the cloud interface is set to the boto3
+        # resource
+        assert cloud_interface.s3 == session_mock.resource.return_value
+
+    @mock.patch("barman.cloud_providers.aws_s3.Config")
+    @mock.patch("barman.cloud_providers.aws_s3.boto3")
+    def test_uploader_minimal_read_timeout(self, boto_mock, config_mock):
+        # GIVEN an s3 bucket url
+        bucket_url = "s3://bucket/path/to/dir"
+
+        # WHEN an S3CloudInterface with minimal arguments is created with
+        # a specified read_timeout
         cloud_interface = S3CloudInterface(
-            url="s3://bucket/path/to/dir", encryption=None
+            url=bucket_url, encryption=None, read_timeout=30
         )
 
-        assert cloud_interface.bucket_name == "bucket"
-        assert cloud_interface.path == "path/to/dir"
-        boto_mock.Session.assert_called_once_with(profile_name=None)
+        # THEN the cloud interface read_timeout property is set to the specified
+        # value
+        assert cloud_interface.read_timeout == 30
+        # AND a Config is created with the specified read_timeout
+        config_mock.assert_called_once_with(read_timeout=30)
+        # AND the boto3 resource is created with no specified endpoint_url
+        # and the created Config object
         session_mock = boto_mock.Session.return_value
-        session_mock.resource.assert_called_once_with("s3", endpoint_url=None)
-        assert cloud_interface.s3 == session_mock.resource.return_value
+        session_mock.resource.assert_called_once_with(
+            "s3",
+            endpoint_url=None,
+            config=config_mock.return_value,
+        )
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
     def test_invalid_uploader_minimal(self, boto_mock):
@@ -2324,7 +2366,9 @@ class TestGetCloudInterface(object):
 
     @pytest.fixture()
     def mock_config_aws(self):
-        return Namespace(endpoint_url=None, profile=None, source_url="test-url")
+        return Namespace(
+            endpoint_url=None, profile=None, source_url="test-url", read_timeout=None
+        )
 
     @pytest.fixture()
     def mock_config_azure(self):
@@ -2357,7 +2401,11 @@ class TestGetCloudInterface(object):
             setattr(mock_config_aws, k, v)
         get_cloud_interface(mock_config_aws)
         mock_s3_cloud_interface.assert_called_once_with(
-            url="test-url", profile_name=None, endpoint_url=None, **extra_args
+            url="test-url",
+            profile_name=None,
+            endpoint_url=None,
+            read_timeout=None,
+            **extra_args
         )
 
     @pytest.mark.parametrize(

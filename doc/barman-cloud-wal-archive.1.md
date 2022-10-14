@@ -99,6 +99,10 @@ WAL_PATH
 :    the name of an encryption scope defined in the Azure Blob Storage
      service which is to be used to encrypt the data in Azure
 
+--read-timeout *TIMEOUT*
+:    the time in seconds until a timeout is raised when waiting to read from a
+     connection to AWS S3 (defaults to 60 seconds)
+
 --credential {azure-cli,managed-identity}
 :    optionally specify the type of credential to use when authenticating with
      Azure Blob Storage. If omitted then the credential will be obtained from the

@@ -61,6 +61,10 @@ SERVER_NAME
 --endpoint-url
 :    override the default S3 URL construction mechanism by specifying an endpoint.
 
+--read-timeout *TIMEOUT*
+:    the time in seconds until a timeout is raised when waiting to read from a
+     connection to AWS S3 (defaults to 60 seconds)
+
 --credential {azure-cli,managed-identity}
 :    optionally specify the type of credential to use when authenticating with
      Azure Blob Storage. If omitted then the credential will be obtained from the
