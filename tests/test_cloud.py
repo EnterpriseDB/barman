@@ -843,7 +843,7 @@ class TestS3CloudInterface(object):
 
         assert str(exc.value) == (
             "Error from cloud provider while deleting objects - please "
-            "check the Barman logs"
+            "check the command output."
         )
 
         assert (
@@ -1536,9 +1536,9 @@ class TestAzureCloudInterface(object):
         mock_keys = []
         cloud_interface.delete_objects(mock_keys)
 
-        # The Azure SDK is happy to accept an empty list here so verify that we
-        # simply passed it on
-        container_client.delete_blobs.assert_called_once_with()
+        # All cloud interface implementations should short-circuit and avoid calling
+        # the cloud provider SDK when given an empty list.
+        container_client.delete_blobs.assert_not_called()
 
     def _create_mock_HttpResponse(self, status_code, url):
         """Helper function for partial failure tests."""
@@ -1571,7 +1571,7 @@ class TestAzureCloudInterface(object):
 
         assert str(exc.value) == (
             "Error from cloud provider while deleting objects - please "
-            "check the Barman logs"
+            "check the command output."
         )
 
         assert (
@@ -1613,7 +1613,7 @@ class TestAzureCloudInterface(object):
 
         assert str(exc.value) == (
             "Error from cloud provider while deleting objects - please "
-            "check the Barman logs"
+            "check the command output."
         )
 
         assert (
@@ -2094,7 +2094,7 @@ class TestGoogleCloudInterface(TestCase):
             "https://console.cloud.google.com/storage/browser/barman-test/path/to/object/"
         )
         mock_keys = ["path/to/object/1", "path/to/object/2"]
-        with pytest.raises(RuntimeError):
+        with pytest.raises(CloudProviderError):
             cloud_interface.delete_objects(mock_keys)
 
         logging_mock.error.assert_called_with(

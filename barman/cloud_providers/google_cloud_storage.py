@@ -20,7 +20,12 @@ import logging
 import os
 
 from barman.clients.cloud_compression import decompress_to_file
-from barman.cloud import CloudInterface, DecompressingStreamingIO, DEFAULT_DELIMITER
+from barman.cloud import (
+    CloudInterface,
+    CloudProviderError,
+    DecompressingStreamingIO,
+    DEFAULT_DELIMITER,
+)
 
 try:
     # Python 3.x
@@ -304,16 +309,15 @@ class GoogleCloudInterface(CloudInterface):
             logging.error(e)
             raise e
 
-    def delete_objects(self, paths):
+    def _delete_objects_batch(self, paths):
         """
         Delete the objects at the specified paths.
         The maximum possible number of calls in a batch is 100.
         :param List[str] paths:
         """
-        failures = {}
+        super(GoogleCloudInterface, self)._delete_objects_batch(paths)
 
-        if len(paths) > self.MAX_DELETE_BATCH_SIZE:
-            raise Exception("Max batch size exceeded")
+        failures = {}
 
         with self.client.batch():
             for path in list(set(paths)):
@@ -325,4 +329,4 @@ class GoogleCloudInterface(CloudInterface):
 
         if failures:
             logging.error(failures)
-            raise RuntimeError("Could not delete all keys")
+            raise CloudProviderError()
