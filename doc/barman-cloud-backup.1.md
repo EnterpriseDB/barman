@@ -104,6 +104,10 @@ SERVER_NAME
 --endpoint-url
 :    override the default S3 URL construction mechanism by specifying an endpoint
 
+--read-timeout *TIMEOUT*
+:    the time in seconds until a timeout is raised when waiting to read from a
+     connection to AWS S3 (defaults to 60 seconds)
+
 -e, --encryption
 :    the encryption algorithm used when storing the uploaded data in S3
      Allowed values: 'AES256'|'aws:kms'

@@ -229,6 +229,7 @@ class TestMain(object):
             profile_name=None,
             endpoint_url=None,
             encryption=None,
+            read_timeout=None,
         )
 
         # Verify expected override tags are passed to upload_wal
