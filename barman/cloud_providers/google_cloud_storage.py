@@ -60,6 +60,8 @@ class GoogleCloudInterface(CloudInterface):
     # MAX_ARCHIVE_SIZE - so we set a maximum of 1TB per file
     MAX_ARCHIVE_SIZE = 1 << 40
 
+    MAX_DELETE_BATCH_SIZE = 100
+
     def __init__(self, url, jobs=1, tags=None):
         """
         Create a new Google cloud Storage interface given the supplied account url
@@ -304,17 +306,22 @@ class GoogleCloudInterface(CloudInterface):
 
     def delete_objects(self, paths):
         """
-        Delete the objects at the specified paths
-        There is no multiple delete in JSON API, so we loop over each object and delete them all.
+        Delete the objects at the specified paths.
+        The maximum possible number of calls in a batch is 100.
         :param List[str] paths:
         """
         failures = {}
-        for path in list(set(paths)):
-            try:
-                blob = self.container_client.blob(path)
-                blob.delete()
-            except GoogleAPIError as e:
-                failures[path] = [str(e.__class__), e.__str__()]
+
+        if len(paths) > self.MAX_DELETE_BATCH_SIZE:
+            raise Exception("Max batch size exceeded")
+
+        with self.client.batch():
+            for path in list(set(paths)):
+                try:
+                    blob = self.container_client.blob(path)
+                    blob.delete()
+                except GoogleAPIError as e:
+                    failures[path] = [str(e.__class__), e.__str__()]
 
         if failures:
             logging.error(failures)
