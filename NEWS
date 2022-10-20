@@ -1,5 +1,21 @@
 Barman News - History of user-visible changes
 
+Version 3.2.0 - 20 October 2022
+
+- `barman-cloud-backup-delete` now accepts a `--batch-size` option
+  which determines the maximum number of objects deleted in a single
+  request.
+
+- All `barman-cloud-*` commands now accept a `--read-timeout` option
+  which, when used with the `aws-s3` cloud provider, determines the
+  read timeout used by the boto3 library when making requests to S3.
+
+- Bug fixes:
+
+    - Fix the failure of `barman recover` in cases where
+      `backup_compression` is set in the Barman configuration but the
+      PostgreSQL server is unavailable.
+
 Version 3.1.0 - 14 September 2022
 
 - Backups taken with `backup_method = postgres` can now be compressed
