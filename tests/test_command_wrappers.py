@@ -516,7 +516,7 @@ class TestCommand(object):
         assert cmd.ret == ret
         assert cmd.out is None
         assert cmd.err is None
-        assert ("Command", INFO, out) in caplog.record_tuples
+        assert ("Command", DEBUG, out) in caplog.record_tuples
         assert ("Command", WARNING, err) in caplog.record_tuples
 
     def test_execute_invocation_multiline(self, popen, pipe_processor_loop, caplog):
@@ -554,9 +554,9 @@ class TestCommand(object):
         assert cmd.out is None
         assert cmd.err is None
         for line in out.splitlines():
-            assert ("Command", INFO, line) in caplog.record_tuples
-        assert ("Command", INFO, "") not in caplog.record_tuples
-        assert ("Command", INFO, None) not in caplog.record_tuples
+            assert ("Command", DEBUG, line) in caplog.record_tuples
+        assert ("Command", DEBUG, "") not in caplog.record_tuples
+        assert ("Command", DEBUG, None) not in caplog.record_tuples
         for line in err.splitlines():
             assert ("Command", WARNING, line) in caplog.record_tuples
         assert ("Command", WARNING, "") not in caplog.record_tuples
@@ -595,7 +595,7 @@ class TestCommand(object):
         assert cmd.ret == ret
         assert cmd.out is None
         assert cmd.err is None
-        assert ("Command", INFO, out) in caplog.record_tuples
+        assert ("Command", DEBUG, out) in caplog.record_tuples
         assert ("Command", WARNING, err) in caplog.record_tuples
 
     def test_handlers_multiline(self, popen, pipe_processor_loop, caplog):
@@ -1223,7 +1223,7 @@ class TestPgBaseBackup(object):
         assert cmd.ret == ret
         assert cmd.out is None
         assert cmd.err is None
-        assert ("PgBaseBackup", INFO, out) in caplog.record_tuples
+        assert ("PgBaseBackup", DEBUG, out) in caplog.record_tuples
         assert ("PgBaseBackup", WARNING, err) in caplog.record_tuples
 
     @pytest.mark.parametrize(
@@ -1545,7 +1545,7 @@ class TestReceiveXlog(object):
         assert cmd.ret == ret
         assert cmd.out is None
         assert cmd.err is None
-        assert ("PgReceiveXlog", INFO, out) in caplog.record_tuples
+        assert ("PgReceiveXlog", DEBUG, out) in caplog.record_tuples
         assert ("PgReceiveXlog", WARNING, err) in caplog.record_tuples
 
     @mock.patch("barman.utils.which")

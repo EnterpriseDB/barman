@@ -219,7 +219,7 @@ class Command(object):
         if out_handler:
             self.out_handler = out_handler
         else:
-            self.out_handler = self.make_logging_handler(logging.INFO)
+            self.out_handler = self.make_logging_handler(logging.DEBUG)
         # If an error handler has been provided use it, otherwise log the
         # stderr as WARNING
         if err_handler:

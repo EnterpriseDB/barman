@@ -1073,6 +1073,7 @@ class TestPostgresBackupExecutor(object):
         assert err == ""
         # check that the bwlimit option have been ignored
         assert pg_basebackup_mock.mock_calls == [
+            mock.call.make_logging_handler(logging.INFO),
             mock.call(
                 connection=mock.ANY,
                 version="9.2",
@@ -1088,6 +1089,7 @@ class TestPostgresBackupExecutor(object):
                 path=mock.ANY,
                 compression=None,
                 err_handler=mock.ANY,
+                out_handler=mock.ANY,
             ),
             mock.call()(),
         ]
@@ -1109,6 +1111,7 @@ class TestPostgresBackupExecutor(object):
         assert err == ""
         # check that the bwlimit option have been passed to the test call
         assert pg_basebackup_mock.mock_calls == [
+            mock.call.make_logging_handler(logging.INFO),
             mock.call(
                 connection=mock.ANY,
                 version="9.5",
@@ -1124,6 +1127,7 @@ class TestPostgresBackupExecutor(object):
                 path=mock.ANY,
                 compression=None,
                 err_handler=mock.ANY,
+                out_handler=mock.ANY,
             ),
             mock.call()(),
         ]
@@ -1144,6 +1148,7 @@ class TestPostgresBackupExecutor(object):
         )
         # check that the bwlimit option have been passed to the test call
         assert pg_basebackup_mock.mock_calls == [
+            mock.call.make_logging_handler(logging.INFO),
             mock.call(
                 connection=mock.ANY,
                 version="9.5",
@@ -1159,6 +1164,7 @@ class TestPostgresBackupExecutor(object):
                 path=mock.ANY,
                 compression=None,
                 err_handler=mock.ANY,
+                out_handler=mock.ANY,
             ),
             mock.call()(),
         ]
@@ -1174,6 +1180,7 @@ class TestPostgresBackupExecutor(object):
         assert err == ""
         # check that the bwlimit option have been passed to the test call
         assert pg_basebackup_mock.mock_calls == [
+            mock.call.make_logging_handler(logging.INFO),
             mock.call(
                 connection=mock.ANY,
                 version="9.5",
@@ -1189,6 +1196,7 @@ class TestPostgresBackupExecutor(object):
                 path=mock.ANY,
                 compression=None,
                 err_handler=mock.ANY,
+                out_handler=mock.ANY,
             ),
             mock.call()(),
         ]

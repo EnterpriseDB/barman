@@ -615,6 +615,7 @@ class PostgresBackupExecutor(BackupExecutor):
             retry_handler=partial(self._retry_handler, dest_dirs),
             compression=self.backup_compression,
             err_handler=self._err_handler,
+            out_handler=PgBaseBackup.make_logging_handler(logging.INFO),
         )
 
         # Do the actual copy
