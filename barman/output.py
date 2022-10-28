@@ -710,6 +710,8 @@ class ConsoleOutputWriter(object):
         """
         data = dict(backup_ext_info)
         self.info("Backup %s:", data["backup_id"])
+        if data["backup_name"] is not None:
+            self.info("  Backup Name            : %s", data["backup_name"])
         self.info("  Server Name            : %s", data["server_name"])
         if data["systemid"]:
             self.info("  System Id              : %s", data["systemid"])
@@ -1338,6 +1340,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
         output = self.json_output[server_name] = dict(
             backup_id=data["backup_id"], status=data["status"]
         )
+
+        if data["backup_name"] is not None:
+            output.update({"backup_name": data["backup_name"]})
 
         if data["status"] in BackupInfo.STATUS_COPY_DONE:
             output.update(
