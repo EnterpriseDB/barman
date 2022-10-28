@@ -1555,7 +1555,7 @@ class Server(RemoteStatusMixin):
         TODO
         """
         # Iterate through backups and see if there is one which matches the name
-        return backup_name
+        return self.backup_manager.get_named_backup_id(backup_name, status_filter)
 
     def list_backups(self):
         """

@@ -376,6 +376,18 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         ids = sorted(available_backups.keys())
         return ids[0]
 
+    def get_named_backup_id(self, backup_name, status_filter=DEFAULT_STATUS_FILTER):
+        """
+        TODO
+        """
+        available_backups = self.get_available_backups(status_filter)
+
+        # TODO actually we need to check for duplicates here and fail, so really
+        # we need to read all backups and check how many matching ids we have
+        for backup_id, backup in available_backups.items():
+            if backup.backup_name == backup_name:
+                return backup_id
+
     @staticmethod
     def get_timelines_to_protect(remove_until, deleted_backup, available_backups):
         """
