@@ -1456,5 +1456,4 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
     def write_backup_name(self, backup_info, name):
         """TODO"""
-        annotation_manager = AnnotationManagerFile(self.config.basebackups_directory)
-        annotation_manager.put_annotation(backup_info.backup_id, "name", name)
+        backup_info.backup_name = name

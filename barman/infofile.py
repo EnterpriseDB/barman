@@ -472,6 +472,7 @@ class BackupInfo(FieldListFile):
     )
     systemid = Field("systemid")
     compression = Field("compression")
+    backup_name = Field("backup_name")
 
     __slots__ = "backup_id", "backup_version"
 
