@@ -32,7 +32,7 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.annotations import KeepManager, KeepManagerMixin
+from barman.annotations import AnnotationManagerFile, KeepManager, KeepManagerMixin
 from barman.backup_executor import (
     PassiveBackupExecutor,
     PostgresBackupExecutor,
@@ -561,12 +561,13 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         return True
 
-    def backup(self, wait=False, wait_timeout=None):
+    def backup(self, wait=False, wait_timeout=None, name=None):
         """
         Performs a backup for the server
 
         :param bool wait: wait for all the required WAL files to be archived
         :param int|None wait_timeout:
+        :param str|None name: the friendly name to be saved with this backup
         :return BackupInfo: the generated BackupInfo
         """
         _logger.debug("initialising backup information")
@@ -668,6 +669,10 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         finally:
             if backup_info:
                 backup_info.save()
+
+                # Write the backup friendly name if there is one
+                if name is not None:
+                    self.write_backup_name(backup_info, name)
 
                 # Make sure we are not holding any PostgreSQL connection
                 # during the post-backup scripts
@@ -1448,3 +1453,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             output.error(e.args[0]["err"])
             return
         output.info(pg_verifybackup.get_output()[0].strip())
+
+    def write_backup_name(self, backup_info, name):
+        """TODO"""
+        annotation_manager = AnnotationManagerFile(self.config.basebackups_directory)
+        annotation_manager.put_annotation(backup_info.backup_id, "name", name)

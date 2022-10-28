@@ -775,3 +775,16 @@ def check_size(value):
     if int_value is None or int_value < 1:
         raise ArgumentTypeError("'%s' is not a valid size string" % value)
     return int_value
+
+
+def check_backup_name(backup_name):
+    # TODO check the backup name does not match a backup ID and is otherwise not
+    # illegal (whatever that means)
+    if is_backup_id(backup_name):
+        raise ArgumentTypeError("Backup name '%s' cannot be a backup ID" % backup_name)
+    return backup_name
+
+
+def is_backup_id(backup_id):
+    # TODO check if backup_id matches pattern (is this logic somewhere already?)
+    return False

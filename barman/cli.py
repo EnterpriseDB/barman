@@ -48,6 +48,7 @@ from barman.infofile import BackupInfo, WalFileInfo
 from barman.server import Server
 from barman.utils import (
     BarmanEncoder,
+    check_backup_name,
     check_non_negative,
     check_positive,
     check_tli,
@@ -55,6 +56,7 @@ from barman.utils import (
     drop_privileges,
     force_str,
     get_log_levels,
+    is_backup_id,
     parse_log_level,
     SHA256,
 )
@@ -421,6 +423,13 @@ def backup_completer(prefix, parsed_args, **kwargs):
             default=None,
             type=check_non_negative,
         ),
+        argument(
+            "--name",
+            help="a friendly name which can be used to reference this backup",
+            dest="backup_name",
+            default=None,
+            type=check_backup_name,
+        ),
     ]
 )
 def backup(args):
@@ -452,7 +461,11 @@ def backup(args):
         if hasattr(args, "bwlimit"):
             server.config.bandwidth_limit = args.bwlimit
         with closing(server):
-            server.backup(wait=args.wait, wait_timeout=args.wait_timeout)
+            server.backup(
+                wait=args.wait,
+                wait_timeout=args.wait_timeout,
+                backup_name=args.backup_name,
+            )
     output.close_and_exit()
 
 
@@ -1939,8 +1952,10 @@ def parse_backup_id(server, args):
         backup_id = server.get_first_backup_id()
     elif args.backup_id in ("last-failed"):
         backup_id = server.get_last_backup_id([BackupInfo.FAILED])
-    else:
+    elif is_backup_id(args.backup_id):
         backup_id = args.backup_id
+    else:
+        backup_id = server.get_named_backup_id(args.backup_id)
     backup_info = server.get_backup(backup_id)
     if backup_info is None:
         output.error(
