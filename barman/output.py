@@ -677,7 +677,11 @@ class ConsoleOutputWriter(object):
             self.info(backup_info.backup_id)
             return
 
-        out_list = ["%s %s - " % (backup_info.server_name, backup_info.backup_id)]
+        out_list = ["%s %s " % (backup_info.server_name, backup_info.backup_id)]
+        if backup_info.backup_name is not None:
+            out_list.append("%s - " % backup_info.backup_name)
+        else:
+            out_list.append(" - ")
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             end_time = backup_info.end_time.ctime()
             out_list.append(
@@ -1299,6 +1303,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
         output = dict(
             backup_id=backup_info.backup_id,
         )
+
+        if backup_info.backup_name is not None:
+            output.update({"backup_name": backup_info.backup_name})
 
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             output.update(
