@@ -153,6 +153,8 @@ class FieldListFile(object):
 
     __slots__ = ("_fields", "filename")
 
+    _hide_if_null = ()
+
     def __init__(self, **kwargs):
         """
         Represent a predefined set of keys with the associated value.
@@ -222,6 +224,8 @@ class FieldListFile(object):
         try:
             for name, field in sorted(inspect.getmembers(type(self))):
                 value = getattr(self, name, None)
+                if value is None and name in self._hide_if_null:
+                    continue
                 if isinstance(field, Field):
                     if callable(field.to_str):
                         value = field.to_str(value)
@@ -475,6 +479,8 @@ class BackupInfo(FieldListFile):
     backup_name = Field("backup_name")
 
     __slots__ = "backup_id", "backup_version"
+
+    _hide_if_null = ("backup_name",)
 
     def __init__(self, backup_id, **kwargs):
         """
