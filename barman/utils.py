@@ -787,4 +787,4 @@ def check_backup_name(backup_name):
 
 def is_backup_id(backup_id):
     # TODO check if backup_id matches pattern (is this logic somewhere already?)
-    return False
+    return re.match(r"(\d{8})T\d{6}$", backup_id)
