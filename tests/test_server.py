@@ -977,7 +977,7 @@ class TestServer(object):
 
         dir_mock.side_effect = None
         server.backup()
-        backup_mock.assert_called_once_with(wait=False, wait_timeout=None)
+        backup_mock.assert_called_once_with(wait=False, wait_timeout=None, name=None)
         archive_wal_mock.assert_called_once_with(verbose=False)
 
         backup_mock.side_effect = LockFileBusy()

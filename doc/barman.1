@@ -78,6 +78,12 @@ backup of the specified servers \-\- e.g.
 \f[C]barman\ backup\ SERVER_1_NAME\ SERVER_2_NAME\f[].
 .RS
 .TP
+.B \-\-name
+a friendly name for this backup which can be used in place of the backup
+ID in barman commands.
+.RS
+.RE
+.TP
 .B \-\-immediate\-checkpoint
 forces the initial checkpoint to be done as quickly as possible.
 Overrides value of the parameter \f[C]immediate_checkpoint\f[], if

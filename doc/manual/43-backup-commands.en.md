@@ -27,6 +27,10 @@ barman delete <server_name> oldest
 
 to remove the oldest backup available in the catalog and reclaim disk space.
 
+Additionally, if backup was taken with the `--name <friendly_name>` option,
+you can use the friendly name in place of the backup ID to refer to that
+specific backup.
+
 ## `check-backup`
 
 Starting with version 2.5, you can check that all required WAL files

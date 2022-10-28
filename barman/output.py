@@ -677,7 +677,11 @@ class ConsoleOutputWriter(object):
             self.info(backup_info.backup_id)
             return
 
-        out_list = ["%s %s - " % (backup_info.server_name, backup_info.backup_id)]
+        out_list = ["%s %s " % (backup_info.server_name, backup_info.backup_id)]
+        if backup_info.backup_name is not None:
+            out_list.append("'%s' - " % backup_info.backup_name)
+        else:
+            out_list.append("- ")
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             end_time = backup_info.end_time.ctime()
             out_list.append(
@@ -710,6 +714,8 @@ class ConsoleOutputWriter(object):
         """
         data = dict(backup_ext_info)
         self.info("Backup %s:", data["backup_id"])
+        if "backup_name" in data and data["backup_name"] is not None:
+            self.info("  Backup Name            : %s", data["backup_name"])
         self.info("  Server Name            : %s", data["server_name"])
         if data["systemid"]:
             self.info("  System Id              : %s", data["systemid"])
@@ -1298,6 +1304,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
             backup_id=backup_info.backup_id,
         )
 
+        if backup_info.backup_name is not None:
+            output.update({"backup_name": backup_info.backup_name})
+
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
             output.update(
                 dict(
@@ -1338,6 +1347,9 @@ class JsonOutputWriter(ConsoleOutputWriter):
         output = self.json_output[server_name] = dict(
             backup_id=data["backup_id"], status=data["status"]
         )
+
+        if "backup_name" in data and data["backup_name"] is not None:
+            output.update({"backup_name": data["backup_name"]})
 
         if data["status"] in BackupInfo.STATUS_COPY_DONE:
             output.update(

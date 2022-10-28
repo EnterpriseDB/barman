@@ -57,6 +57,7 @@ from barman.utils import (
     force_str,
     fsync_dir,
     fsync_file,
+    get_backup_info_from_name,
     human_readable_timedelta,
     pretty_size,
 )
@@ -376,6 +377,20 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         ids = sorted(available_backups.keys())
         return ids[0]
 
+    def get_backup_id_from_name(self, backup_name, status_filter=DEFAULT_STATUS_FILTER):
+        """
+        Get the id of the named backup, if it exists.
+
+        :param string backup_name: The name of the backup for which an ID should be
+            returned
+        :param tuple status_filter: The status of the backup to return.
+        :return string|None: ID of the backup
+        """
+        available_backups = self.get_available_backups(status_filter).values()
+        backup_info = get_backup_info_from_name(available_backups, backup_name)
+        if backup_info is not None:
+            return backup_info.backup_id
+
     @staticmethod
     def get_timelines_to_protect(remove_until, deleted_backup, available_backups):
         """
@@ -561,12 +576,13 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         return True
 
-    def backup(self, wait=False, wait_timeout=None):
+    def backup(self, wait=False, wait_timeout=None, name=None):
         """
         Performs a backup for the server
 
         :param bool wait: wait for all the required WAL files to be archived
         :param int|None wait_timeout:
+        :param str|None name: the friendly name to be saved with this backup
         :return BackupInfo: the generated BackupInfo
         """
         _logger.debug("initialising backup information")
@@ -668,6 +684,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         finally:
             if backup_info:
                 backup_info.save()
+
+                # Set the backup friendly name if there is one
+                backup_info.backup_name = name
 
                 # Make sure we are not holding any PostgreSQL connection
                 # during the post-backup scripts

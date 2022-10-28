@@ -52,6 +52,8 @@ else:
     _text_type = unicode  # noqa
     _string_types = basestring  # noqa
 
+RESERVED_BACKUP_IDS = ("latest", "last", "oldest", "first", "last-failed")
+
 
 def drop_privileges(user):
     """
@@ -775,3 +777,67 @@ def check_size(value):
     if int_value is None or int_value < 1:
         raise ArgumentTypeError("'%s' is not a valid size string" % value)
     return int_value
+
+
+def check_backup_name(backup_name):
+    """
+    Verify that a backup name is not a backup ID or reserved identifier.
+
+    Returns the backup name if it is a valid backup name and raises an exception
+    otherwise. A backup name is considered valid if it is not None, not empty,
+    does not match the backup ID format and is not any other reserved backup
+    identifier.
+
+    :param str backup_name: The backup name to be checked.
+    :return str: The backup name.
+    """
+    if backup_name is None:
+        raise ArgumentTypeError("Backup name cannot be None")
+    if backup_name == "":
+        raise ArgumentTypeError("Backup name cannot be empty")
+    if is_backup_id(backup_name):
+        raise ArgumentTypeError(
+            "Backup name '%s' is not allowed: backup ID" % backup_name
+        )
+    if backup_name in (RESERVED_BACKUP_IDS):
+        raise ArgumentTypeError(
+            "Backup name '%s' is not allowed: reserved word" % backup_name
+        )
+    return backup_name
+
+
+def is_backup_id(backup_id):
+    """
+    Checks whether the supplied identifier is a backup ID.
+
+    :param str backup_id: The backup identifier to check.
+    :return bool: True if the backup matches the backup ID regex, False otherwise.
+    """
+    return bool(re.match(r"(\d{8})T\d{6}$", backup_id))
+
+
+def get_backup_info_from_name(backups, backup_name):
+    """
+    Get the backup metadata for the named backup.
+
+    :param list[BackupInfo] backups: A list of BackupInfo objects which should be
+        searched for the named backup.
+    :param str backup_name: The name of the backup for which the backup metadata
+        should be retrieved.
+    :return BackupInfo|None: The backup metadata for the named backup.
+    """
+    matching_backups = [
+        backup for backup in backups if backup.backup_name == backup_name
+    ]
+    if len(matching_backups) > 1:
+        matching_backup_ids = " ".join(
+            [backup.backup_id for backup in matching_backups]
+        )
+        msg = (
+            "Multiple backups found matching name '%s' "
+            "(try using backup ID instead): %s"
+        ) % (backup_name, matching_backup_ids)
+
+        raise ValueError(msg)
+    elif len(matching_backups) == 1:
+        return matching_backups[0]
