@@ -39,6 +39,7 @@ except ImportError:
 
 def build_test_backup_info(
     backup_id="1234567890",
+    backup_name=None,
     begin_offset=40,
     begin_time=None,
     begin_wal="000000010000000000000002",

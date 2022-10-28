@@ -1440,13 +1440,15 @@ class Server(RemoteStatusMixin):
             output.error("Permission denied, unable to access '%s'" % e)
             return
 
-    def backup(self, wait=False, wait_timeout=None):
+    def backup(self, wait=False, wait_timeout=None, backup_name=None):
         """
         Performs a backup for the server
         :param bool wait: wait for all the required WAL files to be archived
         :param int|None wait_timeout: the time, in seconds, the backup
             will wait for the required WAL files to be archived
             before timing out
+        :param str|None backup_name: a friendly name by which this backup can
+            be referenced in the future
         """
         # The 'backup' command is not available on a passive node.
         # We assume that if we get here the node is not passive
@@ -1481,7 +1483,9 @@ class Server(RemoteStatusMixin):
             # lock acquisition and backup execution
             with ServerBackupLock(self.config.barman_lock_directory, self.config.name):
                 backup_info = self.backup_manager.backup(
-                    wait=wait, wait_timeout=wait_timeout
+                    wait=wait,
+                    wait_timeout=wait_timeout,
+                    name=backup_name,
                 )
 
             # Archive incoming WALs and update WAL catalogue
@@ -1543,6 +1547,20 @@ class Server(RemoteStatusMixin):
         :return string|None: ID of the backup
         """
         return self.backup_manager.get_first_backup_id(status_filter)
+
+    def get_backup_id_from_name(
+        self, backup_name, status_filter=BackupManager.DEFAULT_STATUS_FILTER
+    ):
+        """
+        Get the id of the named backup, if it exists.
+
+        :param string backup_name: The name of the backup for which an ID should be
+            returned
+        :param tuple status_filter: The status of the backup to return.
+        :return string|None: ID of the backup
+        """
+        # Iterate through backups and see if there is one which matches the name
+        return self.backup_manager.get_backup_id_from_name(backup_name, status_filter)
 
     def list_backups(self):
         """

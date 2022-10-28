@@ -5,6 +5,10 @@ backup *SERVER_NAME*
     times to perform a backup of the specified servers -- e.g. `barman backup
     SERVER_1_NAME SERVER_2_NAME`.
 
+    --name
+    :   a friendly name for this backup which can be used in place of the
+        backup ID in barman commands.
+
     --immediate-checkpoint
     :   forces the initial checkpoint to be done as quickly as possible.
         Overrides value of the parameter `immediate_checkpoint`, if present

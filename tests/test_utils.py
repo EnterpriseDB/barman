@@ -858,3 +858,109 @@ class TestSHA256(object):
             "9c6609fc5111405ea3f5bb3d1f6b5a5efd19a0cec53d85893fd96d265439cd5b"
         )
         assert ref_checksum == sha.checksum_from_str("Some content")
+
+
+class TestCheckBackupNames(object):
+    @pytest.mark.parametrize(
+        ("backup_id", "expected_result"),
+        (
+            ("19700101T000000", True),
+            ("20380119T031408", True),
+            ("2038011T031408", False),
+            ("20380119T03140", False),
+            ("20201109t065300", False),
+            ("a name not an ID", False),
+        ),
+    )
+    def test_is_backup_id(self, backup_id, expected_result):
+        # GIVEN a backup id
+        # WHEN is_backup_id is called
+        # THEN backup IDs produce a True result and non-backup IDs produce False
+        assert barman.utils.is_backup_id(backup_id) is expected_result
+
+    @pytest.mark.parametrize(
+        ("backup_name", "error_message"),
+        (
+            (None, "Backup name cannot be None"),
+            ("", "Backup name cannot be empty"),
+            (
+                "20380119T031408",
+                "Backup name '20380119T031408' is not allowed: backup ID",
+            ),
+            ("latest", "Backup name 'latest' is not allowed: reserved word"),
+            ("last", "Backup name 'last' is not allowed: reserved word"),
+            ("first", "Backup name 'first' is not allowed: reserved word"),
+            ("oldest", "Backup name 'oldest' is not allowed: reserved word"),
+            ("last-failed", "Backup name 'last-failed' is not allowed: reserved word"),
+        ),
+    )
+    def test_check_backup_name_failure(self, backup_name, error_message):
+        # GIVEN a backup name
+        # WHEN check_backup_name is called
+        # THEN an ArgumentTypeError is raised
+        with pytest.raises(ArgumentTypeError) as exc:
+            barman.utils.check_backup_name(backup_name)
+        # AND the exception has the expected message
+        assert str(exc.value) == error_message
+
+    @pytest.mark.parametrize("backup_name", ("backup_name", "backup name with spaces"))
+    def test_check_backup_name_success(self, backup_name):
+        # GIVEN a backup name
+        # WHEN check_backup_name is called
+        checked_backup_name = barman.utils.check_backup_name(backup_name)
+        # THEN the result is the backup name
+        assert checked_backup_name == backup_name
+
+    @pytest.fixture
+    def mock_backup_info_list(self):
+        return [
+            mock.Mock(backup_name="this name matches one", backup_id="20200101T000000"),
+            mock.Mock(backup_name="this name matches two", backup_id="20200101T010000"),
+            mock.Mock(backup_name="this name matches two", backup_id="20200101T020000"),
+        ]
+
+    def test_get_backup_info_from_name_match(self, mock_backup_info_list):
+        # GIVEN a list of backup info objects
+        # WHEN get_backup_info_from_name is called with a name which matches one backup
+        backup_name = "this name matches one"
+        backup_info = barman.utils.get_backup_info_from_name(
+            mock_backup_info_list, backup_name
+        )
+
+        # THEN a single backup info is returned which has the expected ID
+        expected_id = [
+            backup.backup_id
+            for backup in mock_backup_info_list
+            if backup.backup_name == backup_name
+        ][0]
+        assert backup_info.backup_id == expected_id
+
+    def test_get_backup_info_from_name_multiple_match(self, mock_backup_info_list):
+        # GIVEN a list of backup info objects
+        # WHEN get_backup_info_from_name is called with a name which matches two backups
+        backup_name = "this name matches two"
+
+        # THEN a ValueError is raised
+        with pytest.raises(ValueError) as exc:
+            barman.utils.get_backup_info_from_name(mock_backup_info_list, backup_name)
+
+        # AND the exception has the expected message
+        matching_backup_ids = [
+            backup.backup_id
+            for backup in mock_backup_info_list
+            if backup.backup_name == backup_name
+        ]
+        assert str(exc.value) == (
+            "Multiple backups found matching name 'this name matches two' "
+            "(try using backup ID instead): %s"
+        ) % " ".join(matching_backup_ids)
+
+    def test_get_backup_info_from_name_no_match(self, mock_backup_info_list):
+        # GIVEN a list of backup info objects
+        # WHEN get_backup_info_from_name is called with a name which matches no backups
+        backup_name = "this name matches nothing"
+        backup_info = barman.utils.get_backup_info_from_name(
+            mock_backup_info_list, backup_name
+        )
+        # THEN None is returned
+        assert backup_info is None

@@ -1158,6 +1158,25 @@ class TestConsoleWriter(object):
         assert bi.backup_id in out
         assert bi.status in out
 
+    def test_result_list_backup_with_backup_name(self, capsys):
+        # GIVEN a backup info with a backup_name
+        bi = build_test_backup_info(
+            backup_name="named backup",
+        )
+        backup_size = 12345
+        wal_size = 54321
+        retention_status = "test status"
+
+        # WHEN the list_backup output is generated in Plain form
+        console_writer = output.ConsoleOutputWriter()
+        console_writer.init_list_backup(bi.server_name, False)
+        console_writer.result_list_backup(bi, backup_size, wal_size, retention_status)
+        console_writer.close()
+
+        # THEN the console output contains the backup name
+        out, _err = capsys.readouterr()
+        assert "%s %s '%s'" % (bi.server_name, bi.backup_id, bi.backup_name) in out
+
     def test_result_show_backup(self, capsys):
         # mock the backup ext info
         wal_per_second = 0.01
@@ -1182,6 +1201,25 @@ class TestConsoleWriter(object):
         assert "WAL rate             : %0.2f/hour" % (wal_per_second * 3600) in out
         # TODO: this test can be expanded
         assert err == ""
+
+    def test_result_show_backup_with_backup_name(self, capsys):
+        # GIVEN a backup info with a backup_name
+        ext_info = mock_backup_ext_info(
+            backup_name="named backup",
+            status=BackupInfo.DONE,
+            wals_per_second=0.1,
+        )
+
+        # WHEN the list_backup output is generated in Plain form
+        console_writer = output.ConsoleOutputWriter()
+
+        console_writer.init_list_backup(ext_info["server_name"], False)
+        console_writer.result_show_backup(ext_info)
+        console_writer.close()
+
+        # THEN the output contains the backup name
+        out, _err = capsys.readouterr()
+        assert "  Backup Name            : %s" % ext_info["backup_name"] in out
 
     def test_result_show_backup_error(self, capsys):
         # mock the backup ext info
@@ -1735,6 +1773,30 @@ class TestJsonWriter(object):
         assert bi.backup_id == backup["backup_id"]
         assert bi.status == backup["status"]
 
+    def test_result_list_backup_with_backup_name(self, capsys):
+        # GIVEN a backup info with a backup_name
+        bi = build_test_backup_info(
+            backup_name="named backup",
+            begin_time=self.begin_time,
+            end_time=self.end_time,
+        )
+        backup_size = 12345
+        wal_size = 54321
+        retention_status = "test status"
+
+        # WHEN the list_backup output is generated in JSON form
+        json_writer = output.JsonOutputWriter()
+        json_writer.init_list_backup(bi.server_name, False)
+        json_writer.result_list_backup(bi, backup_size, wal_size, retention_status)
+        json_writer.close()
+
+        # THEN the json output contains the backup name
+        out, _err = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert json_output[bi.server_name][0]["backup_id"] == bi.backup_id
+        assert json_output[bi.server_name][0]["backup_name"] == bi.backup_name
+
     @mock.patch.dict("os.environ", {"TZ": "US/Eastern"})
     def test_result_show_backup(self, capsys):
         # mock the backup ext info
@@ -1780,6 +1842,34 @@ class TestJsonWriter(object):
         assert "%0.2f/hour" % (wal_per_second * 3600) == wal_information["wal_rate"]
 
         assert err == ""
+
+    def test_result_show_backup_with_backup_name(self, capsys):
+        # GIVEN a backup info with a backup_name
+        ext_info = mock_backup_ext_info(
+            backup_name="named backup",
+            status=BackupInfo.DONE,
+            wals_per_second=0.1,
+            begin_time=self.begin_time,
+            end_time=self.end_time,
+        )
+
+        # WHEN the list_backup output is generated in JSON form
+        json_writer = output.JsonOutputWriter()
+
+        # THEN the output contains the backup name
+        json_writer.result_show_backup(ext_info)
+        json_writer.close()
+
+        out, _err = capsys.readouterr()
+        json_output = json.loads(out)
+
+        assert (
+            json_output[ext_info["server_name"]]["backup_id"] == ext_info["backup_id"]
+        )
+        assert (
+            json_output[ext_info["server_name"]]["backup_name"]
+            == ext_info["backup_name"]
+        )
 
     def test_result_show_backup_error(self, capsys):
         # mock the backup ext info

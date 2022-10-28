@@ -38,6 +38,7 @@ from barman.cli import (
     get_server_list,
     manage_server_command,
     OrderedHelpFormatter,
+    parse_backup_id,
     receive_wal,
     recover,
     keep,
@@ -46,7 +47,11 @@ from barman.cli import (
 from barman.exceptions import WalArchiveContentError
 from barman.infofile import BackupInfo
 from barman.server import Server
-from testing_helpers import build_config_dictionary, build_config_from_dicts
+from testing_helpers import (
+    build_config_dictionary,
+    build_config_from_dicts,
+    build_real_server,
+)
 
 
 # noinspection PyMethodMayBeStatic
@@ -699,7 +704,7 @@ class TestCli(object):
         # THEN the expected message is in the logs
         out, _err = capsys.readouterr()
         assert (
-            "Backup manifest for backup %s successfully generated for server %s"
+            "Backup manifest for backup '%s' successfully generated for server %s"
             % (args.backup_id, args.server_name)
             in out
         )
@@ -756,6 +761,102 @@ class TestCli(object):
         else:
             # OR if there were no options, the expected function was not called
             getattr(server, server_fun).assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("backup_id", "expected_backup_id"),
+        (
+            # `latest` and `last` should always return the most recent backup
+            ("latest", "20221110T120000"),
+            ("last", "20221110T120000"),
+            # `oldest` and `first` should always return the earliest backup
+            ("oldest", "20221106T120000"),
+            ("first", "20221106T120000"),
+            # `last-failed` should always return the last backup with FAILED status
+            ("last-failed", "20221108T120000"),
+            # Backup names should always return the backup with the corresponding ID
+            ("named backup", "20221107T120000"),
+            # The backup ID should return the backup with that ID
+            ("20221109T120000", "20221109T120000"),
+        ),
+    )
+    @patch("barman.backup.BackupManager._load_backup_cache")
+    def test_parse_backup_id(
+        self, _mock_load_backup_cache, backup_id, expected_backup_id
+    ):
+        # GIVEN a server with a list of backups
+        server = build_real_server()
+        backup_infos = {
+            "20221110T120000": Mock(backup_id="20221110T120000", status="DONE"),
+            "20221109T120000": Mock(backup_id="20221109T120000", status="DONE"),
+            "20221108T120000": Mock(backup_id="20221108T120000", status="FAILED"),
+            "20221107T120000": Mock(
+                backup_id="20221107T120000",
+                backup_name="named backup",
+                status="DONE",
+            ),
+            "20221106T120000": Mock(backup_id="20221106T120000", status="DONE"),
+        }
+        server.backup_manager._backup_cache = backup_infos
+
+        # WHEN parse_backup_id is called with a given backup ID
+        args = Mock(backup_id=backup_id)
+        backup_info = parse_backup_id(server, args)
+
+        # THEN the expected backup_info is returned
+        assert backup_info is backup_infos[expected_backup_id]
+
+    @pytest.mark.parametrize(
+        ("backup_infos", "backup_id"),
+        (
+            # Cases where backups exist but the requested backup can't be found
+            # should raise an error
+            (
+                {
+                    "20221110T120000": Mock(backup_id="20221110T120000", status="DONE"),
+                },
+                "20221109T120000",
+            ),
+            (
+                {
+                    "20221110T120000": Mock(backup_id="20221110T120000", status="DONE"),
+                },
+                "no-matching name",
+            ),
+            (
+                {
+                    "20221110T120000": Mock(backup_id="20221110T120000", status="DONE"),
+                },
+                "",
+            ),
+            # Cases where no backups exist so no requested backups can be found
+            # should raise the usual "Unknown backup" error
+            ({}, "20221109T120000"),
+            ({}, "no-matching name"),
+            ({}, "latest"),
+            ({}, "last"),
+            ({}, "oldest"),
+            ({}, "first"),
+            ({}, "last-failed"),
+        ),
+    )
+    @patch("barman.backup.BackupManager._load_backup_cache")
+    def test_parse_backup_id_no_match(
+        self, _mock_load_backup_cache, backup_infos, backup_id, capsys
+    ):
+        # GIVEN a server with a list of backups
+        server = build_real_server()
+        server.backup_manager._backup_cache = backup_infos
+
+        # WHEN parse_backup_id is called with a backup ID or name which does not exist
+        args = Mock(backup_id=backup_id)
+
+        # THEN an error is raised
+        with pytest.raises(SystemExit):
+            parse_backup_id(server, args)
+
+        # AND the expected error is returned
+        _out, err = capsys.readouterr()
+        assert "Unknown backup '%s' for server 'main'" % backup_id in err
 
 
 class TestKeepCli(object):

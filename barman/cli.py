@@ -48,6 +48,7 @@ from barman.infofile import BackupInfo, WalFileInfo
 from barman.server import Server
 from barman.utils import (
     BarmanEncoder,
+    check_backup_name,
     check_non_negative,
     check_positive,
     check_tli,
@@ -55,7 +56,9 @@ from barman.utils import (
     drop_privileges,
     force_str,
     get_log_levels,
+    is_backup_id,
     parse_log_level,
+    RESERVED_BACKUP_IDS,
     SHA256,
 )
 from barman.xlog import check_archive_usable
@@ -334,7 +337,7 @@ def backup_completer(prefix, parsed_args, **kwargs):
     for backup_id in sorted(backups, reverse=True):
         if backup_id.startswith(prefix):
             yield backup_id
-    for special_id in ("latest", "last", "oldest", "first", "last-failed"):
+    for special_id in RESERVED_BACKUP_IDS:
         if len(backups) > 0 and special_id.startswith(prefix):
             yield special_id
 
@@ -421,6 +424,14 @@ def backup_completer(prefix, parsed_args, **kwargs):
             default=None,
             type=check_non_negative,
         ),
+        argument(
+            "--name",
+            help="a name which can be used to reference this backup in barman "
+            "commands such as recover and delete",
+            dest="backup_name",
+            default=None,
+            type=check_backup_name,
+        ),
     ]
 )
 def backup(args):
@@ -452,7 +463,11 @@ def backup(args):
         if hasattr(args, "bwlimit"):
             server.config.bandwidth_limit = args.bwlimit
         with closing(server):
-            server.backup(wait=args.wait, wait_timeout=args.wait_timeout)
+            server.backup(
+                wait=args.wait,
+                wait_timeout=args.wait_timeout,
+                backup_name=args.backup_name,
+            )
     output.close_and_exit()
 
 
@@ -1494,7 +1509,9 @@ def verify_backup(args):
     # Raises an error if wrong backup
     backup_info = parse_backup_id(server, args)
     # get backup path
-    output.info("Verifying backup %s on server %s" % (args.backup_id, args.server_name))
+    output.info(
+        "Verifying backup '%s' on server %s" % (args.backup_id, args.server_name)
+    )
 
     server.backup_manager.verify_backup(backup_info)
     output.close_and_exit()
@@ -1528,7 +1545,7 @@ def generate_manifest(args):
     backup_manifest.create_backup_manifest()
 
     output.info(
-        "Backup manifest for backup %s successfully generated for server %s"
+        "Backup manifest for backup '%s' successfully generated for server %s"
         % (args.backup_id, args.server_name)
     )
     output.close_and_exit()
@@ -1939,8 +1956,10 @@ def parse_backup_id(server, args):
         backup_id = server.get_first_backup_id()
     elif args.backup_id in ("last-failed"):
         backup_id = server.get_last_backup_id([BackupInfo.FAILED])
-    else:
+    elif is_backup_id(args.backup_id):
         backup_id = args.backup_id
+    else:
+        backup_id = server.get_backup_id_from_name(args.backup_id)
     backup_info = server.get_backup(backup_id)
     if backup_info is None:
         output.error(
