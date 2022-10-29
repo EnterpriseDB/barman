@@ -1778,7 +1778,7 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
     # TODO obvious duplication with BackupManager.get_named_backup_id
     # they can both use a common function which is provided the list of
     # available backups, perhaps a custom logger object
-    def get_named_backup_info(self, backup_name):
+    def _get_named_backup_info(self, backup_name):
         """
         TODO
         """
@@ -1800,6 +1800,17 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         elif len(backup_infos) == 1:
             return backup_infos[0]
 
+    def parse_backup_id(self, backup_id):
+        """
+        TODO
+        """
+        if not is_backup_id(backup_id):
+            backup_info = self._get_named_backup_info(backup_id)
+            if backup_info is not None:
+                return backup_info.backup_id
+        else:
+            return backup_id
+
     def get_backup_info(self, backup_id):
         """
         Load a BackupInfo from cloud storage
@@ -1807,17 +1818,6 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         :param str backup_id: The backup id to load
         :rtype: BackupInfo
         """
-        # If we don't have a backup_id, resolve it to a backup_id.
-        # This is potentially expensive since we must read all the backup.info
-        # files.
-        # TODO this is also maybe not the best place to do this because this
-        # function can be called during a listing of the backups, but resolving
-        # the backup id requires listing the backup - if we end up with things
-        # that don't look like backup IDs in the bucket we will recurse forever
-        # while making cloud requests. Great for AWS, not so great for us.
-        if not is_backup_id(backup_id):
-            return self.get_named_backup_info(backup_id)
-
         backup_info_path = os.path.join(self.prefix, backup_id, "backup.info")
         backup_info_file = self.cloud_interface.remote_open(backup_info_path)
         if backup_info_file is None:

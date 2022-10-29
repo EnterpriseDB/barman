@@ -242,7 +242,7 @@ def main(args=None):
                 )
                 raise OperationErrorExit()
             if config.backup_id:
-                backup_id = catalog.get_named_backup_info(config.backup_id).backup_id
+                backup_id = catalog.parse_backup_id(config.backup_id)
                 # Because we only care about one backup, skip the annotation cache
                 # because it is only helpful when dealing with multiple backups
                 if catalog.should_keep_backup(backup_id, use_cache=False):

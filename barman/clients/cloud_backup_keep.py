@@ -56,7 +56,7 @@ def main(args=None):
                 raise OperationErrorExit()
 
             catalog = CloudBackupCatalog(cloud_interface, config.server_name)
-            backup_id = catalog.get_named_backup_info(config.backup_id).backup_id
+            backup_id = catalog.parse_backup_id(config.backup_id)
             if config.release:
                 catalog.release_keep(backup_id)
             elif config.status:

@@ -52,8 +52,12 @@ def main(args=None):
         cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
+            catalog = CloudBackupCatalog(cloud_interface, config.server_name)
+            backup_id = catalog.parse_backup_id(config.backup_id)
             downloader = CloudBackupDownloader(
-                cloud_interface=cloud_interface, server_name=config.server_name
+                cloud_interface=cloud_interface,
+                server_name=config.server_name,
+                catalog=catalog,
             )
 
             if not cloud_interface.test_connectivity():
@@ -67,7 +71,7 @@ def main(args=None):
                 raise OperationErrorExit()
 
             downloader.download_backup(
-                config.backup_id,
+                backup_id,
                 config.recovery_dir,
                 tablespace_map(config.tablespace),
             )
@@ -131,18 +135,19 @@ class CloudBackupDownloader(object):
     Cloud storage download client
     """
 
-    def __init__(self, cloud_interface, server_name):
+    def __init__(self, cloud_interface, server_name, catalog):
         """
         Object responsible for handling interactions with cloud storage
 
         :param CloudInterface cloud_interface: The interface to use to
           upload the backup
         :param str server_name: The name of the server as configured in Barman
+        :param CloudBackupCatalog catalog: The cloud backup catalog
         """
 
         self.cloud_interface = cloud_interface
         self.server_name = server_name
-        self.catalog = CloudBackupCatalog(cloud_interface, server_name)
+        self.catalog = catalog
 
     def download_backup(self, backup_id, destination_dir, tablespaces):
         """
