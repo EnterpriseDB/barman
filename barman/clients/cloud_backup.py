@@ -43,7 +43,7 @@ from barman.exceptions import (
     UnrecoverableHookScriptError,
 )
 from barman.postgres import PostgreSQLConnection
-from barman.utils import check_positive, check_size, force_str
+from barman.utils import check_backup_name, check_positive, check_size, force_str
 
 _find_space = re.compile(r"[\s]").search
 
@@ -137,6 +137,10 @@ def main(args=None):
                 "cloud_interface": cloud_interface,
             }
             if __is_hook_script():
+                if config.backup_name:
+                    raise BarmanException(
+                        "Cannot set backup name when running as a hook script"
+                    )
                 if "BARMAN_BACKUP_DIR" not in os.environ:
                     raise BarmanException(
                         "BARMAN_BACKUP_DIR environment variable not set"
@@ -172,7 +176,9 @@ def main(args=None):
 
                 with closing(postgres):
                     uploader = CloudBackupUploaderPostgres(
-                        postgres=postgres, **uploader_kwargs
+                        postgres=postgres,
+                        backup_name=config.backup_name,
+                        **uploader_kwargs
                     )
                     uploader.backup()
 
@@ -272,6 +278,15 @@ def parse_arguments(args=None):
         "--dbname",
         help="Database name or conninfo string for Postgres connection (default: postgres)",
         default="postgres",
+    )
+    parser.add_argument(
+        "-n",
+        "--name",
+        help="a name which can be used to reference this backup in commands "
+        "such as barman-cloud-restore and barman-cloud-backup-delete",
+        default=None,
+        type=check_backup_name,
+        dest="backup_name",
     )
     add_tag_argument(
         parser,

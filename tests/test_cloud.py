@@ -44,6 +44,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from barman.annotations import KeepManager
 from barman.cloud import (
     CloudBackupCatalog,
+    CloudBackupUploaderPostgres,
     CloudProviderError,
     CloudTarUploader,
     CloudUploadingError,
@@ -2822,8 +2823,14 @@ end_time=2014-12-22 09:25:27.410470+01:00
                 except KeyError:
                     pass
 
-        def list_bucket(prefix, delimiter=""):
-            return in_memory_object_store.keys()
+        def list_bucket(prefix, delimiter="/"):
+            for key in in_memory_object_store.keys():
+                if len(delimiter) > 0:
+                    tokens = key.split(delimiter)
+                    if len(tokens) > 1:
+                        for i in range(1, len(tokens)):
+                            yield delimiter.join(tokens[:i]) + "/"
+                yield key
 
         cloud_interface_mock.upload_fileobj.side_effect = upload_fileobj
         cloud_interface_mock.remote_open.side_effect = remote_open
@@ -2874,6 +2881,61 @@ end_time=2014-12-22 09:25:27.410470+01:00
         assert catalog.should_keep_backup(test_backup_id) is False
         # And the recovery target is None again
         assert catalog.get_keep_target(test_backup_id) is None
+
+    @pytest.fixture
+    def catalog_with_named_backup(self, in_memory_cloud_interface):
+        backup_infos = {
+            "20221107T120000": BytesIO(
+                b"""backup_label=None
+end_time=2022-11-07 12:05:00
+backup_name=named backup
+"""
+            ),
+            "20221109T120000": BytesIO(
+                b"""backup_label=None
+end_time=2022-11-09 12:05:00
+"""
+            ),
+        }
+        in_memory_cloud_interface.path = ""
+        for id, backup_info in backup_infos.items():
+            in_memory_cloud_interface.upload_fileobj(
+                backup_info, "test-server/base/%s/backup.info" % id
+            )
+        return CloudBackupCatalog(in_memory_cloud_interface, "test-server")
+
+    @pytest.mark.parametrize(
+        ("backup_id", "expected_backup_id"),
+        (
+            # Backup names should resolve to the ID of the backup which has that name
+            ("named backup", "20221107T120000"),
+            # The backup ID should resolve to itself
+            ("20221109T120000", "20221109T120000"),
+        ),
+    )
+    def test_parse_backup_id(
+        self, backup_id, expected_backup_id, catalog_with_named_backup
+    ):
+        # GIVEN a cloud object store with two backups
+        # WHEN parse_backup_id is called with a matching backup ID or name
+        # THEN the returned backup ID should match the expected backup ID
+        assert (
+            catalog_with_named_backup.parse_backup_id(backup_id) == expected_backup_id
+        )
+
+    def test_parse_backup_id_no_match(self, catalog_with_named_backup):
+        # GIVEN a cloud object store with two backups
+        # WHEN parse_backup_id is called with a name which does not match
+        backup_name = "non-matching name"
+
+        # THEN a ValueError is raised
+        with pytest.raises(ValueError) as exc:
+            catalog_with_named_backup.parse_backup_id(backup_name)
+
+        # AND the exception message describes the problem
+        assert "Unknown backup '%s' for server 'test-server'" % backup_name in str(
+            exc.value
+        )
 
 
 class TestCloudTarUploader(object):
@@ -2934,3 +2996,91 @@ class TestCloudTarUploader(object):
                 tf.extractall(path=dest_path)
                 with open(os.path.join(dest_path, src_file), "r") as result:
                     assert result.read() == content
+
+
+class TestCloudBackupUploaderPostgres(object):
+    """Tests for the CloudBackupUploaderPostgres class."""
+
+    server_name = "test_server"
+
+    @pytest.mark.parametrize("backup_should_fail", (False, True))
+    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._backup_copy")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
+    def test_backup_with_name(
+        self,
+        mock_backup_info,
+        _mock_backup_strategy,
+        _mock_backup_copy,
+        _mock_create_upload_controller,
+        backup_should_fail,
+    ):
+        """Verifies backup name is added to backup info if it is set."""
+        # GIVEN a CloudBackupUploaderPostgres with a specified backup_name
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=999999, MIN_CHUNK_SIZE=2)
+        mock_postgres = MagicMock()
+        mock_backup_info.return_value.backup_label = None
+        backup_name = "nyy lbhe onfr"
+        uploader = CloudBackupUploaderPostgres(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            mock_postgres,
+            backup_name=backup_name,
+        )
+        uploader.copy_start_time = datetime.datetime.now()
+
+        # WHEN backup is called and it either succeeds or fails
+        if backup_should_fail:
+            _mock_backup_copy.side_effect = Exception("failed!")
+            with pytest.raises(SystemExit):
+                uploader.backup()
+        else:
+            uploader.backup()
+
+        # THEN the backup_name was set on the backup info
+        mock_backup_info.return_value.set_attribute.assert_called_with(
+            "backup_name", backup_name
+        )
+
+    @pytest.mark.parametrize("backup_should_fail", (False, True))
+    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._backup_copy")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
+    def test_backup_with_no_name(
+        self,
+        mock_backup_info,
+        _mock_backup_strategy,
+        _mock_backup_copy,
+        _mock_create_upload_controller,
+        backup_should_fail,
+    ):
+        """Verifies backup name is added to backup info if it is set."""
+        # GIVEN a CloudBackupUploaderPostgres with no specified backup_name
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=999999, MIN_CHUNK_SIZE=2)
+        mock_postgres = MagicMock()
+        mock_backup_info.return_value.backup_label = None
+        uploader = CloudBackupUploaderPostgres(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            mock_postgres,
+        )
+        uploader.copy_start_time = datetime.datetime.now()
+
+        # WHEN backup is called and it either succeeds or fails
+        if backup_should_fail:
+            _mock_backup_copy.side_effect = Exception("failed!")
+            with pytest.raises(SystemExit):
+                uploader.backup()
+        else:
+            uploader.backup()
+
+        # THEN the backup_name was not set on the backup info
+        backup_info_attrs_set = [
+            arg[0][0]
+            for arg in mock_backup_info.return_value.set_attribute.call_args_list
+        ]
+        assert not any([attr == "backup_name" for attr in backup_info_attrs_set])

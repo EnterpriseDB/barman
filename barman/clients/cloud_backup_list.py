@@ -64,10 +64,14 @@ def main(args=None):
 
             # Output
             if config.format == "console":
-                COLUMNS = "{:<20}{:<25}{:<30}{:<16}"
+                COLUMNS = "{:<20}{:<25}{:<30}{:<17}{:<20}"
                 print(
                     COLUMNS.format(
-                        "Backup ID", "End Time", "Begin Wal", "Archival Status"
+                        "Backup ID",
+                        "End Time",
+                        "Begin Wal",
+                        "Archival Status",
+                        "Name",
                     )
                 )
                 for backup_id in sorted(backup_list):
@@ -83,6 +87,7 @@ def main(args=None):
                                 item.end_time.strftime("%Y-%m-%d %H:%M:%S"),
                                 item.begin_wal,
                                 keep_status,
+                                item.backup_name or "",
                             )
                         )
             else:

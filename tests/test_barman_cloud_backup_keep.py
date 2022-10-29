@@ -142,8 +142,10 @@ class TestCloudBackupKeep(object):
         cloud_backup_catalog = mock.Mock()
         mock_backup_info = mock.Mock()
         mock_backup_info.backup_id = "test_backup_id"
+        mock_backup_info.backup_name = "backup name"
         mock_backup_info.status = BackupInfo.DONE
         cloud_backup_catalog.get_backup_info.return_value = mock_backup_info
+        cloud_backup_catalog.parse_backup_id.return_value = mock_backup_info.backup_id
         return cloud_backup_catalog
 
     @mock.patch("barman.clients.cloud_backup_keep.CloudBackupCatalog")
@@ -162,6 +164,29 @@ class TestCloudBackupKeep(object):
                 "standalone",
             ]
         )
+        cloud_backup_catalog.keep_backup.assert_called_once_with(
+            "test_backup_id", "standalone"
+        )
+
+    @mock.patch("barman.clients.cloud_backup_keep.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_keep.get_cloud_interface")
+    def test_barman_keep_backup_name(
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, cloud_backup_catalog
+    ):
+        """Verify keep command backup name resolves to expected backup ID"""
+        # GIVEN a backup catalog
+        cloud_backup_catalog_mock.return_value = cloud_backup_catalog
+        # WHEN barman-cloud-backup-keep is called with a backup name
+        cloud_backup_keep.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                "backup name",
+                "--target",
+                "standalone",
+            ]
+        )
+        # THEN keep_backup is called using the backup ID to which the name resolves
         cloud_backup_catalog.keep_backup.assert_called_once_with(
             "test_backup_id", "standalone"
         )
@@ -199,9 +224,10 @@ class TestCloudBackupKeep(object):
     @mock.patch("barman.clients.cloud_backup_keep.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_keep.get_cloud_interface")
     def test_barman_keep_release(
-        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, cloud_backup_catalog
     ):
         """Verify keep command with --release calls remove_backup"""
+        cloud_backup_catalog_mock.return_value = cloud_backup_catalog
         cloud_backup_keep.main(
             [
                 "cloud_storage_url",
@@ -210,16 +236,19 @@ class TestCloudBackupKeep(object):
                 "--release",
             ]
         )
-        cloud_backup_catalog = cloud_backup_catalog_mock.return_value
         cloud_backup_catalog.release_keep.assert_called_once_with("test_backup_id")
 
     @mock.patch("barman.clients.cloud_backup_keep.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_keep.get_cloud_interface")
     def test_barman_keep_status(
-        self, get_cloud_interface_mock, cloud_backup_catalog_mock, capsys
+        self,
+        get_cloud_interface_mock,
+        cloud_backup_catalog_mock,
+        cloud_backup_catalog,
+        capsys,
     ):
         """Verify keep --status prints get_keep_target_output"""
-        cloud_backup_catalog = cloud_backup_catalog_mock.return_value
+        cloud_backup_catalog_mock.return_value = cloud_backup_catalog
         cloud_backup_catalog.get_keep_target.return_value = (
             KeepManager.TARGET_STANDALONE
         )
@@ -238,10 +267,15 @@ class TestCloudBackupKeep(object):
     @mock.patch("barman.clients.cloud_backup_keep.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_keep.get_cloud_interface")
     def test_barman_keep_status_nokeep(
-        self, get_cloud_interface_mock, cloud_backup_catalog_mock, capsys
+        self,
+        get_cloud_interface_mock,
+        cloud_backup_catalog_mock,
+        cloud_backup_catalog,
+        capsys,
     ):
         """Verify keep --status prints get_keep_target_output"""
-        cloud_backup_catalog = cloud_backup_catalog_mock.return_value
+        cloud_backup_catalog_mock.return_value = cloud_backup_catalog
+        cloud_backup_catalog.parse_backup_id.return_value = "test_backup_id"
         cloud_backup_catalog.get_keep_target.return_value = None
         cloud_backup_keep.main(
             [
