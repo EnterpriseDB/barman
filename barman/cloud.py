@@ -43,7 +43,9 @@ from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.utils import (
     BarmanEncoder,
     force_str,
+    get_backup_info_from_name,
     human_readable_timedelta,
+    is_backup_id,
     pretty_size,
     range_fun,
     total_seconds,
@@ -1474,6 +1476,7 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
         max_archive_size,
         postgres,
         compression=None,
+        backup_name=None,
     ):
         super(CloudBackupUploaderPostgres, self).__init__(
             server_name,
@@ -1482,6 +1485,7 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
             compression=compression,
         )
         self.postgres = postgres
+        self.backup_name = backup_name
 
     def _get_tablespace_location(self, tablespace):
         """
@@ -1610,6 +1614,10 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
             self.handle_backup_errors("uploading data", exc, backup_info)
             raise SystemExit(1)
         finally:
+            # Add the name to the backup info
+            if self.backup_name is not None:
+                backup_info.set_attribute("backup_name", self.backup_name)
+
             try:
                 with BytesIO() as backup_info_file:
                     backup_info.save(file_object=backup_info_file)
@@ -1768,6 +1776,37 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         """
         if self._wal_paths:
             self._wal_paths.pop(wal_name)
+
+    def _get_backup_info_from_name(self, backup_name):
+        """
+        Get the backup metadata for the named backup.
+
+        :param str backup_name: The name of the backup for which the backup metadata
+            should be retrieved
+        :return BackupInfo|None: The backup metadata for the named backup
+        """
+        available_backups = self.get_backup_list().values()
+        return get_backup_info_from_name(available_backups, backup_name)
+
+    def parse_backup_id(self, backup_id):
+        """
+        Parse a backup identifier and return the matching backup ID. If the identifier
+        is a backup ID it is returned, otherwise it is assumed to be a name.
+
+        :param str backup_id: The backup identifier to be parsed
+        :return str: The matching backup ID for the supplied identifier
+        """
+        if not is_backup_id(backup_id):
+            backup_info = self._get_backup_info_from_name(backup_id)
+            if backup_info is not None:
+                return backup_info.backup_id
+            else:
+                raise ValueError(
+                    "Unknown backup '%s' for server '%s'"
+                    % (backup_id, self.server_name)
+                )
+        else:
+            return backup_id
 
     def get_backup_info(self, backup_id):
         """

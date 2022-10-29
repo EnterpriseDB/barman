@@ -42,7 +42,7 @@ usage: barman-cloud-backup [-V] [--help] [-v | -q] [-t]
                            [--credential {azure-cli,managed-identity}]
                            [-z | -j | --snappy] [-h HOST] [-p PORT] [-U USER]
                            [--immediate-checkpoint] [-J JOBS]
-                           [-S MAX_ARCHIVE_SIZE] [-d DBNAME]
+                           [-S MAX_ARCHIVE_SIZE] [-d DBNAME] [-n BACKUP_NAME]
                            [--tags [TAGS [TAGS ...]]] [-e {AES256,aws:kms}]
                            [--encryption-scope ENCRYPTION_SCOPE]
                            destination_url server_name
@@ -84,6 +84,10 @@ optional arguments:
   -d DBNAME, --dbname DBNAME
                         Database name or conninfo string for Postgres
                         connection (default: postgres)
+  -n BACKUP_NAME, --name BACKUP_NAME
+                        a name which can be used to reference this backup in
+                        commands such as barman-cloud-restore and barman-
+                        cloud-backup-delete
   --tags [TAGS [TAGS ...]]
                         Tags to be added to all uploaded files in cloud
                         storage

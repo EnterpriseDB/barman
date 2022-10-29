@@ -238,23 +238,21 @@ def main(args=None):
                     % catalog.unreadable_backups
                 )
                 raise OperationErrorExit()
-
             if config.backup_id:
+                backup_id = catalog.parse_backup_id(config.backup_id)
                 # Because we only care about one backup, skip the annotation cache
                 # because it is only helpful when dealing with multiple backups
-                if catalog.should_keep_backup(config.backup_id, use_cache=False):
+                if catalog.should_keep_backup(backup_id, use_cache=False):
                     logging.error(
                         "Skipping delete of backup %s for server %s "
                         "as it has a current keep request. If you really "
                         "want to delete this backup please remove the keep "
                         "and try again.",
-                        config.backup_id,
+                        backup_id,
                         config.server_name,
                     )
                     raise OperationErrorExit()
-                _delete_backup(
-                    cloud_interface, catalog, config.backup_id, config.dry_run
-                )
+                _delete_backup(cloud_interface, catalog, backup_id, config.dry_run)
             elif config.retention_policy:
                 try:
                     retention_policy = RetentionPolicyFactory.create(
