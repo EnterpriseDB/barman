@@ -44,6 +44,7 @@ from barman.utils import (
     BarmanEncoder,
     force_str,
     human_readable_timedelta,
+    is_backup_id,
     pretty_size,
     range_fun,
     total_seconds,
@@ -1474,6 +1475,7 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
         max_archive_size,
         postgres,
         compression=None,
+        backup_name=None,
     ):
         super(CloudBackupUploaderPostgres, self).__init__(
             server_name,
@@ -1482,6 +1484,7 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
             compression=compression,
         )
         self.postgres = postgres
+        self.backup_name = backup_name
 
     def _get_tablespace_location(self, tablespace):
         """
@@ -1602,6 +1605,9 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
 
             # Set the backup status as DONE
             backup_info.set_attribute("status", BackupInfo.DONE)
+
+            # Add the name to the backup info
+            backup_info.set_attribute("backup_name", self.backup_name)
 
         # Use BaseException instead of Exception to catch events like
         # KeyboardInterrupt (e.g.: CTRL-C)
@@ -1769,6 +1775,31 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         if self._wal_paths:
             self._wal_paths.pop(wal_name)
 
+    # TODO obvious duplication with BackupManager.get_named_backup_id
+    # they can both use a common function which is provided the list of
+    # available backups, perhaps a custom logger object
+    def get_named_backup_info(self, backup_name):
+        """
+        TODO
+        """
+        backups = self.get_backup_list()
+
+        backup_infos = [
+            backup_info
+            for backup_info in backups.values()
+            if backup_info.backup_name == backup_name
+        ]
+        if len(backup_infos) > 1:
+            msg = (
+                "Multiple backups found matching name %s "
+                "(please specify by backup ID instead): %s",
+                backup_name,
+                [backup_info.backup_id for backup_info in backup_infos],
+            )
+            raise Exception(msg)
+        elif len(backup_infos) == 1:
+            return backup_infos[0]
+
     def get_backup_info(self, backup_id):
         """
         Load a BackupInfo from cloud storage
@@ -1776,6 +1807,17 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         :param str backup_id: The backup id to load
         :rtype: BackupInfo
         """
+        # If we don't have a backup_id, resolve it to a backup_id.
+        # This is potentially expensive since we must read all the backup.info
+        # files.
+        # TODO this is also maybe not the best place to do this because this
+        # function can be called during a listing of the backups, but resolving
+        # the backup id requires listing the backup - if we end up with things
+        # that don't look like backup IDs in the bucket we will recurse forever
+        # while making cloud requests. Great for AWS, not so great for us.
+        if not is_backup_id(backup_id):
+            return self.get_named_backup_info(backup_id)
+
         backup_info_path = os.path.join(self.prefix, backup_id, "backup.info")
         backup_info_file = self.cloud_interface.remote_open(backup_info_path)
         if backup_info_file is None:

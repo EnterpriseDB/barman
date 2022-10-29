@@ -170,6 +170,9 @@ def _delete_backup(
     if not backup_info:
         logging.warning("Backup %s does not exist", backup_id)
         return
+    # TODO need to update backup_id here since if it was a name we must use
+    # the resolved name later - bit ugly
+    backup_id = backup_info.backup_id
     objects_to_delete = _get_files_for_backup(catalog, backup_info)
     backup_info_path = os.path.join(
         catalog.prefix, backup_info.backup_id, "backup.info"
@@ -238,23 +241,21 @@ def main(args=None):
                     % catalog.unreadable_backups
                 )
                 raise OperationErrorExit()
-
             if config.backup_id:
+                backup_id = catalog.get_named_backup_info(config.backup_id).backup_id
                 # Because we only care about one backup, skip the annotation cache
                 # because it is only helpful when dealing with multiple backups
-                if catalog.should_keep_backup(config.backup_id, use_cache=False):
+                if catalog.should_keep_backup(backup_id, use_cache=False):
                     logging.error(
                         "Skipping delete of backup %s for server %s "
                         "as it has a current keep request. If you really "
                         "want to delete this backup please remove the keep "
                         "and try again.",
-                        config.backup_id,
+                        backup_id,
                         config.server_name,
                     )
                     raise OperationErrorExit()
-                _delete_backup(
-                    cloud_interface, catalog, config.backup_id, config.dry_run
-                )
+                _delete_backup(cloud_interface, catalog, backup_id, config.dry_run)
             elif config.retention_policy:
                 try:
                     retention_policy = RetentionPolicyFactory.create(

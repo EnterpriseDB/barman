@@ -56,23 +56,24 @@ def main(args=None):
                 raise OperationErrorExit()
 
             catalog = CloudBackupCatalog(cloud_interface, config.server_name)
+            backup_id = catalog.get_named_backup_info(config.backup_id).backup_id
             if config.release:
-                catalog.release_keep(config.backup_id)
+                catalog.release_keep(backup_id)
             elif config.status:
-                target = catalog.get_keep_target(config.backup_id)
+                target = catalog.get_keep_target(backup_id)
                 if target:
                     print("Keep: %s" % target)
                 else:
                     print("Keep: nokeep")
             else:
-                backup_info = catalog.get_backup_info(config.backup_id)
+                backup_info = catalog.get_backup_info(backup_id)
                 if backup_info.status == BackupInfo.DONE:
-                    catalog.keep_backup(config.backup_id, config.target)
+                    catalog.keep_backup(backup_id, config.target)
                 else:
                     logging.error(
                         "Cannot add keep to backup %s because it has status %s. "
                         "Only backups with status DONE can be kept.",
-                        config.backup_id,
+                        backup_id,
                         backup_info.status,
                     )
                     raise OperationErrorExit()
