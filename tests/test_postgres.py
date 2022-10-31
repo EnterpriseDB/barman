@@ -1735,6 +1735,9 @@ class TestStreamingConnection(object):
 
 
 class TestStandbyPostgreSQLConnection(object):
+    _standby_conninfo = "db=standby"
+    _primary_conninfo = "db=primary"
+
     @patch("barman.postgres.PostgreSQLConnection")
     @patch("barman.postgres.super")
     def test_close(self, mock_super, mock_psql_conn):
@@ -1743,7 +1746,9 @@ class TestStandbyPostgreSQLConnection(object):
         mock_standby_conn = mock_super.return_value
         mock_standby_conn.close = Mock()
         mock_primary_conn = mock_psql_conn.return_value
-        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+        standby = StandbyPostgreSQLConnection(
+            self._standby_conninfo, self._primary_conninfo
+        )
 
         # WHEN the connection is closed
         standby.close()
@@ -1762,7 +1767,9 @@ class TestStandbyPostgreSQLConnection(object):
         mock_standby_conn = mock_super.return_value
         mock_standby_conn.switch_wal = Mock()
         mock_primary_conn = mock_psql_conn.return_value
-        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+        standby = StandbyPostgreSQLConnection(
+            self._standby_conninfo, self._primary_conninfo
+        )
 
         # WHEN switch_wal is called
         standby.switch_wal()
@@ -1776,17 +1783,31 @@ class TestStandbyPostgreSQLConnection(object):
     @patch("barman.postgres.PostgreSQLConnection")
     @patch("barman.postgres.super")
     def test_switch_wal_in_background(self, _mock_super, mock_psql_conn):
-        """Verify switch_wal_in_background runs until times are exceeded"""
+        """
+        Verify switch_wal_in_background runs the expected number of times and
+        uses the primary connection in the child process not the parent process.
+        """
         # GIVEN a connection to a standby PostgreSQL instance
-        mock_primary_conn = mock_psql_conn.return_value
-        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+        main_proc_primary_conn = Mock()
+        child_proc_primary_conn = Mock()
+        mock_psql_conn.side_effect = [main_proc_primary_conn, child_proc_primary_conn]
+        standby = StandbyPostgreSQLConnection(
+            self._standby_conninfo, self._primary_conninfo
+        )
 
         # WHEN switch_wal_in_background is called with times=2
         times = 2
         standby.switch_wal_in_background(Queue(), times, 0)
 
-        # THEN switch_wal is called on the primary exactly two times
-        assert mock_primary_conn.switch_wal.call_count == times
+        # THEN switch_wal is called on the primary conn in the child process
+        # exactly twice
+        assert child_proc_primary_conn.switch_wal.call_count == times
+
+        # AND switch_wal is not called on the primary conn in the parent process
+        assert main_proc_primary_conn.switch_wal.call_count == 0
+
+        # AND the child process primary conn was closed
+        child_proc_primary_conn.close.assert_called_once()
 
     @patch("barman.postgres.PostgreSQLConnection")
     @patch("barman.postgres.super")
@@ -1794,7 +1815,9 @@ class TestStandbyPostgreSQLConnection(object):
         """Verify switch_wal_in_background runs until times are exceeded"""
         # GIVEN a connection to a standby PostgreSQL instance
         mock_primary_conn = mock_psql_conn.return_value
-        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+        standby = StandbyPostgreSQLConnection(
+            self._standby_conninfo, self._primary_conninfo
+        )
         # AND a queue where the first message is the request to stop
         queue = Queue()
         queue.put(True)
@@ -1814,7 +1837,9 @@ class TestStandbyPostgreSQLConnection(object):
         """Verify switch_wal_in_background runs until times are exceeded"""
         # GIVEN a connection to a standby PostgreSQL instance
         mock_primary_conn = mock_psql_conn.return_value
-        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+        standby = StandbyPostgreSQLConnection(
+            self._standby_conninfo, self._primary_conninfo
+        )
         # AND a queue where the second message is the request to stop
         # Note: We use a synchronous Queue rather than the multiprocessing
         # version so that the behaviour of the function under test is deterministic.
@@ -1844,8 +1869,9 @@ class TestStandbyPostgreSQLConnection(object):
         mock_standby_conn = mock_super.return_value
         setattr(mock_standby_conn, stop_fun, Mock())
         mock_done_q = mock_queue.return_value
-        mock_primary_conn = mock_psql_conn.return_value
-        standby = StandbyPostgreSQLConnection("db=standby", mock_primary_conn)
+        standby = StandbyPostgreSQLConnection(
+            self._standby_conninfo, self._primary_conninfo
+        )
 
         # WHEN stop_concurrent_backup is called
         getattr(standby, stop_fun)()
