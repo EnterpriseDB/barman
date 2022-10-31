@@ -1563,7 +1563,7 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
     def __init__(
         self,
         conninfo,
-        primary_conn,
+        primary_conninfo,
         immediate_checkpoint=False,
         slot_name=None,
         application_name="barman",
@@ -1572,7 +1572,7 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
         Standby PostgreSQL connection constructor.
 
         :param str conninfo: Connection information (aka DSN) for the standby.
-        :param barman.postgres.PostgreSQLConnection primary_conn: Connection to the
+        :param str primary_conninfo: Connection information (aka DSN) for the
             primary.
         :param bool immediate_checkpoint: Whether to do an immediate checkpoint
             when a backup is started.
@@ -1587,7 +1587,10 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
         )
         # The standby connection has its own connection object used to talk to the
         # primary when switching WALs.
-        self.primary = primary_conn
+        self.primary_conninfo = primary_conninfo
+        # The standby needs a connection to the primary so that it can
+        # perform WAL switches itself when calling pg_backup_stop.
+        self.primary = PostgreSQLConnection(self.primary_conninfo)
 
     def close(self):
         """Close the connection to PostgreSQL."""
@@ -1616,6 +1619,9 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
             performed.
         :param int wait: The number of seconds to wait between WAL switches.
         """
+        # Use a new connection to prevent undefined behaviour
+        self.primary = PostgreSQLConnection(self.primary_conninfo)
+
         # The stop backup call on the standby may have already completed by this
         # point so check whether we have been told to stop.
         try:
@@ -1623,19 +1629,23 @@ class StandbyPostgreSQLConnection(PostgreSQLConnection):
                 return
         except Empty:
             pass
-        # Start calling pg_switch_wal on the primary until we either read something
-        # from the done queue or we exceed the number of WAL switches we are allowed.
-        for _ in range(0, times):
-            self.switch_wal()
-            # See if we have been told to stop. We use the wait value as our timeout
-            # so that we can exit immediately if we receive a stop message or proceed
-            # to another WAL switch if the wait time is exceeded.
-            try:
-                if done_q.get(timeout=wait):
-                    return
-            except Empty:
-                # An empty queue just means we haven't yet been told to stop
-                pass
+        try:
+            # Start calling pg_switch_wal on the primary until we either read something
+            # from the done queue or we exceed the number of WAL switches we are allowed.
+            for _ in range(0, times):
+                self.switch_wal()
+                # See if we have been told to stop. We use the wait value as our timeout
+                # so that we can exit immediately if we receive a stop message or proceed
+                # to another WAL switch if the wait time is exceeded.
+                try:
+                    if done_q.get(timeout=wait):
+                        return
+                except Empty:
+                    # An empty queue just means we haven't yet been told to stop
+                    pass
+        finally:
+            # Close the connection since only this subprocess will ever use it
+            self.primary.close()
 
     def _start_wal_switch(self):
         """Start switching WALs in a child process."""
