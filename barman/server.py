@@ -290,14 +290,9 @@ class Server(RemoteStatusMixin):
                 )
             # If primary_conninfo is set then we're connecting to a standby
             if config.primary_conninfo is not None:
-                # The standby needs a connection to the primary so that it can
-                # perform WAL switches itself when calling pg_backup_stop.
-                primary = PostgreSQLConnection(
-                    config.primary_conninfo,
-                )
                 self.postgres = StandbyPostgreSQLConnection(
                     config.conninfo,
-                    primary,
+                    config.primary_conninfo,
                     config.immediate_checkpoint,
                     config.slot_name,
                 )
