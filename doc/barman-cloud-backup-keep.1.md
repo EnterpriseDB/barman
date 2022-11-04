@@ -22,76 +22,61 @@ This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 
 
-# POSITIONAL ARGUMENTS
+# Usage
+```
+usage: barman-cloud-backup-keep [-V] [--help] [-v | -q] [-t]
+                                [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
+                                [--endpoint-url ENDPOINT_URL] [-P PROFILE]
+                                [--read-timeout READ_TIMEOUT]
+                                [--credential {azure-cli,managed-identity}]
+                                (-r | -s | --target {full,standalone})
+                                source_url server_name backup_id
 
-SOURCE_URL
-:    URL of the cloud source, such as a bucket in AWS S3.
-     For example: `s3://BUCKET_NAME/path/to/folder` (where `BUCKET_NAME`
-     is the bucket you have created in AWS).
+This script can be used to tag backups in cloud storage as archival backups
+such that they will not be deleted. Currently AWS S3, Azure Blob Storage and
+Google Cloud Storage are supported.
 
-SERVER_NAME
-:    the name of the server as configured in Barman.
+positional arguments:
+  source_url            URL of the cloud source, such as a bucket in AWS S3.
+                        For example: `s3://bucket/path/to/folder`.
+  server_name           the name of the server as configured in Barman.
+  backup_id             the backup ID of the backup to be kept
 
-BACKUP_ID
-:    a valid Backup ID for a backup in cloud storage
+optional arguments:
+  -V, --version         show program's version number and exit
+  --help                show this help message and exit
+  -v, --verbose         increase output verbosity (e.g., -vv is more than -v)
+  -q, --quiet           decrease output verbosity (e.g., -qq is less than -q)
+  -t, --test            Test cloud connectivity and exit
+  --cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
+                        The cloud provider to use as a storage backend
+  -r, --release         If specified, the command will remove the keep
+                        annotation and the backup will be eligible for
+                        deletion
+  -s, --status          Print the keep status of the backup
+  --target {full,standalone}
+                        Specify the recovery target for this backup
 
-# OPTIONS
+Extra options for the aws-s3 cloud provider:
+  --endpoint-url ENDPOINT_URL
+                        Override default S3 endpoint URL with the given one
+  -P PROFILE, --profile PROFILE
+                        profile name (e.g. INI section in AWS credentials
+                        file)
+  --read-timeout READ_TIMEOUT
+                        the time in seconds until a timeout is raised when
+                        waiting to read from a connection (defaults to 60
+                        seconds)
 
--h, --help
-:    show a help message and exit
-
--V, --version
-:    show program's version number and exit
-
--v, --verbose
-:    increase output verbosity (e.g., -vv is more than -v)
-
--q, --quiet
-:    decrease output verbosity (e.g., -qq is less than -q)
-
--t, --test
-:    test connectivity to the cloud destination and exit
-
---target *RECOVERY_TARGET*
-:   Specify the recovery target for the archival backup.
-    Possible values for *RECOVERY_TARGET* are:
-
-      - *full*: The backup can always be used to recover to the latest point
-        in time. To achieve this, Barman will retain all WALs needed to
-        ensure consistency of the backup and all subsequent WALs.
-      - *standalone*: The backup can only be used to recover the server to
-        its state at the time the backup was taken. Barman will only retain
-        the WALs needed to ensure consistency of the backup.
-
--s, --status
-:   Report the archival status of the backup. This will either be the
-    recovery target of *full* or *standalone* for archival backups or
-    *nokeep* for backups which have not been flagged as archival.
-
--r, --release
-:   Release the keep flag from this backup. This will remove its archival
-    status and make it available for deletion, either directly or by
-    retention policy.
-
---cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
-:    the cloud provider to which the backup should be uploaded
-
--P, --profile
-:    profile name (e.g. INI section in AWS credentials file)
-
---endpoint-url
-:    override the default S3 URL construction mechanism by specifying an endpoint.
-
---read-timeout *TIMEOUT*
-:    the time in seconds until a timeout is raised when waiting to read from a
-     connection to AWS S3 (defaults to 60 seconds)
-
---credential {azure-cli,managed-identity}
-:    optionally specify the type of credential to use when authenticating with
-     Azure Blob Storage. If omitted then the credential will be obtained from the
-     environment. If no credentials can be found in the environment then the default
-     Azure authentication flow will be used.
-
+Extra options for the azure-blob-storage cloud provider:
+  --credential {azure-cli,managed-identity}
+                        Optionally specify the type of credential to use when
+                        authenticating with Azure Blob Storage. If omitted
+                        then the credential will be obtained from the
+                        environment. If no credentials can be found in the
+                        environment then the default Azure authentication flow
+                        will be used
+```
 # REFERENCES
 
 For Boto:

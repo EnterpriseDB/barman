@@ -22,62 +22,58 @@ This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 
 
-# POSITIONAL ARGUMENTS
+# Usage
+```
+usage: barman-cloud-restore [-V] [--help] [-v | -q] [-t]
+                            [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
+                            [--endpoint-url ENDPOINT_URL] [-P PROFILE]
+                            [--read-timeout READ_TIMEOUT]
+                            [--credential {azure-cli,managed-identity}]
+                            [--tablespace NAME:LOCATION]
+                            source_url server_name backup_id recovery_dir
 
-SOURCE_URL
-:    URL of the cloud source, such as a bucket in AWS S3.
-     For example: `s3://BUCKET_NAME/path/to/folder` (where `BUCKET_NAME`
-     is the bucket you have created in AWS).
+This script can be used to download a backup previously made with barman-
+cloud-backup command.Currently AWS S3, Azure Blob Storage and Google Cloud
+Storage are supported.
 
-SERVER_NAME
-:    the name of the server as configured in Barman.
+positional arguments:
+  source_url            URL of the cloud source, such as a bucket in AWS S3.
+                        For example: `s3://bucket/path/to/folder`.
+  server_name           the name of the server as configured in Barman.
+  backup_id             the backup ID
+  recovery_dir          the path to a directory for recovery.
 
-BACKUP_ID
-:    the ID of the backup to restore
+optional arguments:
+  -V, --version         show program's version number and exit
+  --help                show this help message and exit
+  -v, --verbose         increase output verbosity (e.g., -vv is more than -v)
+  -q, --quiet           decrease output verbosity (e.g., -qq is less than -q)
+  -t, --test            Test cloud connectivity and exit
+  --cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
+                        The cloud provider to use as a storage backend
+  --tablespace NAME:LOCATION
+                        tablespace relocation rule
 
-RECOVERY_DIR
-:    the path to a local directory for recovery (used as PGDATA).
+Extra options for the aws-s3 cloud provider:
+  --endpoint-url ENDPOINT_URL
+                        Override default S3 endpoint URL with the given one
+  -P PROFILE, --profile PROFILE
+                        profile name (e.g. INI section in AWS credentials
+                        file)
+  --read-timeout READ_TIMEOUT
+                        the time in seconds until a timeout is raised when
+                        waiting to read from a connection (defaults to 60
+                        seconds)
 
-# OPTIONS
-
--h, --help
-:    show a help message and exit
-
--V, --version
-:    show program's version number and exit
-
--v, --verbose
-:    increase output verbosity (e.g., -vv is more than -v)
-
--q, --quiet
-:    decrease output verbosity (e.g., -qq is less than -q)
-
--t, --test
-:    test connectivity to the cloud destination and exit
-
---tablespace NAME:LOCATION
-: extract the named tablespace to the given directory instead of its
-original location (you may repeat the option for multiple tablespaces)
-
---cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
-:    the cloud provider to which the backup should be uploaded
-
--P, --profile
-:    profile name (e.g. INI section in AWS credentials file)
-
---endpoint-url
-:    override the default S3 URL construction mechanism by specifying an endpoint.
-
---read-timeout *TIMEOUT*
-:    the time in seconds until a timeout is raised when waiting to read from a
-     connection to AWS S3 (defaults to 60 seconds)
-
---credential {azure-cli,managed-identity}
-:    optionally specify the type of credential to use when authenticating with
-     Azure Blob Storage. If omitted then the credential will be obtained from the
-     environment. If no credentials can be found in the environment then the default
-     Azure authentication flow will be used.
-
+Extra options for the azure-blob-storage cloud provider:
+  --credential {azure-cli,managed-identity}
+                        Optionally specify the type of credential to use when
+                        authenticating with Azure Blob Storage. If omitted
+                        then the credential will be obtained from the
+                        environment. If no credentials can be found in the
+                        environment then the default Azure authentication flow
+                        will be used
+```
 # REFERENCES
 
 For Boto:

@@ -458,8 +458,7 @@ Requires PostgreSQL 10 or above.
 .TP
 .B \-\-target\-name \f[I]TARGET_NAME\f[]
 Recover to the named restore point previously created with the
-\f[C]pg_create_restore_point(name)\f[] (for PostgreSQL 9.1 and above
-users).
+\f[C]pg_create_restore_point(name)\f[].
 .RS
 .RE
 .TP
@@ -475,9 +474,8 @@ Set target (time, XID or LSN) to be non inclusive.
 .TP
 .B \-\-target\-action \f[I]ACTION\f[]
 Trigger the specified action once the recovery target is reached.
-Possible actions are: \f[C]pause\f[] (PostgreSQL 9.1 and above),
-\f[C]shutdown\f[] (PostgreSQL 9.5 and above) and \f[C]promote\f[]
-(ditto).
+Possible actions are: \f[C]pause\f[], \f[C]shutdown\f[] and
+\f[C]promote\f[].
 This option requires a target to be defined, with one of the above
 options.
 .RS
@@ -659,7 +657,6 @@ Server\ quagmire:
 \ \ Description:\ The\ Giggity\ database
 \ \ Passive\ node:\ False
 \ \ PostgreSQL\ version:\ 9.3.9
-\ \ pgespresso\ extension:\ Not\ available
 \ \ PostgreSQL\ Data\ directory:\ /srv/postgresql/9.3/data
 \ \ PostgreSQL\ \[aq]archive_command\[aq]\ setting:\ rsync\ \-a\ %p\ barman\@backup:/var/lib/barman/quagmire/incoming
 \ \ Last\ archived\ WAL:\ 0000000100003103000000AD
@@ -806,7 +803,7 @@ Barman maintainers (in alphabetical order):
 .IP \[bu] 2
 Abhijit Menon\-Sen
 .IP \[bu] 2
-Jane Threefoot
+Didier Michel
 .IP \[bu] 2
 Michael Wallace
 .PP
@@ -827,6 +824,8 @@ Gianni Ciolli (QA/testing)
 Giulio Calacoci (developer)
 .IP \[bu] 2
 Giuseppe Broccolo (developer)
+.IP \[bu] 2
+Jane Threefoot (developer)
 .IP \[bu] 2
 Jonathan Battiato (QA/testing)
 .IP \[bu] 2
