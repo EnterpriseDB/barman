@@ -27,105 +27,95 @@ This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 
 
-# POSITIONAL ARGUMENTS
+# Usage
+```
+usage: barman-cloud-wal-archive [-V] [--help] [-v | -q] [-t]
+                                [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
+                                [--endpoint-url ENDPOINT_URL] [-P PROFILE]
+                                [--read-timeout READ_TIMEOUT]
+                                [--credential {azure-cli,managed-identity}]
+                                [-z | -j | --snappy]
+                                [--tags [TAGS [TAGS ...]]]
+                                [--history-tags [HISTORY_TAGS [HISTORY_TAGS ...]]]
+                                [-e ENCRYPTION]
+                                [--encryption-scope ENCRYPTION_SCOPE]
+                                [--max-block-size MAX_BLOCK_SIZE]
+                                [--max-concurrency MAX_CONCURRENCY]
+                                [--max-single-put-size MAX_SINGLE_PUT_SIZE]
+                                destination_url server_name [wal_path]
 
-DESTINATION_URL
-:    URL of the cloud destination, such as a bucket in AWS S3.
-     For example: `s3://BUCKET_NAME/path/to/folder` (where `BUCKET_NAME`
-     is the bucket you have created in AWS).
+This script can be used in the `archive_command` of a PostgreSQL server to
+ship WAL files to the Cloud. Currently AWS S3, Azure Blob Storage and Google
+Cloud Storage are supported.
 
+positional arguments:
+  destination_url       URL of the cloud destination, such as a bucket in AWS
+                        S3. For example: `s3://bucket/path/to/folder`.
+  server_name           the name of the server as configured in Barman.
+  wal_path              the value of the '%p' keyword (according to
+                        'archive_command').
 
-SERVER_NAME
-:    the name of the server as configured in Barman.
+optional arguments:
+  -V, --version         show program's version number and exit
+  --help                show this help message and exit
+  -v, --verbose         increase output verbosity (e.g., -vv is more than -v)
+  -q, --quiet           decrease output verbosity (e.g., -qq is less than -q)
+  -t, --test            Test cloud connectivity and exit
+  --cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
+                        The cloud provider to use as a storage backend
+  -z, --gzip            gzip-compress the WAL while uploading to the cloud
+                        (should not be used with python < 3.2)
+  -j, --bzip2           bzip2-compress the WAL while uploading to the cloud
+                        (should not be used with python < 3.3)
+  --snappy              snappy-compress the WAL while uploading to the cloud
+                        (requires optional python-snappy library)
+  --tags [TAGS [TAGS ...]]
+                        Tags to be added to archived WAL files in cloud
+                        storage
+  --history-tags [HISTORY_TAGS [HISTORY_TAGS ...]]
+                        Tags to be added to archived history files in cloud
+                        storage
 
-WAL_PATH
-:    the value of the '%p' keyword (according to 'archive_command').
+Extra options for the aws-s3 cloud provider:
+  --endpoint-url ENDPOINT_URL
+                        Override default S3 endpoint URL with the given one
+  -P PROFILE, --profile PROFILE
+                        profile name (e.g. INI section in AWS credentials
+                        file)
+  --read-timeout READ_TIMEOUT
+                        the time in seconds until a timeout is raised when
+                        waiting to read from a connection (defaults to 60
+                        seconds)
+  -e ENCRYPTION, --encryption ENCRYPTION
+                        The encryption algorithm used when storing the
+                        uploaded data in S3. Allowed values:
+                        'AES256'|'aws:kms'.
 
-# OPTIONS
-
--h, --help
-:    show a help message and exit
-
--V, --version
-:    show program's version number and exit
-
--v, --verbose
-:    increase output verbosity (e.g., -vv is more than -v)
-
--q, --quiet
-:    decrease output verbosity (e.g., -qq is less than -q)
-
--t, --test
-:    test connectivity to the cloud destination and exit
-
--z, --gzip
-:    gzip-compress the WAL while uploading to the cloud
-     (should not be used with python < 3.2)
-
--j, --bzip2
-:    bzip2-compress the WAL while uploading to the cloud
-     (should not be used with python < 3.3)
-
---snappy
-:    snappy-compress the WAL while uploading to the cloud
-     (requires optional python-snappy library and should not be
-     used with python < 3.3)
-
---cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
-:    the cloud provider to which the backup should be uploaded
-
---tags KEY1,VALUE1 KEY2,VALUE2 ...
-:    A space-separated list of comma-separated key-value pairs representing tags
-     to be added to each WAL file archived to cloud storage.
-
---history-tags KEY1,VALUE1 KEY2,VALUE2 ...
-:    A space-separated list of comma-separated key-value pairs representing tags
-     to be added to each history file archived to cloud storage.
-     If this is provided alongside the `--tags` option then the value of
-     `--history-tags` will be used in place of `--tags` for history files.
-     All other WAL files will continue to be tagged with the value of `--tags`.
-
--P, --profile
-:    profile name (e.g. INI section in AWS credentials file)
-
---endpoint-url
-:    override the default S3 URL construction mechanism by specifying an endpoint.
-
--e, --encryption
-:    the encryption algorithm used when storing the uploaded data in S3
-     Allowed values: 'AES256'|'aws:kms'
-
---encryption-scope
-:    the name of an encryption scope defined in the Azure Blob Storage
-     service which is to be used to encrypt the data in Azure
-
---read-timeout *TIMEOUT*
-:    the time in seconds until a timeout is raised when waiting to read from a
-     connection to AWS S3 (defaults to 60 seconds)
-
---credential {azure-cli,managed-identity}
-:    optionally specify the type of credential to use when authenticating with
-     Azure Blob Storage. If omitted then the credential will be obtained from the
-     environment. If no credentials can be found in the environment then the default
-     Azure authentication flow will be used.
-
---max-block-size SIZE
-:    the chunk size to be used when uploading an object to Azure Blob Storage via the
-     concurrent chunk method (default: 4MB).
-
---max-concurrency CONCURRENCY
-:    the maximum number of chunks to be uploaded concurrently to Azure Blob Storage
-     (default: 1). Whether the maximum concurrency is achieved depends on the values
-     of --max-block-size (should be less than or equal to
-     `WAL segment size after compression / max_concurrency`) and --max-single-put-size
-     (must be less than WAL segment size after compression).
-
---max-single-put-size SIZE
-:    maximum size for which the Azure client will upload an object to Azure Blob
-     Storage in a single request (default: 64MB). If this is set lower than the
-     WAL segment size after any applied compression then the concurrent chunk upload
-     method for WAL archiving will be used.
-
+Extra options for the azure-blob-storage cloud provider:
+  --credential {azure-cli,managed-identity}
+                        Optionally specify the type of credential to use when
+                        authenticating with Azure Blob Storage. If omitted
+                        then the credential will be obtained from the
+                        environment. If no credentials can be found in the
+                        environment then the default Azure authentication flow
+                        will be used
+  --encryption-scope ENCRYPTION_SCOPE
+                        The name of an encryption scope defined in the Azure
+                        Blob Storage service which is to be used to encrypt
+                        the data in Azure
+  --max-block-size MAX_BLOCK_SIZE
+                        The chunk size to be used when uploading an object via
+                        the concurrent chunk method (default: 4MB).
+  --max-concurrency MAX_CONCURRENCY
+                        The maximum number of chunks to be uploaded
+                        concurrently (default: 1).
+  --max-single-put-size MAX_SINGLE_PUT_SIZE
+                        Maximum size for which the Azure client will upload an
+                        object in a single request (default: 64MB). If this is
+                        set lower than the PostgreSQL WAL segment size after
+                        any applied compression then the concurrent chunk
+                        upload method for WAL archiving will be used.
+```
 # REFERENCES
 
 For Boto:

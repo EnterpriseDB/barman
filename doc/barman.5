@@ -180,8 +180,6 @@ options:
 backup operations using concurrent backup which is the recommended
 backup approach for PostgreSQL versions >= 9.6 and uses the PostgreSQL
 API.
-If using PostgreSQL 9.2, 9.3, 9.4, or 9.5, Barman requires the
-\f[C]pgespresso\f[] module to be installed on the PostgreSQL server.
 \f[C]concurrent_backup\f[] can also be used to perform a backup from a
 standby server.
 .IP \[bu] 2
@@ -356,7 +354,7 @@ This option identifies a time frame that must contain the latest backup.
 If the latest backup is older than the time frame, barman check command
 will report an error to the user.
 If empty (default), latest backup is always considered valid.
-Syntax for this option is: "i (DAYS | WEEKS | MONTHS)" where i is a
+Syntax for this option is: "i (DAYS | WEEKS | MONTHS)" where i is an
 integer greater than zero, representing the number of days | weeks |
 months of the time frame.
 Global/Server.
@@ -724,9 +722,8 @@ Requires operating system and file system support for hard links.
 .B slot_name
 Physical replication slot to be used by the \f[C]receive\-wal\f[]
 command when \f[C]streaming_archiver\f[] is set to \f[C]on\f[].
-Requires PostgreSQL >= 9.4.
-Global/Server.
 Default: None (disabled).
+Global/Server.
 .RS
 .RE
 .TP
@@ -778,7 +775,6 @@ Global/Server.
 .B streaming_backup_name
 Identifier to be used as \f[C]application_name\f[] by the
 \f[C]pg_basebackup\f[] command.
-Only available with \f[C]pg_basebackup\f[] >= 9.3.
 By default it is set to \f[C]barman_streaming_backup\f[].
 Global/Server.
 .RS
