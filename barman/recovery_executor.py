@@ -1235,7 +1235,60 @@ class RecoveryExecutor(object):
         self.temp_dirs = []
 
 
-class TarballRecoveryExecutor(RecoveryExecutor):
+class RemoteConfigRecoveryExecutor(RecoveryExecutor):
+    """
+    Recovery executor which retrieves config files from the recovery directory
+    instead of the backup directory. Useful when the config files are not available
+    in the backup directory (e.g. compressed backups or snapshot backups).
+    """
+
+    def _conf_files_exist(self, conf_files, backup_info, recovery_info):
+        """
+        Determine whether the conf files in the supplied list exist in the backup
+        represented by backup_info.
+
+        Returns a map of conf_file:exists.
+        """
+        exists = {}
+        for conf_file in conf_files:
+            source_path = os.path.join(recovery_info["destination_path"], conf_file)
+            exists[conf_file] = recovery_info["cmd"].exists(source_path)
+        return exists
+
+    def _copy_conf_files_to_tempdir(
+        self, backup_info, recovery_info, remote_command=None
+    ):
+        """
+        Copy conf files from the backup location to a temporary directory so that
+        they can be checked and mangled.
+
+        Returns a list of the paths to the temporary conf files.
+        """
+        conf_file_paths = []
+
+        rsync = RsyncPgData(
+            path=self.server.path,
+            ssh=remote_command,
+            bwlimit=self.config.bandwidth_limit,
+            network_compression=self.config.network_compression,
+        )
+
+        rsync.from_file_list(
+            recovery_info["configuration_files"],
+            ":" + recovery_info["destination_path"],
+            recovery_info["tempdir"],
+        )
+
+        conf_file_paths.extend(
+            [
+                os.path.join(recovery_info["tempdir"], conf_file)
+                for conf_file in recovery_info["configuration_files"]
+            ]
+        )
+        return conf_file_paths
+
+
+class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
     """
     A specialised recovery method for compressed backups.
     Inheritence is not necessarily the best thing here since the two RecoveryExecutor
@@ -1383,59 +1436,65 @@ class TarballRecoveryExecutor(RecoveryExecutor):
         )
         _logger.debug("Uncompression output for base tarball: %s", cmd_output)
 
-    def _conf_files_exist(self, conf_files, backup_info, recovery_info):
-        """
-        Determine whether the conf files in the supplied list exist in the backup
-        represented by backup_info.
 
-        Returns a map of conf_file:exists.
-        """
-        exists = {}
-        for conf_file in conf_files:
-            source_path = os.path.join(recovery_info["destination_path"], conf_file)
-            exists[conf_file] = recovery_info["cmd"].exists(source_path)
-        return exists
+class MinimalRecoveryExecutor(RemoteConfigRecoveryExecutor):
+    def __init__(self, backup_manager):
+        super(MinimalRecoveryExecutor, self).__init__(backup_manager, compression=None)
 
-    def _copy_conf_files_to_tempdir(
-        self, backup_info, recovery_info, remote_command=None
+    def _backup_copy(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        safe_horizon=None,
+        recovery_info=None,
     ):
-        """
-        Copy conf files from the backup location to a temporary directory so that
-        they can be checked and mangled.
+        # Instead of copying we would validate things
+        # Set a ':' prefix to remote destinations
+        dest_prefix = ""
+        if remote_command:
+            dest_prefix = ":"
 
-        Returns a list of the paths to the temporary conf files.
-        """
-        conf_file_paths = []
-
-        rsync = RsyncPgData(
+        # Create the copy controller object, specific for rsync,
+        # which will drive all the copy operations. Items to be
+        # copied are added before executing the copy() method
+        controller = RsyncCopyController(
             path=self.server.path,
-            ssh=remote_command,
-            bwlimit=self.config.bandwidth_limit,
+            ssh_command=remote_command,
             network_compression=self.config.network_compression,
+            safe_horizon=safe_horizon,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            workers=self.config.parallel_jobs,
+        )
+        backup_label_file = "%s/%s" % (backup_info.get_data_directory(), "backup_label")
+        controller.add_file(
+            label="pgdata",
+            src=backup_label_file,
+            dst="%s/%s" % (dest_prefix + dest, "backup_label"),
+            item_class=controller.PGDATA_CLASS,
+            bwlimit=self.config.get_bwlimit(),
         )
 
-        rsync.from_file_list(
-            recovery_info["configuration_files"],
-            ":" + recovery_info["destination_path"],
-            recovery_info["tempdir"],
-        )
-
-        conf_file_paths.extend(
-            [
-                os.path.join(recovery_info["tempdir"], conf_file)
-                for conf_file in recovery_info["configuration_files"]
-            ]
-        )
-        return conf_file_paths
+        # Execute the copy
+        try:
+            controller.copy()
+        except CommandFailedException as e:
+            msg = "data transfer failure"
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
 
 
-def recovery_executor_factory(backup_manager, command, compression=None):
+def recovery_executor_factory(backup_manager, command, backup_info):
     """
     Method in charge of building adequate RecoveryExecutor depending on the context
     :param: backup_manager
     :param: command barman.fs.UnixLocalCommand
     :return: RecoveryExecutor instance
     """
+    if backup_info.snapshot_gce_project is not None:
+        return MinimalRecoveryExecutor(backup_manager)
+    compression = backup_info.compression
     if compression is None:
         return RecoveryExecutor(backup_manager)
     if compression == GZipCompression.name:

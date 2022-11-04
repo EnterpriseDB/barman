@@ -733,7 +733,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         # Delegate the recovery operation to a RecoveryExecutor object
 
         command = unix_command_factory(remote_command, self.server.path)
-        executor = recovery_executor_factory(self, command, backup_info.compression)
+        executor = recovery_executor_factory(self, command, backup_info)
         # Run the pre_recovery_script if present.
         script = HookScriptRunner(self, "recovery_script", "pre")
         script.env_from_recover(
