@@ -304,6 +304,8 @@ class FieldListFile(object):
         """
         for name, field in sorted(inspect.getmembers(type(self))):
             value = getattr(self, name, None)
+            if value is None and name in self._hide_if_null:
+                continue
             if isinstance(field, Field):
                 if callable(field.to_str):
                     value = field.to_str(value)
