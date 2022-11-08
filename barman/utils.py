@@ -788,3 +788,24 @@ def check_backup_name(backup_name):
 def is_backup_id(backup_id):
     # TODO check if backup_id matches pattern (is this logic somewhere already?)
     return re.match(r"(\d{8})T\d{6}$", backup_id)
+
+
+def get_named_backup_info(backups, backup_name):
+    """
+    Returns None if no matching backup is found.
+    """
+    matching_backups = [
+        backup for backup in backups if backup.backup_name == backup_name
+    ]
+    if len(matching_backups) > 1:
+        matching_backup_ids = " ".join(
+            [backup.backup_id for backup in matching_backups]
+        )
+        msg = (
+            "Multiple backups found matching name '%s' "
+            "(please specify by backup ID instead): %s"
+            % (backup_name, matching_backup_ids),
+        )
+        raise Exception(msg)
+    elif len(matching_backups) == 1:
+        return matching_backups[0]

@@ -43,6 +43,7 @@ from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.utils import (
     BarmanEncoder,
     force_str,
+    get_named_backup_info,
     human_readable_timedelta,
     is_backup_id,
     pretty_size,
@@ -1775,30 +1776,12 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         if self._wal_paths:
             self._wal_paths.pop(wal_name)
 
-    # TODO obvious duplication with BackupManager.get_named_backup_id
-    # they can both use a common function which is provided the list of
-    # available backups, perhaps a custom logger object
     def _get_named_backup_info(self, backup_name):
         """
         TODO
         """
-        backups = self.get_backup_list()
-
-        backup_infos = [
-            backup_info
-            for backup_info in backups.values()
-            if backup_info.backup_name == backup_name
-        ]
-        if len(backup_infos) > 1:
-            msg = (
-                "Multiple backups found matching name %s "
-                "(please specify by backup ID instead): %s",
-                backup_name,
-                [backup_info.backup_id for backup_info in backup_infos],
-            )
-            raise Exception(msg)
-        elif len(backup_infos) == 1:
-            return backup_infos[0]
+        available_backups = self.get_backup_list().values()
+        return get_named_backup_info(available_backups, backup_name)
 
     def parse_backup_id(self, backup_id):
         """

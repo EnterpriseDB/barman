@@ -32,7 +32,7 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
-from barman.annotations import AnnotationManagerFile, KeepManager, KeepManagerMixin
+from barman.annotations import KeepManager, KeepManagerMixin
 from barman.backup_executor import (
     PassiveBackupExecutor,
     PostgresBackupExecutor,
@@ -57,6 +57,7 @@ from barman.utils import (
     force_str,
     fsync_dir,
     fsync_file,
+    get_named_backup_info,
     human_readable_timedelta,
     pretty_size,
 )
@@ -380,23 +381,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         """
         TODO
         """
-        available_backups = self.get_available_backups(status_filter)
-
-        backup_ids = [
-            backup_id
-            for backup_id, backup in available_backups.items()
-            if backup.backup_name == backup_name
-        ]
-        if len(backup_ids) > 1:
-            msg = (
-                "Multiple backups found matching name %s "
-                "(please specify by backup ID instead): %s",
-                backup_name,
-                backup_ids,
-            )
-            raise Exception(msg)
-        elif len(backup_ids) == 1:
-            return backup_ids[0]
+        available_backups = self.get_available_backups(status_filter).values()
+        return get_named_backup_info(available_backups, backup_name).backup_id
 
     @staticmethod
     def get_timelines_to_protect(remove_until, deleted_backup, available_backups):
