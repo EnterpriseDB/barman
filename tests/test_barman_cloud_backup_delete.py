@@ -194,6 +194,9 @@ class TestCloudBackupDelete(object):
         def remove_wal_from_cache(wal_name):
             wals.remove(wal_name)
 
+        def parse_backup_id(backup_id):
+            return backup_id
+
         catalog = mock.Mock(CloudBackupCatalog)
         catalog.configure_mock(
             **{
@@ -205,6 +208,7 @@ class TestCloudBackupDelete(object):
                 "get_backup_files.side_effect": get_backup_files,
                 "get_wal_paths.side_effect": get_wal_paths,
                 "remove_wal_from_cache.side_effect": remove_wal_from_cache,
+                "parse_backup_id.side_effect": parse_backup_id,
             }
         )
         catalog.should_keep_backup.return_value = False
@@ -467,6 +471,7 @@ class TestCloudBackupDelete(object):
 
         # AND a backup_id which is not in the catalog
         backup_id = "20210723T095432"
+        catalog.parse_backup_id.return_value = backup_id
 
         # WHEN barman-cloud-backup-delete runs, specifying the backup ID
         cloud_backup_delete.main(

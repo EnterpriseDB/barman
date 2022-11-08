@@ -144,6 +144,7 @@ class TestCloudBackupKeep(object):
         mock_backup_info.backup_id = "test_backup_id"
         mock_backup_info.status = BackupInfo.DONE
         cloud_backup_catalog.get_backup_info.return_value = mock_backup_info
+        cloud_backup_catalog.parse_backup_id.return_value = mock_backup_info.backup_id
         return cloud_backup_catalog
 
     @mock.patch("barman.clients.cloud_backup_keep.CloudBackupCatalog")
@@ -202,6 +203,8 @@ class TestCloudBackupKeep(object):
         self, get_cloud_interface_mock, cloud_backup_catalog_mock
     ):
         """Verify keep command with --release calls remove_backup"""
+        cloud_backup_catalog = cloud_backup_catalog_mock.return_value
+        cloud_backup_catalog.parse_backup_id.return_value = "test_backup_id"
         cloud_backup_keep.main(
             [
                 "cloud_storage_url",
@@ -210,7 +213,6 @@ class TestCloudBackupKeep(object):
                 "--release",
             ]
         )
-        cloud_backup_catalog = cloud_backup_catalog_mock.return_value
         cloud_backup_catalog.release_keep.assert_called_once_with("test_backup_id")
 
     @mock.patch("barman.clients.cloud_backup_keep.CloudBackupCatalog")
@@ -220,6 +222,7 @@ class TestCloudBackupKeep(object):
     ):
         """Verify keep --status prints get_keep_target_output"""
         cloud_backup_catalog = cloud_backup_catalog_mock.return_value
+        cloud_backup_catalog.parse_backup_id.return_value = "test_backup_id"
         cloud_backup_catalog.get_keep_target.return_value = (
             KeepManager.TARGET_STANDALONE
         )
@@ -242,6 +245,7 @@ class TestCloudBackupKeep(object):
     ):
         """Verify keep --status prints get_keep_target_output"""
         cloud_backup_catalog = cloud_backup_catalog_mock.return_value
+        cloud_backup_catalog.parse_backup_id.return_value = "test_backup_id"
         cloud_backup_catalog.get_keep_target.return_value = None
         cloud_backup_keep.main(
             [

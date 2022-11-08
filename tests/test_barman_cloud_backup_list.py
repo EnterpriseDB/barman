@@ -67,8 +67,8 @@ class TestCloudBackupList(object):
         )
         out, _err = capsys.readouterr()
         assert out == (
-            "Backup ID           End Time                 Begin Wal                     Archival Status \n"
-            "backup_id_1         2016-03-29 17:05:20      000000010000000000000002      KEEP:STANDALONE \n"
-            "backup_id_2         2016-03-30 17:05:20      000000010000000000000005                      \n"
-            "backup_id_3         2016-03-31 17:05:20      000000010000000000000008      KEEP:FULL       \n"
+            "Backup ID           End Time                 Begin Wal                     Archival Status  Friendly Name       \n"
+            "backup_id_1         2016-03-29 17:05:20      000000010000000000000002      KEEP:STANDALONE                      \n"
+            "backup_id_2         2016-03-30 17:05:20      000000010000000000000005                                           \n"
+            "backup_id_3         2016-03-31 17:05:20      000000010000000000000008      KEEP:FULL                            \n"
         )
