@@ -782,7 +782,7 @@ def check_backup_name(backup_name):
     # illegal (whatever that means)
     if backup_name is None:
         raise ArgumentTypeError("Backup name cannot be None")
-    if backup_name is "":
+    if backup_name == "":
         raise ArgumentTypeError("Backup name cannot be empty")
     if is_backup_id(backup_name):
         raise ArgumentTypeError("Backup name '%s' cannot be a backup ID" % backup_name)
