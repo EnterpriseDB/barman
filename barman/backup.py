@@ -57,7 +57,7 @@ from barman.utils import (
     force_str,
     fsync_dir,
     fsync_file,
-    get_named_backup_info,
+    get_backup_info_from_name,
     human_readable_timedelta,
     pretty_size,
 )
@@ -377,12 +377,12 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         ids = sorted(available_backups.keys())
         return ids[0]
 
-    def get_named_backup_id(self, backup_name, status_filter=DEFAULT_STATUS_FILTER):
+    def get_backup_id_from_name(self, backup_name, status_filter=DEFAULT_STATUS_FILTER):
         """
         TODO
         """
         available_backups = self.get_available_backups(status_filter).values()
-        return get_named_backup_info(available_backups, backup_name).backup_id
+        return get_backup_info_from_name(available_backups, backup_name).backup_id
 
     @staticmethod
     def get_timelines_to_protect(remove_until, deleted_backup, available_backups):

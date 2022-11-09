@@ -1548,14 +1548,14 @@ class Server(RemoteStatusMixin):
         """
         return self.backup_manager.get_first_backup_id(status_filter)
 
-    def get_named_backup_id(
+    def get_backup_id_from_name(
         self, backup_name, status_filter=BackupManager.DEFAULT_STATUS_FILTER
     ):
         """
         TODO
         """
         # Iterate through backups and see if there is one which matches the name
-        return self.backup_manager.get_named_backup_id(backup_name, status_filter)
+        return self.backup_manager.get_backup_id_from_name(backup_name, status_filter)
 
     def list_backups(self):
         """

@@ -1955,7 +1955,7 @@ def parse_backup_id(server, args):
     elif is_backup_id(args.backup_id):
         backup_id = args.backup_id
     else:
-        backup_id = server.get_named_backup_id(args.backup_id)
+        backup_id = server.get_backup_id_from_name(args.backup_id)
     backup_info = server.get_backup(backup_id)
     if backup_info is None:
         output.error(

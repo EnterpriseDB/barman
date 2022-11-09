@@ -790,7 +790,7 @@ def is_backup_id(backup_id):
     return re.match(r"(\d{8})T\d{6}$", backup_id)
 
 
-def get_named_backup_info(backups, backup_name):
+def get_backup_info_from_name(backups, backup_name):
     """
     Returns None if no matching backup is found.
     """

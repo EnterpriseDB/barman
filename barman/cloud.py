@@ -43,7 +43,7 @@ from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.utils import (
     BarmanEncoder,
     force_str,
-    get_named_backup_info,
+    get_backup_info_from_name,
     human_readable_timedelta,
     is_backup_id,
     pretty_size,
@@ -1776,19 +1776,19 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         if self._wal_paths:
             self._wal_paths.pop(wal_name)
 
-    def _get_named_backup_info(self, backup_name):
+    def _get_backup_info_from_name(self, backup_name):
         """
         TODO
         """
         available_backups = self.get_backup_list().values()
-        return get_named_backup_info(available_backups, backup_name)
+        return get_backup_info_from_name(available_backups, backup_name)
 
     def parse_backup_id(self, backup_id):
         """
         TODO
         """
         if not is_backup_id(backup_id):
-            backup_info = self._get_named_backup_info(backup_id)
+            backup_info = self._get_backup_info_from_name(backup_id)
             if backup_info is not None:
                 return backup_info.backup_id
         else:
