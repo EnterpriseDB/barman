@@ -780,6 +780,10 @@ def check_size(value):
 def check_backup_name(backup_name):
     # TODO check the backup name does not match a backup ID and is otherwise not
     # illegal (whatever that means)
+    if backup_name is None:
+        raise ArgumentTypeError("Backup name cannot be None")
+    if backup_name is "":
+        raise ArgumentTypeError("Backup name cannot be empty")
     if is_backup_id(backup_name):
         raise ArgumentTypeError("Backup name '%s' cannot be a backup ID" % backup_name)
     return backup_name
@@ -787,7 +791,7 @@ def check_backup_name(backup_name):
 
 def is_backup_id(backup_id):
     # TODO check if backup_id matches pattern (is this logic somewhere already?)
-    return re.match(r"(\d{8})T\d{6}$", backup_id)
+    return bool(re.match(r"(\d{8})T\d{6}$", backup_id))
 
 
 def get_backup_info_from_name(backups, backup_name):
@@ -803,9 +807,9 @@ def get_backup_info_from_name(backups, backup_name):
         )
         msg = (
             "Multiple backups found matching name '%s' "
-            "(please specify by backup ID instead): %s"
-            % (backup_name, matching_backup_ids),
-        )
-        raise Exception(msg)
+            "(try using backup ID instead): %s"
+        ) % (backup_name, matching_backup_ids)
+
+        raise ValueError(msg)
     elif len(matching_backups) == 1:
         return matching_backups[0]
