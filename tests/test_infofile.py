@@ -116,6 +116,11 @@ class DummyFieldListFile(FieldListFile):
     dummy = Field("dummy", dump=str, load=int, default=12, doc="dummy_field")
 
 
+class HideIfNullFieldListFile(FieldListFile):
+    dummy = Field("dummy", dump=str, load=int, default=None, doc="dummy_field")
+    _hide_if_null = "dummy"
+
+
 # noinspection PyMethodMayBeStatic
 class TestFieldListFile(object):
     def test_field_list_file_creation(self):
@@ -175,6 +180,41 @@ class TestFieldListFile(object):
         dummy = DummyFieldListFile()
         dummy.dummy = 18
         assert repr(dummy) == "DummyFieldListFile(dummy='18')"
+
+    def test_hide_if_null_when_null(self, tmpdir):
+        # GIVEN a FieldListFile where the only field should be hidden if null
+        dummy = HideIfNullFieldListFile()
+
+        # WHEN the field is not set
+        # THEN the field is not included in the items
+        assert list(dummy.items()) == []
+
+        # AND the field is not included in the repr
+        assert repr(dummy) == "HideIfNullFieldListFile()"
+
+        # AND the field is not saved
+        tmp_file = tmpdir.join("test_file")
+        dummy.save(tmp_file.strpath)
+        assert "dummy" not in tmp_file.read()
+
+    def test_hide_if_null_when_not_null(self, tmpdir):
+        # GIVEN a FieldListFile where the only field should be hidden if null
+        dummy = HideIfNullFieldListFile()
+
+        # WHEN the field is set
+        dummy_value = 32
+        dummy.dummy = dummy_value
+
+        # THEN the field is included in the items
+        assert list(dummy.items()) == [("dummy", "%s" % dummy_value)]
+
+        # AND the field is included in the repr
+        assert repr(dummy) == "HideIfNullFieldListFile(dummy='%s')" % dummy_value
+
+        # AND the field is saved
+        tmp_file = tmpdir.join("test_file")
+        dummy.save(tmp_file.strpath)
+        assert "dummy=%s" % dummy_value in tmp_file.read()
 
 
 # noinspection PyMethodMayBeStatic
@@ -606,3 +646,46 @@ class TestBackupInfo(object):
         b_info.version = 100600
         assert b_info.pg_major_version() == "10"
         assert b_info.wal_directory() == "pg_wal"
+
+    def test_with_backup_name(self, tmpdir):
+        """
+        Test that backup name is included in file and output if set.
+        """
+        # GIVEN a backup.info file for a server
+        server = build_mocked_server(
+            main_conf={"basebackups_directory": tmpdir.strpath},
+        )
+        backup_dir = tmpdir.mkdir("fake_name")
+        infofile = backup_dir.join("backup.info")
+        b_info = LocalBackupInfo(server, backup_id="fake_name")
+        b_info.status = BackupInfo.DONE
+
+        # WHEN a backup_name is set
+        b_info.backup_name = "test name"
+        b_info.save()
+
+        # THEN the backup name is written to the file
+        assert "backup_name=test name" in infofile.read()
+        # AND the backup name is included in the JSON output
+        assert b_info.to_json()["backup_name"] == "test name"
+
+    def test_with_no_backup_name(self, tmpdir):
+        """
+        Test that backup name is not included in file and output if not set.
+        """
+        # GIVEN a backup.info file for a server
+        server = build_mocked_server(
+            main_conf={"basebackups_directory": tmpdir.strpath},
+        )
+        backup_dir = tmpdir.mkdir("fake_name")
+        infofile = backup_dir.join("backup.info")
+        b_info = LocalBackupInfo(server, backup_id="fake_name")
+        b_info.status = BackupInfo.DONE
+
+        # WHEN no backup_name is set
+        b_info.save()
+
+        # THEN the backup name is not written to the file
+        assert "backup_name" not in infofile.read()
+        # AND the backup name is not included in the JSON output
+        assert "backup_name" not in b_info.to_json().keys()

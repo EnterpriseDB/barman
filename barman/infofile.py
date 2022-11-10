@@ -153,6 +153,11 @@ class FieldListFile(object):
 
     __slots__ = ("_fields", "filename")
 
+    # A list of fields which should be hidden if they are not set.
+    # Such fields will not be written to backup.info files or included in the
+    # backup.info items unles they are set to a non-None value.
+    # Any fields listed here should be removed from the list at the next major
+    # version increase.
     _hide_if_null = ()
 
     def __init__(self, **kwargs):
