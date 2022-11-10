@@ -1607,9 +1607,6 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
             # Set the backup status as DONE
             backup_info.set_attribute("status", BackupInfo.DONE)
 
-            # Add the name to the backup info
-            backup_info.set_attribute("backup_name", self.backup_name)
-
         # Use BaseException instead of Exception to catch events like
         # KeyboardInterrupt (e.g.: CTRL-C)
         except BaseException as exc:
@@ -1617,6 +1614,10 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
             self.handle_backup_errors("uploading data", exc, backup_info)
             raise SystemExit(1)
         finally:
+            # Add the name to the backup info
+            if self.backup_name is not None:
+                backup_info.set_attribute("backup_name", self.backup_name)
+
             try:
                 with BytesIO() as backup_info_file:
                     backup_info.save(file_object=backup_info_file)

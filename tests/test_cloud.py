@@ -44,6 +44,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from barman.annotations import KeepManager
 from barman.cloud import (
     CloudBackupCatalog,
+    CloudBackupUploaderPostgres,
     CloudProviderError,
     CloudTarUploader,
     CloudUploadingError,
@@ -2995,3 +2996,92 @@ class TestCloudTarUploader(object):
                 tf.extractall(path=dest_path)
                 with open(os.path.join(dest_path, src_file), "r") as result:
                     assert result.read() == content
+
+
+class TestCloudBackupUploaderPostgres(object):
+    """Tests for the CloudBackupUploaderPostgres class."""
+
+    server_name = "test_server"
+
+    @pytest.mark.parametrize("backup_should_fail", (False, True))
+    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._backup_copy")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
+    def test_backup_with_name(
+        self,
+        mock_backup_info,
+        _mock_backup_strategy,
+        _mock_backup_copy,
+        _mock_create_upload_controller,
+        backup_should_fail,
+    ):
+        """Verifies backup name is added to backup info if it is set."""
+        # GIVEN a CloudBackupUploaderPostgres with a specified backup_name
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=999999, MIN_CHUNK_SIZE=2)
+        mock_postgres = MagicMock()
+        mock_backup_info.return_value.backup_label = "test backup label"
+        backup_name = "nyy lbhe onfr"
+        uploader = CloudBackupUploaderPostgres(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            mock_postgres,
+            backup_name=backup_name,
+        )
+        uploader.copy_start_time = datetime.datetime.now()
+
+        # WHEN backup is called and it either succeeds or fails
+        if backup_should_fail:
+            _mock_backup_copy.side_effect = Exception("failed!")
+            with pytest.raises(SystemExit):
+                uploader.backup()
+        else:
+            uploader.backup()
+
+        # THEN the backup_name was set on the backup info
+        mock_backup_info.return_value.set_attribute.assert_called_with(
+            "backup_name", backup_name
+        )
+
+    @pytest.mark.parametrize("backup_should_fail", (False, True))
+    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._backup_copy")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
+    def test_backup_with_no_name(
+        self,
+        mock_backup_info,
+        _mock_backup_strategy,
+        _mock_backup_copy,
+        _mock_create_upload_controller,
+        backup_should_fail,
+    ):
+        """Verifies backup name is added to backup info if it is set."""
+        # GIVEN a CloudBackupUploaderPostgres with no specified backup_name
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=999999, MIN_CHUNK_SIZE=2)
+        mock_postgres = MagicMock()
+        mock_backup_info.return_value.backup_label = "test backup label"
+        backup_name = "nyy lbhe onfr"
+        uploader = CloudBackupUploaderPostgres(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            mock_postgres,
+        )
+        uploader.copy_start_time = datetime.datetime.now()
+
+        # WHEN backup is called and it either succeeds or fails
+        if backup_should_fail:
+            _mock_backup_copy.side_effect = Exception("failed!")
+            with pytest.raises(SystemExit):
+                uploader.backup()
+        else:
+            uploader.backup()
+
+        # THEN the backup_name was not set on the backup info
+        backup_info_attrs_set = [
+            arg[0][0]
+            for arg in mock_backup_info.return_value.set_attribute.call_args_list
+        ]
+        assert not any([attr == "backup_name" for attr in backup_info_attrs_set])
