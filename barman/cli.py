@@ -58,6 +58,7 @@ from barman.utils import (
     get_log_levels,
     is_backup_id,
     parse_log_level,
+    RESERVED_BACKUP_IDS,
     SHA256,
 )
 from barman.xlog import check_archive_usable
@@ -336,7 +337,7 @@ def backup_completer(prefix, parsed_args, **kwargs):
     for backup_id in sorted(backups, reverse=True):
         if backup_id.startswith(prefix):
             yield backup_id
-    for special_id in ("latest", "last", "oldest", "first", "last-failed"):
+    for special_id in RESERVED_BACKUP_IDS:
         if len(backups) > 0 and special_id.startswith(prefix):
             yield special_id
 

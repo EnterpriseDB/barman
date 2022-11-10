@@ -883,7 +883,15 @@ class TestCheckBackupNames(object):
         (
             (None, "Backup name cannot be None"),
             ("", "Backup name cannot be empty"),
-            ("20380119T031408", "Backup name '20380119T031408' cannot be a backup ID"),
+            (
+                "20380119T031408",
+                "Backup name '20380119T031408' is not allowed: backup ID",
+            ),
+            ("latest", "Backup name 'latest' is not allowed: reserved word"),
+            ("last", "Backup name 'last' is not allowed: reserved word"),
+            ("first", "Backup name 'first' is not allowed: reserved word"),
+            ("oldest", "Backup name 'oldest' is not allowed: reserved word"),
+            ("last-failed", "Backup name 'last-failed' is not allowed: reserved word"),
         ),
     )
     def test_check_backup_name_failure(self, backup_name, error_message):

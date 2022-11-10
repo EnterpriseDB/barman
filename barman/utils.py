@@ -52,6 +52,8 @@ else:
     _text_type = unicode  # noqa
     _string_types = basestring  # noqa
 
+RESERVED_BACKUP_IDS = ("latest", "last", "oldest", "first", "last-failed")
+
 
 def drop_privileges(user):
     """
@@ -785,7 +787,13 @@ def check_backup_name(backup_name):
     if backup_name == "":
         raise ArgumentTypeError("Backup name cannot be empty")
     if is_backup_id(backup_name):
-        raise ArgumentTypeError("Backup name '%s' cannot be a backup ID" % backup_name)
+        raise ArgumentTypeError(
+            "Backup name '%s' is not allowed: backup ID" % backup_name
+        )
+    if backup_name in (RESERVED_BACKUP_IDS):
+        raise ArgumentTypeError(
+            "Backup name '%s' is not allowed: reserved word" % backup_name
+        )
     return backup_name
 
 
