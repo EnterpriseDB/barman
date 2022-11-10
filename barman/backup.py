@@ -382,7 +382,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         TODO
         """
         available_backups = self.get_available_backups(status_filter).values()
-        return get_backup_info_from_name(available_backups, backup_name).backup_id
+        backup_info = get_backup_info_from_name(available_backups, backup_name)
+        if backup_info is not None:
+            return backup_info.backup_id
 
     @staticmethod
     def get_timelines_to_protect(remove_until, deleted_backup, available_backups):
