@@ -679,7 +679,7 @@ class ConsoleOutputWriter(object):
 
         out_list = ["%s %s " % (backup_info.server_name, backup_info.backup_id)]
         if backup_info.backup_name is not None:
-            out_list.append("%s - " % backup_info.backup_name)
+            out_list.append("'%s' - " % backup_info.backup_name)
         else:
             out_list.append(" - ")
         if backup_info.status in BackupInfo.STATUS_COPY_DONE:
