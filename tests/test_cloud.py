@@ -3062,7 +3062,6 @@ class TestCloudBackupUploaderPostgres(object):
         mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=999999, MIN_CHUNK_SIZE=2)
         mock_postgres = MagicMock()
         mock_backup_info.return_value.backup_label = "test backup label"
-        backup_name = "nyy lbhe onfr"
         uploader = CloudBackupUploaderPostgres(
             self.server_name,
             mock_cloud_interface,
