@@ -1791,6 +1791,11 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
             backup_info = self._get_backup_info_from_name(backup_id)
             if backup_info is not None:
                 return backup_info.backup_id
+            else:
+                raise ValueError(
+                    "Unknown backup '%s' for server '%s'"
+                    % (backup_id, self.server_name)
+                )
         else:
             return backup_id
 

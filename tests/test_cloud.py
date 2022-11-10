@@ -2822,8 +2822,14 @@ end_time=2014-12-22 09:25:27.410470+01:00
                 except KeyError:
                     pass
 
-        def list_bucket(prefix, delimiter=""):
-            return in_memory_object_store.keys()
+        def list_bucket(prefix, delimiter="/"):
+            for key in in_memory_object_store.keys():
+                if len(delimiter) > 0:
+                    tokens = key.split(delimiter)
+                    if len(tokens) > 1:
+                        for i in range(1, len(tokens)):
+                            yield delimiter.join(tokens[:i]) + "/"
+                yield key
 
         cloud_interface_mock.upload_fileobj.side_effect = upload_fileobj
         cloud_interface_mock.remote_open.side_effect = remote_open
@@ -2874,6 +2880,61 @@ end_time=2014-12-22 09:25:27.410470+01:00
         assert catalog.should_keep_backup(test_backup_id) is False
         # And the recovery target is None again
         assert catalog.get_keep_target(test_backup_id) is None
+
+    @pytest.fixture
+    def catalog_with_named_backup(self, in_memory_cloud_interface):
+        backup_infos = {
+            "20221107T120000": BytesIO(
+                b"""backup_label=None
+end_time=2022-11-07 12:05:00
+backup_name=named backup
+"""
+            ),
+            "20221109T120000": BytesIO(
+                b"""backup_label=None
+end_time=2022-11-09 12:05:00
+"""
+            ),
+        }
+        in_memory_cloud_interface.path = ""
+        for id, backup_info in backup_infos.items():
+            in_memory_cloud_interface.upload_fileobj(
+                backup_info, "test-server/base/%s/backup.info" % id
+            )
+        return CloudBackupCatalog(in_memory_cloud_interface, "test-server")
+
+    @pytest.mark.parametrize(
+        ("backup_id", "expected_backup_id"),
+        (
+            # Backup names should resolve to the ID of the backup which has that name
+            ("named backup", "20221107T120000"),
+            # The backup ID should resolve to itself
+            ("20221109T120000", "20221109T120000"),
+        ),
+    )
+    def test_parse_backup_id(
+        self, backup_id, expected_backup_id, catalog_with_named_backup
+    ):
+        # GIVEN a cloud object store with two backups
+        # WHEN parse_backup_id is called with a matching backup ID or name
+        # THEN the returned backup ID should match the expected backup ID
+        assert (
+            catalog_with_named_backup.parse_backup_id(backup_id) == expected_backup_id
+        )
+
+    def test_parse_backup_id_no_match(self, catalog_with_named_backup):
+        # GIVEN a cloud object store with two backups
+        # WHEN parse_backup_id is called with a name which does not match
+        backup_name = "non-matching name"
+
+        # THEN a ValueError is raised
+        with pytest.raises(ValueError) as exc:
+            catalog_with_named_backup.parse_backup_id(backup_name)
+
+        # AND the exception message describes the problem
+        assert "Unknown backup '%s' for server 'test-server'" % backup_name in str(
+            exc.value
+        )
 
 
 class TestCloudTarUploader(object):
