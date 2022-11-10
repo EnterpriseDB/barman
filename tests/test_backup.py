@@ -739,6 +739,49 @@ class TestBackup(object):
             available_backups["obsolete_backup"], skip_wal_cleanup_if_standalone=False
         )
 
+    @pytest.mark.parametrize("should_fail", (True, False))
+    @patch("barman.backup.LocalBackupInfo")
+    def test_backup_with_name(self, mock_backup_info, should_fail):
+        """Verify that backup name is written to backup info during the backup."""
+        # GIVEN a backup manager
+        backup_manager = build_backup_manager()
+        backup_info = mock_backup_info.return_value
+        backup_info.size = 0
+        backup_manager.executor.backup = Mock()
+        backup_manager.executor.copy_start_time = datetime.now()
+
+        # AND a backup executor which will either succeed or fail
+        if should_fail:
+            backup_manager.executor.backup.side_effect = Exception("failed!")
+
+        # WHEN a backup is taken with a given name
+        backup_name = "arire tbaan tvir lbh hc"
+        backup_manager.backup(name=backup_name)
+
+        # THEN the backup name is set on the backup_info
+        assert backup_info.backup_name == backup_name
+
+    @pytest.mark.parametrize("should_fail", (True, False))
+    @patch("barman.backup.LocalBackupInfo")
+    def test_backup_without_name(self, mock_backup_info, should_fail):
+        """Verify that backup name is not written to backup info if name not used."""
+        # GIVEN a backup manager
+        backup_manager = build_backup_manager()
+        backup_info = mock_backup_info.return_value
+        backup_info.size = 0
+        backup_manager.executor.backup = Mock()
+        backup_manager.executor.copy_start_time = datetime.now()
+
+        # AND a backup executor which will either succeed or fail
+        if should_fail:
+            backup_manager.executor.backup.side_effect = Exception("failed!")
+
+        # WHEN a backup is taken with no name
+        backup_manager.backup()
+
+        # THEN backup name is not set on the backup_info
+        assert "backup_name" not in dir(backup_info)
+
 
 class TestWalCleanup(object):
     """Test cleanup of WALs by BackupManager"""

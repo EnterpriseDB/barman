@@ -682,7 +682,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
                 # Write the backup friendly name if there is one
                 if name is not None:
-                    self.write_backup_name(backup_info, name)
+                    backup_info.backup_name = name
 
                 # Make sure we are not holding any PostgreSQL connection
                 # during the post-backup scripts
@@ -1463,7 +1463,3 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             output.error(e.args[0]["err"])
             return
         output.info(pg_verifybackup.get_output()[0].strip())
-
-    def write_backup_name(self, backup_info, name):
-        """TODO"""
-        backup_info.backup_name = name
