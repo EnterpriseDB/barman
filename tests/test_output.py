@@ -1211,7 +1211,6 @@ class TestConsoleWriter(object):
         )
 
         # WHEN the list_backup output is generated in Plain form
-        json_writer = output.JsonOutputWriter()
         console_writer = output.ConsoleOutputWriter()
 
         console_writer.init_list_backup(ext_info["server_name"], False)
@@ -1856,7 +1855,6 @@ class TestJsonWriter(object):
 
         # WHEN the list_backup output is generated in JSON form
         json_writer = output.JsonOutputWriter()
-        console_writer = output.ConsoleOutputWriter()
 
         # THEN the output contains the backup name
         json_writer.result_show_backup(ext_info)
