@@ -704,7 +704,7 @@ class TestCli(object):
         # THEN the expected message is in the logs
         out, _err = capsys.readouterr()
         assert (
-            "Backup manifest for backup %s successfully generated for server %s"
+            "Backup manifest for backup '%s' successfully generated for server %s"
             % (args.backup_id, args.server_name)
             in out
         )

@@ -1508,7 +1508,9 @@ def verify_backup(args):
     # Raises an error if wrong backup
     backup_info = parse_backup_id(server, args)
     # get backup path
-    output.info("Verifying backup %s on server %s" % (args.backup_id, args.server_name))
+    output.info(
+        "Verifying backup '%s' on server %s" % (args.backup_id, args.server_name)
+    )
 
     server.backup_manager.verify_backup(backup_info)
     output.close_and_exit()
@@ -1542,7 +1544,7 @@ def generate_manifest(args):
     backup_manifest.create_backup_manifest()
 
     output.info(
-        "Backup manifest for backup %s successfully generated for server %s"
+        "Backup manifest for backup '%s' successfully generated for server %s"
         % (args.backup_id, args.server_name)
     )
     output.close_and_exit()
