@@ -44,7 +44,7 @@ class TestCloudRestore(object):
         mock_catalog.return_value.parse_backup_id.return_value = expected_backup_id
 
         # WHEN barman-backup-restore is called with the backup_id_arg
-        recovery_dir = "/tmp/recover"
+        recovery_dir = "/some/recovery/dir"
         cloud_restore.main(
             ["cloud_storage_url", "test_server", backup_id_arg, recovery_dir]
         )
