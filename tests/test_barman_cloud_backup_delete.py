@@ -23,6 +23,7 @@ import pytest
 from barman.annotations import KeepManager
 from barman.clients import cloud_backup_delete
 from barman.cloud import CloudBackupCatalog
+from barman.utils import is_backup_id
 
 from testing_helpers import interpolate_wals
 
@@ -113,7 +114,12 @@ class TestCloudBackupDelete(object):
           2. Providing the data needed to verify that the expected backups were deleted.
         """
         backup_metadata = {}
-        for backup_id in backup_ids:
+        for backup in backup_ids:
+            backup_name = None
+            if isinstance(backup, tuple):
+                backup_id, backup_name = backup
+            else:
+                backup_id = backup
             backup_metadata[backup_id] = {}
             mock_backup_files = self._get_mock_backup_files(
                 {
@@ -124,6 +130,8 @@ class TestCloudBackupDelete(object):
             backup_metadata[backup_id]["files"] = mock_backup_files
             backup_info = mock.MagicMock(name="backup_info")
             backup_info.backup_id = backup_id
+            if backup_name:
+                backup_info.backup_name = backup_name
             backup_info.status = "DONE"
             backup_info.end_time = datetime.datetime.strptime(
                 backup_id, "%Y%m%dT%H%M%S"
@@ -194,8 +202,19 @@ class TestCloudBackupDelete(object):
         def remove_wal_from_cache(wal_name):
             wals.remove(wal_name)
 
+        # Just enough code to resolve backup names to backup IDs in the mock catalog.
+        # This allows the tests to verify the delete code is using parse_backup_id
+        # correctly (though obviously it doesn't verify parse_backup_id does the
+        # right thing - this is covered in test_cloud.py).
         def parse_backup_id(backup_id):
-            return backup_id
+            if not is_backup_id(backup_id):
+                return [
+                    b_id
+                    for b_id, backup in backup_state.items()
+                    if backup["info"].backup_name == backup_id
+                ][0]
+            else:
+                return backup_id
 
         catalog = mock.Mock(CloudBackupCatalog)
         catalog.configure_mock(
@@ -261,24 +280,25 @@ class TestCloudBackupDelete(object):
             call_args,
         )
 
+    @pytest.mark.parametrize("backup_id_arg", ("20210723T095432", "backup name"))
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
     def test_delete_single_backup(
-        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, backup_id_arg
     ):
         """
         Tests that files for the specified backup are deleted via the cloud provider.
         """
-        # GIVEN a backup catalog with one backup and no WALs
+        # GIVEN a backup catalog with one named backup and no WALs
         backup_id = "20210723T095432"
-        backup_metadata = self._create_backup_metadata([backup_id])
+        backup_metadata = self._create_backup_metadata([(backup_id, "backup name")])
 
         # AND a CloudBackupCatalog which returns the backup_info for only that backup
         cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
 
-        # WHEN barman-cloud-backup-delete runs, specifying the backup ID
+        # WHEN barman-cloud-backup-delete runs, specifying either a backup ID or name
         cloud_backup_delete.main(
-            ["cloud_storage_url", "test_server", "--backup-id", backup_id]
+            ["cloud_storage_url", "test_server", "--backup-id", backup_id_arg]
         )
 
         # THEN the cloud interface was only used to delete the files associated with
@@ -287,15 +307,16 @@ class TestCloudBackupDelete(object):
             get_cloud_interface_mock, backup_metadata, [backup_id]
         )
 
+    @pytest.mark.parametrize("backup_id_arg", ("20210723T095432", "backup name"))
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
     def test_delete_archival_backup(
-        self, get_cloud_interface_mock, cloud_backup_catalog_mock, caplog
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, backup_id_arg, caplog
     ):
         """Test that attempting to delete an archival backup fails"""
-        # GIVEN a backup catalog with one backup and no WALs
+        # GIVEN a backup catalog with one named backup and no WALs
         backup_id = "20210723T095432"
-        backup_metadata = self._create_backup_metadata([backup_id])
+        backup_metadata = self._create_backup_metadata([(backup_id, "backup name")])
 
         # AND a CloudBackupCatalog which returns the backup_info for only that backup
         cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
@@ -303,10 +324,10 @@ class TestCloudBackupDelete(object):
         # AND the backup is archival
         cloud_backup_catalog_mock.return_value.should_keep_backup.return_value = True
 
-        # WHEN barman-cloud-backup-delete runs, specifying the backup ID
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID or name
         with pytest.raises(SystemExit) as exc:
             cloud_backup_delete.main(
-                ["cloud_storage_url", "test_server", "--backup-id", backup_id]
+                ["cloud_storage_url", "test_server", "--backup-id", backup_id_arg]
             )
 
         # THEN we exit with status 1
@@ -319,18 +340,19 @@ class TestCloudBackupDelete(object):
             "backup please remove the keep and try again."
         ) in caplog.text
 
+    @pytest.mark.parametrize("backup_id_arg", ("20210723T095432", "backup name"))
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
     def test_delete_missing_files(
-        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, backup_id_arg
     ):
         """
         Tests that any backup files which are expected but not found are
         ignored and do not affect the success of the backup deletion.
         """
-        # GIVEN a backup catalog with one backup and no WALs
+        # GIVEN a backup catalog with one named backup and no WALs
         backup_id = "20210723T095432"
-        backup_metadata = self._create_backup_metadata([backup_id])
+        backup_metadata = self._create_backup_metadata([(backup_id, "backup name")])
 
         # AND the tablespace archive is missing
         backup_metadata[backup_id]["files"][16388].path = None
@@ -338,9 +360,9 @@ class TestCloudBackupDelete(object):
         # AND a CloudBackupCatalog which returns the backup_info for only that backup
         cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
 
-        # WHEN barman-cloud-backup-delete runs, specifying the backup ID
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID or name
         cloud_backup_delete.main(
-            ["cloud_storage_url", "test_server", "--backup-id", backup_id]
+            ["cloud_storage_url", "test_server", "--backup-id", backup_id_arg]
         )
 
         # THEN the cloud interface was only used to delete the files associated with
@@ -351,18 +373,19 @@ class TestCloudBackupDelete(object):
             get_cloud_interface_mock, backup_metadata, [backup_id]
         )
 
+    @pytest.mark.parametrize("backup_id_arg", ("20210723T095432", "backup name"))
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
     def test_delete_missing_files_with_additional_files(
-        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, backup_id_arg
     ):
         """
         Tests that if a file which has additional files is missing, the additional
         files are still deleted.
         """
-        # GIVEN a backup catalog with one backup and no WALs
+        # GIVEN a backup catalog with one named backup and no WALs
         backup_id = "20210723T095432"
-        backup_metadata = self._create_backup_metadata([backup_id])
+        backup_metadata = self._create_backup_metadata([(backup_id, "backup name")])
 
         # AND the PGDATA file has additional files
         backup_metadata[backup_id]["files"][None].additional_files = [
@@ -377,9 +400,9 @@ class TestCloudBackupDelete(object):
         # AND a CloudBackupCatalog which returns the backup_info for only that backup
         cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
 
-        # WHEN barman-cloud-backup-delete runs, specifying the backup ID
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID or name
         cloud_backup_delete.main(
-            ["cloud_storage_url", "test_server", "--backup-id", backup_id]
+            ["cloud_storage_url", "test_server", "--backup-id", backup_id_arg]
         )
 
         # THEN the cloud interface was only used to delete the files associated with
@@ -391,18 +414,19 @@ class TestCloudBackupDelete(object):
             get_cloud_interface_mock, backup_metadata, [backup_id]
         )
 
+    @pytest.mark.parametrize("backup_id_arg", ("20210723T095432", "backup name"))
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
     def test_delete_additional_files(
-        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, backup_id_arg
     ):
         """
         Tests that additional files (created due to --max-archive-size being
         exceeded) are also deleted.
         """
-        # GIVEN a backup catalog with one backup and no WALs
+        # GIVEN a backup catalog with one named backup and no WALs
         backup_id = "20210723T095432"
-        backup_metadata = self._create_backup_metadata([backup_id])
+        backup_metadata = self._create_backup_metadata([(backup_id, "backup name")])
 
         # AND the tablespace and PGDATA files both have additional files
         backup_metadata[backup_id]["files"][16388].additional_files = [
@@ -418,9 +442,9 @@ class TestCloudBackupDelete(object):
         # AND a CloudBackupCatalog which returns the backup_info for only that backup
         cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
 
-        # WHEN barman-cloud-backup-delete runs, specifying the backup ID
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID or name
         cloud_backup_delete.main(
-            ["cloud_storage_url", "test_server", "--backup-id", backup_id]
+            ["cloud_storage_url", "test_server", "--backup-id", backup_id_arg]
         )
 
         # THEN the cloud interface was only used to delete the files associated with
@@ -429,10 +453,11 @@ class TestCloudBackupDelete(object):
             get_cloud_interface_mock, backup_metadata, [backup_id]
         )
 
+    @pytest.mark.parametrize("backup_id_arg", ("20210723T095432", "backup name"))
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
     def test_delete_one_of_multiple_backups(
-        self, get_cloud_interface_mock, cloud_backup_catalog_mock
+        self, get_cloud_interface_mock, cloud_backup_catalog_mock, backup_id_arg
     ):
         """
         Tests that *only* files for the specified backup are deleted via the cloud
@@ -440,14 +465,16 @@ class TestCloudBackupDelete(object):
         """
         # GIVEN a backup catalog with two backups and no WALs
         backup_id = "20210723T095432"
-        backup_metadata = self._create_backup_metadata(["20210723T085432", backup_id])
+        backup_metadata = self._create_backup_metadata(
+            ["20210723T085432", (backup_id, "backup name")]
+        )
 
         # AND a CloudBackupCatalog which returns the backup_info for only those backups
         cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
 
-        # WHEN barman-cloud-backup-delete runs, specifying the backup ID
+        # WHEN barman-cloud-backup-delete runs, specifying the backup ID or name
         cloud_backup_delete.main(
-            ["cloud_storage_url", "test_server", "--backup-id", backup_id]
+            ["cloud_storage_url", "test_server", "--backup-id", backup_id_arg]
         )
 
         # THEN the cloud interface was only used to delete the files associated with

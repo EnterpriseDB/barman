@@ -170,9 +170,6 @@ def _delete_backup(
     if not backup_info:
         logging.warning("Backup %s does not exist", backup_id)
         return
-    # TODO need to update backup_id here since if it was a name we must use
-    # the resolved name later - bit ugly
-    backup_id = backup_info.backup_id
     objects_to_delete = _get_files_for_backup(catalog, backup_info)
     backup_info_path = os.path.join(
         catalog.prefix, backup_info.backup_id, "backup.info"
