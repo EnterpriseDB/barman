@@ -21,7 +21,6 @@ import os
 import pytest
 
 from barman.clients import cloud_backup
-from barman.clients.cloud_cli import CLIErrorExit
 
 EXAMPLE_BACKUP_DIR = "/path/to/backup"
 EXAMPLE_BACKUP_ID = "20210707T132804"
@@ -109,7 +108,7 @@ class TestCloudBackup(object):
     ):
         # WHEN barman-cloud-backup is run with the --name option
         # THEN a CLIErrorExit occurs
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(SystemExit):
             cloud_backup.main(
                 ["cloud_storage_url", "test_server", "--name", backup_name]
             )
@@ -369,7 +368,7 @@ class TestCloudBackupHookScript(object):
     ):
         # WHEN barman-cloud-backup is run as a hook script with the --name option
         # THEN a SystemExit occurs
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(SystemExit):
             cloud_backup.main(
                 ["cloud_storage_url", "test_server", "--name", "backup name"]
             )
