@@ -21,6 +21,7 @@ import os
 import pytest
 
 from barman.clients import cloud_backup
+from barman.clients.cloud_cli import CLIErrorExit
 
 EXAMPLE_BACKUP_DIR = "/path/to/backup"
 EXAMPLE_BACKUP_ID = "20210707T132804"
@@ -28,9 +29,9 @@ EXAMPLE_BACKUP_ID = "20210707T132804"
 
 @mock.patch("barman.clients.cloud_backup.tempfile")
 @mock.patch("barman.clients.cloud_backup.rmtree")
-class TestCloudBackupHookScript(object):
+class TestCloudBackup(object):
     """
-    Test that we get the intended behaviour when called as a hook script
+    Test that we get the intended behaviour when called directly
     """
 
     @mock.patch.dict(
@@ -39,13 +40,13 @@ class TestCloudBackupHookScript(object):
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
     @mock.patch("barman.clients.cloud_backup.CloudBackupUploaderPostgres")
-    def test_uses_postgres_backup_uploader_when_not_running_as_hook(
+    def test_uses_postgres_backup_uploader(
         self,
         uploader_mock,
         cloud_interface_mock,
         postgres_connection,
-        rmtree_mock,
-        tempfile_mock,
+        _rmtree_mock,
+        _tempfile_mock,
     ):
         uploader = uploader_mock.return_value
         cloud_backup.main(["cloud_storage_url", "test_server"])
@@ -60,6 +61,74 @@ class TestCloudBackupHookScript(object):
             cloud_interface=cloud_interface_mock.return_value,
         )
         uploader.backup.assert_called_once()
+
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploaderPostgres")
+    def test_name_option_success(
+        self,
+        uploader_mock,
+        _cloud_interface_mock,
+        _postgres_connection,
+        _rmtree_mock,
+        _tmpfile_mock,
+        caplog,
+    ):
+        # WHEN barman-cloud-backup is run with the --name option
+        cloud_backup.main(
+            ["cloud_storage_url", "test_server", "--name", "backup name", "-vv"]
+        )
+
+        # THEN no messages or exceptions occur
+        assert caplog.messages == []
+
+    @pytest.mark.parametrize(
+        ("backup_name", "expected_error"),
+        (
+            ("latest", "reserved word"),
+            ("last", "reserved word"),
+            ("oldest", "reserved word"),
+            ("first", "reserved word"),
+            ("last-failed", "reserved word"),
+            ("20201110T120000", "backup ID"),
+        ),
+    )
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploaderPostgres")
+    def test_name_option_validation_failure(
+        self,
+        uploader_mock,
+        _cloud_interface_mock,
+        _postgres_connection,
+        _rmtree_mock,
+        _tmpfile_mock,
+        backup_name,
+        expected_error,
+        capsys,
+    ):
+        # WHEN barman-cloud-backup is run with the --name option
+        # THEN a CLIErrorExit occurs
+        with pytest.raises(SystemExit) as exc:
+            cloud_backup.main(
+                ["cloud_storage_url", "test_server", "--name", backup_name]
+            )
+
+        # AND the expected error message occurs
+        _out, err = capsys.readouterr()
+        expected_message = "Backup name '%s' is not allowed: %s" % (
+            backup_name,
+            expected_error,
+        )
+        assert expected_message in err
+
+
+@mock.patch("barman.clients.cloud_backup.tempfile")
+@mock.patch("barman.clients.cloud_backup.rmtree")
+class TestCloudBackupHookScript(object):
+    """
+    Test that we get the intended behaviour when called as a hook script
+    """
 
     @mock.patch.dict(
         os.environ,
@@ -279,3 +348,34 @@ class TestCloudBackupHookScript(object):
         assert expected_error in caplog.messages[0]
         cloud_interface_mock.assert_called_once()
         uploader_mock.assert_not_called()
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "BARMAN_HOOK": "backup_retry_script",
+            "BARMAN_PHASE": "post",
+            "BARMAN_BACKUP_DIR": EXAMPLE_BACKUP_DIR,
+            "BARMAN_BACKUP_ID": EXAMPLE_BACKUP_ID,
+            "BARMAN_STATUS": "DONE",
+        },
+    )
+    @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
+    def test_error_if_backup_name_set_when_hook_script(
+        self,
+        _cloud_interface_mock,
+        _rmtree_mock,
+        _tmpfile_mock,
+        caplog,
+    ):
+        # WHEN barman-cloud-backup is run as a hook script with the --name option
+        # THEN a SystemExit occurs
+        with pytest.raises(SystemExit) as exc:
+            cloud_backup.main(
+                ["cloud_storage_url", "test_server", "--name", "backup name"]
+            )
+
+        # AND the expected error message occurs
+        assert (
+            "Barman cloud backup exception: "
+            "Cannot set backup name when running as a hook script" in caplog.messages
+        )

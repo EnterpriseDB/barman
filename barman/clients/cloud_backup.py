@@ -139,7 +139,9 @@ def main(args=None):
             }
             if __is_hook_script():
                 if config.backup_name:
-                    raise BarmanException("Backup already has a name")
+                    raise BarmanException(
+                        "Cannot set backup name when running as a hook script"
+                    )
                 if "BARMAN_BACKUP_DIR" not in os.environ:
                     raise BarmanException(
                         "BARMAN_BACKUP_DIR environment variable not set"
