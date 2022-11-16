@@ -1552,7 +1552,12 @@ class Server(RemoteStatusMixin):
         self, backup_name, status_filter=BackupManager.DEFAULT_STATUS_FILTER
     ):
         """
-        TODO
+        Get the id of the named backup, if it exists.
+
+        :param string backup_name: The name of the backup for which an ID should be
+            returned
+        :param tuple status_filter: The status of the backup to return.
+        :return string|None: ID of the backup
         """
         # Iterate through backups and see if there is one which matches the name
         return self.backup_manager.get_backup_id_from_name(backup_name, status_filter)

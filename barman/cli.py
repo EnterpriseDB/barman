@@ -426,7 +426,8 @@ def backup_completer(prefix, parsed_args, **kwargs):
         ),
         argument(
             "--name",
-            help="a friendly name which can be used to reference this backup",
+            help="a name which can be used to reference this backup in barman "
+            "commands such as recover and delete",
             dest="backup_name",
             default=None,
             type=check_backup_name,

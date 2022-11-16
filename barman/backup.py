@@ -379,7 +379,12 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
     def get_backup_id_from_name(self, backup_name, status_filter=DEFAULT_STATUS_FILTER):
         """
-        TODO
+        Get the id of the named backup, if it exists.
+
+        :param string backup_name: The name of the backup for which an ID should be
+            returned
+        :param tuple status_filter: The status of the backup to return.
+        :return string|None: ID of the backup
         """
         available_backups = self.get_available_backups(status_filter).values()
         backup_info = get_backup_info_from_name(available_backups, backup_name)
@@ -680,7 +685,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             if backup_info:
                 backup_info.save()
 
-                # Write the backup friendly name if there is one
+                # Set the backup friendly name if there is one
                 if name is not None:
                     backup_info.backup_name = name
 

@@ -780,8 +780,17 @@ def check_size(value):
 
 
 def check_backup_name(backup_name):
-    # TODO check the backup name does not match a backup ID and is otherwise not
-    # illegal (whatever that means)
+    """
+    Verify that a backup name is not a backup ID or reserved identifier.
+
+    Returns the backup name if it is a valid backup name and raises an exception
+    otherwise. A backup name is considered valid if it is not None, not empty,
+    does not match the backup ID format and is not any other reserved backup
+    identifier.
+
+    :param str backup_name: The backup name to be checked.
+    :return str: The backup name.
+    """
     if backup_name is None:
         raise ArgumentTypeError("Backup name cannot be None")
     if backup_name == "":
@@ -798,13 +807,24 @@ def check_backup_name(backup_name):
 
 
 def is_backup_id(backup_id):
-    # TODO check if backup_id matches pattern (is this logic somewhere already?)
+    """
+    Checks whether the supplied identifier is a backup ID.
+
+    :param str backup_id: The backup identifier to check.
+    :return bool: True if the backup matches the backup ID regex, false otherwise.
+    """
     return bool(re.match(r"(\d{8})T\d{6}$", backup_id))
 
 
 def get_backup_info_from_name(backups, backup_name):
     """
-    Returns None if no matching backup is found.
+    Get the backup metadata for the named backup.
+
+    :param list[BackupInfo] backups: A list of BackupInfo objects which should be
+        searched for the named backup.
+    :param str backup_name: The name of the backup for which the backup metadata
+        should be retrieved.
+    :return BackupInfo|None: The backup metadata for the named backup.
     """
     matching_backups = [
         backup for backup in backups if backup.backup_name == backup_name

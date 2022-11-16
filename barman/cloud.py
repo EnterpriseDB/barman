@@ -1779,14 +1779,22 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
 
     def _get_backup_info_from_name(self, backup_name):
         """
-        TODO
+        Get the backup metadata for the named backup.
+
+        :param str backup_name: The name of the backup for which the backup metadata
+            should be retrieved
+        :return BackupInfo|None: The backup metadata for the named backup
         """
         available_backups = self.get_backup_list().values()
         return get_backup_info_from_name(available_backups, backup_name)
 
     def parse_backup_id(self, backup_id):
         """
-        TODO
+        Parse a backup identifier and return the matching backup ID. If the identifier
+        is a backup ID it is returned, otherwise it is assumed to be a name.
+
+        :param str backup_id: The backup identifier to be parsed
+        :return str: The matching backup ID for the supplied identifier
         """
         if not is_backup_id(backup_id):
             backup_info = self._get_backup_info_from_name(backup_id)
