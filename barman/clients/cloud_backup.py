@@ -283,7 +283,6 @@ def parse_arguments(args=None):
         "--name",
         help="a name which can be used to reference this backup in commands "
         "such as barman-cloud-restore and barman-cloud-backup-delete",
-        help="a friendly name which can be used to reference this backup",
         default=None,
         type=check_backup_name,
         dest="backup_name",
