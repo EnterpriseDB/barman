@@ -35,6 +35,7 @@ from barman.clients.cloud_cli import (
     UrlArgumentType,
 )
 from barman.cloud import (
+    CloudBackupSnapshot,
     CloudBackupUploaderBarman,
     CloudBackupUploaderPostgres,
     configure_logging,
@@ -178,63 +179,15 @@ def main(args=None):
                     # Do snapshot things if asked for
                     if config.snapshot_project is not None:
                         snapshot_interface = get_snapshot_interface(config)
-                        # TODO here we want to create a CloudBackupUploaderSnapshot which
-                        # uses snapshot_interface instead of the copying via the cloud
-                        # interface
-                        backup_info = BackupInfo(
-                            backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
-                            server_name=config.server_name,
-                        )
-                        backup_info.set_attribute("systemid", postgres.get_systemid())
-                        strategy = ConcurrentBackupStrategy(
-                            postgres, config.server_name
-                        )
-                        logging.info("Starting backup '%s'", backup_info.backup_id)
-                        strategy.start_backup(backup_info)
-                        snapshot_interface.take_snapshot(
-                            backup_info,
+                        snapshot_backup = CloudBackupSnapshot(
+                            config.server_name,
+                            cloud_interface,
+                            snapshot_interface,
+                            postgres,
                             config.snapshot_disk_zone,
                             config.snapshot_disk_name,
                         )
-                        logging.info("Stopping backup '%s'", backup_info.backup_id)
-                        strategy.stop_backup(backup_info)
-
-                        # Create a restore point after a backup
-                        target_name = "barman_%s" % backup_info.backup_id
-                        postgres.create_restore_point(target_name)
-                        postgres.close()
-
-                        # Set the backup status as DONE
-                        backup_info.set_attribute("status", BackupInfo.DONE)
-
-                        # TODO Now upload backup info and backup label
-                        # Wheeeeee such duplication
-                        if backup_info.backup_label:
-                            backup_label_key = os.path.join(
-                                cloud_interface.path,
-                                config.server_name,
-                                "base",
-                                backup_info.backup_id,
-                                "backup_label",
-                            )
-                            cloud_interface.upload_fileobj(
-                                BytesIO(backup_info.backup_label.encode("UTF-8")),
-                                backup_label_key,
-                            )
-                        with BytesIO() as backup_info_file:
-                            backup_info_key = os.path.join(
-                                cloud_interface.path,
-                                config.server_name,
-                                "base",
-                                backup_info.backup_id,
-                                "backup.info",
-                            )
-                            backup_info.save(file_object=backup_info_file)
-                            backup_info_file.seek(0, os.SEEK_SET)
-                            logging.info("Uploading '%s'", backup_info_key)
-                            cloud_interface.upload_fileobj(
-                                backup_info_file, backup_info_key
-                            )
+                        snapshot_backup.backup()
                     # Otherwise upload everything to the object store
                     else:
                         uploader = CloudBackupUploaderPostgres(

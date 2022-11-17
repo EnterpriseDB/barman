@@ -1198,7 +1198,88 @@ class CloudInterface(with_metaclass(ABCMeta)):
             )
 
 
-class CloudBackupUploader(with_metaclass(ABCMeta)):
+class CloudBackup(with_metaclass(ABCMeta)):
+    """
+    Abstract base class for cloud backups.
+    """
+
+    def __init__(self, server_name, cloud_interface):
+        self.server_name = server_name
+        self.cloud_interface = cloud_interface
+        # Stats
+        self.copy_start_time = None
+        self.copy_end_time = None
+
+
+class CloudBackupSnapshot(CloudBackup):
+    def __init__(
+        self,
+        server_name,
+        cloud_interface,
+        snapshot_interface,
+        postgres,
+        snapshot_disk_zone,
+        snapshot_disk_name,
+    ):
+        super(CloudBackupSnapshot, self).__init__(server_name, cloud_interface)
+        self.snapshot_interface = snapshot_interface
+        self.postgres = postgres
+        self.snapshot_disk_zone = snapshot_disk_zone
+        self.snapshot_disk_name = snapshot_disk_name
+
+    def backup(self):
+        backup_info = BackupInfo(
+            backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
+            server_name=self.server_name,
+        )
+        backup_info.set_attribute("systemid", self.postgres.get_systemid())
+        strategy = ConcurrentBackupStrategy(self.postgres, self.server_name)
+        logging.info("Starting backup '%s'", backup_info.backup_id)
+        strategy.start_backup(backup_info)
+        self.snapshot_interface.take_snapshot(
+            backup_info,
+            self.snapshot_disk_zone,
+            self.snapshot_disk_name,
+        )
+        logging.info("Stopping backup '%s'", backup_info.backup_id)
+        strategy.stop_backup(backup_info)
+
+        # Create a restore point after a backup
+        target_name = "barman_%s" % backup_info.backup_id
+        self.postgres.create_restore_point(target_name)
+        self.postgres.close()
+
+        # Set the backup status as DONE
+        backup_info.set_attribute("status", BackupInfo.DONE)
+
+        # Upload backup info and backup label to the object store
+        if backup_info.backup_label:
+            backup_label_key = os.path.join(
+                self.cloud_interface.path,
+                self.server_name,
+                "base",
+                backup_info.backup_id,
+                "backup_label",
+            )
+            self.cloud_interface.upload_fileobj(
+                BytesIO(backup_info.backup_label.encode("UTF-8")),
+                backup_label_key,
+            )
+        with BytesIO() as backup_info_file:
+            backup_info_key = os.path.join(
+                self.cloud_interface.path,
+                self.server_name,
+                "base",
+                backup_info.backup_id,
+                "backup.info",
+            )
+            backup_info.save(file_object=backup_info_file)
+            backup_info_file.seek(0, os.SEEK_SET)
+            logging.info("Uploading '%s'", backup_info_key)
+            self.cloud_interface.upload_fileobj(backup_info_file, backup_info_key)
+
+
+class CloudBackupUploader(CloudBackup):
     """
     Abstract base class which provides a client for uploading backups.
 
@@ -1230,14 +1311,9 @@ class CloudBackupUploader(with_metaclass(ABCMeta)):
         :param str compression: Compression algorithm to use
         """
 
+        super(CloudBackupUploader, self).__init__(server_name, cloud_interface)
         self.compression = compression
-        self.server_name = server_name
-        self.cloud_interface = cloud_interface
         self.max_archive_size = max_archive_size
-
-        # Stats
-        self.copy_start_time = None
-        self.copy_end_time = None
 
     def _create_upload_controller(self, backup_id):
         """
