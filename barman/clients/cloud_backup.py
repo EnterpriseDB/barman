@@ -181,13 +181,14 @@ def main(args=None):
                         # TODO here we want to create a CloudBackupUploaderSnapshot which
                         # uses snapshot_interface instead of the copying via the cloud
                         # interface
-                        server_name = "cloud"
                         backup_info = BackupInfo(
                             backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
-                            server_name=server_name,
+                            server_name=config.server_name,
                         )
                         backup_info.set_attribute("systemid", postgres.get_systemid())
-                        strategy = ConcurrentBackupStrategy(postgres, server_name)
+                        strategy = ConcurrentBackupStrategy(
+                            postgres, config.server_name
+                        )
                         logging.info("Starting backup '%s'", backup_info.backup_id)
                         strategy.start_backup(backup_info)
                         snapshot_interface.take_snapshot(
