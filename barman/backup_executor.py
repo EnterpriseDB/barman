@@ -40,6 +40,7 @@ import dateutil.parser
 from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
+from barman.cloud_providers import get_snapshot_interface_from_server_config
 from barman.command_wrappers import PgBaseBackup
 from barman.compression import get_pg_basebackup_compression
 from barman.config import BackupOptions
@@ -1397,20 +1398,13 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
 class SnapshotBackupExecutor(ExternalBackupExecutor):
     """Backup executor which uses snapshots to take the backup."""
 
-    def __init__(
-        self,
-        backup_manager,
-        snapshot_interface,
-        snapshot_disk_zone,
-        snapshot_disk_name,
-        local_mode=False,
-    ):
+    def __init__(self, backup_manager, local_mode=False):
         super(SnapshotBackupExecutor, self).__init__(
             backup_manager, "snapshot", local_mode
         )
-        self.snapshot_interface = snapshot_interface
-        self.snapshot_disk_zone = snapshot_disk_zone
-        self.snapshot_disk_name = snapshot_disk_name
+        self.snapshot_interface = get_snapshot_interface_from_server_config(self.config)
+        self.snapshot_disk_zone = self.config.snapshot_disk_zone
+        self.snapshot_disk_name = self.config.snapshot_disk_name
 
     def backup_copy(self, backup_info):
         """Actually take a snapshot here"""
