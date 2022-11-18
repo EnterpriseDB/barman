@@ -1198,21 +1198,11 @@ class CloudInterface(with_metaclass(ABCMeta)):
             )
 
 
-class CloudBackup(with_metaclass(ABCMeta)):
-    """
-    Abstract base class for cloud backups.
-    """
-
-    def __init__(
-        self, server_name, cloud_interface, max_archive_size, compression=None
-    ):
+class CloudBackupCoordinator(with_metaclass(ABCMeta)):
+    def __init__(self, server_name, cloud_interface, backup_mechanism):
         self.server_name = server_name
         self.cloud_interface = cloud_interface
-        self.max_archive_size = max_archive_size
-        self.compression = compression
-        # Stats
-        self.copy_start_time = None
-        self.copy_end_time = None
+        self.backup_mechanism = backup_mechanism
 
     def _create_upload_controller(self, backup_id):
         """
@@ -1231,11 +1221,98 @@ class CloudBackup(with_metaclass(ABCMeta)):
         return CloudUploadController(
             self.cloud_interface,
             key_prefix,
-            self.max_archive_size,
-            self.compression,
+            self.backup_mechanism.max_archive_size,
+            self.backup_mechanism.compression,
         )
 
-    # TODO only CloudBackupUploaderPostgres cares about this, not CloudBackupUploaderBarman
+    @abstractmethod
+    def backup(self):
+        pass
+
+    @abstractmethod
+    def handle_backup_errors(self):
+        pass
+
+
+class CloudBackupCoordinatorBarman(CloudBackupCoordinator):
+    def __init__(
+        self, server_name, cloud_interface, backup_mechanism, backup_dir, backup_id
+    ):
+        super(CloudBackupCoordinatorBarman, self).__init__(
+            server_name, cloud_interface, backup_mechanism
+        )
+        self.backup_dir = backup_dir
+        self.backup_id = backup_id
+
+    def backup(self):
+        """
+        Upload a Backup to cloud storage
+        """
+        # Read the backup_info file from disk as the backup has already been created
+        backup_info = BackupInfo(self.backup_id)
+        backup_info.load(filename=os.path.join(self.backup_dir, "backup.info"))
+        controller = self._create_upload_controller(self.backup_id)
+        try:
+            self.backup_mechanism.backup_copy(
+                controller,
+                backup_info,
+                os.path.join(self.backup_dir, "data"),
+                backup_info.pg_major_version(),
+            )
+
+            # Closing the controller will finalize all the running uploads
+            controller.close()
+
+            # Store the end time
+            self.copy_end_time = datetime.datetime.now()
+
+            # Manually add backup.info
+            with open(
+                os.path.join(self.backup_dir, "backup.info"), "rb"
+            ) as backup_info_file:
+                self.cloud_interface.upload_fileobj(
+                    backup_info_file,
+                    key=os.path.join(controller.key_prefix, "backup.info"),
+                )
+
+        # Use BaseException instead of Exception to catch events like
+        # KeyboardInterrupt (e.g.: CTRL-C)
+        except BaseException as exc:
+            # Mark the backup as failed and exit
+            self.handle_backup_errors("uploading data", exc)
+            raise SystemExit(1)
+
+        logging.info(
+            "Upload of backup completed (start time: %s, elapsed time: %s)",
+            self.backup_mechanism.copy_start_time,
+            human_readable_timedelta(
+                datetime.datetime.now() - self.backup_mechanism.copy_start_time
+            ),
+        )
+
+    def handle_backup_errors(self, action, exc):
+        """
+        Log that the backup upload has failed and exit
+
+        :param str action: the upload phase that has failed
+        :param BaseException exc: the exception that caused the failure
+        """
+        msg_lines = force_str(exc).strip().splitlines()
+        # If the exception has no attached message use the raw
+        # type name
+        if len(msg_lines) == 0:
+            msg_lines = [type(exc).__name__]
+        logging.error("Backup upload failed %s (%s)", action, msg_lines[0])
+        logging.debug("Exception details:", exc_info=exc)
+
+
+class CloudBackupCoordinatorPostgres(CloudBackupCoordinator):
+    def __init__(self, server_name, cloud_interface, backup_mechanism, postgres):
+        super(CloudBackupCoordinatorPostgres, self).__init__(
+            server_name, cloud_interface, backup_mechanism
+        )
+        self.postgres = postgres
+
     def _get_backup_info(self, server_name):
         backup_info = BackupInfo(
             backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
@@ -1244,7 +1321,6 @@ class CloudBackup(with_metaclass(ABCMeta)):
         backup_info.set_attribute("systemid", self.postgres.get_systemid())
         return backup_info
 
-    # TODO only CloudBackupUploaderPostgres cares about this, not CloudBackupUploaderBarman
     def _check_postgres_version(self):
         if not self.postgres.is_minimal_postgres_version():
             raise BackupException(
@@ -1255,26 +1331,9 @@ class CloudBackup(with_metaclass(ABCMeta)):
                 )
             )
 
-
-class CloudBackupSnapshot(CloudBackup):
-    def __init__(
-        self,
-        server_name,
-        cloud_interface,
-        snapshot_interface,
-        postgres,
-        snapshot_disk_zone,
-        snapshot_disk_name,
-    ):
-        super(CloudBackupSnapshot, self).__init__(server_name, cloud_interface, max_archive_size=1048576)
-        self.snapshot_interface = snapshot_interface
-        self.postgres = postgres
-        self.snapshot_disk_zone = snapshot_disk_zone
-        self.snapshot_disk_name = snapshot_disk_name
-
     def backup(self):
         """
-        Take a backup by creating snapshots of the specified disks.
+        Upload a Backup to cloud storage directly from a live PostgreSQL server.
         """
         backup_info = self._get_backup_info(self.server_name)
 
@@ -1287,10 +1346,11 @@ class CloudBackupSnapshot(CloudBackup):
         strategy.start_backup(backup_info)
 
         try:
-            self.snapshot_interface.take_snapshot(
+            self.backup_mechanism.backup_copy(
+                controller,
                 backup_info,
-                self.snapshot_disk_zone,
-                self.snapshot_disk_name,
+                backup_info.pgdata,
+                self.postgres.server_major_version,
             )
             logging.info("Stopping backup '%s'", backup_info.backup_id)
             strategy.stop_backup(backup_info)
@@ -1323,11 +1383,11 @@ class CloudBackupSnapshot(CloudBackup):
             # Store statistics about the copy
             backup_info.set_attribute("copy_stats", controller.statistics())
 
-            # TODO What would we store for the snapshots? and where?
-
             # Set the backup status as DONE
             backup_info.set_attribute("status", BackupInfo.DONE)
 
+        # Use BaseException instead of Exception to catch events like
+        # KeyboardInterrupt (e.g.: CTRL-C)
         except BaseException as exc:
             # Mark the backup as failed and exit
             self.handle_backup_errors("uploading data", exc, backup_info)
@@ -1347,7 +1407,20 @@ class CloudBackupSnapshot(CloudBackup):
                 )
                 raise SystemExit(1)
 
-    # TODO same as CloudBackupUploaderPostgres
+        logging.info(
+            "Backup end at LSN: %s (%s, %08X)",
+            backup_info.end_xlog,
+            backup_info.end_wal,
+            backup_info.end_offset,
+        )
+        logging.info(
+            "Backup completed (start time: %s, elapsed time: %s)",
+            self.backup_mechanism.copy_start_time,
+            human_readable_timedelta(
+                datetime.datetime.now() - self.backup_mechanism.copy_start_time
+            ),
+        )
+
     def handle_backup_errors(self, action, exc, backup_info):
         """
         Mark the backup as failed and exit
@@ -1372,52 +1445,26 @@ class CloudBackupSnapshot(CloudBackup):
         logging.debug("Exception details:", exc_info=exc)
 
 
-class CloudBackupUploader(CloudBackup):
-    """
-    Abstract base class which provides a client for uploading backups.
+class CloudBackupMechanism(with_metaclass(ABCMeta)):
+    @abstractmethod
+    def __init__(self):
+        pass
 
-    This should be inherited from by specialised classes which have knowledge
-    of the specific backup scenario. Initially two scenarios are implemented:
+    @abstractmethod
+    def backup_copy(self):
+        pass
 
-        * Upload of a backup on a live PostgreSQL server.
-        * Upload of an existing backup on a Barman server.
 
-    Code for uploading tablespaces and pgdata files is provided in _backup_copy.
-    This will work for data located on a live PostgreSQL server or an existing
-    backup on a Barman server.
-    """
-
-    def __init__(
-        self,
-        server_name,
-        cloud_interface,
-        max_archive_size,
-        compression=None,
-    ):
-        """
-        Base constructor.
-
-        :param str server_name: The name of the server as configured in Barman
-        :param CloudInterface cloud_interface: The interface to use to
-          upload the backup
-        :param int max_archive_size: the maximum size of an uploading archive
-        :param str compression: Compression algorithm to use
-        """
-
-        super(CloudBackupUploader, self).__init__(server_name, cloud_interface)
+class CloudBackupMechanismUpload(CloudBackupMechanism):
+    def __init__(self, compression, max_archive_size):
         self.compression = compression
         self.max_archive_size = max_archive_size
 
     @abstractmethod
-    def _get_tablespace_location(self, tablespace):
-        """
-        Return the on-disk location of the supplied tablespace
+    def _get_tablespace_location(self):
+        pass
 
-        This will vary depending on whether barman-cloud is running on a live
-        PostgreSQL server or a Barman server
-        """
-
-    def _backup_copy(self, controller, backup_info, pgdata_dir, server_major_version):
+    def backup_copy(self, controller, backup_info, pgdata_dir, server_major_version):
         """
         Perform the actual copy of the backup uploading it to cloud storage.
 
@@ -1489,61 +1536,8 @@ class CloudBackupUploader(CloudBackup):
             path="global/pg_control",
         )
 
-    @abstractmethod
-    def backup(self):
-        """
-        Coordinate the upload of a Backup to cloud storage
 
-        Any necessary coordination, such as calling pg_backup_start in PostgreSQL,
-        should happen here.
-        """
-
-    @abstractmethod
-    def handle_backup_errors(self, action, exc):
-        """
-        Perform appropriate cleanup actions and exit
-
-        :param str action: the upload phase that has failed
-        :param BaseException exc: the exception that caused the failure
-        """
-
-
-class CloudBackupUploaderBarman(CloudBackupUploader):
-    """
-    A cloud storage upload client for a preexisting backup on the Barman server.
-    """
-
-    def __init__(
-        self,
-        server_name,
-        cloud_interface,
-        max_archive_size,
-        backup_dir,
-        backup_id,
-        compression=None,
-    ):
-        """
-        Create the cloud storage upload client for a backup in the specified
-        location with the specified backup_id.
-
-        :param str server_name: The name of the server as configured in Barman
-        :param CloudInterface cloud_interface: The interface to use to
-          upload the backup
-        :param int max_archive_size: the maximum size of an uploading archive
-        :param str backup_dir: Path to the directory containing the backup to
-          be uploaded
-        :param str backup_id: The id of the backup to upload
-        :param str compression: Compression algorithm to use
-        """
-        super(CloudBackupUploaderBarman, self).__init__(
-            server_name,
-            cloud_interface,
-            max_archive_size,
-            compression=compression,
-        )
-        self.backup_dir = backup_dir
-        self.backup_id = backup_id
-
+class CloudBackupMechanismUploadBarman(CloudBackupMechanismUpload):
     def _get_tablespace_location(self, tablespace):
         """
         Determines the tablespace location by combining the backup directory with
@@ -1551,87 +1545,8 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         """
         return os.path.join(self.backup_dir, str(tablespace.oid))
 
-    def backup(self):
-        """
-        Upload a Backup to cloud storage
-        """
-        # Read the backup_info file from disk as the backup has already been created
-        backup_info = BackupInfo(self.backup_id)
-        backup_info.load(filename=os.path.join(self.backup_dir, "backup.info"))
-        controller = self._create_upload_controller(self.backup_id)
-        try:
-            self._backup_copy(
-                controller,
-                backup_info,
-                os.path.join(self.backup_dir, "data"),
-                backup_info.pg_major_version(),
-            )
 
-            # Closing the controller will finalize all the running uploads
-            controller.close()
-
-            # Store the end time
-            self.copy_end_time = datetime.datetime.now()
-
-            # Manually add backup.info
-            with open(
-                os.path.join(self.backup_dir, "backup.info"), "rb"
-            ) as backup_info_file:
-                self.cloud_interface.upload_fileobj(
-                    backup_info_file,
-                    key=os.path.join(controller.key_prefix, "backup.info"),
-                )
-
-        # Use BaseException instead of Exception to catch events like
-        # KeyboardInterrupt (e.g.: CTRL-C)
-        except BaseException as exc:
-            # Mark the backup as failed and exit
-            self.handle_backup_errors("uploading data", exc)
-            raise SystemExit(1)
-
-        logging.info(
-            "Upload of backup completed (start time: %s, elapsed time: %s)",
-            self.copy_start_time,
-            human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
-        )
-
-    def handle_backup_errors(self, action, exc):
-        """
-        Log that the backup upload has failed and exit
-
-        :param str action: the upload phase that has failed
-        :param BaseException exc: the exception that caused the failure
-        """
-        msg_lines = force_str(exc).strip().splitlines()
-        # If the exception has no attached message use the raw
-        # type name
-        if len(msg_lines) == 0:
-            msg_lines = [type(exc).__name__]
-        logging.error("Backup upload failed %s (%s)", action, msg_lines[0])
-        logging.debug("Exception details:", exc_info=exc)
-
-
-class CloudBackupUploaderPostgres(CloudBackupUploader):
-    """
-    A cloud storage upload client for a live PostgreSQL server.
-    """
-
-    def __init__(
-        self,
-        server_name,
-        cloud_interface,
-        max_archive_size,
-        postgres,
-        compression=None,
-    ):
-        super(CloudBackupUploaderPostgres, self).__init__(
-            server_name,
-            cloud_interface,
-            max_archive_size,
-            compression=compression,
-        )
-        self.postgres = postgres
-
+class CloudBackupMechanismUploadPostgres(CloudBackupMechanismUpload):
     def _get_tablespace_location(self, tablespace):
         """
         Just returns the location of the tablespace as we are running on the
@@ -1639,14 +1554,14 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
         """
         return tablespace.location
 
-    def _backup_copy(self, controller, backup_info, pgdata_dir, server_major_version):
+    def backup_copy(self, controller, backup_info, pgdata_dir, server_major_version):
         """
         Perform the actual copy of the backup uploading it to cloud storage.
 
         The core implementation of _backup_copy is extended here so that we
         include external config files on the PostgreSQL server.
         """
-        super(CloudBackupUploaderPostgres, self)._backup_copy(
+        super(CloudBackupMechanismUploadPostgres, self)._backup_copy(
             controller, backup_info, pgdata_dir, server_major_version
         )
         # Copy configuration files (if not inside PGDATA)
@@ -1687,117 +1602,26 @@ class CloudBackupUploaderPostgres(CloudBackupUploader):
             )
             logging.warning(msg)
 
-    def backup(self):
-        """
-        Upload a Backup to cloud storage directly from a live PostgreSQL server.
-        """
-        server_name = "cloud"
-        backup_info = self._get_backup_info(server_name)
 
-        controller = self._create_upload_controller(backup_info.backup_id)
+class CloudBackupMechanismSnapshot(CloudBackupMechanism):
+    def __init__(self, snapshot_interface, snapshot_disk_zone, snapshot_disk_name):
+        super(CloudBackupMechanismSnapshot, self).__init__()
+        self.snapshot_interface = snapshot_interface
+        self.snapshot_disk_zone = snapshot_disk_zone
+        self.snapshot_disk_name = snapshot_disk_name
+        self.compression = None
+        # The archive contains backup-related files not included in the snapshot only
+        # so we limit it to 1MB
+        self.max_archive_size = 1 * 1024 * 1024
 
-        self._check_postgres_version()
+    def backup_copy(self, controller, backup_info, pgdata_dir, server_major_version):
+        self.copy_start_time = datetime.datetime.now()
 
-        strategy = ConcurrentBackupStrategy(self.postgres, server_name)
-        logging.info("Starting backup '%s'", backup_info.backup_id)
-        strategy.start_backup(backup_info)
-
-        try:
-            self._backup_copy(
-                controller,
-                backup_info,
-                backup_info.pgdata,
-                self.postgres.server_major_version,
-            )
-            logging.info("Stopping backup '%s'", backup_info.backup_id)
-            strategy.stop_backup(backup_info)
-
-            # Create a restore point after a backup
-            target_name = "barman_%s" % backup_info.backup_id
-            self.postgres.create_restore_point(target_name)
-
-            # Free the Postgres connection
-            self.postgres.close()
-
-            # Eventually, add the backup_label from the backup_info
-            if backup_info.backup_label:
-                pgdata_stat = os.stat(backup_info.pgdata)
-                controller.add_fileobj(
-                    label="backup_label",
-                    fileobj=BytesIO(backup_info.backup_label.encode("UTF-8")),
-                    dst="data",
-                    path="backup_label",
-                    uid=pgdata_stat.st_uid,
-                    gid=pgdata_stat.st_gid,
-                )
-
-            # Closing the controller will finalize all the running uploads
-            controller.close()
-
-            # Store the end time
-            self.copy_end_time = datetime.datetime.now()
-
-            # Store statistics about the copy
-            backup_info.set_attribute("copy_stats", controller.statistics())
-
-            # Set the backup status as DONE
-            backup_info.set_attribute("status", BackupInfo.DONE)
-
-        # Use BaseException instead of Exception to catch events like
-        # KeyboardInterrupt (e.g.: CTRL-C)
-        except BaseException as exc:
-            # Mark the backup as failed and exit
-            self.handle_backup_errors("uploading data", exc, backup_info)
-            raise SystemExit(1)
-        finally:
-            try:
-                with BytesIO() as backup_info_file:
-                    backup_info.save(file_object=backup_info_file)
-                    backup_info_file.seek(0, os.SEEK_SET)
-                    key = os.path.join(controller.key_prefix, "backup.info")
-                    logging.info("Uploading '%s'", key)
-                    self.cloud_interface.upload_fileobj(backup_info_file, key)
-            except BaseException as exc:
-                # Mark the backup as failed and exit
-                self.handle_backup_errors(
-                    "uploading backup.info file", exc, backup_info
-                )
-                raise SystemExit(1)
-
-        logging.info(
-            "Backup end at LSN: %s (%s, %08X)",
-            backup_info.end_xlog,
-            backup_info.end_wal,
-            backup_info.end_offset,
+        self.snapshot_interface.take_snapshot(
+            backup_info,
+            self.snapshot_disk_zone,
+            self.snapshot_disk_name,
         )
-        logging.info(
-            "Backup completed (start time: %s, elapsed time: %s)",
-            self.copy_start_time,
-            human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
-        )
-
-    def handle_backup_errors(self, action, exc, backup_info):
-        """
-        Mark the backup as failed and exit
-
-        :param str action: the upload phase that has failed
-        :param barman.infofile.BackupInfo backup_info: the backup info file
-        :param BaseException exc: the exception that caused the failure
-        """
-        msg_lines = force_str(exc).strip().splitlines()
-        # If the exception has no attached message use the raw
-        # type name
-        if len(msg_lines) == 0:
-            msg_lines = [type(exc).__name__]
-        if backup_info:
-            # Use only the first line of exception message
-            # in backup_info error field
-            backup_info.set_attribute("status", BackupInfo.FAILED)
-            backup_info.set_attribute(
-                "error", "failure %s (%s)" % (action, msg_lines[0])
-            )
-        logging.error("Backup failed %s (%s)", action, msg_lines[0])
-        logging.debug("Exception details:", exc_info=exc)
 
 
 class BackupFileInfo(object):

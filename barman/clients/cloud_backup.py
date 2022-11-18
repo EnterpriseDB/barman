@@ -35,9 +35,11 @@ from barman.clients.cloud_cli import (
     UrlArgumentType,
 )
 from barman.cloud import (
-    CloudBackupSnapshot,
-    CloudBackupUploaderBarman,
-    CloudBackupUploaderPostgres,
+    CloudBackupCoordinatorBarman,
+    CloudBackupCoordinatorPostgres,
+    CloudBackupMechanismSnapshot,
+    CloudBackupMechanismUploadBarman,
+    CloudBackupMechanismUploadPostgres,
     configure_logging,
 )
 from barman.cloud_providers import get_cloud_interface, get_snapshot_interface
@@ -155,12 +157,18 @@ def main(args=None):
                         "backup in '%s' has status '%s' (status should be: DONE)"
                         % (os.getenv("BARMAN_BACKUP_DIR"), os.getenv("BARMAN_STATUS"))
                     )
-                uploader = CloudBackupUploaderBarman(
+                uploader = CloudBackupMechanismUploadBarman(
+                    compression=config.compression,
+                    max_archive_size=config.max_archive_size,
+                )
+                coordinator = CloudBackupCoordinatorBarman(
+                    server_name=config.server_name,
+                    cloud_interface=cloud_interface,
+                    backup_mechanism=uploader,
                     backup_dir=os.getenv("BARMAN_BACKUP_DIR"),
                     backup_id=os.getenv("BARMAN_BACKUP_ID"),
-                    **uploader_kwargs
                 )
-                uploader.backup()
+                coordinator.backup()
             else:
                 conninfo = build_conninfo(config)
                 postgres = PostgreSQLConnection(
@@ -179,21 +187,24 @@ def main(args=None):
                     # Do snapshot things if asked for
                     if config.snapshot_project is not None:
                         snapshot_interface = get_snapshot_interface(config)
-                        snapshot_backup = CloudBackupSnapshot(
-                            config.server_name,
-                            cloud_interface,
+                        uploader = CloudBackupMechanismSnapshot(
                             snapshot_interface,
-                            postgres,
                             config.snapshot_disk_zone,
                             config.snapshot_disk_name,
                         )
-                        snapshot_backup.backup()
                     # Otherwise upload everything to the object store
                     else:
-                        uploader = CloudBackupUploaderPostgres(
-                            postgres=postgres, **uploader_kwargs
+                        uploader = CloudBackupMechanismUploadPostgres(
+                            compression=config.compression,
+                            max_archive_size=config.max_archive_size,
                         )
-                        uploader.backup()
+                    coordinator = CloudBackupCoordinatorPostgres(
+                        server_name=config.server_name,
+                        cloud_interface=cloud_interface,
+                        backup_mechanism=uploader,
+                        postgres=postgres,
+                    )
+                    coordinator.backup()
 
     except KeyboardInterrupt as exc:
         logging.error("Barman cloud backup was interrupted by the user")
