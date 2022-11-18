@@ -1204,7 +1204,7 @@ class CloudBackup(with_metaclass(ABCMeta)):
     """
 
     def __init__(
-        self, server_name, cloud_interface, max_archive_size=100 << 30, compression=None
+        self, server_name, cloud_interface, max_archive_size, compression=None
     ):
         self.server_name = server_name
         self.cloud_interface = cloud_interface
@@ -1213,6 +1213,27 @@ class CloudBackup(with_metaclass(ABCMeta)):
         # Stats
         self.copy_start_time = None
         self.copy_end_time = None
+
+    def _create_upload_controller(self, backup_id):
+        """
+        Create an upload controller from the specified backup_id
+
+        :param str backup_id: The backup identifier
+        :return: The upload controller
+        :rtype: CloudUploadController
+        """
+        key_prefix = os.path.join(
+            self.cloud_interface.path,
+            self.server_name,
+            "base",
+            backup_id,
+        )
+        return CloudUploadController(
+            self.cloud_interface,
+            key_prefix,
+            self.max_archive_size,
+            self.compression,
+        )
 
     # TODO only CloudBackupUploaderPostgres cares about this, not CloudBackupUploaderBarman
     def _get_backup_info(self, server_name):
@@ -1245,7 +1266,7 @@ class CloudBackupSnapshot(CloudBackup):
         snapshot_disk_zone,
         snapshot_disk_name,
     ):
-        super(CloudBackupSnapshot, self).__init__(server_name, cloud_interface)
+        super(CloudBackupSnapshot, self).__init__(server_name, cloud_interface, max_archive_size=1048576)
         self.snapshot_interface = snapshot_interface
         self.postgres = postgres
         self.snapshot_disk_zone = snapshot_disk_zone
@@ -1257,7 +1278,9 @@ class CloudBackupSnapshot(CloudBackup):
         """
         backup_info = self._get_backup_info(self.server_name)
 
-        self.check_postgres_version()
+        controller = self._create_upload_controller(backup_info.backup_id)
+
+        self._check_postgres_version()
 
         strategy = ConcurrentBackupStrategy(self.postgres, self.server_name)
         logging.info("Starting backup '%s'", backup_info.backup_id)
@@ -1279,27 +1302,28 @@ class CloudBackupSnapshot(CloudBackup):
             # Free the Postgres connection
             self.postgres.close()
 
-            # Upload backup info and backup label to the object store
-            # We do not want to use the copy controller here since it will upload
-            # into a tarball. This is not what we want for a snapshot backup.
+            # Eventually, add the backup_label from the backup_info
             if backup_info.backup_label:
-                backup_label_key = os.path.join(
-                    self.cloud_interface.path,
-                    self.server_name,
-                    "base",
-                    backup_info.backup_id,
-                    "backup_label",
+                pgdata_stat = os.stat(backup_info.pgdata)
+                controller.add_fileobj(
+                    label="backup_label",
+                    fileobj=BytesIO(backup_info.backup_label.encode("UTF-8")),
+                    dst="data",
+                    path="backup_label",
+                    uid=pgdata_stat.st_uid,
+                    gid=pgdata_stat.st_gid,
                 )
-                self.cloud_interface.upload_fileobj(
-                    BytesIO(backup_info.backup_label.encode("UTF-8")),
-                    backup_label_key,
-                )
+
+            # Closing the controller will finalize all the running uploads
+            controller.close()
 
             # Store the end time
             self.copy_end_time = datetime.datetime.now()
 
             # Store statistics about the copy
-            # TODO What would we store? and where?
+            backup_info.set_attribute("copy_stats", controller.statistics())
+
+            # TODO What would we store for the snapshots? and where?
 
             # Set the backup status as DONE
             backup_info.set_attribute("status", BackupInfo.DONE)
@@ -1311,15 +1335,9 @@ class CloudBackupSnapshot(CloudBackup):
         finally:
             try:
                 with BytesIO() as backup_info_file:
-                    key = os.path.join(
-                        self.cloud_interface.path,
-                        self.server_name,
-                        "base",
-                        backup_info.backup_id,
-                        "backup.info",
-                    )
                     backup_info.save(file_object=backup_info_file)
                     backup_info_file.seek(0, os.SEEK_SET)
+                    key = os.path.join(controller.key_prefix, "backup.info")
                     logging.info("Uploading '%s'", key)
                     self.cloud_interface.upload_fileobj(backup_info_file, key)
             except BaseException as exc:
@@ -1389,27 +1407,6 @@ class CloudBackupUploader(CloudBackup):
         super(CloudBackupUploader, self).__init__(server_name, cloud_interface)
         self.compression = compression
         self.max_archive_size = max_archive_size
-
-    def _create_upload_controller(self, backup_id):
-        """
-        Create an upload controller from the specified backup_id
-
-        :param str backup_id: The backup identifier
-        :return: The upload controller
-        :rtype: CloudUploadController
-        """
-        key_prefix = os.path.join(
-            self.cloud_interface.path,
-            self.server_name,
-            "base",
-            backup_id,
-        )
-        return CloudUploadController(
-            self.cloud_interface,
-            key_prefix,
-            self.max_archive_size,
-            self.compression,
-        )
 
     @abstractmethod
     def _get_tablespace_location(self, tablespace):
