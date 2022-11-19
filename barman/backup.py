@@ -746,6 +746,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         :kwparam str|None target_action: default None. The recovery target
             action
         :kwparam bool|None standby_mode: the standby mode if needed
+        :kwparam str|None recovery_conf_filename: filename for storing recovery configurations
         """
 
         # Archive every WAL files in the incoming directory of the server

@@ -1876,6 +1876,7 @@ class Server(RemoteStatusMixin):
         :kwparam bool exclusive: whether the recovery is exclusive or not
         :kwparam str|None target_action: the recovery target action
         :kwparam bool|None standby_mode: the standby mode
+        :kwparam str|None recovery_conf_filename: filename for storing recovery configurations
         """
         return self.backup_manager.recover(
             backup_info, dest, tablespaces, remote_command, **kwargs
