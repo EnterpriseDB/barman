@@ -98,6 +98,7 @@ class RecoveryExecutor(object):
         exclusive=False,
         target_action=None,
         standby_mode=None,
+        recovery_conf_filename=None,
     ):
         """
         Performs a recovery of a backup
@@ -121,6 +122,7 @@ class RecoveryExecutor(object):
         :param bool exclusive: whether the recovery is exclusive or not
         :param str|None target_action: The recovery target action
         :param bool|None standby_mode: standby mode
+        :param str|None recovery_conf_filename: filename for storing recovery configurations
         """
 
         # Run the cron to be sure the wal catalog is up to date
@@ -312,13 +314,13 @@ class RecoveryExecutor(object):
         # 3) copy
         output.info("Identify dangerous settings in destination directory.")
 
-        self._map_temporary_config_files(recovery_info, backup_info, remote_command)
+        self._map_temporary_config_files(recovery_info, backup_info, remote_command, recovery_conf_filename)
         self._analyse_temporary_config_files(recovery_info)
         self._copy_temporary_config_files(dest, remote_command, recovery_info)
 
         return recovery_info
 
-    def _setup(self, backup_info, remote_command, dest):
+    def _setup(self, backup_info, remote_command, dest, recovery_conf_filename):
         """
         Prepare the recovery_info dictionary for the recovery, as well
         as temporary working directory
@@ -326,6 +328,7 @@ class RecoveryExecutor(object):
         :param barman.infofile.LocalBackupInfo backup_info: representation of a
             backup
         :param str remote_command: ssh command for remote connection
+        :param str|None recovery_conf_filename: filename for storing recovery configurations
         :return dict: recovery_info dictionary, holding the basic values for a
             recovery
         """
@@ -361,17 +364,18 @@ class RecoveryExecutor(object):
             "recovery_start_time": datetime.datetime.now(dateutil.tz.tzlocal()),
         }
         recovery_info["results"] = results
-
         # Set up a list of configuration files
-        recovery_info["configuration_files"].append("postgresql.conf")
-        if backup_info.version >= 90400:
-            recovery_info["configuration_files"].append("postgresql.auto.conf")
+        if not recovery_conf_filename:
+            recovery_info["configuration_files"].append("postgresql.conf")
+            if backup_info.version >= 90400:
+                recovery_info["configuration_files"].append("postgresql.auto.conf")
 
-        # Identify the file holding the recovery configuration
-        results["recovery_configuration_file"] = "postgresql.auto.conf"
-        if backup_info.version < 120000:
-            results["recovery_configuration_file"] = "recovery.conf"
-
+            # Identify the file holding the recovery configuration
+            results["recovery_configuration_file"] = "postgresql.auto.conf"
+            if backup_info.version < 120000:
+                results["recovery_configuration_file"] = "recovery.conf"
+        else:
+            recovery_info["configuration_files"].append(recovery_conf_filename)
         # Handle remote recovery options
         if remote_command:
             recovery_info["recovery_dest"] = "remote"
@@ -1108,7 +1112,7 @@ class RecoveryExecutor(object):
             conf_file_paths.append(conf_file_path)
         return conf_file_paths
 
-    def _map_temporary_config_files(self, recovery_info, backup_info, remote_command):
+    def _map_temporary_config_files(self, recovery_info, backup_info, remote_command, recovery_conf_filename):
         """
         Map configuration files, by filling the 'temporary_configuration_files'
         array, depending on remote or local recovery. This array will be used
@@ -1119,6 +1123,7 @@ class RecoveryExecutor(object):
         :param barman.infofile.LocalBackupInfo backup_info: a backup
             representation
         :param str remote_command: ssh command for remote recovery
+        :param str|None recovery_conf_filename: filename for storing recovery configurations
         """
 
         # Cycle over postgres configuration files which my be missing.
@@ -1159,7 +1164,10 @@ class RecoveryExecutor(object):
             # Make sure 'postgresql.auto.conf' file exists in
             # recovery_info['temporary_configuration_files'] because
             # the recovery settings will end up there
-            conf_file = "postgresql.auto.conf"
+            if not recovery_conf_filename:
+                conf_file = "postgresql.auto.conf"
+            else:
+                conf_file = recovery_conf_filename
             if conf_file not in recovery_info["configuration_files"]:
                 if remote_command:
                     conf_file_path = os.path.join(recovery_info["tempdir"], conf_file)
@@ -1171,7 +1179,7 @@ class RecoveryExecutor(object):
                 open(conf_file_path, "ab").close()
                 recovery_info["temporary_configuration_files"].append(conf_file_path)
 
-    def _analyse_temporary_config_files(self, recovery_info):
+    def _analyse_temporary_config_files(self, recovery_info, recovery_conf_filename):
         """
         Analyse temporary configuration files and identify dangerous options
 
@@ -1179,6 +1187,7 @@ class RecoveryExecutor(object):
         also changes harmful options such as 'archive_command'.
 
         :param dict recovery_info: dictionary holding all recovery parameters
+        :param str|None recovery_conf_filename: filename for storing recovery configurations
         """
         results = recovery_info["results"]
         config_mangeler = ConfigurationFileMangeler()
@@ -1187,7 +1196,10 @@ class RecoveryExecutor(object):
         for conf_file in recovery_info["temporary_configuration_files"]:
 
             append_lines = None
-            if conf_file.endswith("postgresql.auto.conf"):
+            conf_file_suffix = "postgresql.auto.conf"
+            if recovery_conf_filename:
+                conf_file_suffix = recovery_conf_filename
+            if conf_file.endswith(conf_file_suffix):
                 append_lines = recovery_info.get("auto_conf_append_lines")
 
             # Identify and comment out dangerous options, replacing them with
