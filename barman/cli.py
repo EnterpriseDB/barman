@@ -724,6 +724,13 @@ def rebuild_xlogdb(args):
                 "backup."
             ),
         ),
+        argument(
+            "--recovery-conf-filename",
+            dest="recovery_conf_filename",
+            help=(
+                    "filename for storing recovery configurations."
+            ),
+        ),
     ]
 )
 def recover(args):
