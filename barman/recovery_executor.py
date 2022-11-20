@@ -127,7 +127,7 @@ class RecoveryExecutor(object):
 
         # Run the cron to be sure the wal catalog is up to date
         # Prepare a map that contains all the objects required for a recovery
-        recovery_info = self._setup(backup_info, remote_command, dest)
+        recovery_info = self._setup(backup_info, remote_command, dest, recovery_conf_filename)
         output.info(
             "Starting %s restore for server %s using backup %s",
             recovery_info["recovery_dest"],
