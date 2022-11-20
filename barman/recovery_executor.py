@@ -315,7 +315,7 @@ class RecoveryExecutor(object):
         output.info("Identify dangerous settings in destination directory.")
 
         self._map_temporary_config_files(recovery_info, backup_info, remote_command, recovery_conf_filename)
-        self._analyse_temporary_config_files(recovery_info)
+        self._analyse_temporary_config_files(recovery_info, recovery_conf_filename)
         self._copy_temporary_config_files(dest, remote_command, recovery_info)
 
         return recovery_info
