@@ -33,7 +33,7 @@ from barman.clients.cloud_cli import (
 )
 from barman.cloud import (
     CloudBackupUploaderBarman,
-    CloudBackupUploaderPostgres,
+    CloudBackupUploader,
     configure_logging,
 )
 from barman.cloud_providers import get_cloud_interface
@@ -175,7 +175,7 @@ def main(args=None):
                     raise OperationErrorExit()
 
                 with closing(postgres):
-                    uploader = CloudBackupUploaderPostgres(
+                    uploader = CloudBackupUploader(
                         postgres=postgres,
                         backup_name=config.backup_name,
                         **uploader_kwargs
