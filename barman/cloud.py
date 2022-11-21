@@ -1238,6 +1238,9 @@ class CloudBackup(with_metaclass(ABCMeta)):
         logging.error("Backup failed %s (%s)", action, msg_lines[0])
         logging.debug("Exception details:", exc_info=exc)
 
+    # The following abstract methods are called when coordinating the backup.
+    # They are all specific to the backup copy mechanism so the implementation must
+    # happen in the subclass.
     @abstractmethod
     def _take_backup(self):
         """
@@ -1258,6 +1261,26 @@ class CloudBackup(with_metaclass(ABCMeta)):
         Perform any finalisation required to complete the copy of backup data.
         """
 
+    @abstractmethod
+    def _add_stats_to_backup_info(self):
+        """
+        Add statistics about the backup to self.backup_info.
+        """
+
+    # The following concrete methods are independent of backup copy mechanism.
+    def _start_backup(self):
+        self.strategy = ConcurrentBackupStrategy(self.postgres, self.server_name)
+        logging.info("Starting backup '%s'", self.backup_info.backup_id)
+        self.strategy.start_backup(self.backup_info)
+
+    def _stop_backup(self):
+        logging.info("Stopping backup '%s'", self.backup_info.backup_id)
+        self.strategy.stop_backup(self.backup_info)
+
+    def _create_restore_point(self):
+        target_name = "barman_%s" % self.backup_info.backup_id
+        self.postgres.create_restore_point(target_name)
+
     def _get_backup_info(self, server_name):
         backup_info = BackupInfo(
             backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
@@ -1265,6 +1288,20 @@ class CloudBackup(with_metaclass(ABCMeta)):
         )
         backup_info.set_attribute("systemid", self.postgres.get_systemid())
         return backup_info
+
+    def _upload_backup_info(self):
+        with BytesIO() as backup_info_file:
+            key = os.path.join(
+                self.cloud_interface.path,
+                self.server_name,
+                "base",
+                self.backup_info.backup_id,
+                "backup.info",
+            )
+            self.backup_info.save(file_object=backup_info_file)
+            backup_info_file.seek(0, os.SEEK_SET)
+            logging.info("Uploading '%s'", key)
+            self.cloud_interface.upload_fileobj(backup_info_file, key)
 
     def _check_postgres_version(self):
         if not self.postgres.is_minimal_postgres_version():
@@ -1276,6 +1313,19 @@ class CloudBackup(with_metaclass(ABCMeta)):
                 )
             )
 
+    def _log_end_of_backup(self):
+        logging.info(
+            "Backup end at LSN: %s (%s, %08X)",
+            self.backup_info.end_xlog,
+            self.backup_info.end_wal,
+            self.backup_info.end_offset,
+        )
+        logging.info(
+            "Backup completed (start time: %s, elapsed time: %s)",
+            self.copy_start_time,
+            human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
+        )
+
     def _coordinate_backup(self):
         """
         Coordinate taking the backup with the PostgreSQL server.
@@ -1284,13 +1334,13 @@ class CloudBackup(with_metaclass(ABCMeta)):
             # Store the start time
             self.copy_start_time = datetime.datetime.now()
 
+            self._start_backup()
+
             self._take_backup()
 
-            logging.info("Stopping backup '%s'", self.backup_info.backup_id)
-            self.strategy.stop_backup(self.backup_info)
+            self._stop_backup()
 
-            target_name = "barman_%s" % self.backup_info.backup_id
-            self.postgres.create_restore_point(target_name)
+            self._create_restore_point()
 
             self._upload_backup_label()
 
@@ -1314,18 +1364,7 @@ class CloudBackup(with_metaclass(ABCMeta)):
             if self.backup_name is not None:
                 self.backup_info.set_attribute("backup_name", self.backup_name)
             try:
-                with BytesIO() as backup_info_file:
-                    key = os.path.join(
-                        self.cloud_interface.path,
-                        self.server_name,
-                        "base",
-                        self.backup_info.backup_id,
-                        "backup.info",
-                    )
-                    self.backup_info.save(file_object=backup_info_file)
-                    backup_info_file.seek(0, os.SEEK_SET)
-                    logging.info("Uploading '%s'", key)
-                    self.cloud_interface.upload_fileobj(backup_info_file, key)
+                self._upload_backup_info()
             except BaseException as exc:
                 # Mark the backup as failed and exit
                 self.handle_backup_errors(
@@ -1333,22 +1372,12 @@ class CloudBackup(with_metaclass(ABCMeta)):
                 )
                 raise SystemExit(1)
 
-        logging.info(
-            "Backup end at LSN: %s (%s, %08X)",
-            self.backup_info.end_xlog,
-            self.backup_info.end_wal,
-            self.backup_info.end_offset,
-        )
-        logging.info(
-            "Backup completed (start time: %s, elapsed time: %s)",
-            self.copy_start_time,
-            human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
-        )
+        self._log_end_of_backup()
 
     @abstractmethod
     def backup(self):
         """
-        Perform a backup of the postgres server using Cloud resources.
+        External interface for performing a cloud backup of the postgres server.
         """
 
 
@@ -1581,10 +1610,6 @@ class CloudBackupUploader(CloudBackup):
         self.controller = self._create_upload_controller(self.backup_info.backup_id)
 
         self._check_postgres_version()
-
-        self.strategy = ConcurrentBackupStrategy(self.postgres, server_name)
-        logging.info("Starting backup '%s'", self.backup_info.backup_id)
-        self.strategy.start_backup(self.backup_info)
 
         self._coordinate_backup()
 
