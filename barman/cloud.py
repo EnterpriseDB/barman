@@ -34,10 +34,14 @@ from io import BytesIO, RawIOBase
 from tempfile import NamedTemporaryFile
 
 from barman.annotations import KeepManagerMixinCloud
-from barman.backup_executor import ConcurrentBackupStrategy
+from barman.backup_executor import ConcurrentBackupStrategy, SnapshotBackupExecutor
 from barman.clients import cloud_compression
-from barman.exceptions import BarmanException, BackupException
-from barman.fs import path_allowed
+from barman.exceptions import (
+    BackupPreconditionException,
+    BarmanException,
+    BackupException,
+)
+from barman.fs import UnixLocalCommand, path_allowed
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.utils import (
@@ -1824,6 +1828,159 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         )
 
 
+class CloudBackupSnapshot(CloudBackup):
+    """
+    A cloud backup client using disk snapshots to create the backup.
+    """
+
+    def __init__(
+        self,
+        server_name,
+        cloud_interface,
+        snapshot_interface,
+        postgres,
+        snapshot_instance,
+        snapshot_zone,
+        snapshot_disks,
+        backup_name=None,
+    ):
+        """
+        Create the backup client for snapshot backups
+
+        :param str server_name: The name of the server as configured in Barman
+        :param CloudInterface cloud_interface: The interface to use to
+          upload the backup
+        :param SnapshotInterface snapshot_interface: The interface to use for
+          creating a backup using snapshots
+        :param barman.postgres.PostgreSQLConnection|None postgres: A connection to the
+            PostgreSQL instance being backed up.
+        :param str snapshot_instance: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str snapshot_zone: The zone in which the snapshot disks and instance
+            reside.
+        :param list[str] snapshot_disks: A list containing the names of the disks for
+            which snapshots should be taken at backup time.
+        :param str|None backup_name: A friendly name which can be used to reference
+            this backup in the future.
+        """
+        super(CloudBackupSnapshot, self).__init__(
+            server_name, cloud_interface, postgres, backup_name
+        )
+        self.snapshot_interface = snapshot_interface
+        self.snapshot_instance = snapshot_instance
+        self.snapshot_zone = snapshot_zone
+        self.snapshot_disks = snapshot_disks
+
+    # The remaining methods are the concrete implementations of the abstract methods from
+    # the parent class.
+    def _finalise_copy(self):
+        """
+        Perform any finalisation required to complete the copy of backup data.
+
+        For snapshot backups this means gathering the mount point and mount options
+        from the local node.
+        """
+        cmd = UnixLocalCommand()
+        SnapshotBackupExecutor.add_mount_data_to_backup_info(self.backup_info, cmd)
+
+    def _add_stats_to_backup_info(self):
+        """
+        Add statistics about the backup to self.backup_info.
+        """
+        self.backup_info.set_attribute(
+            "copy_stats",
+            {
+                "copy_time": total_seconds(self.copy_end_time - self.copy_start_time),
+                "total_time": total_seconds(self.copy_end_time - self.copy_start_time),
+            },
+        )
+
+    def _upload_backup_label(self):
+        """
+        Upload the backup label to cloud storage.
+
+        Snapshot backups just upload the backup label as a single object rather than
+        adding it to a tar archive.
+        """
+        backup_label_key = os.path.join(
+            self.cloud_interface.path,
+            self.server_name,
+            "base",
+            self.backup_info.backup_id,
+            "backup_label",
+        )
+        self.cloud_interface.upload_fileobj(
+            BytesIO(self.backup_info.backup_label.encode("UTF-8")),
+            backup_label_key,
+        )
+
+    def _take_backup(self):
+        """
+        Make a backup by creating snapshots of the specified disks.
+        """
+        self.snapshot_interface.take_snapshot_backup(
+            self.backup_info,
+            self.snapshot_instance,
+            self.snapshot_zone,
+            self.snapshot_disks,
+        )
+
+    # The following method implements specific functionality for snapshot backups.
+    def _check_backup_preconditions(self):
+        """
+        Perform additional checks for snapshot backups, specifically:
+
+          - check that the VM instance for which snapshots should be taken exists
+          - check that the expected disks are attached to that instance
+          - check that the attached disks are mounted on the filesystem
+
+        Raises a BackupPreconditionException if any of the checks fail.
+        """
+        if not self.snapshot_interface.instance_exists(
+            self.snapshot_instance, self.snapshot_zone
+        ):
+            raise BackupPreconditionException(
+                "Cannot find compute instance %s in zone %s"
+                % (self.snapshot_instance, self.snapshot_zone)
+            )
+
+        cmd = UnixLocalCommand()
+        (
+            missing_disks,
+            unmounted_disks,
+        ) = SnapshotBackupExecutor.find_missing_and_unmounted_disks(
+            cmd,
+            self.snapshot_interface,
+            self.snapshot_instance,
+            self.snapshot_zone,
+            self.snapshot_disks,
+        )
+
+        if len(missing_disks) > 0:
+            raise BackupPreconditionException(
+                "Cannot find disks attached to compute instance %s: %s"
+                % (self.snapshot_instance, ", ".join(missing_disks))
+            )
+        if len(unmounted_disks) > 0:
+            raise BackupPreconditionException(
+                "Cannot find disks mounted on compute instance %s: %s"
+                % (self.snapshot_instance, ", ".join(unmounted_disks))
+            )
+
+    # Specific implementation of the public-facing backup method.
+    def backup(self):
+        """
+        Take a backup by creating snapshots of the specified disks.
+        """
+        self._check_backup_preconditions()
+
+        self.backup_info = self._get_backup_info(self.server_name)
+
+        self._check_postgres_version()
+
+        self._coordinate_backup()
+
+
 class BackupFileInfo(object):
     def __init__(self, oid=None, base=None, path=None, compression=None):
         self.oid = oid
@@ -2046,7 +2203,7 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
 
         for backup_file in backup_files.values():
             logging_fun = logging.warning if allow_missing else logging.error
-            if backup_file.path is None:
+            if backup_file.path is None and backup_info.snapshots_info is None:
                 logging_fun(
                     "Missing file %s.* for server %s",
                     backup_file.base,

@@ -121,6 +121,159 @@ class TestCloudBackup(object):
         )
         assert expected_message in err
 
+    @pytest.mark.parametrize(
+        ("snapshot_args", "expected_error"),
+        (
+            [
+                ["--snapshot-disk", "disk0", "--snapshot-instance", "test_instance"],
+                "Incomplete options for snapshot backup - missing: snapshot_zone",
+            ],
+            [
+                [
+                    "--snapshot-zone",
+                    "test_zone",
+                    "--snapshot-instance",
+                    "test_instance",
+                ],
+                "Incomplete options for snapshot backup - missing: snapshot_disks",
+            ],
+            [
+                ["--snapshot-disk", "disk0", "--snapshot-zone", "test_zone"],
+                "Incomplete options for snapshot backup - missing: snapshot_instance",
+            ],
+            [
+                [
+                    "--snapshot-disk",
+                    "disk0",
+                    "--snapshot-instance",
+                    "test_instance",
+                    "--snapshot-zone",
+                    "test_zone",
+                    "--snappy",
+                ],
+                "Compression options cannot be used with snapshot backups",
+            ],
+            [
+                [
+                    "--snapshot-disk",
+                    "disk0",
+                    "--snapshot-instance",
+                    "test_instance",
+                    "--snapshot-zone",
+                    "test_zone",
+                    "--cloud-provider",
+                    "google-cloud-storage",
+                ],
+                (
+                    "--snapshot-gcp-project option must be set for snapshot backups "
+                    "when cloud provider is google-cloud-storage"
+                ),
+            ],
+            [
+                [
+                    "--snapshot-disk",
+                    "disk0",
+                    "--snapshot-instance",
+                    "test_instance",
+                    "--snapshot-zone",
+                    "test_zone",
+                ],
+                "No snapshot provider for cloud provider: aws-s3",
+            ],
+            [
+                [
+                    "--snapshot-disk",
+                    "disk0",
+                    "--snapshot-instance",
+                    "test_instance",
+                    "--snapshot-zone",
+                    "test_zone",
+                    "--cloud-provider",
+                    "azure-blob-storage",
+                ],
+                "No snapshot provider for cloud provider: azure-blob-storage",
+            ],
+        ),
+    )
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
+    def test_unsupported_snapshot_args(
+        self,
+        uploader_mock,
+        _cloud_interface_mock,
+        _postgres_connection,
+        _rmtree_mock,
+        _tmpfile_mock,
+        snapshot_args,
+        expected_error,
+        caplog,
+    ):
+        """
+        Verify that an error is raised if an unsupported set of snapshot arguments is
+        used.
+        """
+        # WHEN barman-cloud-backup is run with a subset of snapshot arguments
+        # THEN a SystemExit occurs
+        with pytest.raises(SystemExit):
+            cloud_backup.main(["cloud_storage_url", "test_server"] + snapshot_args)
+
+        # AND the expected error message occurs
+        assert expected_error in caplog.text
+
+    @pytest.mark.parametrize(
+        "cloud_provider_args",
+        (
+            [
+                "--cloud-provider",
+                "google-cloud-storage",
+                "--snapshot-gcp-project",
+                "gcp_project",
+            ],
+        ),
+    )
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.clients.cloud_backup.get_snapshot_interface")
+    @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupSnapshot")
+    def test_uses_snapshot_backup_uploader(
+        self,
+        mock_cloud_backup_snapshot,
+        mock_get_cloud_interface,
+        mock_get_snapshot_interface,
+        postgres_connection,
+        _rmtree_mock,
+        _tempfile_mock,
+        cloud_provider_args,
+    ):
+        mock_snapshot_backup = mock_cloud_backup_snapshot.return_value
+        cloud_backup.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                "--snapshot-disk",
+                "disk0",
+                "--snapshot-instance",
+                "test_instance",
+                "--snapshot-zone",
+                "test_zone",
+            ]
+            + cloud_provider_args
+        )
+        mock_cloud_backup_snapshot.assert_called_once_with(
+            "test_server",
+            mock_get_cloud_interface.return_value,
+            mock_get_snapshot_interface.return_value,
+            postgres_connection.return_value,
+            "test_instance",
+            "test_zone",
+            [
+                "disk0",
+            ],
+            None,
+        )
+        mock_snapshot_backup.backup.assert_called_once()
+
 
 @mock.patch("barman.clients.cloud_backup.tempfile")
 @mock.patch("barman.clients.cloud_backup.rmtree")

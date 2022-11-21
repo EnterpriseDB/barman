@@ -61,6 +61,22 @@ class UrlArgumentType(object):
     destination = "destination"
 
 
+def get_missing_attrs(config, attrs):
+    """
+    Returns list of each attr not found in config.
+
+    :param argparse.Namespace config: The backup options provided at the command line.
+    :param list[str] attrs: List of attribute names to be searched for in the config.
+    :rtype: list[str]
+    :return: List of all items in attrs which were not found as attributes of config.
+    """
+    missing_options = []
+    for attr in attrs:
+        if not getattr(config, attr):
+            missing_options.append(attr)
+    return missing_options
+
+
 def __parse_tag(tag):
     """Parse key,value tag with csv reader"""
     try:
