@@ -128,7 +128,7 @@ class TestCloudBackupDelete(object):
                 }
             )
             backup_metadata[backup_id]["files"] = mock_backup_files
-            backup_info = mock.MagicMock(name="backup_info")
+            backup_info = mock.MagicMock(name="backup_info", snapshots_info=None)
             backup_info.backup_id = backup_id
             if backup_name:
                 backup_info.backup_name = backup_name

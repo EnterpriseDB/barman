@@ -30,15 +30,18 @@ from barman.clients.cloud_cli import (
     NetworkErrorExit,
     OperationErrorExit,
     UrlArgumentType,
+    get_missing_attrs,
 )
 from barman.cloud import (
+    CloudBackupSnapshot,
     CloudBackupUploaderBarman,
     CloudBackupUploader,
     configure_logging,
 )
-from barman.cloud_providers import get_cloud_interface
+from barman.cloud_providers import get_cloud_interface, get_snapshot_interface
 from barman.exceptions import (
     BarmanException,
+    ConfigurationException,
     PostgresConnectionError,
     UnrecoverableHookScriptError,
 )
@@ -102,6 +105,32 @@ def build_conninfo(config):
     return " ".join(conn_parts)
 
 
+def _validate_config(config):
+    """
+    Additional validation for config such as mutually inclusive options.
+    """
+    required_snapshot_variables = (
+        "snapshot_disks",
+        "snapshot_instance",
+        "snapshot_zone",
+    )
+    is_snapshot_backup = any(
+        [getattr(config, var) for var in required_snapshot_variables]
+    )
+    if is_snapshot_backup:
+        missing_options = get_missing_attrs(config, required_snapshot_variables)
+        if len(missing_options) > 0:
+            raise ConfigurationException(
+                "Incomplete options for snapshot backup - missing: %s"
+                % ", ".join(missing_options)
+            )
+
+        if getattr(config, "compression"):
+            raise ConfigurationException(
+                "Compression options cannot be used with snapshot backups"
+            )
+
+
 def main(args=None):
     """
     The main script entry point
@@ -113,6 +142,7 @@ def main(args=None):
     configure_logging(config)
     tempdir = tempfile.mkdtemp(prefix="barman-cloud-backup-")
     try:
+        _validate_config(config)
         # Create any temporary file in the `tempdir` subdirectory
         tempfile.tempdir = tempdir
 
@@ -175,12 +205,28 @@ def main(args=None):
                     raise OperationErrorExit()
 
                 with closing(postgres):
-                    uploader = CloudBackupUploader(
-                        postgres=postgres,
-                        backup_name=config.backup_name,
-                        **uploader_kwargs
-                    )
-                    uploader.backup()
+                    # Take snapshot backups if snapshot backups were specified
+                    if config.snapshot_instance:
+                        snapshot_interface = get_snapshot_interface(config)
+                        snapshot_backup = CloudBackupSnapshot(
+                            config.server_name,
+                            cloud_interface,
+                            snapshot_interface,
+                            postgres,
+                            config.snapshot_instance,
+                            config.snapshot_zone,
+                            config.snapshot_disks,
+                            config.backup_name,
+                        )
+                        snapshot_backup.backup()
+                    # Otherwise upload everything to the object store
+                    else:
+                        uploader = CloudBackupUploader(
+                            postgres=postgres,
+                            backup_name=config.backup_name,
+                            **uploader_kwargs
+                        )
+                        uploader.backup()
 
     except KeyboardInterrupt as exc:
         logging.error("Barman cloud backup was interrupted by the user")
@@ -287,6 +333,29 @@ def parse_arguments(args=None):
         default=None,
         type=check_backup_name,
         dest="backup_name",
+    )
+    parser.add_argument(
+        "--snapshot-instance",
+        help="Instance where the disks to be backed up as snapshots are attached",
+    )
+    parser.add_argument(
+        "--snapshot-disk",
+        help="Name of a disk from which snapshots should be taken",
+        metavar="NAME",
+        action="append",
+        default=[],
+        dest="snapshot_disks",
+    )
+    parser.add_argument(
+        "--snapshot-zone",
+        help="Zone of the disks from which snapshots should be taken",
+    )
+    gcs_arguments = parser.add_argument_group(
+        "Extra options for google-cloud-storage cloud provider"
+    )
+    gcs_arguments.add_argument(
+        "--snapshot-gcp-project",
+        help="GCP project under which disk snapshots should be stored",
     )
     add_tag_argument(
         parser,

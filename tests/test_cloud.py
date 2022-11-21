@@ -2673,7 +2673,7 @@ end_time=2014-12-22 09:25:27.410470+01:00
         mock_cloud_interface.list_bucket.return_value = list_bucket_response
         mock_cloud_interface.path = "mt-backups"
         # Create mock backup info which includes tablespaces
-        mock_backup_info = mock.MagicMock(name="backup_info")
+        mock_backup_info = mock.MagicMock(name="backup_info", snapshots_info=None)
         mock_backup_info.backup_id = backup_id
         mock_backup_info.status = "DONE"
         mock_tablespaces = []

@@ -133,6 +133,24 @@ def get_cloud_interface(config):
         )
 
 
+def get_snapshot_interface(config):
+    if config.cloud_provider == "google-cloud-storage":
+        from barman.cloud_providers.google_cloud_storage import (
+            GcpCloudSnapshotInterface,
+        )
+
+        if config.snapshot_gcp_project is None:
+            raise ConfigurationException(
+                "--snapshot-gcp-project option must be set for snapshot backups "
+                "with cloud provider is google-cloud-storage"
+            )
+        return GcpCloudSnapshotInterface(config.snapshot_gcp_project)
+    else:
+        raise CloudProviderUnsupported(
+            "No snapshot provider for cloud provider: %s" % config.cloud_provider
+        )
+
+
 def get_snapshot_interface_from_server_config(server_config):
     if server_config.snapshot_provider == "gcp":
         from barman.cloud_providers.google_cloud_storage import (

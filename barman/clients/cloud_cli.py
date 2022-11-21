@@ -61,6 +61,15 @@ class UrlArgumentType(object):
     destination = "destination"
 
 
+def get_missing_attrs(config, attrs):
+    """Returns list of each attr not found in config"""
+    missing_options = []
+    for attr in attrs:
+        if getattr(config, attr) is None:
+            missing_options.append(attr)
+    return missing_options
+
+
 def __parse_tag(tag):
     """Parse key,value tag with csv reader"""
     try:
