@@ -38,7 +38,7 @@ class TestCloudBackup(object):
     )
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
-    @mock.patch("barman.clients.cloud_backup.CloudBackupUploaderPostgres")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
     def test_uses_postgres_backup_uploader(
         self,
         uploader_mock,
@@ -63,7 +63,7 @@ class TestCloudBackup(object):
 
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
-    @mock.patch("barman.clients.cloud_backup.CloudBackupUploaderPostgres")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
     def test_name_option_success(
         self,
         uploader_mock,
@@ -94,7 +94,7 @@ class TestCloudBackup(object):
     )
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
-    @mock.patch("barman.clients.cloud_backup.CloudBackupUploaderPostgres")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
     def test_name_option_validation_failure(
         self,
         uploader_mock,

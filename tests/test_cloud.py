@@ -44,7 +44,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from barman.annotations import KeepManager
 from barman.cloud import (
     CloudBackupCatalog,
-    CloudBackupUploaderPostgres,
+    CloudBackupUploader,
     CloudProviderError,
     CloudTarUploader,
     CloudUploadingError,
@@ -2998,31 +2998,31 @@ class TestCloudTarUploader(object):
                     assert result.read() == content
 
 
-class TestCloudBackupUploaderPostgres(object):
-    """Tests for the CloudBackupUploaderPostgres class."""
+class TestCloudBackupUploader(object):
+    """Tests for the CloudBackupUploader class."""
 
     server_name = "test_server"
 
     @pytest.mark.parametrize("backup_should_fail", (False, True))
-    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._create_upload_controller")
-    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._backup_copy")
+    @mock.patch("barman.cloud.CloudBackupUploader._create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
     @mock.patch("barman.cloud.ConcurrentBackupStrategy")
     @mock.patch("barman.cloud.BackupInfo")
     def test_backup_with_name(
         self,
         mock_backup_info,
         _mock_backup_strategy,
-        _mock_backup_copy,
+        _mock_backup_data_files,
         _mock_create_upload_controller,
         backup_should_fail,
     ):
         """Verifies backup name is added to backup info if it is set."""
-        # GIVEN a CloudBackupUploaderPostgres with a specified backup_name
+        # GIVEN a CloudBackupUploader with a specified backup_name
         mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=999999, MIN_CHUNK_SIZE=2)
         mock_postgres = MagicMock()
         mock_backup_info.return_value.backup_label = None
         backup_name = "nyy lbhe onfr"
-        uploader = CloudBackupUploaderPostgres(
+        uploader = CloudBackupUploader(
             self.server_name,
             mock_cloud_interface,
             99999,
@@ -3033,7 +3033,7 @@ class TestCloudBackupUploaderPostgres(object):
 
         # WHEN backup is called and it either succeeds or fails
         if backup_should_fail:
-            _mock_backup_copy.side_effect = Exception("failed!")
+            _mock_backup_data_files.side_effect = Exception("failed!")
             with pytest.raises(SystemExit):
                 uploader.backup()
         else:
@@ -3045,24 +3045,24 @@ class TestCloudBackupUploaderPostgres(object):
         )
 
     @pytest.mark.parametrize("backup_should_fail", (False, True))
-    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._create_upload_controller")
-    @mock.patch("barman.cloud.CloudBackupUploaderPostgres._backup_copy")
+    @mock.patch("barman.cloud.CloudBackupUploader._create_upload_controller")
+    @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
     @mock.patch("barman.cloud.ConcurrentBackupStrategy")
     @mock.patch("barman.cloud.BackupInfo")
     def test_backup_with_no_name(
         self,
         mock_backup_info,
         _mock_backup_strategy,
-        _mock_backup_copy,
+        _mock_backup_data_files,
         _mock_create_upload_controller,
         backup_should_fail,
     ):
         """Verifies backup name is added to backup info if it is set."""
-        # GIVEN a CloudBackupUploaderPostgres with no specified backup_name
+        # GIVEN a CloudBackupUploader with no specified backup_name
         mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=999999, MIN_CHUNK_SIZE=2)
         mock_postgres = MagicMock()
         mock_backup_info.return_value.backup_label = None
-        uploader = CloudBackupUploaderPostgres(
+        uploader = CloudBackupUploader(
             self.server_name,
             mock_cloud_interface,
             99999,
@@ -3072,7 +3072,7 @@ class TestCloudBackupUploaderPostgres(object):
 
         # WHEN backup is called and it either succeeds or fails
         if backup_should_fail:
-            _mock_backup_copy.side_effect = Exception("failed!")
+            _mock_backup_data_files.side_effect = Exception("failed!")
             with pytest.raises(SystemExit):
                 uploader.backup()
         else:
