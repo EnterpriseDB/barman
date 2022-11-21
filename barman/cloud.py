@@ -1215,29 +1215,6 @@ class CloudBackup(with_metaclass(ABCMeta)):
         # Object properties set at backup time
         self.backup_info = None
 
-    def handle_backup_errors(self, action, exc, backup_info):
-        """
-        Mark the backup as failed and exit
-
-        :param str action: the upload phase that has failed
-        :param barman.infofile.BackupInfo backup_info: the backup info file
-        :param BaseException exc: the exception that caused the failure
-        """
-        msg_lines = force_str(exc).strip().splitlines()
-        # If the exception has no attached message use the raw
-        # type name
-        if len(msg_lines) == 0:
-            msg_lines = [type(exc).__name__]
-        if backup_info:
-            # Use only the first line of exception message
-            # in backup_info error field
-            backup_info.set_attribute("status", BackupInfo.FAILED)
-            backup_info.set_attribute(
-                "error", "failure %s (%s)" % (action, msg_lines[0])
-            )
-        logging.error("Backup failed %s (%s)", action, msg_lines[0])
-        logging.debug("Exception details:", exc_info=exc)
-
     # The following abstract methods are called when coordinating the backup.
     # They are all specific to the backup copy mechanism so the implementation must
     # happen in the subclass.
@@ -1380,6 +1357,29 @@ class CloudBackup(with_metaclass(ABCMeta)):
         External interface for performing a cloud backup of the postgres server.
         """
 
+    def handle_backup_errors(self, action, exc, backup_info):
+        """
+        Mark the backup as failed and exit
+
+        :param str action: the upload phase that has failed
+        :param barman.infofile.BackupInfo backup_info: the backup info file
+        :param BaseException exc: the exception that caused the failure
+        """
+        msg_lines = force_str(exc).strip().splitlines()
+        # If the exception has no attached message use the raw
+        # type name
+        if len(msg_lines) == 0:
+            msg_lines = [type(exc).__name__]
+        if backup_info:
+            # Use only the first line of exception message
+            # in backup_info error field
+            backup_info.set_attribute("status", BackupInfo.FAILED)
+            backup_info.set_attribute(
+                "error", "failure %s (%s)" % (action, msg_lines[0])
+            )
+        logging.error("Backup failed %s (%s)", action, msg_lines[0])
+        logging.debug("Exception details:", exc_info=exc)
+
 
 class CloudBackupUploader(CloudBackup):
     """
@@ -1427,6 +1427,15 @@ class CloudBackupUploader(CloudBackup):
         # Object properties set at backup time
         self.controller = None
 
+    def _get_tablespace_location(self, tablespace):
+        """
+        Return the on-disk location of the supplied tablespace.
+
+        This will usually just be the location of the tablespace however subclasses
+        which run against Barman server will need to override this method.
+        """
+        return tablespace.location
+
     def _create_upload_controller(self, backup_id):
         """
         Create an upload controller from the specified backup_id
@@ -1447,15 +1456,6 @@ class CloudBackupUploader(CloudBackup):
             self.max_archive_size,
             self.compression,
         )
-
-    def _get_tablespace_location(self, tablespace):
-        """
-        Return the on-disk location of the supplied tablespace.
-
-        This will usually just be the location of the tablespace however subclasses
-        which run against Barman server will need to override this method.
-        """
-        return tablespace.location
 
     def _backup_data_files(
         self, controller, backup_info, pgdata_dir, server_major_version
@@ -1570,6 +1570,10 @@ class CloudBackupUploader(CloudBackup):
             )
             logging.warning(msg)
 
+    @property
+    def _pgdata_dir(self):
+        return self.backup_info.pgdata
+
     def _take_backup(self):
         self._backup_data_files(
             self.controller,
@@ -1593,10 +1597,6 @@ class CloudBackupUploader(CloudBackup):
                 uid=pgdata_stat.st_uid,
                 gid=pgdata_stat.st_gid,
             )
-
-    @property
-    def _pgdata_dir(self):
-        return self.backup_info.pgdata
 
     def _add_stats_to_backup_info(self):
         self.backup_info.set_attribute("copy_stats", self.controller.statistics())
@@ -1651,12 +1651,31 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
         self.backup_dir = backup_dir
         self.backup_id = backup_id
 
+    def handle_backup_errors(self, action, exc):
+        """
+        Log that the backup upload has failed and exit
+
+        :param str action: the upload phase that has failed
+        :param BaseException exc: the exception that caused the failure
+        """
+        msg_lines = force_str(exc).strip().splitlines()
+        # If the exception has no attached message use the raw
+        # type name
+        if len(msg_lines) == 0:
+            msg_lines = [type(exc).__name__]
+        logging.error("Backup upload failed %s (%s)", action, msg_lines[0])
+        logging.debug("Exception details:", exc_info=exc)
+
     def _get_tablespace_location(self, tablespace):
         """
         Determines the tablespace location by combining the backup directory with
         the oid of the tablespace.
         """
         return os.path.join(self.backup_dir, str(tablespace.oid))
+
+    @property
+    def _pgdata_dir(self):
+        return os.path.join(self.backup_dir, "data")
 
     def _take_backup(self):
         self._backup_data_files(
@@ -1665,10 +1684,6 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
             self._pgdata_dir,
             self.backup_info.pg_major_version,
         )
-
-    @property
-    def _pgdata_dir(self):
-        return os.path.join(self.backup_dir, "data")
 
     def backup(self):
         """
@@ -1709,21 +1724,6 @@ class CloudBackupUploaderBarman(CloudBackupUploader):
             self.copy_start_time,
             human_readable_timedelta(datetime.datetime.now() - self.copy_start_time),
         )
-
-    def handle_backup_errors(self, action, exc):
-        """
-        Log that the backup upload has failed and exit
-
-        :param str action: the upload phase that has failed
-        :param BaseException exc: the exception that caused the failure
-        """
-        msg_lines = force_str(exc).strip().splitlines()
-        # If the exception has no attached message use the raw
-        # type name
-        if len(msg_lines) == 0:
-            msg_lines = [type(exc).__name__]
-        logging.error("Backup upload failed %s (%s)", action, msg_lines[0])
-        logging.debug("Exception details:", exc_info=exc)
 
 
 class BackupFileInfo(object):
