@@ -128,7 +128,7 @@ class TestCloudBackupDelete(object):
                 }
             )
             backup_metadata[backup_id]["files"] = mock_backup_files
-            backup_info = mock.MagicMock(name="backup_info")
+            backup_info = mock.MagicMock(name="backup_info", snapshots_info=None)
             backup_info.backup_id = backup_id
             if backup_name:
                 backup_info.backup_name = backup_name
@@ -305,6 +305,55 @@ class TestCloudBackupDelete(object):
         # that backup and the backup.info file for that backup
         self._verify_only_these_backups_deleted(
             get_cloud_interface_mock, backup_metadata, [backup_id]
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch(
+        "barman.clients.cloud_backup_delete.get_snapshot_interface_from_backup_info"
+    )
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_delete_snapshot_backup(
+        self,
+        get_cloud_interface_mock,
+        get_snapshot_interface_mock,
+        cloud_backup_catalog_mock,
+    ):
+        """
+        Tests that snapshots are deleted if the backup has snapshots_info.
+        """
+        # GIVEN a backup catalog with one named backup and no WALs
+        backup_id = "20210723T095432"
+        backup_metadata = self._create_backup_metadata([(backup_id, "backup name")])
+        # AND a backup_info with multiple snapshots
+        backup_info = backup_metadata[backup_id]["info"]
+        snapshots = [
+            {"name": "snapshot0"},
+            {"name": "snapshot1"},
+            {"name": "snapshot2"},
+        ]
+        backup_info.snapshots_info = {
+            "gcp_project": "test_project",
+            "provider": "gcp",
+            "snapshots": snapshots,
+        }
+
+        # AND a CloudBackupCatalog which returns the backup_info for only that backup
+        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+
+        # WHEN barman-cloud-backup-delete runs
+        cloud_backup_delete.main(
+            ["cloud_storage_url", "test_server", "--backup-id", "20210723T095432"]
+        )
+
+        # THEN the cloud interface was only used to delete the files associated with
+        # that backup and the backup.info file for that backup
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock, backup_metadata, [backup_id]
+        )
+        # AND delete_snapshot_backup was called for the backup
+        mock_snapshots_interface = get_snapshot_interface_mock.return_value
+        mock_snapshots_interface.delete_snapshot_backup.assert_called_once_with(
+            backup_info
         )
 
     @pytest.mark.parametrize("backup_id_arg", ("20210723T095432", "backup name"))

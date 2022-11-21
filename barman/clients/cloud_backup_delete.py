@@ -30,7 +30,10 @@ from barman.clients.cloud_cli import (
     OperationErrorExit,
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
-from barman.cloud_providers import get_cloud_interface
+from barman.cloud_providers import (
+    get_cloud_interface,
+    get_snapshot_interface_from_backup_info,
+)
 from barman.exceptions import InvalidRetentionPolicy
 from barman.retention_policies import RetentionPolicyFactory
 from barman.utils import force_str
@@ -170,6 +173,16 @@ def _delete_backup(
     if not backup_info:
         logging.warning("Backup %s does not exist", backup_id)
         return
+    if backup_info.snapshots_info:
+        logging.debug(
+            "Will delete the following snapshots: %s",
+            ", ".join(
+                snapshot["name"] for snapshot in backup_info.snapshots_info["snapshots"]
+            ),
+        )
+        if not dry_run:
+            snapshot_interface = get_snapshot_interface_from_backup_info(backup_info)
+            snapshot_interface.delete_snapshot_backup(backup_info)
     objects_to_delete = _get_files_for_backup(catalog, backup_info)
     backup_info_path = os.path.join(
         catalog.prefix, backup_info.backup_id, "backup.info"

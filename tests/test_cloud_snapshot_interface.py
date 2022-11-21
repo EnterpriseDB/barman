@@ -26,6 +26,7 @@ from barman.cloud import CloudProviderError
 
 from barman.cloud_providers import (
     CloudProviderUnsupported,
+    get_snapshot_interface,
     get_snapshot_interface_from_backup_info,
     get_snapshot_interface_from_server_config,
 )
@@ -129,6 +130,55 @@ class TestGetSnapshotInterface(object):
             "backup_info has snapshot provider 'gcp' but gcp_project is not set"
             in str(exc.value)
         )
+
+    @pytest.mark.parametrize(
+        ("cloud_provider", "interface_cls"),
+        [
+            ("aws-s3", None),
+            ("azure-blob-storage", None),
+            ("google-cloud-storage", GcpCloudSnapshotInterface),
+        ],
+    )
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
+    )
+    def test_from_args_cloud_provider(
+        self, _mock_google_cloud_compute, cloud_provider, interface_cls
+    ):
+        """Verify supported and unsupported cloud providers with config args."""
+        # GIVEN a cloud config with the specified snapshot provider
+        mock_config = mock.Mock(cloud_provider=cloud_provider)
+
+        # WHEN get_snapshot_interface_from_server_config is called
+        if interface_cls:
+            # THEN supported providers return the expected interface
+            assert isinstance(get_snapshot_interface(mock_config), interface_cls)
+        else:
+            # AND unsupported providers raise the expected exception
+            with pytest.raises(CloudProviderUnsupported) as exc:
+                get_snapshot_interface(mock_config)
+            assert "No snapshot provider for cloud provider: {}".format(
+                cloud_provider
+            ) == str(exc.value)
+
+    def test_from_args_gcp_no_project(self):
+        """
+        Verify an exception is raised for gcp snapshots with no project in args.
+        """
+        # GIVEN a cloud config with the specified snapshot provider and a missing
+        # snapshot_gcp_project argument
+        mock_config = mock.Mock(
+            cloud_provider="google-cloud-storage", snapshot_gcp_project=None
+        )
+
+        # WHEN get snapshot_interface_from_backup_info is called
+        with pytest.raises(ConfigurationException) as exc:
+            get_snapshot_interface(mock_config)
+        # AND the exception has the expected message
+        assert (
+            "--snapshot-gcp-project option must be set for snapshot backups when "
+            "cloud provider is google-cloud-storage"
+        ) == str(exc.value)
 
 
 class TestGcpCloudSnapshotInterface(object):
