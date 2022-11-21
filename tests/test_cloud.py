@@ -35,6 +35,9 @@ from mock.mock import MagicMock
 import pytest
 import snappy
 
+from barman.exceptions import BackupPreconditionException
+from barman.infofile import BackupInfo
+
 if sys.version_info.major > 2:
     from unittest.mock import patch as unittest_patch
 from unittest import TestCase
@@ -44,6 +47,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from barman.annotations import KeepManager
 from barman.cloud import (
     CloudBackupCatalog,
+    CloudBackupSnapshot,
     CloudBackupUploader,
     CloudBackupUploaderBarman,
     CloudProviderError,
@@ -2674,7 +2678,7 @@ end_time=2014-12-22 09:25:27.410470+01:00
         mock_cloud_interface.list_bucket.return_value = list_bucket_response
         mock_cloud_interface.path = "mt-backups"
         # Create mock backup info which includes tablespaces
-        mock_backup_info = mock.MagicMock(name="backup_info")
+        mock_backup_info = mock.MagicMock(name="backup_info", snapshots_info=None)
         mock_backup_info.backup_id = backup_id
         mock_backup_info.status = "DONE"
         mock_tablespaces = []
@@ -3208,3 +3212,191 @@ class TestCloudBackupUploaderBarman(object):
         # AND the backup strategy was not called
         mock_backup_strategy.return_value.start_backup.assert_not_called()
         mock_backup_strategy.return_value.stop_backup.assert_not_called()
+
+
+class TestCloudBackupSnapshot(object):
+    """
+    Test the behaviour of barman cloud snapshot backups.
+    """
+
+    server_name = "test_server"
+    instance_name = "test_instance"
+    zone = "test_zone"
+    disks = ["disk0", "disk1"]
+
+    @pytest.fixture
+    def cloud_interface(self):
+        yield mock.Mock(path="path/to/objects")
+
+    @pytest.fixture
+    def snapshot_interface(self):
+        yield mock.Mock()
+
+    @pytest.fixture
+    def mock_postgres(self):
+        yield mock.Mock()
+
+    @pytest.mark.parametrize(
+        (
+            "instance_exists",
+            "missing_disks",
+            "unmounted_disks",
+            "expected_error_msg",
+        ),
+        [
+            (
+                False,
+                [],
+                [],
+                "Cannot find compute instance {snapshot_instance} in zone {snapshot_zone}",
+            ),
+            (
+                True,
+                ["disk1", "disk2"],
+                [],
+                "Cannot find disks attached to compute instance {snapshot_instance}: disk1, disk2",
+            ),
+            (
+                True,
+                [],
+                ["disk1", "disk2"],
+                "Cannot find disks mounted on compute instance {snapshot_instance}: disk1, disk2",
+            ),
+        ],
+    )
+    @mock.patch("barman.cloud.SnapshotBackupExecutor.find_missing_and_unmounted_disks")
+    def test_backup_precondition_failure(
+        self,
+        mock_find_missing_and_unmounted_disks,
+        cloud_interface,
+        snapshot_interface,
+        mock_postgres,
+        instance_exists,
+        missing_disks,
+        unmounted_disks,
+        expected_error_msg,
+    ):
+        """Verify that the backup fails when preconditions are not met."""
+        # GIVEN a CloudBackupSnapshot
+        snapshot_backup = CloudBackupSnapshot(
+            self.server_name,
+            cloud_interface,
+            snapshot_interface,
+            mock_postgres,
+            self.instance_name,
+            self.zone,
+            self.disks,
+        )
+        # AND the compute instance has the specified state
+        snapshot_interface.instance_exists.return_value = instance_exists
+        # AND the specified disks are missing or unmounted
+        mock_find_missing_and_unmounted_disks.return_value = (
+            missing_disks,
+            unmounted_disks,
+        )
+
+        # WHEN backup is called
+        # THEN a BackupPrecondition exception is raised
+        with pytest.raises(BackupPreconditionException) as exc:
+            snapshot_backup.backup()
+
+        # AND the exception has the expected message
+        assert str(exc.value) == expected_error_msg.format(
+            **{"snapshot_instance": self.instance_name, "snapshot_zone": self.zone}
+        )
+
+    @mock.patch("barman.cloud.CloudBackup._get_backup_info")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.UnixLocalCommand")
+    def test_backup(
+        self,
+        mock_unix_local_command,
+        mock_concurrent_backup_strategy,
+        mock_get_backup_info,
+        cloud_interface,
+        snapshot_interface,
+        mock_postgres,
+    ):
+        """Verify the expected behaviour when a snapshot backup is performed."""
+        # GIVEN a CloudBackupSnapshot
+        snapshot_backup = CloudBackupSnapshot(
+            self.server_name,
+            cloud_interface,
+            snapshot_interface,
+            mock_postgres,
+            self.instance_name,
+            self.zone,
+            self.disks[:1],
+        )
+        # AND the instance exists
+        snapshot_interface.instance_exists.return_value = True
+        # AND the expected disks are attached
+        snapshot_interface.get_attached_devices.return_value = {"disk0": "/dev/dev0"}
+        # AND the expected disks are mounted
+        mock_unix_local_command.return_value.findmnt.return_value = (
+            "/opt/disk0",
+            "rw,noatime",
+        )
+        # AND a backup strategy which sets a given label
+        backup_label = "test_backup_label"
+        # AND a known backup_info
+        backup_id = "20380119T031408"
+        backup_info = BackupInfo(backup_id=backup_id, server_name=self.server_name)
+        mock_get_backup_info.return_value = backup_info
+        # AND a mock upload_fileobj function which saves the uploaded ubject for later
+        # comparison
+        uploaded_fileobjs = {}
+
+        def mock_upload_fileobj(value, key):
+            value.seek(0)
+            uploaded_fileobjs[key] = value.read().decode()
+
+        cloud_interface.upload_fileobj.side_effect = mock_upload_fileobj
+
+        def mock_start_backup(backup_info):
+            backup_info.backup_label = backup_label
+
+        mock_concurrent_backup_strategy.return_value.start_backup.side_effect = (
+            mock_start_backup
+        )
+
+        # AND a mock take_snapshot_backup function which sets snapshot_info
+        def mock_take_snapshot_backup(backup_info, _instance_name, _zone, _disks):
+            backup_info.snapshots_info = mock.Mock(
+                snapshots=[mock.Mock(identifier="snapshot0", device="/dev/dev0")]
+            )
+
+        snapshot_interface.take_snapshot_backup.side_effect = mock_take_snapshot_backup
+
+        # WHEN backup is called
+        snapshot_backup.backup()
+
+        # THEN take_snapshot_backup is called with the expected args
+        snapshot_interface.take_snapshot_backup.assert_called_once_with(
+            backup_info,
+            self.instance_name,
+            self.zone,
+            self.disks[:1],
+        )
+        # AND the backup label was uploaded
+        backup_label_key = "{}/{}/base/{}/backup_label".format(
+            cloud_interface.path, self.server_name, backup_id
+        )
+        assert uploaded_fileobjs[backup_label_key] == backup_label
+
+        # AND the backup info contains mount options
+        snapshot0_info = backup_info.snapshots_info.snapshots[0]
+        assert snapshot0_info.mount_options == "rw,noatime"
+        assert snapshot0_info.mount_point == "/opt/disk0"
+
+        # AND the backup info was uploaded
+        backup_info_key = "{}/{}/base/{}/backup.info".format(
+            cloud_interface.path, self.server_name, backup_id
+        )
+        assert backup_info_key in uploaded_fileobjs
+        with BytesIO() as backup_info_file:
+            backup_info.save(file_object=backup_info_file)
+            backup_info_file.seek(0)
+            assert (
+                uploaded_fileobjs[backup_info_key] == backup_info_file.read().decode()
+            )

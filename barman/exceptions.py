@@ -116,6 +116,12 @@ class BackupInfoBadInitialisation(BackupException):
     """
 
 
+class BackupPreconditionException(BackupException):
+    """
+    Exception for a backup precondition not being met
+    """
+
+
 class SnapshotBackupException(BackupException):
     """
     Exception for snapshot backups
