@@ -90,14 +90,14 @@ class TestRecoveryExecutor(object):
         backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
         # Identify dangerous options into config files for remote recovery
-        executor._analyse_temporary_config_files(recovery_info, None)
+        executor._analyse_temporary_config_files(recovery_info)
         assert len(recovery_info["results"]["changes"]) == 2
         assert len(recovery_info["results"]["warnings"]) == 4
         # Clean for a local recovery test
         recovery_info["results"]["changes"] = []
         recovery_info["results"]["warnings"] = []
         # Identify dangerous options for local recovery
-        executor._analyse_temporary_config_files(recovery_info, None)
+        executor._analyse_temporary_config_files(recovery_info)
         assert len(recovery_info["results"]["changes"]) == 2
         assert len(recovery_info["results"]["warnings"]) == 4
 
@@ -106,7 +106,7 @@ class TestRecoveryExecutor(object):
         recovery_info["results"]["warnings"] = []
         recovery_info["auto_conf_append_lines"] = ["l1", "l2"]
         postgresql_auto.write("")
-        executor._analyse_temporary_config_files(recovery_info, None)
+        executor._analyse_temporary_config_files(recovery_info)
         assert len(recovery_info["results"]["changes"]) == 1
         assert len(recovery_info["results"]["warnings"]) == 3
 
@@ -140,7 +140,7 @@ class TestRecoveryExecutor(object):
         backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
         executor._map_temporary_config_files(
-            recovery_info, backup_info, "ssh@something", None
+            recovery_info, backup_info, "ssh@something"
         )
         # check that configuration files have been moved by the method
         assert tempdir.join("postgresql.conf").check()
