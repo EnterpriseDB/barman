@@ -70,7 +70,7 @@ class TestRecoveryExecutor(object):
             "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
             "tempdir": tempdir.strpath,
             "temporary_configuration_files": [],
-            "results": {"changes": [], "warnings": []},
+            "results": {"changes": [], "warnings": [], "recovery_configuration_file": "postgresql.auto.conf"},
         }
         postgresql_conf = tempdir.join("postgresql.conf")
         postgresql_auto = tempdir.join("postgresql.auto.conf")
