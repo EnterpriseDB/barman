@@ -90,14 +90,14 @@ class TestRecoveryExecutor(object):
         backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
         # Identify dangerous options into config files for remote recovery
-        executor._analyse_temporary_config_files(recovery_info)
+        executor._analyse_temporary_config_files(recovery_info, None)
         assert len(recovery_info["results"]["changes"]) == 2
         assert len(recovery_info["results"]["warnings"]) == 4
         # Clean for a local recovery test
         recovery_info["results"]["changes"] = []
         recovery_info["results"]["warnings"] = []
         # Identify dangerous options for local recovery
-        executor._analyse_temporary_config_files(recovery_info)
+        executor._analyse_temporary_config_files(recovery_info, None)
         assert len(recovery_info["results"]["changes"]) == 2
         assert len(recovery_info["results"]["warnings"]) == 4
 
@@ -106,7 +106,7 @@ class TestRecoveryExecutor(object):
         recovery_info["results"]["warnings"] = []
         recovery_info["auto_conf_append_lines"] = ["l1", "l2"]
         postgresql_auto.write("")
-        executor._analyse_temporary_config_files(recovery_info)
+        executor._analyse_temporary_config_files(recovery_info, None)
         assert len(recovery_info["results"]["changes"]) == 1
         assert len(recovery_info["results"]["warnings"]) == 3
 
@@ -140,7 +140,7 @@ class TestRecoveryExecutor(object):
         backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
         executor._map_temporary_config_files(
-            recovery_info, backup_info, "ssh@something"
+            recovery_info, backup_info, "ssh@something", None
         )
         # check that configuration files have been moved by the method
         assert tempdir.join("postgresql.conf").check()
@@ -171,31 +171,31 @@ class TestRecoveryExecutor(object):
 
         # setup should create a temporary directory
         # and teardown should delete it
-        ret = executor._setup(backup_info, None, "/tmp")
+        ret = executor._setup(backup_info, None, "/tmp", None)
         assert os.path.exists(ret["tempdir"])
         executor.close()
         assert not os.path.exists(ret["tempdir"])
         assert ret["wal_dest"].endswith("/pg_xlog")
 
         # no postgresql.auto.conf on version 9.3
-        ret = executor._setup(backup_info, None, "/tmp")
+        ret = executor._setup(backup_info, None, "/tmp", None)
         executor.close()
         assert "postgresql.auto.conf" not in ret["configuration_files"]
 
         # Check the present for postgresql.auto.conf on version 9.4
         backup_info.version = 90400
-        ret = executor._setup(backup_info, None, "/tmp")
+        ret = executor._setup(backup_info, None, "/tmp", None)
         executor.close()
         assert "postgresql.auto.conf" in ret["configuration_files"]
 
         # Receive a error if the remote command is invalid
         with pytest.raises(SystemExit):
             executor.server.path = None
-            executor._setup(backup_info, "invalid", "/tmp")
+            executor._setup(backup_info, "invalid", "/tmp", None)
 
         # Test for PostgreSQL 10
         backup_info.version = 100000
-        ret = executor._setup(backup_info, None, "/tmp")
+        ret = executor._setup(backup_info, None, "/tmp", None)
         executor.close()
         assert ret["wal_dest"].endswith("/pg_wal")
 
