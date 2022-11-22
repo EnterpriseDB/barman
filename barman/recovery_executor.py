@@ -1196,8 +1196,8 @@ class RecoveryExecutor(object):
 
             append_lines = None
             conf_file_suffix = "postgresql.auto.conf"
-            if recovery_info["results"]["recovery_configuration_file"]:
-                conf_file_suffix = recovery_info["results"]["recovery_configuration_file"]
+            if results["recovery_configuration_file"]:
+                conf_file_suffix = results["recovery_configuration_file"]
             if conf_file.endswith(conf_file_suffix):
                 append_lines = recovery_info.get("auto_conf_append_lines")
 
