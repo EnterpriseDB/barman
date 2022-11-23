@@ -375,7 +375,7 @@ class RecoveryExecutor(object):
             if backup_info.version < 120000:
                 results["recovery_configuration_file"] = "recovery.conf"
         else:
-            recovery_info["configuration_files"].append(recovery_conf_filename)
+            recovery_info["configuration_files"].append(recovery_conf_filename) if (recovery_conf_filename in recovery_info["configuration_files"]) else 0
             results["recovery_configuration_file"] = recovery_conf_filename
         # Handle remote recovery options
         if remote_command:
