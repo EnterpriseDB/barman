@@ -1959,7 +1959,11 @@ def parse_backup_id(server, args):
     elif is_backup_id(args.backup_id):
         backup_id = args.backup_id
     else:
-        backup_id = server.get_backup_id_from_name(args.backup_id)
+        try:
+            backup_id = server.get_backup_id_from_name(args.backup_id)
+        except ValueError as exc:
+            output.error(str(exc))
+            output.close_and_exit()
     backup_info = server.get_backup(backup_id)
     if backup_info is None:
         output.error(
