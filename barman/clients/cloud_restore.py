@@ -15,6 +15,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
+from abc import ABCMeta, abstractmethod
 import logging
 import os
 from contextlib import closing
@@ -28,7 +29,7 @@ from barman.clients.cloud_cli import (
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import get_cloud_interface
-from barman.utils import force_str
+from barman.utils import force_str, with_metaclass
 
 
 def main(args=None):
@@ -41,25 +42,10 @@ def main(args=None):
     config = parse_arguments(args)
     configure_logging(config)
 
-    # Validate the destination directory before starting recovery
-    if os.path.exists(config.recovery_dir) and os.listdir(config.recovery_dir):
-        logging.error(
-            "Destination %s already exists and it is not empty", config.recovery_dir
-        )
-        raise OperationErrorExit()
-
     try:
         cloud_interface = get_cloud_interface(config)
 
         with closing(cloud_interface):
-            catalog = CloudBackupCatalog(cloud_interface, config.server_name)
-            backup_id = catalog.parse_backup_id(config.backup_id)
-            downloader = CloudBackupDownloader(
-                cloud_interface=cloud_interface,
-                server_name=config.server_name,
-                catalog=catalog,
-            )
-
             if not cloud_interface.test_connectivity():
                 raise NetworkErrorExit()
             # If test is requested, just exit after connectivity test
@@ -70,8 +56,21 @@ def main(args=None):
                 logging.error("Bucket %s does not exist", cloud_interface.bucket_name)
                 raise OperationErrorExit()
 
+            catalog = CloudBackupCatalog(cloud_interface, config.server_name)
+            backup_id = catalog.parse_backup_id(config.backup_id)
+
+            backup_info = catalog.get_backup_info(backup_id)
+            if not backup_info:
+                logging.error(
+                    "Backup %s for server %s does not exists",
+                    backup_id,
+                    config.server_name,
+                )
+                raise OperationErrorExit()
+
+            downloader = CloudBackupDownloaderObjectStore(cloud_interface, catalog)
             downloader.download_backup(
-                backup_id,
+                backup_info,
                 config.recovery_dir,
                 tablespace_map(config.tablespace),
             )
@@ -130,12 +129,12 @@ def tablespace_map(rules):
     return tablespaces
 
 
-class CloudBackupDownloader(object):
+class CloudBackupDownloader(with_metaclass(ABCMeta)):
     """
-    Cloud storage download client
+    Restore a backup from cloud storage.
     """
 
-    def __init__(self, cloud_interface, server_name, catalog):
+    def __init__(self, cloud_interface, catalog):
         """
         Object responsible for handling interactions with cloud storage
 
@@ -144,12 +143,11 @@ class CloudBackupDownloader(object):
         :param str server_name: The name of the server as configured in Barman
         :param CloudBackupCatalog catalog: The cloud backup catalog
         """
-
         self.cloud_interface = cloud_interface
-        self.server_name = server_name
         self.catalog = catalog
 
-    def download_backup(self, backup_id, destination_dir, tablespaces):
+    @abstractmethod
+    def download_backup(self, backup_id, destination_dir):
         """
         Download a backup from cloud storage
 
@@ -157,11 +155,23 @@ class CloudBackupDownloader(object):
         :param str destination_dir: Path to the destination directory
         """
 
-        backup_info = self.catalog.get_backup_info(backup_id)
 
-        if not backup_info:
+class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
+    """
+    Cloud storage download client for an object store backup
+    """
+
+    def download_backup(self, backup_info, destination_dir, tablespaces):
+        """
+        Download a backup from cloud storage
+
+        :param BackupInfo backup_info: The backup info for the backup to restore
+        :param str destination_dir: Path to the destination directory
+        """
+        # Validate the destination directory before starting recovery
+        if os.path.exists(destination_dir) and os.listdir(destination_dir):
             logging.error(
-                "Backup %s for server %s does not exists", backup_id, self.server_name
+                "Destination %s already exists and it is not empty", destination_dir
             )
             raise OperationErrorExit()
 
