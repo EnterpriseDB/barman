@@ -38,6 +38,7 @@ from barman.infofile import BackupInfo, WalFileInfo
 from barman.recovery_executor import (
     Assertion,
     RecoveryExecutor,
+    RemoteConfigRecoveryExecutor,
     TarballRecoveryExecutor,
     ConfigurationFileMangeler,
     recovery_executor_factory,
@@ -1340,6 +1341,59 @@ class TestRecoveryExecutor(object):
                 )
             ]
         )
+
+
+class TestRemoteConfigRecoveryExecutor(object):
+    """Test functions for managing remote configuration files during recovery."""
+
+    def test_conf_files_exist(self):
+        """Verify _conf_files_exist returns the expected map of file status."""
+        # GIVEN a RemoteConfigRecoveryExecutor
+        mock_backup_manager = mock.Mock()
+        executor = RemoteConfigRecoveryExecutor(mock_backup_manager)
+        # AND a mock recovery command for a specified list of files
+        expected_conf_files = {"file0": True, "file1": False}
+        conf_files = expected_conf_files.keys()
+        exists_status = {"/path/to/dest/file0": True, "/path/to/dest/file1": False}
+
+        def mock_exists(filename):
+            return exists_status[filename]
+
+        mock_cmd = mock.Mock(exists=mock_exists)
+        recovery_info = {"cmd": mock_cmd, "destination_path": "/path/to/dest"}
+
+        # WHEN _conf_files_exist is called
+        response = executor._conf_files_exist(conf_files, None, recovery_info)
+        # THEN the expected map of files is returned
+        for filename in conf_files:
+            assert response[filename] == expected_conf_files[filename]
+
+    @mock.patch("barman.recovery_executor.RsyncPgData")
+    def test_copy_conf_files_to_tempdir(self, mock_rsync_pg_data):
+        """Verify that remote config files are copied correctly."""
+        # GIVEN a RemoteConfigRecoveryExecutor
+        mock_backup_manager = mock.Mock()
+        executor = RemoteConfigRecoveryExecutor(mock_backup_manager)
+        # AND a recovery_info
+        conf_files = ("file0", "file1")
+        recovery_dir = "/path/to/recovery"
+        temp_dir = "/path/to/tmp"
+        recovery_info = {
+            "configuration_files": conf_files,
+            "destination_path": recovery_dir,
+            "tempdir": temp_dir,
+        }
+
+        # WHEN _copy_conf_files_to_tempdir is called
+        response = executor._copy_conf_files_to_tempdir(None, recovery_info, None)
+
+        # THEN the configuration files are copied to the destination
+        mock_rsync_pg_data.return_value.from_file_list.assert_called_once_with(
+            conf_files, ":" + recovery_dir, temp_dir
+        )
+        # AND a list of configuration paths is returned
+        for filename in conf_files:
+            assert os.path.join(temp_dir, filename) in response
 
 
 class TestTarballRecoveryExecutor(object):
