@@ -731,12 +731,17 @@ class PostgresBackupExecutor(BackupExecutor):
         )
 
 
-class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
+class ExternalBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
     """
-    Abstract base class file system level backup executors that
-    can operate remotely via SSH or locally:
+    Abstract base class for non-postgres backup executors.
+
+    An external backup executor is any backup executor which uses the
+    PostgreSQL low-level backup API to coordinate the backup.
+
+    Such eecutors can operate remotely via SSH or locally:
     - remote mode (default), operates via SSH
     - local mode, operates as the same user that Barman runs with
+
     It is also a factory for exclusive/concurrent backup strategy objects.
 
     Raises a SshCommandException if 'ssh_command' is not set and
@@ -753,7 +758,7 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
             to operate on remote servers using SSH. Operates only locally
             if set to True.
         """
-        super(FsBackupExecutor, self).__init__(backup_manager, mode)
+        super(ExternalBackupExecutor, self).__init__(backup_manager, mode)
 
         # Set local/remote mode for copy
         self.local_mode = local_mode
@@ -828,7 +833,7 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         through the generic interface of a BackupExecutor. This implementation
         is responsible for performing a backup through a remote connection
         to the PostgreSQL server via Ssh. The specific set of instructions
-        depends on both the specific class that derives from FsBackupExecutor
+        depends on both the specific class that derives from ExternalBackupExecutor
         and the selected strategy (e.g. exclusive backup through Rsync).
 
         :param barman.infofile.LocalBackupInfo backup_info: backup information
@@ -887,7 +892,7 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
     def _local_check(self, check_strategy):
         """
-        Specific checks for local mode of FsBackupExecutor (same user)
+        Specific checks for local mode of ExternalBackupExecutor (same user)
 
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
@@ -908,7 +913,7 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
     def _remote_check(self, check_strategy):
         """
-        Specific checks for remote mode of FsBackupExecutor, via SSH.
+        Specific checks for remote mode of ExternalBackupExecutor, via SSH.
 
         :param CheckStrategy check_strategy: the strategy for the management
              of the results of the various checks
@@ -964,7 +969,7 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
     def check(self, check_strategy):
         """
-        Perform additional checks for FsBackupExecutor, including
+        Perform additional checks for ExternalBackupExecutor, including
         Ssh connection (executing a 'true' command on the remote server)
         and specific checks for the given backup strategy.
 
@@ -988,7 +993,7 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
 
     def status(self):
         """
-        Set additional status info for FsBackupExecutor using remote
+        Set additional status info for ExternalBackupExecutor using remote
         commands via Ssh, as well as those defined by the given
         backup strategy.
         """
@@ -1043,19 +1048,6 @@ class FsBackupExecutor(with_metaclass(ABCMeta, BackupExecutor)):
         except (PostgresConnectionError, FsOperationFailed) as e:
             _logger.warning("Error retrieving PostgreSQL status: %s", e)
         return remote_status
-
-    def _start_backup_copy_message(self, backup_info):
-        number_of_workers = self.config.parallel_jobs
-        via = "rsync/SSH"
-        if self.local_mode:
-            via = "local rsync"
-        message = "Starting backup copy via %s for %s" % (
-            via,
-            backup_info.backup_id,
-        )
-        if number_of_workers > 1:
-            message += " (%s jobs)" % number_of_workers
-        output.info(message)
 
 
 class PassiveBackupExecutor(BackupExecutor):
@@ -1153,13 +1145,13 @@ class PassiveBackupExecutor(BackupExecutor):
         return "passive"
 
 
-class RsyncBackupExecutor(FsBackupExecutor):
+class RsyncBackupExecutor(ExternalBackupExecutor):
     """
     Concrete class for backup via Rsync+Ssh.
 
     It invokes PostgreSQL commands to start and stop the backup, depending
     on the defined strategy. Data files are copied using Rsync via Ssh.
-    It heavily relies on methods defined in the FsBackupExecutor class
+    It heavily relies on methods defined in the ExternalBackupExecutor class
     from which it derives.
     """
 
@@ -1387,6 +1379,19 @@ class RsyncBackupExecutor(FsBackupExecutor):
         if not self.local_mode:
             return ":%s" % path
         return path
+
+    def _start_backup_copy_message(self, backup_info):
+        number_of_workers = self.config.parallel_jobs
+        via = "rsync/SSH"
+        if self.local_mode:
+            via = "local rsync"
+        message = "Starting backup copy via %s for %s" % (
+            via,
+            backup_info.backup_id,
+        )
+        if number_of_workers > 1:
+            message += " (%s jobs)" % number_of_workers
+        output.info(message)
 
 
 class BackupStrategy(with_metaclass(ABCMeta, object)):
@@ -1723,7 +1728,7 @@ class ExclusiveBackupStrategy(BackupStrategy):
     """
     Concrete class for exclusive backup strategy.
 
-    This strategy is for FsBackupExecutor only and is responsible for
+    This strategy is for ExternalBackupExecutor only and is responsible for
     coordinating Barman with PostgreSQL on standard physical backup
     operations (known as 'exclusive' backup), such as invoking
     pg_start_backup() and pg_stop_backup() on the master server.
@@ -1950,7 +1955,7 @@ class LocalConcurrentBackupStrategy(ConcurrentBackupStrategy):
     """
     Concrete class for concurrent backup strategy writing data locally.
 
-    This strategy is for FsBackupExecutor only and is responsible for
+    This strategy is for ExternalBackupExecutor only and is responsible for
     coordinating Barman with PostgreSQL on concurrent physical backup
     operations through concurrent backup PostgreSQL api.
     """
