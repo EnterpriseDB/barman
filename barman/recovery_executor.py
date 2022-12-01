@@ -1235,7 +1235,60 @@ class RecoveryExecutor(object):
         self.temp_dirs = []
 
 
-class TarballRecoveryExecutor(RecoveryExecutor):
+class RemoteConfigRecoveryExecutor(RecoveryExecutor):
+    """
+    Recovery executor which retrieves config files from the recovery directory
+    instead of the backup directory. Useful when the config files are not available
+    in the backup directory (e.g. compressed backups or snapshot backups).
+    """
+
+    def _conf_files_exist(self, conf_files, backup_info, recovery_info):
+        """
+        Determine whether the conf files in the supplied list exist in the backup
+        represented by backup_info.
+
+        Returns a map of conf_file:exists.
+        """
+        exists = {}
+        for conf_file in conf_files:
+            source_path = os.path.join(recovery_info["destination_path"], conf_file)
+            exists[conf_file] = recovery_info["cmd"].exists(source_path)
+        return exists
+
+    def _copy_conf_files_to_tempdir(
+        self, backup_info, recovery_info, remote_command=None
+    ):
+        """
+        Copy conf files from the backup location to a temporary directory so that
+        they can be checked and mangled.
+
+        Returns a list of the paths to the temporary conf files.
+        """
+        conf_file_paths = []
+
+        rsync = RsyncPgData(
+            path=self.server.path,
+            ssh=remote_command,
+            bwlimit=self.config.bandwidth_limit,
+            network_compression=self.config.network_compression,
+        )
+
+        rsync.from_file_list(
+            recovery_info["configuration_files"],
+            ":" + recovery_info["destination_path"],
+            recovery_info["tempdir"],
+        )
+
+        conf_file_paths.extend(
+            [
+                os.path.join(recovery_info["tempdir"], conf_file)
+                for conf_file in recovery_info["configuration_files"]
+            ]
+        )
+        return conf_file_paths
+
+
+class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
     """
     A specialised recovery method for compressed backups.
     Inheritence is not necessarily the best thing here since the two RecoveryExecutor
@@ -1382,51 +1435,6 @@ class TarballRecoveryExecutor(RecoveryExecutor):
             base_src_path, dest, exclude=["recovery.conf", "tablespace_map"]
         )
         _logger.debug("Uncompression output for base tarball: %s", cmd_output)
-
-    def _conf_files_exist(self, conf_files, backup_info, recovery_info):
-        """
-        Determine whether the conf files in the supplied list exist in the backup
-        represented by backup_info.
-
-        Returns a map of conf_file:exists.
-        """
-        exists = {}
-        for conf_file in conf_files:
-            source_path = os.path.join(recovery_info["destination_path"], conf_file)
-            exists[conf_file] = recovery_info["cmd"].exists(source_path)
-        return exists
-
-    def _copy_conf_files_to_tempdir(
-        self, backup_info, recovery_info, remote_command=None
-    ):
-        """
-        Copy conf files from the backup location to a temporary directory so that
-        they can be checked and mangled.
-
-        Returns a list of the paths to the temporary conf files.
-        """
-        conf_file_paths = []
-
-        rsync = RsyncPgData(
-            path=self.server.path,
-            ssh=remote_command,
-            bwlimit=self.config.bandwidth_limit,
-            network_compression=self.config.network_compression,
-        )
-
-        rsync.from_file_list(
-            recovery_info["configuration_files"],
-            ":" + recovery_info["destination_path"],
-            recovery_info["tempdir"],
-        )
-
-        conf_file_paths.extend(
-            [
-                os.path.join(recovery_info["tempdir"], conf_file)
-                for conf_file in recovery_info["configuration_files"]
-            ]
-        )
-        return conf_file_paths
 
 
 def recovery_executor_factory(backup_manager, command, compression=None):
