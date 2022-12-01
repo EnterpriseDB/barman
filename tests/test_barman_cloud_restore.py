@@ -43,7 +43,7 @@ class TestCloudRestore(object):
         # to the expected backup ID
         mock_catalog.return_value.parse_backup_id.return_value = expected_backup_id
         # AND the catalog returns a mock backup_info with the expected backup ID
-        mock_backup_info = mock.Mock(backup_id=expected_backup_id)
+        mock_backup_info = mock.Mock(backup_id=expected_backup_id, snapshots_info=None)
         mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
 
         # WHEN barman-backup-restore is called with the backup_id_arg

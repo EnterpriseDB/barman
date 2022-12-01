@@ -26,10 +26,37 @@ from barman.clients.cloud_cli import (
     GeneralErrorExit,
     NetworkErrorExit,
     OperationErrorExit,
+    get_missing_attrs,
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
-from barman.cloud_providers import get_cloud_interface
+from barman.cloud_providers import (
+    get_cloud_interface,
+    get_snapshot_interface_from_backup_info,
+)
+from barman.exceptions import ConfigurationException
+from barman.fs import UnixLocalCommand
+from barman.recovery_executor import SnapshotRecoveryExecutor
 from barman.utils import force_str, with_metaclass
+
+
+def _validate_config_for_backup(config, backup_info):
+    """
+    Additional validation for config such as mutually inclusive options.
+    """
+    if backup_info.snapshots_info:
+        missing_options = get_missing_attrs(
+            config, ("snapshot_recovery_instance", "snapshot_recovery_zone")
+        )
+        if len(missing_options) > 0:
+            raise ConfigurationException(
+                "Incomplete options for snapshot restore - missing: %s"
+                % ", ".join(missing_options)
+            )
+        if config.tablespace != []:
+            raise ConfigurationException(
+                "Backup %s is a snapshot backup therefore tablespace relocation rules "
+                "cannot be used." % backup_info.backup_id,
+            )
 
 
 def main(args=None):
@@ -68,12 +95,23 @@ def main(args=None):
                 )
                 raise OperationErrorExit()
 
-            downloader = CloudBackupDownloaderObjectStore(cloud_interface, catalog)
-            downloader.download_backup(
-                backup_info,
-                config.recovery_dir,
-                tablespace_map(config.tablespace),
-            )
+            _validate_config_for_backup(config, backup_info)
+
+            if backup_info.snapshots_info:
+                downloader = CloudBackupDownloaderSnapshot(cloud_interface, catalog)
+                downloader.download_backup(
+                    backup_info,
+                    config.recovery_dir,
+                    config.snapshot_recovery_instance,
+                    config.snapshot_recovery_zone,
+                )
+            else:
+                downloader = CloudBackupDownloaderObjectStore(cloud_interface, catalog)
+                downloader.download_backup(
+                    backup_info,
+                    config.recovery_dir,
+                    tablespace_map(config.tablespace),
+                )
 
     except KeyboardInterrupt as exc:
         logging.error("Barman cloud restore was interrupted by the user")
@@ -105,6 +143,14 @@ def parse_arguments(args=None):
         metavar="NAME:LOCATION",
         action="append",
         default=[],
+    )
+    parser.add_argument(
+        "--snapshot-recovery-instance",
+        help="Instance where the disks recovered from the snapshots are attached",
+    )
+    parser.add_argument(
+        "--snapshot-recovery-zone",
+        help="Zone containing the instance and disks for the snapshot recovery",
     )
     return parser.parse_args(args=args)
 
@@ -247,6 +293,37 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
         wal_path = os.path.join(destination_dir, backup_info.wal_directory())
         if not os.path.exists(wal_path):
             os.mkdir(wal_path)
+
+
+class CloudBackupDownloaderSnapshot(CloudBackupDownloader):
+    """A minimal downloader for cloud backups which just retrieves the backup label."""
+
+    def download_backup(
+        self, backup_info, destination_dir, recovery_instance, recovery_zone
+    ):
+        """
+        Download a backup from cloud storage
+
+        :param BackupInfo backup_info: The backup info for the backup to restore
+        :param str destination_dir: Path to the destination directory
+        """
+        snapshot_interface = get_snapshot_interface_from_backup_info(backup_info)
+        attached_snapshots = SnapshotRecoveryExecutor.check_snapshots_attached(
+            snapshot_interface, backup_info, recovery_instance, recovery_zone
+        )
+        cmd = UnixLocalCommand()
+        SnapshotRecoveryExecutor.check_mount_points(
+            backup_info, attached_snapshots, cmd
+        )
+        SnapshotRecoveryExecutor.check_recovery_dir_exists(destination_dir, cmd)
+
+        # If the target directory does not exist then we will fail here because
+        # it tells us the snapshot has not been restored.
+        return self.cloud_interface.download_file(
+            "/".join((self.catalog.prefix, backup_info.backup_id, "backup_label")),
+            os.path.join(destination_dir, "backup_label"),
+            decompress=None,
+        )
 
 
 if __name__ == "__main__":
