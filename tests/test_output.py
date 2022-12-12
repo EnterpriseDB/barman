@@ -1195,7 +1195,7 @@ class TestConsoleWriter(object):
         assert ext_info["status"] in out
         assert str(ext_info["end_time"]) in out
         for name, _, location in ext_info["tablespaces"]:
-            assert "%s: %s" % (name, location) in out
+            assert "{:<21}: {}".format(name, location) in out
         assert (pretty_size(ext_info["size"] + ext_info["wal_size"])) in out
         assert (pretty_size(ext_info["wal_until_next_size"])) in out
         assert "WAL rate             : %0.2f/hour" % (wal_per_second * 3600) in out
