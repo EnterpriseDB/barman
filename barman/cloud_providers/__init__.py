@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
-from barman.exceptions import BarmanException
+from barman.exceptions import BarmanException, ConfigurationException
 
 
 class CloudProviderUnsupported(BarmanException):
@@ -130,4 +130,35 @@ def get_cloud_interface(config):
     else:
         raise CloudProviderUnsupported(
             "Unsupported cloud provider: %s" % config.cloud_provider
+        )
+
+
+def get_snapshot_interface_from_server_config(server_config):
+    if server_config.snapshot_provider == "gcp":
+        from barman.cloud_providers.google_cloud_storage import (
+            GcpCloudSnapshotInterface,
+        )
+
+        if server_config.snapshot_gcp_project is None:
+            raise ConfigurationException(
+                "snapshot_gcp_project option must be set when snapshot_provider is gcp"
+            )
+        return GcpCloudSnapshotInterface(server_config.snapshot_gcp_project)
+    else:
+        raise CloudProviderUnsupported(
+            "Unsupported snapshot provider: %s" % server_config.snapshot_provider
+        )
+
+
+def get_snapshot_interface_from_backup_info(backup_info):
+    if backup_info.snapshots_info["provider"] == "gcp":
+        from barman.cloud_providers.google_cloud_storage import (
+            GcpCloudSnapshotInterface,
+        )
+
+        return GcpCloudSnapshotInterface(backup_info.snapshots_info["gcp_project"])
+    else:
+        raise CloudProviderUnsupported(
+            "Unsupported snapshot provider in backup info: %s"
+            % backup_info.snapshots_info["provider"]
         )

@@ -716,6 +716,30 @@ class ConsoleOutputWriter(object):
             output_fun("")
 
     @staticmethod
+    def render_show_backup_snapshots(backup_info, output_fun, header_row, nested_row):
+        if (
+            "snapshots_info" in backup_info
+            and backup_info["snapshots_info"] is not None
+        ):
+            output_fun(header_row.format("Snapshot information:"))
+            for key, value in backup_info["snapshots_info"].items():
+                if key != "snapshots":
+                    output_fun(nested_row.format(key, value))
+            output_fun("")
+            for snapshot_name, metadata in backup_info["snapshots_info"][
+                "snapshots"
+            ].items():
+                output_fun(nested_row.format("Snapshot name", snapshot_name))
+                output_fun(nested_row.format("Disk size (GiB)", metadata["size"]))
+                output_fun(nested_row.format("Device", metadata["device"]))
+                output_fun(nested_row.format("Block size", metadata["block_size"]))
+                output_fun(nested_row.format("Mount point", metadata["mount_point"]))
+                output_fun(
+                    nested_row.format("Mount options", metadata["mount_options"])
+                )
+                output_fun("")
+
+    @staticmethod
     def render_show_backup_tablespaces(backup_info, output_fun, header_row, nested_row):
         if backup_info["tablespaces"]:
             output_fun(header_row.format("Tablespaces"))
@@ -887,6 +911,9 @@ class ConsoleOutputWriter(object):
         output_fun("Backup {}:".format(backup_info["backup_id"]))
         ConsoleOutputWriter.render_show_backup_general(backup_info, output_fun, row)
         if backup_info["status"] in BackupInfo.STATUS_COPY_DONE:
+            ConsoleOutputWriter.render_show_backup_snapshots(
+                backup_info, output_fun, header_row, nested_row
+            )
             ConsoleOutputWriter.render_show_backup_tablespaces(
                 backup_info, output_fun, header_row, nested_row
             )
@@ -1437,6 +1464,8 @@ class JsonOutputWriter(ConsoleOutputWriter):
                     tablespaces=[],
                 )
             )
+            if "snapshots_info" in data and data["snapshots_info"]:
+                output["snapshots_info"] = data["snapshots_info"]
             if data["tablespaces"]:
                 for item in data["tablespaces"]:
                     output["tablespaces"].append(

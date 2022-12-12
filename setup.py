@@ -106,6 +106,12 @@ setup(
         "google": [
             "google-cloud-storage",
         ],
+        # The google-cloud-compute library does not support python 2.7 in any version
+        # so google snapshots extras are in their own section to avoid breaking GCS
+        # for anyone unfortunate enough to still be using python 2.7.
+        "google-snapshots": [
+            "google-cloud-compute",
+        ],
     },
     platforms=["Linux", "Mac OS X"],
     classifiers=[

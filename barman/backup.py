@@ -37,7 +37,9 @@ from barman.backup_executor import (
     PassiveBackupExecutor,
     PostgresBackupExecutor,
     RsyncBackupExecutor,
+    SnapshotBackupExecutor,
 )
+from barman.cloud_providers import get_snapshot_interface_from_backup_info
 from barman.compression import CompressionManager
 from barman.config import BackupOptions
 from barman.exceptions import (
@@ -89,6 +91,8 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                 self.executor = PostgresBackupExecutor(self)
             elif self.config.backup_method == "local-rsync":
                 self.executor = RsyncBackupExecutor(self, local_mode=True)
+            elif self.config.backup_method == "snapshot":
+                self.executor = SnapshotBackupExecutor(self)
             else:
                 self.executor = RsyncBackupExecutor(self)
         except SshCommandException as e:
@@ -850,6 +854,13 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         :param barman.infofile.LocalBackupInfo backup: the backup to delete
         """
+        if backup.snapshots_info:
+            _logger.debug(
+                "Deleting the following snapshots: %s"
+                % ", ".join(backup.snapshots_info["snapshots"].keys())
+            )
+            snapshot_interface = get_snapshot_interface_from_backup_info(backup)
+            snapshot_interface.delete_snapshot_backup(backup)
         if backup.tablespaces:
             if backup.backup_version == 2:
                 tbs_dir = backup.get_basebackup_directory()

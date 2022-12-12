@@ -1900,3 +1900,35 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     raise SystemExit(1)
 
         return backup_files
+
+
+class CloudSnapshotInterface(with_metaclass(ABCMeta)):
+    """Define a common interface for dealing with cloud snapshots."""
+
+    @abstractmethod
+    def take_snapshot(self, backup_info, disk_zone, disk_name):
+        """Take a snapshot of a disk in the cloud."""
+
+    @abstractmethod
+    def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
+        """Take a snapshot backup for the named instance."""
+
+    @abstractmethod
+    def delete_snapshot(self, snapshot_name):
+        """Delete the specified snapshot."""
+
+    @abstractmethod
+    def delete_snapshot_backup(self, backup_info):
+        """Delete all snapshots for the supplied backup."""
+
+    @abstractmethod
+    def get_attached_devices(self, instance_name, zone):
+        """
+        Returns the non-boot devices attached to instance_name in zone.
+        """
+
+    @abstractmethod
+    def instance_exists(self, instance_name, zone):
+        """
+        Returns true if the named instance exists in zone, false otherwise.
+        """

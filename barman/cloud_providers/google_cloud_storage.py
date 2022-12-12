@@ -18,14 +18,17 @@
 
 import logging
 import os
+import posixpath
 
 from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
     CloudInterface,
     CloudProviderError,
+    CloudSnapshotInterface,
     DecompressingStreamingIO,
     DEFAULT_DELIMITER,
 )
+from barman.exceptions import SnapshotBackupException
 
 try:
     # Python 3.x
@@ -36,10 +39,11 @@ except ImportError:
 
 try:
     from google.cloud import storage
-    from google.api_core.exceptions import GoogleAPIError, Conflict
+    from google.api_core.exceptions import GoogleAPIError, Conflict, NotFound
 except ImportError:
     raise SystemExit("Missing required python module: google-cloud-storage")
 
+_logger = logging.getLogger(__name__)
 
 BASE_URL = "https://console.cloud.google.com/storage/browser/"
 
@@ -333,3 +337,169 @@ class GoogleCloudInterface(CloudInterface):
         if failures:
             logging.error(failures)
             raise CloudProviderError()
+
+
+class GcpCloudSnapshotInterface(CloudSnapshotInterface):
+    DEVICE_PREFIX = "/dev/disk/by-id/google-"
+
+    def __init__(self, project):
+        if project is None:
+            raise TypeError("project cannot be None")
+        self.project = project
+
+        # The import of this module is deferred until this constructor so that it
+        # does not become a spurious dependency of the main cloud interface. Doing
+        # so would break backup to GCS for anyone unable to install
+        # google-cloud-compute (which includes anyone using python 2.7).
+        try:
+            from google.cloud import compute
+        except ImportError:
+            raise SystemExit("Missing required python module: google-cloud-compute")
+
+        self.client = compute.SnapshotsClient()
+        self.disks_client = compute.DisksClient()
+        self.instances_client = compute.InstancesClient()
+
+    def take_snapshot(self, backup_info, disk_zone, disk_name):
+        snapshot_name = "%s-%s-%s" % (
+            backup_info.server_name.lower(),
+            backup_info.backup_id.lower(),
+            disk_name,
+        )
+        _logger.info("Taking snapshot '%s' of disk '%s'", snapshot_name, disk_name)
+        resp = self.client.insert(
+            {
+                "project": self.project,
+                "snapshot_resource": {
+                    "name": snapshot_name,
+                    "source_disk": "projects/%s/zones/%s/disks/%s"
+                    % (
+                        self.project,
+                        disk_zone,
+                        disk_name,
+                    ),
+                },
+            }
+        )
+
+        _logger.info("Waiting for snapshot '%s' completion", snapshot_name)
+        resp.result()
+
+        if resp.done():
+            _logger.info("Snapshot '%s' completed", snapshot_name)
+            return snapshot_name
+        else:
+            raise CloudProviderError(
+                "Snapshot '%s' failed with error code %s: %s"
+                % (snapshot_name, resp.error_code, resp.error_message)
+            )
+
+    def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
+        """Take a snapshot backup for the named instance."""
+        instance_metadata = self.instances_client.get(
+            instance=instance_name,
+            zone=zone,
+            project=self.project,
+        )
+        snapshots = {}
+        for disk_name in disks:
+            try:
+                disk_metadata = self.disks_client.get(
+                    disk=disk_name, zone=zone, project=self.project
+                )
+            except NotFound:
+                raise SnapshotBackupException(
+                    "Cannot find disk with name %s in zone %s for project %s"
+                    % (disk_name, zone, self.project)
+                )
+            metadata = {
+                "block_size": disk_metadata.physical_block_size_bytes,
+                "size": disk_metadata.size_gb,
+            }
+            # Check disk is attached and find device name
+            attached_disks = [
+                d
+                for d in instance_metadata.disks
+                if d.source == disk_metadata.self_link
+            ]
+            if len(attached_disks) == 0:
+                raise SnapshotBackupException(
+                    "Disk %s not attached to instance %s" % (disk_name, instance_name)
+                )
+            elif len(attached_disks) > 1:
+                raise SnapshotBackupException(
+                    "Multiple disks matching name %s found attached to instance %s"
+                    % (instance_name, disk_name)
+                )
+            metadata["device"] = self.DEVICE_PREFIX + attached_disks[0].device_name
+            snapshot_name = self.take_snapshot(backup_info, zone, disk_name)
+            snapshots[snapshot_name] = metadata
+
+        # Add snapshot metadata to BackupInfo
+        backup_info.snapshots_info = {
+            "gcp_project": self.project,
+            "provider": "gcp",
+            "snapshots": snapshots,
+        }
+
+    def delete_snapshot(self, snapshot_name):
+        """Delete the specified snapshot."""
+        try:
+            resp = self.client.delete(
+                {
+                    "project": self.project,
+                    "snapshot": snapshot_name,
+                }
+            )
+        except NotFound:
+            # If the snapshot cannot be found then deletion is considered successful
+            return
+        resp.result()
+        if resp.done():
+            _logger.info("Snapshot %s deleted", snapshot_name)
+            return
+        else:
+            raise CloudProviderError(
+                "Deletion of snapshot %s failed with error code %s: %s"
+                % (snapshot_name, resp.error_code, resp.error_message)
+            )
+
+    def delete_snapshot_backup(self, backup_info):
+        """Delete all snapshots for the supplied backup."""
+        for snapshot_name in backup_info.snapshots_info["snapshots"]:
+            _logger.info(
+                "Deleting snapshot '%s' for backup %s",
+                snapshot_name,
+                backup_info.backup_id,
+            )
+            self.delete_snapshot(snapshot_name)
+
+    def get_attached_devices(self, instance_name, zone):
+        """
+        Returns the non-boot devices attached to instance_name in zone.
+        """
+        instance_metadata = self.instances_client.get(
+            instance=instance_name,
+            zone=zone,
+            project=self.project,
+        )
+        attached_devices = {}
+        for attached_disk in instance_metadata.disks:
+            disk_name = posixpath.split(urlparse(attached_disk.source).path)[-1]
+            attached_devices[disk_name] = self.DEVICE_PREFIX + attached_disk.device_name
+
+        return attached_devices
+
+    def instance_exists(self, instance_name, zone):
+        """
+        Returns true if the named instance exists in zone, false otherwise.
+        """
+        try:
+            self.instances_client.get(
+                instance=instance_name,
+                zone=zone,
+                project=self.project,
+            )
+        except NotFound:
+            return False
+        return True

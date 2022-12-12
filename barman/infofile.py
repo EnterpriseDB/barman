@@ -484,10 +484,11 @@ class BackupInfo(FieldListFile):
     systemid = Field("systemid")
     compression = Field("compression")
     backup_name = Field("backup_name")
+    snapshots_info = Field("snapshots_info", load=ast.literal_eval, dump=null_repr)
 
     __slots__ = "backup_id", "backup_version"
 
-    _hide_if_null = ("backup_name",)
+    _hide_if_null = ("backup_name", "snapshots_info")
 
     def __init__(self, backup_id, **kwargs):
         """
@@ -552,14 +553,19 @@ class BackupInfo(FieldListFile):
         :return dict:
         """
         result = dict(self.items())
-        result.update(
-            backup_id=self.backup_id,
-            server_name=self.server_name,
-            mode=self.mode,
-            tablespaces=self.tablespaces,
-            included_files=self.included_files,
-            copy_stats=self.copy_stats,
+        top_level_fields = (
+            "backup_id",
+            "server_name",
+            "mode",
+            "tablespaces",
+            "included_files",
+            "copy_stats",
+            "snapshots_info",
         )
+        for field_name in top_level_fields:
+            field_value = getattr(self, field_name)
+            if field_value is not None or field_name not in self._hide_if_null:
+                result.update({field_name: field_value})
         return result
 
     def to_json(self):
