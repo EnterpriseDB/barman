@@ -116,6 +116,12 @@ class BackupInfoBadInitialisation(BackupException):
     """
 
 
+class SnapshotBackupException(BackupException):
+    """
+    Exception for snapshot backups
+    """
+
+
 class SyncError(SyncException):
     """
     Synchronisation error

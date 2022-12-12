@@ -40,6 +40,7 @@ import dateutil.parser
 from distutils.version import LooseVersion as Version
 
 from barman import output, xlog
+from barman.cloud_providers import get_snapshot_interface_from_server_config
 from barman.command_wrappers import PgBaseBackup
 from barman.compression import get_pg_basebackup_compression
 from barman.config import BackupOptions
@@ -54,7 +55,7 @@ from barman.exceptions import (
     SshCommandException,
     FileNotFoundException,
 )
-from barman.fs import UnixLocalCommand, UnixRemoteCommand
+from barman.fs import UnixLocalCommand, UnixRemoteCommand, unix_command_factory
 from barman.infofile import BackupInfo
 from barman.postgres_plumbing import EXCLUDE_LIST, PGDATA_EXCLUDE_LIST
 from barman.remote_status import RemoteStatusMixin
@@ -1400,6 +1401,268 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
         if number_of_workers > 1:
             message += " (%s jobs)" % number_of_workers
         output.info(message)
+
+
+class SnapshotBackupExecutor(ExternalBackupExecutor):
+    """
+    Concrete class which uses cloud provider disk snapshots to create backups.
+
+    It invokes PostgreSQL commands to start and stop the backup, depending
+    on the defined strategy.
+
+    It heavily relies on methods defined in the ExternalBackupExecutor class
+    from which it derives.
+
+    No data files are copied and instead snapshots are created of the requested disks
+    using the cloud provider API (abstracted through a CloudSnapshotInterface).
+
+    As well as ensuring the backup happens via snapshot copy, this class also:
+
+      - Checks that the specified disks are attached to the named instance.
+      - Checks that the specified disks are mounted on the named instance.
+      - Records the mount points and options of each disk in the backup info.
+
+    Barman will still store the following files in its backup directory:
+
+      - The backup_label (for concurrent backups) which is written by the
+        LocalConcurrentBackupStrategy.
+      - The backup.info which is written by the BackupManager responsible for
+        instantiating this class.
+    """
+
+    def __init__(self, backup_manager):
+        """
+        Constructor for the SnapshotBackupExecutor
+
+        :param barman.backup.BackupManager backup_manager: the BackupManager
+            assigned to the strategy
+        """
+        super(SnapshotBackupExecutor, self).__init__(backup_manager, "snapshot")
+        self.snapshot_instance = self.config.snapshot_instance
+        self.snapshot_zone = self.config.snapshot_zone
+        self.snapshot_disks = self.config.snapshot_disks
+        self.validate_configuration()
+        try:
+            self.snapshot_interface = get_snapshot_interface_from_server_config(
+                self.config
+            )
+        except Exception as exc:
+            self.server.config.update_msg_list_and_disable_server(
+                "Error initialising snapshot provider %s: %s"
+                % (self.config.snapshot_provider, exc)
+            )
+
+    def validate_configuration(self):
+        """Verify configuration is valid for a snapshot backup."""
+        excluded_config = (
+            "backup_compression",
+            "bandwidth_limit",
+            "network_compression",
+            "tablespace_bandwidth_limit",
+        )
+        for config_var in excluded_config:
+            if getattr(self.server.config, config_var):
+                self.server.config.update_msg_list_and_disable_server(
+                    "%s option is not supported by snapshot backup_method" % config_var
+                )
+
+        if self.config.reuse_backup in ("copy", "link"):
+            self.server.config.update_msg_list_and_disable_server(
+                "reuse_backup option is not supported by snapshot backup_method"
+            )
+
+        required_config = (
+            "snapshot_disks",
+            "snapshot_instance",
+            "snapshot_provider",
+            "snapshot_zone",
+        )
+        for config_var in required_config:
+            if not getattr(self.server.config, config_var):
+                self.server.config.update_msg_list_and_disable_server(
+                    "%s option is required by snapshot backup_method" % config_var
+                )
+
+    @staticmethod
+    def add_mount_data_to_backup_info(backup_info, remote_cmd):
+        """
+        Adds the mount point and mount options for each disk to the backup info.
+
+        Each disk for which a snapshot was created during the backup is attached to the
+        instance at a given device path. This function uses the `findmnt` Unix command
+        to retrieve the mount point and mount options for each of those devices. The
+        mount data for each disk is then added to the metadata for the corresponding
+        snapshot in the backup info.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param UnixLocalCommand remote_cmd: Wrapper for local/remote commands.
+        """
+        for snapshot in backup_info.snapshots_info.snapshots:
+            mount_point, mount_options = remote_cmd.findmnt(snapshot.device)
+            if mount_point is None:
+                raise BackupException(
+                    "Could not find mount point for device %s" % snapshot.device
+                )
+            else:
+                snapshot.mount_point = mount_point
+                snapshot.mount_options = mount_options
+
+    def backup_copy(self, backup_info):
+        """
+        Perform the backup using cloud provider disk snapshots.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        """
+        # Create data dir so backup_label can be written
+        cmd = UnixLocalCommand(path=self.server.path)
+        cmd.create_dir_if_not_exists(backup_info.get_data_directory())
+
+        # Start the snapshot
+        self.copy_start_time = datetime.datetime.now()
+
+        self.snapshot_interface.take_snapshot_backup(
+            backup_info, self.snapshot_instance, self.snapshot_zone, self.snapshot_disks
+        )
+
+        self.copy_end_time = datetime.datetime.now()
+
+        # Gather additional metadata to assist recovery of snapshots
+        remote_cmd = UnixRemoteCommand(ssh_command=self.server.config.ssh_command)
+        self.add_mount_data_to_backup_info(backup_info, remote_cmd)
+
+        # Store statistics about the copy
+        copy_time = total_seconds(self.copy_end_time - self.copy_start_time)
+        backup_info.copy_stats = {
+            "copy_time": copy_time,
+            "total_time": copy_time,
+        }
+
+    @staticmethod
+    def find_missing_and_unmounted_disks(
+        cmd, snapshot_interface, snapshot_instance, snapshot_zone, snapshot_disks
+    ):
+        """
+        Checks for any disks listed in snapshot_disks which are not correctly attached
+        and mounted on the named instance and returns them as a tuple of two lists.
+
+        This is used for checking that the disks which are to be used as sources for
+        snapshots at backup time are attached and mounted on the instance to be backed
+        up.
+
+        :param UnixLocalCommand cmd: Wrapper for local/remote commands.
+        :param barman.cloud.CloudSnapshotInterface snapshot_interface: Interface for
+            taking snapshots and associated operations via cloud provider APIs.
+        :param str snapshot_instance: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str snapshot_zone: The zone in which the snapshot disks and instance
+            reside.
+        :param list[str] snapshot_disks: A list containing the names of the disks for
+            which snapshots should be taken at backup time.
+        :rtype tuple[list[str],list[str]]
+        :return: A tuple where the first element is a list of all disks which are not
+            attached to the VM instance and the second element is a list of all disks
+            which are attached but not mounted.
+        """
+        attached_devices = snapshot_interface.get_attached_devices(
+            snapshot_instance, snapshot_zone
+        )
+        missing_disks = []
+        for disk in snapshot_disks:
+            if disk not in attached_devices.keys():
+                missing_disks.append(disk)
+
+        unmounted_disks = []
+        for disk in snapshot_disks:
+            try:
+                mount_point, _mount_options = cmd.findmnt(attached_devices[disk])
+            except KeyError:
+                # Ignore disks which were not attached
+                continue
+            if mount_point is None:
+                unmounted_disks.append(disk)
+
+        return missing_disks, unmounted_disks
+
+    def check(self, check_strategy):
+        """
+        Perform additional checks for SnapshotBackupExecutor, specifically:
+
+          - check that the VM instance for which snapshots should be taken exists
+          - check that the expected disks are attached to that instance
+          - check that the attached disks are mounted on the filesystem
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        super(SnapshotBackupExecutor, self).check(check_strategy)
+        if self.server.config.disabled:
+            # Skip checks if the server is not active
+            return
+        check_strategy.init_check("snapshot instance exists in zone")
+        if not self.snapshot_interface.instance_exists(
+            self.snapshot_instance, self.snapshot_zone
+        ):
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint="cannot find compute instance %s in zone %s"
+                % (self.snapshot_instance, self.snapshot_zone),
+            )
+            return
+        else:
+            check_strategy.result(self.config.name, True)
+
+        check_strategy.init_check("snapshot disks attached to instance")
+        cmd = unix_command_factory(self.config.ssh_command, self.server.path)
+        missing_disks, unmounted_disks = self.find_missing_and_unmounted_disks(
+            cmd,
+            self.snapshot_interface,
+            self.snapshot_instance,
+            self.snapshot_zone,
+            self.snapshot_disks,
+        )
+
+        if len(missing_disks) > 0:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint="cannot find snapshot disks attached to instance %s: %s"
+                % (self.snapshot_instance, ", ".join(missing_disks)),
+            )
+        else:
+            check_strategy.result(self.config.name, True)
+
+        check_strategy.init_check("snapshot disks mounted on instance")
+        if len(unmounted_disks) > 0:
+            check_strategy.result(
+                self.config.name,
+                False,
+                hint="cannot find snapshot disks mounted on instance %s: %s"
+                % (self.snapshot_instance, ", ".join(unmounted_disks)),
+            )
+        else:
+            check_strategy.result(self.config.name, True)
+
+    def _start_backup_copy_message(self, backup_info):
+        """
+        Output message for backup start.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        """
+        output.info("Starting backup with disk snapshots for %s", backup_info.backup_id)
+
+    def _stop_backup_copy_message(self, backup_info):
+        """
+        Output message for backup end.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        """
+        output.info(
+            "Snapshot backup done (time: %s)",
+            human_readable_timedelta(
+                datetime.timedelta(seconds=backup_info.copy_stats["copy_time"])
+            ),
+        )
 
 
 class BackupStrategy(with_metaclass(ABCMeta, object)):

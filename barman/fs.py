@@ -343,6 +343,31 @@ class UnixLocalCommand(object):
         self.cmd("ls", args=ls_options)
         return self.internal_cmd.out
 
+    def findmnt(self, device):
+        """
+        Retrieve the mount point and mount options for the provided device.
+
+        :param str device: The device for which the mount point and options should
+            be found.
+        :rtype: List[str|None, str|None]
+        :return: The mount point and the mount options of the specified device or
+            [None, None] if the device could not be found by findmnt.
+        """
+        _logger.debug("finding mount point and options for device %s", device)
+        self.cmd("findmnt", args=("-o", "TARGET,OPTIONS", "-n", device))
+        output = self.internal_cmd.out
+        if output == "":
+            # No output means we successfully ran the command but couldn't find
+            # the mount point
+            return [None, None]
+        output_fields = output.split()
+        if len(output_fields) != 2:
+            raise FsOperationFailed(
+                "Unexpected findmnt output: %s" % self.internal_cmd.out
+            )
+        else:
+            return output_fields
+
 
 class UnixRemoteCommand(UnixLocalCommand):
     """
