@@ -25,6 +25,10 @@ from datetime import datetime
 from dateutil import tz
 
 from barman import output
+from barman.cloud_providers.google_cloud_storage import (
+    GcpSnapshotMetadata,
+    GcpSnapshotsInfo,
+)
 from barman.infofile import BackupInfo
 from barman.utils import BarmanEncoder, pretty_size
 from testing_helpers import build_test_backup_info, find_by_attr, mock_backup_ext_info
@@ -1229,6 +1233,61 @@ class TestConsoleWriter(object):
         out, _err = capsys.readouterr()
         assert "  Backup Name            : %s" % ext_info["backup_name"] in out
 
+    def test_result_show_backup_with_snapshots_info_gcp(self, capsys):
+        # GIVEN a backup info with snapshots_info
+        snapshots_info = GcpSnapshotsInfo(
+            project="test_project",
+            snapshots=[
+                GcpSnapshotMetadata(
+                    mount_point="/opt/mount0",
+                    mount_options="rw,noatime",
+                    device_name="dev0",
+                    snapshot_name="snapshot0",
+                    snapshot_project="test_project",
+                ),
+                GcpSnapshotMetadata(
+                    mount_point="/opt/mount1",
+                    mount_options="rw",
+                    device_name="dev1",
+                    snapshot_name="snapshot1",
+                    snapshot_project="test_project",
+                ),
+            ],
+        )
+        ext_info = mock_backup_ext_info(
+            snapshots_info=snapshots_info,
+            status=BackupInfo.DONE,
+            wals_per_second=0.1,
+        )
+
+        # WHEN the show output is generated in Plain form
+        console_writer = output.ConsoleOutputWriter()
+
+        console_writer.init_list_backup(ext_info["server_name"], False)
+        console_writer.result_show_backup(ext_info)
+        console_writer.close()
+
+        # THEN the output contains the snapshot info
+        out, _err = capsys.readouterr()
+        assert "   project              : %s" % snapshots_info.project in out
+        for snapshot_metadata in snapshots_info.snapshots:
+            assert (
+                "    snapshot_name        : %s" % snapshot_metadata.snapshot_name in out
+            )
+            assert (
+                "    snapshot_project     : %s" % snapshot_metadata.snapshot_project
+                in out
+            )
+            assert (
+                "    device_name          : %s" % snapshot_metadata.device_name in out
+            )
+            assert (
+                "    Mount point          : %s" % snapshot_metadata.mount_point in out
+            )
+            assert (
+                "    Mount options        : %s" % snapshot_metadata.mount_options in out
+            )
+
     def test_result_show_backup_error(self, capsys):
         # mock the backup ext info
         msg = "test error message"
@@ -1877,6 +1936,47 @@ class TestJsonWriter(object):
         assert (
             json_output[ext_info["server_name"]]["backup_name"]
             == ext_info["backup_name"]
+        )
+
+    def test_result_show_backup_with_snapshots_info(self, capsys):
+        # GIVEN a backup info with snapshots_info
+        snapshots_info = GcpSnapshotsInfo(
+            project="test_project",
+            snapshots=[
+                GcpSnapshotMetadata(
+                    mount_point="/opt/mount0",
+                    mount_options="rw,noatime",
+                    device_name="dev0",
+                    snapshot_name="snapshot0",
+                    snapshot_project="test_project",
+                ),
+                GcpSnapshotMetadata(
+                    mount_point="/opt/mount1",
+                    mount_options="rw",
+                    device_name="dev1",
+                    snapshot_name="snapshot1",
+                    snapshot_project="test_project",
+                ),
+            ],
+        )
+        ext_info = mock_backup_ext_info(
+            snapshots_info=snapshots_info,
+            status=BackupInfo.DONE,
+            wals_per_second=0.1,
+        )
+
+        # WHEN the show backup output is generated in JSON form
+        console_writer = output.JsonOutputWriter()
+
+        console_writer.result_show_backup(ext_info)
+        console_writer.close()
+
+        # THEN the output contains the snapshot info
+        out, _err = capsys.readouterr()
+        json_output = json.loads(out)
+        assert (
+            json_output[ext_info["server_name"]]["snapshots_info"]
+            == snapshots_info.to_dict()
         )
 
     def test_result_show_backup_error(self, capsys):

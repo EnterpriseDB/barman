@@ -57,6 +57,7 @@ def build_test_backup_info(
     pgdata="/pgdata/location",
     server_name="test_server",
     size=12345,
+    snapshots_info=None,
     status=BackupInfo.DONE,
     included_files=None,
     tablespaces=(
@@ -315,6 +316,11 @@ def build_config_dictionary(config_keys=None):
         "create_slot": "manual",
         "forward_config_path": False,
         "primary_conninfo": None,
+        "snapshot_disks": None,
+        "snapshot_instance": None,
+        "snapshot_provider": None,
+        "snapshot_zone": None,
+        "snapshot_gcp_project": None,
     }
     # Check for overriding keys
     if config_keys is not None:

@@ -29,6 +29,7 @@ from barman.backup_executor import (
     ExclusiveBackupStrategy,
     PostgresBackupExecutor,
     RsyncBackupExecutor,
+    SnapshotBackupExecutor,
 )
 from barman.config import BackupOptions
 from barman.exceptions import (
@@ -1383,3 +1384,512 @@ class TestPostgresBackupExecutor(object):
         # AND if we expected switch_wal to have been called it is called on the primary
         if expected_wal_switch:
             server.postgres.switch_wal.assert_called_once()
+
+
+class TestSnapshotBackupExecutor(object):
+    """
+    Verifies behaviour of the SnapshotBackupExecutor class.
+    """
+
+    @pytest.fixture
+    def core_snapshot_options(self):
+        return {
+            "backup_method": "snapshot",
+            "snapshot_disks": "disk_name",
+            "snapshot_instance": "instance_name",
+            "snapshot_provider": "gcp",
+            "snapshot_zone": "zone_name",
+        }
+
+    @pytest.mark.parametrize("additional_options", ({}, {"reuse_backup": "off"}))
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    def test_snapshot_backup_executor_init(
+        self, _mock_get_snapshot_interface, core_snapshot_options, additional_options
+    ):
+        """
+        Verify the executor can be initialised given the correct options.
+        """
+        # GIVEN a server with the supplied config options and backup_method "snapshot"
+        core_snapshot_options.update(additional_options)
+        server = build_mocked_server(main_conf=core_snapshot_options)
+
+        # WHEN the backup executor is initialised
+        SnapshotBackupExecutor(server.backup_manager)
+
+        # THEN the message list is empty
+        assert server.config.msg_list == []
+
+        # AND the server is not disabled
+        assert not server.config.disabled
+
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    def test_snapshot_backup_executor_init_bad_snapshot_interface(
+        self, mock_get_snapshot_interface, core_snapshot_options
+    ):
+        """
+        Verify the constructor fails if the snapshot interface cannot be created.
+        """
+        # GIVEN a server with backup_method "snapshot"
+        server = build_mocked_server(main_conf=core_snapshot_options)
+
+        # WHEN the snapshot interface raises an exception when building the executor
+        mock_get_snapshot_interface.side_effect = Exception("nope")
+        SnapshotBackupExecutor(server.backup_manager)
+
+        # THEN an error is added to the server's message list
+        assert (
+            "Error initialising snapshot provider gcp: nope" in server.config.msg_list
+        )
+        # AND the server is disabled
+        assert server.config.disabled
+
+    @pytest.mark.parametrize(
+        "additional_options",
+        (
+            {"reuse_backup": "copy"},
+            {"reuse_backup": "link"},
+            {
+                "backup_compression": "gzip",
+                "bandwidth_limit": 56,
+                "network_compression": True,
+                "tablespace_bandwidth_limit": 56,
+            },
+        ),
+    )
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    def test_snapshot_backup_executor_init_unexpected_options(
+        self,
+        _mock_get_snapshot_interface,
+        core_snapshot_options,
+        additional_options,
+    ):
+        """
+        Verify the constructor fails if disallowed combinations of options are provided.
+        """
+        # GIVEN a server with the supplied config options and backup_method "snapshot"
+        core_snapshot_options.update(additional_options)
+        server = build_mocked_server(main_conf=core_snapshot_options)
+
+        # WHEN the backup executor is initialised
+        SnapshotBackupExecutor(server.backup_manager)
+
+        # THEN the expected errors are present in the server's message list
+        for option in additional_options:
+            assert (
+                "{} option is not supported by snapshot backup_method".format(option)
+                in server.config.msg_list
+            )
+
+        # AND the number of messages matches the number of expected errors
+        assert len(server.config.msg_list) == len(additional_options)
+
+        # AND the server is disabled
+        assert server.config.disabled
+
+    @pytest.mark.parametrize(
+        "missing_option",
+        ("snapshot_disks", "snapshot_instance", "snapshot_provider", "snapshot_zone"),
+    )
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    def test_snapshot_backup_executor_init_missing_options(
+        self,
+        _mock_get_snapshot_interface,
+        core_snapshot_options,
+        missing_option,
+    ):
+        """
+        Verify the constructor fails if disallowed combinations of options are provided.
+        """
+        # GIVEN a server with a missing snapshot option and backup_method "snapshot"
+        del core_snapshot_options[missing_option]
+        server = build_mocked_server(main_conf=core_snapshot_options)
+
+        # WHEN the backup executor is initialised
+        SnapshotBackupExecutor(server.backup_manager)
+
+        # THEN the expected error is present in the server's message list
+        assert (
+            "{} option is required by snapshot backup_method".format(missing_option)
+            in server.config.msg_list
+        )
+
+        # AND it is the only error present
+        assert len(server.config.msg_list) == 1
+
+        # AND the server is disabled
+        assert server.config.disabled
+
+    def test_add_mount_data_to_backup_info(self):
+        """Verify that mount data is added to backup_info when it is returned."""
+        # GIVEN devices which are mounted
+        mock_remote_cmd = mock.Mock()
+
+        def mock_findmnt(device):
+            return {
+                "/dev/disk1": ("/opt/mount1", "rw,noatime"),
+                "/dev/disk2": ("/opt/mount2", "ro"),
+            }[device]
+
+        mock_remote_cmd.findmnt.side_effect = mock_findmnt
+        # AND a backup_info file with snapshots of these devices
+        backup_info = build_test_backup_info(
+            snapshots_info=mock.Mock(
+                snapshots=[
+                    mock.Mock(
+                        identifier="snapshot1",
+                        device="/dev/disk1",
+                    ),
+                    mock.Mock(
+                        identifier="snapshot2",
+                        device="/dev/disk2",
+                    ),
+                ]
+            )
+        )
+
+        # WHEN add_mount_data_to_backup_info is called
+        SnapshotBackupExecutor.add_mount_data_to_backup_info(
+            backup_info, mock_remote_cmd
+        )
+
+        # THEN the backup_info is enhanced with the mount point and mount options
+        # for each device
+        assert backup_info.snapshots_info.snapshots[0].mount_point == "/opt/mount1"
+        assert backup_info.snapshots_info.snapshots[0].mount_options == "rw,noatime"
+        assert backup_info.snapshots_info.snapshots[1].mount_point == "/opt/mount2"
+        assert backup_info.snapshots_info.snapshots[1].mount_options == "ro"
+
+    def test_add_mount_data_to_backup_info_not_mounted(self):
+        """Verify that an exception is raised when a device is not mounted."""
+        # GIVEN devices where one is not mounted
+        mock_remote_cmd = mock.Mock()
+
+        def mock_findmnt(device):
+            return {
+                "/dev/disk1": ("/opt/mount1", "rw,noatime"),
+                "/dev/disk2": (None, None),
+            }[device]
+
+        mock_remote_cmd.findmnt.side_effect = mock_findmnt
+        # AND a backup_info file with snapshots of these devices
+        backup_info = build_test_backup_info(
+            snapshots_info=mock.Mock(
+                snapshots=[
+                    mock.Mock(
+                        identifier="snapshot1",
+                        device="/dev/disk1",
+                    ),
+                    mock.Mock(
+                        identifier="snapshot2",
+                        device="/dev/disk2",
+                    ),
+                ]
+            )
+        )
+
+        # WHEN add_mount_data_to_backup_info is called
+        # THEN a BackupException is raised
+        with pytest.raises(BackupException) as e:
+            SnapshotBackupExecutor.add_mount_data_to_backup_info(
+                backup_info, mock_remote_cmd
+            )
+
+        # AND the exception message warns about the missing mount point
+        assert str(e.value) == "Could not find mount point for device /dev/disk2"
+
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    @patch(
+        "barman.backup_executor.SnapshotBackupExecutor.add_mount_data_to_backup_info"
+    )
+    @patch("barman.backup_executor.UnixRemoteCommand")
+    @patch("barman.backup_executor.UnixLocalCommand")
+    def test_backup_copy(
+        self,
+        mock_unix_local_command,
+        mock_unix_remote_command,
+        mock_add_mount_data_to_backup_info,
+        mock_get_snapshot_interface,
+        core_snapshot_options,
+    ):
+        """
+        Verifies backup_copy function creates a backup via the snapshot interface and
+        retrieves mount point information.
+        """
+        # GIVEN a backup executor for a snapshot backup
+        server = build_mocked_server(main_conf=core_snapshot_options)
+        executor = SnapshotBackupExecutor(server.backup_manager)
+        # AND backup_info for a new backup
+        backup_info = build_test_backup_info()
+
+        # WHEN backup_copy is called
+        executor.backup_copy(backup_info)
+
+        # THEN the data directory was created
+        mock_unix_local_command.return_value.create_dir_if_not_exists.assert_called_once_with(
+            backup_info.get_data_directory()
+        )
+        # AND the snapshot interface is used to take a snapshot backup with the
+        # expected args
+        mock_get_snapshot_interface.return_value.take_snapshot_backup.assert_called_once_with(
+            backup_info,
+            core_snapshot_options["snapshot_instance"],
+            core_snapshot_options["snapshot_zone"],
+            [core_snapshot_options["snapshot_disks"]],
+        )
+        # AND add_mount_data_to_backup_info was called
+        mock_add_mount_data_to_backup_info.assert_called_once_with(
+            backup_info, mock_unix_remote_command.return_value
+        )
+
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    @patch(
+        "barman.backup_executor.SnapshotBackupExecutor.add_mount_data_to_backup_info"
+    )
+    @patch("barman.backup_executor.UnixRemoteCommand")
+    @patch("barman.backup_executor.UnixLocalCommand")
+    def test_backup_copy_records_copy_stats(
+        self,
+        _mock_unix_local_command,
+        _mock_unix_remote_command,
+        _mock_add_mount_data_to_backup_info,
+        _mock_get_snapshot_interface,
+        core_snapshot_options,
+    ):
+        """Verifies backup_copy function adds copy stats to backup_info."""
+        # GIVEN a backup executor for a snapshot backup
+        server = build_mocked_server(main_conf=core_snapshot_options)
+        executor = SnapshotBackupExecutor(server.backup_manager)
+        # AND backup_info for a new backup
+        backup_info = build_test_backup_info()
+
+        # WHEN backup_copy is called
+        executor.backup_copy(backup_info)
+
+        # THEN the copy stats are added to the backup_info
+        assert backup_info.copy_stats
+        assert backup_info.copy_stats["copy_time"]
+        assert backup_info.copy_stats["total_time"]
+
+    @pytest.mark.parametrize(
+        (
+            "expected_missing_disks",
+            "expected_unmounted_disks",
+            "expected_mounted_disks",
+        ),
+        [
+            # Cases where all disks are attached and mounted
+            ([], [], ["disk1"]),
+            ([], [], ["disk1", "disk2"]),
+            # Cases where a disk is attached but not mounted
+            ([], ["disk1"], []),
+            ([], ["disk1"], ["disk2"]),
+            # Cases with one or more missing disks
+            (["disk1"], [], []),
+            (["disk1"], [], ["disk2"]),
+            (["disk1"], ["disk2", "disk3"], ["disk4", "disk5", "disk6"]),
+            (["disk1", "disk2"], ["disk3", "disk4"], ["disk5", "disk6"]),
+        ],
+    )
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    def test_find_missing_and_unmounted_disks(
+        self,
+        mock_get_snapshot_interface,
+        expected_missing_disks,
+        expected_unmounted_disks,
+        expected_mounted_disks,
+    ):
+        """
+        Verifies missing and unmounted disks are correctly determined from the attached
+        and mounted devices.
+        """
+        # GIVEN the specified attached and mounted disks are all returned by the
+        # get_attached_devices function
+        mock_get_attached_devices = (
+            mock_get_snapshot_interface.return_value.get_attached_devices
+        )
+        mock_get_attached_devices.return_value = dict(
+            (disk, "/dev/" + disk)
+            for disk in expected_unmounted_disks + expected_mounted_disks
+        )
+        # AND the specified mounted disks are returned by findmnt while the attached
+        # (but not mounted) disks are not found
+        cmd = mock.Mock()
+        findmnt_resp = dict(
+            ("/dev/" + disk, ("/opt/" + disk, "rw")) for disk in expected_mounted_disks
+        )
+        findmnt_resp.update(
+            dict(("/dev/" + disk, (None, None)) for disk in expected_unmounted_disks)
+        )
+        cmd.findmnt.side_effect = lambda x: findmnt_resp[x]
+
+        # WHEN find_missing_and_unmounted_disks is called for all expected disksts
+        (
+            missing_disks,
+            unmounted_disks,
+        ) = SnapshotBackupExecutor.find_missing_and_unmounted_disks(
+            cmd,
+            mock_get_snapshot_interface.return_value,
+            "instance1",
+            "zone1",
+            expected_missing_disks + expected_unmounted_disks + expected_mounted_disks,
+        )
+
+        # THEN the returned list of missing disks matches those not found amongst the
+        # attached devices
+        assert missing_disks == expected_missing_disks
+        # AND the returned list of unmounted disks matches those not found by findmnt
+        assert unmounted_disks == expected_unmounted_disks
+        # AND none of the expected mounted disks are present in missing or unmounted
+        # disks
+        assert not any(disk in missing_disks for disk in expected_mounted_disks)
+        assert not any(disk in unmounted_disks for disk in expected_mounted_disks)
+
+    @patch("barman.backup_executor.ExternalBackupExecutor.check")
+    def test_check_skipped_if_server_disabled(
+        self, mock_parent_check_fun, core_snapshot_options
+    ):
+        """
+        Verifies the snapshot-specific checks are not started if the server is disabled.
+        """
+        # GIVEN a backup executor for a snapshot backup
+        server = build_mocked_server(main_conf=core_snapshot_options)
+        executor = SnapshotBackupExecutor(server.backup_manager)
+        # AND the server is disabled
+        server.config.disabled = True
+
+        # WHEN check is called on the backup executor
+        mock_check_strategy = mock.Mock()
+        executor.check(mock_check_strategy)
+
+        # THEN the check function of the parent class is called
+        mock_parent_check_fun.assert_called_once_with(mock_check_strategy)
+        # AND no additional checks are initiated
+        mock_check_strategy.init_check.assert_not_called()
+
+    @patch("barman.backup_executor.unix_command_factory")
+    @patch(
+        "barman.backup_executor.SnapshotBackupExecutor.find_missing_and_unmounted_disks"
+    )
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    @patch("barman.backup_executor.ExternalBackupExecutor.check")
+    def test_check_success(
+        self,
+        mock_parent_check_fun,
+        mock_get_snapshot_interface,
+        mock_find_missing_and_unmounted_disks,
+        _mock_unix_command_factory,
+        core_snapshot_options,
+    ):
+        """
+        Verifies all snapshot-specific checks pass when the instance exists and the
+        disks are attached and mounted.
+        """
+        # GIVEN a backup executor for a snapshot backup
+        server = build_mocked_server(main_conf=core_snapshot_options)
+        executor = SnapshotBackupExecutor(server.backup_manager)
+        # AND an instance to snapshot which exists
+        mock_get_snapshot_interface.return_value.instance_exists.return_value = True
+        # AND all disks are attached and mounted
+        mock_find_missing_and_unmounted_disks.return_value = [], []
+
+        # WHEN check is called on the backup executor
+        check_strategy = CheckOutputStrategy()
+        executor.check(check_strategy)
+
+        # THEN the check function of the parent class is called
+        mock_parent_check_fun.assert_called_once_with(check_strategy)
+        # AND three checks run in total
+        assert len(check_strategy.check_result) == 3
+        # AND each snapshot-specific check passes
+        for check in (
+            "snapshot instance exists in zone",
+            "snapshot disks attached to instance",
+            "snapshot disks mounted on instance",
+        ):
+            result = [
+                result
+                for result in check_strategy.check_result
+                if result.check == check
+            ]
+            assert len(result) == 1
+            assert result[0].status
+
+    @pytest.mark.parametrize(
+        (
+            "check_msg",
+            "instance_exists",
+            "missing_disks",
+            "unmounted_disks",
+            "expected_error_msg",
+        ),
+        [
+            (
+                "snapshot instance exists in zone",
+                False,
+                [],
+                [],
+                "cannot find compute instance {snapshot_instance} in zone {snapshot_zone}",
+            ),
+            (
+                "snapshot disks attached to instance",
+                True,
+                ["disk1", "disk2"],
+                [],
+                "cannot find snapshot disks attached to instance {snapshot_instance}: disk1, disk2",
+            ),
+            (
+                "snapshot disks mounted on instance",
+                True,
+                [],
+                ["disk1", "disk2"],
+                "cannot find snapshot disks mounted on instance {snapshot_instance}: disk1, disk2",
+            ),
+        ],
+    )
+    @patch("barman.backup_executor.unix_command_factory")
+    @patch(
+        "barman.backup_executor.SnapshotBackupExecutor.find_missing_and_unmounted_disks"
+    )
+    @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
+    def test_check_failure(
+        self,
+        mock_get_snapshot_interface,
+        mock_find_missing_and_unmounted_disks,
+        _mock_unix_command_factory,
+        check_msg,
+        instance_exists,
+        missing_disks,
+        unmounted_disks,
+        expected_error_msg,
+        core_snapshot_options,
+        capsys,
+    ):
+        """
+        Verifies the scenarios which can cause the snapshot-specific checks to fail.
+        """
+        # GIVEN a backup executor for a snapshot backup
+        server = build_mocked_server(main_conf=core_snapshot_options)
+        executor = SnapshotBackupExecutor(server.backup_manager)
+        # AND the specified instance existence state
+        mock_get_snapshot_interface.return_value.instance_exists.return_value = (
+            instance_exists
+        )
+        # AND the specified attached / mounted disk state
+        mock_find_missing_and_unmounted_disks.return_value = (
+            missing_disks,
+            unmounted_disks,
+        )
+
+        # WHEN check is called on the backup executor
+        check_strategy = CheckOutputStrategy()
+        executor.check(check_strategy)
+
+        # THEN the expected check runs
+        check_result = [r for r in check_strategy.check_result if r.check == check_msg][
+            0
+        ]
+        # AND the check result was a failure
+        assert not check_result.status
+        # AND the exepcted hint was written to the output
+        out, _err = capsys.readouterr()
+        assert expected_error_msg.format(**core_snapshot_options) in out

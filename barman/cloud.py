@@ -1900,3 +1900,289 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     raise SystemExit(1)
 
         return backup_files
+
+
+class CloudSnapshotInterface(with_metaclass(ABCMeta)):
+    """Defines a common interface for handling cloud snapshots."""
+
+    @abstractmethod
+    def take_snapshot(self, backup_info, disk_zone, disk_name):
+        """
+        Take a snapshot of a disk in the cloud.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str disk_zone: The zone in which the disk resides.
+        :param str disk_name: The name of the source disk for the snapshot.
+        :rtype: str
+        :return: The name used to reference the snapshot with the cloud provider.
+        """
+
+    @abstractmethod
+    def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
+        """
+        Take a snapshot backup for the named instance.
+
+        Implementations of this method must do the following:
+
+            * Create a snapshot of the disk.
+            * Set the snapshots_info field of the backup_info to a SnapshotsInfo
+              implementation which contains the snapshot metadata required both
+              by Barman and any third party tooling which needs to recover the
+              snapshots.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :param list[str] disks: A list containing the names of the source disks.
+        """
+
+    @abstractmethod
+    def delete_snapshot(self, snapshot_identifier):
+        """
+        Delete the specified snapshot.
+
+        :param str snapshot_identifier: An identifier used to reference this snapshot
+            within the cloud provider API.
+        """
+
+    @abstractmethod
+    def delete_snapshot_backup(self, backup_info):
+        """
+        Delete all snapshots for the supplied backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        """
+
+    @abstractmethod
+    def get_attached_devices(self, instance_name, zone):
+        """
+        Returns the non-boot devices attached to instance_name in zone.
+
+        Implementations must return a dict where the key is the name of the attached
+        disk and the value is the full path to the device at which the disk is attached
+        on the instance.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :rtype: dict[str,str]
+        :return: A dict where the key is the disk name and the value is the device
+            path for that disk on the specified instance.
+        """
+
+    @abstractmethod
+    def instance_exists(self, instance_name, zone):
+        """
+        Determine whether the named instance exists in the specified zone.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :rtype: bool
+        :return: True if the named instance exists in zone, False otherwise.
+        """
+
+
+class SnapshotMetadata(object):
+    """
+    Represents metadata for a single snapshot.
+
+    This class holds the snapshot metadata common to all snapshot providers.
+    Currently this is the mount_options and the mount_point of the source disk for the
+    snapshot at the time of the backup.
+
+    The `identifier` and `device` properties are part of the public interface used
+    within Barman so that the calling code can access the snapshot identifier and
+    device path without having to worry about how these are composed from the snapshot
+    metadata for each cloud provider.
+
+    Specializations of this class must:
+
+        1. Add their provider-specific fields to `_provider_fields`.
+        2. Implement the `identifier` abstract property so that it returns a value which
+           can identify the snapshot via the cloud provider API. An example would be
+           the snapshot short name in GCP.
+        3. Implement the `device` abstract property so that it returns a full device
+           path to the location at which the source disk was attached to the compute
+           instance.
+    """
+
+    _provider_fields = ()
+
+    def __init__(self, mount_options=None, mount_point=None):
+        """
+        Constructor accepts properties generic to all snapshot providers.
+
+        :param str mount_options: The mount options used for the source disk at the
+            time of the backup.
+        :param str mount_point: The mount point of the source disk at the time of
+            the backup.
+        """
+        self.mount_options = mount_options
+        self.mount_point = mount_point
+
+    @classmethod
+    def from_dict(cls, info):
+        """
+        Create a new SnapshotMetadata object from the raw metadata dict.
+
+        This function will set the generic fields supported by SnapshotMetadata before
+        iterating through fields listed in `cls._provider_fields`. This means
+        subclasses do not need to override this method, they just need to add their
+        fields to their own `_provider_fields`.
+
+        :param dict[str,str] info: The raw snapshot metadata.
+        :rtype: SnapshotMetadata
+        """
+        snapshot_info = cls()
+        if "mount" in info:
+            for field in ("mount_options", "mount_point"):
+                try:
+                    setattr(snapshot_info, field, info["mount"][field])
+                except KeyError:
+                    pass
+        for field in cls._provider_fields:
+            try:
+                setattr(snapshot_info, field, info["provider"][field])
+            except KeyError:
+                pass
+        return snapshot_info
+
+    def to_dict(self):
+        """
+        Seralize this SnapshotMetadata object as a raw dict.
+
+        This function will create a dict with the generic fields supported by
+        SnapshotMetadata before iterating through fields listed in
+        `self._provider_fields` and adding them to a special `provider` field.
+        As long as they add their provider-specific fields to `_provider_fields`
+        then subclasses do not need to override this method.
+
+        :rtype: dict
+        :return: A dict containing the metadata for this snapshot.
+        """
+        info = {
+            "mount": {
+                "mount_options": self.mount_options,
+                "mount_point": self.mount_point,
+            },
+        }
+        if len(self._provider_fields) > 0:
+            info["provider"] = {}
+            for field in self._provider_fields:
+                info["provider"][field] = getattr(self, field)
+        return info
+
+    @abstractproperty
+    def identifier(self):
+        """
+        An identifier which can reference the snapshot via the cloud provider.
+
+        Subclasses must ensure this returns a string which can be used by Barman to
+        reference the snapshot when interacting with the cloud provider API.
+
+        :rtype: str
+        :return: A snapshot identifier.
+        """
+
+    @abstractproperty
+    def device(self):
+        """
+        The device path to the source disk on the compute instance at the time the
+        backup was taken.
+
+        Subclasses must ensure this returns a full path. Certain cloud platforms,
+        such as GCP, provide only a short name which must be forged into a full path.
+        Such forging should take place here.
+
+        :rtype: str
+        :return: The device path.
+        """
+
+
+class SnapshotsInfo(object):
+    """
+    Represents the snapshots_info field of backup metadata stored in BackupInfo.
+
+    This class holds the metadata for a snapshot backup which is common to all
+    snapshot providers. This is the list of SnapshotMetadata objects representing the
+    individual snapshots.
+
+    Specializations of this class must:
+
+        1. Add their provider-specific fields to `_provider_fields`.
+        2. Set their `_snapshot_metadata_cls` property to the required specialization of
+           SnapshotMetadata.
+        3. Set the provider property to the required value.
+    """
+
+    _provider_fields = ()
+    _snapshot_metadata_cls = SnapshotMetadata
+
+    def __init__(self, snapshots=None):
+        """
+        Constructor saves the list of snapshots if it is provided.
+
+        :param list[SnapshotMetadata] snapshots: A list of metadata objects for each
+            snapshot.
+        """
+        if snapshots is None:
+            snapshots = []
+        self.snapshots = snapshots
+        self.provider = None
+
+    @classmethod
+    def from_dict(cls, info):
+        """
+        Create a new SnapshotsInfo object from the raw metadata dict.
+
+        This function will iterate through fields listed in `cls._provider_fields`
+        and add them to the instantiated object. It will then create a new
+        SnapshotMetadata object (of the type specified in `cls._snapshot_metadata_cls`)
+        for each snapshot in the raw dict.
+
+        Subclasses do not need to override this method, they just need to add their
+        fields to their own `_provider_fields` and override `_snapshot_metadata_cls`.
+
+        :param dict info: The raw snapshots_info dict.
+        :rtype: SnapshotsInfo
+        :return: The SnapshotsInfo object representing the raw dict.
+        """
+        snapshots_info = cls()
+        for field in cls._provider_fields:
+            try:
+                setattr(snapshots_info, field, info["provider_info"][field])
+            except KeyError:
+                pass
+        snapshots_info.snapshots = [
+            cls._snapshot_metadata_cls.from_dict(snapshot_info)
+            for snapshot_info in info["snapshots"]
+        ]
+        return snapshots_info
+
+    def to_dict(self):
+        """
+        Seralize this SnapshotMetadata object as a raw dict.
+
+        This function will create a dict with the generic fields supported by
+        SnapshotMetadata before iterating through fields listed in
+        `self._provider_fields` and adding them to a special `provider_info` field.
+        The SnapshotMetadata objects in `self.snapshots` are serialized into the
+        dict via their own `to_dict` function.
+
+        As long as they add their provider-specific fields to `_provider_fields`
+        then subclasses do not need to override this method.
+
+        :rtype: dict
+        :return: A dict containing the metadata for this snapshot.
+        """
+        info = {"provider": self.provider}
+        if len(self._provider_fields) > 0:
+            info["provider_info"] = {}
+            for field in self._provider_fields:
+                info["provider_info"][field] = getattr(self, field)
+        info["snapshots"] = [
+            snapshot_info.to_dict() for snapshot_info in self.snapshots
+        ]
+        return info

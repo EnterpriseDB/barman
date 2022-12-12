@@ -26,6 +26,7 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import xlog
+from barman.cloud_providers import snapshots_info_from_dict
 from barman.exceptions import BackupInfoBadInitialisation
 from barman.utils import fsync_dir
 
@@ -35,6 +36,16 @@ Tablespace = collections.namedtuple("Tablespace", "name oid location")
 
 # Named tuple representing a file 'path' with an associated 'file_type'
 TypedFile = collections.namedtuple("ConfFile", "file_type path")
+
+
+def output_snapshots_info(snapshots_info):
+    return null_repr(snapshots_info.to_dict())
+
+
+def load_snapshots_info(string):
+    obj = ast.literal_eval(string)
+    return snapshots_info_from_dict(obj)
+
 
 _logger = logging.getLogger(__name__)
 
@@ -484,10 +495,13 @@ class BackupInfo(FieldListFile):
     systemid = Field("systemid")
     compression = Field("compression")
     backup_name = Field("backup_name")
+    snapshots_info = Field(
+        "snapshots_info", load=load_snapshots_info, dump=output_snapshots_info
+    )
 
     __slots__ = "backup_id", "backup_version"
 
-    _hide_if_null = ("backup_name",)
+    _hide_if_null = ("backup_name", "snapshots_info")
 
     def __init__(self, backup_id, **kwargs):
         """
@@ -552,14 +566,21 @@ class BackupInfo(FieldListFile):
         :return dict:
         """
         result = dict(self.items())
-        result.update(
-            backup_id=self.backup_id,
-            server_name=self.server_name,
-            mode=self.mode,
-            tablespaces=self.tablespaces,
-            included_files=self.included_files,
-            copy_stats=self.copy_stats,
+        top_level_fields = (
+            "backup_id",
+            "server_name",
+            "mode",
+            "tablespaces",
+            "included_files",
+            "copy_stats",
+            "snapshots_info",
         )
+        for field_name in top_level_fields:
+            field_value = getattr(self, field_name)
+            if field_value is not None or field_name not in self._hide_if_null:
+                result.update({field_name: field_value})
+        if self.snapshots_info is not None:
+            result.update({"snapshots_info": self.snapshots_info.to_dict()})
         return result
 
     def to_json(self):
