@@ -1900,3 +1900,91 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
                     raise SystemExit(1)
 
         return backup_files
+
+
+class CloudSnapshotInterface(with_metaclass(ABCMeta)):
+    """Defines a common interface for handling cloud snapshots."""
+
+    @abstractmethod
+    def take_snapshot(self, backup_info, disk_zone, disk_name):
+        """
+        Take a snapshot of a disk in the cloud.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str disk_zone: The zone in which the disk resides.
+        :param str disk_name: The name of the source disk for the snapshot.
+        :rtype: str
+        :return: The name used to reference the snapshot with the cloud provider.
+        """
+
+    @abstractmethod
+    def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
+        """
+        Take a snapshot backup for the named instance.
+
+        Implementations of this method must do the following:
+
+            * Create a snapshot of the disk.
+            * Save the following fields to `backup_info.snapshots_info`:
+              * provider: the snapshot provider which created the snapshot
+              * snapshots: a list of snapshot metadata where each entry is
+                           a dict containing the name (the snapshot name) and
+                           device_path (the path to a device on the named
+                           VM instance representing the disk which was the
+                           source for the snapshot.
+
+        Implementations may optionally add additional provider-specific data to
+        the snapshots_info field.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :param list[str] disks: A list containing the names of the source disks.
+        """
+
+    @abstractmethod
+    def delete_snapshot(self, snapshot_name):
+        """
+        Delete the specified snapshot.
+
+        :param str snapshot_name: The name used to reference the snapshot with the
+            cloud provider.
+        """
+
+    @abstractmethod
+    def delete_snapshot_backup(self, backup_info):
+        """
+        Delete all snapshots for the supplied backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        """
+
+    @abstractmethod
+    def get_attached_devices(self, instance_name, zone):
+        """
+        Returns the non-boot devices attached to instance_name in zone.
+
+        Implementations must return a dict where the key is the name of the attached
+        disk and the value is the full path to the device at which the disk is attached
+        on the instance.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :rtype: dict[str,str]
+        :return: A dict where the key is the disk name and the value is the device
+            path for that disk on the specified instance.
+        """
+
+    @abstractmethod
+    def instance_exists(self, instance_name, zone):
+        """
+        Determine whether the named instance exists in the specified zone.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :rtype: bool
+        :return: True if the named instance exists in zone, False otherwise.
+        """

@@ -18,14 +18,17 @@
 
 import logging
 import os
+import posixpath
 
 from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
     CloudInterface,
     CloudProviderError,
+    CloudSnapshotInterface,
     DecompressingStreamingIO,
     DEFAULT_DELIMITER,
 )
+from barman.exceptions import SnapshotBackupException
 
 try:
     # Python 3.x
@@ -36,10 +39,11 @@ except ImportError:
 
 try:
     from google.cloud import storage
-    from google.api_core.exceptions import GoogleAPIError, Conflict
+    from google.api_core.exceptions import GoogleAPIError, Conflict, NotFound
 except ImportError:
     raise SystemExit("Missing required python module: google-cloud-storage")
 
+_logger = logging.getLogger(__name__)
 
 BASE_URL = "https://console.cloud.google.com/storage/browser/"
 
@@ -333,3 +337,282 @@ class GoogleCloudInterface(CloudInterface):
         if failures:
             logging.error(failures)
             raise CloudProviderError()
+
+
+def import_google_cloud_compute():
+    """
+    Import and return the google.cloud.compute module.
+
+    This particular import happens in a function so that it can be deferred until
+    needed while still allowing tests to easily mock the library.
+    """
+    try:
+        from google.cloud import compute
+    except ImportError:
+        raise SystemExit("Missing required python module: google-cloud-compute")
+    return compute
+
+
+class GcpCloudSnapshotInterface(CloudSnapshotInterface):
+    """
+    Implementation of ClourSnapshotInterface for persistend disk snapshots as
+    implemented in Google Cloud Platform as documented at:
+
+        https://cloud.google.com/compute/docs/disks/create-snapshots
+    """
+
+    DEVICE_PREFIX = "/dev/disk/by-id/google-"
+
+    def __init__(self, project):
+        """
+        Imports the google cloud compute library and creates the clients necessary for
+        creating and managing snapshots.
+
+        :param str project: The name of the GCP project to which all resources related
+            to the snapshot backups belong.
+        """
+        if project is None:
+            raise TypeError("project cannot be None")
+        self.project = project
+
+        # The import of this module is deferred until this constructor so that it
+        # does not become a spurious dependency of the main cloud interface. Doing
+        # so would break backup to GCS for anyone unable to install
+        # google-cloud-compute (which includes anyone using python 2.7).
+        compute = import_google_cloud_compute()
+
+        self.client = compute.SnapshotsClient()
+        self.disks_client = compute.DisksClient()
+        self.instances_client = compute.InstancesClient()
+
+    def _get_instance_metadata(self, instance_name, zone):
+        """
+        Retrieve the metadata for the named instance in the specified zone.
+
+        :rtype: google.cloud.compute_v1.types.Instance
+        :return: An object representing the compute instance.
+        """
+        try:
+            return self.instances_client.get(
+                instance=instance_name,
+                zone=zone,
+                project=self.project,
+            )
+        except NotFound:
+            raise SnapshotBackupException(
+                "Cannot find instance with name %s in zone %s for project %s"
+                % (instance_name, zone, self.project)
+            )
+
+    def _get_disk_metadata(self, disk_name, zone):
+        """
+        Retrieve the metadata for the named disk in the specified zone.
+
+        :rtype: google.cloud.compute_v1.types.Disk
+        :return: An object representing the disk.
+        """
+        try:
+            return self.disks_client.get(
+                disk=disk_name, zone=zone, project=self.project
+            )
+        except NotFound:
+            raise SnapshotBackupException(
+                "Cannot find disk with name %s in zone %s for project %s"
+                % (disk_name, zone, self.project)
+            )
+
+    def take_snapshot(self, backup_info, disk_zone, disk_name):
+        """
+        Take a snapshot of a persistent disk in GCP.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str disk_zone: The zone in which the disk resides.
+        :param str disk_name: The name of the source disk for the snapshot.
+        :rtype: str
+        :return: The name used to reference the snapshot with GCP.
+        """
+        snapshot_name = "%s-%s-%s" % (
+            backup_info.server_name.lower(),
+            backup_info.backup_id.lower(),
+            disk_name,
+        )
+        _logger.info("Taking snapshot '%s' of disk '%s'", snapshot_name, disk_name)
+        resp = self.client.insert(
+            {
+                "project": self.project,
+                "snapshot_resource": {
+                    "name": snapshot_name,
+                    "source_disk": "projects/%s/zones/%s/disks/%s"
+                    % (
+                        self.project,
+                        disk_zone,
+                        disk_name,
+                    ),
+                },
+            }
+        )
+
+        _logger.info("Waiting for snapshot '%s' completion", snapshot_name)
+        resp.result()
+
+        if resp.done():
+            _logger.info("Snapshot '%s' completed", snapshot_name)
+            return snapshot_name
+        else:
+            raise CloudProviderError(
+                "Snapshot '%s' failed with error code %s: %s"
+                % (snapshot_name, resp.error_code, resp.error_message)
+            )
+
+    def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
+        """
+        Take a snapshot backup for the named instance.
+
+        Creates a snapshot for each named disk and saves the required metadata
+        to snapshot_info.
+
+        The following additional field is saved to snapshots_info:
+
+            * gcp_project: The name of the project to which all snapshot-related
+                           resources belong
+
+        The following additional field is saved in the metadata dict for each snapshot:
+
+            * physical_block_size_bytes: The block size of the source disk in bytes.
+            * device_name: The name of the device associated with the source disk, as
+                           understood by the GCP API.
+            * size_gb: The size of the source disk in GB.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :param list[str] disks: A list containing the names of the source disks.
+        """
+        instance_metadata = self._get_instance_metadata(instance_name, zone)
+        snapshots = []
+        for disk_name in disks:
+            disk_metadata = self._get_disk_metadata(disk_name, zone)
+            metadata = {
+                "block_size": disk_metadata.physical_block_size_bytes,
+                "size": disk_metadata.size_gb,
+            }
+            # Check disk is attached and find device name
+            attached_disks = [
+                d
+                for d in instance_metadata.disks
+                if d.source == disk_metadata.self_link
+            ]
+            if len(attached_disks) == 0:
+                raise SnapshotBackupException(
+                    "Disk %s not attached to instance %s" % (disk_name, instance_name)
+                )
+            # We should always have exactly one attached disk matching the name
+            assert len(attached_disks) == 1
+
+            metadata["device_name"] = attached_disks[0].device_name
+            metadata["device_path"] = self.DEVICE_PREFIX + attached_disks[0].device_name
+            metadata["name"] = self.take_snapshot(backup_info, zone, disk_name)
+            snapshots.append(metadata)
+
+        # Add snapshot metadata to BackupInfo
+        backup_info.snapshots_info = {
+            "gcp_project": self.project,
+            "provider": "gcp",
+            "snapshots": snapshots,
+        }
+
+    def delete_snapshot(self, snapshot_name):
+        """
+        Delete the specified snapshot.
+
+        :param str snapshot_name: The name used to reference the snapshot within GCP.
+        """
+        try:
+            resp = self.client.delete(
+                {
+                    "project": self.project,
+                    "snapshot": snapshot_name,
+                }
+            )
+        except NotFound:
+            # If the snapshot cannot be found then deletion is considered successful
+            return
+        resp.result()
+        if resp.done():
+            _logger.info("Snapshot %s deleted", snapshot_name)
+            return
+        else:
+            raise CloudProviderError(
+                "Deletion of snapshot %s failed with error code %s: %s"
+                % (snapshot_name, resp.error_code, resp.error_message)
+            )
+
+    def delete_snapshot_backup(self, backup_info):
+        """
+        Delete all snapshots for the supplied backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        """
+        for snapshot in backup_info.snapshots_info["snapshots"]:
+            _logger.info(
+                "Deleting snapshot '%s' for backup %s",
+                snapshot["name"],
+                backup_info.backup_id,
+            )
+            self.delete_snapshot(snapshot["name"])
+
+    def get_attached_devices(self, instance_name, zone):
+        """
+        Returns the non-boot devices attached to instance_name in zone.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :rtype: dict[str,str]
+        :return: A dict where the key is the disk name and the value is the device
+            path for that disk on the specified instance.
+        """
+        instance_metadata = self._get_instance_metadata(instance_name, zone)
+        attached_devices = {}
+        for attached_disk in instance_metadata.disks:
+            disk_name = posixpath.split(urlparse(attached_disk.source).path)[-1]
+            if disk_name == "":
+                raise SnapshotBackupException(
+                    "Could not parse disk name for source %s attached to instance %s"
+                    % (attached_disk.source, instance_name)
+                )
+            full_device_name = self.DEVICE_PREFIX + attached_disk.device_name
+            if disk_name in attached_devices:
+                raise SnapshotBackupException(
+                    "Disk %s appears to be attached with name %s as devices %s and %s"
+                    % (
+                        attached_disk.source,
+                        disk_name,
+                        full_device_name,
+                        attached_devices[disk_name],
+                    )
+                )
+            attached_devices[disk_name] = full_device_name
+
+        return attached_devices
+
+    def instance_exists(self, instance_name, zone):
+        """
+        Determine whether the named instance exists in the specified zone.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :rtype: bool
+        :return: True if the named instance exists in zone, False otherwise.
+        """
+        try:
+            self.instances_client.get(
+                instance=instance_name,
+                zone=zone,
+                project=self.project,
+            )
+        except NotFound:
+            return False
+        return True

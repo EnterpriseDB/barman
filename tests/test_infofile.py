@@ -689,3 +689,56 @@ class TestBackupInfo(object):
         assert "backup_name" not in infofile.read()
         # AND the backup name is not included in the JSON output
         assert "backup_name" not in b_info.to_json().keys()
+
+    def test_with_snapshots_info(self, tmpdir):
+        """
+        Test that snapshots_info is included in file and output if set.
+        """
+        # GIVEN a backup.info file for a server
+        server = build_mocked_server(
+            main_conf={"basebackups_directory": tmpdir.strpath},
+        )
+        backup_dir = tmpdir.mkdir("fake_name")
+        infofile = backup_dir.join("backup.info")
+        b_info = LocalBackupInfo(server, backup_id="fake_name")
+        b_info.status = BackupInfo.DONE
+
+        # WHEN snapshots_info is set
+        snapshots_info = {
+            "gcp_project": "test_project",
+            "snapshots": [{"name": "snapshot0"}],
+        }
+        b_info.snapshots_info = snapshots_info
+        b_info.save()
+
+        # THEN the snapshots info is written to the file
+        assert (
+            "snapshots_info={'gcp_project': 'test_project', "
+            "'snapshots': [{'name': 'snapshot0'}]}" in infofile.read()
+        ) or (
+            "snapshots_info={'snapshots': [{'name': 'snapshot0'}], "
+            "'gcp_project': 'test_project'}" in infofile.read()
+        )
+        # AND the backup name is included in the JSON output
+        assert b_info.to_json()["snapshots_info"] == snapshots_info
+
+    def test_with_no_snapshots_info(self, tmpdir):
+        """
+        Test that snapshots_info is not included in file and output if not set.
+        """
+        # GIVEN a backup.info file for a server
+        server = build_mocked_server(
+            main_conf={"basebackups_directory": tmpdir.strpath},
+        )
+        backup_dir = tmpdir.mkdir("fake_name")
+        infofile = backup_dir.join("backup.info")
+        b_info = LocalBackupInfo(server, backup_id="fake_name")
+        b_info.status = BackupInfo.DONE
+
+        # WHEN no snapshots_info is set
+        b_info.save()
+
+        # THEN the backup name is not written to the file
+        assert "snapshots_info" not in infofile.read()
+        # AND the backup name is not included in the JSON output
+        assert "snapshots_info" not in b_info.to_json().keys()

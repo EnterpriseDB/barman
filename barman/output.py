@@ -725,6 +725,40 @@ class ConsoleOutputWriter(object):
             output_fun("")
 
     @staticmethod
+    def render_show_backup_snapshots(backup_info, output_fun, header_row, nested_row):
+        """
+        Render snapshot metadata in plain text form.
+
+        :param dict backup_info: a dictionary containing the backup metadata
+        :param function output_fun: function which accepts a string and sends it to
+            an output writer
+        :param str header_row: format string which allows for single value header
+            rows to be formatted
+        :param str nested_row: format string which allows for `key: value` rows to be
+            formatted
+        """
+        if (
+            "snapshots_info" in backup_info
+            and backup_info["snapshots_info"] is not None
+        ):
+            output_fun(header_row.format("Snapshot information"))
+            for key, value in backup_info["snapshots_info"].items():
+                if key != "snapshots":
+                    output_fun(nested_row.format(key, value))
+            output_fun("")
+            for metadata in backup_info["snapshots_info"]["snapshots"]:
+                output_fun(nested_row.format("Snapshot name", metadata["name"]))
+                output_fun(nested_row.format("Disk size (GiB)", metadata["size"]))
+                output_fun(nested_row.format("Device name", metadata["device_name"]))
+                output_fun(nested_row.format("Device path", metadata["device_path"]))
+                output_fun(nested_row.format("Block size", metadata["block_size"]))
+                output_fun(nested_row.format("Mount point", metadata["mount_point"]))
+                output_fun(
+                    nested_row.format("Mount options", metadata["mount_options"])
+                )
+                output_fun("")
+
+    @staticmethod
     def render_show_backup_tablespaces(backup_info, output_fun, header_row, nested_row):
         """
         Render tablespace metadata in plain text form.
@@ -947,6 +981,9 @@ class ConsoleOutputWriter(object):
         output_fun("Backup {}:".format(backup_info["backup_id"]))
         ConsoleOutputWriter.render_show_backup_general(backup_info, output_fun, row)
         if backup_info["status"] in BackupInfo.STATUS_COPY_DONE:
+            ConsoleOutputWriter.render_show_backup_snapshots(
+                backup_info, output_fun, header_row, nested_row
+            )
             ConsoleOutputWriter.render_show_backup_tablespaces(
                 backup_info, output_fun, header_row, nested_row
             )
@@ -1495,6 +1532,8 @@ class JsonOutputWriter(ConsoleOutputWriter):
                     tablespaces=[],
                 )
             )
+            if "snapshots_info" in data and data["snapshots_info"]:
+                output["snapshots_info"] = data["snapshots_info"]
             if data["tablespaces"]:
                 for item in data["tablespaces"]:
                     output["tablespaces"].append(
