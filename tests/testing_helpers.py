@@ -45,6 +45,7 @@ def build_test_backup_info(
     begin_wal="000000010000000000000002",
     begin_xlog="0/2000028",
     config_file="/pgdata/location/postgresql.conf",
+    deduplicated_size=None,
     end_offset=184,
     end_time=None,
     end_wal="000000010000000000000002",
@@ -65,6 +66,7 @@ def build_test_backup_info(
     timeline=1,
     version=90302,
     server=None,
+    systemid=None,
     copy_stats=None,
 ):
     """

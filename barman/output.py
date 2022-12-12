@@ -702,141 +702,277 @@ class ConsoleOutputWriter(object):
             out_list.append(backup_info.status)
         self.info("".join(out_list))
 
+    @staticmethod
+    def render_show_backup_general(backup_info, output_fun, row):
+        """
+        Render general backup metadata in plain text form.
+
+        :param dict backup_info: a dictionary containing the backup metadata
+        :param function output_fun: function which accepts a string and sends it to
+            an output writer
+        :param str row: format string which allows for `key: value` rows to be
+            formatted
+        """
+        if "backup_name" in backup_info and backup_info["backup_name"] is not None:
+            output_fun(row.format("Backup Name", backup_info["backup_name"]))
+        output_fun(row.format("Server Name", backup_info["server_name"]))
+        if backup_info["systemid"]:
+            output_fun(row.format("System Id", backup_info["systemid"]))
+        output_fun(row.format("Status", backup_info["status"]))
+        if backup_info["status"] in BackupInfo.STATUS_COPY_DONE:
+            output_fun(row.format("PostgreSQL Version", backup_info["version"]))
+            output_fun(row.format("PGDATA directory", backup_info["pgdata"]))
+            output_fun("")
+
+    @staticmethod
+    def render_show_backup_tablespaces(backup_info, output_fun, header_row, nested_row):
+        """
+        Render tablespace metadata in plain text form.
+
+        :param dict backup_info: a dictionary containing the backup metadata
+        :param function output_fun: function which accepts a string and sends it to
+            an output writer
+        :param str header_row: format string which allows for single value header
+            rows to be formatted
+        :param str nested_row: format string which allows for `key: value` rows to be
+            formatted
+        """
+        if backup_info["tablespaces"]:
+            output_fun(header_row.format("Tablespaces"))
+            for item in backup_info["tablespaces"]:
+                output = "{} (oid: {})".format(item.location, item.oid)
+                output_fun(nested_row.format(item.name, output))
+            output_fun("")
+
+    @staticmethod
+    def render_show_backup_base(backup_info, output_fun, header_row, nested_row):
+        """
+        Renders base backup metadata in plain text form.
+
+        :param dict backup_info: a dictionary containing the backup metadata
+        :param function output_fun: function which accepts a string and sends it to
+            an output writer
+        :param str header_row: format string which allows for single value header
+            rows to be formatted
+        :param str nested_row: format string which allows for `key: value` rows to be
+            formatted
+        """
+        output_fun(header_row.format("Base backup information"))
+        if backup_info["size"] is not None:
+            disk_usage_output = "{} ({} with WALs)".format(
+                pretty_size(backup_info["size"]),
+                pretty_size(backup_info["size"] + backup_info["wal_size"]),
+            )
+            output_fun(nested_row.format("Disk usage", disk_usage_output))
+        if backup_info["deduplicated_size"] is not None and backup_info["size"] > 0:
+            deduplication_ratio = 1 - (
+                float(backup_info["deduplicated_size"]) / backup_info["size"]
+            )
+            dedupe_output = "{} (-{})".format(
+                pretty_size(backup_info["deduplicated_size"]),
+                "{percent:.2%}".format(percent=deduplication_ratio),
+            )
+            output_fun(nested_row.format("Incremental size", dedupe_output))
+        output_fun(nested_row.format("Timeline", backup_info["timeline"]))
+        output_fun(nested_row.format("Begin WAL", backup_info["begin_wal"]))
+        output_fun(nested_row.format("End WAL", backup_info["end_wal"]))
+        # This is WAL stuff...
+        if "wal_num" in backup_info:
+            output_fun(nested_row.format("WAL number", backup_info["wal_num"]))
+
+        if "wal_compression_ratio" in backup_info:
+            # Output WAL compression ratio for basebackup WAL files
+            if backup_info["wal_compression_ratio"] > 0:
+                wal_compression_output = "{percent:.2%}".format(
+                    percent=backup_info["wal_compression_ratio"]
+                )
+
+                output_fun(
+                    nested_row.format("WAL compression ratio", wal_compression_output)
+                )
+
+        # Back to regular stuff
+        output_fun(nested_row.format("Begin time", backup_info["begin_time"]))
+        output_fun(nested_row.format("End time", backup_info["end_time"]))
+
+        # If copy statistics are available print a summary
+        copy_stats = backup_info.get("copy_stats")
+        if copy_stats:
+            copy_time = copy_stats.get("copy_time")
+            if copy_time:
+                value = human_readable_timedelta(datetime.timedelta(seconds=copy_time))
+                # Show analysis time if it is more than a second
+                analysis_time = copy_stats.get("analysis_time")
+                if analysis_time is not None and analysis_time >= 1:
+                    value += " + {} startup".format(
+                        human_readable_timedelta(
+                            datetime.timedelta(seconds=analysis_time)
+                        )
+                    )
+                output_fun(nested_row.format("Copy time", value))
+                size = backup_info["deduplicated_size"] or backup_info["size"]
+                if size is not None:
+                    value = "{}/s".format(pretty_size(size / copy_time))
+                    number_of_workers = copy_stats.get("number_of_workers", 1)
+                    if number_of_workers > 1:
+                        value += " (%s jobs)" % number_of_workers
+                    output_fun(nested_row.format("Estimated throughput", value))
+
+        output_fun(nested_row.format("Begin Offset", backup_info["begin_offset"]))
+        output_fun(nested_row.format("End Offset", backup_info["end_offset"]))
+        output_fun(nested_row.format("Begin LSN", backup_info["begin_xlog"]))
+        output_fun(nested_row.format("End LSN", backup_info["end_xlog"]))
+        output_fun("")
+
+    @staticmethod
+    def render_show_backup_walinfo(backup_info, output_fun, header_row, nested_row):
+        """
+        Renders WAL metadata in plain text form.
+
+        :param dict backup_info: a dictionary containing the backup metadata
+        :param function output_fun: function which accepts a string and sends it to
+            an output writer
+        :param str header_row: format string which allows for single value header
+            rows to be formatted
+        :param str nested_row: format string which allows for `key: value` rows to be
+            formatted
+        """
+        if any(
+            key in backup_info
+            for key in (
+                "wal_until_next_num",
+                "wal_until_next_size",
+                "wals_per_second",
+                "wal_until_next_compression_ratio",
+                "children_timelines",
+            )
+        ):
+            output_fun(header_row.format("WAL information"))
+            output_fun(
+                nested_row.format("No of files", backup_info["wal_until_next_num"])
+            )
+            output_fun(
+                nested_row.format(
+                    "Disk usage", pretty_size(backup_info["wal_until_next_size"])
+                )
+            )
+            # Output WAL rate
+            if backup_info["wals_per_second"] > 0:
+                output_fun(
+                    nested_row.format(
+                        "WAL rate",
+                        "{:.2f}/hour".format(backup_info["wals_per_second"] * 3600),
+                    )
+                )
+            # Output WAL compression ratio for archived WAL files
+            if backup_info["wal_until_next_compression_ratio"] > 0:
+                output_fun(
+                    nested_row.format(
+                        "Compression ratio",
+                        "{percent:.2%}".format(
+                            percent=backup_info["wal_until_next_compression_ratio"]
+                        ),
+                    ),
+                )
+            output_fun(nested_row.format("Last available", backup_info["wal_last"]))
+            if backup_info["children_timelines"]:
+                timelines = backup_info["children_timelines"]
+                output_fun(
+                    nested_row.format(
+                        "Reachable timelines",
+                        ", ".join([str(history.tli) for history in timelines]),
+                    ),
+                )
+            output_fun("")
+
+    @staticmethod
+    def render_show_backup_catalog_info(
+        backup_info, output_fun, header_row, nested_row
+    ):
+        """
+        Renders catalog metadata in plain text form.
+
+        :param dict backup_info: a dictionary containing the backup metadata
+        :param function output_fun: function which accepts a string and sends it to
+            an output writer
+        :param str header_row: format string which allows for single value header
+            rows to be formatted
+        :param str nested_row: format string which allows for `key: value` rows to be
+            formatted
+        """
+        if "retention_policy_status" in backup_info:
+            output_fun(header_row.format("Catalog information"))
+            output_fun(
+                nested_row.format(
+                    "Retention Policy",
+                    backup_info["retention_policy_status"] or "not enforced",
+                )
+            )
+            previous_backup_id = backup_info.setdefault(
+                "previous_backup_id", "not available"
+            )
+            output_fun(
+                nested_row.format(
+                    "Previous Backup",
+                    previous_backup_id or "- (this is the oldest base backup)",
+                )
+            )
+            next_backup_id = backup_info.setdefault("next_backup_id", "not available")
+            output_fun(
+                nested_row.format(
+                    "Next Backup",
+                    next_backup_id or "- (this is the latest base backup)",
+                )
+            )
+        if "children_timelines" in backup_info and backup_info["children_timelines"]:
+            output_fun("")
+            output_fun(
+                "WARNING: WAL information is inaccurate due to "
+                "multiple timelines interacting with this backup"
+            )
+
+    @staticmethod
+    def render_show_backup(backup_info, output_fun):
+        """
+        Renders the output of a show backup command
+
+        :param dict backup_info: a dictionary containing the backup metadata
+        :param function output_fun: function which accepts a string and sends it to
+            an output writer
+        """
+        row = "  {:<23}: {}"
+        header_row = "  {}:"
+        nested_row = "    {:<21}: {}"
+
+        output_fun("Backup {}:".format(backup_info["backup_id"]))
+        ConsoleOutputWriter.render_show_backup_general(backup_info, output_fun, row)
+        if backup_info["status"] in BackupInfo.STATUS_COPY_DONE:
+            ConsoleOutputWriter.render_show_backup_tablespaces(
+                backup_info, output_fun, header_row, nested_row
+            )
+            ConsoleOutputWriter.render_show_backup_base(
+                backup_info, output_fun, header_row, nested_row
+            )
+            ConsoleOutputWriter.render_show_backup_walinfo(
+                backup_info, output_fun, header_row, nested_row
+            )
+            ConsoleOutputWriter.render_show_backup_catalog_info(
+                backup_info, output_fun, header_row, nested_row
+            )
+        else:
+            if backup_info["error"]:
+                output_fun(row.format("Error", backup_info["error"]))
+
     def result_show_backup(self, backup_ext_info):
         """
         Output all available information about a backup in show-backup command
 
-        The argument has to be the result
-        of a Server.get_backup_ext_info() call
+        The argument has to be the result of a Server.get_backup_ext_info() call
 
-        :param dict backup_ext_info: a dictionary containing
-            the info to display
+        :param dict backup_ext_info: a dictionary containing the info to display
         """
         data = dict(backup_ext_info)
-        self.info("Backup %s:", data["backup_id"])
-        if "backup_name" in data and data["backup_name"] is not None:
-            self.info("  Backup Name            : %s", data["backup_name"])
-        self.info("  Server Name            : %s", data["server_name"])
-        if data["systemid"]:
-            self.info("  System Id              : %s", data["systemid"])
-        self.info("  Status                 : %s", data["status"])
-        if data["status"] in BackupInfo.STATUS_COPY_DONE:
-            self.info("  PostgreSQL Version     : %s", data["version"])
-            self.info("  PGDATA directory       : %s", data["pgdata"])
-            if data["tablespaces"]:
-                self.info("  Tablespaces:")
-                for item in data["tablespaces"]:
-                    self.info(
-                        "    %s: %s (oid: %s)", item.name, item.location, item.oid
-                    )
-            self.info("")
-            self.info("  Base backup information:")
-            self.info(
-                "    Disk usage           : %s (%s with WALs)",
-                pretty_size(data["size"]),
-                pretty_size(data["size"] + data["wal_size"]),
-            )
-            if data["deduplicated_size"] is not None and data["size"] > 0:
-                deduplication_ratio = 1 - (
-                    float(data["deduplicated_size"]) / data["size"]
-                )
-                self.info(
-                    "    Incremental size     : %s (-%s)",
-                    pretty_size(data["deduplicated_size"]),
-                    "{percent:.2%}".format(percent=deduplication_ratio),
-                )
-            self.info("    Timeline             : %s", data["timeline"])
-            self.info("    Begin WAL            : %s", data["begin_wal"])
-            self.info("    End WAL              : %s", data["end_wal"])
-            self.info("    WAL number           : %s", data["wal_num"])
-            # Output WAL compression ratio for basebackup WAL files
-            if data["wal_compression_ratio"] > 0:
-                self.info(
-                    "    WAL compression ratio: %s",
-                    "{percent:.2%}".format(percent=data["wal_compression_ratio"]),
-                )
-            self.info("    Begin time           : %s", data["begin_time"])
-            self.info("    End time             : %s", data["end_time"])
-            # If copy statistics are available print a summary
-            copy_stats = data.get("copy_stats")
-            if copy_stats:
-                copy_time = copy_stats.get("copy_time")
-                if copy_time:
-                    value = human_readable_timedelta(
-                        datetime.timedelta(seconds=copy_time)
-                    )
-                    # Show analysis time if it is more than a second
-                    analysis_time = copy_stats.get("analysis_time")
-                    if analysis_time is not None and analysis_time >= 1:
-                        value += " + %s startup" % (
-                            human_readable_timedelta(
-                                datetime.timedelta(seconds=analysis_time)
-                            )
-                        )
-                    self.info("    Copy time            : %s", value)
-                    size = data["deduplicated_size"] or data["size"]
-                    value = "%s/s" % pretty_size(size / copy_time)
-                    number_of_workers = copy_stats.get("number_of_workers", 1)
-                    if number_of_workers > 1:
-                        value += " (%s jobs)" % number_of_workers
-                    self.info("    Estimated throughput : %s", value)
-            self.info("    Begin Offset         : %s", data["begin_offset"])
-            self.info("    End Offset           : %s", data["end_offset"])
-            self.info("    Begin LSN           : %s", data["begin_xlog"])
-            self.info("    End LSN             : %s", data["end_xlog"])
-            self.info("")
-            self.info("  WAL information:")
-            self.info("    No of files          : %s", data["wal_until_next_num"])
-            self.info(
-                "    Disk usage           : %s",
-                pretty_size(data["wal_until_next_size"]),
-            )
-            # Output WAL rate
-            if data["wals_per_second"] > 0:
-                self.info(
-                    "    WAL rate             : %0.2f/hour",
-                    data["wals_per_second"] * 3600,
-                )
-            # Output WAL compression ratio for archived WAL files
-            if data["wal_until_next_compression_ratio"] > 0:
-                self.info(
-                    "    Compression ratio    : %s",
-                    "{percent:.2%}".format(
-                        percent=data["wal_until_next_compression_ratio"]
-                    ),
-                )
-            self.info("    Last available       : %s", data["wal_last"])
-            if data["children_timelines"]:
-                timelines = data["children_timelines"]
-                self.info(
-                    "    Reachable timelines  : %s",
-                    ", ".join([str(history.tli) for history in timelines]),
-                )
-            self.info("")
-            self.info("  Catalog information:")
-            self.info(
-                "    Retention Policy     : %s",
-                data["retention_policy_status"] or "not enforced",
-            )
-            previous_backup_id = data.setdefault("previous_backup_id", "not available")
-            self.info(
-                "    Previous Backup      : %s",
-                previous_backup_id or "- (this is the oldest base backup)",
-            )
-            next_backup_id = data.setdefault("next_backup_id", "not available")
-            self.info(
-                "    Next Backup          : %s",
-                next_backup_id or "- (this is the latest base backup)",
-            )
-            if data["children_timelines"]:
-                self.info("")
-                self.info(
-                    "WARNING: WAL information is inaccurate due to "
-                    "multiple timelines interacting with this backup"
-                )
-        else:
-            if data["error"]:
-                self.info("  Error:            : %s", data["error"])
+        self.render_show_backup(data, self.info)
 
     def init_status(self, server_name):
         """
