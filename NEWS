@@ -1,5 +1,34 @@
 Barman News - History of user-visible changes
 
+Version 3.3.0 - 14 December 2022
+
+- A backup can now be given a name at backup time using the new
+  `--name` option supported by the `barman backup` and
+  `barman-cloud-backup` commands. The backup name can then be used
+  in place of the backup ID when running commands to interact with
+  backups. Additionally, the commands to list and show backups have
+  been been updated to include the backup name in the plain text and
+  JSON output formats.
+
+- Stricter checking of PostgreSQL version to verify that Barman is
+  running against a supported version of PostgreSQL.
+
+- Bug fixes:
+
+    - Fix inconsistencies between the barman cloud command docs and
+      the help output for those commands.
+
+    - Use a new PostgreSQL connection when switching WALs on the
+      primary during the backup of a standby to avoid undefined
+      behaviour such as `SSL error` messages and failed connections.
+
+    - Reduce log volume by changing the default log level of stdout
+      for commands executed in child processes to `DEBUG` (with the
+      exception of `pg_basebackup` which is deliberately logged at
+      `INFO` level due to it being a long-running process where it is
+      frequently useful to see the output during the execution of the
+      command).
+
 Version 3.2.0 - 20 October 2022
 
 - `barman-cloud-backup-delete` now accepts a `--batch-size` option
