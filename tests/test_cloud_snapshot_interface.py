@@ -379,7 +379,7 @@ class TestGcpCloudSnapshotInterface(object):
                     size_gb=disk["size_gb"],
                     source_snapshot="source_snapshot" in disk
                     and disk["source_snapshot"]
-                    or "",
+                    or None,
                 ),
             )
             for disk in disks
@@ -934,6 +934,121 @@ class TestGcpCloudSnapshotInterface(object):
             exc.value
         ) == "Cannot find instance with name {} in zone {} for project {}".format(
             self.gcp_instance_name, self.gcp_zone, self.gcp_project
+        )
+
+    @pytest.mark.parametrize(
+        "attached_devices",
+        ({}, {"test_disk_0": "dev0"}, {"test_disk_0": "dev0", "test_disk_1": "dev1"}),
+    )
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GcpCloudSnapshotInterface.get_attached_devices"
+    )
+    def test_get_attached_snapshots(
+        self, mock_get_attached_devices, attached_devices, mock_google_cloud_compute
+    ):
+        """Verify a dict of devices keyed by snapshot name is returned."""
+        # GIVEN a dict of attached devices
+        mock_get_attached_devices.return_value = attached_devices
+        # AND a disks client which returns metadata including the source snapshot
+        disks = []
+        for disk_metadata in self.gcp_disks:
+            updated_disk_metadata = disk_metadata.copy()
+            updated_disk_metadata["source_snapshot"] = self._get_snapshot_name(
+                disk_metadata["name"]
+            )
+            disks.append(updated_disk_metadata)
+        mock_disks_client = self._get_mock_disks_client(
+            self.gcp_project, self.gcp_zone, disks
+        )
+        mock_google_cloud_compute.DisksClient.return_value = mock_disks_client
+        # AND a new GcpCloudSnapshotInterface
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+
+        # WHEN get_attached_snapshots is called
+        attached_snapshots = snapshot_interface.get_attached_snapshots(
+            self.gcp_instance_name, self.gcp_zone
+        )
+
+        # THEN the correct device is returned for each disk
+        assert len(attached_snapshots) == len(attached_devices)
+        for disk, device in attached_devices.items():
+            assert attached_snapshots[self._get_snapshot_name(disk)] == device
+
+    @pytest.mark.parametrize(
+        "attached_devices",
+        (
+            {"test_disk_0": "dev0"},
+            {"test_disk_0": "dev0", "test_disk_1": "dev1"},
+            {"test_disk_0": "dev0", "test_disk_1": "dev1", "test_disk_2": "dev2"},
+        ),
+    )
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GcpCloudSnapshotInterface.get_attached_devices"
+    )
+    def test_get_attached_snapshots_missing_snapshot(
+        self, mock_get_attached_devices, attached_devices, mock_google_cloud_compute
+    ):
+        """Verify a missing snapshot is simply not included in the return value."""
+        # GIVEN a dict of attached devices
+        mock_get_attached_devices.return_value = attached_devices
+        # AND a disks client which returns metadata including the source snapshot but
+        # only for one of the disks
+        disk_with_missing_snapshot = "test_disk_0"
+        disks = []
+        for disk_metadata in self.gcp_disks:
+            updated_disk_metadata = disk_metadata.copy()
+            if disk_metadata["name"] != disk_with_missing_snapshot:
+                updated_disk_metadata["source_snapshot"] = self._get_snapshot_name(
+                    disk_metadata["name"]
+                )
+            disks.append(updated_disk_metadata)
+        mock_disks_client = self._get_mock_disks_client(
+            self.gcp_project, self.gcp_zone, disks
+        )
+        mock_google_cloud_compute.DisksClient.return_value = mock_disks_client
+        # AND a new GcpCloudSnapshotInterface
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+
+        # WHEN get_attached_snapshots is called
+        attached_snapshots = snapshot_interface.get_attached_snapshots(
+            self.gcp_instance_name, self.gcp_zone
+        )
+
+        # THEN only the disk cloned from a snapshot is included in the response
+        assert len(attached_snapshots) == len(attached_devices) - 1
+        for disk, device in attached_devices.items():
+            if disk != disk_with_missing_snapshot:
+                assert attached_snapshots[self._get_snapshot_name(disk)] == device
+
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.GcpCloudSnapshotInterface.get_attached_devices"
+    )
+    def test_get_attached_snapshots_disk_not_found(
+        self, mock_get_attached_devices, mock_google_cloud_compute
+    ):
+        """
+        Verify that a SnapshotBackupException is raised if the disk cannot be found.
+        """
+        # GIVEN a new GcpCloudSnapshotInterface
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        # AND a set of attached devices
+        mock_get_attached_devices.return_value = {self.gcp_disks[0]["name"]: "dev0"}
+        # AND a mock DisksClient which cannot find a disk
+        mock_disks_client = mock_google_cloud_compute.DisksClient.return_value
+        mock_disks_client.get.side_effect = NotFound("instance not found")
+
+        # WHEN get_attached_snapshots is called
+        # THEN a SnapshotBackupException is raised
+        with pytest.raises(SnapshotBackupException) as exc:
+            snapshot_interface.get_attached_snapshots(
+                self.gcp_instance_name, self.gcp_zone
+            )
+
+        # AND the exception contains the expected message
+        assert str(
+            exc.value
+        ) == "Cannot find disk with name {} in zone {} for project {}".format(
+            self.gcp_disks[0]["name"], self.gcp_zone, self.gcp_project
         )
 
     def test_instance_exists(self, mock_google_cloud_compute):

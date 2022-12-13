@@ -604,6 +604,37 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
 
         return attached_devices
 
+    def get_attached_snapshots(self, instance_name, zone):
+        """
+        Returns the snapshots which are sources for disks attached to instance.
+
+        Queries the instance metadata to determine which disks are attached and
+        then queries the disk metadata for each disk to determine whether it was
+        cloned from a snapshot. If it was cloned then the snapshot is added to the
+        dict which is returned once all attached devices have been checked.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :rtype: dict[str,str]
+        :return: A dict where the key is the snapshot name and the value is the
+            device path for the source disk for that snapshot on the specified
+            instance.
+        """
+        attached_devices = self.get_attached_devices(instance_name, zone)
+        attached_snapshots = {}
+        for disk_name, device_name in attached_devices.items():
+            disk_metadata = self._get_disk_metadata(disk_name, zone)
+            if disk_metadata.source_snapshot is not None:
+                attached_snapshot_name = posixpath.split(
+                    urlparse(disk_metadata.source_snapshot).path
+                )[-1]
+            else:
+                attached_snapshot_name = ""
+            if attached_snapshot_name != "":
+                attached_snapshots[attached_snapshot_name] = device_name
+        return attached_snapshots
+
     def instance_exists(self, instance_name, zone):
         """
         Determine whether the named instance exists in the specified zone.
