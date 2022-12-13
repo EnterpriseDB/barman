@@ -854,6 +854,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
 
         :param barman.infofile.LocalBackupInfo backup: the backup to delete
         """
+        # If this backup has snapshots then they should be deleted first.
         if backup.snapshots_info:
             _logger.debug(
                 "Deleting the following snapshots: %s"
@@ -861,7 +862,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             )
             snapshot_interface = get_snapshot_interface_from_backup_info(backup)
             snapshot_interface.delete_snapshot_backup(backup)
-        if backup.tablespaces:
+        # If this backup does *not* have snapshots then tablespaces are stored on the
+        # barman server so must be deleted.
+        elif backup.tablespaces:
             if backup.backup_version == 2:
                 tbs_dir = backup.get_basebackup_directory()
             else:
@@ -875,6 +878,9 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
                     )
                     shutil.rmtree(rm_dir)
 
+        # Whether a backup has snapshots or not, the data directory will always be
+        # present because this is where the backup_label is stored. It must therefore
+        # be deleted here.
         pg_data = backup.get_data_directory()
         if os.path.exists(pg_data):
             _logger.debug("Deleting PGDATA directory: %s" % pg_data)
