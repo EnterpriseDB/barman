@@ -37,17 +37,20 @@ import dateutil.parser
 import dateutil.tz
 
 from barman import output, xlog
+from barman.cloud_providers import get_snapshot_interface_from_backup_info
 from barman.command_wrappers import RsyncPgData
 from barman.config import RecoveryOptions
 from barman.copy_controller import RsyncCopyController
 from barman.exceptions import (
     BadXlogSegmentName,
+    CommandException,
     CommandFailedException,
     DataTransferFailure,
     FsOperationFailed,
     RecoveryInvalidTargetException,
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
+    RecoveryPreconditionException,
 )
 from barman.compression import GZipCompression, LZ4Compression, ZSTDCompression
 import barman.fs as fs
@@ -176,18 +179,18 @@ class RecoveryExecutor(object):
                 backup_info, recovery_info["cmd"], dest, tablespaces
             )
         # Copy the base backup
-        output.info("Copying the base backup.")
+        self._start_backup_copy_message()
         try:
             self._backup_copy(
                 backup_info,
                 dest,
-                tablespaces,
-                remote_command,
-                recovery_info["safe_horizon"],
-                recovery_info,
+                tablespaces=tablespaces,
+                remote_command=remote_command,
+                safe_horizon=recovery_info["safe_horizon"],
+                recovery_info=recovery_info,
             )
         except DataTransferFailure as e:
-            output.error("Failure copying base backup: %s", e)
+            self._backup_copy_failure_message(e)
             output.close_and_exit()
 
         # Copy the backup.info file in the destination as
@@ -649,6 +652,18 @@ class RecoveryExecutor(object):
                 )
                 output.close_and_exit()
             output.info("\t%s, %s, %s", item.oid, item.name, location)
+
+    def _start_backup_copy_message(self):
+        """
+        Write the start backup copy message to the output.
+        """
+        output.info("Copying the base backup.")
+
+    def _backup_copy_failure_message(self, e):
+        """
+        Write the backup failure message to the output.
+        """
+        output.error("Failure copying base backup: %s", e)
 
     def _backup_copy(
         self,
@@ -1447,13 +1462,293 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
         _logger.debug("Uncompression output for base tarball: %s", cmd_output)
 
 
-def recovery_executor_factory(backup_manager, command, compression=None):
+class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
+    """
+    Recovery executor which performs barman recovery tasks for a backup taken with
+    backup_method snapshot.
+
+    It is responsible for:
+
+        - Checking that disks cloned from the snapshots in the backup are attached to
+          the recovery instance and that they are mounted at the correct location with
+          the expected options.
+        - Copying the backup_label into place.
+        - Applying the requested recovery options to the PostgreSQL configuration.
+
+    It does not handle the creation of the recovery instance, the creation of new disks
+    from the snapshots or the attachment of the disks to the recovery instance. These
+    are expected to have been performed before the `barman recover` runs.
+    """
+
+    def _prepare_tablespaces(self, backup_info, cmd, dest, tablespaces):
+        """
+        There is no need to prepare tablespace directories because they will already be
+        present on the recovery instance through the cloning of disks from the backup
+        snapshots.
+
+        This function is therefore a no-op.
+        """
+        pass
+
+    @staticmethod
+    def check_recovery_dir_exists(recovery_dir, cmd):
+        """
+        Verify that the recovery directory already exists.
+
+        :param str recovery_dir: Path to the recovery directory on the recovery instance
+        :param UnixLocalCommand cmd: The command wrapper for running commands on the
+            recovery instance.
+        """
+        if not cmd.check_directory_exists(recovery_dir):
+            message = (
+                "Recovery directory '{}' does not exist on the recovery instance. "
+                "Check all required disks have been created, attached and mounted."
+            ).format(recovery_dir)
+            raise RecoveryPreconditionException(message)
+
+    @staticmethod
+    def get_attached_snapshots_for_backup(
+        snapshot_interface, backup_info, instance_name, zone
+    ):
+        """
+        Verifies that disks cloned from the snapshots specified in the supplied
+        backup_info are attached to the named instance in the specified zone and
+        returns them as a dict where the keys are snapshot names and the values
+        are the names of the attached devices.
+
+        If any snapshot associated with this backup is not found as the source
+        for any disk attached to the instance then a RecoveryPreconditionException
+        is raised.
+
+        :param CloudSnapshotInterface snapshot_interface: Interface for managing
+            snapshots via a cloud provider API.
+        :param BackupInfo backup_info: Backup information for the backup being
+            recovered.
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :rtype: dict[str,str]
+        :return: A dict where the key is the snapshot name and the value is the
+            device path for the source disk for that snapshot on the specified
+            instance.
+        """
+        if backup_info.snapshots_info is None:
+            return {}
+        attached_snapshots = snapshot_interface.get_attached_snapshots(
+            instance_name, zone
+        )
+        attached_snapshots_for_backup = {}
+        missing_snapshots = []
+        for source_snapshot in backup_info.snapshots_info.snapshots:
+            try:
+                attached_snapshots_for_backup[
+                    source_snapshot.identifier
+                ] = attached_snapshots[source_snapshot.identifier]
+            except KeyError:
+                missing_snapshots.append(source_snapshot.identifier)
+
+        if len(missing_snapshots) > 0:
+            raise RecoveryPreconditionException(
+                "The following snapshots are not attached to recovery instance %s: %s"
+                % (instance_name, ", ".join(missing_snapshots))
+            )
+        else:
+            return attached_snapshots_for_backup
+
+    @staticmethod
+    def check_mount_points(backup_info, attached_snapshots, cmd):
+        """
+        Check that each disk cloned from a snapshot is mounted at the same mount point
+        as the original disk and with the same mount options.
+
+        Raises a RecoveryPreconditionException if any of the devices supplied in
+        attached_snapshots are not mounted at the mount point or with the mount options
+        specified in the snapshot metadata.
+
+        :param BackupInfo backup_info: Backup information for the backup being
+            recovered.
+        :param dict[str,str] attached_snapshots: A dict of snapshot_name:device_path
+            mappings where the device_path is the path at which the disk cloned from
+            that snapshot is attached to the recovery instance.
+        :param UnixLocalCommand cmd: The command wrapper for running commands on the
+            recovery instance.
+        """
+        mount_point_errors = []
+        mount_options_errors = []
+        for snapshot, device in sorted(attached_snapshots.items()):
+            try:
+                mount_point, mount_options = cmd.findmnt(device)
+            except CommandException as e:
+                mount_point_errors.append(
+                    "Error finding mount point for device %s: %s" % (device, e)
+                )
+                continue
+            if mount_point is None:
+                mount_point_errors.append(
+                    "Could not find device %s at any mount point" % device
+                )
+                continue
+            snapshot_metadata = next(
+                metadata
+                for metadata in backup_info.snapshots_info.snapshots
+                if metadata.identifier == snapshot
+            )
+            expected_mount_point = snapshot_metadata.mount_point
+            expected_mount_options = snapshot_metadata.mount_options
+            if mount_point != expected_mount_point:
+                mount_point_errors.append(
+                    "Device %s cloned from snapshot %s is mounted at %s but %s was "
+                    "expected." % (device, snapshot, mount_point, expected_mount_point)
+                )
+            if mount_options != expected_mount_options:
+                mount_options_errors.append(
+                    "Device %s cloned from snapshot %s is mounted with %s but %s was "
+                    "expected."
+                    % (device, snapshot, mount_options, expected_mount_options)
+                )
+        if len(mount_point_errors) > 0:
+            raise RecoveryPreconditionException(
+                "Error checking mount points: %s" % ", ".join(mount_point_errors)
+            )
+        if len(mount_options_errors) > 0:
+            raise RecoveryPreconditionException(
+                "Error checking mount options: %s" % ", ".join(mount_options_errors)
+            )
+
+    def recover(
+        self,
+        backup_info,
+        dest,
+        tablespaces=None,
+        remote_command=None,
+        target_tli=None,
+        target_time=None,
+        target_xid=None,
+        target_lsn=None,
+        target_name=None,
+        target_immediate=False,
+        exclusive=False,
+        target_action=None,
+        standby_mode=None,
+        recovery_instance=None,
+        recovery_zone=None,
+    ):
+        """
+        Performs a recovery of a snapshot backup.
+
+        This method should be called in a closing context.
+
+        :param barman.infofile.BackupInfo backup_info: the backup to recover
+        :param str dest: the destination directory
+        :param dict[str,str]|None tablespaces: a tablespace
+            name -> location map (for relocation)
+        :param str|None remote_command: The remote command to recover
+                               the base backup, in case of remote backup.
+        :param str|None target_tli: the target timeline
+        :param str|None target_time: the target time
+        :param str|None target_xid: the target xid
+        :param str|None target_lsn: the target LSN
+        :param str|None target_name: the target name created previously with
+                            pg_create_restore_point() function call
+        :param str|None target_immediate: end recovery as soon as consistency
+            is reached
+        :param bool exclusive: whether the recovery is exclusive or not
+        :param str|None target_action: The recovery target action
+        :param bool|None standby_mode: standby mode
+        :param str|None recovery_instance: The name of the recovery node as it is
+            known by the cloud provider
+        :param str|None recovery_zone: The zone in which the recovery node is located
+        """
+        snapshot_interface = get_snapshot_interface_from_backup_info(backup_info)
+        attached_snapshots = self.get_attached_snapshots_for_backup(
+            snapshot_interface, backup_info, recovery_instance, recovery_zone
+        )
+        cmd = fs.unix_command_factory(remote_command, self.server.path)
+        SnapshotRecoveryExecutor.check_mount_points(
+            backup_info, attached_snapshots, cmd
+        )
+        self.check_recovery_dir_exists(dest, cmd)
+
+        return super(SnapshotRecoveryExecutor, self).recover(
+            backup_info,
+            dest,
+            tablespaces=None,
+            remote_command=remote_command,
+            target_tli=target_tli,
+            target_time=target_time,
+            target_xid=target_xid,
+            target_lsn=target_lsn,
+            target_name=target_name,
+            target_immediate=target_immediate,
+            exclusive=exclusive,
+            target_action=target_action,
+            standby_mode=standby_mode,
+        )
+
+    def _start_backup_copy_message(self):
+        """
+        Write the start backup copy message to the output.
+        """
+        output.info("Copying the backup label.")
+
+    def _backup_copy_failure_message(self, e):
+        """
+        Write the backup failure message to the output.
+        """
+        output.error("Failure copying the backup label: %s", e)
+
+    def _backup_copy(self, backup_info, dest, remote_command=None, **kwargs):
+        """
+        Copy any files from the backup directory which are required by the
+        snapshot recovery (currently only the backup_label).
+
+        :param barman.infofile.LocalBackupInfo backup_info: the backup
+            to recover
+        :param str dest: the destination directory
+        """
+        # Set a ':' prefix to remote destinations
+        dest_prefix = ""
+        if remote_command:
+            dest_prefix = ":"
+
+        # Create the copy controller object, specific for rsync,
+        # which will drive all the copy operations. Items to be
+        # copied are added before executing the copy() method
+        controller = RsyncCopyController(
+            path=self.server.path,
+            ssh_command=remote_command,
+            network_compression=self.config.network_compression,
+            retry_times=self.config.basebackup_retry_times,
+            retry_sleep=self.config.basebackup_retry_sleep,
+            workers=self.config.parallel_jobs,
+        )
+        backup_label_file = "%s/%s" % (backup_info.get_data_directory(), "backup_label")
+        controller.add_file(
+            label="pgdata",
+            src=backup_label_file,
+            dst="%s/%s" % (dest_prefix + dest, "backup_label"),
+            item_class=controller.PGDATA_CLASS,
+            bwlimit=self.config.get_bwlimit(),
+        )
+
+        # Execute the copy
+        try:
+            controller.copy()
+        except CommandFailedException as e:
+            msg = "data transfer failure"
+            raise DataTransferFailure.from_command_error("rsync", e, msg)
+
+
+def recovery_executor_factory(backup_manager, command, backup_info):
     """
     Method in charge of building adequate RecoveryExecutor depending on the context
     :param: backup_manager
     :param: command barman.fs.UnixLocalCommand
     :return: RecoveryExecutor instance
     """
+    if backup_info.snapshots_info is not None:
+        return SnapshotRecoveryExecutor(backup_manager)
+    compression = backup_info.compression
     if compression is None:
         return RecoveryExecutor(backup_manager)
     if compression == GZipCompression.name:

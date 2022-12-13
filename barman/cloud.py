@@ -1972,6 +1972,23 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
+    def get_attached_snapshots(self, instance_name, zone):
+        """
+        Returns the snapshots which are sources for disks attached to instance.
+
+        Implementations must return each snapshot which is the source for a disk
+        attache to the instance along with the device path at which it is attached.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param str zone: The zone in which the snapshot disks and instance reside.
+        :rtype: dict[str,str]
+        :return: A dict where the key is the snapshot name and the value is the
+            device path for the source disk for that snapshot on the specified
+            instance.
+        """
+
+    @abstractmethod
     def instance_exists(self, instance_name, zone):
         """
         Determine whether the named instance exists in the specified zone.

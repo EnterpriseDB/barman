@@ -739,6 +739,14 @@ def rebuild_xlogdb(args):
                 "backup."
             ),
         ),
+        argument(
+            "--snapshot-recovery-instance",
+            help="Instance where the disks recovered from the snapshots are attached",
+        ),
+        argument(
+            "--snapshot-recovery-zone",
+            help="Zone containing the instance and disks for the snapshot recovery",
+        ),
     ]
 )
 def recover(args):
@@ -877,6 +885,47 @@ def recover(args):
             output.close_and_exit()
         server.config.network_compression = args.network_compression
 
+    if backup_id.snapshots_info is not None:
+        missing_args = []
+        if not args.snapshot_recovery_instance:
+            missing_args.append("--snapshot-recovery-instance")
+        if not args.snapshot_recovery_zone:
+            missing_args.append("--snapshot-recovery-zone")
+        if len(missing_args) > 0:
+            output.error(
+                "Backup %s is a snapshot backup and the following required arguments "
+                "have not been provided: %s",
+                backup_id.backup_id,
+                ", ".join(missing_args),
+            )
+            output.close_and_exit()
+        if tablespaces != {}:
+            output.error(
+                "Backup %s is a snapshot backup therefore tablespace relocation rules "
+                "cannot be used.",
+                backup_id.backup_id,
+            )
+            output.close_and_exit()
+        snapshot_kwargs = {
+            "recovery_instance": args.snapshot_recovery_instance,
+            "recovery_zone": args.snapshot_recovery_zone,
+        }
+    else:
+        unexpected_args = []
+        if args.snapshot_recovery_instance:
+            unexpected_args.append("--snapshot-recovery-instance")
+        if args.snapshot_recovery_zone:
+            unexpected_args.append("--snapshot-recovery-zone")
+        if len(unexpected_args) > 0:
+            output.error(
+                "Backup %s is not a snapshot backup but the following snapshot "
+                "arguments have been used: %s",
+                backup_id.backup_id,
+                ", ".join(unexpected_args),
+            )
+            output.close_and_exit()
+        snapshot_kwargs = {}
+
     with closing(server):
         try:
             server.recover(
@@ -893,6 +942,7 @@ def recover(args):
                 remote_command=args.remote_ssh_command,
                 target_action=getattr(args, "target_action", None),
                 standby_mode=getattr(args, "standby_mode", None),
+                **snapshot_kwargs
             )
         except RecoveryException as exc:
             output.error(force_str(exc))
