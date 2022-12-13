@@ -490,6 +490,23 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
 
         return attached_devices
 
+    def get_attached_snapshots(self, instance_name, zone):
+        """
+        Returns the snapshots which are sources for disks attached to instance.
+        """
+        attached_devices = self.get_attached_devices(instance_name, zone)
+        attached_snapshots = {}
+        for disk_name, device_name in attached_devices.items():
+            disk_metadata = self.disks_client.get(
+                disk=disk_name, zone=zone, project=self.project
+            )
+            attached_snapshot_name = posixpath.split(
+                urlparse(disk_metadata.source_snapshot).path
+            )[-1]
+            if attached_snapshot_name != "":
+                attached_snapshots[attached_snapshot_name] = device_name
+        return attached_snapshots
+
     def instance_exists(self, instance_name, zone):
         """
         Returns true if the named instance exists in zone, false otherwise.

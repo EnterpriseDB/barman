@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>.
 
+from functools import partial
 import os
 import shutil
 import time
@@ -1457,19 +1458,22 @@ class TestRecoveryExecutorFactory(object):
     ):
         mock_backup_manager = mock.Mock()
         mock_command = mock.Mock()
+        mock_backup_info = mock.Mock(compression=compression, snapshots_info=None)
 
         # WHEN recovery_executor_factory is called with the specified compression
+        function_under_test = partial(
+            recovery_executor_factory,
+            mock_backup_manager,
+            mock_command,
+            mock_backup_info,
+        )
         # THEN if an error is expected we see an error
         if should_error:
             with pytest.raises(AttributeError):
-                recovery_executor_factory(
-                    mock_backup_manager, mock_command, compression
-                )
+                function_under_test()
         # OR the expected type of recovery executor is returned
         else:
-            executor = recovery_executor_factory(
-                mock_backup_manager, mock_command, compression
-            )
+            executor = function_under_test()
             assert type(executor) is expected_executor
 
 

@@ -364,6 +364,12 @@ class RecoveryException(BarmanException):
     """
 
 
+class RecoveryPreconditionException(RecoveryException):
+    """
+    Exception for a recovery precondition not being met
+    """
+
+
 class RecoveryTargetActionException(RecoveryException):
     """
     Exception for a wrong recovery target action

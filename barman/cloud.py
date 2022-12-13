@@ -1928,6 +1928,12 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
+    def get_attached_snapshots(self, instance_name, zone):
+        """
+        Returns the snapshots which are sources for disks attached to instance.
+        """
+
+    @abstractmethod
     def instance_exists(self, instance_name, zone):
         """
         Returns true if the named instance exists in zone, false otherwise.
