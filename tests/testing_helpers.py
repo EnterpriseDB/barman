@@ -57,6 +57,7 @@ def build_test_backup_info(
     pgdata="/pgdata/location",
     server_name="test_server",
     size=12345,
+    snapshots_info=None,
     status=BackupInfo.DONE,
     included_files=None,
     tablespaces=(

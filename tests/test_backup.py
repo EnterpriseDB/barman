@@ -26,6 +26,7 @@ import dateutil.tz
 import mock
 import pytest
 from mock import Mock, patch
+from barman.backup import BackupManager
 
 import barman.utils
 from barman.annotations import KeepManager
@@ -40,6 +41,7 @@ from barman.retention_policies import RetentionPolicyFactory
 from testing_helpers import (
     build_backup_directories,
     build_backup_manager,
+    build_mocked_server,
     build_test_backup_info,
     caplog_reset,
     interpolate_wals,
@@ -1593,3 +1595,76 @@ class TestVerifyBackup:
         backup_manager.verify_backup(mock_backup_info)
 
         mock_pg_verify_backup_instance.get_output.assert_not_called()
+
+
+class TestSnapshotBackup(object):
+    """Test handling of snapshot backups by BackupManager."""
+
+    @patch("barman.backup.SnapshotBackupExecutor")
+    def test_snapshot_backup_method(self, mock_snapshot_executor):
+        """
+        Verify that a SnapshotBackupExecutor is created for backup_method "snapshot".
+        """
+        # GIVEN a server with backup_method = "snapshot"
+        server = build_mocked_server(
+            "test_server", main_conf={"backup_method": "snapshot"}
+        )
+        # WHEN a BackupManager is created for that server
+        manager = BackupManager(server=server)
+        # THEN its executor is a SnapshotBackupExecutor
+        assert manager.executor == mock_snapshot_executor.return_value
+
+    @patch("barman.backup.os")
+    @patch("barman.backup.shutil")
+    @patch("barman.backup.get_snapshot_interface_from_backup_info")
+    @patch("barman.backup.BackupManager.remove_wal_before_backup")
+    @patch("barman.backup.BackupManager.get_available_backups")
+    def test_snapshot_delete(
+        self,
+        mock_get_available_backups,
+        mock_remove_wal_before_backup,
+        mock_get_snapshot_interface,
+        mock_shutil,
+        mock_os,
+        caplog,
+    ):
+        """
+        Verify that the snapshots are deleted via the snapshot interface.
+        """
+        # GIVEN a backup manager
+        backup_manager = build_backup_manager()
+        backup_manager.server.config.name = "test_server"
+        backup_manager.server.config.minimum_redundancy = 0
+        # WITH a single snapshot backup
+        backup_info = build_test_backup_info(
+            backup_id="test_backup_id",
+            server=backup_manager.server,
+            snapshots_info={"snapshots": {"test_snapshot": {}}},
+            tablespaces=[("tbs1", 16385, "/tbs1")],
+        )
+        mock_get_available_backups.return_value = {backup_info.backup_id: backup_info}
+
+        # WHEN the backup is deleted
+        delete_result = backup_manager.delete_backup(backup_info)
+
+        # THEN the deletion is successful
+        assert delete_result is True
+        # AND the snapshots were deleted via the snapshot interface
+        mock_get_snapshot_interface.assert_called_once_with(backup_info)
+        mock_snapshot_interface = mock_get_snapshot_interface.return_value
+        mock_snapshot_interface.delete_snapshot_backup.assert_called_once_with(
+            backup_info
+        )
+        # AND rmtree was called twice in total
+        assert mock_shutil.rmtree.call_count == 2
+        # AND rmtree was called on the data directory
+        assert (
+            mock_shutil.rmtree.call_args_list[0][0][0]
+            == backup_info.get_data_directory()
+        )
+        # AND rmtree was called on the base directory
+        assert (
+            mock_shutil.rmtree.call_args_list[1][0][0]
+            == backup_info.get_basebackup_directory()
+        )
+        # AND associated WALs were deleted

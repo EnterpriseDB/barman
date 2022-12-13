@@ -32,6 +32,7 @@ from barman.config import (
     parse_si_suffix,
     parse_recovery_staging_path,
     parse_slot_name,
+    parse_snapshot_disks,
     parse_time_interval,
 )
 import testing_helpers
@@ -483,6 +484,29 @@ class TestConfig(object):
 
         with pytest.raises(ValueError):
             parse_slot_name("barman slot name")
+
+    @pytest.mark.parametrize(
+        ("disk_names", "is_allowed"),
+        (
+            # Strings where each comma-separated string is non-empty are allowed
+            ["disk0", True],
+            ["disk0,disk1", True],
+            ["disk0,disk1,disk2", True],
+            # Empty values are not allowed
+            ["disk0,,disk2", False],
+            ["", False],
+        ),
+    )
+    def test_parse_snapshot_disks(self, disk_names, is_allowed):
+        # GIVEN a list of disk names
+        # WHEN parse_snapshot_disks is called
+        # THEN if the value is allowed we have a list of disk names
+        if is_allowed:
+            assert parse_snapshot_disks(disk_names) == disk_names.split(",")
+        # AND if the value is not allowed we receive a ValueError
+        else:
+            with pytest.raises(ValueError):
+                parse_snapshot_disks(disk_names)
 
     @pytest.mark.parametrize(
         ("compression", "is_allowed"),

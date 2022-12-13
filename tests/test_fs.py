@@ -509,6 +509,50 @@ class TestUnixLocalCommand(object):
             call("ls '-la' 'test path'"),
         ]
 
+    @pytest.mark.parametrize(
+        ("command_output", "expected_return_value"),
+        (["/opt/mount0 rw,noatime", ["/opt/mount0", "rw,noatime"]], ["", [None, None]]),
+    )
+    @patch("barman.fs.Command")
+    def test_findmnt(self, command_mock, command_output, expected_return_value):
+        """Verify that findmnt uses the correct args and successfully parses output."""
+        # GIVEN a mock UnixLocalCommand which returns the specified output
+        command_mock.reset_mock()
+        command_instance = command_mock.return_value
+        command_instance.out = command_output
+        ulc = UnixLocalCommand()
+
+        # WHEN findmnt is called
+        result = ulc.findmnt("/dev/dev0")
+
+        # THEN the findmnt utility was executed with the expected arguments
+        assert command_instance.mock_calls == [
+            call("findmnt '-o' 'TARGET,OPTIONS' '-n' '/dev/dev0'"),
+        ]
+
+        # AND the expected return value was returned
+        assert result == expected_return_value
+
+    @pytest.mark.parametrize(
+        "command_output", ("some unexpected output", "unexpected", " ")
+    )
+    @patch("barman.fs.Command")
+    def test_findmnt_unexpected_output(self, command_mock, command_output):
+        """Verify that unexpected findmnt output results in an exception."""
+        # GIVEN a mock UnixLocalCommand which returns the specified output
+        command_mock.reset_mock()
+        command_instance = command_mock.return_value
+        command_instance.out = command_output
+        ulc = UnixLocalCommand()
+
+        # WHEN findmnt is called
+        # THEN an FsOperationFailed exception is raised
+        with pytest.raises(FsOperationFailed) as exc:
+            ulc.findmnt("/dev/dev0")
+
+        # AND the exception has the expected message
+        assert str(exc.value) == "Unexpected findmnt output: {}".format(command_output)
+
 
 class TestFileMatchingRules(object):
     def test_match_dirs_not_anchored(self):
