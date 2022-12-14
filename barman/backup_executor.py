@@ -1503,7 +1503,7 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
                 mount_point, _mount_options = cmd.findmnt(attached_devices[disk])
             except KeyError:
                 # Ignore disks which were not attached
-                pass
+                continue
             if mount_point is None:
                 unmounted_disks.append(disk)
 
