@@ -1510,6 +1510,17 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         return missing_disks, unmounted_disks
 
     def check(self, check_strategy):
+        """
+        Perform additional checks for SnapshotBackupExecutor, specifically:
+
+          - check the compute instance for which snapshots should be taken exists
+          - check the expected disks are attached to that instance
+          - check the attached disks are mounted on the filesystem
+
+        :param CheckStrategy check_strategy: the strategy for the management
+             of the results of the various checks
+        """
+        super(SnapshotBackupExecutor, self).check(check_strategy)
         if self.server.config.disabled:
             # Skip checks if the server is not active
             return
@@ -1524,6 +1535,8 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
                 % (self.snapshot_instance, self.snapshot_zone),
             )
             return
+        else:
+            check_strategy.result(self.config.name, True)
 
         check_strategy.init_check("snapshot disks attached to instance")
         cmd = unix_command_factory(self.config.ssh_command, self.server.path)
@@ -1542,6 +1555,8 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
                 hint="cannot find snapshot disks attached to instance %s: %s"
                 % (self.snapshot_instance, ", ".join(missing_disks)),
             )
+        else:
+            check_strategy.result(self.config.name, True)
 
         check_strategy.init_check("snapshot disks mounted on instance")
         if len(unmounted_disks) > 0:
@@ -1551,6 +1566,8 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
                 hint="cannot find snapshot disks mounted on instance %s: %s"
                 % (self.snapshot_instance, ", ".join(unmounted_disks)),
             )
+        else:
+            check_strategy.result(self.config.name, True)
 
     def _start_backup_copy_message(self, backup_info):
         output.info("Starting backup with disk snapshots for %s", backup_info.backup_id)
