@@ -174,6 +174,13 @@ def get_snapshot_interface_from_backup_info(backup_info):
             GcpCloudSnapshotInterface,
         )
 
+        if (
+            "gcp_project" not in backup_info.snapshots_info
+            or backup_info.snapshots_info["gcp_project"] is None
+        ):
+            raise BarmanException(
+                "backup_info has snapshot provider 'gcp' but gcp_project is not set"
+            )
         return GcpCloudSnapshotInterface(backup_info.snapshots_info["gcp_project"])
     else:
         raise CloudProviderUnsupported(
