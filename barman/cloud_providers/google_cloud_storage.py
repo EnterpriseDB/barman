@@ -339,6 +339,20 @@ class GoogleCloudInterface(CloudInterface):
             raise CloudProviderError()
 
 
+def import_google_cloud_compute():
+    """
+    Import and return the google.cloud.compute module.
+
+    This particular import happens in a function so that it can be deferred until
+    needed while still allowing tests to easily mock the library.
+    """
+    try:
+        from google.cloud import compute
+    except ImportError:
+        raise SystemExit("Missing required python module: google-cloud-compute")
+    return compute
+
+
 class GcpCloudSnapshotInterface(CloudSnapshotInterface):
     DEVICE_PREFIX = "/dev/disk/by-id/google-"
 
@@ -351,10 +365,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         # does not become a spurious dependency of the main cloud interface. Doing
         # so would break backup to GCS for anyone unable to install
         # google-cloud-compute (which includes anyone using python 2.7).
-        try:
-            from google.cloud import compute
-        except ImportError:
-            raise SystemExit("Missing required python module: google-cloud-compute")
+        compute = import_google_cloud_compute()
 
         self.client = compute.SnapshotsClient()
         self.disks_client = compute.DisksClient()
