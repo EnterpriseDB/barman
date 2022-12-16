@@ -125,12 +125,15 @@ class RecoveryExecutor(object):
         :param bool exclusive: whether the recovery is exclusive or not
         :param str|None target_action: The recovery target action
         :param bool|None standby_mode: standby mode
-        :param str|None recovery_conf_filename: filename for storing recovery configurations
+        :param str|None recovery_conf_filename: filename for storing recovery
+            configurations
         """
 
         # Run the cron to be sure the wal catalog is up to date
         # Prepare a map that contains all the objects required for a recovery
-        recovery_info = self._setup(backup_info, remote_command, dest, recovery_conf_filename)
+        recovery_info = self._setup(
+            backup_info, remote_command, dest, recovery_conf_filename
+        )
         output.info(
             "Starting %s restore for server %s using backup %s",
             recovery_info["recovery_dest"],
