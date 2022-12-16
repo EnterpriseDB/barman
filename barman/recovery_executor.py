@@ -372,17 +372,35 @@ class RecoveryExecutor(object):
         recovery_info["results"] = results
         # Set up a list of configuration files
         recovery_info["configuration_files"].append("postgresql.conf")
-        if not recovery_conf_filename:
-            if backup_info.version >= 90400:
-                recovery_info["configuration_files"].append("postgresql.auto.conf")
+        # Always add postgresql.auto.conf to the list of configuration files even if
+        # it is not the specified destination for recovery settings, because there may
+        # be other configuration options which need to be checked by Barman.
+        if backup_info.version >= 90400:
+            recovery_info["configuration_files"].append("postgresql.auto.conf")
 
-            # Identify the file holding the recovery configuration
+        # Determine the destination file for recovery options. This will normally be
+        # postgresql.auto.conf (or recovery.conf for PostgreSQL versions earlier than
+        # 12) however there are certain scenarios (such as postgresql.auto.conf being
+        # deliberately symlinked to /dev/null) which mean a user might have specified
+        # an alternative destination. If an alternative has been specified, via
+        # recovery_conf_filename, then it should be set as the recovery configuration
+        # file.
+        if recovery_conf_filename:
+            # There is no need to also add the file to recovery_info["configuration_files"]
+            # because that is only required for files which may already exist and
+            # therefore contain options which Barman should check for safety.
+            results["recovery_configuration_file"] = recovery_conf_filename
+        # Otherwise, set the recovery configuration file based on the PostgreSQL
+        # version used to create the backup.
+        else:
             results["recovery_configuration_file"] = "postgresql.auto.conf"
             if backup_info.version < 120000:
+                # The recovery.conf file is created for the recovery and therefore
+                # Barman does not need to check the content. The file therefore does
+                # not need to be added to recovery_info["configuration_files"] and
+                # just needs to be set as the recovery configuration file.
                 results["recovery_configuration_file"] = "recovery.conf"
-        else:
-            recovery_info["configuration_files"].append(recovery_conf_filename) if (recovery_conf_filename in recovery_info["configuration_files"]) else 0
-            results["recovery_configuration_file"] = recovery_conf_filename
+
         # Handle remote recovery options
         if remote_command:
             recovery_info["recovery_dest"] = "remote"
@@ -1178,13 +1196,13 @@ class RecoveryExecutor(object):
         recovery_info["temporary_configuration_files"].extend(conf_file_paths)
 
         if backup_info.version >= 120000:
-            # Make sure 'postgresql.auto.conf' file exists in
-            # recovery_info['temporary_configuration_files'] because
-            # the recovery settings will end up there
-            if not recovery_info["results"]["recovery_configuration_file"]:
-                conf_file = "postgresql.auto.conf"
-            else:
-                conf_file = recovery_info["results"]["recovery_configuration_file"]
+            # Make sure the recovery configuration file ('postgresql.auto.conf', unless
+            # a custom alternative was specified via recovery_conf_filename) exists in
+            # recovery_info['temporary_configuration_files'] because the recovery
+            # settings will end up there.
+            conf_file = recovery_info["results"]["recovery_configuration_file"]
+            # If the file did not exist it will have been removed from
+            # recovery_info["configuration_files"] earlier in this method.
             if conf_file not in recovery_info["configuration_files"]:
                 if remote_command:
                     conf_file_path = os.path.join(recovery_info["tempdir"], conf_file)
@@ -1211,9 +1229,7 @@ class RecoveryExecutor(object):
         # Check for dangerous options inside every config file
         for conf_file in recovery_info["temporary_configuration_files"]:
             append_lines = None
-            conf_file_suffix = "postgresql.auto.conf"
-            if results["recovery_configuration_file"]:
-                conf_file_suffix = results["recovery_configuration_file"]
+            conf_file_suffix = results["recovery_configuration_file"]
             if conf_file.endswith(conf_file_suffix):
                 append_lines = recovery_info.get("auto_conf_append_lines")
 
