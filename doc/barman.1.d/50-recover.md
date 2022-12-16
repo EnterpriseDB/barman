@@ -96,6 +96,17 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         This option is *required* when recovering from compressed backups and
         has no effect otherwise.
 
+    --recovery-conf-filename *RECOVERY_CONF_FILENAME*
+    :   The name of the file where Barman should write the PostgreSQL recovery
+        options. This defaults to postgresql.auto.conf (or recovery.conf for
+        PostgreSQL versions earlier than 12) however if --recovery-conf-filename
+        is used then recovery options will be written to RECOVERY_CONF_FILENAME
+        instead. The default value is correct for a typical PostgreSQL
+        installation however if PostgreSQL is being managed by tooling which
+        modifies the configuration mechanism (for example postgresql.auto.conf
+        could be symlinked to /dev/null) then this option can be used to write
+        the recovery options to an alternative location.
+
     --snapshot-recovery-instance *INSTANCE_NAME*
     :   Name of the instance where the disks recovered from the snapshots are
         attached. This option is required when recovering backups made with
