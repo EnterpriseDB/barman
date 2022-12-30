@@ -407,11 +407,17 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
 
     def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
         """Take a snapshot backup for the named instance."""
-        instance_metadata = self.instances_client.get(
-            instance=instance_name,
-            zone=zone,
-            project=self.project,
-        )
+        try:
+            instance_metadata = self.instances_client.get(
+                instance=instance_name,
+                zone=zone,
+                project=self.project,
+            )
+        except NotFound:
+            raise SnapshotBackupException(
+                "Cannot find instance with name %s in zone %s for project %s"
+                % (instance_name, zone, self.project)
+            )
         snapshots = {}
         for disk_name in disks:
             try:
