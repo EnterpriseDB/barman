@@ -446,7 +446,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
             elif len(attached_disks) > 1:
                 raise SnapshotBackupException(
                     "Multiple disks matching name %s found attached to instance %s"
-                    % (instance_name, disk_name)
+                    % (disk_name, instance_name)
                 )
             metadata["device"] = self.DEVICE_PREFIX + attached_disks[0].device_name
             snapshot_name = self.take_snapshot(backup_info, zone, disk_name)
