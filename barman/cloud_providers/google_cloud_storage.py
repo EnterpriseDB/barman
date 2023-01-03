@@ -384,6 +384,17 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
                 % (instance_name, zone, self.project)
             )
 
+    def _get_disk_metadata(self, disk_name, zone):
+        try:
+            return self.disks_client.get(
+                disk=disk_name, zone=zone, project=self.project
+            )
+        except NotFound:
+            raise SnapshotBackupException(
+                "Cannot find disk with name %s in zone %s for project %s"
+                % (disk_name, zone, self.project)
+            )
+
     def take_snapshot(self, backup_info, disk_zone, disk_name):
         snapshot_name = "%s-%s-%s" % (
             backup_info.server_name.lower(),
@@ -423,15 +434,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         instance_metadata = self._get_instance_metadata(instance_name, zone)
         snapshots = {}
         for disk_name in disks:
-            try:
-                disk_metadata = self.disks_client.get(
-                    disk=disk_name, zone=zone, project=self.project
-                )
-            except NotFound:
-                raise SnapshotBackupException(
-                    "Cannot find disk with name %s in zone %s for project %s"
-                    % (disk_name, zone, self.project)
-                )
+            disk_metadata = self._get_disk_metadata(disk_name, zone)
             metadata = {
                 "block_size": disk_metadata.physical_block_size_bytes,
                 "size": disk_metadata.size_gb,
@@ -529,9 +532,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         attached_devices = self.get_attached_devices(instance_name, zone)
         attached_snapshots = {}
         for disk_name, device_name in attached_devices.items():
-            disk_metadata = self.disks_client.get(
-                disk=disk_name, zone=zone, project=self.project
-            )
+            disk_metadata = self._get_disk_metadata(disk_name, zone)
             attached_snapshot_name = posixpath.split(
                 urlparse(disk_metadata.source_snapshot).path
             )[-1]
