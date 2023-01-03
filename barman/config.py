@@ -385,7 +385,19 @@ def parse_slot_name(value):
 
 
 def parse_snapshot_disks(value):
-    return value.split(",")
+    """
+    Parse a comma separated list of names used to reference disks managed by a cloud
+    provider.
+
+    :param str value: Comma separated list of disk names
+    :return: List of disk names
+    """
+    disk_names = value.split(",")
+    # Verify each parsed disk is not an empty string
+    for disk_name in disk_names:
+        if disk_name == "":
+            raise ValueError(disk_names)
+    return disk_names
 
 
 def parse_create_slot(value):
