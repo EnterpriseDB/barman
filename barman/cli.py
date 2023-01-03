@@ -493,7 +493,7 @@ def list_backups(args):
         server = servers[name]
 
         # Skip the server (apply general rule)
-        if not manage_server_command(server, name):
+        if not manage_server_command(server, name, skip_inactive=False, skip_disabled=False):
             continue
 
         output.init("list_backup", name, minimal=args.minimal)
@@ -521,7 +521,7 @@ def status(args):
         server = servers[name]
 
         # Skip the server (apply general rule)
-        if not manage_server_command(server, name):
+        if not manage_server_command(server, name, skip_inactive=False, skip_disabled=False):
             continue
 
         output.init("status", name)
@@ -1860,9 +1860,11 @@ def get_server_list(
         if args and len(args.server_name) != 1:
             output.error("You cannot use 'all' with other server names")
         server_names = available_servers
+        all_required = True
     else:
         # Put servers in a set, so multiple occurrences are counted only once
         server_names = set(args.server_name)
+        all_required = False
 
     # Loop through all the requested servers
     for server_name in server_names:
@@ -1873,15 +1875,15 @@ def get_server_list(
         else:
             server_object = Server(conf)
             # Skip inactive servers, if requested
-            if skip_inactive and not server_object.config.active:
+            if all_required and skip_inactive and not server_object.config.active:
                 output.info("Skipping inactive server '%s'" % conf.name)
                 continue
             # Skip disabled servers, if requested
-            if skip_disabled and server_object.config.disabled:
+            if all_required and skip_disabled and server_object.config.disabled:
                 output.info("Skipping temporarily disabled server '%s'" % conf.name)
                 continue
             # Skip passive nodes, if requested
-            if skip_passive and server_object.passive_node:
+            if all_required and skip_passive and server_object.passive_node:
                 output.info("Skipping passive server '%s'", conf.name)
                 continue
             server_dict[server_name] = server_object
