@@ -371,6 +371,19 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         self.disks_client = compute.DisksClient()
         self.instances_client = compute.InstancesClient()
 
+    def _get_instance_metadata(self, instance_name, zone):
+        try:
+            return self.instances_client.get(
+                instance=instance_name,
+                zone=zone,
+                project=self.project,
+            )
+        except NotFound:
+            raise SnapshotBackupException(
+                "Cannot find instance with name %s in zone %s for project %s"
+                % (instance_name, zone, self.project)
+            )
+
     def take_snapshot(self, backup_info, disk_zone, disk_name):
         snapshot_name = "%s-%s-%s" % (
             backup_info.server_name.lower(),
@@ -407,17 +420,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
 
     def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
         """Take a snapshot backup for the named instance."""
-        try:
-            instance_metadata = self.instances_client.get(
-                instance=instance_name,
-                zone=zone,
-                project=self.project,
-            )
-        except NotFound:
-            raise SnapshotBackupException(
-                "Cannot find instance with name %s in zone %s for project %s"
-                % (instance_name, zone, self.project)
-            )
+        instance_metadata = self._get_instance_metadata(instance_name, zone)
         snapshots = {}
         for disk_name in disks:
             try:
@@ -495,15 +498,27 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         """
         Returns the non-boot devices attached to instance_name in zone.
         """
-        instance_metadata = self.instances_client.get(
-            instance=instance_name,
-            zone=zone,
-            project=self.project,
-        )
+        instance_metadata = self._get_instance_metadata(instance_name, zone)
         attached_devices = {}
         for attached_disk in instance_metadata.disks:
             disk_name = posixpath.split(urlparse(attached_disk.source).path)[-1]
-            attached_devices[disk_name] = self.DEVICE_PREFIX + attached_disk.device_name
+            if disk_name == "":
+                raise SnapshotBackupException(
+                    "Could not parse disk name for source %s attached to instance %s"
+                    % (attached_disk.source, instance_name)
+                )
+            full_device_name = self.DEVICE_PREFIX + attached_disk.device_name
+            if disk_name in attached_devices:
+                raise SnapshotBackupException(
+                    "Disk %s appears to be attached with name %s as devices %s and %s"
+                    % (
+                        attached_disk.source,
+                        disk_name,
+                        full_device_name,
+                        attached_devices[disk_name],
+                    )
+                )
+            attached_devices[disk_name] = full_device_name
 
         return attached_devices
 
