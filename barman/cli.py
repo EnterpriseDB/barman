@@ -742,12 +742,10 @@ def rebuild_xlogdb(args):
         argument(
             "--snapshot-recovery-instance",
             help="Instance where the disks recovered from the snapshots are attached",
-            default=SUPPRESS,
         ),
         argument(
             "--snapshot-recovery-zone",
             help="Zone containing the instance and disks for the snapshot recovery",
-            default=SUPPRESS,
         ),
     ]
 )
@@ -889,9 +887,9 @@ def recover(args):
 
     if backup_id.snapshots_info is not None:
         missing_args = []
-        if not hasattr(args, "snapshot_recovery_instance"):
+        if not args.snapshot_recovery_instance:
             missing_args.append("--snapshot-recovery-instance")
-        if not hasattr(args, "snapshot_recovery_zone"):
+        if not args.snapshot_recovery_zone:
             missing_args.append("--snapshot-recovery-zone")
         if len(missing_args) > 0:
             output.error(
@@ -913,6 +911,19 @@ def recover(args):
             "recovery_zone": args.snapshot_recovery_zone,
         }
     else:
+        unexpected_args = []
+        if args.snapshot_recovery_instance:
+            unexpected_args.append("--snapshot-recovery-instance")
+        if args.snapshot_recovery_zone:
+            unexpected_args.append("--snapshot-recovery-zone")
+        if len(unexpected_args) > 0:
+            output.error(
+                "Backup %s is not a snapshot backup but the following snapshot "
+                "arguments have been used: %s",
+                backup_id.backup_id,
+                ", ".join(unexpected_args),
+            )
+            output.close_and_exit()
         snapshot_kwargs = {}
 
     with closing(server):
