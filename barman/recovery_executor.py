@@ -1465,9 +1465,14 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             raise RecoveryPreconditionException(message)
 
     @staticmethod
-    def check_snapshots_attached(snapshot_interface, backup_info, instance_name, zone):
+    def get_attached_snapshots_for_backup(
+        snapshot_interface, backup_info, instance_name, zone
+    ):
         """
-        Verifies the snapshots for backup_info are attached to the named instance.
+        Verifies that disks cloned from the snapshots specified in the supplied
+        backup_info are attached to the named instance in the specified zone and
+        returns them as a dict where the keys are snapshot names and the values
+        are the names of the attached devices.
         """
         attached_snapshots = snapshot_interface.get_attached_snapshots(
             instance_name, zone
@@ -1579,7 +1584,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         :param bool|None standby_mode: standby mode
         """
         snapshot_interface = get_snapshot_interface_from_backup_info(backup_info)
-        attached_snapshots = self.check_snapshots_attached(
+        attached_snapshots = self.get_attached_snapshots_for_backup(
             snapshot_interface, backup_info, recovery_instance, recovery_zone
         )
         cmd = fs.unix_command_factory(remote_command, self.server.path)

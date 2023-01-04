@@ -308,7 +308,7 @@ class CloudBackupDownloaderSnapshot(CloudBackupDownloader):
         :param str destination_dir: Path to the destination directory
         """
         snapshot_interface = get_snapshot_interface_from_backup_info(backup_info)
-        attached_snapshots = SnapshotRecoveryExecutor.check_snapshots_attached(
+        attached_snapshots = SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
             snapshot_interface, backup_info, recovery_instance, recovery_zone
         )
         cmd = UnixLocalCommand()
