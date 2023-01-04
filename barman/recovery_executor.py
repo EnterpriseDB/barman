@@ -1474,6 +1474,8 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         returns them as a dict where the keys are snapshot names and the values
         are the names of the attached devices.
         """
+        if backup_info.snapshots_info is None:
+            return {}
         attached_snapshots = snapshot_interface.get_attached_snapshots(
             instance_name, zone
         )
