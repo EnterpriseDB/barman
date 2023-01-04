@@ -1535,13 +1535,11 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
                 )
         if len(mount_point_errors) > 0:
             raise RecoveryPreconditionException(
-                "Disks cloned from the following snapshots are not available at the "
-                "expected mount point: %s" % ",".join(mount_point_errors)
+                "Error checking mount points: %s" % ", ".join(mount_point_errors)
             )
         if len(mount_options_errors) > 0:
             raise RecoveryPreconditionException(
-                "Disks cloned from the following snapshots are not mounted with the "
-                "expected mount options: %s" % ",".join(mount_options_errors)
+                "Error checking mount options: %s" % ", ".join(mount_options_errors)
             )
 
     def recover(
