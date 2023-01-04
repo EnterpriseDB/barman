@@ -1821,10 +1821,12 @@ class TestSnapshotRecoveryExecutor(object):
                     mock_snapshot_interface, mock_backup_info, instance, zone
                 )
             # AND the exception has the expected message
-            expected_message = (
-                "The following snapshots are not attached to recovery instance {}: {}"
-            ).format(instance, ", ".join(expected_missing))
-            assert expected_message in str(exc.value)
+            message_part_1, message_part_2 = str(exc.value).split(": ")
+            expected_message = "The following snapshots are not attached to recovery instance {}".format(
+                instance
+            )
+            assert message_part_1 == expected_message
+            assert set(message_part_2.split(", ")) == set(expected_missing)
         else:
             # AND if we do not expect missing snapshots, no exception is raised and
             # the expected snapshots are returned
