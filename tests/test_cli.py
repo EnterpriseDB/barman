@@ -615,6 +615,141 @@ class TestCli(object):
             # path matches expectations
             assert server.recovery_staging_path == expected_recovery_staging_path
 
+    @pytest.mark.parametrize(
+        (
+            "snapshots_info",
+            "snapshot_recovery_args",
+            "extra_recovery_args",
+            "error_message",
+        ),
+        (
+            # If there is no snapshot_info but snapshot args are used then there should
+            # be an error
+            (
+                None,
+                {
+                    "snapshot_recovery_instance": "test_instance",
+                },
+                {},
+                (
+                    "Backup backup_id is not a snapshot backup but the following "
+                    "snapshot arguments have been used: --snapshot-recovery-instance"
+                ),
+            ),
+            (
+                None,
+                {
+                    "snapshot_recovery_zone": "test_zone",
+                },
+                {},
+                (
+                    "Backup backup_id is not a snapshot backup but the following "
+                    "snapshot arguments have been used: --snapshot-recovery-zone"
+                ),
+            ),
+            (
+                None,
+                {
+                    "snapshot_recovery_instance": "test_instance",
+                    "snapshot_recovery_zone": "test_zone",
+                },
+                {},
+                (
+                    "Backup backup_id is not a snapshot backup but the following "
+                    "snapshot arguments have been used: --snapshot-recovery-instance, "
+                    "--snapshot-recovery-zone"
+                ),
+            ),
+            # If there is snapshot_info but no snapshot args then there should be an
+            # error
+            (
+                {"snapshots": {}},
+                {},
+                {},
+                (
+                    "Backup backup_id is a snapshot backup and the following required "
+                    "arguments have not been provided: --snapshot-recovery-instance, "
+                    "--snapshot-recovery-zone"
+                ),
+            ),
+            # If there is snapshot_info, snapshot args and also tablespace mappings
+            # then there should be an error
+            (
+                {"snapshots": {}},
+                {
+                    "snapshot_recovery_instance": "test_instance",
+                    "snapshot_recovery_zone": "test_zone",
+                },
+                {"tablespace": ("tbs1:/path/to/tbs1",)},
+                (
+                    "Backup backup_id is a snapshot backup therefore tablespace "
+                    "relocation rules cannot be used"
+                ),
+            ),
+            # If there is snapshot_info and snapshot args then there should not be an
+            # error
+            (
+                {"snapshots": {}},
+                {
+                    "snapshot_recovery_instance": "test_instance",
+                    "snapshot_recovery_zone": "test_zone",
+                },
+                {},
+                None,
+            ),
+        ),
+    )
+    @patch("barman.cli.get_server")
+    @patch("barman.cli.parse_backup_id")
+    def test_recover_snapshots(
+        self,
+        parse_backup_id_mock,
+        get_server_mock,
+        mock_backup_info,
+        mock_recover_args,
+        snapshots_info,
+        snapshot_recovery_args,
+        extra_recovery_args,
+        error_message,
+        capsys,
+    ):
+        # GIVEN a backup with the specified snapshots_info
+        mock_backup_info.snapshots_info = snapshots_info
+        mock_backup_info.backup_id = "backup_id"
+        mock_backup_info.tablespaces.append(Mock())
+        mock_backup_info.tablespaces[-1].name = "tbs1"
+        parse_backup_id_mock.return_value = mock_backup_info
+        # AND the specified additional recovery args
+        mock_recover_args.snapshot_recovery_instance = None
+        mock_recover_args.snapshot_recovery_zone = None
+        extra_recovery_args.update(snapshot_recovery_args)
+        for k, v in extra_recovery_args.items():
+            setattr(mock_recover_args, k, v)
+
+        # WHEN barman recover is called
+        with pytest.raises(SystemExit):
+            recover(mock_recover_args)
+
+        # THEN if we expected an error the error was observed
+        server = get_server_mock.return_value
+        _, err = capsys.readouterr()
+        if error_message:
+            assert error_message in err
+            # AND recover was not called
+            server.recover.assert_not_called()
+        else:
+            # AND if we expected success, the server's recover method was called
+            server.recover.assert_called_once()
+            # AND the snapshot arguments were passed
+            assert (
+                server.recover.call_args_list[0][1]["recovery_instance"]
+                == snapshot_recovery_args["snapshot_recovery_instance"]
+            )
+            assert (
+                server.recover.call_args_list[0][1]["recovery_zone"]
+                == snapshot_recovery_args["snapshot_recovery_zone"]
+            )
+
     def test_check_target_action(self):
         # The following ones must work
         assert None is check_target_action(None)

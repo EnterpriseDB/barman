@@ -30,8 +30,10 @@ from mock import MagicMock
 import testing_helpers
 from barman import xlog
 from barman.exceptions import (
+    CommandException,
     CommandFailedException,
     RecoveryInvalidTargetException,
+    RecoveryPreconditionException,
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
 )
@@ -40,6 +42,7 @@ from barman.recovery_executor import (
     Assertion,
     RecoveryExecutor,
     RemoteConfigRecoveryExecutor,
+    SnapshotRecoveryExecutor,
     TarballRecoveryExecutor,
     ConfigurationFileMangeler,
     recovery_executor_factory,
@@ -1495,24 +1498,444 @@ class TestTarballRecoveryExecutor(object):
         ]
 
 
+class TestSnapshotRecoveryExecutor(object):
+    @mock.patch("barman.recovery_executor.RecoveryExecutor.recover")
+    @mock.patch("barman.recovery_executor.fs")
+    @mock.patch("barman.recovery_executor.get_snapshot_interface_from_backup_info")
+    def test_recover_success(
+        self,
+        _mock_get_snapshot_interface,
+        mock_fs,
+        mock_superclass_recover,
+    ):
+        """Verify that the recover method starts a recovery when all checks pass."""
+        # GIVEN a SnapshotRecoveryExecutor
+        mock_backup_manager = mock.Mock()
+        executor = SnapshotRecoveryExecutor(mock_backup_manager)
+        # AND a mock backup_info with snapshots
+        backup_info = mock.Mock(
+            snapshots_info={
+                "snapshots": {
+                    "snapshot0": {
+                        "device": "/dev/dev0",
+                        "mount_point": "/opt/disk0",
+                        "mount_options": "rw,noatime",
+                    }
+                }
+            }
+        )
+        # AND a given recovery destination, instance and zone
+        recovery_dest = "/path/to/dest"
+        recovery_instance = "test_instance"
+        recovery_zone = "test_zone"
+        # AND a mock findmnt command which always returns the correct response
+        mock_fs.unix_command_factory.return_value.findmnt.return_value = (
+            "/opt/disk0",
+            "rw,noatime",
+        )
+
+        # WHEN recover is called
+        # THEN there are no errors
+        executor.recover(
+            backup_info,
+            recovery_dest,
+            recovery_instance=recovery_instance,
+            recovery_zone=recovery_zone,
+        )
+
+        # AND the superclass recovery method was called with the expected args
+        mock_superclass_recover.assert_called_once_with(
+            backup_info,
+            recovery_dest,
+            tablespaces=None,
+            remote_command=None,
+            target_tli=None,
+            target_time=None,
+            target_xid=None,
+            target_lsn=None,
+            target_name=None,
+            target_immediate=False,
+            exclusive=False,
+            target_action=None,
+            standby_mode=None,
+        )
+
+    @pytest.mark.parametrize(
+        (
+            "attached_snapshots",
+            "findmnt_output",
+            "check_directory_exists_output",
+            "should_fail",
+        ),
+        (
+            # No disk cloned from snapshot attached
+            [{}, None, None, True],
+            # Correct disk attached but not mounted in the right place
+            [{"snapshot0": "/dev/dev0"}, ("/opt/disk1", "rw,noatime"), None, True],
+            # Recovery directory not present
+            [{"snapshot0": "/dev/dev0"}, ("/opt/disk0", "rw,noatime"), False, True],
+            # All checks passing
+            [{"snapshot0": "/dev/dev0"}, ("/opt/disk0", "rw,noatime"), True, False],
+        ),
+    )
+    @mock.patch("barman.recovery_executor.RecoveryExecutor.recover")
+    @mock.patch("barman.recovery_executor.fs")
+    @mock.patch("barman.recovery_executor.get_snapshot_interface_from_backup_info")
+    def test_recover_failure(
+        self,
+        mock_get_snapshot_interface,
+        mock_fs,
+        _mock_superclass_recover,
+        attached_snapshots,
+        findmnt_output,
+        check_directory_exists_output,
+        should_fail,
+    ):
+        """Verify that the recover method fails when checks fail."""
+        # GIVEN a SnapshotRecoveryExecutor
+        mock_backup_manager = mock.Mock()
+        executor = SnapshotRecoveryExecutor(mock_backup_manager)
+        # AND the specified snapshots are returned by the snapshot interface
+        mock_get_snapshot_interface.return_value.get_attached_snapshots.return_value = (
+            attached_snapshots
+        )
+        # AND a mock backup_info with snapshots
+        backup_info = mock.Mock(
+            snapshots_info={
+                "snapshots": {
+                    "snapshot0": {
+                        "device": "/dev/dev0",
+                        "mount_point": "/opt/disk0",
+                        "mount_options": "rw,noatime",
+                    }
+                }
+            }
+        )
+        # AND a given recovery destination, instance and zone
+        recovery_dest = "/path/to/dest"
+        recovery_instance = "test_instance"
+        recovery_zone = "test_zone"
+        # AND a mock findmnt command which returns the specified response
+        mock_cmd = mock_fs.unix_command_factory.return_value
+        mock_cmd.findmnt.return_value = findmnt_output
+        # AND a mock check_directory_exists command which returns the specified respone
+        mock_cmd.check_directory_exists.return_value = check_directory_exists_output
+
+        # WHEN recover is called AND an error is expected
+        if should_fail:
+            # THEN a RecoveryPreconditionException is raised and we intentionally
+            # avoid checking the content because this is verified in tests for the
+            # specific checks.
+            with pytest.raises(RecoveryPreconditionException):
+                executor.recover(
+                    backup_info,
+                    recovery_dest,
+                    recovery_instance=recovery_instance,
+                    recovery_zone=recovery_zone,
+                )
+        else:
+            # WHEN recover is called AND no error is expected then there is no error
+            executor.recover(
+                backup_info,
+                recovery_dest,
+                recovery_instance=recovery_instance,
+                recovery_zone=recovery_zone,
+            )
+
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
+    @mock.patch("barman.recovery_executor.RsyncCopyController")
+    def test_backup_copy(self, copy_controller_mock, command_factory_mock, tmpdir):
+        """Verify that _backup_copy copies the backup_label into the destination."""
+        # GIVEN a basic folder/files structure
+        dest = tmpdir.mkdir("destination")
+        barman_home = "/some/barman/home"
+        server = testing_helpers.build_real_server(
+            main_conf={"recovery_staging_path": "/wherever"}
+        )
+        backup_id = "111111"
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id=backup_id,
+            server=server,
+            snapshots_info={},
+        )
+        # AND a SnapshotRecoveryExecutor
+        executor = SnapshotRecoveryExecutor(server.backup_manager)
+        # AND a mock command which always completes successfully
+        command = command_factory_mock.return_value
+        recovery_info = {"cmd": command}
+
+        # WHEN _backup_copy is called
+        executor._backup_copy(
+            backup_info,
+            dest.strpath,
+            recovery_info=recovery_info,
+        )
+
+        # THEN the expected calls were made to the copy controller
+        assert copy_controller_mock.mock_calls == [
+            mock.call(
+                network_compression=False,
+                path=None,
+                ssh_command=None,
+                retry_sleep=30,
+                retry_times=0,
+                workers=1,
+            ),
+            mock.call().add_file(
+                bwlimit=None,
+                src="%s/main/base/%s/data/backup_label" % (barman_home, backup_id),
+                dst="%s/backup_label" % dest.strpath,
+                item_class=copy_controller_mock.return_value.PGDATA_CLASS,
+                label="pgdata",
+            ),
+            mock.call().copy(),
+        ]
+
+    def test_check_recovery_dir_exists(self):
+        """Verify check_recovery_dir_exists passes if the directory exists."""
+        # GIVEN a mock check_directory_exists command which returns True
+        cmd = mock.Mock()
+        cmd.check_directory_exists.return_value = True
+
+        # WHEN check_recovery_dir_exists is called, no exceptions are raised
+        SnapshotRecoveryExecutor.check_recovery_dir_exists("/path/to/recovery_dir", cmd)
+
+    def test_check_recovery_dir_exists_faiure(self):
+        """Verify check_recovery_dir_exists raises exception if no directory exists."""
+        # GIVEN a mock check_directory_exists command which returns True
+        cmd = mock.Mock()
+        cmd.check_directory_exists.return_value = False
+
+        # WHEN check_recovery_dir_exists is called
+        # THEN a RecoveryPreconditionException is raised
+        with pytest.raises(RecoveryPreconditionException) as exc:
+            SnapshotRecoveryExecutor.check_recovery_dir_exists(
+                "/path/to/recovery_dir", cmd
+            )
+
+        # AND the exception has the expected message
+        expected_message = (
+            "Recovery directory '{}' does not exist on the recovery instance. "
+            "Check all required disks have been created, attached and mounted."
+        ).format("/path/to/recovery_dir")
+        assert str(exc.value) == expected_message
+
+    @pytest.mark.parametrize(
+        ("attached_snapshots", "snapshots_info", "expected_missing"),
+        (
+            # If all snapshots are present we expect success
+            [
+                {"snapshot0": "/dev/dev0", "snapshot1": "/dev/dev1"},
+                {"snapshots": {"snapshot0": {"device": "/dev/dev0"}}},
+                [],
+            ],
+            [
+                {"snapshot0": "/dev/dev0", "snapshot1": "/dev/dev1"},
+                {
+                    "snapshots": {
+                        "snapshot0": {"device": "/dev/dev0"},
+                        "snapshot1": {"device": "/dev/dev1"},
+                    }
+                },
+                [],
+            ],
+            # One or more snapshots are not attached so we expected failure
+            [
+                {"snapshot0": "/dev/dev0"},
+                {
+                    "snapshots": {
+                        "snapshot0": {"device": "/dev/dev0"},
+                        "snapshot1": {"device": "/dev/dev1"},
+                    }
+                },
+                ["snapshot1"],
+            ],
+            [
+                {},
+                {
+                    "snapshots": {
+                        "snapshot0": {"device": "/dev/dev0"},
+                        "snapshot1": {"device": "/dev/dev1"},
+                    }
+                },
+                ["snapshot0", "snapshot1"],
+            ],
+        ),
+    )
+    def test_get_attached_snapshots_for_backup(
+        self, attached_snapshots, snapshots_info, expected_missing
+    ):
+        """Verify that the attached snapshots for the backup are returned."""
+        # GIVEN a mock CloudSnapshotInterface which returns the specified attached
+        # snapshots
+        mock_snapshot_interface = mock.Mock()
+        mock_snapshot_interface.get_attached_snapshots.return_value = attached_snapshots
+        # AND a mock backup_info which contains the specified snapshots
+        mock_backup_info = mock.Mock(snapshots_info=snapshots_info)
+        # AND a given instance and zone
+        instance = "gcp_instance_name"
+        zone = "gcp_zone"
+
+        # WHEN get_attached_snapshots_for_backup is called
+        # THEN if we expect missing snapshots, a RecoveryPreconditionException is
+        # raised
+        if expected_missing:
+            with pytest.raises(RecoveryPreconditionException) as exc:
+                SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
+                    mock_snapshot_interface, mock_backup_info, instance, zone
+                )
+            # AND the exception has the expected message
+            expected_message = (
+                "The following snapshots are not attached to recovery instance {}: {}"
+            ).format(instance, ", ".join(expected_missing))
+            assert expected_message in str(exc.value)
+        else:
+            # AND if we do not expect missing snapshots, no exception is raised and
+            # the expected snapshots are returned
+            attached_snapshots_for_backup = (
+                SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
+                    mock_snapshot_interface, mock_backup_info, instance, zone
+                )
+            )
+            for snapshot_name, metadata in snapshots_info["snapshots"].items():
+                assert (
+                    attached_snapshots_for_backup[snapshot_name] == metadata["device"]
+                )
+
+    def test_get_attached_snapshots_for_backup_no_snapshots_info(
+        self,
+    ):
+        """
+        Verify that an empty dict is returned for backups which have no snapshots_info.
+        """
+        # GIVEN a backup_info with no snapshots_info
+        mock_backup_info = mock.Mock(snapshots_info=None)
+        # WHEN get_attached_snapshots_for_backup is called
+        snapshots = SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
+            mock.Mock(), mock_backup_info, "instance", "zone"
+        )
+        # THEN we expect an empty list to be returned
+        assert snapshots == {}
+
+    @pytest.mark.parametrize(
+        ("findmnt_output", "expected_error"),
+        (
+            # If the mount_point and mount_options returned by findmnt match those in
+            # backup_info.snapshots_info then we expect success.
+            [
+                (("/opt/disk0", "rw,noatime"), ("/opt/disk1", "rw")),
+                None,
+            ],
+            # If findmnt raises a CommandException we expect an error finding that
+            # mount point
+            [
+                CommandException("ssh error"),
+                (
+                    "Error checking mount points: Error finding mount point for device "
+                    "/dev/dev0: ssh error, Error finding mount point for device "
+                    "/dev/dev1: ssh error"
+                ),
+            ],
+            # If a mount point cannot be found we expect an error message reporting
+            # it could not be found
+            [
+                ([None, None], [None, None]),
+                (
+                    "Error checking mount points: Could not find device /dev/dev0 "
+                    "at any mount point, Could not find device /dev/dev1 at any mount "
+                    "point"
+                ),
+            ],
+            # If a snapshot is mounted at an unexpected location then we expect an
+            # error message reporting that this is the case
+            [
+                (("/opt/disk2", "rw,noatime"), ("/opt/disk3", "rw")),
+                (
+                    "Error checking mount points: Device /dev/dev0 cloned from "
+                    "snapshot snapshot0 is mounted at /opt/disk2 but /opt/disk0 was "
+                    "expected., Device /dev/dev1 cloned from snapshot snapshot1 is "
+                    "mounted at /opt/disk3 but /opt/disk1 was expected."
+                ),
+            ],
+            # If a snapshot is mounted with unexpected options then we expect an
+            # error message reporting that this is the case
+            [
+                (("/opt/disk0", "rw"), ("/opt/disk1", "rw,noatime")),
+                (
+                    "Error checking mount options: Device /dev/dev0 cloned from "
+                    "snapshot snapshot0 is mounted with rw but rw,noatime was "
+                    "expected., Device /dev/dev1 cloned from snapshot snapshot1 is "
+                    "mounted with rw,noatime but rw was expected."
+                ),
+            ],
+        ),
+    )
+    def test_check_mount_points(self, findmnt_output, expected_error):
+        """Verify check_mount_points fails when expected."""
+        # GIVEN a findmnt command which returns the specified output
+        cmd = mock.Mock()
+        cmd.findmnt.side_effect = findmnt_output
+        # AND a backup_info which contains the specified snapshots_info
+        snapshots_info = {
+            "snapshots": {
+                "snapshot0": {
+                    "device": "/dev/dev0",
+                    "mount_point": "/opt/disk0",
+                    "mount_options": "rw,noatime",
+                },
+                "snapshot1": {
+                    "device": "/dev/dev1",
+                    "mount_point": "/opt/disk1",
+                    "mount_options": "rw",
+                },
+            }
+        }
+        backup_info = mock.Mock(snapshots_info=snapshots_info)
+        # AND each snapshot is attached as a specified device
+        attached_snapshots = {
+            "snapshot0": "/dev/dev0",
+            "snapshot1": "/dev/dev1",
+        }
+
+        # WHEN check_mount_points is called and no error is expected
+        # THEN no exception is raised
+        if not expected_error:
+            SnapshotRecoveryExecutor.check_mount_points(
+                backup_info, attached_snapshots, cmd
+            )
+        # WHEN errors are expected
+        else:
+            # THEN a RecoveryPreconditionException is raised
+            with pytest.raises(RecoveryPreconditionException) as exc:
+                SnapshotRecoveryExecutor.check_mount_points(
+                    backup_info, attached_snapshots, cmd
+                )
+            # AND the message matches the expected error message
+            assert str(exc.value) == expected_error
+
+
 class TestRecoveryExecutorFactory(object):
     @pytest.mark.parametrize(
-        ("compression", "expected_executor", "should_error"),
+        ("compression", "expected_executor", "snapshots_info", "should_error"),
         [
-            # No compression should return RecoveryExecutor
-            (None, RecoveryExecutor, False),
+            # No compression or snapshots_info should return RecoveryExecutor
+            (None, RecoveryExecutor, None, False),
             # Supported compression should return TarballRecoveryExecutor
-            ("gzip", TarballRecoveryExecutor, False),
+            ("gzip", TarballRecoveryExecutor, None, False),
             # Unrecognised compression should cause an error
-            ("snappy", None, True),
+            ("snappy", None, None, True),
+            # A backup_info with snapshots_info should return SnapshotRecoveryExecutor
+            (None, SnapshotRecoveryExecutor, {}, False),
         ],
     )
     def test_recovery_executor_factory(
-        self, compression, expected_executor, should_error
+        self, compression, expected_executor, snapshots_info, should_error
     ):
         mock_backup_manager = mock.Mock()
         mock_command = mock.Mock()
-        mock_backup_info = mock.Mock(compression=compression, snapshots_info=None)
+        mock_backup_info = mock.Mock(
+            compression=compression, snapshots_info=snapshots_info
+        )
 
         # WHEN recovery_executor_factory is called with the specified compression
         function_under_test = partial(

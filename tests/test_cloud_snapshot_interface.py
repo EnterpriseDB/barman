@@ -348,7 +348,7 @@ class TestGcpCloudSnapshotInterface(object):
                     size_gb=disk["size_gb"],
                     source_snapshot="source_snapshot" in disk
                     and disk["source_snapshot"]
-                    or "",
+                    or None,
                 ),
             )
             for disk in disks
