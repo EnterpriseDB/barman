@@ -533,9 +533,12 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         attached_snapshots = {}
         for disk_name, device_name in attached_devices.items():
             disk_metadata = self._get_disk_metadata(disk_name, zone)
-            attached_snapshot_name = posixpath.split(
-                urlparse(disk_metadata.source_snapshot).path
-            )[-1]
+            if disk_metadata.source_snapshot is not None:
+                attached_snapshot_name = posixpath.split(
+                    urlparse(disk_metadata.source_snapshot).path
+                )[-1]
+            else:
+                attached_snapshot_name = ""
             if attached_snapshot_name != "":
                 attached_snapshots[attached_snapshot_name] = device_name
         return attached_snapshots
