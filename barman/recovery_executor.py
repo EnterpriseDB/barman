@@ -1502,7 +1502,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         """Verify that the attached devices are mounted as expected."""
         mount_point_errors = []
         mount_options_errors = []
-        for snapshot, device in attached_snapshots.items():
+        for snapshot, device in sorted(attached_snapshots.items()):
             try:
                 mount_point, mount_options = cmd.findmnt(device)
             except CommandException as e:
