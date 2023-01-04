@@ -1458,7 +1458,11 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
     def check_recovery_dir_exists(recovery_dir, cmd):
         """Verify that the recovery directory already exists."""
         if not cmd.check_directory_exists(recovery_dir):
-            raise RecoveryPreconditionException("Recovery directory does not exist.")
+            message = (
+                "Recovery directory '{}' does not exist on the recovery instance. "
+                "Check all required disks have been created, attached and mounted."
+            ).format(recovery_dir)
+            raise RecoveryPreconditionException(message)
 
     @staticmethod
     def check_snapshots_attached(snapshot_interface, backup_info, instance_name, zone):
@@ -1627,7 +1631,6 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             path=self.server.path,
             ssh_command=remote_command,
             network_compression=self.config.network_compression,
-            safe_horizon=safe_horizon,
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
             workers=self.config.parallel_jobs,
