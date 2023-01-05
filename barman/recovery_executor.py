@@ -1499,7 +1499,10 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
 
     @staticmethod
     def check_mount_points(backup_info, attached_snapshots, cmd):
-        """Verify that the attached devices are mounted as expected."""
+        """
+        Check that the device at which the disk cloned from a snapshot is attached
+        is mounted at the same mount point as the original disk.
+        """
         mount_point_errors = []
         mount_options_errors = []
         for snapshot, device in sorted(attached_snapshots.items()):
@@ -1523,15 +1526,14 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             ]
             if mount_point != expected_mount_point:
                 mount_point_errors.append(
-                    "Bad mount point for device %s cloned from snapshot %s: "
-                    "Expected '%s' but found '%s'."
-                    % (device, snapshot, expected_mount_point, mount_point)
+                    "Device %s cloned from snapshot %s is mounted at %s but %s was "
+                    "expected." % (device, snapshot, mount_point, expected_mount_point)
                 )
             if mount_options != expected_mount_options:
                 mount_options_errors.append(
-                    "Bad mount options for device %s cloned from snapshot %s: "
-                    "Expected '%s' but found '%s'."
-                    % (device, snapshot, expected_mount_options, mount_options)
+                    "Device %s cloned from snapshot %s is mounted with %s but %s was "
+                    "expected."
+                    % (device, snapshot, mount_options, expected_mount_options)
                 )
         if len(mount_point_errors) > 0:
             raise RecoveryPreconditionException(
