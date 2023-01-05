@@ -65,7 +65,7 @@ def get_missing_attrs(config, attrs):
     """Returns list of each attr not found in config"""
     missing_options = []
     for attr in attrs:
-        if getattr(config, attr) is None:
+        if not getattr(config, attr):
             missing_options.append(attr)
     return missing_options
 
