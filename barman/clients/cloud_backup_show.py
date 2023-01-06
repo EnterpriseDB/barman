@@ -65,6 +65,14 @@ def main(args=None):
             backup_id = catalog.parse_backup_id(config.backup_id)
             backup_info = catalog.get_backup_info(backup_id)
 
+            if not backup_info:
+                logging.error(
+                    "Backup %s for server %s does not exist",
+                    backup_id,
+                    config.server_name,
+                )
+                raise OperationErrorExit()
+
             # Output
             if config.format == "console":
                 ConsoleOutputWriter.render_show_backup(backup_info.to_dict(), print)
