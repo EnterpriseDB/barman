@@ -142,7 +142,7 @@ def get_snapshot_interface(config):
         if config.snapshot_gcp_project is None:
             raise ConfigurationException(
                 "--snapshot-gcp-project option must be set for snapshot backups "
-                "with cloud provider is google-cloud-storage"
+                "when cloud provider is google-cloud-storage"
             )
         return GcpCloudSnapshotInterface(config.snapshot_gcp_project)
     else:
