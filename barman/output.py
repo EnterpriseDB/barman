@@ -726,9 +726,9 @@ class ConsoleOutputWriter(object):
                 if key != "snapshots":
                     output_fun(nested_row.format(key, value))
             output_fun("")
-            for snapshot_name, metadata in backup_info["snapshots_info"][
-                "snapshots"
-            ].items():
+            for snapshot_name, metadata in sorted(
+                backup_info["snapshots_info"]["snapshots"].items()
+            ):
                 output_fun(nested_row.format("Snapshot name", snapshot_name))
                 output_fun(nested_row.format("Disk size (GiB)", metadata["size"]))
                 output_fun(nested_row.format("Device", metadata["device"]))
