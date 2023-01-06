@@ -721,7 +721,7 @@ class ConsoleOutputWriter(object):
             "snapshots_info" in backup_info
             and backup_info["snapshots_info"] is not None
         ):
-            output_fun(header_row.format("Snapshot information:"))
+            output_fun(header_row.format("Snapshot information"))
             for key, value in backup_info["snapshots_info"].items():
                 if key != "snapshots":
                     output_fun(nested_row.format(key, value))
