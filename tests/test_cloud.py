@@ -3359,6 +3359,7 @@ class TestCloudBackupSnapshot(object):
         mock_concurrent_backup_strategy.return_value.start_backup.side_effect = (
             mock_start_backup
         )
+
         # AND a mock take_snapshot_backup function which sets snapshot_info
         def mock_take_snapshot_backup(backup_info, _instance_name, _zone, _disks):
             backup_info.snapshots_info = {
