@@ -166,7 +166,7 @@ class TestCloudBackup(object):
                 ],
                 (
                     "--snapshot-gcp-project option must be set for snapshot backups "
-                    "with cloud provider is google-cloud-storage"
+                    "when cloud provider is google-cloud-storage"
                 ),
             ],
             [
