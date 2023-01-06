@@ -224,7 +224,7 @@ class TestCloudBackupShow(object):
         cloud_backup_catalog.parse_backup_id.return_value = backup_id
         # WHEN barman_cloud_backup_show is called for that backup
         # THEN an OperationErrorExit is raised
-        with pytest.raises(OperationErrorExit) as exc:
+        with pytest.raises(OperationErrorExit):
             cloud_backup_show.main(["cloud_storage_url", "test_server", backup_id])
         # AND an error message was logged
         assert (
