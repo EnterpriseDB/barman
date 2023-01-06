@@ -1667,4 +1667,3 @@ class TestSnapshotBackup(object):
             mock_shutil.rmtree.call_args_list[1][0][0]
             == backup_info.get_basebackup_directory()
         )
-        # AND associated WALs were deleted
