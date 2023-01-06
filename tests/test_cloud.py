@@ -36,6 +36,7 @@ import pytest
 import snappy
 
 from barman.exceptions import BackupPreconditionException
+from barman.infofile import BackupInfo
 
 if sys.version_info.major > 2:
     from unittest.mock import patch as unittest_patch
@@ -3225,7 +3226,7 @@ class TestCloudBackupSnapshot(object):
 
     @pytest.fixture
     def cloud_interface(self):
-        yield mock.Mock()
+        yield mock.Mock(path="path/to/objects")
 
     @pytest.fixture
     def snapshot_interface(self):
@@ -3303,3 +3304,100 @@ class TestCloudBackupSnapshot(object):
         assert str(exc.value) == expected_error_msg.format(
             **{"snapshot_instance": self.instance_name, "snapshot_zone": self.zone}
         )
+
+    @mock.patch("barman.cloud.CloudBackup._get_backup_info")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.UnixLocalCommand")
+    def test_backup(
+        self,
+        mock_unix_local_command,
+        mock_concurrent_backup_strategy,
+        mock_get_backup_info,
+        cloud_interface,
+        snapshot_interface,
+        mock_postgres,
+    ):
+        """Verify the expected behaviour when a snapshot backup is performed."""
+        # GIVEN a CloudBackupSnapshot
+        snapshot_backup = CloudBackupSnapshot(
+            self.server_name,
+            cloud_interface,
+            snapshot_interface,
+            mock_postgres,
+            self.instance_name,
+            self.zone,
+            self.disks[:1],
+        )
+        # AND the instance exists
+        snapshot_interface.instance_exists.return_value = True
+        # AND the expected disks are attached
+        snapshot_interface.get_attached_devices.return_value = {"disk0": "/dev/dev0"}
+        # AND the expected disks are mounted
+        mock_unix_local_command.return_value.findmnt.return_value = (
+            "/opt/disk0",
+            "rw,noatime",
+        )
+        # AND a backup strategy which sets a given label
+        backup_label = "test_backup_label"
+        # AND a known backup_info
+        backup_id = "20380119T031408"
+        backup_info = BackupInfo(backup_id=backup_id, server_name=self.server_name)
+        mock_get_backup_info.return_value = backup_info
+        # AND a mock upload_fileobj function which saves the uploaded ubject for later
+        # comparison
+        uploaded_fileobjs = {}
+
+        def mock_upload_fileobj(value, key):
+            value.seek(0)
+            uploaded_fileobjs[key] = value.read().decode()
+
+        cloud_interface.upload_fileobj.side_effect = mock_upload_fileobj
+
+        def mock_start_backup(backup_info):
+            backup_info.backup_label = backup_label
+
+        mock_concurrent_backup_strategy.return_value.start_backup.side_effect = (
+            mock_start_backup
+        )
+        # AND a mock take_snapshot_backup function which sets snapshot_info
+        def mock_take_snapshot_backup(backup_info, _instance_name, _zone, _disks):
+            backup_info.snapshots_info = {
+                "snapshots": {
+                    "snapshot0": {"device": "/dev/dev0"},
+                }
+            }
+
+        snapshot_interface.take_snapshot_backup.side_effect = mock_take_snapshot_backup
+
+        # WHEN backup is called
+        snapshot_backup.backup()
+
+        # THEN take_snapshot_backup is called with the expected args
+        snapshot_interface.take_snapshot_backup.assert_called_once_with(
+            backup_info,
+            self.instance_name,
+            self.zone,
+            self.disks[:1],
+        )
+        # AND the backup label was uploaded
+        backup_label_key = "{}/{}/base/{}/backup_label".format(
+            cloud_interface.path, self.server_name, backup_id
+        )
+        assert uploaded_fileobjs[backup_label_key] == backup_label
+
+        # AND the backup info contains mount options
+        snapshot0_info = backup_info.snapshots_info["snapshots"]["snapshot0"]
+        assert snapshot0_info["mount_options"] == "rw,noatime"
+        assert snapshot0_info["mount_point"] == "/opt/disk0"
+
+        # AND the backup info was uploaded
+        backup_info_key = "{}/{}/base/{}/backup.info".format(
+            cloud_interface.path, self.server_name, backup_id
+        )
+        assert backup_info_key in uploaded_fileobjs
+        with BytesIO() as backup_info_file:
+            backup_info.save(file_object=backup_info_file)
+            backup_info_file.seek(0)
+            assert (
+                uploaded_fileobjs[backup_info_key] == backup_info_file.read().decode()
+            )
