@@ -62,6 +62,87 @@ class TestCloudRestore(object):
             mock_backup_info, recovery_dir, {}
         )
 
+    @pytest.mark.parametrize(
+        ("snapshot_args", "expected_error"),
+        (
+            [
+                [],
+                (
+                    "Incomplete options for snapshot restore - missing: "
+                    "snapshot_recovery_instance, snapshot_recovery_zone"
+                ),
+            ],
+            [
+                [
+                    "--snapshot-recovery-instance",
+                    "test_instance",
+                ],
+                (
+                    "Incomplete options for snapshot restore - missing: "
+                    "snapshot_recovery_zone"
+                ),
+            ],
+            [
+                [
+                    "--snapshot-recovery-zone",
+                    "test_zone",
+                ],
+                (
+                    "Incomplete options for snapshot restore - missing: "
+                    "snapshot_recovery_instance"
+                ),
+            ],
+            [
+                [
+                    "--snapshot-recovery-instance",
+                    "test_instance",
+                    "--snapshot-recovery-zone",
+                    "test_zone",
+                    "--tablespace",
+                    "tbs1:/path/to/tbs1",
+                ],
+                (
+                    "Backup {backup_id} is a snapshot backup therefore tablespace "
+                    "relocation rules cannot be used."
+                ),
+            ],
+        ),
+    )
+    @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    def test_unsupported_snapshot_args(
+        self,
+        _mock_cloud_interface_factory,
+        mock_catalog,
+        snapshot_args,
+        expected_error,
+        caplog,
+    ):
+        """
+        Verify that an error is raised if an unsupported set of snapshot arguments is
+        used.
+        """
+        # GIVEN a mock backup catalog where parse_backup_id will always resolve
+        # to the backup ID
+        backup_id = "20380119T031408"
+        mock_catalog.return_value.parse_backup_id.return_value = backup_id
+        # AND the catalog returns a mock backup_info with a snapshots_info field
+        mock_backup_info = mock.Mock(
+            backup_id=backup_id, snapshots_info={"snapshots": {"snapshot0": {}}}
+        )
+        mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
+
+        # WHEN barman-cloud-backup is run with a subset of snapshot arguments
+        # THEN a SystemExit occurs
+        recovery_dir = "/path/to/restore_dir"
+        with pytest.raises(SystemExit):
+            cloud_restore.main(
+                ["cloud_storage_url", "test_server", backup_id, recovery_dir]
+                + snapshot_args
+            )
+        # AND the expected error message occurs
+        assert expected_error.format(**{"backup_id": backup_id}) in caplog.text
+
 
 class TestCloudBackupDownloaderObjectStore(object):
     """Verify the cloud backup downloader for object store backups."""
