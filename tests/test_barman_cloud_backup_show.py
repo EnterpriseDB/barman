@@ -22,6 +22,7 @@ import mock
 import pytest
 
 from barman.clients import cloud_backup_show
+from barman.clients.cloud_cli import OperationErrorExit
 from testing_helpers import build_test_backup_info
 
 
@@ -31,7 +32,7 @@ class TestCloudBackupShow(object):
         yield "20380119T031408"
 
     @pytest.fixture
-    def cloud_backup_catalog_content(self, backup_id):
+    def cloud_backup_catalog(self, backup_id):
         backup_info = build_test_backup_info(
             backup_id="backup_id_1",
             begin_time=datetime.datetime(2038, 1, 19, 3, 14, 8),
@@ -72,7 +73,7 @@ class TestCloudBackupShow(object):
         self,
         _mock_get_cloud_interface,
         mock_cloud_backup_catalog,
-        cloud_backup_catalog_content,
+        cloud_backup_catalog,
         backup_id,
         capsys,
     ):
@@ -80,7 +81,7 @@ class TestCloudBackupShow(object):
         Verify plain output of barman-cloud-backup-show for a backup.
         """
         # GIVEN a backup catalog with a single backup
-        mock_cloud_backup_catalog.return_value = cloud_backup_catalog_content
+        mock_cloud_backup_catalog.return_value = cloud_backup_catalog
         # WHEN barman_cloud_backup_show is called for that backup
         cloud_backup_show.main(["cloud_storage_url", "test_server", backup_id])
         # THEN the expected output is printed
@@ -132,7 +133,7 @@ class TestCloudBackupShow(object):
         self,
         _mock_get_cloud_interface,
         mock_cloud_backup_catalog,
-        cloud_backup_catalog_content,
+        cloud_backup_catalog,
         backup_id,
         capsys,
     ):
@@ -140,7 +141,7 @@ class TestCloudBackupShow(object):
         Verify json output of barman-cloud-backup-show for a backup.
         """
         # GIVEN a backup catalog with a single backup
-        mock_cloud_backup_catalog.return_value = cloud_backup_catalog_content
+        mock_cloud_backup_catalog.return_value = cloud_backup_catalog
         # WHEN barman_cloud_backup_show is called for that backup
         cloud_backup_show.main(
             ["cloud_storage_url", "test_server", backup_id, "--format", "json"]
@@ -202,4 +203,31 @@ class TestCloudBackupShow(object):
                     "backup_id": "backup_id_1",
                 }
             }
+        )
+
+    @mock.patch("barman.clients.cloud_backup_show.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_show.get_cloud_interface")
+    def test_cloud_backup_show_missing_backup(
+        self,
+        _mock_get_cloud_interface,
+        mock_cloud_backup_catalog,
+        backup_id,
+        caplog,
+    ):
+        """
+        Verify plain output of barman-cloud-backup-show for a backup.
+        """
+        # GIVEN a backup catalog with a single backup
+        cloud_backup_catalog = mock_cloud_backup_catalog.return_value
+        cloud_backup_catalog.get_backup_list.return_value = {}
+        cloud_backup_catalog.get_backup_info.return_value = None
+        cloud_backup_catalog.parse_backup_id.return_value = backup_id
+        # WHEN barman_cloud_backup_show is called for that backup
+        # THEN an OperationErrorExit is raised
+        with pytest.raises(OperationErrorExit) as exc:
+            cloud_backup_show.main(["cloud_storage_url", "test_server", backup_id])
+        # AND an error message was logged
+        assert (
+            "Backup {} for server test_server does not exist".format(backup_id)
+            in caplog.text
         )
