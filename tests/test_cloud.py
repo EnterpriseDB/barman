@@ -35,6 +35,8 @@ from mock.mock import MagicMock
 import pytest
 import snappy
 
+from barman.exceptions import BackupPreconditionException
+
 if sys.version_info.major > 2:
     from unittest.mock import patch as unittest_patch
 from unittest import TestCase
@@ -44,6 +46,7 @@ from botocore.exceptions import ClientError, EndpointConnectionError
 from barman.annotations import KeepManager
 from barman.cloud import (
     CloudBackupCatalog,
+    CloudBackupSnapshot,
     CloudBackupUploader,
     CloudBackupUploaderBarman,
     CloudProviderError,
@@ -3208,3 +3211,95 @@ class TestCloudBackupUploaderBarman(object):
         # AND the backup strategy was not called
         mock_backup_strategy.return_value.start_backup.assert_not_called()
         mock_backup_strategy.return_value.stop_backup.assert_not_called()
+
+
+class TestCloudBackupSnapshot(object):
+    """
+    Test the behaviour of barman cloud snapshot backups.
+    """
+
+    server_name = "test_server"
+    instance_name = "test_instance"
+    zone = "test_zone"
+    disks = ["disk0", "disk1"]
+
+    @pytest.fixture
+    def cloud_interface(self):
+        yield mock.Mock()
+
+    @pytest.fixture
+    def snapshot_interface(self):
+        yield mock.Mock()
+
+    @pytest.fixture
+    def mock_postgres(self):
+        yield mock.Mock()
+
+    @pytest.mark.parametrize(
+        (
+            "instance_exists",
+            "missing_disks",
+            "unmounted_disks",
+            "expected_error_msg",
+        ),
+        [
+            (
+                False,
+                [],
+                [],
+                "Cannot find compute instance {snapshot_instance} in zone {snapshot_zone}",
+            ),
+            (
+                True,
+                ["disk1", "disk2"],
+                [],
+                "Cannot find disks attached to compute instance {snapshot_instance}: disk1, disk2",
+            ),
+            (
+                True,
+                [],
+                ["disk1", "disk2"],
+                "Cannot find disks mounted on compute instance {snapshot_instance}: disk1, disk2",
+            ),
+        ],
+    )
+    @mock.patch("barman.cloud.SnapshotBackupExecutor.find_missing_and_unmounted_disks")
+    def test_backup_precondition_failure(
+        self,
+        mock_find_missing_and_unmounted_disks,
+        cloud_interface,
+        snapshot_interface,
+        mock_postgres,
+        instance_exists,
+        missing_disks,
+        unmounted_disks,
+        expected_error_msg,
+    ):
+        """Verify that the backup fails when preconditions are not met."""
+        # GIVEN a CloudBackupSnapshot
+        snapshot_backup = CloudBackupSnapshot(
+            self.server_name,
+            cloud_interface,
+            snapshot_interface,
+            mock_postgres,
+            self.instance_name,
+            self.zone,
+            self.disks,
+        )
+        # AND the compute instance has the specified state
+        snapshot_interface.instance_exists.return_value = instance_exists
+        # AND the specified disks are missing or unmounted
+        mock_find_missing_and_unmounted_disks.return_value = (
+            missing_disks,
+            unmounted_disks,
+        )
+
+        # WHEN backup is called
+        # THEN a BackupPrecondition exception is raised
+        with pytest.raises(BackupPreconditionException) as exc:
+            snapshot_backup.backup()
+
+        # AND the exception has the expected message
+        assert str(exc.value) == expected_error_msg.format(
+            **{"snapshot_instance": self.instance_name, "snapshot_zone": self.zone}
+        )
