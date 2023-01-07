@@ -123,7 +123,7 @@ class TestCloudRestore(object):
         used.
         """
         # GIVEN a mock backup catalog where parse_backup_id will always resolve
-        # to the backup ID
+        # the backup ID
         backup_id = "20380119T031408"
         mock_catalog.return_value.parse_backup_id.return_value = backup_id
         # AND the catalog returns a mock backup_info with a snapshots_info field
@@ -132,7 +132,7 @@ class TestCloudRestore(object):
         )
         mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
 
-        # WHEN barman-cloud-backup is run with a subset of snapshot arguments
+        # WHEN barman-cloud-restore is run with a subset of snapshot arguments
         # THEN a SystemExit occurs
         recovery_dir = "/path/to/restore_dir"
         with pytest.raises(SystemExit):
@@ -142,6 +142,57 @@ class TestCloudRestore(object):
             )
         # AND the expected error message occurs
         assert expected_error.format(**{"backup_id": backup_id}) in caplog.text
+
+    @mock.patch("barman.clients.cloud_restore.CloudBackupDownloaderSnapshot")
+    @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    def test_restore_snapshots_backup(
+        self,
+        mock_cloud_interface_factory,
+        mock_catalog,
+        mock_backup_downloader_snapshot,
+    ):
+        """
+        Verify that restoring a snapshots backup uses CloudBackupDownloaderSnapshot
+        to restore the backup.
+        """
+        # GIVEN a mock backup catalog where parse_backup_id will always resolve
+        # the backup ID
+        backup_id = "20380119T031408"
+        mock_catalog.return_value.parse_backup_id.return_value = backup_id
+        # AND the catalog returns a mock backup_info with a snapshots_info field
+        mock_backup_info = mock.Mock(
+            backup_id=backup_id, snapshots_info={"snapshots": {"snapshot0": {}}}
+        )
+        mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
+
+        # WHEN barman-cloud-restore is run with the required arguments for a snapshots
+        # backup
+        recovery_dir = "/path/to/restore_dir"
+        recovery_instance = "test_instance"
+        recovery_zone = "test_zone"
+        cloud_restore.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                backup_id,
+                recovery_dir,
+                "--snapshot-recovery-instance",
+                recovery_instance,
+                "--snapshot-recovery-zone",
+                recovery_zone,
+            ]
+        )
+
+        # THEN a CloudBackupDownloaderSnapshot is created
+        mock_backup_downloader_snapshot.assert_called_once_with(
+            mock_cloud_interface_factory.return_value, mock_catalog.return_value
+        )
+        # AND download_backup is called with the expected arguments
+        backup_downloader = mock_backup_downloader_snapshot.return_value
+        backup_downloader.download_backup.assert_called_once_with(
+            mock_backup_info, recovery_dir, recovery_instance, recovery_zone
+        )
 
 
 class TestCloudBackupDownloaderObjectStore(object):
