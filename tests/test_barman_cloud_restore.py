@@ -30,6 +30,35 @@ from barman.exceptions import RecoveryPreconditionException
 
 
 class TestCloudRestore(object):
+    @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    def test_cloud_backup_restore_missing_backup(
+        self,
+        _mock_get_cloud_interface,
+        mock_cloud_backup_catalog,
+        caplog,
+    ):
+        """
+        Verify plain output of barman-cloud-restore for a backup.
+        """
+        # GIVEN a backup catalog with a single backup
+        backup_id = "20201110T120000"
+        cloud_backup_catalog = mock_cloud_backup_catalog.return_value
+        cloud_backup_catalog.get_backup_list.return_value = {}
+        cloud_backup_catalog.get_backup_info.return_value = None
+        cloud_backup_catalog.parse_backup_id.return_value = backup_id
+        # WHEN barman_cloud_restore is called for that backup
+        # THEN an OperationErrorExit is raised
+        with pytest.raises(OperationErrorExit):
+            cloud_restore.main(
+                ["cloud_storage_url", "test_server", backup_id, "/path/to/dir"]
+            )
+        # AND an error message was logged
+        assert (
+            "Backup {} for server test_server does not exist".format(backup_id)
+            in caplog.text
+        )
+
     @pytest.mark.parametrize(
         ("backup_id_arg", "expected_backup_id"),
         (("20201110T120000", "20201110T120000"), ("backup name", "20201110T120000")),
