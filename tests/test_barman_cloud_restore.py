@@ -23,8 +23,10 @@ from barman.clients import cloud_restore
 from barman.clients.cloud_cli import OperationErrorExit
 from barman.clients.cloud_restore import (
     CloudBackupDownloaderObjectStore,
+    CloudBackupDownloaderSnapshot,
 )
 from barman.cloud import BackupFileInfo
+from barman.exceptions import RecoveryPreconditionException
 
 
 class TestCloudRestore(object):
@@ -195,8 +197,8 @@ class TestCloudRestore(object):
         )
 
 
-class TestCloudBackupDownloaderObjectStore(object):
-    """Verify the cloud backup downloader for object store backups."""
+class TestCloudBackupDownloader(object):
+    """Superclass containing common fixtures for CloudBackupDownloader tests."""
 
     backup_id = "20380119T031408"
     snapshot_name = "snapshot0"
@@ -205,9 +207,7 @@ class TestCloudBackupDownloaderObjectStore(object):
 
     @pytest.fixture
     def backup_info(self):
-        backup_info = mock.Mock(backup_id=self.backup_id, snapshots_info=None)
-        backup_info.wal_directory.return_value = "/path/to/wals"
-        yield backup_info
+        yield mock.Mock(backup_id=self.backup_id)
 
     @pytest.fixture
     def mock_cloud_interface(self):
@@ -219,6 +219,16 @@ class TestCloudBackupDownloaderObjectStore(object):
         catalog.return_value.parse_backup_id.return_value = self.backup_id
         catalog.return_value.get_backup_info.return_value = backup_info
         yield catalog
+
+
+class TestCloudBackupDownloaderObjectStore(TestCloudBackupDownloader):
+    """Verify the cloud backup downloader for object store backups."""
+
+    @pytest.fixture
+    def backup_info(self):
+        backup_info = mock.Mock(backup_id=self.backup_id, snapshots_info=None)
+        backup_info.wal_directory.return_value = "/path/to/wals"
+        yield backup_info
 
     @mock.patch("barman.clients.cloud_restore.os.path.exists")
     def test_download_backup(
@@ -280,4 +290,155 @@ class TestCloudBackupDownloaderObjectStore(object):
         assert (
             "Destination {} already exists and it is not empty".format(recovery_dir)
             in caplog.text
+        )
+
+
+class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
+    """Verify the cloud backup downloader for snapshot backups."""
+
+    @pytest.fixture
+    def snapshots_info(self):
+        yield {
+            "gcp_project": "test_project",
+            "provider": "gcp",
+            "snapshots": {
+                self.snapshot_name: {
+                    "device": self.device_name,
+                    "mount_point": self.mount_point,
+                    "mount_options": "rw,noatime",
+                },
+            },
+        }
+
+    @pytest.fixture
+    def backup_info(self, snapshots_info):
+        yield mock.Mock(backup_id=self.backup_id, snapshots_info=snapshots_info)
+
+    @mock.patch("barman.clients.cloud_restore.get_snapshot_interface_from_backup_info")
+    @mock.patch("barman.clients.cloud_restore.UnixLocalCommand")
+    def test_download_backup(
+        self,
+        mock_cmd,
+        mock_get_snapshot_interface,
+        backup_info,
+        mock_cloud_interface,
+        mock_catalog,
+    ):
+        """Verify that the backup label is downloaded if all preconditions are met."""
+        # GIVEN a CloudBackupDownloaderSnapshot
+        downloader = CloudBackupDownloaderSnapshot(mock_cloud_interface, mock_catalog)
+        # AND the specified snapshots are returned by the snapshot interface
+        mock_get_snapshot_interface.return_value.get_attached_snapshots.return_value = {
+            "snapshot0": "/dev/dev0"
+        }
+        # AND the following recovery args
+        recovery_dir = "/path/to/restore_dir"
+        recovery_instance = "test_instance"
+        recovery_zone = "test_zone"
+        # AND a mock findmnt command which returns a successful response
+        mock_cmd.return_value.findmnt.return_value = ["/opt/disk0", "rw,noatime"]
+        # AND a mock check_directory_exists command which returns True
+        mock_cmd.return_value.check_directory_exists.return_value = True
+
+        # WHEN download_backup is called
+        downloader.download_backup(
+            backup_info, recovery_dir, recovery_instance, recovery_zone
+        )
+        # THEN the backup label is downloaded to the recovery destination
+        mock_cloud_interface.download_file.assert_called_once_with(
+            "{}/base/{}/backup_label".format(
+                mock_catalog.server_name,
+                self.backup_id,
+            ),
+            "{}/backup_label".format(recovery_dir),
+            decompress=None,
+        )
+
+    @pytest.mark.parametrize(
+        (
+            "attached_snapshots",
+            "findmnt_output",
+            "check_directory_exists_output",
+            "expected_error_msg",
+        ),
+        (
+            # No disk cloned from snapshot attached
+            [
+                {},
+                None,
+                None,
+                (
+                    "The following snapshots are not attached to recovery instance "
+                    "{recovery_instance}: {snapshot_name}"
+                ),
+            ],
+            # Correct disk attached but not mounted in the right place
+            [
+                {"snapshot0": "/dev/dev0"},
+                ("/opt/disk1", "rw,noatime"),
+                None,
+                (
+                    "Error checking mount points: Device {device_name} cloned from "
+                    "snapshot {snapshot_name} is mounted at /opt/disk1 but "
+                    "{mount_point} was expected."
+                ),
+            ],
+            # Recovery directory not present
+            [
+                {"snapshot0": "/dev/dev0"},
+                ("/opt/disk0", "rw,noatime"),
+                False,
+                (
+                    "Recovery directory '{recovery_dir}' does not exist on the "
+                    "recovery instance. Check all required disks have been created, "
+                    "attached and mounted."
+                ),
+            ],
+        ),
+    )
+    @mock.patch("barman.clients.cloud_restore.get_snapshot_interface_from_backup_info")
+    @mock.patch("barman.clients.cloud_restore.UnixLocalCommand")
+    def test_download_backup_preconditions_failed(
+        self,
+        mock_cmd,
+        mock_get_snapshot_interface,
+        backup_info,
+        mock_cloud_interface,
+        mock_catalog,
+        attached_snapshots,
+        findmnt_output,
+        check_directory_exists_output,
+        expected_error_msg,
+    ):
+        """Verify that backup download fails when preconditions are not met."""
+        # GIVEN a CloudBackupDownloaderSnapshot
+        downloader = CloudBackupDownloaderSnapshot(mock_cloud_interface, mock_catalog)
+        # AND the specified snapshots are returned by the snapshot interface
+        mock_get_snapshot_interface.return_value.get_attached_snapshots.return_value = (
+            attached_snapshots
+        )
+        # AND the following recovery args
+        recovery_dir = "/path/to/restore_dir"
+        recovery_instance = "test_instance"
+        recovery_zone = "test_zone"
+        # AND a mock findmnt command which returns the specified response
+        mock_cmd.return_value.findmnt.return_value = findmnt_output
+        # AND a mock check_directory_exists command which returns the specified respone
+        mock_cmd.return_value.check_directory_exists.return_value = (
+            check_directory_exists_output
+        )
+
+        # WHEN download_backup is called
+        # THEN a RecoveryPreconditionException is raised
+        with pytest.raises(RecoveryPreconditionException) as exc:
+            downloader.download_backup(
+                backup_info, recovery_dir, recovery_instance, recovery_zone
+            )
+        # AND the exception has the expected message
+        assert str(exc.value) == expected_error_msg.format(
+            device_name=self.device_name,
+            mount_point=self.mount_point,
+            recovery_dir=recovery_dir,
+            recovery_instance=recovery_instance,
+            snapshot_name=self.snapshot_name,
         )
