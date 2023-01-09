@@ -231,3 +231,61 @@ class TestCloudBackupShow(object):
             "Backup {} for server test_server does not exist".format(backup_id)
             in caplog.text
         )
+
+    @pytest.mark.parametrize(
+        ("connectivity_test_result", "expected_exit_code"), ([False, 2], [True, 0])
+    )
+    @mock.patch("barman.clients.cloud_backup_show.get_cloud_interface")
+    def test_exits_on_connectivity_test(
+        self, get_cloud_interface_mock, connectivity_test_result, expected_exit_code
+    ):
+        """If the -t option is used we check connectivity and exit."""
+        # GIVEN a mock cloud interface
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        # AND the connectivity test returns the specified result
+        cloud_interface_mock.test_connectivity.return_value = connectivity_test_result
+
+        # WHEN cloud_backup_show is called with the `-t` option
+        with pytest.raises(SystemExit) as exc:
+            cloud_backup_show.main(
+                ["cloud_storage_url", "test_server", "backup_id", "-t"]
+            )
+
+        # THEN the expected error code is returned
+        assert exc.value.code == expected_exit_code
+        # AND the connectivity test was called
+        cloud_interface_mock.test_connectivity.assert_called_once()
+
+    @mock.patch("barman.clients.cloud_backup_show.get_cloud_interface")
+    def test_fails_if_bucket_not_found(self, get_cloud_interface_mock, caplog):
+        """If the bucket does not exist we exit with status 1."""
+        # GIVEN a mock cloud interface
+        cloud_interface_mock = get_cloud_interface_mock.return_value
+        # AND a bucket which does not exist
+        bucket_name = "missing_bucket"
+        cloud_interface_mock.bucket_name = bucket_name
+        cloud_interface_mock.bucket_exists = False
+
+        # WHEN cloud_backup_show is called against the missing bucket
+        with pytest.raises(SystemExit) as exc:
+            cloud_backup_show.main([bucket_name, "test_server", "backup_id"])
+
+        # THEN an exit code of 1 is returned
+        assert exc.value.code == 1
+        # AND the expected message is logged
+        assert "Bucket {} does not exist".format(bucket_name) in caplog.text
+
+    @mock.patch("barman.clients.cloud_backup_show.get_cloud_interface")
+    def test_fails_on_any_exception(self, get_cloud_interface_mock, caplog):
+        """If any non-specific exception occurs then we exit with status 4."""
+        # GIVEN a general exception when getting the cloud interface
+        get_cloud_interface_mock.side_effect = Exception("an error happened")
+
+        # WHEN cloud_backup_show is called with any valid args
+        with pytest.raises(SystemExit) as exc:
+            cloud_backup_show.main(["bucket", "server", "backup_id"])
+
+        # THEN an exit code of 4 is returned
+        assert exc.value.code == 4
+        # AND the exception message is logged
+        assert "an error happened" in caplog.text
