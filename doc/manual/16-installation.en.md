@@ -9,11 +9,9 @@ listed on the [Barman downloads page][barman-downloads].
 > The recommended way to install Barman is by using the available
 > packages for your GNU/Linux distribution.
 
-## Installation on RedHat/CentOS using RPM packages
+## Installation on Red Hat Enterprise Linux (RHEL) and RHEL-based systems using RPM packages
 
-Barman can be installed on RHEL7 and RHEL6 Linux systems using
-RPM packages. It is required to install the Extra Packages Enterprise
-Linux (EPEL) repository and the
+Barman can be installed using RPM packages on RHEL8 and RHEL7 systems and the identical versions of RHEL derivatives AlmaLinux, Oracle Linux, and Rocky Linux. It is required to install the Extra Packages Enterprise Linux (EPEL) repository and the
 [PostgreSQL Global Development Group RPM repository][yumpgdg] beforehand.
 
 Official RPM packages for Barman are distributed by EnterpriseDB
@@ -35,7 +33,7 @@ yum install barman
    exclude=barman* python*-barman
    ```
 > By doing this, you solely rely on
-> EnterpriseDB repositories for package management of Barman software.
+> EnterpriseDB's 2ndQuadrant repositories for package management of Barman software.
 
 ## Installation on Debian/Ubuntu using packages
 
