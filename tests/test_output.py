@@ -1181,7 +1181,13 @@ class TestConsoleWriter(object):
         # mock the backup ext info
         wal_per_second = 0.01
         ext_info = mock_backup_ext_info(
-            status=BackupInfo.DONE, wals_per_second=wal_per_second
+            children_timelines=(mock.Mock(tli="1"),),
+            copy_stats={"analysis_time": 2, "copy_time": 1},
+            deduplicated_size=1234,
+            status=BackupInfo.DONE,
+            systemid="systemid",
+            wal_until_next_compression_ratio=1.5,
+            wals_per_second=wal_per_second,
         )
 
         writer = output.ConsoleOutputWriter()
@@ -1194,9 +1200,11 @@ class TestConsoleWriter(object):
         assert ext_info["backup_id"] in out
         assert ext_info["status"] in out
         assert str(ext_info["end_time"]) in out
+        assert ext_info["systemid"] in out
         for name, _, location in ext_info["tablespaces"]:
             assert "{:<21}: {}".format(name, location) in out
         assert (pretty_size(ext_info["size"] + ext_info["wal_size"])) in out
+        assert (pretty_size(ext_info["deduplicated_size"])) in out
         assert (pretty_size(ext_info["wal_until_next_size"])) in out
         assert "WAL rate             : %0.2f/hour" % (wal_per_second * 3600) in out
         # TODO: this test can be expanded
