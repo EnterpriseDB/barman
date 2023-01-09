@@ -45,6 +45,7 @@ from barman.annotations import KeepManager
 from barman.cloud import (
     CloudBackupCatalog,
     CloudBackupUploader,
+    CloudBackupUploaderBarman,
     CloudProviderError,
     CloudTarUploader,
     CloudUploadingError,
@@ -3003,6 +3004,74 @@ class TestCloudBackupUploader(object):
 
     server_name = "test_server"
 
+    @mock.patch("barman.cloud.os.stat")
+    @mock.patch("barman.cloud.CloudUploadController")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
+    def test_backup(
+        self,
+        mock_backup_info,
+        mock_backup_strategy,
+        mock_cloud_upload_controller,
+        _mock_os_stat,
+    ):
+        """Test the happy path for backups."""
+        # GIVEN a CloudBackupUploader
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
+        mock_postgres = MagicMock(server_major_version=150000)
+        mock_backup_info.return_value.backup_label = "backup_label"
+        uploader = CloudBackupUploader(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            mock_postgres,
+        )
+
+        # AND the backup_info file returns a single config file outside of pgdata
+        mock_backup_info.return_value.get_external_config_files.return_value = [
+            mock.Mock(
+                file_type="ident_file",
+                path="/path/to/pg_ident.conf",
+            )
+        ]
+
+        # AND the backup strategy sets metadata with tablespaces
+        def mock_start_backup(backup_info):
+            backup_info.pgdata = "/path/to/pgdata"
+            backup_info.tablespaces = [
+                MagicMock(location="/tbs1", oid=1234),
+                MagicMock(location="/path/to/pgdata/tbs2", oid=1235),
+            ]
+
+        mock_backup_strategy.return_value.start_backup.side_effect = mock_start_backup
+
+        # WHEN backup is called
+        uploader.backup()
+
+        # THEN the expected directories were uploaded
+        uploaded_directory_src = [
+            call[1]["src"]
+            for call in mock_cloud_upload_controller.return_value.upload_directory.call_args_list
+        ]
+        assert uploaded_directory_src == [
+            "/tbs1",
+            "/path/to/pgdata/tbs2",
+            "/path/to/pgdata",
+        ]
+        # AND the external config file was uploaded
+        uploaded_file_src = [
+            call[1]["src"]
+            for call in mock_cloud_upload_controller.return_value.add_file.call_args_list
+        ]
+        assert "/path/to/pg_ident.conf" in uploaded_file_src
+        # AND the backup was coordinated with PostgreSQL
+        mock_backup_strategy.return_value.start_backup.assert_called_once_with(
+            mock_backup_info.return_value
+        )
+        mock_backup_strategy.return_value.stop_backup.assert_called_once_with(
+            mock_backup_info.return_value
+        )
+
     @pytest.mark.parametrize("backup_should_fail", (False, True))
     @mock.patch("barman.cloud.CloudBackupUploader._create_upload_controller")
     @mock.patch("barman.cloud.CloudBackupUploader._backup_data_files")
@@ -3084,3 +3153,58 @@ class TestCloudBackupUploader(object):
             for arg in mock_backup_info.return_value.set_attribute.call_args_list
         ]
         assert not any([attr == "backup_name" for attr in backup_info_attrs_set])
+
+
+class TestCloudBackupUploaderBarman(object):
+    """
+    Test the behaviour of CloudBackupUploaderBarman.
+    """
+
+    server_name = "test_server"
+
+    @mock.patch("barman.cloud.open")
+    @mock.patch("barman.cloud.CloudUploadController")
+    @mock.patch("barman.cloud.ConcurrentBackupStrategy")
+    @mock.patch("barman.cloud.BackupInfo")
+    def test_backup(
+        self,
+        mock_backup_info,
+        mock_backup_strategy,
+        mock_cloud_upload_controller,
+        _mock_open,
+    ):
+        """Test the happy path for backups."""
+        # GIVEN a CloudBackupUploaderBarman
+        mock_cloud_interface = MagicMock(MAX_ARCHIVE_SIZE=99999, MIN_CHUNK_SIZE=2)
+        backup_id = "backup_id"
+        backup_dir = "/path/to/{}/{}".format(self.server_name, backup_id)
+        uploader = CloudBackupUploaderBarman(
+            self.server_name,
+            mock_cloud_interface,
+            99999,
+            backup_dir,
+            backup_id,
+        )
+        # AND the backup.info has tablespace information
+        mock_backup_info.return_value.pgdata = "/path/to/pgdata"
+        mock_backup_info.return_value.tablespaces = [
+            MagicMock(location="/tbs1", oid=1234),
+            MagicMock(location="/path/to/pgdata/tbs2", oid=1235),
+        ]
+
+        # WHEN backup is called
+        uploader.backup()
+
+        # THEN the expected directories were uploaded
+        uploaded_directory_src = [
+            call[1]["src"]
+            for call in mock_cloud_upload_controller.return_value.upload_directory.call_args_list
+        ]
+        assert uploaded_directory_src == [
+            "/path/to/test_server/backup_id/1234",
+            "/path/to/test_server/backup_id/1235",
+            "/path/to/test_server/backup_id/data",
+        ]
+        # AND the backup strategy was not called
+        mock_backup_strategy.return_value.start_backup.assert_not_called()
+        mock_backup_strategy.return_value.stop_backup.assert_not_called()
