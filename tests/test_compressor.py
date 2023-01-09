@@ -867,7 +867,7 @@ class TestGZipCompression(object):
         else:
             gzip_compression.uncompress(src, dst, exclude=exclude, include_args=include)
             # THEN command.cmd was called
-            assert command.cmd.called_once()
+            command.cmd.assert_called_once()
             # AND the first argument was "tar"
             assert command.cmd.call_args_list[0][0][0] == "tar"
             # AND the basic arguments are present
@@ -998,7 +998,7 @@ class TestLZ4Compression(object):
         else:
             lz4_compression.uncompress(src, dst, exclude=exclude, include_args=include)
             # THEN command.cmd was called
-            assert command.cmd.called_once()
+            command.cmd.assert_called_once()
             # AND the first argument was "tar"
             assert command.cmd.call_args_list[0][0][0] == "tar"
             # AND the basic arguments are present
@@ -1139,7 +1139,7 @@ class TestZSTDCompression(object):
         else:
             zstd_compression.uncompress(src, dst, exclude=exclude, include_args=include)
             # THEN command.cmd was called
-            assert command.cmd.called_once()
+            command.cmd.assert_called_once()
             # AND the first argument was "tar"
             assert command.cmd.call_args_list[0][0][0] == "tar"
             # AND the basic arguments are present
