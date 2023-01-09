@@ -32,6 +32,7 @@ from barman import xlog
 from barman.exceptions import (
     CommandException,
     CommandFailedException,
+    DataTransferFailure,
     RecoveryInvalidTargetException,
     RecoveryPreconditionException,
     RecoveryStandbyModeException,
@@ -1690,6 +1691,41 @@ class TestSnapshotRecoveryExecutor(object):
             ),
             mock.call().copy(),
         ]
+
+    @mock.patch("barman.recovery_executor.fs.unix_command_factory")
+    @mock.patch("barman.recovery_executor.RsyncCopyController")
+    def test_backup_copy_command_failure(
+        self, copy_controller_mock, command_factory_mock, tmpdir
+    ):
+        """Verify that _backup_copy fails when RsyncCopyController.copy fails."""
+        # GIVEN a basic folder/files structure
+        dest = tmpdir.mkdir("destination")
+        server = testing_helpers.build_real_server(
+            main_conf={"recovery_staging_path": "/wherever"}
+        )
+        backup_info = testing_helpers.build_test_backup_info(
+            backup_id="backup_id",
+            server=server,
+            snapshots_info={},
+        )
+        # AND a SnapshotRecoveryExecutor
+        executor = SnapshotRecoveryExecutor(server.backup_manager)
+        # AND a mock command which always completes successfully
+        command = command_factory_mock.return_value
+        recovery_info = {"cmd": command}
+        # AND the copy controller fails with a CommandFailedException
+        copy_controller_mock.return_value.copy.side_effect = CommandFailedException(
+            "error message"
+        )
+
+        # WHEN _backup_copy is called
+        # THEN a DataTransferFailure exception is raised
+        with pytest.raises(DataTransferFailure) as exc:
+            executor._backup_copy(
+                backup_info, dest.strpath, recovery_info=recovery_info
+            )
+        # AND it has the expected error message
+        assert str(exc.value) == "('error message',)"
 
     def test_check_recovery_dir_exists(self):
         """Verify check_recovery_dir_exists passes if the directory exists."""
