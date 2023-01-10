@@ -111,6 +111,7 @@ setup(
         # so google snapshots extras are in their own section to avoid breaking GCS
         # for anyone unfortunate enough to still be using python 2.7.
         "google-snapshots": [
+            "grpcio",
             "google-cloud-compute",
         ],
     },
