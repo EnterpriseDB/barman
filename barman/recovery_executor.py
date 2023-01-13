@@ -184,10 +184,10 @@ class RecoveryExecutor(object):
             self._backup_copy(
                 backup_info,
                 dest,
-                tablespaces,
-                remote_command,
-                recovery_info["safe_horizon"],
-                recovery_info,
+                tablespaces=tablespaces,
+                remote_command=remote_command,
+                safe_horizon=recovery_info["safe_horizon"],
+                recovery_info=recovery_info,
             )
         except DataTransferFailure as e:
             self._backup_copy_failure_message(e)
