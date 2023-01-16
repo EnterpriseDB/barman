@@ -3362,11 +3362,9 @@ class TestCloudBackupSnapshot(object):
 
         # AND a mock take_snapshot_backup function which sets snapshot_info
         def mock_take_snapshot_backup(backup_info, _instance_name, _zone, _disks):
-            backup_info.snapshots_info = {
-                "snapshots": [
-                    {"name": "snapshot0", "device_path": "/dev/dev0"},
-                ]
-            }
+            backup_info.snapshots_info = mock.Mock(
+                snapshots=[mock.Mock(identifier="snapshot0", device="/dev/dev0")]
+            )
 
         snapshot_interface.take_snapshot_backup.side_effect = mock_take_snapshot_backup
 
@@ -3387,9 +3385,9 @@ class TestCloudBackupSnapshot(object):
         assert uploaded_fileobjs[backup_label_key] == backup_label
 
         # AND the backup info contains mount options
-        snapshot0_info = backup_info.snapshots_info["snapshots"][0]
-        assert snapshot0_info["mount_options"] == "rw,noatime"
-        assert snapshot0_info["mount_point"] == "/opt/disk0"
+        snapshot0_info = backup_info.snapshots_info.snapshots[0]
+        assert snapshot0_info.mount_options == "rw,noatime"
+        assert snapshot0_info.mount_point == "/opt/disk0"
 
         # AND the backup info was uploaded
         backup_info_key = "{}/{}/base/{}/backup.info".format(

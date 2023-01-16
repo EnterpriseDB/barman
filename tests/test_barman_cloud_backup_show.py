@@ -23,6 +23,10 @@ import pytest
 
 from barman.clients import cloud_backup_show
 from barman.clients.cloud_cli import OperationErrorExit
+from barman.cloud_providers.google_cloud_storage import (
+    GcpSnapshotMetadata,
+    GcpSnapshotsInfo,
+)
 from testing_helpers import build_test_backup_info
 
 
@@ -40,29 +44,25 @@ class TestCloudBackupShow(object):
             end_time=datetime.datetime(2038, 1, 19, 4, 14, 8),
             end_wal="000000010000000000000004",
             size=None,
-            snapshots_info={
-                "gcp_project": "test_project",
-                "snapshots": [
-                    {
-                        "name": "snapshot0",
-                        "block_size": 4096,
-                        "device_name": "dev0",
-                        "device_path": "/dev/dev0",
-                        "mount_options": "rw,noatime",
-                        "mount_point": "/opt/disk0",
-                        "size": 1,
-                    },
-                    {
-                        "name": "snapshot1",
-                        "block_size": 2048,
-                        "device_name": "dev1",
-                        "device_path": "/dev/dev1",
-                        "mount_options": "rw",
-                        "mount_point": "/opt/disk1",
-                        "size": 10,
-                    },
+            snapshots_info=GcpSnapshotsInfo(
+                project="test_project",
+                snapshots=[
+                    GcpSnapshotMetadata(
+                        mount_point="/opt/disk0",
+                        mount_options="rw,noatime",
+                        device_name="dev0",
+                        snapshot_name="snapshot0",
+                        snapshot_project="test_project",
+                    ),
+                    GcpSnapshotMetadata(
+                        mount_point="/opt/disk1",
+                        mount_options="rw",
+                        device_name="dev1",
+                        snapshot_name="snapshot1",
+                        snapshot_project="test_project",
+                    ),
                 ],
-            },
+            ),
             version=150000,
         )
         backup_info.mode = "concurrent"
@@ -98,21 +98,18 @@ class TestCloudBackupShow(object):
             "  PGDATA directory       : /pgdata/location\n"
             "\n"
             "  Snapshot information:\n"
-            "    gcp_project          : test_project\n"
+            "    provider             : gcp\n"
+            "    project              : test_project\n"
             "\n"
-            "    Snapshot name        : snapshot0\n"
-            "    Disk size (GiB)      : 1\n"
-            "    Device name          : dev0\n"
-            "    Device path          : /dev/dev0\n"
-            "    Block size           : 4096\n"
+            "    device_name          : dev0\n"
+            "    snapshot_name        : snapshot0\n"
+            "    snapshot_project     : test_project\n"
             "    Mount point          : /opt/disk0\n"
             "    Mount options        : rw,noatime\n"
             "\n"
-            "    Snapshot name        : snapshot1\n"
-            "    Disk size (GiB)      : 10\n"
-            "    Device name          : dev1\n"
-            "    Device path          : /dev/dev1\n"
-            "    Block size           : 2048\n"
+            "    device_name          : dev1\n"
+            "    snapshot_name        : snapshot1\n"
+            "    snapshot_project     : test_project\n"
             "    Mount point          : /opt/disk1\n"
             "    Mount options        : rw\n"
             "\n"
@@ -177,25 +174,32 @@ class TestCloudBackupShow(object):
             "server_name": "main",
             "size": None,
             "snapshots_info": {
-                "gcp_project": "test_project",
+                "provider": "gcp",
+                "provider_info": {
+                    "project": "test_project",
+                },
                 "snapshots": [
                     {
-                        "name": "snapshot0",
-                        "block_size": 4096,
-                        "device_name": "dev0",
-                        "device_path": "/dev/dev0",
-                        "mount_options": "rw,noatime",
-                        "mount_point": "/opt/disk0",
-                        "size": 1,
+                        "mount": {
+                            "mount_options": "rw,noatime",
+                            "mount_point": "/opt/disk0",
+                        },
+                        "provider": {
+                            "device_name": "dev0",
+                            "snapshot_name": "snapshot0",
+                            "snapshot_project": "test_project",
+                        },
                     },
                     {
-                        "name": "snapshot1",
-                        "block_size": 2048,
-                        "device_name": "dev1",
-                        "device_path": "/dev/dev1",
-                        "mount_options": "rw",
-                        "mount_point": "/opt/disk1",
-                        "size": 10,
+                        "mount": {
+                            "mount_options": "rw",
+                            "mount_point": "/opt/disk1",
+                        },
+                        "provider": {
+                            "device_name": "dev1",
+                            "snapshot_name": "snapshot1",
+                            "snapshot_project": "test_project",
+                        },
                     },
                 ],
             },

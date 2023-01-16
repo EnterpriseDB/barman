@@ -327,15 +327,11 @@ class TestCloudBackupDelete(object):
         # AND a backup_info with multiple snapshots
         backup_info = backup_metadata[backup_id]["info"]
         snapshots = [
-            {"name": "snapshot0"},
-            {"name": "snapshot1"},
-            {"name": "snapshot2"},
+            mock.Mock(identifier="snapshot0"),
+            mock.Mock(identifier="snapshot1"),
+            mock.Mock(identifier="snapshot2"),
         ]
-        backup_info.snapshots_info = {
-            "gcp_project": "test_project",
-            "provider": "gcp",
-            "snapshots": snapshots,
-        }
+        backup_info.snapshots_info = mock.Mock(snapshots=snapshots)
 
         # AND a CloudBackupCatalog which returns the backup_info for only that backup
         cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)

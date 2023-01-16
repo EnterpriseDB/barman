@@ -177,7 +177,7 @@ def _delete_backup(
         logging.debug(
             "Will delete the following snapshots: %s",
             ", ".join(
-                snapshot["name"] for snapshot in backup_info.snapshots_info["snapshots"]
+                snapshot.identifier for snapshot in backup_info.snapshots_info.snapshots
             ),
         )
         if not dry_run:
