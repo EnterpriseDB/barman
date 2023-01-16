@@ -1539,13 +1539,13 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         )
         attached_snapshots_for_backup = {}
         missing_snapshots = []
-        for source_snapshot in backup_info.snapshots_info["snapshots"]:
+        for source_snapshot in backup_info.snapshots_info.snapshots:
             try:
                 attached_snapshots_for_backup[
-                    source_snapshot["name"]
-                ] = attached_snapshots[source_snapshot["name"]]
+                    source_snapshot.identifier
+                ] = attached_snapshots[source_snapshot.identifier]
             except KeyError:
-                missing_snapshots.append(source_snapshot["name"])
+                missing_snapshots.append(source_snapshot.identifier)
 
         if len(missing_snapshots) > 0:
             raise RecoveryPreconditionException(
@@ -1590,11 +1590,11 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
                 continue
             snapshot_metadata = next(
                 metadata
-                for metadata in backup_info.snapshots_info["snapshots"]
-                if metadata["name"] == snapshot
+                for metadata in backup_info.snapshots_info.snapshots
+                if metadata.identifier == snapshot
             )
-            expected_mount_point = snapshot_metadata["mount_point"]
-            expected_mount_options = snapshot_metadata["mount_options"]
+            expected_mount_point = snapshot_metadata.mount_point
+            expected_mount_options = snapshot_metadata.mount_options
             if mount_point != expected_mount_point:
                 mount_point_errors.append(
                     "Device %s cloned from snapshot %s is mounted at %s but %s was "

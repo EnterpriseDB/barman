@@ -1515,16 +1515,16 @@ class TestSnapshotRecoveryExecutor(object):
         executor = SnapshotRecoveryExecutor(mock_backup_manager)
         # AND a mock backup_info with snapshots
         backup_info = mock.Mock(
-            snapshots_info={
-                "snapshots": [
-                    {
-                        "name": "snapshot0",
-                        "device_path": "/dev/dev0",
-                        "mount_point": "/opt/disk0",
-                        "mount_options": "rw,noatime",
-                    }
+            snapshots_info=mock.Mock(
+                snapshots=[
+                    mock.Mock(
+                        identifier="snapshot0",
+                        device="/dev/dev0",
+                        mount_point="/opt/disk0",
+                        mount_options="rw,noatime",
+                    ),
                 ]
-            }
+            )
         )
         # AND a given recovery destination, instance and zone
         recovery_dest = "/path/to/dest"
@@ -1603,16 +1603,16 @@ class TestSnapshotRecoveryExecutor(object):
         )
         # AND a mock backup_info with snapshots
         backup_info = mock.Mock(
-            snapshots_info={
-                "snapshots": [
-                    {
-                        "name": "snapshot0",
-                        "device_path": "/dev/dev0",
-                        "mount_point": "/opt/disk0",
-                        "mount_options": "rw,noatime",
-                    }
+            snapshots_info=mock.Mock(
+                snapshots=[
+                    mock.Mock(
+                        identifier="snapshot0",
+                        device="/dev/dev0",
+                        mount_point="/opt/disk0",
+                        mount_options="rw,noatime",
+                    ),
                 ]
-            }
+            )
         )
         # AND a given recovery destination, instance and zone
         recovery_dest = "/path/to/dest"
@@ -1764,38 +1764,40 @@ class TestSnapshotRecoveryExecutor(object):
             # If all snapshots are present we expect success
             [
                 {"snapshot0": "/dev/dev0", "snapshot1": "/dev/dev1"},
-                {"snapshots": [{"name": "snapshot0", "device_path": "/dev/dev0"}]},
+                mock.Mock(
+                    snapshots=[mock.Mock(identifier="snapshot0", device="/dev/dev0")]
+                ),
                 [],
             ],
             [
                 {"snapshot0": "/dev/dev0", "snapshot1": "/dev/dev1"},
-                {
-                    "snapshots": [
-                        {"name": "snapshot0", "device_path": "/dev/dev0"},
-                        {"name": "snapshot1", "device_path": "/dev/dev1"},
+                mock.Mock(
+                    snapshots=[
+                        mock.Mock(identifier="snapshot0", device="/dev/dev0"),
+                        mock.Mock(identifier="snapshot1", device="/dev/dev1"),
                     ]
-                },
+                ),
                 [],
             ],
             # One or more snapshots are not attached so we expected failure
             [
                 {"snapshot0": "/dev/dev0"},
-                {
-                    "snapshots": [
-                        {"name": "snapshot0", "device_path": "/dev/dev0"},
-                        {"name": "snapshot1", "device_path": "/dev/dev1"},
+                mock.Mock(
+                    snapshots=[
+                        mock.Mock(identifier="snapshot0", device="/dev/dev0"),
+                        mock.Mock(identifier="snapshot1", device="/dev/dev1"),
                     ]
-                },
+                ),
                 ["snapshot1"],
             ],
             [
                 {},
-                {
-                    "snapshots": [
-                        {"name": "snapshot0", "device_path": "/dev/dev0"},
-                        {"name": "snapshot1", "device_path": "/dev/dev1"},
+                mock.Mock(
+                    snapshots=[
+                        mock.Mock(identifier="snapshot0", device="/dev/dev0"),
+                        mock.Mock(identifier="snapshot1", device="/dev/dev1"),
                     ]
-                },
+                ),
                 ["snapshot0", "snapshot1"],
             ],
         ),
@@ -1837,10 +1839,10 @@ class TestSnapshotRecoveryExecutor(object):
                     mock_snapshot_interface, mock_backup_info, instance, zone
                 )
             )
-            for snapshot_metadata in snapshots_info["snapshots"]:
+            for snapshot_metadata in snapshots_info.snapshots:
                 assert (
-                    attached_snapshots_for_backup[snapshot_metadata["name"]]
-                    == snapshot_metadata["device_path"]
+                    attached_snapshots_for_backup[snapshot_metadata.identifier]
+                    == snapshot_metadata.device
                 )
 
     def test_get_attached_snapshots_for_backup_no_snapshots_info(
@@ -1917,22 +1919,22 @@ class TestSnapshotRecoveryExecutor(object):
         cmd = mock.Mock()
         cmd.findmnt.side_effect = findmnt_output
         # AND a backup_info which contains the specified snapshots_info
-        snapshots_info = {
-            "snapshots": [
-                {
-                    "name": "snapshot0",
-                    "device_path": "/dev/dev0",
-                    "mount_point": "/opt/disk0",
-                    "mount_options": "rw,noatime",
-                },
-                {
-                    "name": "snapshot1",
-                    "device_path": "/dev/dev1",
-                    "mount_point": "/opt/disk1",
-                    "mount_options": "rw",
-                },
+        snapshots_info = mock.Mock(
+            snapshots=[
+                mock.Mock(
+                    identifier="snapshot0",
+                    device="/dev/dev0",
+                    mount_point="/opt/disk0",
+                    mount_options="rw,noatime",
+                ),
+                mock.Mock(
+                    identifier="snapshot1",
+                    device="/dev/dev1",
+                    mount_point="/opt/disk1",
+                    mount_options="rw",
+                ),
             ]
-        }
+        )
         backup_info = mock.Mock(snapshots_info=snapshots_info)
         # AND each snapshot is attached as a specified device
         attached_snapshots = {
