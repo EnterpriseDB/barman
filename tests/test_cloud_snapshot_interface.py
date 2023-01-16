@@ -97,9 +97,10 @@ class TestGetSnapshotInterface(object):
         self, _mock_google_cloud_compute, snapshot_provider, interface_cls
     ):
         """Verify supported and unsupported cloud providers with backup_info."""
-        # GIVEN a backup_info with the specified snapshot provider
+        # GIVEN a backup_info with snapshots_info containing the specified snapshot
+        # provider
         mock_backup_info = mock.Mock(
-            snapshots_info={"provider": snapshot_provider, "gcp_project": "project"}
+            snapshots_info=mock.Mock(provider=snapshot_provider)
         )
 
         # WHEN get_snapshot_interface_from_server_config is called
@@ -121,14 +122,15 @@ class TestGetSnapshotInterface(object):
         Verify an exception is raised for gcp snapshots with no project in backup_info.
         """
         # GIVEN a server config with the gcp snapshot provider and no snapshot_gcp_project
-        mock_backup_info = mock.Mock(snapshots_info={"provider": "gcp"})
+        mock_backup_info = mock.Mock(
+            snapshots_info=mock.Mock(provider="gcp", project=None)
+        )
         # WHEN get snapshot_interface_from_backup_info is called
         with pytest.raises(BarmanException) as exc:
             get_snapshot_interface_from_backup_info(mock_backup_info)
         # THEN the expected exception is raised
-        assert (
-            "backup_info has snapshot provider 'gcp' but gcp_project is not set"
-            in str(exc.value)
+        assert "backup_info has snapshot provider 'gcp' but project is not set" in str(
+            exc.value
         )
 
     @pytest.mark.parametrize(
@@ -451,23 +453,21 @@ class TestGcpCloudSnapshotInterface(object):
 
         # THEN the backup_info is updated with the expected snapshot metadata
         snapshots_info = backup_info.snapshots_info
-        assert snapshots_info["gcp_project"] == self.gcp_project
-        assert snapshots_info["provider"] == "gcp"
-        assert len(snapshots_info["snapshots"]) == len(disks)
+        assert snapshots_info.project == self.gcp_project
+        assert snapshots_info.provider == "gcp"
+        assert len(snapshots_info.snapshots) == len(disks)
         for disk in disks:
             snapshot_name = self._get_snapshot_name(disk["name"])
             snapshot = next(
                 snapshot
-                for snapshot in snapshots_info["snapshots"]
-                if snapshot["name"] == snapshot_name
+                for snapshot in snapshots_info.snapshots
+                if snapshot.snapshot_name == snapshot_name
             )
-            assert snapshot == {
-                "block_size": disk["physical_block_size"],
-                "device_name": disk["device_name"],
-                "device_path": self._get_device_path(disk["device_name"]),
-                "name": snapshot_name,
-                "size": disk["size_gb"],
-            }
+            assert snapshot.identifier == snapshot_name
+            assert snapshot.device == self._get_device_path(disk["device_name"])
+            assert snapshot.snapshot_name == snapshot_name
+            assert snapshot.snapshot_project == self.gcp_project
+            assert snapshot.device_name == disk["device_name"]
 
     def test_take_snapshot_backup_instance_not_found(self, mock_google_cloud_compute):
         """
@@ -685,7 +685,11 @@ class TestGcpCloudSnapshotInterface(object):
 
     @pytest.mark.parametrize(
         "snapshots_list",
-        ([], [{"name": "snapshot0"}], [{"name": "snapshot0"}, {"name": "snapshot1"}]),
+        (
+            [],
+            [mock.Mock(identifier="snapshot0")],
+            [mock.Mock(identifier="snapshot0"), mock.Mock(identifier="snapshot1")],
+        ),
     )
     def test_delete_snapshot_backup(
         self, snapshots_list, mock_google_cloud_compute, caplog
@@ -695,7 +699,7 @@ class TestGcpCloudSnapshotInterface(object):
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
         # AND a backup_info specifying zero or more snapshots
         backup_info = mock.Mock(
-            backup_id=self.backup_id, snapshots_info={"snapshots": snapshots_list}
+            backup_id=self.backup_id, snapshots_info=mock.Mock(snapshots=snapshots_list)
         )
         # AND log level is info
         caplog.set_level(logging.INFO)
@@ -708,13 +712,13 @@ class TestGcpCloudSnapshotInterface(object):
         assert mock_snapshots_client.delete.call_count == len(snapshots_list)
         for snapshot in snapshots_list:
             assert (
-                ({"project": self.gcp_project, "snapshot": snapshot["name"]},),
+                ({"project": self.gcp_project, "snapshot": snapshot.identifier},),
                 {},
             ) in mock_snapshots_client.delete.call_args_list
             # AND the expected log message was logged for each snapshot
             assert (
                 "Deleting snapshot '{}' for backup {}".format(
-                    snapshot["name"], self.backup_id
+                    snapshot.identifier, self.backup_id
                 )
                 in caplog.text
             )

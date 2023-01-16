@@ -859,7 +859,7 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
             _logger.debug(
                 "Deleting the following snapshots: %s"
                 % ", ".join(
-                    snapshot["name"] for snapshot in backup.snapshots_info["snapshots"]
+                    snapshot.identifier for snapshot in backup.snapshots_info.snapshots
                 )
             )
             snapshot_interface = get_snapshot_interface_from_backup_info(backup)

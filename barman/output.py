@@ -743,20 +743,24 @@ class ConsoleOutputWriter(object):
         ):
             output_fun(header_row.format("Snapshot information"))
             for key, value in backup_info["snapshots_info"].items():
-                if key != "snapshots":
+                if key != "snapshots" and key != "provider_info":
                     output_fun(nested_row.format(key, value))
+            for key, value in backup_info["snapshots_info"]["provider_info"].items():
+                output_fun(nested_row.format(key, value))
             output_fun("")
             for metadata in backup_info["snapshots_info"]["snapshots"]:
-                output_fun(nested_row.format("Snapshot name", metadata["name"]))
-                output_fun(nested_row.format("Disk size (GiB)", metadata["size"]))
-                output_fun(nested_row.format("Device name", metadata["device_name"]))
-                output_fun(nested_row.format("Device path", metadata["device_path"]))
-                output_fun(nested_row.format("Block size", metadata["block_size"]))
-                output_fun(nested_row.format("Mount point", metadata["mount_point"]))
+                for key, value in sorted(metadata["provider"].items()):
+                    output_fun(nested_row.format(key, value))
                 output_fun(
-                    nested_row.format("Mount options", metadata["mount_options"])
+                    nested_row.format("Mount point", metadata["mount"]["mount_point"])
+                )
+                output_fun(
+                    nested_row.format(
+                        "Mount options", metadata["mount"]["mount_options"]
+                    )
                 )
                 output_fun("")
+                # TODO json format
 
     @staticmethod
     def render_show_backup_tablespaces(backup_info, output_fun, header_row, nested_row):

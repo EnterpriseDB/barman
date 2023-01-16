@@ -194,21 +194,30 @@ def get_snapshot_interface_from_backup_info(backup_info):
     :rtype: CloudSnapshotInterface
     :returns: A CloudSnapshotInterface for the specified snapshot provider.
     """
-    if backup_info.snapshots_info["provider"] == "gcp":
+    if backup_info.snapshots_info.provider == "gcp":
         from barman.cloud_providers.google_cloud_storage import (
             GcpCloudSnapshotInterface,
         )
 
-        if (
-            "gcp_project" not in backup_info.snapshots_info
-            or backup_info.snapshots_info["gcp_project"] is None
-        ):
+        if backup_info.snapshots_info.project is None:
             raise BarmanException(
-                "backup_info has snapshot provider 'gcp' but gcp_project is not set"
+                "backup_info has snapshot provider 'gcp' but project is not set"
             )
-        return GcpCloudSnapshotInterface(backup_info.snapshots_info["gcp_project"])
+        return GcpCloudSnapshotInterface(backup_info.snapshots_info.project)
     else:
         raise CloudProviderUnsupported(
             "Unsupported snapshot provider in backup info: %s"
-            % backup_info.snapshots_info["provider"]
+            % backup_info.snapshots_info.provider
+        )
+
+
+def snapshots_info_from_dict(snapshots_info):
+    if "provider" in snapshots_info and snapshots_info["provider"] == "gcp":
+        from barman.cloud_providers.google_cloud_storage import GcpSnapshotsInfo
+
+        return GcpSnapshotsInfo.from_dict(snapshots_info)
+    else:
+        raise CloudProviderUnsupported(
+            "Unsupported snapshot provider in backup info: %s"
+            % snapshots_info["provider"]
         )

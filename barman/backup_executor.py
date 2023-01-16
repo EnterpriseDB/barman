@@ -1497,15 +1497,15 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
         :param UnixLocalCommand remote_cmd: Wrapper for local/remote commands.
         """
-        for snapshot in backup_info.snapshots_info["snapshots"]:
-            mount_point, mount_options = remote_cmd.findmnt(snapshot["device_path"])
+        for snapshot in backup_info.snapshots_info.snapshots:
+            mount_point, mount_options = remote_cmd.findmnt(snapshot.device)
             if mount_point is None:
                 raise BackupException(
-                    "Could not find mount point for device %s" % snapshot["device_path"]
+                    "Could not find mount point for device %s" % snapshot.device
                 )
             else:
-                snapshot["mount_point"] = mount_point
-                snapshot["mount_options"] = mount_options
+                snapshot.mount_point = mount_point
+                snapshot.mount_options = mount_options
 
     def backup_copy(self, backup_info):
         """

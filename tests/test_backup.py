@@ -1639,7 +1639,7 @@ class TestSnapshotBackup(object):
         backup_info = build_test_backup_info(
             backup_id="test_backup_id",
             server=backup_manager.server,
-            snapshots_info={"snapshots": [{"name": "test_snapshot"}]},
+            snapshots_info=mock.Mock(snapshots=[mock.Mock(identifier="test_snapshot")]),
             tablespaces=[("tbs1", 16385, "/tbs1")],
         )
         mock_get_available_backups.return_value = {backup_info.backup_id: backup_info}

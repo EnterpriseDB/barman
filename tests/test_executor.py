@@ -1533,18 +1533,18 @@ class TestSnapshotBackupExecutor(object):
         mock_remote_cmd.findmnt.side_effect = mock_findmnt
         # AND a backup_info file with snapshots of these devices
         backup_info = build_test_backup_info(
-            snapshots_info={
-                "snapshots": [
-                    {
-                        "name": "snapshot1",
-                        "device_path": "/dev/disk1",
-                    },
-                    {
-                        "name": "snapshot2",
-                        "device_path": "/dev/disk2",
-                    },
+            snapshots_info=mock.Mock(
+                snapshots=[
+                    mock.Mock(
+                        identifier="snapshot1",
+                        device="/dev/disk1",
+                    ),
+                    mock.Mock(
+                        identifier="snapshot2",
+                        device="/dev/disk2",
+                    ),
                 ]
-            }
+            )
         )
 
         # WHEN add_mount_data_to_backup_info is called
@@ -1554,18 +1554,10 @@ class TestSnapshotBackupExecutor(object):
 
         # THEN the backup_info is enhanced with the mount point and mount options
         # for each device
-        assert backup_info.snapshots_info["snapshots"][0] == {
-            "device_path": "/dev/disk1",
-            "mount_point": "/opt/mount1",
-            "mount_options": "rw,noatime",
-            "name": "snapshot1",
-        }
-        assert backup_info.snapshots_info["snapshots"][1] == {
-            "device_path": "/dev/disk2",
-            "mount_point": "/opt/mount2",
-            "mount_options": "ro",
-            "name": "snapshot2",
-        }
+        assert backup_info.snapshots_info.snapshots[0].mount_point == "/opt/mount1"
+        assert backup_info.snapshots_info.snapshots[0].mount_options == "rw,noatime"
+        assert backup_info.snapshots_info.snapshots[1].mount_point == "/opt/mount2"
+        assert backup_info.snapshots_info.snapshots[1].mount_options == "ro"
 
     def test_add_mount_data_to_backup_info_not_mounted(self):
         """Verify that an exception is raised when a device is not mounted."""
@@ -1581,18 +1573,18 @@ class TestSnapshotBackupExecutor(object):
         mock_remote_cmd.findmnt.side_effect = mock_findmnt
         # AND a backup_info file with snapshots of these devices
         backup_info = build_test_backup_info(
-            snapshots_info={
-                "snapshots": [
-                    {
-                        "name": "snapshot1",
-                        "device_path": "/dev/disk1",
-                    },
-                    {
-                        "name": "snapshot2",
-                        "device_path": "/dev/disk2",
-                    },
+            snapshots_info=mock.Mock(
+                snapshots=[
+                    mock.Mock(
+                        identifier="snapshot1",
+                        device="/dev/disk1",
+                    ),
+                    mock.Mock(
+                        identifier="snapshot2",
+                        device="/dev/disk2",
+                    ),
                 ]
-            }
+            )
         )
 
         # WHEN add_mount_data_to_backup_info is called

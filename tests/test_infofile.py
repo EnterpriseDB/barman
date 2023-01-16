@@ -24,6 +24,10 @@ from datetime import datetime
 import mock
 import pytest
 from dateutil.tz import tzlocal, tzoffset
+from barman.cloud_providers.google_cloud_storage import (
+    GcpSnapshotMetadata,
+    GcpSnapshotsInfo,
+)
 
 from barman.infofile import (
     BackupInfo,
@@ -690,7 +694,7 @@ class TestBackupInfo(object):
         # AND the backup name is not included in the JSON output
         assert "backup_name" not in b_info.to_json().keys()
 
-    def test_with_snapshots_info(self, tmpdir):
+    def test_with_snapshots_info_gcp(self, tmpdir):
         """
         Test that snapshots_info is included in file and output if set.
         """
@@ -703,24 +707,43 @@ class TestBackupInfo(object):
         b_info = LocalBackupInfo(server, backup_id="fake_name")
         b_info.status = BackupInfo.DONE
 
-        # WHEN snapshots_info is set
-        snapshots_info = {
-            "gcp_project": "test_project",
-            "snapshots": [{"name": "snapshot0"}],
-        }
+        # WHEN snapshots_info is set and the file is saved
+        snapshots_info = GcpSnapshotsInfo(
+            project="project_name",
+            snapshots=[
+                GcpSnapshotMetadata(
+                    mount_point="/opt/mount0",
+                    mount_options="rw",
+                    device_name="dev0",
+                    snapshot_name="short_snapshot_name",
+                    snapshot_project="project_name",
+                )
+            ],
+        )
         b_info.snapshots_info = snapshots_info
         b_info.save()
 
-        # THEN the snapshots info is written to the file
-        assert (
-            "snapshots_info={'gcp_project': 'test_project', "
-            "'snapshots': [{'name': 'snapshot0'}]}" in infofile.read()
-        ) or (
-            "snapshots_info={'snapshots': [{'name': 'snapshot0'}], "
-            "'gcp_project': 'test_project'}" in infofile.read()
-        )
-        # AND the backup name is included in the JSON output
-        assert b_info.to_json()["snapshots_info"] == snapshots_info
+        # THEN a new BackupInfo created from the saved file has the SnapshotsInfo attributes
+        new_backup_info = LocalBackupInfo(server, info_file=infofile.strpath)
+        assert new_backup_info.snapshots_info.provider == "gcp"
+        assert new_backup_info.snapshots_info.project == "project_name"
+        snapshot0 = new_backup_info.snapshots_info.snapshots[0]
+        assert snapshot0.mount_point == "/opt/mount0"
+        assert snapshot0.mount_options == "rw"
+        assert snapshot0.device_name == "dev0"
+        assert snapshot0.snapshot_name == "short_snapshot_name"
+        assert snapshot0.snapshot_project == "project_name"
+
+        # AND the snapshots_info is included in the JSON output
+        snapshots_json = b_info.to_json()["snapshots_info"]
+        assert snapshots_json["provider"] == "gcp"
+        assert snapshots_json["provider_info"]["project"] == "project_name"
+        snapshot0_json = snapshots_json["snapshots"][0]
+        assert snapshot0_json["mount"]["mount_point"] == "/opt/mount0"
+        assert snapshot0_json["mount"]["mount_options"] == "rw"
+        assert snapshot0_json["provider"]["device_name"] == "dev0"
+        assert snapshot0_json["provider"]["snapshot_name"] == "short_snapshot_name"
+        assert snapshot0_json["provider"]["snapshot_project"] == "project_name"
 
     def test_with_no_snapshots_info(self, tmpdir):
         """

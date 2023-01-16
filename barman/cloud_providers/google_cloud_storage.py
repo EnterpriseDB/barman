@@ -27,6 +27,8 @@ from barman.cloud import (
     CloudSnapshotInterface,
     DecompressingStreamingIO,
     DEFAULT_DELIMITER,
+    SnapshotMetadata,
+    SnapshotsInfo,
 )
 from barman.exceptions import SnapshotBackupException
 
@@ -469,19 +471,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         Take a snapshot backup for the named instance.
 
         Creates a snapshot for each named disk and saves the required metadata
-        to snapshot_info.
-
-        The following additional field is saved to snapshots_info:
-
-            * gcp_project: The name of the project to which all snapshot-related
-                           resources belong
-
-        The following additional field is saved in the metadata dict for each snapshot:
-
-            * physical_block_size_bytes: The block size of the source disk in bytes.
-            * device_name: The name of the device associated with the source disk, as
-                           understood by the GCP API.
-            * size_gb: The size of the source disk in GB.
+        to backup_info.snapshots_info as a GcpSnapshotsInfo object.
 
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
         :param str instance_name: The name of the VM instance to which the disks
@@ -493,10 +483,6 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         snapshots = []
         for disk_name in disks:
             disk_metadata = self._get_disk_metadata(disk_name, zone)
-            metadata = {
-                "block_size": disk_metadata.physical_block_size_bytes,
-                "size": disk_metadata.size_gb,
-            }
             # Check disk is attached and find device name
             attached_disks = [
                 d
@@ -510,23 +496,25 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
             # We should always have exactly one attached disk matching the name
             assert len(attached_disks) == 1
 
-            metadata["device_name"] = attached_disks[0].device_name
-            metadata["device_path"] = self.DEVICE_PREFIX + attached_disks[0].device_name
-            metadata["name"] = self.take_snapshot(backup_info, zone, disk_name)
-            snapshots.append(metadata)
+            snapshot_name = self.take_snapshot(backup_info, zone, disk_name)
+            snapshots.append(
+                GcpSnapshotMetadata(
+                    device_name=attached_disks[0].device_name,
+                    snapshot_name=snapshot_name,
+                    snapshot_project=self.project,
+                )
+            )
 
         # Add snapshot metadata to BackupInfo
-        backup_info.snapshots_info = {
-            "gcp_project": self.project,
-            "provider": "gcp",
-            "snapshots": snapshots,
-        }
+        backup_info.snapshots_info = GcpSnapshotsInfo(
+            project=self.project, snapshots=snapshots
+        )
 
     def delete_snapshot(self, snapshot_name):
         """
         Delete the specified snapshot.
 
-        :param str snapshot_name: The name used to reference the snapshot within GCP.
+        :param str snapshot_name: The short name used to reference the snapshot within GCP.
         """
         try:
             resp = self.client.delete(
@@ -554,13 +542,13 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
 
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
         """
-        for snapshot in backup_info.snapshots_info["snapshots"]:
+        for snapshot in backup_info.snapshots_info.snapshots:
             _logger.info(
                 "Deleting snapshot '%s' for backup %s",
-                snapshot["name"],
+                snapshot.identifier,
                 backup_info.backup_id,
             )
-            self.delete_snapshot(snapshot["name"])
+            self.delete_snapshot(snapshot.identifier)
 
     def get_attached_devices(self, instance_name, zone):
         """
@@ -647,3 +635,81 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         except NotFound:
             return False
         return True
+
+
+class GcpSnapshotMetadata(SnapshotMetadata):
+    """
+    Specialization of SnapshotMetadata for GCP persistent disk snapshots.
+
+    Stores the device_name, snapshot_name and snapshot_project in the provider-specific
+    field, uses the short snapshot name as the identifier, and forges the device path
+    using the hardcoded (but documented in the API docs) prefix.
+    """
+
+    _provider_fields = ("device_name", "snapshot_name", "snapshot_project")
+
+    def __init__(
+        self,
+        mount_options=None,
+        mount_point=None,
+        device_name=None,
+        snapshot_name=None,
+        snapshot_project=None,
+    ):
+        """
+        Constructor saves additional metadata for GCP snapshots.
+
+        :param str mount_options: The mount options used for the source disk at the
+            time of the backup.
+        :param str mount_point: The mount point of the source disk at the time of
+            the backup.
+        :param str device_name: The short device name used in the GCP API.
+        :param str snapshot_name: The short snapshot name used in the GCP API.
+        :param str project: The GCP project name.
+        """
+        super(GcpSnapshotMetadata, self).__init__(mount_options, mount_point)
+        self.device_name = device_name
+        self.snapshot_name = snapshot_name
+        self.snapshot_project = snapshot_project
+
+    @property
+    def identifier(self):
+        """
+        An identifier which can reference the snapshot via the cloud provider.
+
+        :rtype: str
+        :return: The snapshot short name.
+        """
+        return self.snapshot_name
+
+    @property
+    def device(self):
+        """
+        The device path to the source disk on the compute instance at the time the
+        backup was taken.
+
+        :rtype: str
+        :return: The full path to the source disk device.
+        """
+        return GcpCloudSnapshotInterface.DEVICE_PREFIX + self.device_name
+
+
+class GcpSnapshotsInfo(SnapshotsInfo):
+    """
+    Represents the snapshots_info field for GCP persistent disk snapshots.
+    """
+
+    _provider_fields = ("project",)
+    _snapshot_metadata_cls = GcpSnapshotMetadata
+
+    def __init__(self, snapshots=None, project=None):
+        """
+        Constructor saves the list of snapshots if it is provided.
+
+        :param list[SnapshotMetadata] snapshots: A list of metadata objects for each
+            snapshot.
+        :param str project: The GCP project name.
+        """
+        super(GcpSnapshotsInfo, self).__init__(snapshots)
+        self.provider = "gcp"
+        self.project = project
