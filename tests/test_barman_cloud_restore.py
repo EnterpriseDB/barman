@@ -328,18 +328,16 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
 
     @pytest.fixture
     def snapshots_info(self):
-        yield {
-            "gcp_project": "test_project",
-            "provider": "gcp",
-            "snapshots": [
-                {
-                    "name": self.snapshot_name,
-                    "device_path": self.device_path,
-                    "mount_point": self.mount_point,
-                    "mount_options": "rw,noatime",
-                },
-            ],
-        }
+        yield mock.Mock(
+            snapshots=[
+                mock.Mock(
+                    identifier="snapshot0",
+                    device="/dev/dev0",
+                    mount_point="/opt/disk0",
+                    mount_options="rw,noatime",
+                ),
+            ]
+        )
 
     @pytest.fixture
     def backup_info(self, snapshots_info):
