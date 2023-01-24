@@ -39,7 +39,9 @@
   [barman-downloads]: https://pgbarman.org/downloads/
   [python-2-sunset]: https://www.python.org/doc/sunset-python-2/
   [psql]: https://www.postgresql.org/docs/current/app-psql.html
-
+  [snapshot-recovery-script]: https://github.com/EnterpriseDB/barman/blob/master/scripts/prepare_snapshot_recovery.py
+  [postgres-low-level-base-backup]: https://www.postgresql.org/docs/current/continuous-archiving.html#BACKUP-LOWLEVEL-BASE-BACKUP
+  [pgbarman-barman-cloud-backup-show]: https://docs.pgbarman.org/release/latest/barman-cloud-backup-show.1.html
 
   [8]: https://en.wikipedia.org/wiki/Hard_link
   [11]: https://www.pgbarman.org/
