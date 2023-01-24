@@ -95,3 +95,13 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         the staging path will be removed at the end of the recovery process.
         This option is *required* when recovering from compressed backups and
         has no effect otherwise.
+
+    --snapshot-recovery-instance *INSTANCE_NAME*
+    :   Name of the instance where the disks recovered from the snapshots are
+        attached. This option is required when recovering backups made with
+        `backup_method = snapshot`.
+
+    --snapshot-recovery-zone *ZONE_NAME*
+    :   Name of the availability zone where the instance and disks for snapshot
+        are located. This option is required when recovering backups made with
+        `backup_method = snapshot`.
