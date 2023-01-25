@@ -22,6 +22,11 @@ It requires read access to PGDATA and tablespaces (normally run as `postgres`
 user). It can also be used as a hook script on a barman server, in which
 case it requires read access to the directory where barman backups are stored.
 
+If the arguments prefixed with `--snapshot-` are used, and snapshots are
+supported for the selected cloud provider, then the backup will be performed
+using snapshots of the disks specified using `--snapshot-disk` arguments. The
+backup label and backup metadata will be uploaded to the cloud object store.
+
 This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 
@@ -43,6 +48,10 @@ usage: barman-cloud-backup [-V] [--help] [-v | -q] [-t]
                            [-z | -j | --snappy] [-h HOST] [-p PORT] [-U USER]
                            [--immediate-checkpoint] [-J JOBS]
                            [-S MAX_ARCHIVE_SIZE] [-d DBNAME] [-n BACKUP_NAME]
+                           [--snapshot-instance SNAPSHOT_INSTANCE]
+                           [--snapshot-disk NAME]
+                           [--snapshot-zone SNAPSHOT_ZONE]
+                           [--snapshot-gcp-project SNAPSHOT_GCP_PROJECT]
                            [--tags [TAGS [TAGS ...]]] [-e {AES256,aws:kms}]
                            [--encryption-scope ENCRYPTION_SCOPE]
                            destination_url server_name
@@ -88,6 +97,12 @@ optional arguments:
                         a name which can be used to reference this backup in
                         commands such as barman-cloud-restore and barman-
                         cloud-backup-delete
+  --snapshot-instance SNAPSHOT_INSTANCE
+                        Instance where the disks to be backed up as snapshots
+                        are attached
+  --snapshot-disk NAME  Name of a disk from which snapshots should be taken
+  --snapshot-zone SNAPSHOT_ZONE
+                        Zone of the disks from which snapshots should be taken
   --tags [TAGS [TAGS ...]]
                         Tags to be added to all uploaded files in cloud
                         storage
@@ -119,6 +134,10 @@ Extra options for the azure-blob-storage cloud provider:
                         The name of an encryption scope defined in the Azure
                         Blob Storage service which is to be used to encrypt
                         the data in Azure
+
+Extra options for google-cloud-storage cloud provider:
+  --snapshot-gcp-project SNAPSHOT_GCP_PROJECT
+                        GCP project under which disk snapshots should be stored
 ```
 # REFERENCES
 
@@ -158,6 +177,11 @@ If using `--cloud-provider=azure-blob-storage`:
 
 If using `--cloud-provider=google-cloud-storage`
 * google-cloud-storage 
+
+If using `--cloud-provider=google-cloud-storage` with snapshot backups
+
+* grpcio
+* google-cloud-compute
 
 # EXIT STATUS
 

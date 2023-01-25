@@ -1,26 +1,22 @@
-% BARMAN-CLOUD-RESTORE(1) Barman User manuals | Version 3.3.0
+% BARMAN-CLOUD-BACKUP-SHOW(1) Barman User manuals | Version 3.3.0
 % EnterpriseDB <https://www.enterprisedb.com>
 % December 14, 2022
 
 # NAME
 
-barman-cloud-restore - Restore a PostgreSQL backup from the Cloud
+barman-cloud-backup-show - Show metadata for a backup stored in the Cloud
 
 
 # SYNOPSIS
 
-barman-cloud-restore [*OPTIONS*] *SOURCE_URL* *SERVER_NAME* *BACKUP_ID* *RECOVERY_DIR*
+barman-cloud-backup-show [*OPTIONS*] *SOURCE_URL* *SERVER_NAME* *BACKUP_ID*
 
 
 # DESCRIPTION
 
-This script can be used to download a backup previously made with
-`barman-cloud-backup` command. Currently AWS S3, Azure Blob Storage 
+This script can be used to display metadata for backups previously made
+with the `barman-cloud-backup` command. Currently AWS S3, Azure Blob Storage
 and Google Cloud Storage are supported.
-
-This script can also be used to prepare for recovery from a snapshot backup
-by checking the attached disks were cloned from the correct snapshots and
-downloading the backup label from object storage.
 
 This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
@@ -28,26 +24,23 @@ of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 
 # Usage
 ```
-usage: barman-cloud-restore [-V] [--help] [-v | -q] [-t]
-                            [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
-                            [--endpoint-url ENDPOINT_URL] [-P PROFILE]
-                            [--read-timeout READ_TIMEOUT]
-                            [--credential {azure-cli,managed-identity}]
-                            [--tablespace NAME:LOCATION]
-                            [--snapshot-recovery-instance SNAPSHOT_RECOVERY_INSTANCE]
-                            [--snapshot-recovery-zone SNAPSHOT_RECOVERY_ZONE]
-                            source_url server_name backup_id recovery_dir
+usage: barman-cloud-backup-show [-V] [--help] [-v | -q] [-t]
+                                [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
+                                [--endpoint-url ENDPOINT_URL] [-P PROFILE]
+                                [--read-timeout READ_TIMEOUT]
+                                [--credential {azure-cli,managed-identity}]
+                                [--format FORMAT]
+                                source_url server_name backup_id
 
-This script can be used to download a backup previously made with barman-
-cloud-backup command.Currently AWS S3, Azure Blob Storage and Google Cloud
-Storage are supported.
+This script can be used to show metadata for backups made with barman-cloud-
+backup command. Currently AWS S3, Azure Blob Storage and Google Cloud Storage
+are supported.
 
 positional arguments:
   source_url            URL of the cloud source, such as a bucket in AWS S3.
                         For example: `s3://bucket/path/to/folder`.
   server_name           the name of the server as configured in Barman.
   backup_id             the backup ID
-  recovery_dir          the path to a directory for recovery.
 
 optional arguments:
   -V, --version         show program's version number and exit
@@ -57,14 +50,7 @@ optional arguments:
   -t, --test            Test cloud connectivity and exit
   --cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}
                         The cloud provider to use as a storage backend
-  --tablespace NAME:LOCATION
-                        tablespace relocation rule
-  --snapshot-recovery-instance SNAPSHOT_RECOVERY_INSTANCE
-                        Instance where the disks recovered from the snapshots
-                        are attached
-  --snapshot-recovery-zone SNAPSHOT_RECOVERY_ZONE
-                        Zone containing the instance and disks for the
-                        snapshot recovery
+  --format FORMAT       Output format (console or json). Default console.
 
 Extra options for the aws-s3 cloud provider:
   --endpoint-url ENDPOINT_URL
@@ -119,11 +105,8 @@ If using `--cloud-provider=azure-blob-storage`:
 * azure-identity (optional, if you wish to use DefaultAzureCredential)
 
 If using `--cloud-provider=google-cloud-storage`
-* google-cloud-storage 
 
-If using `--cloud-provider=google-cloud-storage` with snapshot backups
-* grpcio
-* google-cloud-compute
+* google-cloud-storage
 
 # EXIT STATUS
 
@@ -131,7 +114,7 @@ If using `--cloud-provider=google-cloud-storage` with snapshot backups
 :   Success
 
 1
-:   The restore was not successful
+:   The show command was not successful
 
 2
 :   The connection to the cloud provider failed
@@ -141,6 +124,7 @@ If using `--cloud-provider=google-cloud-storage` with snapshot backups
 
 Other non-zero codes
 :   Failure
+
 
 # BUGS
 

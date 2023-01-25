@@ -70,6 +70,8 @@ and can be installed alongside the PostgreSQL server:
   retention policies applied;
 - `barman-cloud-backup-list`: script to be used to list the content of
   Barman backups taken with `barman-cloud-backup` from cloud storage;
+- `barman-cloud-backup-show`: script to be used to display the metadata for
+  a Barman backup taken with `barman-cloud-backup`;
 - `barman-cloud-restore`: script to be used to restore a backup directly
   taken with `barman-cloud-backup` from cloud storage;
 
@@ -82,7 +84,7 @@ use:
 * Google Cloud Storage: [google-cloud-storage][google-cloud-storage]
 
 **NOTE:** The latest versions of these libraries do not support python 2 due to it
-being [end-of-lfe][python-2-sunset] since Januaray 2020. If you are using the
+being [end-of-lfe][python-2-sunset] since January 2020. If you are using the
 Barman cloud utilities on a python 2 system it is recommended you upgrade to python 3.
 If you still want to use the Barman cloud utilities with python 2 then you will need
 to ensure the following version requirements are met for each library:
@@ -201,4 +203,46 @@ Some details are specific to all barman cloud commands:
   https://console.cloud.google.com/storage/browser/BUCKET_NAME/path
   ```
 
-  
+## barman-cloud and snapshot backups
+
+The barman-cloud client utilities can also be used to create and manage backups using cloud snapshots as an alternative to uploading to a cloud object store.
+
+When using barman-cloud in this manner the backup data is stored by the cloud provider as volume snapshots and the WALs and backup metadata, including the backup_label, are stored in cloud object storage.
+
+The prerequisites are the [same as for snapshot backups using Barman](#prerequisites-for-cloud-snapshots) with the added requirement that the credentials used by barman-cloud must be able to perform read/write/update operations against an object store.
+
+### barman-cloud-backup for snapshots
+
+To take a snapshot backup with barman-cloud, use `barman-cloud-backup` with the following additional arguments:
+
+- `--snapshot-disk` (can be used multiple times for multiple disks)
+- `--snapshot-instance`
+- `--snapshot-zone`
+
+If the `--cloud-provider` is `google-cloud-storage` then the following argument is also required:
+
+- `--snapshot-gcp-project`
+
+The following options cannot be used with `barman-cloud-backup` when cloud snapshots are requested:
+
+- `--bzip2`, `--gzip` or `--snappy`
+- `--jobs`
+
+Once a backup has been taken it can be managed using the standard barman-cloud commands such as `barman-cloud-backup-delete` and `barman-cloud-backup-keep`.
+
+### barman-cloud-restore for snapshots
+
+The process for recovering from a snapshot backup with barman-cloud is very similar to the process for [barman backups](#recovering-from-a-snapshot-backup) except that `barman-cloud-restore` should be run instead of `barman recover` once a recovery instance has been provisioned.
+This carries out the same pre-recovery checks as `barman recover` and copies the backup label into place on the recovery instance.
+
+The snapshot metadata required to provision the recovery instance can be queried using `barman-cloud-backup-show`.
+
+Note that, just like when using `barman-cloud-restore` with an object stored backup, the command will not prepare PostgreSQL for the recovery.
+Any PITR options, custom `restore_command` values or WAL files required before PostgreSQL starts must be handled manually or by external tooling.
+
+The following additional arguments must be used with `barman-cloud-restore` when restoring a backup made with cloud snapshots:
+
+- `--snapshot-recovery-instance`
+- `--snapshot-recovery-zone`
+
+The `--tablespace` option cannot be used with `barman-cloud-restore` when restoring a cloud snapshot backup:

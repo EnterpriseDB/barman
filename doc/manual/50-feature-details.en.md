@@ -989,3 +989,150 @@ WAL files also can be synchronised, through:
 ``` bash
 barman sync-wals <server_name>
 ```
+
+## Cloud snapshot backups
+
+Snapshot backups are backups which consist of one or more snapshots of cloud storage volumes.
+
+A snapshot backup can be taken for a [suitable PostgreSQL server](#prerequisites-for-cloud-snapshots) using either of the following commands:
+
+- `barman backup` with the [required configuration operations for snapshots](#configuration-for-snapshot-backups) if a Barman server is being used to store WALs and backup metadata.
+- `barman-cloud-backup` with the required [command line arguments](#barman-cloud-backup-for-snapshots) if there is no Barman server and instead a cloud object store is being used for WALs and backup metadata.
+
+### Snapshot backup details
+
+The high level process for taking a snapshot backup is as follows:
+
+1. Barman carries out a series of pre-flight checks to validate the snapshot options, instance and disks.
+2. Barman starts a backup using the [PostgreSQL backup API][postgres-low-level-base-backup].
+3. The cloud provider API is used to trigger a snapshot for each specified disk. Barman will wait until the snapshot has reached the required state for guaranteeing application consistency before moving on to the next disk.
+4. Additional provider-specific data, such as the device name for each disk, is saved to the backup metadata.
+5. The mount point and mount options for each disk are saved in the backup metadata.
+6. Barman stops the backup using the PostgreSQL backup API.
+
+The cloud provider API calls are made on the node where the backup command runs; this will be either the Barman server (when `barman backup` is used) or the PostgreSQL server (when `barman-cloud-backup` is used).
+
+The following pre-flight checks are carried out before each backup and also when `barman check` runs against a server configured for snapshot backups:
+
+- The compute instance specified by `snapshot_instance` exists in the availability zone specified by `snapshot_zone`.
+- The disks specified by `snapshot_disks` exist in the availability zone specified by `snapshot_zone`.
+- The disks specified by `snapshot_disks` are attached to `snapshot_instance`.
+- The disks specified by `snapshot_disks` are mounted on `snapshot_instance`.
+
+### Recovering from a snapshot backup
+
+Barman will not currently perform a fully automated recovery from snapshot backups.
+This is because recovery from snapshots requires the provision and management of new infrastructure which is something better handled by dedicated infrastructure-as-code solutions such as Terraform.
+
+However, the `barman recover` command can still be used to validate the snapshot recovery instance, carry out post-recovery tasks such as checking the PostgreSQL configuration for unsafe options and set any required PITR options.
+It will also copy the backup_label file into place (since the backup label is not stored in any of the volume snapshots) and copy across any required WALs (unless the `--get-wal` recovery option is used, in which case it will configure the PostgreSQL `restore_command` to fetch the WALs).
+
+If restoring a backup made with `barman-cloud-backup` then the more limited [barman-cloud-restore](#barman-cloud-restore-for-snapshots) command should be used instead of `barman recover`.
+
+Recovery from a snapshot backup consists of the following steps:
+
+1. Provision a new disk for each snapshot taken during the backup.
+2. Provision a compute instance where each disk provisioned in step 1 is attached and mounted according to the backup metadata.
+3. Use the [barman recover](#recover) or [barman-cloud-restore](#barman-cloud-restore-for-snapshots) command to validate and finalize the recovery.
+
+Steps 1 and 2 are best handled by an existing infrastructure-as-code system however it is also possible to carry these steps out manually or using a custom script.
+An example of such a script is [provided with Barman][snapshot-recovery-script] however this script makes various assumptions about the environment in which it runs and should not be considered suitable for production use.
+
+Once the recovery instance is provisioned and disks cloned from the backup snapshots are attached and mounted, run `barman recover` with the following additional arguments:
+
+- `--remote-ssh-command`: The ssh command required to log in to the recovery instance.
+- `--snapshot-recovery-instance`: The name of the recovery instance as required by the cloud provider.
+- `--snapshot-recovery-zone`:  The name of the availability zone in which the recovery instance is located.
+
+For example:
+
+``` bash
+barman recover SERVER_NAME BACKUP_ID REMOTE_RECOVERY_DIRECTORY \
+    --remote-ssh-command 'ssh USER@HOST' \
+    --snapshot-recovery-instance INSTANCE_NAME \
+    --snapshot-recovery-zone ZONE_NAME
+```
+
+Note the following `barman recover` arguments / config variables are unavailable when recovering snapshot backups:
+
+| **Command argument**      | **Config variable** .   |
+|:-------------------------:|:-----------------------:|
+| `--bwlimit`               | `bandwidth_limit`       |
+| `--jobs`                  | `parallel_jobs`         |
+| `--recovery-staging-path` | `recovery_staging_path` |
+| `--tablespace`            | N/A                     |
+
+Barman will automatically detect that the backup is a snapshot backup and check that the attached disks were cloned from the snapshots for that backup.
+Barman will then prepare PostgreSQL for recovery by copying the backup label and WALs into place and setting any required recovery options in the PostgreSQL configuration.
+
+### Backup metadata for snapshot backups
+
+Whether the recovery disks and instance are provisioned via infrastructure-as-code, ad-hoc automation or manually, it will be necessary to query Barman to find the snapshots required for a given backup.
+This can be achieved using [barman show-backup](#show-backup) which will provide details for each snapshot in the backup.
+For example:
+
+``` bash
+$ barman show-backup primary 20230123T131430
+Backup 20230123T131430:
+  Server Name            : primary
+  System Id              : 7190784995399903779
+  Status                 : DONE
+  PostgreSQL Version     : 140006
+  PGDATA directory       : /opt/postgres/data
+
+  Snapshot information:
+    provider             : gcp
+    project              : project_id
+
+    device_name          : pgdata
+    snapshot_name        : barman-av-ubuntu20-primary-pgdata-20230123t131430
+    snapshot_project     : project_id
+    Mount point          : /opt/postgres
+    Mount options        : rw,noatime
+
+    device_name          : tbs1
+    snapshot_name        : barman-av-ubuntu20-primary-tbs1-20230123t131430
+    snapshot_project     : project_id
+    Mount point          : /opt/postgres/tablespaces/tbs1
+    Mount options        : rw,noatime
+```
+
+The the `--format=json` option can be used when integrating with external tooling, e.g.:
+
+``` bash
+$ barman --format=json show-backup primary 20230123T131430
+...
+"snapshots_info": {
+  "provider": "gcp",
+  "provider_info": {
+    "project": "project_id"
+  },
+  "snapshots": [
+    {
+      "mount": {
+        "mount_options": "rw,noatime",
+        "mount_point": "/opt/postgres"
+      },
+      "provider": {
+        "device_name": "pgdata",
+        "snapshot_name": "barman-av-ubuntu20-primary-pgdata-20230123t131430",
+        "snapshot_project": "project_id"
+      }
+    },
+    {
+      "mount": {
+        "mount_options": "rw,noatime",
+        "mount_point": "/opt/postgres/tablespaces/tbs1"
+      },
+      "provider": {
+        "device_name": "tbs1",
+        "snapshot_name": "barman-av-ubuntu20-primary-tbs1-20230123t131430",
+        "snapshot_project": "project_id",
+      }
+    }
+  ]
+}
+...
+```
+
+For backups taken with `barman-cloud-backup` there is an analogous [barman-cloud-backup-show][pgbarman-barman-cloud-backup-show] command which can be used along with `barman-cloud-backup-list` to query the backup metadata in the cloud object store.

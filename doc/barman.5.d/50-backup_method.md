@@ -6,4 +6,8 @@ backup_method
     If set to `local-rsync`, barman will assume to be running on the same server
     as the PostgreSQL instance and with the same user, then execute `rsync` for the
     file system copy.
+    If set to `snapshot`, barman will use the API for the cloud provider defined in
+    the `snapshot_provider` option to create snapshots of disks specified in the
+    `snapshot_disks` option and save only the backup label and metadata to its own
+    storage.
     Global/Server.
