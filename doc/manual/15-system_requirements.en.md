@@ -3,7 +3,7 @@
 # System requirements
 
 - Linux/Unix
-- Python >= 3.4
+- Python >= 3.6
 - Python modules:
     - argcomplete
     - psycopg2 >= 2.4.2
@@ -18,9 +18,9 @@
 > [Extra Packages Enterprise Linux (EPEL) repository][epel].
 
 > **NOTE:**
-> Support for Python 2.6 and 2.7 is deprecated and will be discontinued in future releases.
-> Support for PostgreSQL <= 9.5 is discontinued
-> Support for PostgreSQL < 9.6 is deprecated and will be discontinued in future releases.
+> Support for Python 2.6 and 3.5 are discontinued.
+> Support for Python 2.7 is deprecated and will be discontinued in future releases.
+> Support for PostgreSQL < 10 is discontinued since Barman 3.0.0.
 
 ## Requirements for backup
 
