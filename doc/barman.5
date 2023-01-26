@@ -165,6 +165,10 @@ command to execute the backup.
 If set to \f[C]local\-rsync\f[], barman will assume to be running on the
 same server as the PostgreSQL instance and with the same user, then
 execute \f[C]rsync\f[] for the file system copy.
+If set to \f[C]snapshot\f[], barman will use the API for the cloud
+provider defined in the \f[C]snapshot_provider\f[] option to create
+snapshots of disks specified in the \f[C]snapshot_disks\f[] option and
+save only the backup label and metadata to its own storage.
 Global/Server.
 .RS
 .RE
@@ -724,6 +728,52 @@ Physical replication slot to be used by the \f[C]receive\-wal\f[]
 command when \f[C]streaming_archiver\f[] is set to \f[C]on\f[].
 Default: None (disabled).
 Global/Server.
+.RS
+.RE
+.TP
+.B snapshot_disks
+A comma\-separated list of disks which should be included in a backup
+taken using cloud snapshots.
+Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[].
+.RS
+.RE
+.TP
+.B snapshot_gcp_project
+The ID of the GCP project which owns the instance and storage volumes
+defined by \f[C]snapshot_instance\f[] and \f[C]snapshot_disks\f[].
+Global/Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[] and \f[C]snapshot_provider\f[] is set to
+\f[C]gcp\f[].
+.RS
+.RE
+.TP
+.B snapshot_instance
+The name of the VM or compute instance where the storage volumes are
+attached.
+Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[].
+.RS
+.RE
+.TP
+.B snapshot_provider
+The name of the cloud provider which should be used to create snapshots.
+Global/Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[].
+Supported values: \f[C]gcp\f[].
+.RS
+.RE
+.TP
+.B snapshot_zone
+The name of the availability zone where the compute instance and disks
+to be backed up in a snapshot backup are located.
+Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[].
 .RS
 .RE
 .TP

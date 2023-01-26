@@ -569,6 +569,22 @@ This option is \f[I]required\f[] when recovering from compressed backups
 and has no effect otherwise.
 .RS
 .RE
+.TP
+.B \-\-snapshot\-recovery\-instance \f[I]INSTANCE_NAME\f[]
+Name of the instance where the disks recovered from the snapshots are
+attached.
+This option is required when recovering backups made with
+\f[C]backup_method\ =\ snapshot\f[].
+.RS
+.RE
+.TP
+.B \-\-snapshot\-recovery\-zone \f[I]ZONE_NAME\f[]
+Name of the availability zone where the instance and disks for snapshot
+are located.
+This option is required when recovering backups made with
+\f[C]backup_method\ =\ snapshot\f[].
+.RS
+.RE
 .RE
 .TP
 .B replication\-status \f[I][OPTIONS]\f[] \f[I]SERVER_NAME\f[]
