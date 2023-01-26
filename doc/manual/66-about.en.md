@@ -86,7 +86,7 @@ Past contributors (in alphabetical order):
 Barman is the property of EnterpriseDB UK Limited and its code is
 distributed under GNU General Public License 3.
 
-© Copyright EnterpriseDB UK Limited 2011-2022
+© Copyright EnterpriseDB UK Limited 2011-2023
 
 Barman has been partially funded through [4CaaSt][18], a research
 project funded by the European Commission's Seventh Framework

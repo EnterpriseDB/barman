@@ -2,7 +2,7 @@
 #
 # barman - Backup and Recovery Manager for PostgreSQL
 #
-# © Copyright EnterpriseDB UK Limited 2011-2022
+# © Copyright EnterpriseDB UK Limited 2011-2023
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "Barman"
-copyright = "2011-2022 EnterpriseDB UK Limited]"
+copyright = "2011-2023 EnterpriseDB UK Limited]"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -302,7 +302,7 @@ texinfo_documents = [
 epub_title = "Barman"
 epub_author = "EnterpriseDB UK Limited"
 epub_publisher = "EnterpriseDB UK Limited"
-epub_copyright = "2011-2022, EnterpriseDB UK Limited"
+epub_copyright = "2011-2023, EnterpriseDB UK Limited"
 
 # The language of the text. It defaults to the language option
 # or en if the language is not set.
