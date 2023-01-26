@@ -1,5 +1,37 @@
 Barman News - History of user-visible changes
 
+Version 3.4.0 - 26 January 2023
+
+- This is the last release of Barman which will support Python 2 and
+  new features will henceforth require Python 3.6 or later.
+
+- A new `backup_method` named `snapshot` is added. This will create
+  backups by taking snapshots of cloud storage volumes. Currently
+  only Google Cloud Platform is supported however support for AWS
+  and Azure will follow in future Barman releases. Note that this
+  feature requires a minimum Python version of 3.7. Please see the
+  Barman manual for more information.
+
+- Support for snapshot backups is also added to `barman-cloud-backup`,
+  with minimal support for restoring a snapshot backup added to
+  `barman-cloud-restore`.
+
+- A new command `barman-cloud-backup-show` is added which displays
+  backup metadata stored in cloud object storage and is analogous to
+  `barman show-backup`. This is provided so that snapshot metadata
+  can be easily retrieved at restore time however it is also a
+  convenient way of inspecting metadata for any backup made with
+  `barman-cloud-backup`.
+
+- The instructions for installing Barman from RPMs in the docs are
+  updated.
+
+- The formatting of NFS requirements in the docs is fixed.
+
+- Supported PostgreSQL versions are updated in the docs (this is a
+  documentation fix only - the minimum supported major version is
+  still 10).
+
 Version 3.3.0 - 14 December 2022
 
 - A backup can now be given a name at backup time using the new
