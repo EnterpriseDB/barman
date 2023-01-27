@@ -1,0 +1,19 @@
+name: documentation generation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-doc:
+    name: build barman documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - run: |
+          echo "${{ github.workspace }}"
+      - name: build documentation
+        id: build-documentation
+        uses: ./actions/build-documentation
+        with:
+          barman-path: ${{ github.workspace }}
