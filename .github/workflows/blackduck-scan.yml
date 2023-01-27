@@ -1,45 +1,61 @@
-name: BlackDuck-Scan-Workflow
+###
+##  Foundation-security BlackDuck workflow 
+#
+name: Foundation-Security/Black Duck Scan
 
 on:
-  # Triggers the workflow on push request events but only for the master branch
-  pull_request:
-    branches: [ master ]
-
-  # Allows you to run this workflow manually from the Actions tab
+  push:
+    tags:        
+      - '**'
   workflow_dispatch:
 
 jobs:
-  scan:
-    name: BlackDuck-scan
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.head.repo.full_name == 'EnterpriseDB/barman'
-
+  Blackduck-Scan:
+    runs-on: ubuntu-20.04
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Set up JDK 8
-        uses: actions/setup-java@v2.1.0
-        with:
-          java-version: 8
-          distribution: 'zulu'
-      - name: Install python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.7
-      - name: Install project
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install -e .[cloud]
-          python -m pip install -e .[completion]
-          python -m pip install -e .[azure]
-      # -- Build with steps and requirements
-      - name: Synopsys Detect
-        uses: blackducksoftware/github-action@2.0.0
-        with:
-          args: '--blackduck.url="${{ secrets.BLACKDUCK_URL}}" --blackduck.api.token="${{ secrets.BLACKDUCK_API_TOKEN}}" --detect.project.name="Barman" --detect.project.version.name="CI/CD" --detect.risk.report.pdf=true --detect.excluded.detector.types="npm,cpan,nuget,git,maven,lerna" --detect.blackduck.signature.scanner.license.search'
+    - name: Checkout source repository
+      id: checkout-source
+      uses: actions/checkout@v3
 
-      # Just print the end of scan
-      - name: End of Scan
-        run: |
-          echo Finished scanning.
+    - name: Checkout foundation repository
+      id: checkout-foundation
+      uses: actions/checkout@v3
+      with:
+          repository: EnterpriseDB/foundation-packaging
+          ref: main
+          path: foundation
+          token: ${{secrets.GH_SLONIK}}
+
+    - name: Set defaults
+      id: set-default
+      shell: bash
+      run: |
+        echo "foundation_scanning_blackduck_java-distribution=adopt" >> $GITHUB_ENV;
+        echo "foundation_scanning_blackduck_java-version=11" >> $GITHUB_ENV;
+        echo "foundation_scanning_blackduck_detect-version=8.2.0" >> $GITHUB_ENV;
+        echo "foundation_scanning_blackduck_scan-mode=INTELLIGENT" >> $GITHUB_ENV;
+
+    - name: Get foundation config
+      id: get-foundation-config
+      uses: ./foundation/actions/get/foundation-config
+      continue-on-error: true     
+        
+    - name: Set up JDK
+      id: setup-jdk
+      uses: actions/setup-java@v3
+      with:
+        distribution: ${{ env.foundation_scanning_blackduck_java-distribution }}
+        java-version: ${{ env.foundation_scanning_blackduck_java-version }}
+       
+    - name: Run Synopsys Detect
+      id: run-synopsys-detect
+      uses: synopsys-sig/detect-action@v0.3.3
+      env:
+        DETECT.PROJECT.VERSION.NAME: ${{ github.ref_type }}/${{ github.ref_name }}
+        DETECT.PROJECT.NAME: ${{ github.event.repository.name }}
+      with: 
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        blackduck-url: ${{ secrets.BLACKDUCK_URL }}
+        blackduck-api-token: ${{ secrets.BLACKDUCK_API_TOKEN }}
+        detect-version: ${{ env.foundation_scanning_blackduck_detect-version }}
+        scan-mode: ${{ env.foundation_scanning_blackduck_scan-mode }}
