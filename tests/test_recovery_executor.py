@@ -1783,6 +1783,7 @@ class TestSnapshotRecoveryExecutor(object):
             exclusive=False,
             target_action=None,
             standby_mode=None,
+            recovery_conf_filename=None,
         )
 
     @pytest.mark.parametrize(
