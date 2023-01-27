@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Copyright (C) 2018 2ndQuadrant Limited
+
+set -xeu
+
+DOCDIR="${BASEDIR}/doc"
+SRCDIR="${BASEDIR}"
+DISTDIR="${DOCDIR}/dist"
+
+
+cd "${SRCDIR}/doc/build"
+mkdir -p source
+cp -va "${SRCDIR}"/doc/*.md source
+cp -va "${SRCDIR}"/doc/*.d source
+cp -va "${SRCDIR}"/doc/manual .
+cp -va "${SRCDIR}"/doc/images .
+pwd
+ls
+
+USERMAP=$(docker run --rm -v "${BASEDIR}":"${BASEDIR}" "${PANDOC_IMAGE}" \
+  stat -c %u:%g "${BASEDIR}")
+docker run --rm -u "${USERMAP}" -w "$(pwd)" -v "${BASEDIR}:${BASEDIR}" \
+  "$PANDOC_IMAGE" make clean all
+
+pwd
+ls
+mkdir -p "${DISTDIR}"
+cp -va *.html *.pdf "${DISTDIR}"
+mkdir -p "${DISTDIR}/html-templates"
+cp -va html-templates/*.css "${DISTDIR}/html-templates"
+mkdir -p "${DISTDIR}/images"
+cp -va images/* "${DISTDIR}/images"

@@ -1,0 +1,39 @@
+/* CUSTOMIZATIONS */
+.doc-title { float: left; display: block; padding: 10px 20px 10px; margin-left: -20px;
+  font-size: 20px; font-weight: 200; color: #777777; text-shadow: 0 1px 0 #ffffff; }
+.doc-info .navbar-text { padding: 0 15px; }
+h1 a { color: #333; } h2 a { color: #333; } h3 a { color: #333; }
+h4 a { color: #333; } h5 a { color: #333; } h6 a { color: #333; }
+h1:hover a { color: #333; } h2:hover a { color: #333; } h3:hover a { color: #333; }
+h4:hover a { color: #333; } h5:hover a { color: #333; } h6:hover a { color: #333; }
+.toc { margin-top: 30px; }
+.toc, .toc ul { padding: 0; }
+.toc ul { margin-bottom: 20px; list-style: none; }
+.toc ul > li > a { display: block; }
+.toc ul > li > a:hover,
+.toc ul > li > a:focus { text-decoration: none; background-color: #eeeeee; }
+.toc ul { margin-bottom: 0; }
+.toc ul > li > a, .toc ul > li > a { padding: 3px 15px; }
+
+
+/* 2ndQuadrant mods*/
+#CONTENT {padding-top: 30px}
+
+
+h1 > code
+{
+    font-size: 38.5px;
+    color: black;
+}
+
+h2 > code
+{
+    font-size: 31.5px;
+    color: black;
+}
+
+h3 > code
+{
+    font-size: 24.5px;
+    color: black;
+}

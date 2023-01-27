@@ -1,0 +1,110 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"$if(lang)$ lang="$lang$" xml:lang="$lang$"$endif$>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+$for(author-meta)$
+  <meta name="author" content="$author-meta$" />
+$endfor$
+$if(date-meta)$
+  <meta name="date" content="$date-meta$" />
+$endif$
+  <title>$if(title-prefix)$$title-prefix$ - $endif$$pagetitle$</title>
+  <style type="text/css">code{white-space: pre;}</style>
+$if(quotes)$
+  <style type="text/css">q { quotes: "“" "”" "‘" "’"; }</style>
+$endif$
+$if(highlighting-css)$
+  <style type="text/css">
+$highlighting-css$
+  </style>
+$endif$
+$for(css)$
+  <link rel="stylesheet" href="$css$" $if(html5)$$else$type="text/css" $endif$/>
+$endfor$
+$if(math)$
+  $math$
+$endif$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+</head>
+<body data-spy="scroll" data-target=".bs-docs-sidebar" >
+  $if(title)$
+  <div class="navbar navbar-inverse navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class="container">
+          <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <div class="nav-collapse collapse">
+            <ul class="nav">
+              <li>
+                <a href="http://www.pgbarman.org/" title="visit Barman homepage">Barman</a>
+              </li>
+              <li>
+                <a href="http://www.2ndQuadrant.com/" title="visit 2ndQuadrant homepage">2ndQuadrant</a>
+              </li>
+              <li>
+                <a href="index.html">manual</a>
+              </li>
+              <li>
+                <a href="barman-wal-restore.1.html" title="Section 1 of the man page for barman-walaws">barman-wal-restore</a>
+              </li>
+              <li>
+                <a href="barman-wal-archive.1.html" title="Section 1 of the man page for barman-backupaws">barman-wal-archive</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  <div class="navbar navbar-static-top">
+    <div class="navbar-inner">
+      <div class="container">
+        <span class="doc-title">$title$</span>
+        <ul class="nav pull-right doc-info">
+          $for(author)$
+          <li><p class="navbar-text">$author$</p></li>
+          $endfor$
+          $if(date)$
+          <li><p class="navbar-text">$date$</p></li>
+          $endif$
+        </ul>
+      </div>
+    </div>
+  </div>
+  $endif$
+  <div class="container">
+    <div class="row">
+      $if(toc)$
+      <div id="$idprefix$TOC" class="span3">
+        <div class="well toc">
+        <ul id="toc" class="nav">
+          <li class="nav-header">Table of Contents</li>
+        </ul>
+        $toc$
+        </div>
+      </div>
+      $endif$
+      <div id="CONTENT" class="span$if(toc)$9$else$12$endif$">
+      $for(include-before)$
+      $include-before$
+      $endfor$
+      $body$
+      $for(include-after)$
+      $include-after$
+      $endfor$
+      </div>
+    </div>
+  </div>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+  
+</body>
+</html>
