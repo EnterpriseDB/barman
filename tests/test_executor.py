@@ -1314,15 +1314,29 @@ class TestPostgresBackupExecutor(object):
         )
         # WITH a valid compression configuration
         mock_pgbb_compression.return_value.validate.return_value = []
+        # AND the server_version property is mocked
+        mock_server_version = PropertyMock()
+        type(server.postgres).server_version = mock_server_version
+        # AND a mock object which is used to validate call ordering
+        call_validation_mock = Mock()
+        call_validation_mock.attach_mock(server.close, "mock_close")
+        call_validation_mock.mock_server_version = mock_server_version
+
         # WHEN a PostgresBackupExecutor is created
         PostgresBackupExecutor(server.backup_manager)
+
         # THEN the validate method of the executor's PgBaseBackupCompression object
         # is called
         mock_pgbb_compression.return_value.validate.assert_called_once()
         # AND the server config message list has no errors
         assert len(server.config.msg_list) == 0
-        # AND the server's close method was called
+        # AND the server's close method was called after the call to retreive the
+        # server version
         server.close.assert_called_once()
+        mock_server_version.assert_called_once()
+        call_validation_mock.assert_has_calls(
+            [mock.call.mock_server_version, mock.call.mock_close]
+        )
 
     def test_postgres_connection_error_validating_compression(self, caplog):
         """
