@@ -295,39 +295,44 @@ class PostgresBackupExecutor(BackupExecutor):
                 "postgres backup_method"
             )
 
+        # The following checks require interactions with the PostgreSQL server
+        # therefore they are carried out within a `closing` context manager to
+        # ensure the connection is not left dangling in cases where no further
+        # server interaction is required.
         remote_status = None
-        if self.server.config.bandwidth_limit or self.backup_compression:
-            # This method is invoked too early to have a working streaming
-            # connection. So we avoid caching the result by directly
-            # invoking fetch_remote_status() instead of get_remote_status()
-            # We make the call within a closing context manager so we do not
-            # leave any dangling PostgreSQL connections in cases where no
-            # further server interaction is required.
-            with closing(self.server):
+        with closing(self.server):
+            if self.server.config.bandwidth_limit or self.backup_compression:
+                # This method is invoked too early to have a working streaming
+                # connection. So we avoid caching the result by directly
+                # invoking fetch_remote_status() instead of get_remote_status()
                 remote_status = self.fetch_remote_status()
 
-        # bandwidth_limit option is supported by pg_basebackup executable
-        # starting from Postgres 9.4
-        if (
-            self.server.config.bandwidth_limit
-            and remote_status["pg_basebackup_bwlimit"] is False
-        ):
-            # If pg_basebackup is present and it doesn't support bwlimit
-            # disable the server.
-            # Report the error in the configuration errors message list
-            self.server.config.update_msg_list_and_disable_server(
-                "bandwidth_limit option is not supported by "
-                "pg_basebackup version (current: %s, required: 9.4)"
-                % remote_status["pg_basebackup_version"]
-            )
+            # bandwidth_limit option is supported by pg_basebackup executable
+            # starting from Postgres 9.4
+            if (
+                self.server.config.bandwidth_limit
+                and remote_status["pg_basebackup_bwlimit"] is False
+            ):
+                # If pg_basebackup is present and it doesn't support bwlimit
+                # disable the server.
+                # Report the error in the configuration errors message list
+                self.server.config.update_msg_list_and_disable_server(
+                    "bandwidth_limit option is not supported by "
+                    "pg_basebackup version (current: %s, required: 9.4)"
+                    % remote_status["pg_basebackup_version"]
+                )
 
-        # validate compression options
-        if self.backup_compression:
-            self._validate_compression(remote_status)
+            # validate compression options
+            if self.backup_compression:
+                self._validate_compression(remote_status)
 
     def _validate_compression(self, remote_status):
         """
-        In charge of validating compression options
+        In charge of validating compression options.
+
+        Note: Because this method requires a connection to the PostgreSQL server it
+        should be called within the context of a closing context manager.
+
         :param remote_status:
         :return:
         """
