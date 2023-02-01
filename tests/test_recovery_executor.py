@@ -1291,7 +1291,6 @@ class TestRecoveryExecutor(object):
         unix_command_factory,
         tmpdir,
     ):
-
         # This backup is waiting for WALs and it remains in that status
         # even after having copied the data files
         backup_info_mock.WAITING_FOR_WALS = "WAITING_FOR_WALS"

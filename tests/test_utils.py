@@ -379,7 +379,6 @@ class TestPrettySize(object):
         assert barman.utils.pretty_size(val, base) == "-10240.0 YiB"
 
     def test_float(self):
-
         assert barman.utils.pretty_size(1234, 1000) == barman.utils.pretty_size(
             1234.0, 1000
         )

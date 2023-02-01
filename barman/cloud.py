@@ -162,7 +162,6 @@ class TarFileIgnoringTruncate(tarfile.TarFile):
 
 
 class CloudTarUploader(object):
-
     # This is the method we use to create new buffers
     # We use named temporary files, so we can pass them by name to
     # other processes
@@ -317,7 +316,6 @@ class CloudUploadController(object):
         :rtype: tarfile.TarFile
         """
         if name not in self.tar_list or not self.tar_list[name]:
-
             self.tar_list[name] = [
                 CloudTarUploader(
                     cloud_interface=self.cloud_interface,
@@ -2023,7 +2021,6 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
         :rtype: Dict[str,BackupInfo]
         """
         if self._backup_list is None:
-
             backup_list = {}
 
             # get backups metadata

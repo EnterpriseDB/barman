@@ -383,7 +383,6 @@ class ConsoleOutputWriter(object):
     SERVER_OUTPUT_PREFIX = "Server %s:"
 
     def __init__(self, debug=False, quiet=False):
-
         """
         Default output writer that output everything on console.
 

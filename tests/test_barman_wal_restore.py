@@ -47,7 +47,6 @@ class TestRemoteGetWal(object):
 
     @mock.patch("barman.clients.walrestore.subprocess.Popen")
     def test_connectivity_test_ok(self, popen_mock, capsys):
-
         popen_mock.return_value.communicate.return_value = ("Good test!", "")
         popen_mock.return_value.returncode = 0
 
@@ -61,7 +60,6 @@ class TestRemoteGetWal(object):
 
     @mock.patch("barman.clients.walrestore.subprocess.Popen")
     def test_connectivity_test_error(self, popen_mock, capsys):
-
         popen_mock.return_value.communicate.side_effect = subprocess.CalledProcessError(
             255, "remote barman"
         )

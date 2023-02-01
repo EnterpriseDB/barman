@@ -125,7 +125,6 @@ def get_cloud_interface(config):
     elif config.cloud_provider == "azure-blob-storage":
         return _make_azure_cloud_interface(config, cloud_interface_kwargs)
     elif config.cloud_provider == "google-cloud-storage":
-
         return _make_google_cloud_interface(config, cloud_interface_kwargs)
     else:
         raise CloudProviderUnsupported(

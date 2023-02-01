@@ -316,7 +316,6 @@ class UnixLocalCommand(object):
         return result == 0
 
     def ping(self):
-
         """
         'Ping' the server executing the `true` command.
 

@@ -159,7 +159,6 @@ def main(args=None):
             raise SystemExit(0)
 
         with closing(cloud_interface):
-
             # TODO: Should the setup be optional?
             cloud_interface.setup_bucket()
 
