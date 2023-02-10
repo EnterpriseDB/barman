@@ -145,7 +145,6 @@ def mock_backup_ext_info(
     copy_stats={},
     **kwargs
 ):
-
     # make a dictionary with all the arguments
     ext_info = dict(locals())
     del ext_info["backup_info"]

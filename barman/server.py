@@ -2014,7 +2014,6 @@ class Server(RemoteStatusMixin):
         wal_paths = self.get_wal_possible_paths(wal_name, partial)
 
         for wal_file in wal_paths:
-
             # Check for file existence
             if not os.path.exists(wal_file):
                 continue
@@ -2729,7 +2728,6 @@ class Server(RemoteStatusMixin):
                     mode = "a%s" % mode[1:]
 
             with open(xlogdb, mode) as f:
-
                 # execute the block nested in the with statement
                 try:
                     yield f

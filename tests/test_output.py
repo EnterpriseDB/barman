@@ -80,7 +80,6 @@ class TestOutputAPI(object):
     # noinspection PyProtectedMember,PyUnresolvedReferences
     @mock.patch.dict(output.AVAILABLE_WRITERS, mock=mock.Mock())
     def test_set_output_writer_close(self):
-
         old_writer = mock.Mock()
         output.set_output_writer(old_writer)
 

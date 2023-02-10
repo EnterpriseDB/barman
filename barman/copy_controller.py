@@ -522,7 +522,6 @@ class RsyncCopyController(object):
 
             # Execute some preliminary steps for each item to be copied
             for item in self.item_list:
-
                 # The initial preparation is necessary only for directories
                 if not item.is_directory:
                     continue
@@ -614,7 +613,6 @@ class RsyncCopyController(object):
         :rtype: iter[_RsyncJob]
         """
         for item_idx, item in enumerate(self.item_list):
-
             # Skip items of classes which are not required
             if include_classes and item.item_class not in include_classes:
                 continue
@@ -624,7 +622,6 @@ class RsyncCopyController(object):
             # If the item is a directory then copy it in two stages,
             # otherwise copy it using a plain rsync
             if item.is_directory:
-
                 # Copy the safe files using the default rsync algorithm
                 msg = self._progress_message("[%%s] %%s copy safe files from %s" % item)
                 phase_skipped = True

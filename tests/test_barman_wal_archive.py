@@ -139,7 +139,6 @@ class TestMain(object):
 
     @mock.patch("barman.clients.walarchive.RemotePutWal")
     def test_error_dir(self, rpw_mock, tmpdir, capsys):
-
         with pytest.raises(SystemExit) as exc:
             walarchive.main(["a.host", "a-server", tmpdir.strpath])
 
@@ -199,7 +198,6 @@ class TestMain(object):
 
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
     def test_connectivity_test_returns_subprocess_output(self, popen_mock, capsys):
-
         popen_mock.return_value.communicate.return_value = (
             b"Tested subprocess return code percolation",
             b"",
@@ -216,7 +214,6 @@ class TestMain(object):
 
     @mock.patch("barman.clients.walarchive.subprocess.Popen")
     def test_connectivity_test_error(self, popen_mock, capsys):
-
         popen_mock.return_value.communicate.side_effect = subprocess.CalledProcessError(
             255, "remote barman"
         )

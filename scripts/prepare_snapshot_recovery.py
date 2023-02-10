@@ -356,7 +356,6 @@ def main():
     gcp_compute = GcpComputeFacade(args.project_id)
     snapshots = []
     for snapshot_info in backup_info.snapshots_info.snapshots:
-
         snapshot = gcp_compute.get_snapshot(
             snapshot_info.snapshot_project,
             snapshot_info.snapshot_name,

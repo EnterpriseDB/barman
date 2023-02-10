@@ -411,7 +411,6 @@ def parse_arguments(args=None):
 
 
 class RemoteGetWal(object):
-
     processes = set()
     """
     The list of processes that has been spawned by RemoteGetWal

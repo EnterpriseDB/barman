@@ -161,7 +161,6 @@ class Field(object):
 
 
 class FieldListFile(object):
-
     __slots__ = ("_fields", "filename")
 
     # A list of fields which should be hidden if they are not set.
@@ -431,7 +430,6 @@ class WalFileInfo(FieldListFile):
 
 
 class BackupInfo(FieldListFile):
-
     #: Conversion to string
     EMPTY = "EMPTY"
     STARTED = "STARTED"
