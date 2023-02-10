@@ -478,7 +478,6 @@ class FileWalArchiver(WalArchiver):
     """
 
     def __init__(self, backup_manager):
-
         super(FileWalArchiver, self).__init__(backup_manager, "file archival")
 
     def fetch_remote_status(self):

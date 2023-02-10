@@ -265,7 +265,6 @@ class TestCommandCompressors(object):
         )
 
     def test_gzip(self, tmpdir):
-
         config_mock = mock.Mock()
 
         compression_manager = CompressionManager(config_mock, tmpdir.strpath)
@@ -291,7 +290,6 @@ class TestCommandCompressors(object):
         assert f == "content"
 
     def test_bzip2(self, tmpdir):
-
         config_mock = mock.Mock()
 
         compression_manager = CompressionManager(config_mock, tmpdir.strpath)
@@ -320,7 +318,6 @@ class TestCommandCompressors(object):
 # noinspection PyMethodMayBeStatic
 class TestInternalCompressors(object):
     def test_gzip(self, tmpdir):
-
         config_mock = mock.Mock()
 
         compression_manager = CompressionManager(config_mock, tmpdir.strpath)
@@ -346,7 +343,6 @@ class TestInternalCompressors(object):
         assert f == "content"
 
     def test_bzip2(self, tmpdir):
-
         config_mock = mock.Mock()
 
         compression_manager = CompressionManager(config_mock, tmpdir.strpath)

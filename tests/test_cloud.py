@@ -2628,7 +2628,6 @@ end_time=2014-12-22 09:25:27.410470+01:00
         ],
     )
     def test_can_list_wals(self, expected_wal, wal_path, suffix):
-
         """Test the various different WAL files are listed correctly"""
         self._verify_wal_is_in_catalog(
             expected_wal,

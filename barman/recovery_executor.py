@@ -620,7 +620,6 @@ class RecoveryExecutor(object):
             )
             output.close_and_exit()
         for item in backup_info.tablespaces:
-
             # build the filename of the link under pg_tblspc directory
             pg_tblspc_file = os.path.join(tblspc_dir, str(item.oid))
 
@@ -1200,7 +1199,6 @@ class RecoveryExecutor(object):
         validator = ConfigIssueDetection()
         # Check for dangerous options inside every config file
         for conf_file in recovery_info["temporary_configuration_files"]:
-
             append_lines = None
             if conf_file.endswith("postgresql.auto.conf"):
                 append_lines = recovery_info.get("auto_conf_append_lines")
@@ -1762,7 +1760,6 @@ def recovery_executor_factory(backup_manager, command, backup_info):
 
 
 class ConfigurationFileMangeler:
-
     # List of options that, if present, need to be forced to a specific value
     # during recovery, to avoid data losses
     OPTIONS_TO_MANGLE = {

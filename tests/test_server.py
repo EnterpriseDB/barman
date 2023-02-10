@@ -1096,7 +1096,6 @@ class TestServer(object):
 
     @patch("barman.server.ProcessManager")
     def test_kill(self, pm_mock, capsys):
-
         server = build_real_server()
 
         # Empty process list, the process is not running

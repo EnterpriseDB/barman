@@ -511,6 +511,7 @@ def with_metaclass(meta, *bases):
 
     :param type meta: Metaclass to add to base class
     """
+
     # This requires a bit of explanation: the basic idea is to make a
     # dummy metaclass for one level of class instantiation that replaces
     # itself with the actual metaclass.
@@ -527,6 +528,7 @@ def timeout(timeout_duration):
     ContextManager responsible for timing out the contained
     block of code after a defined time interval.
     """
+
     # Define the handler for the alarm signal
     def handler(signum, frame):
         raise TimeoutError()

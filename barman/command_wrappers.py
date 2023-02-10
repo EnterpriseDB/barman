@@ -954,7 +954,7 @@ class PgBaseBackup(PostgreSQLClient):
 
         # The tablespace mapping option is repeated once for each tablespace
         if tbs_mapping:
-            for (tbs_source, tbs_destination) in tbs_mapping.items():
+            for tbs_source, tbs_destination in tbs_mapping.items():
                 self.args.append(
                     "--tablespace-mapping=%s=%s" % (tbs_source, tbs_destination)
                 )
