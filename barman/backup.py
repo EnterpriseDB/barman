@@ -595,9 +595,12 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         try:
             # Create the BackupInfo object representing the backup
             backup_info = LocalBackupInfo(
-                self.server, backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+                self.server,
+                backup_id=datetime.datetime.now().strftime("%Y%m%dT%H%M%S"),
+                backup_name=name,
             )
             backup_info.set_attribute("systemid", self.server.systemid)
+
             backup_info.save()
             self.backup_cache_add(backup_info)
             output.info(
@@ -688,9 +691,6 @@ class BackupManager(RemoteStatusMixin, KeepManagerMixin):
         finally:
             if backup_info:
                 backup_info.save()
-
-                # Set the backup friendly name if there is one
-                backup_info.backup_name = name
 
                 # Make sure we are not holding any PostgreSQL connection
                 # during the post-backup scripts

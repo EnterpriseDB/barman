@@ -742,13 +742,12 @@ class TestBackup(object):
         )
 
     @pytest.mark.parametrize("should_fail", (True, False))
-    @patch("barman.backup.LocalBackupInfo")
-    def test_backup_with_name(self, mock_backup_info, should_fail):
+    @patch("barman.backup.LocalBackupInfo.save")
+    @patch("barman.backup.output")
+    def test_backup_with_name(self, _mock_output, _mock_backup_info_save, should_fail):
         """Verify that backup name is written to backup info during the backup."""
         # GIVEN a backup manager
         backup_manager = build_backup_manager()
-        backup_info = mock_backup_info.return_value
-        backup_info.size = 0
         backup_manager.executor.backup = Mock()
         backup_manager.executor.copy_start_time = datetime.now()
 
@@ -758,19 +757,20 @@ class TestBackup(object):
 
         # WHEN a backup is taken with a given name
         backup_name = "arire tbaan tvir lbh hc"
-        backup_manager.backup(name=backup_name)
+        backup_info = backup_manager.backup(name=backup_name)
 
         # THEN the backup name is set on the backup_info
         assert backup_info.backup_name == backup_name
 
     @pytest.mark.parametrize("should_fail", (True, False))
-    @patch("barman.backup.LocalBackupInfo")
-    def test_backup_without_name(self, mock_backup_info, should_fail):
+    @patch("barman.backup.LocalBackupInfo.save")
+    @patch("barman.backup.output")
+    def test_backup_without_name(
+        self, _mock_output, _mock_backup_info_save, should_fail
+    ):
         """Verify that backup name is not written to backup info if name not used."""
         # GIVEN a backup manager
         backup_manager = build_backup_manager()
-        backup_info = mock_backup_info.return_value
-        backup_info.size = 0
         backup_manager.executor.backup = Mock()
         backup_manager.executor.copy_start_time = datetime.now()
 
@@ -779,7 +779,7 @@ class TestBackup(object):
             backup_manager.executor.backup.side_effect = Exception("failed!")
 
         # WHEN a backup is taken with no name
-        backup_manager.backup()
+        backup_info = backup_manager.backup()
 
         # THEN backup name is None in the backup_info
         assert backup_info.backup_name is None
