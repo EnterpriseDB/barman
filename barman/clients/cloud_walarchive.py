@@ -165,6 +165,14 @@ def parse_arguments(args=None):
         name="history-tags",
         help="Tags to be added to archived history files in cloud storage",
     )
+    gcs_arguments = parser.add_argument_group(
+        "Extra options for google-cloud-storage cloud provider"
+    )
+    gcs_arguments.add_argument(
+        "--kms-key-name",
+        help="The name of the GCP KMS key which should be used for encrypting the "
+        "uploaded data in GCS.",
+    )
     s3_arguments.add_argument(
         "-e",
         "--encryption",
