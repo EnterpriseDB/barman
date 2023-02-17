@@ -54,6 +54,16 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
     )
     if "encryption" in config:
         cloud_interface_kwargs["encryption"] = config.encryption
+    if "sse_kms_key_id" in config:
+        if (
+            config.sse_kms_key_id is not None
+            and "encryption" in config
+            and config.encryption != "aws:kms"
+        ):
+            raise CloudProviderOptionUnsupported(
+                'Encryption type must be "aws:kms" if SSE KMS Key ID is specified'
+            )
+        cloud_interface_kwargs["sse_kms_key_id"] = config.sse_kms_key_id
     return S3CloudInterface(**cloud_interface_kwargs)
 
 
