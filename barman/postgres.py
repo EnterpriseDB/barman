@@ -1260,9 +1260,9 @@ class PostgreSQLConnection(PostgreSQL):
             # Stop the backup  using the api introduced with version 9.6
             cur = conn.cursor(cursor_factory=DictCursor)
 
-            # As we already ran pg_backup_stop we can now reset
+            # As we are about to run pg_backup_stop we can now reset
             # idle_session_timeout to whatever the user had
-            # previously configured in PostgreSQL
+            # originally configured in PostgreSQL
             if self.server_version >= 140000:
                 cur.execute("RESET idle_session_timeout")
 
