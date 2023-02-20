@@ -1148,6 +1148,14 @@ class PostgreSQLConnection(PostgreSQL):
                 # PostgreSQLs below 15 have a boolean parameter to specify
                 # not to use exclusive backup
                 pg_backup_args = "%s, %s, FALSE"
+
+            # pg_backup_start and pg_backup_stop need to be run in the
+            # same session when taking concurrent backups, so we disable
+            # idle_session_timeout to avoid failures when stopping the
+            # backup if copy takes more than idle_session_timeout to complete
+            if self.server_version >= 140000:
+                cur.execute("SET idle_session_timeout TO 0")
+
             cur.execute(
                 "SELECT location, "
                 "(SELECT timeline_id "
@@ -1251,6 +1259,13 @@ class PostgreSQLConnection(PostgreSQL):
 
             # Stop the backup  using the api introduced with version 9.6
             cur = conn.cursor(cursor_factory=DictCursor)
+
+            # As we already ran pg_backup_stop we can now reset
+            # idle_session_timeout to whatever the user had
+            # previously configured in PostgreSQL
+            if self.server_version >= 140000:
+                cur.execute("RESET idle_session_timeout")
+
             cur.execute(
                 "SELECT end_row.lsn AS location, "
                 "(SELECT CASE WHEN pg_is_in_recovery() "
