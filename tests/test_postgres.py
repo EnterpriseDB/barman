@@ -357,22 +357,22 @@ class TestPostgres(object):
         # be disabled in the method, resulting in 2 execute calls
         if server_version >= 140000:
             assert cursor_mock.execute.call_count == 2
-            cursor_mock.execute.assert_has_calls([
-                call(
-                    "RESET idle_session_timeout"
-                ),
-                call(
-                    "SELECT end_row.lsn AS location, "
-                    "(SELECT CASE WHEN pg_is_in_recovery() "
-                    "THEN min_recovery_end_timeline "
-                    "ELSE timeline_id END "
-                    "FROM pg_control_checkpoint(), pg_control_recovery()"
-                    ") AS timeline, "
-                    "end_row.labelfile AS backup_label, "
-                    "now() AS timestamp "
-                    "FROM %s AS end_row" % expected_stop_call
-                ),
-            ])
+            cursor_mock.execute.assert_has_calls(
+                [
+                    call("RESET idle_session_timeout"),
+                    call(
+                        "SELECT end_row.lsn AS location, "
+                        "(SELECT CASE WHEN pg_is_in_recovery() "
+                        "THEN min_recovery_end_timeline "
+                        "ELSE timeline_id END "
+                        "FROM pg_control_checkpoint(), pg_control_recovery()"
+                        ") AS timeline, "
+                        "end_row.labelfile AS backup_label, "
+                        "now() AS timestamp "
+                        "FROM %s AS end_row" % expected_stop_call
+                    ),
+                ]
+            )
         else:
             cursor_mock.execute.assert_called_once_with(
                 "SELECT end_row.lsn AS location, "
@@ -483,19 +483,20 @@ class TestPostgres(object):
         # be enabled in the method, resulting in 2 execute calls
         if server_version >= 140000:
             assert cursor_mock.execute.call_count == 2
-            cursor_mock.execute.assert_has_calls([
-                call(
-                    "SET idle_session_timeout TO 0"
-                ),
-                call(
-                    "SELECT location, "
-                    "(SELECT timeline_id "
-                    "FROM pg_control_checkpoint()) AS timeline, "
-                    "now() AS timestamp "
-                    "FROM %s(%s) AS location" % (expected_start_fun, expected_start_args),
-                    ("test label", False),
-                ),
-            ])
+            cursor_mock.execute.assert_has_calls(
+                [
+                    call("SET idle_session_timeout TO 0"),
+                    call(
+                        "SELECT location, "
+                        "(SELECT timeline_id "
+                        "FROM pg_control_checkpoint()) AS timeline, "
+                        "now() AS timestamp "
+                        "FROM %s(%s) AS location"
+                        % (expected_start_fun, expected_start_args),
+                        ("test label", False),
+                    ),
+                ]
+            )
         else:
             cursor_mock.execute.assert_called_once_with(
                 "SELECT location, "
