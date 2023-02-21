@@ -330,7 +330,11 @@ class TestPostgres(object):
 
     @pytest.mark.parametrize(
         ("server_version", "expected_stop_call"),
-        [(140000, "pg_stop_backup(FALSE)"), (150000, "pg_backup_stop()")],
+        [
+            (130000, "pg_stop_backup(FALSE)"),
+            (140000, "pg_stop_backup(FALSE)"),
+            (150000, "pg_backup_stop()"),
+        ],
     )
     @patch("barman.postgres.PostgreSQLConnection.connect")
     def test_stop_concurrent_backup(self, conn, server_version, expected_stop_call):
@@ -348,17 +352,39 @@ class TestPostgres(object):
 
         # check the correct invocation of the execute method
         cursor_mock = conn.return_value.cursor.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT end_row.lsn AS location, "
-            "(SELECT CASE WHEN pg_is_in_recovery() "
-            "THEN min_recovery_end_timeline "
-            "ELSE timeline_id END "
-            "FROM pg_control_checkpoint(), pg_control_recovery()"
-            ") AS timeline, "
-            "end_row.labelfile AS backup_label, "
-            "now() AS timestamp "
-            "FROM %s AS end_row" % expected_stop_call
-        )
+
+        # for PostgreSQL 14 and above idle_session_timeout will
+        # be disabled in the method, resulting in 2 execute calls
+        if server_version >= 140000:
+            assert cursor_mock.execute.call_count == 2
+            cursor_mock.execute.assert_has_calls(
+                [
+                    call("RESET idle_session_timeout"),
+                    call(
+                        "SELECT end_row.lsn AS location, "
+                        "(SELECT CASE WHEN pg_is_in_recovery() "
+                        "THEN min_recovery_end_timeline "
+                        "ELSE timeline_id END "
+                        "FROM pg_control_checkpoint(), pg_control_recovery()"
+                        ") AS timeline, "
+                        "end_row.labelfile AS backup_label, "
+                        "now() AS timestamp "
+                        "FROM %s AS end_row" % expected_stop_call
+                    ),
+                ]
+            )
+        else:
+            cursor_mock.execute.assert_called_once_with(
+                "SELECT end_row.lsn AS location, "
+                "(SELECT CASE WHEN pg_is_in_recovery() "
+                "THEN min_recovery_end_timeline "
+                "ELSE timeline_id END "
+                "FROM pg_control_checkpoint(), pg_control_recovery()"
+                ") AS timeline, "
+                "end_row.labelfile AS backup_label, "
+                "now() AS timestamp "
+                "FROM %s AS end_row" % expected_stop_call
+            )
 
         # Test 2: Setup the mock to trigger an exception
         # expect the method to raise a PostgresException
@@ -428,6 +454,7 @@ class TestPostgres(object):
     @pytest.mark.parametrize(
         ("server_version", "expected_start_fun", "expected_start_args"),
         [
+            (130000, "pg_start_backup", "%s, %s, FALSE"),
             (140000, "pg_start_backup", "%s, %s, FALSE"),
             (150000, "pg_backup_start", "%s, %s"),
         ],
@@ -451,14 +478,35 @@ class TestPostgres(object):
 
         # check for the correct call on the execute method
         cursor_mock = conn.return_value.cursor.return_value
-        cursor_mock.execute.assert_called_once_with(
-            "SELECT location, "
-            "(SELECT timeline_id "
-            "FROM pg_control_checkpoint()) AS timeline, "
-            "now() AS timestamp "
-            "FROM %s(%s) AS location" % (expected_start_fun, expected_start_args),
-            ("test label", False),
-        )
+
+        # for PostgreSQL 14 and above idle_session_timeout will
+        # be enabled in the method, resulting in 2 execute calls
+        if server_version >= 140000:
+            assert cursor_mock.execute.call_count == 2
+            cursor_mock.execute.assert_has_calls(
+                [
+                    call("SET idle_session_timeout TO 0"),
+                    call(
+                        "SELECT location, "
+                        "(SELECT timeline_id "
+                        "FROM pg_control_checkpoint()) AS timeline, "
+                        "now() AS timestamp "
+                        "FROM %s(%s) AS location"
+                        % (expected_start_fun, expected_start_args),
+                        ("test label", False),
+                    ),
+                ]
+            )
+        else:
+            cursor_mock.execute.assert_called_once_with(
+                "SELECT location, "
+                "(SELECT timeline_id "
+                "FROM pg_control_checkpoint()) AS timeline, "
+                "now() AS timestamp "
+                "FROM %s(%s) AS location" % (expected_start_fun, expected_start_args),
+                ("test label", False),
+            )
+
         conn.return_value.rollback.assert_has_calls([call(), call()])
         # reset the mock for the next test
         conn.reset_mock()
