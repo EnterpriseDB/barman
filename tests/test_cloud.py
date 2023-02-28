@@ -2203,6 +2203,40 @@ class TestGoogleCloudInterface(TestCase):
                     container_client_mock.blob.assert_called_once_with(mock_key)
                     mock_blob.upload_from_file.assert_called_once_with(mock_fileobj)
 
+    @pytest.mark.skipif(
+        sys.version_info < (3, 6), reason="requires python3.6 or higher"
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
+    def test_upload_fileobj_with_encryption(self, gcs_client_mock):
+        """
+        Tests the kms_key_name is provided to the GCS client when uploading a file if
+        kms_key_name is set on the GoogleCloudInterface.
+        """
+        # GIVEN a GCS cloud interface created with the kms_key_name argument
+        kms_key_name = "somekeyname"
+        cloud_interface = GoogleCloudInterface(
+            "https://console.cloud.google.com/storage/browser/barman-test/test/path/to/my/",
+            kms_key_name=kms_key_name,
+        )
+
+        # AND a mock container client
+        mock_fileobj = mock.MagicMock()
+        mock_blob = mock.MagicMock()
+        service_client_mock = gcs_client_mock.return_value
+        container_client_mock = service_client_mock.bucket.return_value
+        container_client_mock.blob.return_value = mock_blob
+
+        # WHEN upload_fileobj is called  on the cloud interface
+        mock_key = "path/to/blob"
+        cloud_interface.upload_fileobj(mock_fileobj, "path/to/blob")
+
+        # THEN the blob was created with the expected kms_key_name
+        container_client_mock.blob.assert_called_once_with(
+            mock_key, kms_key_name=kms_key_name
+        )
+        # AND the blob was uploaded
+        mock_blob.upload_from_file.assert_called_once_with(mock_fileobj)
+
     @mock.patch("barman.cloud_providers.google_cloud_storage.storage.Client")
     def test_upload_part(self, gcs_client_mock):
         """
@@ -2540,6 +2574,7 @@ class TestGetCloudInterface(object):
             {},
             {"jobs": 2},
             {"tags": [("foo", "bar"), ("baz", "qux")]},
+            {"kms_key_name": "somekeyname"},
         ],
     )
     @mock.patch("barman.cloud_providers.google_cloud_storage.GoogleCloudInterface")
@@ -2554,6 +2589,37 @@ class TestGetCloudInterface(object):
         # No matter what, jobs parameter will be set to 1
         extra_args["jobs"] = 1
         mock_gcs_cloud_interface.assert_called_once_with(url="test-url", **extra_args)
+
+    @pytest.mark.parametrize(
+        ("extra_args", "expected_error"),
+        [
+            (
+                {
+                    "snapshot_instance": "someinstancename",
+                    "kms_key_name": "somekeyname",
+                },
+                "KMS key cannot be specified for snapshot backups",
+            ),
+        ],
+    )
+    @mock.patch("barman.cloud_providers.google_cloud_storage.GoogleCloudInterface")
+    def test_google_cloud_storage_invalid_config(
+        self, _mock_gcs_cloud_interface, mock_config_gcs, extra_args, expected_error
+    ):
+        """Verify --cloud-provider=google-cloud-storage creates a GoogleCloudInterface"""
+        # GIVEN a config with cloud provider google-cloud-storage
+        mock_config_gcs.cloud_provider = "google-cloud-storage"
+        # AND a set of forbidden options
+        for k, v in extra_args.items():
+            setattr(mock_config_gcs, k, v)
+
+        # WHEN get_cloud_interface is called with this config
+        # THEN an exception is raised
+        with pytest.raises(CloudProviderOptionUnsupported) as exc:
+            get_cloud_interface(mock_config_gcs)
+
+        # AND the exception has the expected message
+        assert expected_error == str(exc.value)
 
 
 class TestCloudBackupCatalog(object):

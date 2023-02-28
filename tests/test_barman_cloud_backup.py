@@ -323,6 +323,58 @@ class TestCloudBackup(object):
             **expected_cloud_interface_kwargs
         )
 
+    @pytest.mark.parametrize(
+        ("gcp_cli_args", "expected_cloud_interface_kwargs"),
+        [
+            # Defaults should result in None values being passed
+            (
+                [],
+                {
+                    "kms_key_name": None,
+                },
+            ),
+            # If values are provided then they should be passed to the cloud interface
+            (
+                ["--kms-key-name", "somekeyname"],
+                {
+                    "kms_key_name": "somekeyname",
+                },
+            ),
+        ],
+    )
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.cloud_providers.google_cloud_storage.GoogleCloudInterface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
+    def test_gcp_encryption_args(
+        self,
+        _uploader_mock,
+        cloud_interface_mock,
+        _mock_postgres_conn,
+        _rmtree_mock,
+        _tempfile_mock,
+        gcp_cli_args,
+        expected_cloud_interface_kwargs,
+    ):
+        """Verify that GCP encryption arguments are passed to the cloud interface."""
+        # WHEN barman-cloud-backup is run with the provided arguments
+        cloud_backup.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                "--cloud-provider",
+                "google-cloud-storage",
+            ]
+            + gcp_cli_args
+        )
+
+        # THEN they are passed to the cloud interface
+        cloud_interface_mock.assert_called_once_with(
+            url="cloud_storage_url",
+            jobs=1,
+            tags=None,
+            **expected_cloud_interface_kwargs
+        )
+
 
 @mock.patch("barman.clients.cloud_backup.tempfile")
 @mock.patch("barman.clients.cloud_backup.rmtree")
