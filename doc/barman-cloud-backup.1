@@ -55,6 +55,7 @@ usage:\ barman\-cloud\-backup\ [\-V]\ [\-\-help]\ [\-v\ |\ \-q]\ [\-t]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-disk\ NAME]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-zone\ SNAPSHOT_ZONE]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-gcp\-project\ SNAPSHOT_GCP_PROJECT]
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-kms\-key\-name\ KMS_KEY_NAME]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-tags\ [TAGS\ [TAGS\ ...]]]\ [\-e\ {AES256,aws:kms}]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-sse\-kms\-key\-id\ SSE_KMS_KEY_ID]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-encryption\-scope\ ENCRYPTION_SCOPE]
@@ -147,6 +148,9 @@ Extra\ options\ for\ the\ azure\-blob\-storage\ cloud\ provider:
 Extra\ options\ for\ google\-cloud\-storage\ cloud\ provider:
 \ \ \-\-snapshot\-gcp\-project\ SNAPSHOT_GCP_PROJECT
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ GCP\ project\ under\ which\ disk\ snapshots\ should\ be\ stored
+\ \ \-\-kms\-key\-name\ KMS_KEY_NAME
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ The\ name\ of\ the\ GCP\ KMS\ key\ which\ should\ be\ used\ for
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ encrypting\ the\ uploaded\ data\ in\ GCS.
 \f[]
 .fi
 .SH REFERENCES
