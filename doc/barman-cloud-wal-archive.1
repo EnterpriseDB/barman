@@ -38,6 +38,7 @@ usage:\ barman\-cloud\-wal\-archive\ [\-V]\ [\-\-help]\ [\-v\ |\ \-q]\ [\-t]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-tags\ [TAGS\ [TAGS\ ...]]]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-history\-tags\ [HISTORY_TAGS\ [HISTORY_TAGS\ ...]]]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-e\ ENCRYPTION]
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-sse\-kms\-key\-id\ SSE_KMS_KEY_ID]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-encryption\-scope\ ENCRYPTION_SCOPE]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-max\-block\-size\ MAX_BLOCK_SIZE]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-max\-concurrency\ MAX_CONCURRENCY]
@@ -90,6 +91,11 @@ Extra\ options\ for\ the\ aws\-s3\ cloud\ provider:
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ The\ encryption\ algorithm\ used\ when\ storing\ the
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uploaded\ data\ in\ S3.\ Allowed\ values:
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \[aq]AES256\[aq]|\[aq]aws:kms\[aq].
+\ \ \-\-sse\-kms\-key\-id\ SSE_KMS_KEY_ID
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ The\ AWS\ KMS\ key\ ID\ that\ should\ be\ used\ for\ encrypting
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ the\ uploaded\ data\ in\ S3.\ Can\ be\ specified\ using\ the
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ key\ ID\ on\ its\ own\ or\ using\ the\ full\ ARN\ for\ the\ key.
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Only\ allowed\ if\ `\-e/\-\-encryption`\ is\ set\ to\ `aws:kms`.
 
 Extra\ options\ for\ the\ azure\-blob\-storage\ cloud\ provider:
 \ \ \-\-credential\ {azure\-cli,managed\-identity}
