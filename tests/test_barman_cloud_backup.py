@@ -274,6 +274,55 @@ class TestCloudBackup(object):
         )
         mock_snapshot_backup.backup.assert_called_once()
 
+    @pytest.mark.parametrize(
+        ("aws_cli_args", "expected_cloud_interface_kwargs"),
+        [
+            # Defaults should result in None values being passed
+            (
+                [],
+                {
+                    "encryption": None,
+                    "sse_kms_key_id": None,
+                },
+            ),
+            # If values are provided then they should be passed to the cloud interface
+            (
+                ["--encryption", "aws:kms", "--sse-kms-key-id", "somekeyid"],
+                {
+                    "encryption": "aws:kms",
+                    "sse_kms_key_id": "somekeyid",
+                },
+            ),
+        ],
+    )
+    @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
+    def test_aws_encryption_args(
+        self,
+        _uploader_mock,
+        cloud_interface_mock,
+        _mock_postgres_conn,
+        _rmtree_mock,
+        _tempfile_mock,
+        aws_cli_args,
+        expected_cloud_interface_kwargs,
+    ):
+        """Verify that AWS encryption arguments are passed to the cloud interface."""
+        # WHEN barman-cloud-backup is run with the provided arguments
+        cloud_backup.main(["cloud_storage_url", "test_server"] + aws_cli_args)
+
+        # THEN they are passed to the cloud interface
+        cloud_interface_mock.assert_called_once_with(
+            url="cloud_storage_url",
+            jobs=2,
+            tags=None,
+            profile_name=None,
+            endpoint_url=None,
+            read_timeout=None,
+            **expected_cloud_interface_kwargs
+        )
+
 
 @mock.patch("barman.clients.cloud_backup.tempfile")
 @mock.patch("barman.clients.cloud_backup.rmtree")
