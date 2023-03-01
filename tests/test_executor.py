@@ -326,6 +326,8 @@ class TestRsyncBackupExecutor(object):
                 retry_sleep=30,
                 retry_times=0,
                 workers=1,
+                workers_start_rate=10,
+                workers_start_window=1,
             ),
             mock.call().add_directory(
                 label="tbs1",
@@ -429,6 +431,8 @@ class TestRsyncBackupExecutor(object):
                 retry_sleep=30,
                 retry_times=0,
                 workers=1,
+                workers_start_rate=10,
+                workers_start_window=1,
             ),
             mock.call().add_directory(
                 label="tbs1",

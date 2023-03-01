@@ -435,6 +435,19 @@ For backup purposes, it works only when \f[C]backup_method\f[] is
 .RS
 .RE
 .TP
+.B parallel_jobs_start_rate
+Maximum rate at which workers should be started.
+Default: 10 jobs per second.
+.RS
+.RE
+.TP
+.B parallel_jobs_start_window
+The window size (in seconds) to use when applying
+\f[C]parallel_jobs_start_rate\f[].
+Default: 1 second.
+.RS
+.RE
+.TP
 .B path_prefix
 One or more absolute paths, separated by colon, where Barman looks for
 executable files.

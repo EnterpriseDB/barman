@@ -265,6 +265,8 @@ def build_config_dictionary(config_keys=None):
         "minimum_redundancy": "0",
         "name": "main",
         "network_compression": False,
+        "parallel_jobs_start_rate": 10,
+        "parallel_jobs_start_window": 1,
         "post_backup_script": None,
         "pre_backup_script": None,
         "post_recovery_script": None,

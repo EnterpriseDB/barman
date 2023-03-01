@@ -53,6 +53,16 @@ backup *SERVER_NAME*
         value of the parameter `parallel_jobs`, if present in the
         configuration file.
 
+    --jobs-start-rate
+    :   Maximum rate at which workers should be started. Overrides the value
+        of `parallel_jobs_start_rate`, if present in the configuration file.
+        Defaults to 10 jobs per second.
+
+    --jobs-start-window
+    :   The window size (in seconds) over which `--jobs-start-rate` will be
+        applied. Overrides the value of `parallel_jobs_start_window`, if present
+        in the configuration file. Defaults to 1 second.
+
     --bwlimit KBPS
     :   maximum transfer rate in kilobytes per second.
         A value of 0 means no limit.

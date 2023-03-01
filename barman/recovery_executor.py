@@ -736,6 +736,8 @@ class RecoveryExecutor(object):
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
             workers=self.config.parallel_jobs,
+            workers_start_rate=self.config.parallel_jobs_start_rate,
+            workers_start_window=self.config.parallel_jobs_start_window,
         )
 
         # Dictionary for paths to be excluded from rsync
@@ -1410,6 +1412,8 @@ class TarballRecoveryExecutor(RemoteConfigRecoveryExecutor):
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
             workers=self.config.parallel_jobs,
+            workers_start_rate=self.config.parallel_jobs_start_rate,
+            workers_start_window=self.config.parallel_jobs_start_window,
         )
 
         # Add the tarballs to the controller
@@ -1757,6 +1761,8 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
             workers=self.config.parallel_jobs,
+            workers_start_rate=self.config.parallel_jobs_start_rate,
+            workers_start_window=self.config.parallel_jobs_start_window,
         )
         backup_label_file = "%s/%s" % (backup_info.get_data_directory(), "backup_label")
         controller.add_file(

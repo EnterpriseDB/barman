@@ -143,6 +143,23 @@ the configuration file.
 .RS
 .RE
 .TP
+.B \-\-jobs\-start\-rate
+Maximum rate at which workers should be started.
+Overrides the value of \f[C]parallel_jobs_start_rate\f[], if present in
+the configuration file.
+Defaults to 10 jobs per second.
+.RS
+.RE
+.TP
+.B \-\-jobs\-start\-window
+The window size (in seconds) over which \f[C]\-\-jobs\-start\-rate\f[]
+will be applied.
+Overrides the value of \f[C]parallel_jobs_start_window\f[], if present
+in the configuration file.
+Defaults to 1 second.
+.RS
+.RE
+.TP
 .B \-\-bwlimit KBPS
 maximum transfer rate in kilobytes per second.
 A value of 0 means no limit.
@@ -533,6 +550,23 @@ Number of parallel workers to copy files during recovery.
 Overrides value of the parameter \f[C]parallel_jobs\f[], if present in
 the configuration file.
 Works only for servers configured through \f[C]rsync\f[]/SSH.
+.RS
+.RE
+.TP
+.B \-\-jobs\-start\-rate
+Maximum rate at which workers should be started.
+Overrides the value of \f[C]parallel_jobs_start_rate\f[], if present in
+the configuration file.
+Defaults to 10 jobs per second.
+.RS
+.RE
+.TP
+.B \-\-jobs\-start\-window
+The window size (in seconds) over which \f[C]\-\-jobs\-start\-rate\f[]
+will be applied.
+Overrides the value of \f[C]parallel_jobs_start_window\f[], if present
+in the configuration file.
+Defaults to 1 second.
 .RS
 .RE
 .TP

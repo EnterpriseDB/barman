@@ -399,6 +399,16 @@ def backup_completer(prefix, parsed_args, **kwargs):
             metavar="NJOBS",
         ),
         argument(
+            "--jobs-start-rate",
+            help="The maximum rate at which parallel Rsync jobs should be started.",
+            type=check_positive,
+        ),
+        argument(
+            "--jobs-start-window",
+            help="The window size (in seconds) to use when applying --jobs-start-rate.",
+            type=check_positive,
+        ),
+        argument(
             "--bwlimit",
             help="maximum transfer rate in kilobytes per second. "
             "A value of 0 means no limit. Overrides 'bandwidth_limit' "
@@ -460,6 +470,10 @@ def backup(args):
             server.postgres.immediate_checkpoint = args.immediate_checkpoint
         if args.jobs is not None:
             server.config.parallel_jobs = args.jobs
+        if args.jobs_start_rate is not None:
+            server.config.parallel_jobs_start_rate = args.jobs_start_rate
+        if args.jobs_start_window is not None:
+            server.config.parallel_jobs_start_window = args.jobs_start_window
         if hasattr(args, "bwlimit"):
             server.config.bandwidth_limit = args.bwlimit
         with closing(server):
@@ -683,6 +697,16 @@ def rebuild_xlogdb(args):
             metavar="NJOBS",
         ),
         argument(
+            "--jobs-start-rate",
+            help="The maximum rate at which parallel Rsync jobs should be started.",
+            type=check_positive,
+        ),
+        argument(
+            "--jobs-start-window",
+            help="The window size (in seconds) to use when applying --jobs-start-rate.",
+            type=check_positive,
+        ),
+        argument(
             "--get-wal",
             help="Enable the get-wal option during the recovery.",
             dest="get_wal",
@@ -856,6 +880,10 @@ def recover(args):
             server.config.recovery_options.remove(RecoveryOptions.GET_WAL)
     if args.jobs is not None:
         server.config.parallel_jobs = args.jobs
+    if args.jobs_start_rate is not None:
+        server.config.parallel_jobs_start_rate = args.jobs_start_rate
+    if args.jobs_start_window is not None:
+        server.config.parallel_jobs_start_window = args.jobs_start_window
     if hasattr(args, "bwlimit"):
         server.config.bandwidth_limit = args.bwlimit
 

@@ -1221,6 +1221,8 @@ class RsyncBackupExecutor(ExternalBackupExecutor):
             retry_times=self.config.basebackup_retry_times,
             retry_sleep=self.config.basebackup_retry_sleep,
             workers=self.config.parallel_jobs,
+            workers_start_rate=self.config.parallel_jobs_start_rate,
+            workers_start_window=self.config.parallel_jobs_start_window,
         )
 
         # List of paths to be excluded by the PGDATA copy

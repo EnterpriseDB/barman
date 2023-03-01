@@ -19,6 +19,7 @@
 import multiprocessing.dummy
 import os
 from datetime import datetime
+import time
 
 import dateutil.tz
 import mock
@@ -574,6 +575,155 @@ class TestRsyncCopyController(object):
                 )
                 # The bucket cannot be empty
                 assert len(bucket), "Bucket %s (%s) is empty" % (i, workers)
+
+    @pytest.mark.parametrize(
+        (
+            # The copy controller configuration parameters
+            "workers_start_rate",
+            "workers_start_window",
+            # A mock history of job generation times
+            "generation_history",
+            # A list of responses to the mock times.time() function
+            "times",
+            # The expected return value of _apply_rate_limit
+            "expected_return_value",
+            # The expected number of seconds passed to time.wait()
+            "expected_wait",
+        ),
+        (
+            # If there are no items in the history then we should not wait and the
+            # last time returned should be added to the history
+            (10, 1, [], [1, 1.1], [1.1], None),
+            (2, 0.5, [], [1, 1.1], [1.1], None),
+            (1, 2, [], [1, 1.1], [1.1], None),
+            # If there are < workers_start_rate items in the history but it is inside
+            # the time window then we should not wait and the last time returned should
+            # be added to the history
+            (10, 1, [0.1, 0.2, 0.3], [1, 1.1], [0.1, 0.2, 0.3, 1.1], None),
+            (2, 0.5, [0.6], [1, 1.1], [0.6, 1.1], None),
+            # Times outside the window should be discarded
+            (10, 1, [0.1, 0.2, 0.3], [1.2, 1.4], [0.2, 0.3, 1.4], None),
+            (2, 0.5, [0.3, 0.4, 0.6], [1, 1.1], [0.6, 1.1], None),
+            # If there are >= workers_start_rate items within the window then we expect
+            # to wait until the oldest non-discarded time is outside the window
+            (
+                5,
+                1,
+                [0.1, 0.3, 0.5, 0.6, 0.8, 0.9],
+                [1.2, 1.4],
+                [0.3, 0.5, 0.6, 0.8, 0.9, 1.4],
+                0.1,
+            ),
+            (2, 0.5, [0.1, 0.45, 0.6], [0.7, 1], [0.45, 0.6, 1], 0.25),
+            (1, 5, [1, 6, 7], [8, 11], [6, 7, 11], 3),
+            # If there are >= workers_start_rate items but not within the window then w
+            # do not expect to wait
+            (2, 0.5, [0.1, 0.45, 0.6], [3, 3.1], [3.1], None),
+            (1, 5, [1, 6, 7], [15, 16], [16], None),
+        ),
+    )
+    @mock.patch("barman.copy_controller.time")
+    def test_apply_rate_limit(
+        self,
+        mock_time,
+        workers_start_rate,
+        workers_start_window,
+        generation_history,
+        times,
+        expected_return_value,
+        expected_wait,
+    ):
+        """
+        Verifies that _apply_rate_limit will wait the expected length of time for a
+        given set of timestamps.
+        """
+        # GIVEN an RsyncCopyController
+        copy_controller = RsyncCopyController(
+            workers_start_rate=workers_start_rate,
+            workers_start_window=workers_start_window,
+        )
+        # AND a list of deterministic times for time.time()
+        mock_time.time.side_effect = times
+
+        # WHEN _apply_rate_limit is called for a given generation history
+        new_history = copy_controller._apply_rate_limit(generation_history)
+
+        # THEN the expected call to sleep was made
+        if expected_wait is None:
+            mock_time.sleep.assert_not_called()
+        else:
+            mock_time.sleep.assert_called_once()
+            assert (
+                pytest.approx(mock_time.sleep.call_args_list[0][0][0]) == expected_wait
+            )
+
+        # AND the expected new history was returned
+        assert new_history == expected_return_value
+
+    @pytest.mark.parametrize(
+        "copy_item_types",
+        (
+            # Test with various combinations of copy items where:
+            #   - f = file
+            #   - d = directory
+            ["d", "d", "d", "d", "d", "d", "d"],
+            ["f", "f", "f", "f", "f", "f"],
+            ["f", "d", "f", "d", "f", "d"],
+            ["f", "f", "f", "d", "d", "d", "f", "f", "d", "d"],
+        ),
+    )
+    @mock.patch("barman.copy_controller.RsyncCopyController._progress_message")
+    def test_job_generator_rate_limit(self, _mock_progress_message, copy_item_types):
+        """
+        Verifies that _job_generator applies the rate limit for each type of item:
+
+        - Safe directory items.
+        - Check directory items.
+        - Plain file items.
+        """
+        # GIVEN an RsyncCopyController
+        workers_start_rate = 3
+        workers_start_window = 0.1
+        copy_controller = RsyncCopyController(
+            workers_start_rate=workers_start_rate,
+            workers_start_window=workers_start_window,
+        )
+        # AND a list of items to be copied
+        expected_job_count = 0
+        for item_type in copy_item_types:
+            if item_type == "d":
+                new_item = _RsyncCopyItem(
+                    label="label",
+                    src="/path/to/src",
+                    dst="/path/to/dst",
+                    item_class="some_class",
+                    is_directory=True,
+                )
+                new_item.safe_list = [_FileItem("mode", 1, "date", "path")]
+                new_item.check_list = [_FileItem("mode", 1, "date", "path")]
+                copy_controller.item_list.append(new_item)
+                expected_job_count += 2
+            else:
+                new_item = _RsyncCopyItem(
+                    label="label",
+                    src="/path/to/src",
+                    dst="/path/to/dst",
+                    item_class="some_class",
+                )
+                copy_controller.item_list.append(new_item)
+                expected_job_count += 1
+
+        # WHEN _job_generator runs for this list
+        start_time = time.time()
+        list([job for job in copy_controller._job_generator()])
+        end_time = time.time()
+
+        # THEN the total time taken shows that workers_start_rate and
+        # workers_start_window were observed
+        minimum_allowed_time = (
+            (expected_job_count - workers_start_rate) / workers_start_rate
+        ) * workers_start_window
+        assert end_time - start_time > minimum_allowed_time
 
     def _run_analyze_directory(self, list_files_mock, tmpdir, ref_list, src_list):
         # Apply it to _list_files calls
