@@ -33,8 +33,8 @@ import sys
 
 from setuptools import find_packages, setup
 
-if sys.version_info < (2, 7):
-    raise SystemExit("ERROR: Barman needs at least python 2.7 to work")
+if sys.version_info < (3, 6):
+    raise SystemExit("ERROR: Barman needs at least python 3.6 to work")
 
 # Depend on pytest_runner only when the tests are actually invoked
 needs_pytest = set(["pytest", "test"]).intersection(sys.argv)
@@ -101,18 +101,13 @@ setup(
     extras_require={
         "cloud": ["boto3"],
         "azure": ["azure-identity", "azure-storage-blob"],
-        "snappy": [
-            "python-snappy == 0.6.0"
-        ],  # version is limited py python2.7 see issue #529
+        "snappy": ["python-snappy"],
         "google": [
             "google-cloud-storage",
         ],
-        # The google-cloud-compute library does not support python 2.7 in any version
-        # so google snapshots extras are in their own section to avoid breaking GCS
-        # for anyone unfortunate enough to still be using python 2.7.
         "google-snapshots": [
             "grpcio",
-            "google-cloud-compute",
+            "google-cloud-compute",  # requires minimum python3.7
         ],
     },
     platforms=["Linux", "Mac OS X"],
@@ -125,7 +120,6 @@ setup(
         "Intended Audience :: System Administrators",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
