@@ -30,11 +30,8 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        python-version: ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10"]
+        python-version: ["3.6", "3.7", "3.8", "3.9", "3.10"]
         tox-env: [""]
-        include:
-          - python-version: "2.7"
-            tox-env: "minimal"
 
     steps:
       - name: Step 1 - Checkout repository
