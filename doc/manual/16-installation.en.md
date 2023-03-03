@@ -65,16 +65,7 @@ Barman can be installed on SLES systems using packages available in the
 necessary repository by following the instructions available on the
 [PGDG site](https://zypp.postgresql.org/howtozypp/).
 
-Supported SLES versions are SLES 12 SP5 and SLES 15 SP3.
-
-*SLES 12 only*: You will also need to enable OpenSUSE python backports
-repositories as follows (this step is not necessary for SLES 15):
-
-``` bash
-zypper addrepo https://download.opensuse.org/repositories/devel:languages:python:backports/SLE_12_SP5/devel:languages:python:backports.repo
-zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/python:/backports/SLE_12_SP4 devel_languages_python_backports_sp4
-zypper refresh
-```
+Supported SLES version: SLES 15 SP3.
 
 Once the necessary repositories have been installed you can install Barman
 as the `root` user:
