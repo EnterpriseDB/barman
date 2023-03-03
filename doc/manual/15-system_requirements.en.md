@@ -19,7 +19,9 @@
 
 > **NOTE:**
 > Support for Python 2.6 and 3.5 are discontinued.
-> Support for Python 2.7 is deprecated and will be discontinued in future releases.
+> Support for Python 2.7 is limited to Barman 3.4.X version and will receive only bugfixes. It will be discontinued in 
+> the near future.
+> Support for Python 3.6 will be discontinued in future releases.
 > Support for PostgreSQL < 10 is discontinued since Barman 3.0.0.
 
 ## Requirements for backup
