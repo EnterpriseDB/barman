@@ -36,7 +36,7 @@ from barman.cloud_providers import (
 )
 from barman.exceptions import BadXlogPrefix, InvalidRetentionPolicy
 from barman.retention_policies import RetentionPolicyFactory
-from barman.utils import force_str
+from barman.utils import check_non_negative, force_str
 from barman import xlog
 
 
@@ -236,6 +236,7 @@ def _delete_backup(
     if not backup_info:
         logging.warning("Backup %s does not exist", backup_id)
         return
+
     if backup_info.snapshots_info:
         logging.debug(
             "Will delete the following snapshots: %s",
@@ -346,6 +347,19 @@ def main(args=None):
                         config.server_name,
                     )
                     raise OperationErrorExit()
+                if config.minimum_redundancy > 0:
+                    if config.minimum_redundancy >= len(catalog.get_backup_list()):
+                        logging.error(
+                            "Skipping delete of backup %s for server %s "
+                            "due to minimum redundancy requirements "
+                            "(minimum redundancy = %s, "
+                            "current redundancy = %s)",
+                            backup_id,
+                            config.server_name,
+                            config.minimum_redundancy,
+                            len(catalog.get_backup_list()),
+                        )
+                        raise OperationErrorExit()
                 _delete_backup(cloud_interface, catalog, backup_id, config)
             elif config.retention_policy:
                 try:
@@ -354,6 +368,7 @@ def main(args=None):
                         config.retention_policy,
                         server_name=config.server_name,
                         catalog=catalog,
+                        minimum_redundancy=config.minimum_redundancy,
                     )
                 except InvalidRetentionPolicy as exc:
                     logging.error(
@@ -402,6 +417,13 @@ def parse_arguments(args=None):
         "-b",
         "--backup-id",
         help="Backup ID of the backup to be deleted",
+    )
+    parser.add_argument(
+        "-m",
+        "--minimum-redundancy",
+        type=check_non_negative,
+        help="The minimum number of backups that should always be available.",
+        default=0,
     )
     delete_arguments.add_argument(
         "-r",

@@ -415,9 +415,9 @@ class ServerMetadata(object):
     the barman-managed server and associated backups.
     """
 
-    def __init__(self, server_name, backup_info_list, keep_manager):
+    def __init__(self, server_name, backup_info_list, keep_manager, minimum_redundancy):
         self.name = server_name
-        self.minimum_redundancy = 0
+        self.minimum_redundancy = minimum_redundancy
         self.retention_policy = None
         self.backup_info_list = backup_info_list
         self.keep_manager = keep_manager
@@ -473,7 +473,15 @@ class RetentionPolicyFactory(object):
     ]
 
     @classmethod
-    def create(cls, option, value, server=None, server_name=None, catalog=None):
+    def create(
+        cls,
+        option,
+        value,
+        server=None,
+        server_name=None,
+        catalog=None,
+        minimum_redundancy=0,
+    ):
         """
         Based on the given option and value from the configuration
         file, creates the appropriate retention policy object
@@ -501,7 +509,10 @@ class RetentionPolicyFactory(object):
             )
         else:
             server_metadata = ServerMetadata(
-                server_name, catalog.get_backup_list(), keep_manager=catalog
+                server_name,
+                catalog.get_backup_list(),
+                keep_manager=catalog,
+                minimum_redundancy=minimum_redundancy,
             )
         # Look for the matching rule
         for policy_class in cls.policy_classes:
