@@ -6,16 +6,14 @@
 
 barman-cloud-backup-delete - Delete backups stored in the Cloud
 
-
 # SYNOPSIS
 
 barman-cloud-backup-delete [*OPTIONS*] *SOURCE_URL* *SERVER_NAME*
 
-
 # DESCRIPTION
 
 This script can be used to delete backups previously made with the
-`barman-cloud-backup` command. Currently AWS S3, Azure Blob Storage and 
+`barman-cloud-backup` command. Currently AWS S3, Azure Blob Storage and
 Google Cloud Storage are supported.
 
 The target backups can be specified either using the backup ID (as
@@ -41,17 +39,18 @@ result in a large number of delete requests.
 This script and Barman are administration tools for disaster recovery
 of PostgreSQL servers written in Python and maintained by EnterpriseDB.
 
-
 # Usage
-```
+
+```console
 usage: barman-cloud-backup-delete [-V] [--help] [-v | -q] [-t]
                                   [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
                                   [--endpoint-url ENDPOINT_URL]
                                   [-P AWS_PROFILE] [--profile AWS_PROFILE]
                                   [--read-timeout READ_TIMEOUT]
-                                  [--azure-credential {azure-cli,managed-identity}]
-                                  (-b BACKUP_ID | -r RETENTION_POLICY)
-                                  [--dry-run] [--batch-size DELETE_BATCH_SIZE]
+                                  [--azure-credential {azure-cli,managed-identity}
+                                  [-b BACKUP_ID] [-m MINIMUM_REDUNDANCY]
+                                  [-r RETENTION_POLICY] [--dry-run]
+                                  [--batch-size DELETE_BATCH_SIZE]
                                   source_url server_name
 
 This script can be used to delete backups made with barman-cloud-backup
@@ -73,6 +72,8 @@ optional arguments:
                         The cloud provider to use as a storage backend
   -b BACKUP_ID, --backup-id BACKUP_ID
                         Backup ID of the backup to be deleted
+  -m MINIMUM_REDUNDANCY, --minimum-redundancy MINIMUM_REDUNDANCY
+                        The minimum number of backups that should always be available.
   -r RETENTION_POLICY, --retention-policy RETENTION_POLICY
                         If specified, delete all backups eligible for deletion
                         according to the supplied retention policy. Syntax:
@@ -111,24 +112,26 @@ Extra options for the azure-blob-storage cloud provider:
                         environment then the default Azure authentication flow
                         will also be used for Azure Blob Storage.
 ```
+
 # REFERENCES
 
 For Boto:
 
-* https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
+* <https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html>
 
 For AWS:
 
-* https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html
-* https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html.
+* <https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-set-up.html>
+* <https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html>.
 
 For Azure Blob Storage:
 
-* https://docs.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters
-* https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python
+* <https://docs.microsoft.com/en-us/azure/storage/blobs/authorize-data-operations-cli#set-environment-variables-for-authorization-parameters>
+* <https://docs.microsoft.com/en-us/python/api/azure-storage-blob/?view=azure-python>
 
 For Google Cloud Storage:
-* Credentials: https://cloud.google.com/docs/authentication/getting-started#setting_the_environment_variable
+
+* Credentials: <https://cloud.google.com/docs/authentication/getting-started#setting_the_environment_variable>
 
   Only authentication with `GOOGLE_APPLICATION_CREDENTIALS` env is supported at the moment.
 
@@ -144,7 +147,8 @@ If using `--cloud-provider=azure-blob-storage`:
 * azure-identity (optional, if you wish to use DefaultAzureCredential)
 
 If using `--cloud-provider=google-cloud-storage`
-* google-cloud-storage 
+
+* google-cloud-storage
 
 # EXIT STATUS
 
@@ -163,7 +167,6 @@ If using `--cloud-provider=google-cloud-storage`
 Other non-zero codes
 :   Failure
 
-
 # BUGS
 
 Barman has been extensively tested, and is currently being used in several
@@ -176,7 +179,6 @@ Any bug can be reported via the GitHub issue tracker.
 * Homepage: <https://www.pgbarman.org/>
 * Documentation: <https://docs.pgbarman.org/>
 * Professional support: <https://www.enterprisedb.com/>
-
 
 # COPYING
 

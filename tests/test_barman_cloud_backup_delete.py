@@ -22,6 +22,7 @@ import pytest
 
 from barman.annotations import KeepManager
 from barman.clients import cloud_backup_delete
+from barman.clients.cloud_cli import OperationErrorExit
 from barman.cloud import CloudBackupCatalog
 from barman.utils import is_backup_id
 
@@ -38,8 +39,9 @@ class TestCloudBackupDeleteArguments(object):
 
         _, err = capsys.readouterr()
         assert (
-            "one of the arguments -b/--backup-id -r/--retention-policy is required"
-            in err
+            "one of the arguments "
+            "-b/--backup-id "
+            "-r/--retention-policy is required" in err
         )
 
     @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
@@ -182,12 +184,14 @@ class TestCloudBackupDelete(object):
             files_for_backup += sorted(additional_files)
         return files_for_backup
 
-    def _create_catalog(slef, backup_metadata, wals=[]):
+    def _create_catalog(self, backup_metadata, wals=None):
         """
         Create a mock CloudBackupCatalog from the supplied data so that we can provide
         a work-alike CloudBackupCatalog to the code-under-test without also including
         the CloudBackupCatalog logic in the tests.
         """
+        if wals is None:
+            wals = []
         # Copy so that we don't affect the state the tests are using when the
         # code under test removes backups from the mock catalog
         backup_state = backup_metadata.copy()
@@ -359,6 +363,181 @@ class TestCloudBackupDelete(object):
         # that backup and the backup.info file for that backup
         self._verify_only_these_backups_deleted(
             get_cloud_interface_mock, backup_metadata, [backup_id]
+        )
+
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_keep_single_backup_minimum_redundancy(
+        self,
+        get_cloud_interface_mock,
+        cloud_backup_catalog_mock,
+        caplog,
+    ):
+        """
+        Tests that files for the specified backup are not deleted because of
+        # minimum redundancy value.
+        """
+        # GIVEN a backup catalog with one named backup and no WALs
+        backup_id = "20210723T095432"
+        backup_metadata = self._create_backup_metadata([(backup_id, "backup name")])
+
+        # AND a CloudBackupCatalog which returns the backup_info for only that backup
+        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+        # WHEN barman-cloud-backup-delete runs, specifying either a backup ID or name
+        # and with minimum-redundancy 1
+        # THEN an OperationErrorExit is raised
+        with pytest.raises(OperationErrorExit):
+            cloud_backup_delete.main(
+                [
+                    "cloud_storage_url",
+                    "test_server",
+                    "--backup-id",
+                    backup_id,
+                    "--minimum-redundancy",
+                    "1",
+                ]
+            )
+
+        # AND no backups or WALs were deleted
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock, backup_metadata, []
+        )
+        # AND the log reports skipping the backup removal as is the last one remaining
+        assert ("Skipping delete of backup %s" % backup_id) in caplog.text
+
+    @pytest.mark.parametrize(
+        ("minimum_redundancy", "num_backups_deleted"),
+        (
+            # With a minimum_redundancy of zero, three of the four backups should be
+            # deleted (the newest is required for PITR into the recovery window).
+            (0, 3),
+            # With a minimum_redundancy of one, three of the four backups should be
+            # deleted.
+            (1, 3),
+            # With a minimum_redundancy of two, two of the four backups should be
+            # deleted.
+            (2, 2),
+            # With a minimum_redundancy of three, one of the four backups should be
+            # deleted.
+            (3, 1),
+            # With a minimum_redundancy of four, none of the four backups should be
+            # deleted.
+            (4, 0),
+        ),
+    )
+    @mock.patch("barman.retention_policies.datetime")
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_delete_by_recovery_window_policy_with_redundancy(
+        self,
+        get_cloud_interface_mock,
+        cloud_backup_catalog_mock,
+        datetime_mock,
+        minimum_redundancy,
+        num_backups_deleted,
+    ):
+        """
+        Test that the minimum redundancy value is applied to recovery window
+        retention policy
+        """
+        # GIVEN a backup catalog with four daily backups and no WALs
+        out_of_policy_backup_ids = [
+            "20210723T095432",  # Eligible for deletion
+            "20210724T095432",  # Eligible for deletion
+            "20210725T095432",  # Eligible for deletion
+            "20210726T095432",  # Required by recovery window
+        ]
+        backup_metadata = self._create_backup_metadata(out_of_policy_backup_ids)
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+
+        # AND a system time that invalidates the whole catalog
+        datetime_mock.now.return_value = datetime.datetime(2021, 7, 30)
+
+        # WHEN barman-cloud-backup-delete runs, specifying a recovery window policy of
+        # 2 days and a given minimum_redundancy
+        cloud_backup_delete.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                "--retention-policy",
+                "RECOVERY WINDOW OF 2 DAYS",
+                "--minimum-redundancy",
+                str(minimum_redundancy),
+            ]
+        )
+
+        # THEN only the expected backups are deleted
+        expected_deleted_backups = out_of_policy_backup_ids[:num_backups_deleted]
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock, backup_metadata, expected_deleted_backups
+        )
+
+    @pytest.mark.parametrize(
+        ("minimum_redundancy", "num_backups_deleted"),
+        (
+            # With a minimum_redundancy of zero, three of the four backups should be
+            # deleted (the newest is retained due to REDUNDANCY 1).
+            (0, 3),
+            # With a minimum_redundancy of one, three of the four backups should be
+            # deleted.
+            (1, 3),
+            # With a minimum_redundancy of two, two of the four backups should be
+            # deleted.
+            (2, 2),
+            # With a minimum_redundancy of three, one of the four backups should be
+            # deleted.
+            (3, 1),
+            # With a minimum_redundancy of four, none of the four backups should be
+            # deleted.
+            (4, 0),
+        ),
+    )
+    @mock.patch("barman.retention_policies.datetime")
+    @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_delete.get_cloud_interface")
+    def test_delete_by_redundancy_policy_with_minimum_redundancy(
+        self,
+        get_cloud_interface_mock,
+        cloud_backup_catalog_mock,
+        datetime_mock,
+        minimum_redundancy,
+        num_backups_deleted,
+    ):
+        """
+        Test that the minimum redundancy value is applied to recovery window
+        retention policy
+        """
+        # GIVEN a backup catalog with four daily backups and no WALs
+        out_of_policy_backup_ids = [
+            "20210723T095432",  # Eligible for deletion
+            "20210724T095432",  # Eligible for deletion
+            "20210725T095432",  # Eligible for deletion
+            "20210726T095432",  # Required by REDUNDANCY 1
+        ]
+        backup_metadata = self._create_backup_metadata(out_of_policy_backup_ids)
+
+        # AND a CloudBackupCatalog which returns the backup_info for only those backups
+        cloud_backup_catalog_mock.return_value = self._create_catalog(backup_metadata)
+
+        # WHEN barman-cloud-backup-delete runs, specifying a retention policy of
+        # `REDUNDANCY 1` and a given minimum_redundancy.
+        cloud_backup_delete.main(
+            [
+                "cloud_storage_url",
+                "test_server",
+                "--retention-policy",
+                "REDUNDANCY 1",
+                "--minimum-redundancy",
+                str(minimum_redundancy),
+            ]
+        )
+
+        # THEN only the expected backups are deleted
+        expected_deleted_backups = out_of_policy_backup_ids[:num_backups_deleted]
+        self._verify_only_these_backups_deleted(
+            get_cloud_interface_mock, backup_metadata, expected_deleted_backups
         )
 
     @mock.patch("barman.clients.cloud_backup_delete.CloudBackupCatalog")
