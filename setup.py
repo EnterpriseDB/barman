@@ -49,7 +49,7 @@ install_requires = [
 ]
 
 barman = {}
-with open("barman/version.py", "r") as fversion:
+with open("barman/version.py", "r", encoding="utf-8") as fversion:
     exec(fversion.read(), barman)
 
 setup(
