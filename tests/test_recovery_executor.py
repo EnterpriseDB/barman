@@ -1504,6 +1504,72 @@ class TestRecoveryExecutor(object):
             ]
         )
 
+    @pytest.mark.parametrize(
+        ("conf_files", "temp_conf_files", "expected_file_list"),
+        (
+            # If configuration_files and temporary_configuration_files are the same
+            # then we expect the configuration_files to be copied.
+            [
+                ["postgresql.auto.conf", "postgresql.conf"],
+                [
+                    "/path/to/tmp/postgresql.auto.conf",
+                    "/path/to/tmp/barman/postgresql.conf",
+                ],
+                [
+                    "postgresql.auto.conf",
+                    "postgresql.auto.conf.origin",
+                    "postgresql.conf",
+                    "postgresql.conf.origin",
+                ],
+            ],
+            # If temporary_configuration_files contains extra files then they should
+            # also be copied
+            [
+                ["postgresql.auto.conf", "postgresql.conf"],
+                [
+                    "/path/to/tmp/postgresql.auto.conf",
+                    "/path/to/tmp/barman/postgresql.conf",
+                    "/path/to/tmp/barman/postgresql.new.conf",
+                ],
+                [
+                    "postgresql.auto.conf",
+                    "postgresql.auto.conf.origin",
+                    "postgresql.conf",
+                    "postgresql.conf.origin",
+                    "postgresql.new.conf",
+                    "postgresql.new.conf.origin",
+                ],
+            ],
+        ),
+    )
+    def test_copy_temporary_config_files(
+        self, conf_files, temp_conf_files, expected_file_list
+    ):
+        """Verify that modified config files are copied to their final destination."""
+        # GIVEN a RecoveryExecutor
+        mock_backup_manager = mock.Mock()
+        executor = RecoveryExecutor(mock_backup_manager)
+        # AND a recovery_info with a mock rsync object
+        recovery_dir = "/path/to/recovery"
+        temp_dir = "/path/to/tmp"
+        recovery_info = {
+            "configuration_files": conf_files,
+            "temporary_configuration_files": temp_conf_files,
+            "destination_path": recovery_dir,
+            "rsync": mock.Mock(),
+            "tempdir": temp_dir,
+        }
+
+        # WHEN _copy_temporary_config_files is called
+        executor._copy_temporary_config_files(
+            recovery_dir, "ssh db@remote", recovery_info
+        )
+
+        # THEN the expected configuration files are copied to the destination
+        recovery_info["rsync"].from_file_list.assert_called_once_with(
+            expected_file_list, temp_dir, ":" + recovery_dir
+        )
+
 
 class TestRemoteConfigRecoveryExecutor(object):
     """Test functions for managing remote configuration files during recovery."""

@@ -1255,8 +1255,12 @@ class RecoveryExecutor(object):
         if remote_command:
             # If this is a remote recovery, rsync the modified files from the
             # temporary local directory to the remote destination directory.
+            # The list of files is built from `temporary_configuration_files` instead
+            # of `configuration_files` because `configuration_files` is not guaranteed
+            # to include the recovery configuration file.
             file_list = []
-            for conf_file in recovery_info["configuration_files"]:
+            for conf_path in recovery_info["temporary_configuration_files"]:
+                conf_file = os.path.basename(conf_path)
                 file_list.append("%s" % conf_file)
                 file_list.append("%s.origin" % conf_file)
 
