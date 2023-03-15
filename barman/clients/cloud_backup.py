@@ -360,6 +360,11 @@ def parse_arguments(args=None):
         "--snapshot-gcp-project",
         help="GCP project under which disk snapshots should be stored",
     )
+    gcs_arguments.add_argument(
+        "--kms-key-name",
+        help="The name of the GCP KMS key which should be used for encrypting the "
+        "uploaded data in GCS.",
+    )
     add_tag_argument(
         parser,
         name="tags",

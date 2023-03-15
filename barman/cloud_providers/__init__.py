@@ -112,6 +112,16 @@ def _make_google_cloud_interface(config, cloud_interface_kwargs):
     from barman.cloud_providers.google_cloud_storage import GoogleCloudInterface
 
     cloud_interface_kwargs["jobs"] = 1
+    if "kms_key_name" in config:
+        if (
+            config.kms_key_name is not None
+            and "snapshot_instance" in config
+            and config.snapshot_instance is not None
+        ):
+            raise CloudProviderOptionUnsupported(
+                "KMS key cannot be specified for snapshot backups"
+            )
+        cloud_interface_kwargs["kms_key_name"] = config.kms_key_name
     return GoogleCloudInterface(**cloud_interface_kwargs)
 
 

@@ -73,7 +73,9 @@ class GoogleCloudInterface(CloudInterface):
 
     MAX_DELETE_BATCH_SIZE = 100
 
-    def __init__(self, url, jobs=1, tags=None, delete_batch_size=None):
+    def __init__(
+        self, url, jobs=1, tags=None, delete_batch_size=None, kms_key_name=None
+    ):
         """
         Create a new Google cloud Storage interface given the supplied account url
 
@@ -84,6 +86,8 @@ class GoogleCloudInterface(CloudInterface):
           uploaded objects
         :param int|None delete_batch_size: the maximum number of objects to be
           deleted in a single request
+        :param str|None kms_key_name: the name of the KMS key which should be used for
+          encrypting the uploaded data in GCS
         """
         self.bucket_name, self.path = self._parse_url(url)
         super(GoogleCloudInterface, self).__init__(
@@ -92,6 +96,7 @@ class GoogleCloudInterface(CloudInterface):
             tags=tags,
             delete_batch_size=delete_batch_size,
         )
+        self.kms_key_name = kms_key_name
         self.bucket_exists = None
         self._reinit_session()
 
@@ -234,7 +239,10 @@ class GoogleCloudInterface(CloudInterface):
         """
         tags = override_tags or self.tags
         logging.debug("upload_fileobj to {}".format(key))
-        blob = self.container_client.blob(key)
+        extra_args = {}
+        if self.kms_key_name is not None:
+            extra_args["kms_key_name"] = self.kms_key_name
+        blob = self.container_client.blob(key, **extra_args)
         if tags is not None:
             blob.metadata = dict(tags)
         logging.debug("blob initiated")

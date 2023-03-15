@@ -37,7 +37,7 @@ usage: barman-cloud-wal-archive [-V] [--help] [-v | -q] [-t]
                                 [-z | -j | --snappy]
                                 [--tags [TAGS [TAGS ...]]]
                                 [--history-tags [HISTORY_TAGS [HISTORY_TAGS ...]]]
-                                [-e ENCRYPTION]
+                                [--kms-key-name KMS_KEY_NAME] [-e ENCRYPTION]
                                 [--sse-kms-key-id SSE_KMS_KEY_ID]
                                 [--encryption-scope ENCRYPTION_SCOPE]
                                 [--max-block-size MAX_BLOCK_SIZE]
@@ -121,6 +121,12 @@ Extra options for the azure-blob-storage cloud provider:
                         set lower than the PostgreSQL WAL segment size after
                         any applied compression then the concurrent chunk
                         upload method for WAL archiving will be used.
+
+
+Extra options for google-cloud-storage cloud provider:
+  --kms-key-name KMS_KEY_NAME
+                        The name of the GCP KMS key which should be used for
+                        encrypting the uploaded data in GCS.
 ```
 # REFERENCES
 
