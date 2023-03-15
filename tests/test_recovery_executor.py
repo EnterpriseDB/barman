@@ -65,7 +65,11 @@ class TestRecoveryExecutor(object):
         backup_manager = testing_helpers.build_backup_manager()
         assert RecoveryExecutor(backup_manager)
 
-    def test_analyse_temporary_config_files(self, tmpdir):
+    @pytest.mark.parametrize(
+        "recovery_configuration_file",
+        ("postgresql.auto.conf", "custom.recovery.conf"),
+    )
+    def test_analyse_temporary_config_files(self, recovery_configuration_file, tmpdir):
         """
         Test the method that identifies dangerous options into
         the configuration files
@@ -73,24 +77,31 @@ class TestRecoveryExecutor(object):
         # Build directory/files structure for testing
         tempdir = tmpdir.mkdir("tempdir")
         recovery_info = {
+            "auto_conf_append_lines": ["standby_mode = 'on'"],
             "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
             "tempdir": tempdir.strpath,
             "temporary_configuration_files": [],
-            "results": {"changes": [], "warnings": []},
+            "results": {
+                "changes": [],
+                "warnings": [],
+                "recovery_configuration_file": recovery_configuration_file,
+            },
         }
         postgresql_conf = tempdir.join("postgresql.conf")
-        postgresql_auto = tempdir.join("postgresql.auto.conf")
+        recovery_config_file = tempdir.join(recovery_configuration_file)
         postgresql_conf.write(
             "archive_command = something\n"
             "data_directory = something\n"
             "include = something\n"
             'include "without braces"'
         )
-        postgresql_auto.write(
+        recovery_config_file.write(
             "archive_command = something\n" "data_directory = something"
         )
         recovery_info["temporary_configuration_files"].append(postgresql_conf.strpath)
-        recovery_info["temporary_configuration_files"].append(postgresql_auto.strpath)
+        recovery_info["temporary_configuration_files"].append(
+            recovery_config_file.strpath
+        )
         # Build a RecoveryExecutor object (using a mock as server and backup
         # manager.
         backup_manager = testing_helpers.build_backup_manager()
@@ -106,12 +117,18 @@ class TestRecoveryExecutor(object):
         executor._analyse_temporary_config_files(recovery_info)
         assert len(recovery_info["results"]["changes"]) == 2
         assert len(recovery_info["results"]["warnings"]) == 4
+        # Verify auto options were appended
+        recovery_config_file_contents = recovery_config_file.read()
+        assert all(
+            append_line in recovery_config_file_contents
+            for append_line in recovery_info["auto_conf_append_lines"]
+        )
 
         # Test corner case with empty auto file
         recovery_info["results"]["changes"] = []
         recovery_info["results"]["warnings"] = []
         recovery_info["auto_conf_append_lines"] = ["l1", "l2"]
-        postgresql_auto.write("")
+        recovery_config_file.write("")
         executor._analyse_temporary_config_files(recovery_info)
         assert len(recovery_info["results"]["changes"]) == 1
         assert len(recovery_info["results"]["warnings"]) == 3
@@ -165,6 +182,93 @@ class TestRecoveryExecutor(object):
             and "pg_ident.conf" in recovery_info["results"]["missing_files"]
         )
 
+    @pytest.mark.parametrize(
+        (
+            "remote_command",
+            "recovery_dir_key",
+            "recovery_configuration_file",
+        ),
+        [
+            (None, "destination_path", "postgresql.auto.conf"),
+            ("mock_remote_command", "tempdir", "postgresql.auto.conf"),
+            (None, "destination_path", "custom.recovery.conf"),
+            ("mock_remote_command", "tempdir", "custom.recovery.conf"),
+        ],
+    )
+    @mock.patch("barman.recovery_executor.open")
+    @mock.patch("barman.recovery_executor.RecoveryExecutor._copy_conf_files_to_tempdir")
+    @mock.patch("barman.recovery_executor.RecoveryExecutor._conf_files_exist")
+    def test_map_temporary_config_files_recovery_configuration_file(
+        self,
+        mock_conf_files_exist,
+        mock_copy_conf_files_to_tempdir,
+        mock_open,
+        remote_command,
+        recovery_dir_key,
+        recovery_configuration_file,
+        tmpdir,
+    ):
+        """
+        Test the method that prepares configuration files for the final steps of a
+        recovery handles the recovery_configuration_file correctly.
+        """
+        # GIVEN a backup from PostgreSQL 12 (or above)
+        backup_info = testing_helpers.build_test_backup_info()
+        backup_info.version = 120000
+        # AND a recovery executor
+        backup_manager = testing_helpers.build_backup_manager()
+        executor = RecoveryExecutor(backup_manager)
+        # AND recovery_info specifies a recovery_configuration_file
+        destination_path = tmpdir.mkdir("destination_path")
+        tempdir = tmpdir.mkdir("tempdir")
+        recovery_info = {
+            "configuration_files": ["postgresql.conf", "postgresql.auto.conf"],
+            "destination_path": destination_path.strpath,
+            "tempdir": tempdir.strpath,
+            "temporary_configuration_files": [],
+            "results": {
+                "missing_files": [],
+                "recovery_configuration_file": recovery_configuration_file,
+            },
+        }
+        # AND postgresql.conf and postgresql.auto.conf exist
+        mock_conf_files_exist.return_value = {
+            "postgresql.conf": True,
+            "postgresql.auto.conf": True,
+        }
+        mock_copy_conf_files_to_tempdir.return_value = [
+            os.path.join(recovery_info[recovery_dir_key], filename)
+            for filename in recovery_info["configuration_files"]
+        ]
+
+        # WHEN _map_temporary_config_files is called
+        executor._map_temporary_config_files(recovery_info, backup_info, remote_command)
+
+        # THEN the configuration files were added to expected_temporary_files
+        assert recovery_info["temporary_configuration_files"][:2] == [
+            os.path.join(recovery_info[recovery_dir_key], filename)
+            for filename in recovery_info["configuration_files"]
+        ]
+        if recovery_configuration_file not in recovery_info["configuration_files"]:
+            # THEN the file was created if it was not already in
+            # configuration_files
+            conf_file_path = os.path.join(
+                recovery_info[recovery_dir_key], recovery_configuration_file
+            )
+            mock_open.assert_called_once_with(conf_file_path, "ab")
+            # AND the path was appended to temporary_configuration_files
+            assert recovery_info["temporary_configuration_files"][-1] == os.path.join(
+                recovery_info[recovery_dir_key], recovery_configuration_file
+            )
+        else:
+            # OR if the file was already in configuration_files
+            # THEN it was not created
+            mock_open.assert_not_called()
+            # AND no additional temporary files were created
+            assert len(recovery_info["temporary_configuration_files"]) == len(
+                recovery_info["configuration_files"]
+            )
+
     @mock.patch("barman.recovery_executor.RsyncPgData")
     def test_setup(self, rsync_mock):
         """
@@ -174,36 +278,90 @@ class TestRecoveryExecutor(object):
         backup_manager = testing_helpers.build_backup_manager()
         executor = RecoveryExecutor(backup_manager)
         backup_info.version = 90300
+        recovery_dir = "/path/to/recovery/dir"
 
         # setup should create a temporary directory
         # and teardown should delete it
-        ret = executor._setup(backup_info, None, "/tmp")
+        ret = executor._setup(backup_info, None, recovery_dir, None)
         assert os.path.exists(ret["tempdir"])
         executor.close()
         assert not os.path.exists(ret["tempdir"])
         assert ret["wal_dest"].endswith("/pg_xlog")
 
         # no postgresql.auto.conf on version 9.3
-        ret = executor._setup(backup_info, None, "/tmp")
+        ret = executor._setup(backup_info, None, recovery_dir, None)
         executor.close()
         assert "postgresql.auto.conf" not in ret["configuration_files"]
 
         # Check the present for postgresql.auto.conf on version 9.4
         backup_info.version = 90400
-        ret = executor._setup(backup_info, None, "/tmp")
+        ret = executor._setup(backup_info, None, recovery_dir, None)
         executor.close()
         assert "postgresql.auto.conf" in ret["configuration_files"]
 
         # Receive a error if the remote command is invalid
         with pytest.raises(SystemExit):
             executor.server.path = None
-            executor._setup(backup_info, "invalid", "/tmp")
+            executor._setup(backup_info, "invalid", recovery_dir, None)
 
         # Test for PostgreSQL 10
         backup_info.version = 100000
-        ret = executor._setup(backup_info, None, "/tmp")
+        ret = executor._setup(backup_info, None, recovery_dir, None)
         executor.close()
         assert ret["wal_dest"].endswith("/pg_wal")
+
+    @pytest.mark.parametrize(
+        (
+            "postgres_version",
+            "recovery_conf_filename",
+            "expected_recovery_configuration_file",
+            "expected_in_configuration_files",
+        ),
+        [
+            (110000, None, "recovery.conf", False),
+            (110000, "custom.recovery.conf", "custom.recovery.conf", False),
+            (120000, None, "postgresql.auto.conf", True),
+            (120000, "custom.recovery.conf", "custom.recovery.conf", False),
+        ],
+    )
+    @mock.patch("barman.recovery_executor.RsyncPgData")
+    def test_setup_recovery_configuration_file(
+        self,
+        _rsync_mock,
+        postgres_version,
+        recovery_conf_filename,
+        expected_recovery_configuration_file,
+        expected_in_configuration_files,
+    ):
+        """
+        Test the handling of recovery configuration files during _setup.
+        """
+        # GIVEN a backup from a PostgreSQL server with the specified version
+        backup_info = testing_helpers.build_test_backup_info()
+        backup_info.version = postgres_version
+        # AND a recovery executor
+        backup_manager = testing_helpers.build_backup_manager()
+        executor = RecoveryExecutor(backup_manager)
+
+        # WHEN _setup is called on the recovery executor
+        recovery_info = executor._setup(
+            backup_info, None, "/path/to/recovery/dir", recovery_conf_filename
+        )
+        executor.close()
+
+        # THEN the expected recovery configuration file is set
+        assert (
+            recovery_info["results"]["recovery_configuration_file"]
+            == expected_recovery_configuration_file
+        )
+        # AND the presence of the recovery conf file in configuration_files matches
+        # expectations
+        assert (
+            expected_recovery_configuration_file in recovery_info["configuration_files"]
+        ) == expected_in_configuration_files
+        # AND regardless of the recovery configuration file, postgresql.auto.conf is in
+        # configuration_files
+        assert "postgresql.auto.conf" in recovery_info["configuration_files"]
 
     def test_set_pitr_targets(self, tmpdir):
         """
@@ -1346,6 +1504,72 @@ class TestRecoveryExecutor(object):
             ]
         )
 
+    @pytest.mark.parametrize(
+        ("conf_files", "temp_conf_files", "expected_file_list"),
+        (
+            # If configuration_files and temporary_configuration_files are the same
+            # then we expect the configuration_files to be copied.
+            [
+                ["postgresql.auto.conf", "postgresql.conf"],
+                [
+                    "/path/to/tmp/postgresql.auto.conf",
+                    "/path/to/tmp/barman/postgresql.conf",
+                ],
+                [
+                    "postgresql.auto.conf",
+                    "postgresql.auto.conf.origin",
+                    "postgresql.conf",
+                    "postgresql.conf.origin",
+                ],
+            ],
+            # If temporary_configuration_files contains extra files then they should
+            # also be copied
+            [
+                ["postgresql.auto.conf", "postgresql.conf"],
+                [
+                    "/path/to/tmp/postgresql.auto.conf",
+                    "/path/to/tmp/barman/postgresql.conf",
+                    "/path/to/tmp/barman/postgresql.new.conf",
+                ],
+                [
+                    "postgresql.auto.conf",
+                    "postgresql.auto.conf.origin",
+                    "postgresql.conf",
+                    "postgresql.conf.origin",
+                    "postgresql.new.conf",
+                    "postgresql.new.conf.origin",
+                ],
+            ],
+        ),
+    )
+    def test_copy_temporary_config_files(
+        self, conf_files, temp_conf_files, expected_file_list
+    ):
+        """Verify that modified config files are copied to their final destination."""
+        # GIVEN a RecoveryExecutor
+        mock_backup_manager = mock.Mock()
+        executor = RecoveryExecutor(mock_backup_manager)
+        # AND a recovery_info with a mock rsync object
+        recovery_dir = "/path/to/recovery"
+        temp_dir = "/path/to/tmp"
+        recovery_info = {
+            "configuration_files": conf_files,
+            "temporary_configuration_files": temp_conf_files,
+            "destination_path": recovery_dir,
+            "rsync": mock.Mock(),
+            "tempdir": temp_dir,
+        }
+
+        # WHEN _copy_temporary_config_files is called
+        executor._copy_temporary_config_files(
+            recovery_dir, "ssh db@remote", recovery_info
+        )
+
+        # THEN the expected configuration files are copied to the destination
+        recovery_info["rsync"].from_file_list.assert_called_once_with(
+            expected_file_list, temp_dir, ":" + recovery_dir
+        )
+
 
 class TestRemoteConfigRecoveryExecutor(object):
     """Test functions for managing remote configuration files during recovery."""
@@ -1559,6 +1783,7 @@ class TestSnapshotRecoveryExecutor(object):
             exclusive=False,
             target_action=None,
             standby_mode=None,
+            recovery_conf_filename=None,
         )
 
     @pytest.mark.parametrize(

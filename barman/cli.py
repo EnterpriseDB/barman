@@ -740,6 +740,15 @@ def rebuild_xlogdb(args):
             ),
         ),
         argument(
+            "--recovery-conf-filename",
+            dest="recovery_conf_filename",
+            help=(
+                "Name of the file to which recovery configuration will be added "
+                "(default: postgresql.auto.conf for PostgreSQL 12 and newer, "
+                "recovery.conf for earlier versions)."
+            ),
+        ),
+        argument(
             "--snapshot-recovery-instance",
             help="Instance where the disks recovered from the snapshots are attached",
         ),
@@ -942,6 +951,7 @@ def recover(args):
                 remote_command=args.remote_ssh_command,
                 target_action=getattr(args, "target_action", None),
                 standby_mode=getattr(args, "standby_mode", None),
+                recovery_conf_filename=args.recovery_conf_filename,
                 **snapshot_kwargs
             )
         except RecoveryException as exc:
