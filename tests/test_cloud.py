@@ -601,15 +601,32 @@ class TestS3CloudInterface(object):
             Fileobj=mock_fileobj, Bucket="bucket", Key=mock_key, ExtraArgs={}
         )
 
+    @pytest.mark.parametrize(
+        ("encryption_args", "expected_extra_args"),
+        [
+            (
+                {"encryption": "AES256", "sse_kms_key_id": None},
+                {"ServerSideEncryption": "AES256"},
+            ),
+            (
+                {"encryption": "aws:kms", "sse_kms_key_id": None},
+                {"ServerSideEncryption": "aws:kms"},
+            ),
+            (
+                {"encryption": "aws:kms", "sse_kms_key_id": "somekeyid"},
+                {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": "somekeyid"},
+            ),
+        ],
+    )
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    def test_upload_fileobj_with_encryption(self, boto_mock):
+    def test_upload_fileobj_with_encryption(
+        self, boto_mock, encryption_args, expected_extra_args
+    ):
         """
-        Tests the ServerSideEncryption argument is provided to boto3 when uploading
-        a file if encryption is set on the S3CloudInterface.
+        Tests the ServerSideEncryption and SSEKMSKeyId arguments are provided to boto3
+        when uploading a file if encryption args are set on the S3CloudInterface.
         """
-        cloud_interface = S3CloudInterface(
-            "s3://bucket/path/to/dir", encryption="aws:kms"
-        )
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", **encryption_args)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         s3_client = s3_mock.meta.client
@@ -622,7 +639,7 @@ class TestS3CloudInterface(object):
             Fileobj=mock_fileobj,
             Bucket="bucket",
             Key=mock_key,
-            ExtraArgs={"ServerSideEncryption": "aws:kms"},
+            ExtraArgs=expected_extra_args,
         )
 
     @pytest.mark.parametrize(
@@ -692,15 +709,33 @@ class TestS3CloudInterface(object):
             Key=mock_key,
         )
 
+    @pytest.mark.parametrize(
+        ("encryption_args", "expected_extra_args"),
+        [
+            (
+                {"encryption": "AES256", "sse_kms_key_id": None},
+                {"ServerSideEncryption": "AES256"},
+            ),
+            (
+                {"encryption": "aws:kms", "sse_kms_key_id": None},
+                {"ServerSideEncryption": "aws:kms"},
+            ),
+            (
+                {"encryption": "aws:kms", "sse_kms_key_id": "somekeyid"},
+                {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": "somekeyid"},
+            ),
+        ],
+    )
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
-    def test_create_multipart_upload_with_encryption(self, boto_mock):
+    def test_create_multipart_upload_with_encryption(
+        self, boto_mock, encryption_args, expected_extra_args
+    ):
         """
-        Tests the ServerSideEncryption argument is provided to boto3 when creating
-        a multipart upload if encryption is set on the S3CloudInterface
+        Tests the ServerSideEncryption and SSEKMSKeyId arguments are provided to boto3
+        when creating a multipart upload if encryption args are set on the
+        S3CloudInterface
         """
-        cloud_interface = S3CloudInterface(
-            "s3://bucket/path/to/dir", encryption="aws:kms"
-        )
+        cloud_interface = S3CloudInterface("s3://bucket/path/to/dir", **encryption_args)
         session_mock = boto_mock.Session.return_value
         s3_mock = session_mock.resource.return_value
         s3_client = s3_mock.meta.client
@@ -709,7 +744,7 @@ class TestS3CloudInterface(object):
         cloud_interface.create_multipart_upload(mock_key)
 
         s3_client.create_multipart_upload.assert_called_once_with(
-            Bucket="bucket", Key=mock_key, ServerSideEncryption="aws:kms"
+            Bucket="bucket", Key=mock_key, **expected_extra_args
         )
 
     @mock.patch("barman.cloud_providers.aws_s3.boto3")
@@ -2397,6 +2432,7 @@ class TestGetCloudInterface(object):
             {},
             {"jobs": 2},
             {"tags": [("foo", "bar"), ("baz", "qux")]},
+            {"encryption": "aws:kms", "sse_kms_key_id": "somekeyid"},
         ],
     )
     @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
@@ -2413,6 +2449,38 @@ class TestGetCloudInterface(object):
             read_timeout=None,
             **extra_args
         )
+
+    @pytest.mark.parametrize(
+        ("extra_args", "expected_error"),
+        [
+            (
+                {"encryption": None, "sse_kms_key_id": "somekeyid"},
+                'Encryption type must be "aws:kms" if SSE KMS Key ID is specified',
+            ),
+            (
+                {"encryption": "AES256", "sse_kms_key_id": "somekeyid"},
+                'Encryption type must be "aws:kms" if SSE KMS Key ID is specified',
+            ),
+        ],
+    )
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_aws_s3_invalid_config(
+        self, mock_s3_cloud_interface, mock_config_aws, extra_args, expected_error
+    ):
+        """Verify disallowed parameter combinations with aws-s3 provider."""
+        # GIVEN a config with cloud provider aws-s3
+        mock_config_aws.cloud_provider = "aws-s3"
+        # AND a set of forbiddden options
+        for k, v in extra_args.items():
+            setattr(mock_config_aws, k, v)
+
+        # WHEN get_cloud_interface is called with this config
+        # THEN an exception is raised
+        with pytest.raises(CloudProviderOptionUnsupported) as exc:
+            get_cloud_interface(mock_config_aws)
+
+        # AND the exception has the expected message
+        assert expected_error == str(exc.value)
 
     @pytest.mark.parametrize(
         "extra_args",

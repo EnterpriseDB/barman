@@ -98,6 +98,7 @@ class S3CloudInterface(CloudInterface):
         tags=None,
         delete_batch_size=None,
         read_timeout=None,
+        sse_kms_key_id=None,
     ):
         """
         Create a new S3 interface given the S3 destination url and the profile
@@ -114,6 +115,8 @@ class S3CloudInterface(CloudInterface):
           deleted in a single request
         :param int|None read_timeout: the time in seconds until a timeout is
           raised when waiting to read from a connection
+        :param str|None sse_kms_key_id: the AWS KMS key ID that should be used
+          for encrypting uploaded data in S3
         """
         super(S3CloudInterface, self).__init__(
             url=url,
@@ -125,6 +128,7 @@ class S3CloudInterface(CloudInterface):
         self.encryption = encryption
         self.endpoint_url = endpoint_url
         self.read_timeout = read_timeout
+        self.sse_kms_key_id = sse_kms_key_id
 
         # Extract information from the destination URL
         parsed_url = urlparse(url)
@@ -161,6 +165,8 @@ class S3CloudInterface(CloudInterface):
         additional_args = {}
         if self.encryption:
             additional_args["ServerSideEncryption"] = self.encryption
+        if self.sse_kms_key_id:
+            additional_args["SSEKMSKeyId"] = self.sse_kms_key_id
         return additional_args
 
     def test_connectivity(self):

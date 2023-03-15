@@ -53,6 +53,7 @@ usage: barman-cloud-backup [-V] [--help] [-v | -q] [-t]
                            [--snapshot-zone SNAPSHOT_ZONE]
                            [--snapshot-gcp-project SNAPSHOT_GCP_PROJECT]
                            [--tags [TAGS [TAGS ...]]] [-e {AES256,aws:kms}]
+                           [--sse-kms-key-id SSE_KMS_KEY_ID]
                            [--encryption-scope ENCRYPTION_SCOPE]
                            destination_url server_name
 
@@ -121,6 +122,11 @@ Extra options for the aws-s3 cloud provider:
                         The encryption algorithm used when storing the
                         uploaded data in S3. Allowed values:
                         'AES256'|'aws:kms'.
+  --sse-kms-key-id SSE_KMS_KEY_ID
+                        The AWS KMS key ID that should be used for encrypting
+                        the uploaded data in S3. Can be specified using the
+                        key ID on its own or using the full ARN for the key.
+                        Only allowed if `-e/--encryption` is set to `aws:kms`.
 
 Extra options for the azure-blob-storage cloud provider:
   --credential {azure-cli,managed-identity}

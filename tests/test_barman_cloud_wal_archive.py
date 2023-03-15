@@ -229,6 +229,7 @@ class TestMain(object):
             profile_name=None,
             endpoint_url=None,
             encryption=None,
+            sse_kms_key_id=None,
             read_timeout=None,
         )
 
@@ -341,6 +342,53 @@ class TestMain(object):
             url="https://account.blob.core.windows.net/container/path/to/dir",
             encryption_scope=None,
             tags=None,
+            **expected_cloud_interface_kwargs
+        )
+
+    @pytest.mark.parametrize(
+        ("aws_cli_args", "expected_cloud_interface_kwargs"),
+        [
+            # Defaults should result in None values being passed
+            (
+                [],
+                {
+                    "encryption": None,
+                    "sse_kms_key_id": None,
+                },
+            ),
+            # If values are provided then they should be passed to the cloud interface
+            (
+                ["--encryption", "aws:kms", "--sse-kms-key-id", "somekeyid"],
+                {
+                    "encryption": "aws:kms",
+                    "sse_kms_key_id": "somekeyid",
+                },
+            ),
+        ],
+    )
+    @mock.patch("barman.clients.cloud_walarchive.CloudWalUploader")
+    @mock.patch("barman.cloud_providers.aws_s3.S3CloudInterface")
+    def test_aws_encryption_args(
+        self,
+        cloud_interface_mock,
+        _uploader_mock,
+        aws_cli_args,
+        expected_cloud_interface_kwargs,
+    ):
+        """Verify that AWS encryption arguments are passed to the cloud interface."""
+        # WHEN barman-cloud-wal-archive is run with the provided arguments
+        cloud_walarchive.main(
+            ["cloud_storage_url", "test_server", "000000080000ABFF000000C2"]
+            + aws_cli_args
+        )
+
+        # THEN they are passed to the cloud interface
+        cloud_interface_mock.assert_called_once_with(
+            url="cloud_storage_url",
+            tags=None,
+            profile_name=None,
+            endpoint_url=None,
+            read_timeout=None,
             **expected_cloud_interface_kwargs
         )
 
