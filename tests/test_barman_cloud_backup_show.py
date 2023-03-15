@@ -225,7 +225,7 @@ class TestCloudBackupShow(object):
         caplog,
     ):
         """
-        Verify plain output of barman-cloud-backup-show for a backup.
+        Verify failure of barman-cloud-backup-show for a missing backup.
         """
         # GIVEN a backup catalog with a single backup
         cloud_backup_catalog = mock_cloud_backup_catalog.return_value
