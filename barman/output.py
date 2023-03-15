@@ -795,10 +795,11 @@ class ConsoleOutputWriter(object):
         """
         output_fun(header_row.format("Base backup information"))
         if backup_info["size"] is not None:
-            disk_usage_output = "{} ({} with WALs)".format(
-                pretty_size(backup_info["size"]),
-                pretty_size(backup_info["size"] + backup_info["wal_size"]),
-            )
+            disk_usage_output = "{}".format(pretty_size(backup_info["size"]))
+            if "wal_size" in backup_info and backup_info["wal_size"] is not None:
+                disk_usage_output += " ({} with WALs)".format(
+                    pretty_size(backup_info["size"] + backup_info["wal_size"]),
+                )
             output_fun(nested_row.format("Disk usage", disk_usage_output))
         if backup_info["deduplicated_size"] is not None and backup_info["size"] > 0:
             deduplication_ratio = 1 - (
