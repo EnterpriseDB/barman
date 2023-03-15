@@ -215,6 +215,32 @@ class TestCloudBackupShow(object):
             "backup_id": "backup_id_1",
         }
 
+    @pytest.mark.parametrize("extra_args", [[], ["--format", "json"]])
+    @mock.patch("barman.clients.cloud_backup_show.CloudBackupCatalog")
+    @mock.patch("barman.clients.cloud_backup_show.get_cloud_interface")
+    def test_cloud_backup_show_from_hook_script(
+        self,
+        _mock_get_cloud_interface,
+        mock_cloud_backup_catalog,
+        cloud_backup_catalog,
+        backup_id,
+        extra_args,
+    ):
+        """
+        Verify barman-cloud-backup-show for a backup with size information does not
+        fail.
+        """
+        # GIVEN a backup catalog with a single backup
+        mock_cloud_backup_catalog.return_value = cloud_backup_catalog
+        # AND the single backup has a non-null size value due to being uploaded via
+        # a hook script
+        cloud_backup_catalog.get_backup_info.return_value.size = 42
+        # WHEN barman_cloud_backup_show is called for that backup
+        # THEN no errors are raised
+        cloud_backup_show.main(
+            ["cloud_storage_url", "test_server", backup_id, *extra_args]
+        )
+
     @mock.patch("barman.clients.cloud_backup_show.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_backup_show.get_cloud_interface")
     def test_cloud_backup_show_missing_backup(
