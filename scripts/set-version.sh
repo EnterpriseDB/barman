@@ -69,11 +69,11 @@ require_clean_work_tree () {
 
 require_clean_work_tree "set version"
 
-if branch=$(git symbolic-ref --short -q HEAD) && [ $branch = 'master' ]
+if branch=$(git symbolic-ref --short -q HEAD) && [ $branch = '3.4.X' ]
 then
     echo "Setting version ${release_version}"
 else
-    echo >&2 "Release is not possible because you are not on 'master' branch ($branch)"
+    echo >&2 "Release is not possible because you are not on '3.4.X' branch ($branch)"
     exit 1
 fi
 
