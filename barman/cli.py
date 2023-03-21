@@ -743,9 +743,8 @@ def rebuild_xlogdb(args):
             "--recovery-conf-filename",
             dest="recovery_conf_filename",
             help=(
-                "Name of the file to which recovery configuration will be added "
-                "(default: postgresql.auto.conf for PostgreSQL 12 and newer, "
-                "recovery.conf for earlier versions)."
+                "Name of the file to which recovery configuration options will be "
+                "added for PostgreSQL 12 and later (default: postgresql.auto.conf)."
             ),
         ),
         argument(

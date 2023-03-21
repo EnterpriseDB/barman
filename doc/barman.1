@@ -572,11 +572,10 @@ and has no effect otherwise.
 .TP
 .B \-\-recovery\-conf\-filename \f[I]RECOVERY_CONF_FILENAME\f[]
 The name of the file where Barman should write the PostgreSQL recovery
-options.
-This defaults to postgresql.auto.conf (or recovery.conf for PostgreSQL
-versions earlier than 12) however if \-\-recovery\-conf\-filename is
-used then recovery options will be written to RECOVERY_CONF_FILENAME
-instead.
+options when recovering backups for PostgreSQL versions 12 and later.
+This defaults to postgresql.auto.conf however if
+\-\-recovery\-conf\-filename is used then recovery options will be
+written to RECOVERY_CONF_FILENAME instead.
 The default value is correct for a typical PostgreSQL installation
 however if PostgreSQL is being managed by tooling which modifies the
 configuration mechanism (for example postgresql.auto.conf could be
