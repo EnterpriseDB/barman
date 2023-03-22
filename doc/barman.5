@@ -435,16 +435,16 @@ For backup purposes, it works only when \f[C]backup_method\f[] is
 .RS
 .RE
 .TP
-.B parallel_jobs_start_rate
-Maximum rate at which workers should be started.
-Default: 10 jobs per second.
+.B parallel_jobs_start_batch_period
+The time period in seconds over which a single batch of jobs will be
+started.
+Default: 1 second.
 .RS
 .RE
 .TP
-.B parallel_jobs_start_window
-The window size (in seconds) to use when applying
-\f[C]parallel_jobs_start_rate\f[].
-Default: 1 second.
+.B parallel_jobs_start_batch_size
+Maximum number of parallel jobs to start in a single batch.
+Default: 10 jobs.
 .RS
 .RE
 .TP

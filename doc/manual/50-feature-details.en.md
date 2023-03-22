@@ -906,28 +906,31 @@ allowed by the SSH server. This maximum is defined by the sshd parameter
 not yet authenticated then the SSH server may drop some or all of the
 connections resulting in a failed backup or recovery.
 
-The default value of sshd `MaxStartups` on most platforms is `10` so the
-rate limit used by Barman for creating new Rsync jobs is 10 per second. This
-limit can be changed using the following two configuration options:
+The default value of sshd `MaxStartups` on most platforms is 10. Barman
+therefore starts parallel jobs in batches of 10 and does not start more than
+one batch of jobs within a one second time period. This yields an effective
+rate limit of 10 jobs per second.
 
-- `parallel_jobs_start_rate`: The maximum number of jobs which will be started
-  per `parallel_jobs_start_window` seconds.
-- `parallel_jobs_start_window`: The window size (in seconds) over which
-  `parallel_jobs_start_rate` will be applied.
+This limit can be changed using the following two configuration options:
+
+- `parallel_jobs_start_batch_size`: The maximum number of parallel jobs to
+  start in a single batch.
+- `parallel_jobs_start_batch_period`: The time period in seconds over which a
+  single batch of jobs will be started.
 
 For example, to ensure no more than five new Rsync jobs will be created within
-any two second window:
+any two second time period:
 
 ``` ini
-parallel_jobs_start_rate = 5
-parallel_jobs_start_window = 2
+parallel_jobs_start_batch_size = 5
+parallel_jobs_start_batch_period = 2
 ```
 
 The configuration options can be overridden using the following arguments
 with both `barman backup` and `barman recover` commands:
 
-- `--jobs-start-rate`
-- `--jobs-start-window`
+- `--jobs-start-batch-size`
+- `--jobs-start-batch-period`
 
 ## Geographical redundancy
 

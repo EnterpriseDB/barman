@@ -579,8 +579,8 @@ class TestRsyncCopyController(object):
     @pytest.mark.parametrize(
         (
             # The copy controller configuration parameters
-            "workers_start_rate",
-            "workers_start_window",
+            "workers_start_batch_size",
+            "workers_start_batch_period",
             # A mock history of job generation times
             "generation_history",
             # A list of responses to the mock times.time() function
@@ -596,16 +596,16 @@ class TestRsyncCopyController(object):
             (10, 1, [], [1, 1.1], [1.1], None),
             (2, 0.5, [], [1, 1.1], [1.1], None),
             (1, 2, [], [1, 1.1], [1.1], None),
-            # If there are < workers_start_rate items in the history but it is inside
-            # the time window then we should not wait and the last time returned should
-            # be added to the history
+            # If there are < workers_start_batch_size items in the history but it is
+            # inside the time window then we should not wait and the last time returned
+            # should be added to the history
             (10, 1, [0.1, 0.2, 0.3], [1, 1.1], [0.1, 0.2, 0.3, 1.1], None),
             (2, 0.5, [0.6], [1, 1.1], [0.6, 1.1], None),
             # Times outside the window should be discarded
             (10, 1, [0.1, 0.2, 0.3], [1.2, 1.4], [0.2, 0.3, 1.4], None),
             (2, 0.5, [0.3, 0.4, 0.6], [1, 1.1], [0.6, 1.1], None),
-            # If there are >= workers_start_rate items within the window then we expect
-            # to wait until the oldest non-discarded time is outside the window
+            # If there are >= workers_start_batch_size items within the window then we
+            # expect to wait until the oldest non-discarded time is outside the window
             (
                 5,
                 1,
@@ -616,8 +616,8 @@ class TestRsyncCopyController(object):
             ),
             (2, 0.5, [0.1, 0.45, 0.6], [0.7, 1], [0.45, 0.6, 1], 0.25),
             (1, 5, [1, 6, 7], [8, 11], [6, 7, 11], 3),
-            # If there are >= workers_start_rate items but not within the window then w
-            # do not expect to wait
+            # If there are >= workers_start_batch_size items but not within the window
+            # then we do not expect to wait
             (2, 0.5, [0.1, 0.45, 0.6], [3, 3.1], [3.1], None),
             (1, 5, [1, 6, 7], [15, 16], [16], None),
         ),
@@ -626,8 +626,8 @@ class TestRsyncCopyController(object):
     def test_apply_rate_limit(
         self,
         mock_time,
-        workers_start_rate,
-        workers_start_window,
+        workers_start_batch_size,
+        workers_start_batch_period,
         generation_history,
         times,
         expected_return_value,
@@ -639,8 +639,8 @@ class TestRsyncCopyController(object):
         """
         # GIVEN an RsyncCopyController
         copy_controller = RsyncCopyController(
-            workers_start_rate=workers_start_rate,
-            workers_start_window=workers_start_window,
+            workers_start_batch_period=workers_start_batch_period,
+            workers_start_batch_size=workers_start_batch_size,
         )
         # AND a list of deterministic times for time.time()
         mock_time.time.side_effect = times
@@ -682,11 +682,11 @@ class TestRsyncCopyController(object):
         - Plain file items.
         """
         # GIVEN an RsyncCopyController
-        workers_start_rate = 3
-        workers_start_window = 0.1
+        workers_start_batch_size = 3
+        workers_start_batch_period = 0.1
         copy_controller = RsyncCopyController(
-            workers_start_rate=workers_start_rate,
-            workers_start_window=workers_start_window,
+            workers_start_batch_period=workers_start_batch_period,
+            workers_start_batch_size=workers_start_batch_size,
         )
         # AND a list of items to be copied
         expected_job_count = 0
@@ -718,11 +718,11 @@ class TestRsyncCopyController(object):
         list([job for job in copy_controller._job_generator()])
         end_time = time.time()
 
-        # THEN the total time taken shows that workers_start_rate and
-        # workers_start_window were observed
+        # THEN the total time taken shows that workers_start_batch_size and
+        # workers_start_batch_period were observed
         minimum_allowed_time = (
-            (expected_job_count - workers_start_rate) / workers_start_rate
-        ) * workers_start_window
+            (expected_job_count - workers_start_batch_size) / workers_start_batch_size
+        ) * workers_start_batch_period
         assert end_time - start_time > minimum_allowed_time
 
     def _run_analyze_directory(self, list_files_mock, tmpdir, ref_list, src_list):

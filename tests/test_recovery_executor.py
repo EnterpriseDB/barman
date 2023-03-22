@@ -1088,8 +1088,8 @@ class TestRecoveryExecutor(object):
                 retry_sleep=30,
                 retry_times=0,
                 workers=1,
-                workers_start_rate=10,
-                workers_start_window=1,
+                workers_start_batch_period=1,
+                workers_start_batch_size=10,
             ),
             mock.call().add_directory(
                 bwlimit="",
@@ -1672,8 +1672,8 @@ class TestTarballRecoveryExecutor(object):
                 retry_sleep=30,
                 retry_times=0,
                 workers=1,
-                workers_start_rate=10,
-                workers_start_window=1,
+                workers_start_batch_period=1,
+                workers_start_batch_size=10,
             ),
             mock.call().add_file(
                 bwlimit="",
@@ -1911,8 +1911,8 @@ class TestSnapshotRecoveryExecutor(object):
                 retry_sleep=30,
                 retry_times=0,
                 workers=1,
-                workers_start_rate=10,
-                workers_start_window=1,
+                workers_start_batch_period=1,
+                workers_start_batch_size=10,
             ),
             mock.call().add_file(
                 bwlimit=None,

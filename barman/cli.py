@@ -399,13 +399,15 @@ def backup_completer(prefix, parsed_args, **kwargs):
             metavar="NJOBS",
         ),
         argument(
-            "--jobs-start-rate",
-            help="The maximum rate at which parallel Rsync jobs should be started.",
+            "--jobs-start-batch-period",
+            help="The time period in seconds over which a single batch of jobs will "
+            "be started.",
             type=check_positive,
         ),
         argument(
-            "--jobs-start-window",
-            help="The window size (in seconds) to use when applying --jobs-start-rate.",
+            "--jobs-start-batch-size",
+            help="The maximum number of parallel Rsync jobs to start in a single "
+            "batch.",
             type=check_positive,
         ),
         argument(
@@ -470,10 +472,12 @@ def backup(args):
             server.postgres.immediate_checkpoint = args.immediate_checkpoint
         if args.jobs is not None:
             server.config.parallel_jobs = args.jobs
-        if args.jobs_start_rate is not None:
-            server.config.parallel_jobs_start_rate = args.jobs_start_rate
-        if args.jobs_start_window is not None:
-            server.config.parallel_jobs_start_window = args.jobs_start_window
+        if args.jobs_start_batch_size is not None:
+            server.config.parallel_jobs_start_batch_size = args.jobs_start_batch_size
+        if args.jobs_start_batch_period is not None:
+            server.config.parallel_jobs_start_batch_period = (
+                args.jobs_start_batch_period
+            )
         if hasattr(args, "bwlimit"):
             server.config.bandwidth_limit = args.bwlimit
         with closing(server):
@@ -697,13 +701,14 @@ def rebuild_xlogdb(args):
             metavar="NJOBS",
         ),
         argument(
-            "--jobs-start-rate",
-            help="The maximum rate at which parallel Rsync jobs should be started.",
+            "--jobs-start-batch-period",
+            help="The time period in seconds over which a single batch of jobs will "
+            "be started.",
             type=check_positive,
         ),
         argument(
-            "--jobs-start-window",
-            help="The window size (in seconds) to use when applying --jobs-start-rate.",
+            "--jobs-start-batch-size",
+            help="The maximum number of Rsync jobs to start in a single batch.",
             type=check_positive,
         ),
         argument(
@@ -880,10 +885,10 @@ def recover(args):
             server.config.recovery_options.remove(RecoveryOptions.GET_WAL)
     if args.jobs is not None:
         server.config.parallel_jobs = args.jobs
-    if args.jobs_start_rate is not None:
-        server.config.parallel_jobs_start_rate = args.jobs_start_rate
-    if args.jobs_start_window is not None:
-        server.config.parallel_jobs_start_window = args.jobs_start_window
+    if args.jobs_start_batch_size is not None:
+        server.config.parallel_jobs_start_batch_size = args.jobs_start_batch_size
+    if args.jobs_start_batch_period is not None:
+        server.config.parallel_jobs_start_batch_period = args.jobs_start_batch_period
     if hasattr(args, "bwlimit"):
         server.config.bandwidth_limit = args.bwlimit
 

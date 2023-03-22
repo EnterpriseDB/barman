@@ -73,15 +73,15 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         value of the parameter `parallel_jobs`, if present in the
         configuration file. Works only for servers configured through `rsync`/SSH.
 
-    --jobs-start-rate
-    :   Maximum rate at which workers should be started. Overrides the value
-        of `parallel_jobs_start_rate`, if present in the configuration file.
-        Defaults to 10 jobs per second.
+    --jobs-start-batch-period
+    :   The time period in seconds over which a single batch of jobs will be
+        started. Overrides the value of `parallel_jobs_start_batch_period`, if
+        present in the configuration file. Defaults to 1 second.
 
-    --jobs-start-window
-    :   The window size (in seconds) over which `--jobs-start-rate` will be
-        applied. Overrides the value of `parallel_jobs_start_window`, if present
-        in the configuration file. Defaults to 1 second.
+    --jobs-start-batch-size
+    :   Maximum number of parallel workers to start in a single batch.
+        Overrides the value of `parallel_jobs_start_batch_size`, if present in
+        the configuration file. Defaults to 10 jobs.
 
     --get-wal, --no-get-wal
     :   Enable/Disable usage of `get-wal` for WAL fetching during recovery.
