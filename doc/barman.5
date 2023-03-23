@@ -435,6 +435,19 @@ For backup purposes, it works only when \f[C]backup_method\f[] is
 .RS
 .RE
 .TP
+.B parallel_jobs_start_batch_period
+The time period in seconds over which a single batch of jobs will be
+started.
+Default: 1 second.
+.RS
+.RE
+.TP
+.B parallel_jobs_start_batch_size
+Maximum number of parallel jobs to start in a single batch.
+Default: 10 jobs.
+.RS
+.RE
+.TP
 .B path_prefix
 One or more absolute paths, separated by colon, where Barman looks for
 executable files.

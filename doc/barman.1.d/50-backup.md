@@ -53,6 +53,16 @@ backup *SERVER_NAME*
         value of the parameter `parallel_jobs`, if present in the
         configuration file.
 
+    --jobs-start-batch-period
+    :   The time period in seconds over which a single batch of jobs will be
+        started. Overrides the value of `parallel_jobs_start_batch_period`, if
+        present in the configuration file. Defaults to 1 second.
+
+    --jobs-start-batch-size
+    :   Maximum number of parallel workers to start in a single batch.
+        Overrides the value of `parallel_jobs_start_batch_size`, if present in
+        the configuration file. Defaults to 10 jobs.
+
     --bwlimit KBPS
     :   maximum transfer rate in kilobytes per second.
         A value of 0 means no limit.

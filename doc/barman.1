@@ -143,6 +143,23 @@ the configuration file.
 .RS
 .RE
 .TP
+.B \-\-jobs\-start\-batch\-period
+The time period in seconds over which a single batch of jobs will be
+started.
+Overrides the value of \f[C]parallel_jobs_start_batch_period\f[], if
+present in the configuration file.
+Defaults to 1 second.
+.RS
+.RE
+.TP
+.B \-\-jobs\-start\-batch\-size
+Maximum number of parallel workers to start in a single batch.
+Overrides the value of \f[C]parallel_jobs_start_batch_size\f[], if
+present in the configuration file.
+Defaults to 10 jobs.
+.RS
+.RE
+.TP
 .B \-\-bwlimit KBPS
 maximum transfer rate in kilobytes per second.
 A value of 0 means no limit.
@@ -533,6 +550,23 @@ Number of parallel workers to copy files during recovery.
 Overrides value of the parameter \f[C]parallel_jobs\f[], if present in
 the configuration file.
 Works only for servers configured through \f[C]rsync\f[]/SSH.
+.RS
+.RE
+.TP
+.B \-\-jobs\-start\-batch\-period
+The time period in seconds over which a single batch of jobs will be
+started.
+Overrides the value of \f[C]parallel_jobs_start_batch_period\f[], if
+present in the configuration file.
+Defaults to 1 second.
+.RS
+.RE
+.TP
+.B \-\-jobs\-start\-batch\-size
+Maximum number of parallel workers to start in a single batch.
+Overrides the value of \f[C]parallel_jobs_start_batch_size\f[], if
+present in the configuration file.
+Defaults to 10 jobs.
 .RS
 .RE
 .TP

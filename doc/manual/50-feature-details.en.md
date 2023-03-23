@@ -897,6 +897,41 @@ configured through `rsync`/SSH. For servers configured through streaming
 protocol, Barman will rely on `pg_basebackup` which is currently limited
 to only one worker.
 
+### Parallel jobs and sshd MaxStartups
+
+Barman limits the rate at which parallel Rsync jobs are started in order to
+avoid exceeding the maximum number of concurrent unauthenticated connections
+allowed by the SSH server. This maximum is defined by the sshd parameter
+`MaxStartups` - if more than `MaxStartups` connections have been created but
+not yet authenticated then the SSH server may drop some or all of the
+connections resulting in a failed backup or recovery.
+
+The default value of sshd `MaxStartups` on most platforms is 10. Barman
+therefore starts parallel jobs in batches of 10 and does not start more than
+one batch of jobs within a one second time period. This yields an effective
+rate limit of 10 jobs per second.
+
+This limit can be changed using the following two configuration options:
+
+- `parallel_jobs_start_batch_size`: The maximum number of parallel jobs to
+  start in a single batch.
+- `parallel_jobs_start_batch_period`: The time period in seconds over which a
+  single batch of jobs will be started.
+
+For example, to ensure no more than five new Rsync jobs will be created within
+any two second time period:
+
+``` ini
+parallel_jobs_start_batch_size = 5
+parallel_jobs_start_batch_period = 2
+```
+
+The configuration options can be overridden using the following arguments
+with both `barman backup` and `barman recover` commands:
+
+- `--jobs-start-batch-size`
+- `--jobs-start-batch-period`
+
 ## Geographical redundancy
 
 It is possible to set up **cascading backup architectures** with Barman,

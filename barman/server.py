@@ -3687,6 +3687,8 @@ class Server(RemoteStatusMixin):
                         retry_times=self.config.basebackup_retry_times,
                         retry_sleep=self.config.basebackup_retry_sleep,
                         workers=self.config.parallel_jobs,
+                        workers_start_batch_period=self.config.parallel_jobs_start_batch_period,
+                        workers_start_batch_size=self.config.parallel_jobs_start_batch_size,
                     )
                     # Exclude primary Barman metadata and state
                     exclude_and_protect = ["/backup.info", "/.backup.lock"]

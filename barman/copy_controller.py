@@ -31,6 +31,7 @@ import re
 import shutil
 import signal
 import tempfile
+import time
 from functools import partial
 from multiprocessing import Lock, Pool
 
@@ -293,6 +294,8 @@ class RsyncCopyController(object):
         retry_times=0,
         retry_sleep=0,
         workers=1,
+        workers_start_batch_period=1,
+        workers_start_batch_size=10,
     ):
         """
         :param str|None path: the PATH where rsync executable will be searched
@@ -311,6 +314,10 @@ class RsyncCopyController(object):
         :param int retry_times: The number of times to retry a failed operation
         :param int retry_sleep: Sleep time between two retry
         :param int workers: The number of parallel copy workers
+        :param int workers_start_batch_period: The time period in seconds over which a
+            single batch of workers will be started
+        :param int workers_start_batch_size: The maximum number of parallel workers to
+            start in a single batch
         """
 
         super(RsyncCopyController, self).__init__()
@@ -324,6 +331,8 @@ class RsyncCopyController(object):
         self.retry_times = retry_times
         self.retry_sleep = retry_sleep
         self.workers = workers
+        self.workers_start_batch_period = workers_start_batch_period
+        self.workers_start_batch_size = workers_start_batch_size
 
         self._logger_lock = Lock()
 
@@ -602,6 +611,53 @@ class RsyncCopyController(object):
             # Store the end time
             self.copy_end_time = datetime.datetime.now()
 
+    def _apply_rate_limit(self, generation_history):
+        """
+        Apply the rate limit defined by `self.workers_start_batch_size` and
+        `self.workers_start_batch_period`.
+
+        Historic start times in `generation_history` are checked to determine
+        whether more than `self.workers_start_batch_size` jobs have been started within
+        the length of time defined by `self.workers_start_batch_period`. If the maximum
+        has been reached then this function will wait until the oldest start time within
+        the last `workers_start_batch_period` seconds is no longer within the time
+        period.
+
+        Once it has finished waiting, or simply determined it does not need to wait,
+        it adds the current time to `generation_history` and returns it.
+
+        :param list[int] generation_history: A list of the generation times of previous
+            jobs.
+        :return list[int]: An updated list of generation times including the current
+            time (after completing any necessary waiting) and not including any times
+            which were not within `self.workers_start_batch_period` when the function
+            was called.
+        """
+        # Job generation timestamps from before the start of the batch period are
+        # removed from the history because they no longer affect the generation of new
+        # jobs
+        now = time.time()
+        window_start_time = now - self.workers_start_batch_period
+        new_history = [
+            timestamp
+            for timestamp in generation_history
+            if timestamp > window_start_time
+        ]
+        # If the number of jobs generated within the batch period is at capacity then we
+        # wait until the oldest job is outside the batch period
+        if len(new_history) >= self.workers_start_batch_size:
+            wait_time = new_history[0] - window_start_time
+            _logger.info(
+                "%s jobs were started in the last %ss, waiting %ss"
+                % (len(new_history), self.workers_start_batch_period, wait_time)
+            )
+            time.sleep(wait_time)
+
+        # Add the *current* time to the job generation history because this will be
+        # newer than `now` if we had to wait
+        new_history.append(time.time())
+        return new_history
+
     def _job_generator(self, include_classes=None, exclude_classes=None):
         """
         Generate the jobs to be executed by the workers
@@ -612,6 +668,9 @@ class RsyncCopyController(object):
             which have one of the specified classes.
         :rtype: iter[_RsyncJob]
         """
+        # The generation time of each job is stored in a list so that we can limit the
+        # rate at which jobs are generated.
+        generation_history = []
         for item_idx, item in enumerate(self.item_list):
             # Skip items of classes which are not required
             if include_classes and item.item_class not in include_classes:
@@ -627,6 +686,7 @@ class RsyncCopyController(object):
                 phase_skipped = True
                 for i, bucket in enumerate(self._fill_buckets(item.safe_list)):
                     phase_skipped = False
+                    generation_history = self._apply_rate_limit(generation_history)
                     yield _RsyncJob(
                         item_idx,
                         id=i,
@@ -644,6 +704,7 @@ class RsyncCopyController(object):
                 phase_skipped = True
                 for i, bucket in enumerate(self._fill_buckets(item.check_list)):
                     phase_skipped = False
+                    generation_history = self._apply_rate_limit(generation_history)
                     yield _RsyncJob(
                         item_idx, id=i, description=msg, file_list=bucket, checksum=True
                     )
@@ -653,6 +714,7 @@ class RsyncCopyController(object):
             else:
                 # Copy the file using plain rsync
                 msg = self._progress_message("[%%s] %%s copy %s" % item)
+                generation_history = self._apply_rate_limit(generation_history)
                 yield _RsyncJob(item_idx, description=msg)
 
     def _fill_buckets(self, file_list):
