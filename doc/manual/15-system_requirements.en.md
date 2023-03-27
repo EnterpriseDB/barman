@@ -9,7 +9,7 @@
     - psycopg2 >= 2.4.2
     - python-dateutil
     - setuptools
-- PostgreSQL >= 10
+- PostgreSQL >= 10 (next version will require PostgreSQL >= 11)
 - rsync >= 3.0.4 (optional)
 
 > **IMPORTANT:**
@@ -23,6 +23,7 @@
 > the near future.
 > Support for Python 3.6 will be discontinued in future releases.
 > Support for PostgreSQL < 10 is discontinued since Barman 3.0.0.
+> Support for PostgreSQL 10 will be discontinued after Barman 3.5.0.
 
 ## Requirements for backup
 
