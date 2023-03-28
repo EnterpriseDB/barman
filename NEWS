@@ -1,5 +1,26 @@
 Barman News - History of user-visible changes
 
+Version 3.4.1 - 29 March 2023
+
+- Bug fixes:
+
+    - Fix a bug which prevented `barman-cloud-backup-show` from
+      displaying the backup metadata for backups made with
+      `barman backup` and uploaded by `barman-cloud-backup` as a
+      post-backup hook script.
+
+    - Fix a bug where the PostgreSQL connection used to validate backup
+      compression settings was left open until termination of the
+      Barman command.
+
+    - Fix an issue which caused rsync-concurrent backups to fail when
+      running for a duration greater than `idle_session_timeout`.
+
+    - Fix a bug where the backup name was not saved in the backup
+      metadata if the `--wait` flag was used with `barman backup`.
+
+- Thanks epolkerman, barthisrael and hzetters for their contributions.
+
 Version 3.4.0 - 26 January 2023
 
 - This is the last release of Barman which will support Python 2 and
