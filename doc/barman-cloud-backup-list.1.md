@@ -1,6 +1,6 @@
-% BARMAN-CLOUD-BACKUP-LIST(1) Barman User manuals | Version 3.4.0
+% BARMAN-CLOUD-BACKUP-LIST(1) Barman User manuals | Version 3.5.0
 % EnterpriseDB <https://www.enterprisedb.com>
-% January 26, 2023
+% March 29, 2023
 
 # NAME
 
