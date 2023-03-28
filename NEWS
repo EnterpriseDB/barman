@@ -1,5 +1,64 @@
 Barman News - History of user-visible changes
 
+Version 3.5.0 - 29 March 2023
+
+- Python 2.7 is no longer supported. The earliest Python version
+  supported is now 3.6.
+
+- The `barman`, `barman-cli` and `barman-cli-cloud` packages for
+  EL7 now require python 3.6 instead of python 2.7. For other
+  supported platforms, Barman packages already require python
+  versions 3.6 or later so packaging is unaffected.
+
+- Support for PostgreSQL 10 will be discontinued in future Barman
+  releases; 3.5.x is the last minor version of Barman with support
+  for PostgreSQL 10.
+
+- Backups and WALs uploaded to Google Cloud Storage can now be
+  encrypted using a specific KMS key by using the `--kms-key-name`
+  option with `barman-cloud-backup` or `barman-cloud-wal-archive`.
+
+- Backups and WALs uploaded to AWS S3 can now be encrypted using a
+  specific KMS key by using the `--sse-kms-key-id` option with
+  `barman-cloud-backup` or `barman-cloud-wal-archive` along with
+  `--encryption=aws:kms`.
+
+- Two new configuration options are provided which make it possible
+  to limit the rate at which parallel workers are started during
+  backups with `backup_method = rsync` and recoveries.
+  `parallel_jobs_start_batch_size` can be set to limit the amount of
+  parallel workers which will be started in a single batch, and
+  `parallel_jobs_start_batch_period` can be set to define the time
+  in seconds over which a single batch of workers will be started.
+  These can be overridden using the arguments `--jobs-start-batch-size`
+  and `--jobs-start-batch-period` with the `barman backup` and
+  `barman recover` commands.
+
+- A new option `--recovery-conf-filename` is added to `barman recover`.
+  This can be used to change the file to which Barman should write the
+  PostgreSQL recovery options from the default `postgresql.auto.conf`
+  to an alternative location.
+
+- Bug fixes:
+
+    - Fix a bug which prevented `barman-cloud-backup-show` from
+      displaying the backup metadata for backups made with
+      `barman backup` and uploaded by `barman-cloud-backup` as a
+      post-backup hook script.
+
+    - Fix a bug where the PostgreSQL connection used to validate backup
+      compression settings was left open until termination of the
+      Barman command.
+
+    - Fix an issue which caused rsync-concurrent backups to fail when
+      running for a duration greater than `idle_session_timeout`.
+
+    - Fix a bug where the backup name was not saved in the backup
+      metadata if the `--wait` flag was used with `barman backup`.
+
+- Thanks to mojtabash78, mhkarimi1383, epolkerman, barthisrael and
+  hzetters for their contributions.
+
 Version 3.4.0 - 26 January 2023
 
 - This is the last release of Barman which will support Python 2 and
