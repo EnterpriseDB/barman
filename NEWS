@@ -11,8 +11,8 @@ Version 3.5.0 - 29 March 2023
   versions 3.6 or later so packaging is unaffected.
 
 - Support for PostgreSQL 10 will be discontinued in future Barman
-  releases; 3.5.x is the last minor version of Barman with support
-  for PostgreSQL 10.
+  releases; 3.5.x is the last version of Barman with support for
+  PostgreSQL 10.
 
 - Backups and WALs uploaded to Google Cloud Storage can now be
   encrypted using a specific KMS key by using the `--kms-key-name`
