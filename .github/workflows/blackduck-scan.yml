@@ -1,0 +1,114 @@
+###
+##  Foundation-security BlackDuck workflow for public repos
+#
+name: Foundation-Security/Black Duck Scan (PUBLIC)
+
+on:
+  push:
+    tags:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  Blackduck-Scan:
+    runs-on: ubuntu-20.04
+    steps:
+
+    - name: Checkout source repository
+      id: checkout-source
+      uses: actions/checkout@v3
+
+    - name: Download and Run Detect
+      id: run-synopsys-detect
+      env:
+        detect.blackduck.scan.mode: 'INTELLIGENT'
+        detect.scan.output.path: '/home/runner/work/_temp/blackduck'
+        detect.output.path: '/home/runner/work/_temp/blackduck'
+        detect.project.version.name: ${{ github.ref_type }}/${{ github.ref_name }}
+        detect.project.name: ${{ github.event.repository.name }}
+        detect.risk.report.pdf: true
+        detect.risk.report.pdf.path: /tmp/reports/
+        blackduck.url: ${{ secrets.BLACKDUCK_URL }}
+        blackduck.api.token: ${{ secrets.BLACKDUCK_API_TOKEN }}
+      shell: bash
+      run: |
+        bash <(curl -s -L https://detect.synopsys.com/detect8.sh)
+
+    - name: Run sbom script
+      id: sbom-report
+      shell: bash
+      run: |
+       chmod +x ./.github/workflows/blackduck/get_bd_sbom.sh
+       ./.github/workflows/blackduck/get_bd_sbom.sh ${{ secrets.BLACKDUCK_URL }} ${{ secrets.BLACKDUCK_API_TOKEN }} ${{ github.event.repository.name }} ${{ github.ref_type }}/${{ github.ref_name }}
+
+    - name: Set current date as env variable
+      id: get-date
+      shell: bash
+      run: |
+        echo "NOW=$(date +'%Y-%m-%dT%H-%M-%S')" >> $GITHUB_ENV;
+
+    - name: get report names
+      id: get-report-names
+      shell: bash
+      run: |
+        echo "pdf-name=`ls -1 /tmp/reports/*.pdf | sed 's#.*/##'`" >>  $GITHUB_ENV;
+
+    - name: Normalize report names
+      id: normalize-report-names
+      shell: bash
+      run: |
+        cd /tmp/reports/ ;
+        mv ${{ env.pdf-name }} ${{ env.NOW }}-${{ env.pdf-name }};
+        mv sbom.zip ${{ env.NOW }}-${{ github.event.repository.name }}-`echo ${{ github.ref_name }}| sed -e 's/\//-/g'`-sbom.zip;
+
+
+    - name: Create report artifact
+      id: create-report-artifact
+      uses: actions/upload-artifact@v3
+      with:
+       name: risk-report
+       path: /tmp/reports/*.pdf
+
+
+    - name: Create sbom artifact
+      id: create-sbom-artifact
+      uses: actions/upload-artifact@v3
+      with:
+       name: sbom-report
+       path: /tmp/reports/*-sbom.zip
+
+
+  Deploy-to-S3:
+   needs: Blackduck-Scan
+   runs-on: ubuntu-20.04
+   permissions: # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    id-token: write
+    contents: read
+   steps:
+
+    - name: Download Artifacts
+      id: download-artifact
+      uses: actions/download-artifact@v3
+      with:
+        path: /tmp/reports/
+
+    - name: Configure AWS Credentials
+      id: configure-aws-credentials
+      uses: aws-actions/configure-aws-credentials@v1-node16
+      with:
+       role-to-assume: arn:aws:iam::934964804737:role/github-actions-foundation-security
+       role-session-name: blackduck-public-repo
+       role-duration-seconds: 1200 #20 minute TTL
+       aws-region: us-east-1
+
+    - name: Upload to results to S3
+      id: s3-upload
+      shell: bash
+      run: |
+        if [ "$(ls -A /tmp/reports/)" ]; then
+          aws s3 cp /tmp/reports/  s3://foundation-security/blackduck/${{ github.event.repository.name }}/ --recursive;
+        fi
+      continue-on-error: true
+      env:
+        AWS_EC2_METADATA_DISABLED: 'true'
+
