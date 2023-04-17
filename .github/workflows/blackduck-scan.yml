@@ -13,6 +13,12 @@ jobs:
   Blackduck-Scan:
     runs-on: ubuntu-20.04
     steps:
+    - name: Check for Secret
+      run: |
+        if [ -z "${{ secrets.BLACKDUCK_URL }}" ]; then
+          echo "Error:blackduck secret not found"
+          exit 1
+        fi
 
     - name: Checkout source repository
       id: checkout-source
