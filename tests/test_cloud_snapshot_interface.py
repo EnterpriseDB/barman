@@ -483,13 +483,12 @@ class TestGcpCloudSnapshotInterface(object):
             self._get_mock_snapshots_client()
         )
         # AND a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
 
         # WHEN take_snapshot_backup is called for multiple disks
         snapshot_interface.take_snapshot_backup(
             backup_info,
             self.gcp_instance_name,
-            self.gcp_zone,
             (disk["name"] for disk in disks),
         )
 
@@ -517,7 +516,7 @@ class TestGcpCloudSnapshotInterface(object):
         found.
         """
         # GIVEN a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
         # AND a mock InstancesClient which cannot find the instance
         mock_instances_client = mock_google_cloud_compute.InstancesClient.return_value
         mock_instances_client.get.side_effect = NotFound("instance not found")
@@ -526,7 +525,7 @@ class TestGcpCloudSnapshotInterface(object):
         # THEN a SnapshotBackupException is raised
         with pytest.raises(SnapshotBackupException) as exc:
             snapshot_interface.take_snapshot_backup(
-                mock.Mock(), self.gcp_instance_name, self.gcp_zone, self.gcp_disks
+                mock.Mock(), self.gcp_instance_name, self.gcp_disks
             )
 
         # AND the exception contains the expected message
@@ -561,7 +560,7 @@ class TestGcpCloudSnapshotInterface(object):
             self._get_mock_snapshots_client()
         )
         # AND a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
 
         # WHEN take snapshot_backup is called
         # THEN a SnapshotBackupException is raised
@@ -569,7 +568,6 @@ class TestGcpCloudSnapshotInterface(object):
             snapshot_interface.take_snapshot_backup(
                 mock.Mock(),
                 self.gcp_instance_name,
-                self.gcp_zone,
                 (disk["name"] for disk in disks),
             )
 
@@ -605,7 +603,7 @@ class TestGcpCloudSnapshotInterface(object):
             self._get_mock_snapshots_client()
         )
         # AND a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
 
         # WHEN take snapshot_backup is called
         # THEN a SnapshotBackupException is raised
@@ -613,7 +611,6 @@ class TestGcpCloudSnapshotInterface(object):
             snapshot_interface.take_snapshot_backup(
                 mock.Mock(),
                 self.gcp_instance_name,
-                self.gcp_zone,
                 (disk["name"] for disk in disks),
             )
 
@@ -648,7 +645,7 @@ class TestGcpCloudSnapshotInterface(object):
             self._get_mock_snapshots_client()
         )
         # AND a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
 
         # WHEN take snapshot_backup is called
         # THEN a SnapshotBackupException is raised
@@ -656,7 +653,6 @@ class TestGcpCloudSnapshotInterface(object):
             snapshot_interface.take_snapshot_backup(
                 mock.Mock(),
                 self.gcp_instance_name,
-                self.gcp_zone,
                 (disk["name"] for disk in disks),
             )
 
@@ -785,7 +781,7 @@ class TestGcpCloudSnapshotInterface(object):
             self._get_mock_snapshots_client()
         )
         # AND a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, zone=None)
 
         # WHEN delete_snapshot_backup is called
         snapshot_interface.delete_snapshot_backup(backup_info)
@@ -845,7 +841,7 @@ class TestGcpCloudSnapshotInterface(object):
     ):
         """Verify that attached devices are returned as a dict keyed by disk name."""
         # GIVEN a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
         # AND a mock InstancesClient which returns metadata listing the devices
         mock_instances_client = mock_google_cloud_compute.InstancesClient.return_value
         mock_instance_metadata = mock.Mock(disks=mock_disks)
@@ -853,7 +849,7 @@ class TestGcpCloudSnapshotInterface(object):
 
         # WHEN get_attached_devices is called
         attached_devices = snapshot_interface.get_attached_devices(
-            self.gcp_instance_name, self.gcp_zone
+            self.gcp_instance_name
         )
 
         # THEN a dict of devices returned by the instance metadata is returned, keyed
@@ -883,7 +879,7 @@ class TestGcpCloudSnapshotInterface(object):
     ):
         """Verify that unparseable disk names are handled."""
         # GIVEN a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
         # AND a mock InstancesClient which returns metadata listing the devices
         mock_instances_client = mock_google_cloud_compute.InstancesClient.return_value
         mock_instance_metadata = mock.Mock(disks=mock_disks)
@@ -892,9 +888,7 @@ class TestGcpCloudSnapshotInterface(object):
         # WHEN get_attached_devices is called
         # THEN a SnapshotBackupException is raised
         with pytest.raises(SnapshotBackupException) as exc:
-            snapshot_interface.get_attached_devices(
-                self.gcp_instance_name, self.gcp_zone
-            )
+            snapshot_interface.get_attached_devices(self.gcp_instance_name)
         # AND the expected message is included
         assert str(
             exc.value
@@ -941,7 +935,7 @@ class TestGcpCloudSnapshotInterface(object):
         once.
         """
         # GIVEN a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
         # AND a mock InstancesClient which returns metadata listing the devices
         mock_instances_client = mock_google_cloud_compute.InstancesClient.return_value
         mock_instance_metadata = mock.Mock(disks=mock_disks)
@@ -950,9 +944,7 @@ class TestGcpCloudSnapshotInterface(object):
         # WHEN get_attached_devices is called
         # THEN a SnapshotBackupException is raised
         with pytest.raises(SnapshotBackupException) as exc:
-            snapshot_interface.get_attached_devices(
-                self.gcp_instance_name, self.gcp_zone
-            )
+            snapshot_interface.get_attached_devices(self.gcp_instance_name)
         # AND the expected message is included
         assert str(exc.value) == (
             "Disk projects/test_project/zones/us-east1-b/disks/disk0 appears to be "
@@ -967,7 +959,7 @@ class TestGcpCloudSnapshotInterface(object):
         found.
         """
         # GIVEN a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
         # AND a mock InstancesClient which cannot find the instance
         mock_instances_client = mock_google_cloud_compute.InstancesClient.return_value
         mock_instances_client.get.side_effect = NotFound("instance not found")
@@ -975,9 +967,7 @@ class TestGcpCloudSnapshotInterface(object):
         # WHEN get_attached_devices is called
         # THEN a SnapshotBackupException is raised
         with pytest.raises(SnapshotBackupException) as exc:
-            snapshot_interface.get_attached_devices(
-                self.gcp_instance_name, self.gcp_zone
-            )
+            snapshot_interface.get_attached_devices(self.gcp_instance_name)
 
         # AND the exception contains the expected message
         assert str(
@@ -1012,11 +1002,11 @@ class TestGcpCloudSnapshotInterface(object):
         )
         mock_google_cloud_compute.DisksClient.return_value = mock_disks_client
         # AND a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
 
         # WHEN get_attached_snapshots is called
         attached_snapshots = snapshot_interface.get_attached_snapshots(
-            self.gcp_instance_name, self.gcp_zone
+            self.gcp_instance_name
         )
 
         # THEN the correct device is returned for each disk
@@ -1057,11 +1047,11 @@ class TestGcpCloudSnapshotInterface(object):
         )
         mock_google_cloud_compute.DisksClient.return_value = mock_disks_client
         # AND a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
 
         # WHEN get_attached_snapshots is called
         attached_snapshots = snapshot_interface.get_attached_snapshots(
-            self.gcp_instance_name, self.gcp_zone
+            self.gcp_instance_name
         )
 
         # THEN only the disk cloned from a snapshot is included in the response
@@ -1080,7 +1070,7 @@ class TestGcpCloudSnapshotInterface(object):
         Verify that a SnapshotBackupException is raised if the disk cannot be found.
         """
         # GIVEN a new GcpCloudSnapshotInterface
-        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
         # AND a set of attached devices
         mock_get_attached_devices.return_value = {self.gcp_disks[0]["name"]: "dev0"}
         # AND a mock DisksClient which cannot find a disk
@@ -1090,9 +1080,7 @@ class TestGcpCloudSnapshotInterface(object):
         # WHEN get_attached_snapshots is called
         # THEN a SnapshotBackupException is raised
         with pytest.raises(SnapshotBackupException) as exc:
-            snapshot_interface.get_attached_snapshots(
-                self.gcp_instance_name, self.gcp_zone
-            )
+            snapshot_interface.get_attached_snapshots(self.gcp_instance_name)
 
         # AND the exception contains the expected message
         assert str(
@@ -1107,11 +1095,9 @@ class TestGcpCloudSnapshotInterface(object):
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
 
         # WHEN instance_exists is called for an instance which exists
-        result = snapshot_interface.instance_exists(
-            self.gcp_instance_name, self.gcp_zone
-        )
+        result = snapshot_interface.instance_exists(self.gcp_instance_name)
 
-        # THEN it returns False
+        # THEN it returns True
         assert result is True
 
     def test_instance_exists_not_found(self, mock_google_cloud_compute):
@@ -1123,9 +1109,7 @@ class TestGcpCloudSnapshotInterface(object):
         mock_instances_client.get.side_effect = NotFound("instance not found")
 
         # WHEN instance_exists is called
-        result = snapshot_interface.instance_exists(
-            self.gcp_instance_name, self.gcp_zone
-        )
+        result = snapshot_interface.instance_exists(self.gcp_instance_name)
 
         # THEN it returns False
         assert result is False

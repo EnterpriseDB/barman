@@ -3381,7 +3381,7 @@ class TestCloudBackupSnapshot(object):
                 False,
                 [],
                 [],
-                "Cannot find compute instance {snapshot_instance} in zone {snapshot_zone}",
+                "Cannot find compute instance {snapshot_instance}",
             ),
             (
                 True,
@@ -3417,7 +3417,6 @@ class TestCloudBackupSnapshot(object):
             snapshot_interface,
             mock_postgres,
             self.instance_name,
-            self.zone,
             self.disks,
         )
         # AND the compute instance has the specified state
@@ -3435,7 +3434,7 @@ class TestCloudBackupSnapshot(object):
 
         # AND the exception has the expected message
         assert str(exc.value) == expected_error_msg.format(
-            **{"snapshot_instance": self.instance_name, "snapshot_zone": self.zone}
+            **{"snapshot_instance": self.instance_name}
         )
 
     @mock.patch("barman.cloud.CloudBackup._get_backup_info")
@@ -3458,7 +3457,6 @@ class TestCloudBackupSnapshot(object):
             snapshot_interface,
             mock_postgres,
             self.instance_name,
-            self.zone,
             self.disks[:1],
         )
         # AND the instance exists
@@ -3494,7 +3492,7 @@ class TestCloudBackupSnapshot(object):
         )
 
         # AND a mock take_snapshot_backup function which sets snapshot_info
-        def mock_take_snapshot_backup(backup_info, _instance_name, _zone, _disks):
+        def mock_take_snapshot_backup(backup_info, _instance_name, _disks):
             backup_info.snapshots_info = mock.Mock(
                 snapshots=[mock.Mock(identifier="snapshot0", device="/dev/dev0")]
             )
@@ -3508,7 +3506,6 @@ class TestCloudBackupSnapshot(object):
         snapshot_interface.take_snapshot_backup.assert_called_once_with(
             backup_info,
             self.instance_name,
-            self.zone,
             self.disks[:1],
         )
         # AND the backup label was uploaded

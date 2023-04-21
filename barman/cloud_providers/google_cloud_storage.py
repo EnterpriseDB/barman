@@ -373,17 +373,20 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
 
     DEVICE_PREFIX = "/dev/disk/by-id/google-"
 
-    def __init__(self, project):
+    def __init__(self, project, zone=None):
         """
         Imports the google cloud compute library and creates the clients necessary for
         creating and managing snapshots.
 
         :param str project: The name of the GCP project to which all resources related
             to the snapshot backups belong.
+        :param str|None zone: The zone in which resources accessed through this
+            snapshot interface reside.
         """
         if project is None:
             raise TypeError("project cannot be None")
         self.project = project
+        self.zone = zone
 
         # The import of this module is deferred until this constructor so that it
         # does not become a spurious dependency of the main cloud interface. Doing
@@ -395,7 +398,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         self.disks_client = compute.DisksClient()
         self.instances_client = compute.InstancesClient()
 
-    def _get_instance_metadata(self, instance_name, zone):
+    def _get_instance_metadata(self, instance_name):
         """
         Retrieve the metadata for the named instance in the specified zone.
 
@@ -405,16 +408,16 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         try:
             return self.instances_client.get(
                 instance=instance_name,
-                zone=zone,
+                zone=self.zone,
                 project=self.project,
             )
         except NotFound:
             raise SnapshotBackupException(
                 "Cannot find instance with name %s in zone %s for project %s"
-                % (instance_name, zone, self.project)
+                % (instance_name, self.zone, self.project)
             )
 
-    def _get_disk_metadata(self, disk_name, zone):
+    def _get_disk_metadata(self, disk_name):
         """
         Retrieve the metadata for the named disk in the specified zone.
 
@@ -423,12 +426,12 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         """
         try:
             return self.disks_client.get(
-                disk=disk_name, zone=zone, project=self.project
+                disk=disk_name, zone=self.zone, project=self.project
             )
         except NotFound:
             raise SnapshotBackupException(
                 "Cannot find disk with name %s in zone %s for project %s"
-                % (disk_name, zone, self.project)
+                % (disk_name, self.zone, self.project)
             )
 
     def _take_snapshot(self, backup_info, disk_zone, disk_name):
@@ -483,7 +486,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         _logger.info("Snapshot '%s' completed", snapshot_name)
         return snapshot_name
 
-    def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
+    def take_snapshot_backup(self, backup_info, instance_name, disks):
         """
         Take a snapshot backup for the named instance.
 
@@ -493,13 +496,12 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :param list[str] disks: A list containing the names of the source disks.
         """
-        instance_metadata = self._get_instance_metadata(instance_name, zone)
+        instance_metadata = self._get_instance_metadata(instance_name)
         snapshots = []
         for disk_name in disks:
-            disk_metadata = self._get_disk_metadata(disk_name, zone)
+            disk_metadata = self._get_disk_metadata(disk_name)
             # Check disk is attached and find device name
             attached_disks = [
                 d
@@ -513,7 +515,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
             # We should always have exactly one attached disk matching the name
             assert len(attached_disks) == 1
 
-            snapshot_name = self._take_snapshot(backup_info, zone, disk_name)
+            snapshot_name = self._take_snapshot(backup_info, self.zone, disk_name)
             snapshots.append(
                 GcpSnapshotMetadata(
                     device_name=attached_disks[0].device_name,
@@ -577,18 +579,17 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
             )
             self._delete_snapshot(snapshot.identifier)
 
-    def get_attached_devices(self, instance_name, zone):
+    def get_attached_devices(self, instance_name):
         """
-        Returns the non-boot devices attached to instance_name in zone.
+        Returns the non-boot devices attached to instance_name.
 
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :rtype: dict[str,str]
         :return: A dict where the key is the disk name and the value is the device
             path for that disk on the specified instance.
         """
-        instance_metadata = self._get_instance_metadata(instance_name, zone)
+        instance_metadata = self._get_instance_metadata(instance_name)
         attached_devices = {}
         for attached_disk in instance_metadata.disks:
             disk_name = posixpath.split(urlparse(attached_disk.source).path)[-1]
@@ -612,7 +613,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
 
         return attached_devices
 
-    def get_attached_snapshots(self, instance_name, zone):
+    def get_attached_snapshots(self, instance_name):
         """
         Returns the snapshots which are sources for disks attached to instance.
 
@@ -623,16 +624,15 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
 
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :rtype: dict[str,str]
         :return: A dict where the key is the snapshot name and the value is the
             device path for the source disk for that snapshot on the specified
             instance.
         """
-        attached_devices = self.get_attached_devices(instance_name, zone)
+        attached_devices = self.get_attached_devices(instance_name)
         attached_snapshots = {}
         for disk_name, device_name in attached_devices.items():
-            disk_metadata = self._get_disk_metadata(disk_name, zone)
+            disk_metadata = self._get_disk_metadata(disk_name)
             if disk_metadata.source_snapshot is not None:
                 attached_snapshot_name = posixpath.split(
                     urlparse(disk_metadata.source_snapshot).path
@@ -643,20 +643,19 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
                 attached_snapshots[attached_snapshot_name] = device_name
         return attached_snapshots
 
-    def instance_exists(self, instance_name, zone):
+    def instance_exists(self, instance_name):
         """
-        Determine whether the named instance exists in the specified zone.
+        Determine whether the named instance exists.
 
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :rtype: bool
-        :return: True if the named instance exists in zone, False otherwise.
+        :return: True if the named instance exists, False otherwise.
         """
         try:
             self.instances_client.get(
                 instance=instance_name,
-                zone=zone,
+                zone=self.zone,
                 project=self.project,
             )
         except NotFound:

@@ -1544,13 +1544,13 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
 
     @staticmethod
     def get_attached_snapshots_for_backup(
-        snapshot_interface, backup_info, instance_name, zone
+        snapshot_interface, backup_info, instance_name
     ):
         """
         Verifies that disks cloned from the snapshots specified in the supplied
-        backup_info are attached to the named instance in the specified zone and
-        returns them as a dict where the keys are snapshot names and the values
-        are the names of the attached devices.
+        backup_info are attached to the named instance and returns them as a dict
+        where the keys are snapshot names and the values are the names of the
+        attached devices.
 
         If any snapshot associated with this backup is not found as the source
         for any disk attached to the instance then a RecoveryPreconditionException
@@ -1562,7 +1562,6 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
             recovered.
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :rtype: dict[str,str]
         :return: A dict where the key is the snapshot name and the value is the
             device path for the source disk for that snapshot on the specified
@@ -1570,9 +1569,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         """
         if backup_info.snapshots_info is None:
             return {}
-        attached_snapshots = snapshot_interface.get_attached_snapshots(
-            instance_name, zone
-        )
+        attached_snapshots = snapshot_interface.get_attached_snapshots(instance_name)
         attached_snapshots_for_backup = {}
         missing_snapshots = []
         for source_snapshot in backup_info.snapshots_info.snapshots:
@@ -1668,7 +1665,7 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         standby_mode=None,
         recovery_conf_filename=None,
         recovery_instance=None,
-        recovery_zone=None,
+        provider_args=None,
     ):
         """
         Performs a recovery of a snapshot backup.
@@ -1694,13 +1691,16 @@ class SnapshotRecoveryExecutor(RemoteConfigRecoveryExecutor):
         :param bool|None standby_mode: standby mode
         :param str|None recovery_conf_filename: filename for storing recovery
             configurations
-        :param str|None recovery_instance: The name of the recovery node as it is
-            known by the cloud provider
-        :param str|None recovery_zone: The zone in which the recovery node is located
+        :param str|None recovery_instance: The name of the recovery node as it
+            is known by the cloud provider
+        :param dict[str,str] provider_args: A dict of keyword arguments to be
+            passed to the cloud provider
         """
-        snapshot_interface = get_snapshot_interface_from_backup_info(backup_info)
+        snapshot_interface = get_snapshot_interface_from_backup_info(
+            backup_info, provider_args
+        )
         attached_snapshots = self.get_attached_snapshots_for_backup(
-            snapshot_interface, backup_info, recovery_instance, recovery_zone
+            snapshot_interface, backup_info, recovery_instance
         )
         cmd = fs.unix_command_factory(remote_command, self.server.path)
         SnapshotRecoveryExecutor.check_mount_points(

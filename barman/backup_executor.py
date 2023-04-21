@@ -1446,7 +1446,6 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         """
         super(SnapshotBackupExecutor, self).__init__(backup_manager, "snapshot")
         self.snapshot_instance = self.config.snapshot_instance
-        self.snapshot_zone = self.config.snapshot_zone
         self.snapshot_disks = self.config.snapshot_disks
         self.validate_configuration()
         try:
@@ -1482,7 +1481,6 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             "snapshot_disks",
             "snapshot_instance",
             "snapshot_provider",
-            "snapshot_zone",
         )
         for config_var in required_config:
             if not getattr(self.server.config, config_var):
@@ -1528,7 +1526,7 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         self.copy_start_time = datetime.datetime.now()
 
         self.snapshot_interface.take_snapshot_backup(
-            backup_info, self.snapshot_instance, self.snapshot_zone, self.snapshot_disks
+            backup_info, self.snapshot_instance, self.snapshot_disks
         )
 
         self.copy_end_time = datetime.datetime.now()
@@ -1546,7 +1544,7 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
 
     @staticmethod
     def find_missing_and_unmounted_disks(
-        cmd, snapshot_interface, snapshot_instance, snapshot_zone, snapshot_disks
+        cmd, snapshot_interface, snapshot_instance, snapshot_disks
     ):
         """
         Checks for any disks listed in snapshot_disks which are not correctly attached
@@ -1561,8 +1559,6 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             taking snapshots and associated operations via cloud provider APIs.
         :param str snapshot_instance: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str snapshot_zone: The zone in which the snapshot disks and instance
-            reside.
         :param list[str] snapshot_disks: A list containing the names of the disks for
             which snapshots should be taken at backup time.
         :rtype tuple[list[str],list[str]]
@@ -1570,9 +1566,7 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             attached to the VM instance and the second element is a list of all disks
             which are attached but not mounted.
         """
-        attached_devices = snapshot_interface.get_attached_devices(
-            snapshot_instance, snapshot_zone
-        )
+        attached_devices = snapshot_interface.get_attached_devices(snapshot_instance)
         missing_disks = []
         for disk in snapshot_disks:
             if disk not in attached_devices.keys():
@@ -1605,15 +1599,12 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
         if self.server.config.disabled:
             # Skip checks if the server is not active
             return
-        check_strategy.init_check("snapshot instance exists in zone")
-        if not self.snapshot_interface.instance_exists(
-            self.snapshot_instance, self.snapshot_zone
-        ):
+        check_strategy.init_check("snapshot instance exists")
+        if not self.snapshot_interface.instance_exists(self.snapshot_instance):
             check_strategy.result(
                 self.config.name,
                 False,
-                hint="cannot find compute instance %s in zone %s"
-                % (self.snapshot_instance, self.snapshot_zone),
+                hint="cannot find compute instance %s" % self.snapshot_instance,
             )
             return
         else:
@@ -1625,7 +1616,6 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             cmd,
             self.snapshot_interface,
             self.snapshot_instance,
-            self.snapshot_zone,
             self.snapshot_disks,
         )
 

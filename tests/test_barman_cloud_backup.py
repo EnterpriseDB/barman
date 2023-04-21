@@ -125,10 +125,6 @@ class TestCloudBackup(object):
         ("snapshot_args", "expected_error"),
         (
             [
-                ["--snapshot-disk", "disk0", "--snapshot-instance", "test_instance"],
-                "Incomplete options for snapshot backup - missing: snapshot_zone",
-            ],
-            [
                 [
                     "--snapshot-zone",
                     "test_zone",
@@ -266,7 +262,6 @@ class TestCloudBackup(object):
             mock_get_snapshot_interface.return_value,
             postgres_connection.return_value,
             "test_instance",
-            "test_zone",
             [
                 "disk0",
             ],

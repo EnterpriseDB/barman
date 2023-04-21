@@ -49,9 +49,7 @@ def _validate_config(config, backup_info):
     :param BackupInfo backup_info: The backup info for the backup to restore
     """
     if backup_info.snapshots_info:
-        missing_options = get_missing_attrs(
-            config, ("snapshot_recovery_instance", "snapshot_recovery_zone")
-        )
+        missing_options = get_missing_attrs(config, ("snapshot_recovery_instance",))
         if len(missing_options) > 0:
             raise ConfigurationException(
                 "Incomplete options for snapshot restore - missing: %s"
@@ -104,11 +102,18 @@ def main(args=None):
 
             if backup_info.snapshots_info:
                 downloader = CloudBackupDownloaderSnapshot(cloud_interface, catalog)
+                provider_args = {}
+                for arg in vars(config):
+                    if (
+                        arg.startswith("snapshot_")
+                        and arg != "snapshot_recovery_instance"
+                    ):
+                        provider_args[arg] = getattr(config, arg)
                 downloader.download_backup(
                     backup_info,
                     config.recovery_dir,
                     config.snapshot_recovery_instance,
-                    config.snapshot_recovery_zone,
+                    provider_args,
                 )
             else:
                 downloader = CloudBackupDownloaderObjectStore(cloud_interface, catalog)
@@ -304,7 +309,7 @@ class CloudBackupDownloaderSnapshot(CloudBackupDownloader):
     """A minimal downloader for cloud backups which just retrieves the backup label."""
 
     def download_backup(
-        self, backup_info, destination_dir, recovery_instance, recovery_zone
+        self, backup_info, destination_dir, recovery_instance, provider_args
     ):
         """
         Download a backup from cloud storage
@@ -313,12 +318,16 @@ class CloudBackupDownloaderSnapshot(CloudBackupDownloader):
         :param str destination_dir: Path to the destination directory
         :param str recovery_instance: The name of the VM instance to which the disks
             cloned from the backup snapshots are attached.
-        :param str recovery_zone: The zone in which the recovery disks and instance
-            reside.
+        :param dict[str,str] provider_args: A dict of keyword arguments to be
+            passed to the cloud provider
         """
-        snapshot_interface = get_snapshot_interface_from_backup_info(backup_info)
+        snapshot_interface = get_snapshot_interface_from_backup_info(
+            backup_info, provider_args
+        )
         attached_snapshots = SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
-            snapshot_interface, backup_info, recovery_instance, recovery_zone
+            snapshot_interface,
+            backup_info,
+            recovery_instance,
         )
         cmd = UnixLocalCommand()
         SnapshotRecoveryExecutor.check_mount_points(

@@ -1838,7 +1838,6 @@ class CloudBackupSnapshot(CloudBackup):
         snapshot_interface,
         postgres,
         snapshot_instance,
-        snapshot_zone,
         snapshot_disks,
         backup_name=None,
     ):
@@ -1854,8 +1853,6 @@ class CloudBackupSnapshot(CloudBackup):
             PostgreSQL instance being backed up.
         :param str snapshot_instance: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str snapshot_zone: The zone in which the snapshot disks and instance
-            reside.
         :param list[str] snapshot_disks: A list containing the names of the disks for
             which snapshots should be taken at backup time.
         :param str|None backup_name: A friendly name which can be used to reference
@@ -1866,7 +1863,6 @@ class CloudBackupSnapshot(CloudBackup):
         )
         self.snapshot_interface = snapshot_interface
         self.snapshot_instance = snapshot_instance
-        self.snapshot_zone = snapshot_zone
         self.snapshot_disks = snapshot_disks
 
     # The remaining methods are the concrete implementations of the abstract methods from
@@ -1919,7 +1915,6 @@ class CloudBackupSnapshot(CloudBackup):
         self.snapshot_interface.take_snapshot_backup(
             self.backup_info,
             self.snapshot_instance,
-            self.snapshot_zone,
             self.snapshot_disks,
         )
 
@@ -1934,12 +1929,9 @@ class CloudBackupSnapshot(CloudBackup):
 
         Raises a BackupPreconditionException if any of the checks fail.
         """
-        if not self.snapshot_interface.instance_exists(
-            self.snapshot_instance, self.snapshot_zone
-        ):
+        if not self.snapshot_interface.instance_exists(self.snapshot_instance):
             raise BackupPreconditionException(
-                "Cannot find compute instance %s in zone %s"
-                % (self.snapshot_instance, self.snapshot_zone)
+                "Cannot find compute instance %s" % self.snapshot_instance
             )
 
         cmd = UnixLocalCommand()
@@ -1950,7 +1942,6 @@ class CloudBackupSnapshot(CloudBackup):
             cmd,
             self.snapshot_interface,
             self.snapshot_instance,
-            self.snapshot_zone,
             self.snapshot_disks,
         )
 
@@ -2216,7 +2207,7 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
     """Defines a common interface for handling cloud snapshots."""
 
     @abstractmethod
-    def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
+    def take_snapshot_backup(self, backup_info, instance_name, disks):
         """
         Take a snapshot backup for the named instance.
 
@@ -2231,7 +2222,6 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         :param barman.infofile.LocalBackupInfo backup_info: Backup information.
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :param list[str] disks: A list containing the names of the source disks.
         """
 
@@ -2244,9 +2234,9 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def get_attached_devices(self, instance_name, zone):
+    def get_attached_devices(self, instance_name):
         """
-        Returns the non-boot devices attached to instance_name in zone.
+        Returns the non-boot devices attached to instance_name.
 
         Implementations must return a dict where the key is the name of the attached
         disk and the value is the full path to the device at which the disk is attached
@@ -2254,14 +2244,13 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
 
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :rtype: dict[str,str]
         :return: A dict where the key is the disk name and the value is the device
             path for that disk on the specified instance.
         """
 
     @abstractmethod
-    def get_attached_snapshots(self, instance_name, zone):
+    def get_attached_snapshots(self, instance_name):
         """
         Returns the snapshots which are sources for disks attached to instance.
 
@@ -2270,7 +2259,6 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
 
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :rtype: dict[str,str]
         :return: A dict where the key is the snapshot name and the value is the
             device path for the source disk for that snapshot on the specified
@@ -2278,15 +2266,14 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def instance_exists(self, instance_name, zone):
+    def instance_exists(self, instance_name):
         """
-        Determine whether the named instance exists in the specified zone.
+        Determine whether the named instance exists.
 
         :param str instance_name: The name of the VM instance to which the disks
             to be backed up are attached.
-        :param str zone: The zone in which the snapshot disks and instance reside.
         :rtype: bool
-        :return: True if the named instance exists in zone, False otherwise.
+        :return: True if the named instance exists, False otherwise.
         """
 
 

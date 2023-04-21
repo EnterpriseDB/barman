@@ -1506,7 +1506,7 @@ class TestSnapshotBackupExecutor(object):
 
     @pytest.mark.parametrize(
         "missing_option",
-        ("snapshot_disks", "snapshot_instance", "snapshot_provider", "snapshot_zone"),
+        ("snapshot_disks", "snapshot_instance", "snapshot_provider"),
     )
     @patch("barman.backup_executor.get_snapshot_interface_from_server_config")
     def test_snapshot_backup_executor_init_missing_options(
@@ -1651,7 +1651,6 @@ class TestSnapshotBackupExecutor(object):
         mock_get_snapshot_interface.return_value.take_snapshot_backup.assert_called_once_with(
             backup_info,
             core_snapshot_options["snapshot_instance"],
-            core_snapshot_options["snapshot_zone"],
             [core_snapshot_options["snapshot_disks"]],
         )
         # AND add_mount_data_to_backup_info was called
@@ -1748,7 +1747,6 @@ class TestSnapshotBackupExecutor(object):
             cmd,
             mock_get_snapshot_interface.return_value,
             "instance1",
-            "zone1",
             expected_missing_disks + expected_unmounted_disks + expected_mounted_disks,
         )
 
@@ -1820,7 +1818,7 @@ class TestSnapshotBackupExecutor(object):
         assert len(check_strategy.check_result) == 3
         # AND each snapshot-specific check passes
         for check in (
-            "snapshot instance exists in zone",
+            "snapshot instance exists",
             "snapshot disks attached to instance",
             "snapshot disks mounted on instance",
         ):
@@ -1842,11 +1840,11 @@ class TestSnapshotBackupExecutor(object):
         ),
         [
             (
-                "snapshot instance exists in zone",
+                "snapshot instance exists",
                 False,
                 [],
                 [],
-                "cannot find compute instance {snapshot_instance} in zone {snapshot_zone}",
+                "cannot find compute instance {snapshot_instance}",
             ),
             (
                 "snapshot disks attached to instance",

@@ -930,8 +930,6 @@ def recover(args):
         missing_args = []
         if not args.snapshot_recovery_instance:
             missing_args.append("--snapshot-recovery-instance")
-        if not args.snapshot_recovery_zone:
-            missing_args.append("--snapshot-recovery-zone")
         if len(missing_args) > 0:
             output.error(
                 "Backup %s is a snapshot backup and the following required arguments "
@@ -947,16 +945,18 @@ def recover(args):
                 backup_id.backup_id,
             )
             output.close_and_exit()
+        snapshot_provider_args = {}
+        for arg in vars(args):
+            if arg.startswith("snapshot_") and arg != "snapshot_recovery_instance":
+                snapshot_provider_args[arg] = getattr(args, arg)
         snapshot_kwargs = {
+            "provider_args": snapshot_provider_args,
             "recovery_instance": args.snapshot_recovery_instance,
-            "recovery_zone": args.snapshot_recovery_zone,
         }
     else:
         unexpected_args = []
         if args.snapshot_recovery_instance:
             unexpected_args.append("--snapshot-recovery-instance")
-        if args.snapshot_recovery_zone:
-            unexpected_args.append("--snapshot-recovery-zone")
         if len(unexpected_args) > 0:
             output.error(
                 "Backup %s is not a snapshot backup but the following snapshot "

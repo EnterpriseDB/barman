@@ -116,7 +116,6 @@ def _validate_config(config):
     required_snapshot_variables = (
         "snapshot_disks",
         "snapshot_instance",
-        "snapshot_zone",
     )
     is_snapshot_backup = any(
         [getattr(config, var) for var in required_snapshot_variables]
@@ -217,7 +216,6 @@ def main(args=None):
                             snapshot_interface,
                             postgres,
                             config.snapshot_instance,
-                            config.snapshot_zone,
                             config.snapshot_disks,
                             config.backup_name,
                         )

@@ -1753,10 +1753,9 @@ class TestSnapshotRecoveryExecutor(object):
                 ]
             )
         )
-        # AND a given recovery destination, instance and zone
+        # AND a given recovery destination and instance
         recovery_dest = "/path/to/dest"
         recovery_instance = "test_instance"
-        recovery_zone = "test_zone"
         # AND a mock findmnt command which always returns the correct response
         mock_fs.unix_command_factory.return_value.findmnt.return_value = (
             "/opt/disk0",
@@ -1769,7 +1768,6 @@ class TestSnapshotRecoveryExecutor(object):
             backup_info,
             recovery_dest,
             recovery_instance=recovery_instance,
-            recovery_zone=recovery_zone,
         )
 
         # AND the superclass recovery method was called with the expected args
@@ -1842,10 +1840,9 @@ class TestSnapshotRecoveryExecutor(object):
                 ]
             )
         )
-        # AND a given recovery destination, instance and zone
+        # AND a given recovery destination and instance
         recovery_dest = "/path/to/dest"
         recovery_instance = "test_instance"
-        recovery_zone = "test_zone"
         # AND a mock findmnt command which returns the specified response
         mock_cmd = mock_fs.unix_command_factory.return_value
         mock_cmd.findmnt.return_value = findmnt_output
@@ -1862,7 +1859,6 @@ class TestSnapshotRecoveryExecutor(object):
                     backup_info,
                     recovery_dest,
                     recovery_instance=recovery_instance,
-                    recovery_zone=recovery_zone,
                 )
         else:
             # WHEN recover is called AND no error is expected then there is no error
@@ -1870,7 +1866,6 @@ class TestSnapshotRecoveryExecutor(object):
                 backup_info,
                 recovery_dest,
                 recovery_instance=recovery_instance,
-                recovery_zone=recovery_zone,
             )
 
     @mock.patch("barman.recovery_executor.fs.unix_command_factory")
@@ -2042,9 +2037,8 @@ class TestSnapshotRecoveryExecutor(object):
         mock_snapshot_interface.get_attached_snapshots.return_value = attached_snapshots
         # AND a mock backup_info which contains the specified snapshots
         mock_backup_info = mock.Mock(snapshots_info=snapshots_info)
-        # AND a given instance and zone
+        # AND a given instance
         instance = "gcp_instance_name"
-        zone = "gcp_zone"
 
         # WHEN get_attached_snapshots_for_backup is called
         # THEN if we expect missing snapshots, a RecoveryPreconditionException is
@@ -2052,7 +2046,7 @@ class TestSnapshotRecoveryExecutor(object):
         if expected_missing:
             with pytest.raises(RecoveryPreconditionException) as exc:
                 SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
-                    mock_snapshot_interface, mock_backup_info, instance, zone
+                    mock_snapshot_interface, mock_backup_info, instance
                 )
             # AND the exception has the expected message
             message_part_1, message_part_2 = str(exc.value).split(": ")
@@ -2066,7 +2060,7 @@ class TestSnapshotRecoveryExecutor(object):
             # the expected snapshots are returned
             attached_snapshots_for_backup = (
                 SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
-                    mock_snapshot_interface, mock_backup_info, instance, zone
+                    mock_snapshot_interface, mock_backup_info, instance
                 )
             )
             for snapshot_metadata in snapshots_info.snapshots:
@@ -2085,7 +2079,7 @@ class TestSnapshotRecoveryExecutor(object):
         mock_backup_info = mock.Mock(snapshots_info=None)
         # WHEN get_attached_snapshots_for_backup is called
         snapshots = SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
-            mock.Mock(), mock_backup_info, "instance", "zone"
+            mock.Mock(), mock_backup_info, "instance"
         )
         # THEN we expect an empty list to be returned
         assert snapshots == {}
