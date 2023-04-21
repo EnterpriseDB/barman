@@ -2216,18 +2216,6 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
     """Defines a common interface for handling cloud snapshots."""
 
     @abstractmethod
-    def take_snapshot(self, backup_info, disk_zone, disk_name):
-        """
-        Take a snapshot of a disk in the cloud.
-
-        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
-        :param str disk_zone: The zone in which the disk resides.
-        :param str disk_name: The name of the source disk for the snapshot.
-        :rtype: str
-        :return: The name used to reference the snapshot with the cloud provider.
-        """
-
-    @abstractmethod
     def take_snapshot_backup(self, backup_info, instance_name, zone, disks):
         """
         Take a snapshot backup for the named instance.

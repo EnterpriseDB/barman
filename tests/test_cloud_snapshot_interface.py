@@ -271,7 +271,7 @@ class TestGcpCloudSnapshotInterface(object):
 
     def test_take_snapshot(self, mock_google_cloud_compute, caplog):
         """
-        Verify that take_snapshot calls the GCP library and waits for the result.
+        Verify that _take_snapshot calls the GCP library and waits for the result.
         """
         # GIVEN a new GcpCloudSnapshotInterface
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
@@ -286,8 +286,8 @@ class TestGcpCloudSnapshotInterface(object):
         # AND log level is INFO
         caplog.set_level(logging.INFO)
 
-        # WHEN take_snapshot is called
-        snapshot_name = snapshot_interface.take_snapshot(
+        # WHEN _take_snapshot is called
+        snapshot_name = snapshot_interface._take_snapshot(
             backup_info,
             self.gcp_zone,
             self.gcp_disks[0]["name"],
@@ -343,8 +343,8 @@ class TestGcpCloudSnapshotInterface(object):
         # AND the response has warnings
         mock_resp.warnings = [mock.Mock(code="123", message="warning message")]
 
-        # WHEN take_snapshot is called
-        snapshot_name = snapshot_interface.take_snapshot(
+        # WHEN _take_snapshot is called
+        snapshot_name = snapshot_interface._take_snapshot(
             backup_info,
             self.gcp_zone,
             self.gcp_disks[0]["name"],
@@ -360,7 +360,7 @@ class TestGcpCloudSnapshotInterface(object):
 
     def test_take_snapshot_failed(self, mock_google_cloud_compute):
         """
-        Verify that take_snapshot raises an exception on failure.
+        Verify that _take_snapshot raises an exception on failure.
         """
         # GIVEN a new GcpCloudSnapshotInterface
         snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project)
@@ -373,10 +373,10 @@ class TestGcpCloudSnapshotInterface(object):
         mock_resp.error_code = "503"
         mock_resp.error_message = "test error message"
 
-        # WHEN take_snapshot is called
+        # WHEN _take_snapshot is called
         # THEN a CloudProviderError is raised
         with pytest.raises(CloudProviderError) as exc:
-            snapshot_interface.take_snapshot(
+            snapshot_interface._take_snapshot(
                 backup_info,
                 self.gcp_zone,
                 self.gcp_disks[0]["name"],

@@ -431,7 +431,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
                 % (disk_name, zone, self.project)
             )
 
-    def take_snapshot(self, backup_info, disk_zone, disk_name):
+    def _take_snapshot(self, backup_info, disk_zone, disk_name):
         """
         Take a snapshot of a persistent disk in GCP.
 
@@ -513,7 +513,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
             # We should always have exactly one attached disk matching the name
             assert len(attached_disks) == 1
 
-            snapshot_name = self.take_snapshot(backup_info, zone, disk_name)
+            snapshot_name = self._take_snapshot(backup_info, zone, disk_name)
             snapshots.append(
                 GcpSnapshotMetadata(
                     device_name=attached_disks[0].device_name,
