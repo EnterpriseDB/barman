@@ -2236,15 +2236,6 @@ class CloudSnapshotInterface(with_metaclass(ABCMeta)):
         """
 
     @abstractmethod
-    def delete_snapshot(self, snapshot_identifier):
-        """
-        Delete the specified snapshot.
-
-        :param str snapshot_identifier: An identifier used to reference this snapshot
-            within the cloud provider API.
-        """
-
-    @abstractmethod
     def delete_snapshot_backup(self, backup_info):
         """
         Delete all snapshots for the supplied backup.

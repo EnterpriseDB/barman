@@ -527,7 +527,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
             project=self.project, snapshots=snapshots
         )
 
-    def delete_snapshot(self, snapshot_name):
+    def _delete_snapshot(self, snapshot_name):
         """
         Delete the specified snapshot.
 
@@ -575,7 +575,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
                 snapshot.identifier,
                 backup_info.backup_id,
             )
-            self.delete_snapshot(snapshot.identifier)
+            self._delete_snapshot(snapshot.identifier)
 
     def get_attached_devices(self, instance_name, zone):
         """

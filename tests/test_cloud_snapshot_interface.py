@@ -673,7 +673,7 @@ class TestGcpCloudSnapshotInterface(object):
 
         # WHEN a snapshot is deleted
         snapshot_name = self._get_snapshot_name(self.gcp_disks[0])
-        snapshot_interface.delete_snapshot(snapshot_name)
+        snapshot_interface._delete_snapshot(snapshot_name)
 
         # THEN delete was called on the SnapshotsClient for that project/snapshot
         mock_snapshots_client = mock_google_cloud_compute.SnapshotsClient.return_value
@@ -699,7 +699,7 @@ class TestGcpCloudSnapshotInterface(object):
 
         # WHEN a snapshot is deleted
         snapshot_name = self._get_snapshot_name(self.gcp_disks[0])
-        snapshot_interface.delete_snapshot(snapshot_name)
+        snapshot_interface._delete_snapshot(snapshot_name)
 
         # THEN delete was called on the SnapshotsClient for that project/snapshot
         mock_snapshots_client = mock_google_cloud_compute.SnapshotsClient.return_value
@@ -724,7 +724,7 @@ class TestGcpCloudSnapshotInterface(object):
 
         # WHEN a snapshot is deleted
         snapshot_name = self._get_snapshot_name(self.gcp_disks[0])
-        snapshot_interface.delete_snapshot(snapshot_name)
+        snapshot_interface._delete_snapshot(snapshot_name)
 
         # THEN the warning is included in the log output
         assert (
@@ -749,7 +749,7 @@ class TestGcpCloudSnapshotInterface(object):
         # THEN a CloudProviderError is raised
         snapshot_name = self._get_snapshot_name(self.gcp_disks[0])
         with pytest.raises(CloudProviderError) as exc:
-            snapshot_interface.delete_snapshot(snapshot_name)
+            snapshot_interface._delete_snapshot(snapshot_name)
 
         # AND the exception message contains the snapshot name, error code and error
         # message
