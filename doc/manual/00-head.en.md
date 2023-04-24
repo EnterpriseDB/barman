@@ -9,4 +9,5 @@
 > **IMPORTANT:** \newline
 > This manual assumes that you are familiar with theoretical disaster
 > recovery concepts, and that you have a grasp of PostgreSQL fundamentals in
-> terms of physical backup and disaster recovery. See section _"Before you start"_ below for details.
+> terms of physical backup and disaster recovery. See section _["Before you start"](#before-you-start)_
+> below for details.

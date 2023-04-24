@@ -6,9 +6,9 @@ undertake before setting up your PostgreSQL server in Barman.
 > **IMPORTANT:**
 > Before you proceed, it is important that you have made your decision
 > in terms of WAL archiving and backup strategies, as outlined in the
-> _"Design and architecture"_ section. In particular, you should
-> decide which WAL archiving methods to use, as well as the backup
-> method.
+> _["Design and architecture"](#design-and-architecture)_ section.
+> In particular, you should decide which WAL archiving methods to use,
+> as well as the backup method.
 
 ### PostgreSQL connection
 
@@ -170,8 +170,8 @@ max_replication_slots = 2
 ```
 
   [^replslot94]: Replication slots have been introduced in PostgreSQL 9.4.
-                 See section _"WAL Streaming / Replication slots"_ for
-                 details.
+                 See section _["WAL Streaming / Replication slots"](#replication-slots)_
+                 for details.
 
 The values proposed for `max_replication_slots` and `max_wal_senders`
 must be considered as examples, and the values you will use in your
@@ -248,7 +248,7 @@ postgres@pg$ ssh barman@backup -C true
 ```
 
 The value of the `archive_command` configuration parameter will be
-discussed in the _"WAL archiving via archive_command section"_.
+discussed in the _["WAL archiving via archive_command section"](#wal-archiving-via-archive_command)_.
 
 
 #### From Barman to PostgreSQL
