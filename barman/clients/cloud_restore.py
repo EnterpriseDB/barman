@@ -336,15 +336,13 @@ class CloudBackupDownloaderSnapshot(CloudBackupDownloader):
         :param dict[str,str] provider_args: A dict of keyword arguments to be
             passed to the cloud provider
         """
-        attached_snapshots = SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
+        attached_volumes = SnapshotRecoveryExecutor.get_attached_volumes_for_backup(
             self.snapshot_interface,
             backup_info,
             recovery_instance,
         )
         cmd = UnixLocalCommand()
-        SnapshotRecoveryExecutor.check_mount_points(
-            backup_info, attached_snapshots, cmd
-        )
+        SnapshotRecoveryExecutor.check_mount_points(backup_info, attached_volumes, cmd)
         SnapshotRecoveryExecutor.check_recovery_dir_exists(destination_dir, cmd)
 
         # If the target directory does not exist then we will fail here because

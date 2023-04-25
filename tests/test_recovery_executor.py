@@ -30,13 +30,13 @@ from mock import MagicMock
 import testing_helpers
 from barman import xlog
 from barman.exceptions import (
-    CommandException,
     CommandFailedException,
     DataTransferFailure,
     RecoveryInvalidTargetException,
     RecoveryPreconditionException,
     RecoveryStandbyModeException,
     RecoveryTargetActionException,
+    SnapshotBackupException,
 )
 from barman.infofile import BackupInfo, WalFileInfo
 from barman.recovery_executor import (
@@ -1732,8 +1732,8 @@ class TestSnapshotRecoveryExecutor(object):
     @mock.patch("barman.recovery_executor.get_snapshot_interface_from_backup_info")
     def test_recover_success(
         self,
-        _mock_get_snapshot_interface,
-        mock_fs,
+        mock_get_snapshot_interface,
+        _mock_fs,
         mock_superclass_recover,
     ):
         """Verify that the recover method starts a recovery when all checks pass."""
@@ -1756,10 +1756,18 @@ class TestSnapshotRecoveryExecutor(object):
         # AND a given recovery destination and instance
         recovery_dest = "/path/to/dest"
         recovery_instance = "test_instance"
-        # AND a mock findmnt command which always returns the correct response
-        mock_fs.unix_command_factory.return_value.findmnt.return_value = (
-            "/opt/disk0",
-            "rw,noatime",
+        # AND the correct volume is attached
+        attached_volumes = {"disk0": mock.Mock(source_snapshot="snapshot0")}
+
+        def mock_resolve_mounted_volume(_cmd):
+            attached_volumes["disk0"].mount_point = "/opt/disk0"
+            attached_volumes["disk0"].mount_options = "rw,noatime"
+
+        attached_volumes[
+            "disk0"
+        ].resolve_mounted_volume.side_effect = mock_resolve_mounted_volume
+        mock_get_snapshot_interface.return_value.get_attached_volumes.return_value = (
+            attached_volumes
         )
 
         # WHEN recover is called
@@ -1790,8 +1798,8 @@ class TestSnapshotRecoveryExecutor(object):
 
     @pytest.mark.parametrize(
         (
-            "attached_snapshots",
-            "findmnt_output",
+            "attached_volumes",
+            "resolved_mount_info",
             "check_directory_exists_output",
             "should_fail",
         ),
@@ -1799,11 +1807,26 @@ class TestSnapshotRecoveryExecutor(object):
             # No disk cloned from snapshot attached
             [{}, None, None, True],
             # Correct disk attached but not mounted in the right place
-            [{"snapshot0": "/dev/dev0"}, ("/opt/disk1", "rw,noatime"), None, True],
+            [
+                {"disk0": mock.Mock(source_snapshot="snapshot0")},
+                ("opt/disk1", "rw,noatime"),
+                None,
+                True,
+            ],
             # Recovery directory not present
-            [{"snapshot0": "/dev/dev0"}, ("/opt/disk0", "rw,noatime"), False, True],
+            [
+                {"disk0": mock.Mock(source_snapshot="snapshot0")},
+                ("/opt/disk0", "rw,noatime"),
+                False,
+                True,
+            ],
             # All checks passing
-            [{"snapshot0": "/dev/dev0"}, ("/opt/disk0", "rw,noatime"), True, False],
+            [
+                {"disk0": mock.Mock(source_snapshot="snapshot0")},
+                ("/opt/disk0", "rw,noatime"),
+                True,
+                False,
+            ],
         ),
     )
     @mock.patch("barman.recovery_executor.RecoveryExecutor.recover")
@@ -1814,8 +1837,8 @@ class TestSnapshotRecoveryExecutor(object):
         mock_get_snapshot_interface,
         mock_fs,
         _mock_superclass_recover,
-        attached_snapshots,
-        findmnt_output,
+        attached_volumes,
+        resolved_mount_info,
         check_directory_exists_output,
         should_fail,
     ):
@@ -1823,9 +1846,9 @@ class TestSnapshotRecoveryExecutor(object):
         # GIVEN a SnapshotRecoveryExecutor
         mock_backup_manager = mock.Mock()
         executor = SnapshotRecoveryExecutor(mock_backup_manager)
-        # AND the specified snapshots are returned by the snapshot interface
-        mock_get_snapshot_interface.return_value.get_attached_snapshots.return_value = (
-            attached_snapshots
+        # AND the specified volumes are returned by the snapshot interface
+        mock_get_snapshot_interface.return_value.get_attached_volumes.return_value = (
+            attached_volumes
         )
         # AND a mock backup_info with snapshots
         backup_info = mock.Mock(
@@ -1843,10 +1866,16 @@ class TestSnapshotRecoveryExecutor(object):
         # AND a given recovery destination and instance
         recovery_dest = "/path/to/dest"
         recovery_instance = "test_instance"
-        # AND a mock findmnt command which returns the specified response
-        mock_cmd = mock_fs.unix_command_factory.return_value
-        mock_cmd.findmnt.return_value = findmnt_output
+
+        # AND the mounted volumes resolve to the specified mount point and options
+        def mock_resolve_mounted_volume(_cmd):
+            volume.mount_point = resolved_mount_info[0]
+            volume.mount_options = resolved_mount_info[1]
+
+        for volume in attached_volumes.values():
+            volume.resolve_mounted_volume.side_effect = mock_resolve_mounted_volume
         # AND a mock check_directory_exists command which returns the specified respone
+        mock_cmd = mock_fs.unix_command_factory.return_value
         mock_cmd.check_directory_exists.return_value = check_directory_exists_output
 
         # WHEN recover is called AND an error is expected
@@ -1984,18 +2013,22 @@ class TestSnapshotRecoveryExecutor(object):
         assert str(exc.value) == expected_message
 
     @pytest.mark.parametrize(
-        ("attached_snapshots", "snapshots_info", "expected_missing"),
+        ("attached_volumes", "snapshots_info", "expected_missing"),
         (
             # If all snapshots are present we expect success
             [
-                {"snapshot0": "/dev/dev0", "snapshot1": "/dev/dev1"},
-                mock.Mock(
-                    snapshots=[mock.Mock(identifier="snapshot0", device="/dev/dev0")]
-                ),
+                {
+                    "disk0": mock.Mock(source_snapshot="snapshot0"),
+                    "disk1": mock.Mock(source_snapshot="snapshot1"),
+                },
+                mock.Mock(snapshots=[mock.Mock(identifier="snapshot0")]),
                 [],
             ],
             [
-                {"snapshot0": "/dev/dev0", "snapshot1": "/dev/dev1"},
+                {
+                    "disk0": mock.Mock(source_snapshot="snapshot0"),
+                    "disk1": mock.Mock(source_snapshot="snapshot1"),
+                },
                 mock.Mock(
                     snapshots=[
                         mock.Mock(identifier="snapshot0", device="/dev/dev0"),
@@ -2006,7 +2039,9 @@ class TestSnapshotRecoveryExecutor(object):
             ],
             # One or more snapshots are not attached so we expected failure
             [
-                {"snapshot0": "/dev/dev0"},
+                {
+                    "disk0": mock.Mock(source_snapshot="snapshot0"),
+                },
                 mock.Mock(
                     snapshots=[
                         mock.Mock(identifier="snapshot0", device="/dev/dev0"),
@@ -2027,25 +2062,25 @@ class TestSnapshotRecoveryExecutor(object):
             ],
         ),
     )
-    def test_get_attached_snapshots_for_backup(
-        self, attached_snapshots, snapshots_info, expected_missing
+    def test_get_attached_volumes_for_backup(
+        self, attached_volumes, snapshots_info, expected_missing
     ):
         """Verify that the attached snapshots for the backup are returned."""
         # GIVEN a mock CloudSnapshotInterface which returns the specified attached
         # snapshots
         mock_snapshot_interface = mock.Mock()
-        mock_snapshot_interface.get_attached_snapshots.return_value = attached_snapshots
+        mock_snapshot_interface.get_attached_volumes.return_value = attached_volumes
         # AND a mock backup_info which contains the specified snapshots
         mock_backup_info = mock.Mock(snapshots_info=snapshots_info)
         # AND a given instance
         instance = "gcp_instance_name"
 
-        # WHEN get_attached_snapshots_for_backup is called
+        # WHEN get_attached_volumes_for_backup is called
         # THEN if we expect missing snapshots, a RecoveryPreconditionException is
         # raised
         if expected_missing:
             with pytest.raises(RecoveryPreconditionException) as exc:
-                SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
+                SnapshotRecoveryExecutor.get_attached_volumes_for_backup(
                     mock_snapshot_interface, mock_backup_info, instance
                 )
             # AND the exception has the expected message
@@ -2058,18 +2093,24 @@ class TestSnapshotRecoveryExecutor(object):
         else:
             # AND if we do not expect missing snapshots, no exception is raised and
             # the expected snapshots are returned
-            attached_snapshots_for_backup = (
-                SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
+            attached_volumes_for_backup = (
+                SnapshotRecoveryExecutor.get_attached_volumes_for_backup(
                     mock_snapshot_interface, mock_backup_info, instance
                 )
             )
             for snapshot_metadata in snapshots_info.snapshots:
                 assert (
-                    attached_snapshots_for_backup[snapshot_metadata.identifier]
-                    == snapshot_metadata.device
+                    len(
+                        [
+                            v
+                            for v in attached_volumes_for_backup.values()
+                            if v.source_snapshot == snapshot_metadata.identifier
+                        ]
+                    )
+                    > 0
                 )
 
-    def test_get_attached_snapshots_for_backup_no_snapshots_info(
+    def test_get_attached_volumes_for_backup_no_snapshots_info(
         self,
     ):
         """
@@ -2077,30 +2118,30 @@ class TestSnapshotRecoveryExecutor(object):
         """
         # GIVEN a backup_info with no snapshots_info
         mock_backup_info = mock.Mock(snapshots_info=None)
-        # WHEN get_attached_snapshots_for_backup is called
-        snapshots = SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
+        # WHEN get_attached_volumes_for_backup is called
+        volumes = SnapshotRecoveryExecutor.get_attached_volumes_for_backup(
             mock.Mock(), mock_backup_info, "instance"
         )
         # THEN we expect an empty list to be returned
-        assert snapshots == {}
+        assert volumes == {}
 
     @pytest.mark.parametrize(
-        ("findmnt_output", "expected_error"),
+        ("resolved_mount_info", "expected_error"),
         (
-            # If the mount_point and mount_options returned by findmnt match those in
-            # backup_info.snapshots_info then we expect success.
+            # If the mount_point and mount_options resolved by resolve_mounted_volume
+            # match those in backup_info.snapshots_info then we expect success.
             [
                 (("/opt/disk0", "rw,noatime"), ("/opt/disk1", "rw")),
                 None,
             ],
-            # If findmnt raises a CommandException we expect an error finding that
-            # mount point
+            # If resolving the mount point raises an exception we expect an error
+            # finding the mount point
             [
-                CommandException("ssh error"),
+                SnapshotBackupException("ssh error"),
                 (
-                    "Error checking mount points: Error finding mount point for device "
-                    "/dev/dev0: ssh error, Error finding mount point for device "
-                    "/dev/dev1: ssh error"
+                    "Error checking mount points: Error finding mount point for disk "
+                    "disk0: ssh error, Error finding mount point for disk disk1: ssh "
+                    "error"
                 ),
             ],
             # If a mount point cannot be found we expect an error message reporting
@@ -2108,8 +2149,8 @@ class TestSnapshotRecoveryExecutor(object):
             [
                 ([None, None], [None, None]),
                 (
-                    "Error checking mount points: Could not find device /dev/dev0 "
-                    "at any mount point, Could not find device /dev/dev1 at any mount "
+                    "Error checking mount points: Could not find disk disk0 "
+                    "at any mount point, Could not find disk disk1 at any mount "
                     "point"
                 ),
             ],
@@ -2118,9 +2159,9 @@ class TestSnapshotRecoveryExecutor(object):
             [
                 (("/opt/disk2", "rw,noatime"), ("/opt/disk3", "rw")),
                 (
-                    "Error checking mount points: Device /dev/dev0 cloned from "
+                    "Error checking mount points: Disk disk0 cloned from "
                     "snapshot snapshot0 is mounted at /opt/disk2 but /opt/disk0 was "
-                    "expected., Device /dev/dev1 cloned from snapshot snapshot1 is "
+                    "expected., Disk disk1 cloned from snapshot snapshot1 is "
                     "mounted at /opt/disk3 but /opt/disk1 was expected."
                 ),
             ],
@@ -2129,55 +2170,73 @@ class TestSnapshotRecoveryExecutor(object):
             [
                 (("/opt/disk0", "rw"), ("/opt/disk1", "rw,noatime")),
                 (
-                    "Error checking mount options: Device /dev/dev0 cloned from "
+                    "Error checking mount options: Disk disk0 cloned from "
                     "snapshot snapshot0 is mounted with rw but rw,noatime was "
-                    "expected., Device /dev/dev1 cloned from snapshot snapshot1 is "
+                    "expected., Disk disk1 cloned from snapshot snapshot1 is "
                     "mounted with rw,noatime but rw was expected."
                 ),
             ],
         ),
     )
-    def test_check_mount_points(self, findmnt_output, expected_error):
+    def test_check_mount_points(self, resolved_mount_info, expected_error):
         """Verify check_mount_points fails when expected."""
-        # GIVEN a findmnt command which returns the specified output
-        cmd = mock.Mock()
-        cmd.findmnt.side_effect = findmnt_output
+        # GIVEN a mock VolumeMetadata which resolves the specified mount point and
+        # options
+        attached_volumes = {
+            "disk0": mock.Mock(source_snapshot="snapshot0"),
+            "disk1": mock.Mock(source_snapshot="snapshot1"),
+        }
+
+        def mock_resolve_mounted_volume(volume, mount_info, _cmd):
+            volume.mount_point = mount_info[0]
+            volume.mount_options = mount_info[1]
+
+        for i, disk in enumerate(attached_volumes):
+            # If resolved_mount_info should raise an exception then just set it as the
+            # side effect
+            if isinstance(resolved_mount_info, Exception):
+                attached_volumes[
+                    disk
+                ].resolve_mounted_volume.side_effect = resolved_mount_info
+            # Otherwise, create a partial which sets the mount point and options to the
+            # values at the current index
+            else:
+                attached_volumes[disk].resolve_mounted_volume.side_effect = partial(
+                    mock_resolve_mounted_volume,
+                    attached_volumes[disk],
+                    resolved_mount_info[i],
+                )
+
         # AND a backup_info which contains the specified snapshots_info
         snapshots_info = mock.Mock(
             snapshots=[
                 mock.Mock(
                     identifier="snapshot0",
-                    device="/dev/dev0",
                     mount_point="/opt/disk0",
                     mount_options="rw,noatime",
                 ),
                 mock.Mock(
                     identifier="snapshot1",
-                    device="/dev/dev1",
                     mount_point="/opt/disk1",
                     mount_options="rw",
                 ),
             ]
         )
         backup_info = mock.Mock(snapshots_info=snapshots_info)
-        # AND each snapshot is attached as a specified device
-        attached_snapshots = {
-            "snapshot0": "/dev/dev0",
-            "snapshot1": "/dev/dev1",
-        }
 
         # WHEN check_mount_points is called and no error is expected
         # THEN no exception is raised
+        mock_cmd = mock.Mock()
         if not expected_error:
             SnapshotRecoveryExecutor.check_mount_points(
-                backup_info, attached_snapshots, cmd
+                backup_info, attached_volumes, mock_cmd
             )
         # WHEN errors are expected
         else:
             # THEN a RecoveryPreconditionException is raised
             with pytest.raises(RecoveryPreconditionException) as exc:
                 SnapshotRecoveryExecutor.check_mount_points(
-                    backup_info, attached_snapshots, cmd
+                    backup_info, attached_volumes, mock_cmd
                 )
             # AND the message matches the expected error message
             assert str(exc.value) == expected_error

@@ -333,7 +333,7 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
     """Verify the cloud backup downloader for snapshot backups."""
 
     snapshot_name = "snapshot0"
-    device_path = "/dev/dev0"
+    disk_name = "disk0"
     mount_point = "/opt/disk0"
 
     @pytest.fixture
@@ -362,10 +362,20 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
         mock_catalog,
     ):
         """Verify that the backup label is downloaded if all preconditions are met."""
-        # GIVEN a snapshot interface which returns the specified snapshots
+        # GIVEN a snapshot interface which returns volume metadata for the specified
+        # snapshots
+        mock_volume_metadata = mock.Mock(source_snapshot="snapshot0")
+
+        def mock_resolve_mounted_volume(_self):
+            mock_volume_metadata.mount_point = "/opt/disk0"
+            mock_volume_metadata.mount_options = "rw,noatime"
+
+        mock_volume_metadata.resolve_mounted_volume.side_effect = (
+            mock_resolve_mounted_volume
+        )
         mock_snapshots_interface = mock.Mock()
-        mock_snapshots_interface.get_attached_snapshots.return_value = {
-            "snapshot0": "/dev/dev0"
+        mock_snapshots_interface.get_attached_volumes.return_value = {
+            "disk0": mock_volume_metadata
         }
         # AND a CloudBackupDownloaderSnapshot
         downloader = CloudBackupDownloaderSnapshot(
@@ -393,15 +403,17 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
 
     @pytest.mark.parametrize(
         (
-            "attached_snapshots",
-            "findmnt_output",
+            "snapshot_name",
+            "mount_point",
+            "mount_options",
             "check_directory_exists_output",
             "expected_error_msg",
         ),
         (
             # No disk cloned from snapshot attached
             [
-                {},
+                None,
+                None,
                 None,
                 None,
                 (
@@ -411,19 +423,21 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
             ],
             # Correct disk attached but not mounted in the right place
             [
-                {"snapshot0": "/dev/dev0"},
-                ("/opt/disk1", "rw,noatime"),
+                "snapshot0",
+                "/opt/disk1",
+                "rw,noatime",
                 None,
                 (
-                    "Error checking mount points: Device {device_path} cloned from "
+                    "Error checking mount points: Disk {disk_name} cloned from "
                     "snapshot {snapshot_name} is mounted at /opt/disk1 but "
                     "{mount_point} was expected."
                 ),
             ],
             # Recovery directory not present
             [
-                {"snapshot0": "/dev/dev0"},
-                ("/opt/disk0", "rw,noatime"),
+                "snapshot0",
+                "/opt/disk0",
+                "rw,noatime",
                 False,
                 (
                     "Recovery directory '{recovery_dir}' does not exist on the "
@@ -440,17 +454,28 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
         backup_info,
         mock_cloud_interface,
         mock_catalog,
-        attached_snapshots,
-        findmnt_output,
+        snapshot_name,
+        mount_point,
+        mount_options,
         check_directory_exists_output,
         expected_error_msg,
     ):
         """Verify that backup download fails when preconditions are not met."""
-        # GIVEN a snapshot interface which returns the specified snapshots
-        mock_snapshots_interface = mock.Mock()
-        mock_snapshots_interface.get_attached_snapshots.return_value = (
-            attached_snapshots
+        # GIVEN a snapshot interface which returns volume metadata for the specified
+        # snapshots
+        mock_volume_metadata = mock.Mock(source_snapshot=snapshot_name)
+
+        def mock_resolve_mounted_volume(_self):
+            mock_volume_metadata.mount_point = mount_point
+            mock_volume_metadata.mount_options = mount_options
+
+        mock_volume_metadata.resolve_mounted_volume.side_effect = (
+            mock_resolve_mounted_volume
         )
+        mock_snapshots_interface = mock.Mock()
+        mock_snapshots_interface.get_attached_volumes.return_value = {
+            self.disk_name: mock_volume_metadata
+        }
         # AND a CloudBackupDownloaderSnapshot
         downloader = CloudBackupDownloaderSnapshot(
             mock_cloud_interface, mock_catalog, mock_snapshots_interface
@@ -458,8 +483,6 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
         # AND the following recovery args
         recovery_dir = "/path/to/restore_dir"
         recovery_instance = "test_instance"
-        # AND a mock findmnt command which returns the specified response
-        mock_cmd.return_value.findmnt.return_value = findmnt_output
         # AND a mock check_directory_exists command which returns the specified respone
         mock_cmd.return_value.check_directory_exists.return_value = (
             check_directory_exists_output
@@ -471,7 +494,7 @@ class TestCloudBackupDownloaderSnapshot(TestCloudBackupDownloader):
             downloader.download_backup(backup_info, recovery_dir, recovery_instance)
         # AND the exception has the expected message
         assert str(exc.value) == expected_error_msg.format(
-            device_path=self.device_path,
+            disk_name=self.disk_name,
             mount_point=self.mount_point,
             recovery_dir=recovery_dir,
             recovery_instance=recovery_instance,
