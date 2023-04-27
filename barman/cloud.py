@@ -783,10 +783,11 @@ class CloudInterface(with_metaclass(ABCMeta)):
         if self.queue:
             return
 
-        self.queue = multiprocessing.JoinableQueue(maxsize=self.worker_processes_count)
-        self.result_queue = multiprocessing.Queue()
-        self.errors_queue = multiprocessing.Queue()
-        self.done_queue = multiprocessing.Queue()
+        manager = multiprocessing.Manager()
+        self.queue = manager.JoinableQueue(maxsize=self.worker_processes_count)
+        self.result_queue = manager.Queue()
+        self.errors_queue = manager.Queue()
+        self.done_queue = manager.Queue()
         # Delay assigning the worker_processes list to the object until we have
         # finished spawning the workers so they do not get pickled by multiprocessing
         # (pickling the worker process references will fail in Python >= 3.8)
