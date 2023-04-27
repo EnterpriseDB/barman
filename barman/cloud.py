@@ -701,6 +701,19 @@ class CloudInterface(with_metaclass(ABCMeta)):
             for _ in self.worker_processes:
                 self.queue.put(None)
 
+            logging.info("Draining errors queue")
+            while not self.errors_queue.empty():
+                logging.info(".")
+                self.errors_queue.get()
+            logging.info("Draining result queue")
+            while not self.result_queue.empty():
+                logging.info(".")
+                self.result_queue.get()
+            logging.info("Draining done queue")
+            while not self.done_queue.empty():
+                logging.info(".")
+                self.done_queue.get()
+
             for process in self.worker_processes:
                 process.join()
 
