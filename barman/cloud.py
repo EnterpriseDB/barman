@@ -36,10 +36,12 @@ from tempfile import NamedTemporaryFile
 from barman.annotations import KeepManagerMixinCloud
 from barman.backup_executor import ConcurrentBackupStrategy, SnapshotBackupExecutor
 from barman.clients import cloud_compression
+from barman.clients.cloud_cli import get_missing_attrs
 from barman.exceptions import (
     BackupPreconditionException,
     BarmanException,
     BackupException,
+    ConfigurationException,
 )
 from barman.fs import UnixLocalCommand, path_allowed
 from barman.infofile import BackupInfo
@@ -2205,6 +2207,41 @@ class CloudBackupCatalog(KeepManagerMixinCloud):
 
 class CloudSnapshotInterface(with_metaclass(ABCMeta)):
     """Defines a common interface for handling cloud snapshots."""
+
+    _required_config_for_backup = ("snapshot_disks", "snapshot_instance")
+    _required_config_for_restore = ("snapshot_recovery_instance",)
+
+    @classmethod
+    def validate_backup_config(cls, config):
+        """
+        Additional validation for backup options.
+
+        Raises a ConfigurationException if any required options are missing.
+
+        :param argparse.Namespace config: The backup options provided at the command line.
+        """
+        missing_options = get_missing_attrs(config, cls._required_config_for_backup)
+        if len(missing_options) > 0:
+            raise ConfigurationException(
+                "Incomplete options for snapshot backup - missing: %s"
+                % ", ".join(missing_options)
+            )
+
+    @classmethod
+    def validate_restore_config(cls, config):
+        """
+        Additional validation for restore options.
+
+        Raises a ConfigurationException if any required options are missing.
+
+        :param argparse.Namespace config: The backup options provided at the command line.
+        """
+        missing_options = get_missing_attrs(config, cls._required_config_for_restore)
+        if len(missing_options) > 0:
+            raise ConfigurationException(
+                "Incomplete options for snapshot restore - missing: %s"
+                % ", ".join(missing_options)
+            )
 
     @abstractmethod
     def take_snapshot_backup(self, backup_info, instance_name, disks):

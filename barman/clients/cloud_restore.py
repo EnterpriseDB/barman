@@ -26,7 +26,6 @@ from barman.clients.cloud_cli import (
     GeneralErrorExit,
     NetworkErrorExit,
     OperationErrorExit,
-    get_missing_attrs,
 )
 from barman.cloud import CloudBackupCatalog, configure_logging
 from barman.cloud_providers import (
@@ -49,12 +48,6 @@ def _validate_config(config, backup_info):
     :param BackupInfo backup_info: The backup info for the backup to restore
     """
     if backup_info.snapshots_info:
-        missing_options = get_missing_attrs(config, ("snapshot_recovery_instance",))
-        if len(missing_options) > 0:
-            raise ConfigurationException(
-                "Incomplete options for snapshot restore - missing: %s"
-                % ", ".join(missing_options)
-            )
         if config.tablespace != []:
             raise ConfigurationException(
                 "Backup %s is a snapshot backup therefore tablespace relocation rules "
@@ -101,7 +94,6 @@ def main(args=None):
             _validate_config(config, backup_info)
 
             if backup_info.snapshots_info:
-                downloader = CloudBackupDownloaderSnapshot(cloud_interface, catalog)
                 provider_args = {}
                 for arg in vars(config):
                     if (
@@ -109,11 +101,17 @@ def main(args=None):
                         and arg != "snapshot_recovery_instance"
                     ):
                         provider_args[arg] = getattr(config, arg)
+                snapshot_interface = get_snapshot_interface_from_backup_info(
+                    backup_info, provider_args
+                )
+                snapshot_interface.validate_restore_config(config)
+                downloader = CloudBackupDownloaderSnapshot(
+                    cloud_interface, catalog, snapshot_interface
+                )
                 downloader.download_backup(
                     backup_info,
                     config.recovery_dir,
                     config.snapshot_recovery_instance,
-                    provider_args,
                 )
             else:
                 downloader = CloudBackupDownloaderObjectStore(cloud_interface, catalog)
@@ -308,8 +306,25 @@ class CloudBackupDownloaderObjectStore(CloudBackupDownloader):
 class CloudBackupDownloaderSnapshot(CloudBackupDownloader):
     """A minimal downloader for cloud backups which just retrieves the backup label."""
 
+    def __init__(self, cloud_interface, catalog, snapshot_interface):
+        """
+        Object responsible for handling interactions with cloud storage
+
+        :param CloudInterface cloud_interface: The interface to use to
+          upload the backup
+        :param str server_name: The name of the server as configured in Barman
+        :param CloudBackupCatalog catalog: The cloud backup catalog
+        :param CloudSnapshotInterface snapshot_interface: Interface for managing
+            snapshots via a cloud provider API.
+        """
+        super(CloudBackupDownloaderSnapshot, self).__init__(cloud_interface, catalog)
+        self.snapshot_interface = snapshot_interface
+
     def download_backup(
-        self, backup_info, destination_dir, recovery_instance, provider_args
+        self,
+        backup_info,
+        destination_dir,
+        recovery_instance,
     ):
         """
         Download a backup from cloud storage
@@ -321,11 +336,8 @@ class CloudBackupDownloaderSnapshot(CloudBackupDownloader):
         :param dict[str,str] provider_args: A dict of keyword arguments to be
             passed to the cloud provider
         """
-        snapshot_interface = get_snapshot_interface_from_backup_info(
-            backup_info, provider_args
-        )
         attached_snapshots = SnapshotRecoveryExecutor.get_attached_snapshots_for_backup(
-            snapshot_interface,
+            self.snapshot_interface,
             backup_info,
             recovery_instance,
         )

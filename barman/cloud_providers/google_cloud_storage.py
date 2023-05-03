@@ -371,6 +371,15 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
         https://cloud.google.com/compute/docs/disks/create-snapshots
     """
 
+    _required_config_for_backup = CloudSnapshotInterface._required_config_for_backup + (
+        "snapshot_zone",
+    )
+
+    _required_config_for_restore = (
+        CloudSnapshotInterface._required_config_for_restore
+        + ("snapshot_recovery_zone",)
+    )
+
     DEVICE_PREFIX = "/dev/disk/by-id/google-"
 
     def __init__(self, project, zone=None):

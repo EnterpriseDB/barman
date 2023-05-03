@@ -141,8 +141,12 @@ class TestCloudRestore(object):
     )
     @mock.patch("barman.clients.cloud_restore.CloudBackupCatalog")
     @mock.patch("barman.clients.cloud_restore.get_cloud_interface")
+    @mock.patch(
+        "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
+    )
     def test_unsupported_snapshot_args(
         self,
+        _mock_google_cloud_compute,
         _mock_cloud_interface_factory,
         mock_catalog,
         snapshot_args,
@@ -158,7 +162,9 @@ class TestCloudRestore(object):
         backup_id = "20380119T031408"
         mock_catalog.return_value.parse_backup_id.return_value = backup_id
         # AND the catalog returns a mock backup_info with a snapshots_info field
-        mock_backup_info = mock.Mock(backup_id=backup_id, snapshots_info=mock.Mock())
+        mock_backup_info = mock.Mock(
+            backup_id=backup_id, snapshots_info=mock.Mock(provider="gcp")
+        )
         mock_catalog.return_value.get_backup_info.return_value = mock_backup_info
 
         # WHEN barman-cloud-restore is run with a subset of snapshot arguments
