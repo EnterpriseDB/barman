@@ -79,15 +79,17 @@ class TestGetSnapshotInterface(object):
         """
         Verify an exception is raised for gcp snapshots with no project in server config.
         """
-        # GIVEN a server config with the gcp snapshot provider and no snapshot_gcp_project
-        mock_config = mock.Mock(snapshot_provider="gcp", snapshot_gcp_project=None)
+        # GIVEN a server config with the gcp snapshot provider and neither the
+        # gcp_project option nor the deprecated snapshot_gcp_project option
+        mock_config = mock.Mock(
+            snapshot_provider="gcp", gcp_project=None, snapshot_gcp_project=None
+        )
         # WHEN get snapshot_interface_from_server_config is called
         with pytest.raises(ConfigurationException) as exc:
             get_snapshot_interface_from_server_config(mock_config)
         # THEN the expected exception is raised
-        assert (
-            "snapshot_gcp_project option must be set when snapshot_provider is gcp"
-            in str(exc.value)
+        assert "gcp_project option must be set when snapshot_provider is gcp" in str(
+            exc.value
         )
 
     @pytest.mark.parametrize(
@@ -125,7 +127,7 @@ class TestGetSnapshotInterface(object):
         """
         Verify an exception is raised for gcp snapshots with no project in backup_info.
         """
-        # GIVEN a server config with the gcp snapshot provider and no snapshot_gcp_project
+        # GIVEN a server config with the gcp snapshot provider and no gcp_project
         mock_backup_info = mock.Mock(
             snapshots_info=mock.Mock(provider="gcp", project=None)
         )
@@ -171,10 +173,12 @@ class TestGetSnapshotInterface(object):
         """
         Verify an exception is raised for gcp snapshots with no project in args.
         """
-        # GIVEN a cloud config with the specified snapshot provider and a missing
-        # snapshot_gcp_project argument
+        # GIVEN a cloud config with the specified snapshot provider where the
+        # gcp_project and deprecated snapshot_gcp_project arguments are missing
         mock_config = mock.Mock(
-            cloud_provider="google-cloud-storage", snapshot_gcp_project=None
+            cloud_provider="google-cloud-storage",
+            gcp_project=None,
+            snapshot_gcp_project=None,
         )
 
         # WHEN get snapshot_interface_from_backup_info is called
@@ -182,7 +186,7 @@ class TestGetSnapshotInterface(object):
             get_snapshot_interface(mock_config)
         # AND the exception has the expected message
         assert (
-            "--snapshot-gcp-project option must be set for snapshot backups when "
+            "--gcp-project option must be set for snapshot backups when "
             "cloud provider is google-cloud-storage"
         ) == str(exc.value)
 

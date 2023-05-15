@@ -128,7 +128,7 @@ class TestCloudBackup(object):
                 [
                     "--cloud-provider",
                     "google-cloud-storage",
-                    "--snapshot-gcp-project",
+                    "--gcp-project",
                     "test-project",
                     "--snapshot-disk",
                     "disk0",
@@ -141,7 +141,7 @@ class TestCloudBackup(object):
                 [
                     "--cloud-provider",
                     "google-cloud-storage",
-                    "--snapshot-gcp-project",
+                    "--gcp-project",
                     "test-project",
                     "--snapshot-zone",
                     "test_zone",
@@ -154,8 +154,8 @@ class TestCloudBackup(object):
                 [
                     "--cloud-provider",
                     "google-cloud-storage",
-                    "--snapshot-gcp-project",
-                    "snapshot_gcp_project",
+                    "--gcp-project",
+                    "gcp_project",
                     "--snapshot-disk",
                     "disk0",
                     "--snapshot-zone",
@@ -167,8 +167,8 @@ class TestCloudBackup(object):
                 [
                     "--cloud-provider",
                     "google-cloud-storage",
-                    "--snapshot-gcp-project",
-                    "snapshot_gcp_project",
+                    "--gcp-project",
+                    "gcp_project",
                     "--snapshot-disk",
                     "disk0",
                     "--snapshot-instance",
@@ -191,7 +191,7 @@ class TestCloudBackup(object):
                     "google-cloud-storage",
                 ],
                 (
-                    "--snapshot-gcp-project option must be set for snapshot backups "
+                    "--gcp-project option must be set for snapshot backups "
                     "when cloud provider is google-cloud-storage"
                 ),
             ],
@@ -257,7 +257,7 @@ class TestCloudBackup(object):
             [
                 "--cloud-provider",
                 "google-cloud-storage",
-                "--snapshot-gcp-project",
+                "--gcp-project",
                 "gcp_project",
             ],
         ),

@@ -451,6 +451,7 @@ class ServerConfig(object):
         "disabled",
         "errors_directory",
         "forward_config_path",
+        "gcp_project",
         "immediate_checkpoint",
         "incoming_wals_directory",
         "last_backup_maximum_age",
@@ -493,7 +494,7 @@ class ServerConfig(object):
         "reuse_backup",
         "slot_name",
         "snapshot_disks",
-        "snapshot_gcp_project",
+        "snapshot_gcp_project",  # Deprecated, replaced by gcp_project
         "snapshot_instance",
         "snapshot_provider",
         "snapshot_zone",
@@ -529,6 +530,7 @@ class ServerConfig(object):
         "custom_decompression_filter",
         "custom_compression_magic",
         "forward_config_path",
+        "gcp_project",
         "immediate_checkpoint",
         "last_backup_maximum_age",
         "last_backup_minimum_size",
@@ -568,7 +570,7 @@ class ServerConfig(object):
         "retention_policy_mode",
         "reuse_backup",
         "slot_name",
-        "snapshot_gcp_project",
+        "snapshot_gcp_project",  # Deprecated, replaced by gcp_project
         "snapshot_provider",
         "streaming_archiver",
         "streaming_archiver_batch_size",

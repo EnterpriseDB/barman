@@ -349,6 +349,14 @@ def parse_arguments(args=None):
     )
     gcs_arguments.add_argument(
         "--snapshot-gcp-project",
+        help=(
+            "GCP project under which disk snapshots should be stored (deprecated: "
+            "replaced by --gcp-project)"
+        ),
+        dest="gcp_project",
+    )
+    gcs_arguments.add_argument(
+        "--gcp-project",
         help="GCP project under which disk snapshots should be stored",
     )
     gcs_arguments.add_argument(

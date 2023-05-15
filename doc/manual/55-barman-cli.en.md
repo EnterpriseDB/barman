@@ -211,7 +211,7 @@ To take a snapshot backup with barman-cloud, use `barman-cloud-backup` with the 
 
 If the `--cloud-provider` is `google-cloud-storage` then the following argument is also required:
 
-- `--snapshot-gcp-project`
+- `--gcp-project`
 
 The following options cannot be used with `barman-cloud-backup` when cloud snapshots are requested:
 

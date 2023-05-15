@@ -77,7 +77,7 @@ Where `snapshot_instance` is set to the name of the VM or compute instance where
 The following additional parameter must be set when using GCP:
 
 ``` ini
-snapshot_gcp_project = GCP_PROJECT_ID
+gcp_project = GCP_PROJECT_ID
 ```
 
 This should be set to the ID of the GCP project which owns the instance and storage volumes defined by `snapshot_instance` and `snapshot_disks`.
