@@ -343,6 +343,16 @@ Required when the \f[C]snapshot\f[] value is specified for
 .RS
 .RE
 .TP
+.B gcp_zone
+The name of the availability zone where the compute instance and disks
+to be backed up in a snapshot backup are located.
+Server.
+Required when the \f[C]snapshot\f[] value is specified for
+\f[C]backup_method\f[] and \f[C]snapshot_provider\f[] is set to
+\f[C]gcp\f[].
+.RS
+.RE
+.TP
 .B immediate_checkpoint
 This option allows you to control the way PostgreSQL handles checkpoint
 at the start of the backup.
@@ -778,15 +788,6 @@ Global/Server.
 Required when the \f[C]snapshot\f[] value is specified for
 \f[C]backup_method\f[].
 Supported values: \f[C]gcp\f[].
-.RS
-.RE
-.TP
-.B snapshot_zone
-The name of the availability zone where the compute instance and disks
-to be backed up in a snapshot backup are located.
-Server.
-Required when the \f[C]snapshot\f[] value is specified for
-\f[C]backup_method\f[].
 .RS
 .RE
 .TP

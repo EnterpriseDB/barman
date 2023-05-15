@@ -1049,8 +1049,8 @@ The cloud provider API calls are made on the node where the backup command runs;
 
 The following pre-flight checks are carried out before each backup and also when `barman check` runs against a server configured for snapshot backups:
 
-- The compute instance specified by `snapshot_instance` exists in the availability zone specified by `snapshot_zone`.
-- The disks specified by `snapshot_disks` exist in the availability zone specified by `snapshot_zone`.
+- The compute instance specified by `snapshot_instance` and any provider-specific arguments exists.
+- The disks specified by `snapshot_disks` exist.
 - The disks specified by `snapshot_disks` are attached to `snapshot_instance`.
 - The disks specified by `snapshot_disks` are mounted on `snapshot_instance`.
 

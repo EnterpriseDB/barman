@@ -207,11 +207,11 @@ To take a snapshot backup with barman-cloud, use `barman-cloud-backup` with the 
 
 - `--snapshot-disk` (can be used multiple times for multiple disks)
 - `--snapshot-instance`
-- `--snapshot-zone`
 
-If the `--cloud-provider` is `google-cloud-storage` then the following argument is also required:
+If the `--cloud-provider` is `google-cloud-storage` then the following arguments are also required:
 
 - `--gcp-project`
+- `--gcp-zone`
 
 The following options cannot be used with `barman-cloud-backup` when cloud snapshots are requested:
 

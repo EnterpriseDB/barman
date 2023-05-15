@@ -61,11 +61,10 @@ The following parameters must be set regardless of cloud provider:
 
 ``` ini
 snapshot_instance = INSTANCE_NAME
-snapshot_zone = ZONE
 snapshot_disks = DISK_NAME,DISK2_NAME,...
 ```
 
-Where `snapshot_instance` is set to the name of the VM or compute instance where the storage volumes are attached, `snapshot_zone` is the available zone in which the instance is located and `snapshot_disks` is a comma-separated list of the disks which should be included in the backup.
+Where `snapshot_instance` is set to the name of the VM or compute instance where the storage volumes are attached and `snapshot_disks` is a comma-separated list of the disks which should be included in the backup.
 
 > **IMPORTANT:** You must ensure that `snapshot_disks` includes every disk
 > which stores data required by PostgreSQL. Any data which is not stored
@@ -74,13 +73,14 @@ Where `snapshot_instance` is set to the name of the VM or compute instance where
 
 #### Configuration for Google Cloud Platform snapshots
 
-The following additional parameter must be set when using GCP:
+The following additional parameters must be set when using GCP:
 
 ``` ini
 gcp_project = GCP_PROJECT_ID
+gcp_zone = ZONE
 ```
 
-This should be set to the ID of the GCP project which owns the instance and storage volumes defined by `snapshot_instance` and `snapshot_disks`.
+`gcp_project` should be set to the ID of the GCP project which owns the instance and storage volumes defined by `snapshot_instance` and `snapshot_disks`. `gcp_zone` should be set to the availability zone in which the instance is located.
 
 ### Taking a snapshot backup
 

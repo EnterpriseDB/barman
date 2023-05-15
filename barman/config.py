@@ -452,6 +452,7 @@ class ServerConfig(object):
         "errors_directory",
         "forward_config_path",
         "gcp_project",
+        "gcp_zone",
         "immediate_checkpoint",
         "incoming_wals_directory",
         "last_backup_maximum_age",
@@ -497,7 +498,7 @@ class ServerConfig(object):
         "snapshot_gcp_project",  # Deprecated, replaced by gcp_project
         "snapshot_instance",
         "snapshot_provider",
-        "snapshot_zone",
+        "snapshot_zone",  # Deprecated, replaced by gcp_zone
         "ssh_command",
         "streaming_archiver",
         "streaming_archiver_batch_size",

@@ -260,6 +260,7 @@ def build_config_dictionary(config_keys=None):
         "custom_compression_magic": None,
         "description": " Text with quotes ",
         "gcp_project": None,
+        "gcp_zone": None,
         "immediate_checkpoint": False,
         "incoming_wals_directory": "/some/barman/home/main/incoming",
         "max_incoming_wals_queue": None,

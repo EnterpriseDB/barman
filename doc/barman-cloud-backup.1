@@ -52,11 +52,10 @@ usage:\ barman\-cloud\-backup\ [\-V]\ [\-\-help]\ [\-v\ |\ \-q]\ [\-t]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-immediate\-checkpoint]\ [\-J\ JOBS]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-S\ MAX_ARCHIVE_SIZE]\ [\-d\ DBNAME]\ [\-n\ BACKUP_NAME]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-instance\ SNAPSHOT_INSTANCE]
-\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-disk\ NAME]
-\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-zone\ SNAPSHOT_ZONE]
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-disk\ NAME]\ [\-\-snapshot\-zone\ GCP_ZONE]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-snapshot\-gcp\-project\ GCP_PROJECT]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-gcp\-project\ GCP_PROJECT]
-\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-kms\-key\-name\ KMS_KEY_NAME]
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-kms\-key\-name\ KMS_KEY_NAME]\ [\-\-gcp\-zone\ GCP_ZONE]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-tags\ [TAGS\ [TAGS\ ...]]]\ [\-e\ {AES256,aws:kms}]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-sse\-kms\-key\-id\ SSE_KMS_KEY_ID]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ [\-\-encryption\-scope\ ENCRYPTION_SCOPE]
@@ -107,8 +106,9 @@ optional\ arguments:
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Instance\ where\ the\ disks\ to\ be\ backed\ up\ as\ snapshots
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ are\ attached
 \ \ \-\-snapshot\-disk\ NAME\ \ Name\ of\ a\ disk\ from\ which\ snapshots\ should\ be\ taken
-\ \ \-\-snapshot\-zone\ SNAPSHOT_ZONE
+\ \ \-\-snapshot\-zone\ GCP_ZONE
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Zone\ of\ the\ disks\ from\ which\ snapshots\ should\ be\ taken
+\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (deprecated:\ replaced\ by\ \-\-gcp\-zone)
 \ \ \-\-tags\ [TAGS\ [TAGS\ ...]]
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ Tags\ to\ be\ added\ to\ all\ uploaded\ files\ in\ cloud
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ storage
@@ -156,6 +156,7 @@ Extra\ options\ for\ google\-cloud\-storage\ cloud\ provider:
 \ \ \-\-kms\-key\-name\ KMS_KEY_NAME
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ The\ name\ of\ the\ GCP\ KMS\ key\ which\ should\ be\ used\ for
 \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ encrypting\ the\ uploaded\ data\ in\ GCS.
+\ \ \-\-gcp\-zone\ GCP_ZONE\ \ \ Zone\ of\ the\ disks\ from\ which\ snapshots\ should\ be\ taken
 \f[]
 .fi
 .SH REFERENCES

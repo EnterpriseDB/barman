@@ -173,7 +173,7 @@ def get_snapshot_interface(config):
                 "--gcp-project option must be set for snapshot backups "
                 "when cloud provider is google-cloud-storage"
             )
-        return GcpCloudSnapshotInterface(config.gcp_project, config.snapshot_zone)
+        return GcpCloudSnapshotInterface(config.gcp_project, config.gcp_zone)
     else:
         raise CloudProviderUnsupported(
             "No snapshot provider for cloud provider: %s" % config.cloud_provider
@@ -200,7 +200,8 @@ def get_snapshot_interface_from_server_config(server_config):
             raise ConfigurationException(
                 "gcp_project option must be set when snapshot_provider is gcp"
             )
-        return GcpCloudSnapshotInterface(gcp_project, server_config.snapshot_zone)
+        gcp_zone = server_config.gcp_zone or server_config.snapshot_zone
+        return GcpCloudSnapshotInterface(gcp_project, gcp_zone)
     else:
         raise CloudProviderUnsupported(
             "Unsupported snapshot provider: %s" % server_config.snapshot_provider

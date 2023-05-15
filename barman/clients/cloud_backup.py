@@ -342,7 +342,11 @@ def parse_arguments(args=None):
     )
     parser.add_argument(
         "--snapshot-zone",
-        help="Zone of the disks from which snapshots should be taken",
+        help=(
+            "Zone of the disks from which snapshots should be taken (deprecated: "
+            "replaced by --gcp-zone)"
+        ),
+        dest="gcp_zone",
     )
     gcs_arguments = parser.add_argument_group(
         "Extra options for google-cloud-storage cloud provider"
@@ -363,6 +367,10 @@ def parse_arguments(args=None):
         "--kms-key-name",
         help="The name of the GCP KMS key which should be used for encrypting the "
         "uploaded data in GCS.",
+    )
+    gcs_arguments.add_argument(
+        "--gcp-zone",
+        help="Zone of the disks from which snapshots should be taken",
     )
     add_tag_argument(
         parser,

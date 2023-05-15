@@ -374,7 +374,7 @@ class GcpCloudSnapshotInterface(CloudSnapshotInterface):
     """
 
     _required_config_for_backup = CloudSnapshotInterface._required_config_for_backup + (
-        "snapshot_zone",
+        "gcp_zone",
     )
 
     _required_config_for_restore = (
