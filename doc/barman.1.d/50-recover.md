@@ -122,7 +122,7 @@ recover *\[OPTIONS\]* *SERVER_NAME* *BACKUP_ID* *DESTINATION_DIRECTORY*
         attached. This option is required when recovering backups made with
         `backup_method = snapshot`.
 
-    --snapshot-recovery-zone *ZONE_NAME*
+    --gcp-zone *ZONE_NAME*
     :   Name of the availability zone where the instance and disks for snapshot
         are located. This option is required when recovering backups made with
         `backup_method = snapshot`.

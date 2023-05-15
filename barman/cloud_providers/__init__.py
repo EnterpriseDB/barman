@@ -16,8 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with Barman.  If not, see <http://www.gnu.org/licenses/>
 
-from collections import defaultdict
-
 from barman.exceptions import BarmanException, ConfigurationException
 
 
@@ -208,24 +206,18 @@ def get_snapshot_interface_from_server_config(server_config):
         )
 
 
-def get_snapshot_interface_from_backup_info(backup_info, provider_args=None):
+def get_snapshot_interface_from_backup_info(backup_info, config=None):
     """
     Factory function that creates CloudSnapshotInterface for the snapshot provider
     specified in the supplied backup info.
 
     :param barman.infofile.BackupInfo backup_info: The metadata for a specific backup.
-    :param dict[str,str] provider_args: A dict of keyword arguments to be passed to the
         cloud provider.
+    :param argparse.Namespace|barman.config.Config config: The backup options provided
+        by the command line or the Barman configuration.
     :rtype: CloudSnapshotInterface
     :returns: A CloudSnapshotInterface for the specified snapshot provider.
     """
-    # provider_args is not always provided by the calling code, for example when
-    # creating an interface to delete snapshots the zone is not required in GCP.
-    # In such cases we use a defaultdict and trust the provider implementations to
-    # handle None values safely.
-    if provider_args is None:
-        provider_args = defaultdict(lambda: None)
-
     if backup_info.snapshots_info.provider == "gcp":
         from barman.cloud_providers.google_cloud_storage import (
             GcpCloudSnapshotInterface,
@@ -235,9 +227,10 @@ def get_snapshot_interface_from_backup_info(backup_info, provider_args=None):
             raise BarmanException(
                 "backup_info has snapshot provider 'gcp' but project is not set"
             )
+        gcp_zone = config is not None and config.gcp_zone or None
         return GcpCloudSnapshotInterface(
             backup_info.snapshots_info.project,
-            provider_args["snapshot_recovery_zone"],
+            gcp_zone,
         )
     else:
         raise CloudProviderUnsupported(

@@ -782,6 +782,13 @@ def rebuild_xlogdb(args):
         ),
         argument(
             "--snapshot-recovery-zone",
+            help=(
+                "Zone containing the instance and disks for the snapshot recovery "
+                "(deprecated: replaced by --gcp-zone)"
+            ),
+        ),
+        argument(
+            "--gcp-zone",
             help="Zone containing the instance and disks for the snapshot recovery",
         ),
     ]
@@ -945,14 +952,18 @@ def recover(args):
                 backup_id.backup_id,
             )
             output.close_and_exit()
-        snapshot_provider_args = {}
-        for arg in vars(args):
-            if arg.startswith("snapshot_") and arg != "snapshot_recovery_instance":
-                snapshot_provider_args[arg] = getattr(args, arg)
+        # Set the snapshot keyword arguments to be passed to the recovery executor
         snapshot_kwargs = {
-            "provider_args": snapshot_provider_args,
             "recovery_instance": args.snapshot_recovery_instance,
         }
+        # Special handling for deprecated snapshot_recovery_zone arg
+        if args.gcp_zone is None and args.snapshot_recovery_zone is not None:
+            args.gcp_zone = args.snapshot_recovery_zone
+        # Override provider-specific options in the config
+        for arg in ("gcp_zone",):
+            value = getattr(args, arg)
+            if value is not None:
+                setattr(server.config, arg, value)
     else:
         unexpected_args = []
         if args.snapshot_recovery_instance:
@@ -965,6 +976,8 @@ def recover(args):
                 ", ".join(unexpected_args),
             )
             output.close_and_exit()
+        # An empty dict is used so that snapshot-specific arguments are not passed to
+        # non-snapshot recovery executors
         snapshot_kwargs = {}
 
     with closing(server):

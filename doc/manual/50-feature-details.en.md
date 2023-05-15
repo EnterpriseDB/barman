@@ -1077,7 +1077,10 @@ Once the recovery instance is provisioned and disks cloned from the backup snaps
 
 - `--remote-ssh-command`: The ssh command required to log in to the recovery instance.
 - `--snapshot-recovery-instance`: The name of the recovery instance as required by the cloud provider.
-- `--snapshot-recovery-zone`:  The name of the availability zone in which the recovery instance is located.
+
+The following additional arguments are required with the `gcp` provider:
+
+- `--gcp-zone`: The name of the availability zone in which the recovery instance is located.
 
 For example:
 
@@ -1085,7 +1088,7 @@ For example:
 barman recover SERVER_NAME BACKUP_ID REMOTE_RECOVERY_DIRECTORY \
     --remote-ssh-command 'ssh USER@HOST' \
     --snapshot-recovery-instance INSTANCE_NAME \
-    --snapshot-recovery-zone ZONE_NAME
+    --gcp-zone ZONE_NAME
 ```
 
 Note the following `barman recover` arguments / config variables are unavailable when recovering snapshot backups:
