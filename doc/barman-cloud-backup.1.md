@@ -56,6 +56,8 @@ usage: barman-cloud-backup [-V] [--help] [-v | -q] [-t]
                            [--tags [TAGS [TAGS ...]]] [-e {AES256,aws:kms}]
                            [--sse-kms-key-id SSE_KMS_KEY_ID]
                            [--encryption-scope ENCRYPTION_SCOPE]
+                           [--azure-subscription-id AZURE_SUBSCRIPTION_ID]
+                           [--azure-resource-group AZURE_RESOURCE_GROUP]
                            destination_url server_name
 
 This script can be used to perform a backup of a local PostgreSQL instance and
@@ -142,6 +144,14 @@ Extra options for the azure-blob-storage cloud provider:
                         The name of an encryption scope defined in the Azure
                         Blob Storage service which is to be used to encrypt
                         the data in Azure
+  --azure-subscription-id AZURE_SUBSCRIPTION_ID
+                        The ID of the Azure subscription which owns the
+                        instance and storage volumes defined by the
+                        --snapshot-instance and --snapshot-disk arguments.
+  --azure-resource-group AZURE_RESOURCE_GROUP
+                        The name of the Azure resource group to which the
+                        compute instance and disks defined by the --snapshot-
+                        instance and --snapshot-disk arguments belong.
 
 Extra options for google-cloud-storage cloud provider:
   --snapshot-gcp-project GCP_PROJECT

@@ -68,6 +68,9 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
 
 
 def _get_azure_credential(credential_type):
+    if credential_type is None:
+        return None
+
     try:
         from azure.identity import AzureCliCredential, ManagedIdentityCredential
     except ImportError:
@@ -76,7 +79,6 @@ def _get_azure_credential(credential_type):
     supported_credentials = {
         "azure-cli": AzureCliCredential,
         "managed-identity": ManagedIdentityCredential,
-        None: None,
     }
     try:
         return supported_credentials[credential_type]
@@ -177,6 +179,21 @@ def get_snapshot_interface(config):
                 "when cloud provider is google-cloud-storage"
             )
         return GcpCloudSnapshotInterface(config.gcp_project, config.gcp_zone)
+    elif config.cloud_provider == "azure-blob-storage":
+        from barman.cloud_providers.azure_blob_storage import (
+            AzureCloudSnapshotInterface,
+        )
+
+        if config.azure_subscription_id is None:
+            raise ConfigurationException(
+                "--azure-subscription-id option must be set for snapshot "
+                "backups when cloud provider is azure-blob-storage"
+            )
+        return AzureCloudSnapshotInterface(
+            config.azure_subscription_id,
+            resource_group=config.azure_resource_group,
+            credential=_get_azure_credential(config.azure_credential),
+        )
     else:
         raise CloudProviderUnsupported(
             "No snapshot provider for cloud provider: %s" % config.cloud_provider
@@ -205,6 +222,21 @@ def get_snapshot_interface_from_server_config(server_config):
             )
         gcp_zone = server_config.gcp_zone or server_config.snapshot_zone
         return GcpCloudSnapshotInterface(gcp_project, gcp_zone)
+    elif server_config.snapshot_provider == "azure":
+        from barman.cloud_providers.azure_blob_storage import (
+            AzureCloudSnapshotInterface,
+        )
+
+        if server_config.azure_subscription_id is None:
+            raise ConfigurationException(
+                "azure_subscription_id option must be set when snapshot_provider "
+                "is azure"
+            )
+        return AzureCloudSnapshotInterface(
+            server_config.azure_subscription_id,
+            resource_group=server_config.azure_resource_group,
+            credential=_get_azure_credential(server_config.azure_credential),
+        )
     else:
         raise CloudProviderUnsupported(
             "Unsupported snapshot provider: %s" % server_config.snapshot_provider
@@ -258,6 +290,12 @@ def snapshots_info_from_dict(snapshots_info):
         from barman.cloud_providers.google_cloud_storage import GcpSnapshotsInfo
 
         return GcpSnapshotsInfo.from_dict(snapshots_info)
+    elif "provider" in snapshots_info and snapshots_info["provider"] == "azure":
+        from barman.cloud_providers.azure_blob_storage import (
+            AzureSnapshotsInfo,
+        )
+
+        return AzureSnapshotsInfo.from_dict(snapshots_info)
     else:
         raise CloudProviderUnsupported(
             "Unsupported snapshot provider in backup info: %s"

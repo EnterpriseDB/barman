@@ -25,9 +25,14 @@ from barman.clients.cloud_compression import decompress_to_file
 from barman.cloud import (
     CloudInterface,
     CloudProviderError,
+    CloudSnapshotInterface,
     DecompressingStreamingIO,
     DEFAULT_DELIMITER,
+    SnapshotMetadata,
+    SnapshotsInfo,
+    VolumeMetadata,
 )
+from barman.exceptions import CommandException, SnapshotBackupException
 
 try:
     # Python 3.x
@@ -499,3 +504,414 @@ class AzureCloudInterface(CloudInterface):
 
         if errors:
             raise CloudProviderError()
+
+
+def import_azure_mgmt_compute():
+    """
+    Import and return the azure.mgmt.compute module.
+
+    This particular import happens in a function so that it can be deferred until
+    needed while still allowing tests to easily mock the library.
+    """
+    try:
+        import azure.mgmt.compute as compute
+    except ImportError:
+        raise SystemExit("Missing required python module: azure-mgmt-compute")
+    return compute
+
+
+def import_azure_identity():
+    """
+    Import and return the azure.identity module.
+
+    This particular import happens in a function so that it can be deferred until
+    needed while still allowing tests to easily mock the library.
+    """
+    try:
+        import azure.identity as identity
+    except ImportError:
+        raise SystemExit("Missing required python module: azure-identity")
+    return identity
+
+
+class AzureCloudSnapshotInterface(CloudSnapshotInterface):
+    """
+    Implementation of CloudSnapshotInterface for managed disk snapshots in Azure, as
+    described at:
+
+        https://learn.microsoft.com/en-us/azure/virtual-machines/snapshot-copy-managed-disk
+    """
+
+    _required_config_for_backup = CloudSnapshotInterface._required_config_for_backup + (
+        "azure_resource_group",
+    )
+
+    def __init__(self, subscription_id, resource_group=None, credential=None):
+        """
+        Imports the azure-mgmt-compute library and creates the clients necessary for
+        creating and managing snapshots.
+
+        :param str subscription_id: A Microsoft Azure subscription ID to which all
+            resources accessed through this interface belong.
+        :param str resource_group|None: The resource_group to which the resources
+            accessed through this interface belong.
+        :param azure.identity.AzureCliCredential|azure.identity.ManagedIdentityCredential
+            The Azure credential to be used when authenticating against the Azure API.
+            If omitted then a DefaultAzureCredential will be created and used.
+        """
+        if subscription_id is None:
+            raise TypeError("subscription_id cannot be None")
+        self.subscription_id = subscription_id
+
+        self.resource_group = resource_group
+
+        if credential is None:
+            identity = import_azure_identity()
+            credential = identity.DefaultAzureCredential
+
+        self.credential = credential()
+
+        # Import of azure-mgmt-compute is deferred until this point so that it does not
+        # become a hard dependency of this module.
+        compute = import_azure_mgmt_compute()
+
+        self.client = compute.ComputeManagementClient(
+            self.credential, self.subscription_id
+        )
+
+    def _get_instance_metadata(self, instance_name):
+        """
+        Retrieve the metadata for the named instance.
+
+        :rtype: azure.mgmt.compute.v2022_11_01.models.VirtualMachine
+        :return: An object representing the named compute instance.
+        """
+        try:
+            return self.client.virtual_machines.get(self.resource_group, instance_name)
+        except ResourceNotFoundError:
+            raise SnapshotBackupException(
+                "Cannot find instance with name %s in resource group %s "
+                "in subscription %s"
+                % (instance_name, self.resource_group, self.subscription_id)
+            )
+
+    def _get_disk_metadata(self, disk_name):
+        """
+        Retrieve the metadata for the named disk in the specified zone.
+
+        :rtype: azure.mgmt.compute.v2022_11_01.models.Disk
+        :return: An object representing the disk.
+        """
+        try:
+            return self.client.disks.get(self.resource_group, disk_name)
+        except ResourceNotFoundError:
+            raise SnapshotBackupException(
+                "Cannot find disk with name %s in resource group %s "
+                "in subscription %s"
+                % (disk_name, self.resource_group, self.subscription_id)
+            )
+
+    def _take_snapshot(self, backup_info, resource_group, location, disk_name, disk_id):
+        """
+        Take a snapshot of a managed disk in Azure.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str resource_group: The resource_group to which the snapshot disks and
+            instance belong.
+        :param str location: The location of the source disk for the snapshot.
+        :param str disk_name: The name of the source disk for the snapshot.
+        :param str disk_id: The Azure identifier for the source disk.
+        :rtype: str
+        :return: The name used to reference the snapshot with Azure.
+        """
+        snapshot_name = "%s-%s" % (disk_name, backup_info.backup_id.lower())
+        logging.info("Taking snapshot '%s' of disk '%s'", snapshot_name, disk_name)
+        resp = self.client.snapshots.begin_create_or_update(
+            resource_group,
+            snapshot_name,
+            {
+                "location": location,
+                "incremental": True,
+                "creation_data": {"create_option": "Copy", "source_uri": disk_id},
+            },
+        )
+
+        logging.info("Waiting for snapshot '%s' completion", snapshot_name)
+        resp.wait()
+
+        if (
+            resp.status().lower() != "succeeded"
+            or resp.result().provisioning_state.lower() != "succeeded"
+        ):
+            raise CloudProviderError(
+                "Snapshot '%s' failed with error code %s: %s"
+                % (snapshot_name, resp.status(), resp.result())
+            )
+
+        logging.info("Snapshot '%s' completed", snapshot_name)
+        return snapshot_name
+
+    def take_snapshot_backup(self, backup_info, instance_name, volumes):
+        """
+        Take a snapshot backup for the named instance.
+
+        Creates a snapshot for each named disk and saves the required metadata
+        to backup_info.snapshots_info as an AzureSnapshotsInfo object.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :param dict[str,barman.cloud.VolumeMetadata] volumes: Metadata describing
+            the volumes to be backed up.
+        """
+        instance_metadata = self._get_instance_metadata(instance_name)
+        snapshots = []
+        for disk_name, volume_metadata in volumes.items():
+            attached_disks = [
+                d
+                for d in instance_metadata.storage_profile.data_disks
+                if d.name == disk_name
+            ]
+            if len(attached_disks) == 0:
+                raise SnapshotBackupException(
+                    "Disk %s not attached to instance %s" % (disk_name, instance_name)
+                )
+            # We should always have exactly one attached disk matching the name
+            assert len(attached_disks) == 1
+
+            snapshot_name = self._take_snapshot(
+                backup_info,
+                self.resource_group,
+                volume_metadata.location,
+                disk_name,
+                attached_disks[0].managed_disk.id,
+            )
+            snapshots.append(
+                AzureSnapshotMetadata(
+                    lun=attached_disks[0].lun,
+                    snapshot_name=snapshot_name,
+                    location=volume_metadata.location,
+                    mount_point=volume_metadata.mount_point,
+                    mount_options=volume_metadata.mount_options,
+                )
+            )
+
+        backup_info.snapshots_info = AzureSnapshotsInfo(
+            snapshots=snapshots,
+            subscription_id=self.subscription_id,
+            resource_group=self.resource_group,
+        )
+
+    def delete_snapshot_backup(self, backup_info):
+        """
+        Delete all snapshots for the supplied backup.
+
+        :param barman.infofile.LocalBackupInfo backup_info: Backup information.
+        """
+        raise NotImplementedError()
+
+    def get_attached_volumes(self, instance_name, disks=None):
+        """
+        Returns metadata for the volumes attached to this instance.
+
+        Queries Azure for metadata relating to the volumes attached to the named
+        instance and returns a dict of `VolumeMetadata` objects, keyed by disk name.
+
+        If the optional disks parameter is supplied then this method returns metadata
+        for the disks in the supplied list only. A SnapshotBackupException is raised if
+        any of the supplied disks are not found to be attached to the instance.
+
+        If the disks parameter is not supplied then this method returns a
+        VolumeMetadata object for every disk attached to this instance.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            are attached.
+        :param list[str]|None disks: A list containing the names of disks to be
+            backed up.
+        :rtype: dict[str, VolumeMetadata]
+        :return: A dict of VolumeMetadata objects representing each volume
+            attached to the instance, keyed by volume identifier.
+        """
+        instance_metadata = self._get_instance_metadata(instance_name)
+        attached_volumes = {}
+        for attachment_metadata in instance_metadata.storage_profile.data_disks:
+            disk_name = attachment_metadata.name
+            if disks and disk_name not in disks:
+                continue
+            assert disk_name not in attached_volumes
+            disk_metadata = self._get_disk_metadata(disk_name)
+            attached_volumes[disk_name] = AzureVolumeMetadata(
+                attachment_metadata, disk_metadata
+            )
+        # Check all requested disks were found and complain if necessary
+        if disks is not None:
+            unattached_disks = []
+            for disk_name in disks:
+                if disk_name not in attached_volumes:
+                    # Verify the disk definitely exists by fetching the metadata
+                    self._get_disk_metadata(disk_name)
+                    # Append to list of unattached disks
+                    unattached_disks.append(disk_name)
+            if len(unattached_disks) > 0:
+                raise SnapshotBackupException(
+                    "Disks not attached to instance %s: %s"
+                    % (instance_name, ", ".join(unattached_disks))
+                )
+        return attached_volumes
+
+    def instance_exists(self, instance_name):
+        """
+        Determine whether the named instance exists.
+
+        :param str instance_name: The name of the VM instance to which the disks
+            to be backed up are attached.
+        :rtype: bool
+        :return: True if the named instance exists, False otherwise.
+        """
+        try:
+            self.client.virtual_machines.get(self.resource_group, instance_name)
+        except ResourceNotFoundError:
+            return False
+        return True
+
+
+class AzureVolumeMetadata(VolumeMetadata):
+    """
+    Specialization of VolumeMetadata for Azure managed disks.
+
+    This class uses the LUN obtained from the Azure API in order to resolve the mount
+    point and options via using a documented symlink.
+    """
+
+    def __init__(self, attachment_metadata=None, disk_metadata=None):
+        """
+        Creates an AzureVolumeMetadata instance using metadata obtained from the Azure
+        API.
+
+        Uses attachment_metadata to obtain the LUN of the attached volume and
+        disk_metadata to obtain the location of the disk.
+
+        :param azure.mgmt.compute.v2022_11_01.models.DataDisk|None attachment_metadata:
+            Metadata for the attached volume.
+        :param azure.mgmt.compute.v2022_11_01.models.Disk|None disk_metadata:
+            Metadata for the managed disk.
+        """
+        super(AzureVolumeMetadata, self).__init__()
+        self.location = None
+        self._lun = None
+        if attachment_metadata is not None:
+            self._lun = attachment_metadata.lun
+        if disk_metadata is not None:
+            # Record the location because this is needed when creating snapshots
+            # (even though snapshots can only be created in the same location as the
+            # source disk, Azure requires us to specify the location anyway).
+            self.location = disk_metadata.location
+
+    def resolve_mounted_volume(self, cmd):
+        """
+        Resolve the mount point and mount options using shell commands.
+
+        Uses findmnt to retrieve the mount point and mount options for the device
+        path at which this volume is mounted.
+
+        :param UnixLocalCommand cmd: An object which can be used to run shell commands
+            on a local (or remote, via the UnixRemoteCommand subclass) instance.
+        """
+        if self._lun is None:
+            raise SnapshotBackupException("Cannot resolve mounted volume: LUN unknown")
+        try:
+            # This symlink path is created by the Azure linux agent on boot. It is a
+            # direct symlink to the actual device path of the attached volume. This
+            # symlink will be consistent across reboots of the VM but the device path
+            # will not. We therefore call findmnt directly on this symlink.
+            # See the following documentation for more context:
+            #   - https://learn.microsoft.com/en-us/troubleshoot/azure/virtual-machines/troubleshoot-device-names-problems#identify-disk-luns
+            lun_symlink = "/dev/disk/azure/scsi1/lun{}".format(self._lun)
+            mount_point, mount_options = cmd.findmnt(lun_symlink)
+        except CommandException as e:
+            raise SnapshotBackupException(
+                "Error finding mount point for volume with lun %s: %s" % (self._lun, e)
+            )
+        if mount_point is None:
+            raise SnapshotBackupException(
+                "Could not find volume with lun %s at any mount point" % self._lun
+            )
+        self._mount_point = mount_point
+        self._mount_options = mount_options
+
+    @property
+    def source_snapshot(self):
+        """
+        An identifier which can reference the snapshot via the cloud provider.
+
+        :rtype: str
+        :return: The snapshot short name.
+        """
+        raise NotImplementedError()
+
+
+class AzureSnapshotMetadata(SnapshotMetadata):
+    """
+    Specialization of SnapshotMetadata for Azure managed disk snapshots.
+
+    Stores the location, lun and snapshot_name in the provider-specific field.
+    """
+
+    _provider_fields = ("location", "lun", "snapshot_name")
+
+    def __init__(
+        self,
+        mount_options=None,
+        mount_point=None,
+        lun=None,
+        snapshot_name=None,
+        location=None,
+    ):
+        """
+        Constructor saves additional metadata for Azure snapshots.
+
+        :param str mount_options: The mount options used for the source disk at the
+            time of the backup.
+        :param str mount_point: The mount point of the source disk at the time of
+            the backup.
+        :param int lun: The lun identifying the disk from which the snapshot was taken
+            on the instance it was attached to at the time of the backup.
+        :param str snapshot_name: The snapshot name used in the Azure API.
+        :param str location: The location of the disk from which the snapshot was taken
+            at the time of the backup.
+        """
+        super(AzureSnapshotMetadata, self).__init__(mount_options, mount_point)
+        self.lun = lun
+        self.snapshot_name = snapshot_name
+        self.location = location
+
+    @property
+    def identifier(self):
+        """
+        An identifier which can reference the snapshot via the cloud provider.
+
+        :rtype: str
+        :return: The snapshot short name.
+        """
+        return self.snapshot_name
+
+
+class AzureSnapshotsInfo(SnapshotsInfo):
+    """
+    Represents the snapshots_info field for Azure managed disk snapshots.
+    """
+
+    _provider_fields = ("subscription_id", "resource_group")
+    _snapshot_metadata_cls = AzureSnapshotMetadata
+
+    def __init__(self, snapshots=None, subscription_id=None, resource_group=None):
+        """
+        Constructor saves the list of snapshots if it is provided.
+
+        :param list[SnapshotMetadata] snapshots: A list of metadata objects for each
+            snapshot.
+        """
+        super(AzureSnapshotsInfo, self).__init__(snapshots)
+        self.provider = "azure"
+        self.subscription_id = subscription_id
+        self.resource_group = resource_group

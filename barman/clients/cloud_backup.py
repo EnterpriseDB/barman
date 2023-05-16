@@ -395,6 +395,16 @@ def parse_arguments(args=None):
         help="The name of an encryption scope defined in the Azure Blob Storage "
         "service which is to be used to encrypt the data in Azure",
     )
+    azure_arguments.add_argument(
+        "--azure-subscription-id",
+        help="The ID of the Azure subscription which owns the instance and storage "
+        "volumes defined by the --snapshot-instance and --snapshot-disk arguments.",
+    )
+    azure_arguments.add_argument(
+        "--azure-resource-group",
+        help="The name of the Azure resource group to which the compute instance and "
+        "disks defined by the --snapshot-instance and --snapshot-disk arguments belong.",
+    )
     return parser.parse_args(args=args)
 
 

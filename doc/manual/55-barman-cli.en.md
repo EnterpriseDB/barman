@@ -213,6 +213,11 @@ If the `--cloud-provider` is `google-cloud-storage` then the following arguments
 - `--gcp-project`
 - `--gcp-zone`
 
+If the `--cloud-provider` is `azure-blob-storage` then the following arguments are also required:
+
+- `--azure-subscription-id`
+- `--azure-resource-group`
+
 The following options cannot be used with `barman-cloud-backup` when cloud snapshots are requested:
 
 - `--bzip2`, `--gzip` or `--snappy`

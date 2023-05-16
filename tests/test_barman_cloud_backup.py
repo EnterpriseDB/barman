@@ -212,24 +212,40 @@ class TestCloudBackup(object):
                     "disk0",
                     "--snapshot-instance",
                     "test_instance",
-                    "--gcp-zone",
-                    "test_zone",
                     "--cloud-provider",
                     "azure-blob-storage",
                 ],
-                "No snapshot provider for cloud provider: azure-blob-storage",
+                (
+                    "--azure-subscription-id option must be set for snapshot backups "
+                    "when cloud provider is azure-blob-storage"
+                ),
+            ],
+            [
+                [
+                    "--snapshot-disk",
+                    "disk0",
+                    "--snapshot-instance",
+                    "test_instance",
+                    "--cloud-provider",
+                    "azure-blob-storage",
+                    "--azure-subscription-id",
+                    "azure-subscription-id",
+                ],
+                "Incomplete options for snapshot backup - missing: azure_resource_group",
             ],
         ),
     )
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
     @mock.patch("barman.clients.cloud_backup.CloudBackupUploader")
+    @mock.patch("barman.cloud_providers.azure_blob_storage.import_azure_mgmt_compute")
     @mock.patch(
         "barman.cloud_providers.google_cloud_storage.import_google_cloud_compute"
     )
     def test_unsupported_snapshot_args(
         self,
         _mock_google_cloud_compute,
+        _mock_azure_mgmgt_compute,
         uploader_mock,
         _cloud_interface_mock,
         _postgres_connection,
