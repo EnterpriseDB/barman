@@ -41,6 +41,7 @@ from barman.cli import (
     parse_backup_id,
     receive_wal,
     recover,
+    replication_status,
     keep,
     show_servers,
 )
@@ -992,6 +993,35 @@ class TestCli(object):
         # AND the expected error is returned
         _out, err = capsys.readouterr()
         assert "Unknown backup '%s' for server 'main'" % backup_id in err
+
+    @patch("barman.server.Server.replication_status")
+    def test_replication_status(self, replication_status_mock, monkeypatch, capsys):
+        """
+        Test the test_replication_status method
+
+        :param MagicMock replication_status_mock: Mock object for the replication_status method of the server
+        :param monkeypatch monkeypatch: pytest patcher
+        :param capsys: fixture that allow to access stdout/stderr output
+        """
+        # Simple test case, ensure that passive nodes are skipped
+        # Monkeypatch the config and make `main` a passive node
+        testing_conf = build_config_from_dicts(
+            main_conf={
+                "primary_ssh_command": "ssh fakeuser@fakehost",
+            }
+        )
+        monkeypatch.setattr(barman, "__config__", testing_conf)
+        # Mock object simulating the args
+        args = MagicMock()
+        args.server_name = ["all"]
+        args.minimal = "minimal"
+        # SystemExit exception will be issued even in case of success
+        with pytest.raises(SystemExit):
+            replication_status(args)
+        out, err = capsys.readouterr()
+        # Ensure there is an output and main is skipped
+        assert out
+        assert out.strip() == "Skipping passive server 'main'"
 
 
 class TestKeepCli(object):

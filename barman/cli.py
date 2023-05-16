@@ -573,7 +573,7 @@ def replication_status(args):
     """
     Shows live information and status of any streaming client
     """
-    servers = get_server_list(args, skip_inactive=True)
+    servers = get_server_list(args, skip_inactive=True, skip_passive=True)
     for name in sorted(servers):
         server = servers[name]
 
