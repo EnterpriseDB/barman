@@ -67,6 +67,25 @@ def _make_s3_cloud_interface(config, cloud_interface_kwargs):
     return S3CloudInterface(**cloud_interface_kwargs)
 
 
+def _get_azure_credential(credential_type):
+    try:
+        from azure.identity import AzureCliCredential, ManagedIdentityCredential
+    except ImportError:
+        raise SystemExit("Missing required python module: azure-identity")
+
+    supported_credentials = {
+        "azure-cli": AzureCliCredential,
+        "managed-identity": ManagedIdentityCredential,
+        None: None,
+    }
+    try:
+        return supported_credentials[credential_type]
+    except KeyError:
+        raise CloudProviderOptionUnsupported(
+            "Unsupported credential: %s" % credential_type
+        )
+
+
 def _make_azure_cloud_interface(config, cloud_interface_kwargs):
     from barman.cloud_providers.azure_blob_storage import AzureCloudInterface
 
@@ -81,24 +100,10 @@ def _make_azure_cloud_interface(config, cloud_interface_kwargs):
         ),
     )
 
-    if "azure_credential" in config and config.azure_credential is not None:
-        try:
-            from azure.identity import AzureCliCredential, ManagedIdentityCredential
-        except ImportError:
-            raise SystemExit("Missing required python module: azure-identity")
-
-        supported_credentials = {
-            "azure-cli": AzureCliCredential,
-            "managed-identity": ManagedIdentityCredential,
-        }
-        try:
-            cloud_interface_kwargs["credential"] = supported_credentials[
-                config.azure_credential
-            ]()
-        except KeyError:
-            raise CloudProviderOptionUnsupported(
-                "Unsupported credential: %s" % config.azure_credential
-            )
+    if "azure_credential" in config:
+        credential = _get_azure_credential(config.azure_credential)
+        if credential is not None:
+            cloud_interface_kwargs["credential"] = credential()
 
     return AzureCloudInterface(**cloud_interface_kwargs)
 
