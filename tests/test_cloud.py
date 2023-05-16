@@ -2447,7 +2447,7 @@ class TestGetCloudInterface(object):
 
     @pytest.fixture()
     def mock_config_azure(self):
-        return Namespace(credential=None, source_url="test-url")
+        return Namespace(azure_credential=None, source_url="test-url")
 
     @pytest.fixture()
     def mock_config_gcs(self):
@@ -2538,7 +2538,7 @@ class TestGetCloudInterface(object):
     def test_azure_blob_storage_unsupported_credential(self, mock_config_azure):
         """Verify unsupported Azure credentials raise an exception"""
         mock_config_azure.cloud_provider = "azure-blob-storage"
-        mock_config_azure.credential = "qbasic-credential"
+        mock_config_azure.azure_credential = "qbasic-credential"
         with pytest.raises(CloudProviderOptionUnsupported) as exc:
             get_cloud_interface(mock_config_azure)
         assert "Unsupported credential: qbasic-credential" == str(exc.value)
@@ -2560,7 +2560,7 @@ class TestGetCloudInterface(object):
     ):
         """Verify provided credentials result in the correct credential type"""
         mock_config_azure.cloud_provider = "azure-blob-storage"
-        mock_config_azure.credential = credential_arg
+        mock_config_azure.azure_credential = credential_arg
         get_cloud_interface(mock_config_azure)
         mock_azure_cloud_interface.assert_called_once()
         assert isinstance(

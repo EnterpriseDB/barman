@@ -193,6 +193,7 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
         "Extra options for the azure-blob-storage cloud provider"
     )
     azure_arguments.add_argument(
+        "--azure-credential",
         "--credential",
         choices=["azure-cli", "managed-identity"],
         help="Optionally specify the type of credential to use when "
@@ -200,5 +201,6 @@ def create_argument_parser(description, source_or_destination=UrlArgumentType.so
         "the credential will be obtained from the environment. If no "
         "credentials can be found in the environment then the default "
         "Azure authentication flow will be used",
+        dest="azure_credential",
     )
     return parser, s3_arguments, azure_arguments

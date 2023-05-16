@@ -81,7 +81,7 @@ def _make_azure_cloud_interface(config, cloud_interface_kwargs):
         ),
     )
 
-    if "credential" in config and config.credential is not None:
+    if "azure_credential" in config and config.azure_credential is not None:
         try:
             from azure.identity import AzureCliCredential, ManagedIdentityCredential
         except ImportError:
@@ -93,11 +93,11 @@ def _make_azure_cloud_interface(config, cloud_interface_kwargs):
         }
         try:
             cloud_interface_kwargs["credential"] = supported_credentials[
-                config.credential
+                config.azure_credential
             ]()
         except KeyError:
             raise CloudProviderOptionUnsupported(
-                "Unsupported credential: %s" % config.credential
+                "Unsupported credential: %s" % config.azure_credential
             )
 
     return AzureCloudInterface(**cloud_interface_kwargs)

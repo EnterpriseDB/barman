@@ -32,7 +32,7 @@ usage: barman-cloud-restore [-V] [--help] [-v | -q] [-t]
                             [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
                             [--endpoint-url ENDPOINT_URL] [-P PROFILE]
                             [--read-timeout READ_TIMEOUT]
-                            [--credential {azure-cli,managed-identity}]
+                            [--azure-credential {azure-cli,managed-identity}]
                             [--tablespace NAME:LOCATION]
                             [--snapshot-recovery-instance SNAPSHOT_RECOVERY_INSTANCE]
                             [--snapshot-recovery-zone GCP_ZONE]
@@ -79,7 +79,7 @@ Extra options for the aws-s3 cloud provider:
                         seconds)
 
 Extra options for the azure-blob-storage cloud provider:
-  --credential {azure-cli,managed-identity}
+  --azure-credential {azure-cli,managed-identity}, --credential {azure-cli,managed-identity}
                         Optionally specify the type of credential to use when
                         authenticating with Azure Blob Storage. If omitted
                         then the credential will be obtained from the

@@ -44,7 +44,7 @@ usage: barman-cloud-backup [-V] [--help] [-v | -q] [-t]
                            [--cloud-provider {aws-s3,azure-blob-storage,google-cloud-storage}]
                            [--endpoint-url ENDPOINT_URL] [-P PROFILE]
                            [--read-timeout READ_TIMEOUT]
-                           [--credential {azure-cli,managed-identity}]
+                           [--azure-credential {azure-cli,managed-identity}]
                            [-z | -j | --snappy] [-h HOST] [-p PORT] [-U USER]
                            [--immediate-checkpoint] [-J JOBS]
                            [-S MAX_ARCHIVE_SIZE] [-d DBNAME] [-n BACKUP_NAME]
@@ -131,7 +131,7 @@ Extra options for the aws-s3 cloud provider:
                         Only allowed if `-e/--encryption` is set to `aws:kms`.
 
 Extra options for the azure-blob-storage cloud provider:
-  --credential {azure-cli,managed-identity}
+  --azure-credential {azure-cli,managed-identity}, --credential {azure-cli,managed-identity}
                         Optionally specify the type of credential to use when
                         authenticating with Azure Blob Storage. If omitted
                         then the credential will be obtained from the
@@ -154,7 +154,7 @@ Extra options for google-cloud-storage cloud provider:
                         The name of the GCP KMS key which should be used for
                         encrypting the uploaded data in GCS.
   --gcp-zone GCP_ZONE   Zone of the disks from which snapshots should be taken
-  ```
+```
 # REFERENCES
 
 For Boto:
