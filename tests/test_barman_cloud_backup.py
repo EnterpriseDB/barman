@@ -251,19 +251,6 @@ class TestCloudBackup(object):
         # AND the expected error message occurs
         assert expected_error in caplog.text
 
-    @pytest.mark.parametrize(
-        "cloud_provider_args",
-        (
-            [
-                "--cloud-provider",
-                "google-cloud-storage",
-                "--gcp-project",
-                "gcp_project",
-                "--gcp-zone",
-                "test_zone",
-            ],
-        ),
-    )
     @mock.patch("barman.clients.cloud_backup.PostgreSQLConnection")
     @mock.patch("barman.clients.cloud_backup.get_snapshot_interface")
     @mock.patch("barman.clients.cloud_backup.get_cloud_interface")
@@ -276,9 +263,12 @@ class TestCloudBackup(object):
         postgres_connection,
         _rmtree_mock,
         _tempfile_mock,
-        cloud_provider_args,
     ):
+        # GIVEN a mock CloudBackupSnapshot instance
         mock_snapshot_backup = mock_cloud_backup_snapshot.return_value
+
+        # WHEN barman-cloud-backup is called with arguments which cause a snapshot
+        # backup to happen
         cloud_backup.main(
             [
                 "cloud_storage_url",
@@ -288,8 +278,10 @@ class TestCloudBackup(object):
                 "--snapshot-instance",
                 "test_instance",
             ]
-            + cloud_provider_args
         )
+
+        # THEN the mock CloudBackupSnapshot instance was called with the expected
+        # arguments
         mock_cloud_backup_snapshot.assert_called_once_with(
             "test_server",
             mock_get_cloud_interface.return_value,
@@ -301,6 +293,7 @@ class TestCloudBackup(object):
             ],
             None,
         )
+        # AND its backup function was called exactly once
         mock_snapshot_backup.backup.assert_called_once()
 
     @pytest.mark.parametrize(
