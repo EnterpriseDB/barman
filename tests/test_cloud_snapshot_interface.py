@@ -212,7 +212,7 @@ class TestGcpCloudSnapshotInterface(object):
             "physical_block_size": 2048,
             "size_gb": 10,
             "mount_options": "rw",
-            "mount_point": "/opt/disk0",
+            "mount_point": "/opt/disk1",
         },
         {
             "name": "test_disk_2",
@@ -220,7 +220,7 @@ class TestGcpCloudSnapshotInterface(object):
             "physical_block_size": 4096,
             "size_gb": 100,
             "mount_options": "rw,relatime",
-            "mount_point": "/opt/disk0",
+            "mount_point": "/opt/disk2",
         },
     )
     gcp_zone = "us-east1-b"
