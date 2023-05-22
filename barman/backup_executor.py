@@ -1588,7 +1588,8 @@ class SnapshotBackupExecutor(ExternalBackupExecutor):
             except KeyError:
                 # Ignore disks which were not attached
                 continue
-            except SnapshotBackupException:
+            except SnapshotBackupException as exc:
+                logging.warn("Error resolving mount point: {}".format(exc))
                 mount_point = None
             if mount_point is None:
                 unmounted_disks.append(disk)
