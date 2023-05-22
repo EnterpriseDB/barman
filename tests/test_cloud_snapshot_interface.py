@@ -932,6 +932,41 @@ class TestGcpCloudSnapshotInterface(object):
                 == expected_source_snapshot
             )
 
+    def test_get_attached_volumes_for_disks(self, mock_google_cloud_compute):
+        """
+        Verifies that only the requested disks are returned when the disks parameter is
+        passed to get_attached_volumes.
+        """
+        # GIVEN a new GcpCloudSnapshotInterface
+        snapshot_interface = GcpCloudSnapshotInterface(self.gcp_project, self.gcp_zone)
+        # AND a mock InstancesClient which returns metadata listing two disks
+        mock_instances_client = mock_google_cloud_compute.InstancesClient.return_value
+        mock_instance_metadata = mock.Mock(
+            disks=[
+                mock.Mock(
+                    source="projects/test_project/zones/us-east1-b/disks/disk0",
+                    device_name="dev0",
+                ),
+                mock.Mock(
+                    source="projects/test_project/zones/us-east1-b/disks/disk1",
+                    device_name="dev1",
+                ),
+            ]
+        )
+        mock_instances_client.get.return_value = mock_instance_metadata
+        # AND a mock DisksClient which returns some arbitrary metadata
+        mock_disks_client = mock_google_cloud_compute.DisksClient.return_value
+        mock_disks_client.get.return_value = mock.Mock(source_snapshot=None)
+
+        # WHEN get_attached_volumes is called requesting only disk1
+        attached_volumes = snapshot_interface.get_attached_volumes(
+            self.gcp_instance_name, disks=["disk1"]
+        )
+
+        # THEN only "disk1" is included in the resulting dict
+        assert len(attached_volumes) == 1
+        assert "disk1" in attached_volumes
+
     @pytest.mark.parametrize(
         "mock_disks",
         (
